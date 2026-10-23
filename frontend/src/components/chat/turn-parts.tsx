@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
+import { drawnUnderTheAnswer } from "@/lib/turn-extras";
 import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
@@ -387,6 +388,8 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
   const runs: PartRun[] = [];
   for (const part of parts) {
     if (part.type === "tool" && part.toolCall) {
+      // Drawn under the answer instead - buttons, a card - by `TurnExtras`.
+      if (drawnUnderTheAnswer(part.toolCall.name)) continue;
       const open = runs.at(-1);
       if (open?.kind === "tools") open.parts.push(part);
       else runs.push({ kind: "tools", parts: [part], isLast: false });

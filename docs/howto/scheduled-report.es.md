@@ -1,5 +1,5 @@
 ---
-source_sha: "e5e1133cdecc"
+source_sha: "728555c3f960"
 title: "Programa un informe semanal"
 description: "Dale a un agent una tarea de informe autocontenida, ejecútala bajo demanda, publica el resultado como aplicación y ponla en una programación semanal."
 ---
@@ -44,7 +44,7 @@ Report totals by category in a fictional demo currency and draw a bar chart.
 Label the report synthetic and name any row you could not use.
 ```
 
-Para la cadencia, elige **At a set time**, después **Days of the week**, marca **Mon** y pon **Time (UTC)** a las 09:00. La expresión cron equivalente es `0 9 * * 1`. El programador trabaja en UTC, así que convierte desde tu hora local. Guarda y comprueba la hora del próximo disparo que muestra la programación.
+Para la cadencia, elige **Weekly** en **How often**, marca **Mon** y pon **Time (UTC)** a las 09:00. La expresión cron equivalente es `0 9 * * 1`. El programador trabaja en UTC, así que convierte desde tu hora local. Guarda y comprueba la hora del próximo disparo que muestra la programación.
 
 La programación se ejecuta como el miembro que la creó, con el acceso de ese miembro, y sus runs se cargan al budget del agent como cualquier otro. [Conceptos](../concepts.md#trigger) explica por qué.
 

@@ -1367,7 +1367,7 @@ search.
 
 ## From a channel
 
-A file sent to a Slack, Telegram or Mattermost bot enters here, not beside here.
+A file sent to a Slack, Teams, Telegram or Mattermost bot enters here, not beside here.
 The adapter fetches it with the bot's own credential, it goes through the same
 validation a browser upload does, and it becomes the same `ChatFile` row — so the
 routing above applies unchanged and a channel cannot become the lenient path.

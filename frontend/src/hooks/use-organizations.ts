@@ -12,7 +12,9 @@ import type {
   Organization,
   OrganizationList,
   CreateOrganizationInput,
+  ProactivityChanges,
   VoiceSettingsUpdate,
+  WelcomeDmChanges,
 } from "@/types";
 
 /**
@@ -203,6 +205,26 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  // The platform's own initiative (#2301): whether, on which model, how much and
+  // when - and, apart, whether new members are greeted in the chat apps.
+  const setProactivity = useCallback(
+    async (id: string, changes: ProactivityChanges): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, changes);
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
+  const setWelcomeDm = useCallback(
+    async (id: string, changes: WelcomeDmChanges): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, changes);
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const setChatApprovalWaiver = useCallback(
     async (id: string, allowed: boolean): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
@@ -260,6 +282,8 @@ export function useOrganizations() {
     createOrg,
     patchOrg,
     setMonthlyBudget,
+    setProactivity,
+    setWelcomeDm,
     setChatApprovalWaiver,
     setVoiceSettings,
     deleteOrg,

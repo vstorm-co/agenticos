@@ -1,5 +1,5 @@
 ---
-source_sha: "95ea32f0c306"
+source_sha: "75c53c320348"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -35,11 +35,25 @@ In den Einstellungen einer Capability liegen Grenzwerte, Cache-Lebensdauern,
 Prompts und andere Feinabstimmung eingeklappt unter **Erweiterte Einstellungen**,
 die sich von selbst öffnen, wo eines davon gesetzt wurde.
 
-Die Capabilities, die der Starter-Agent bindet - die Vorlage **Claude Code like**,
-die eine neue Organisation beim ersten Start bekommt - tragen das Abzeichen
+Die Capabilities, die der Starter-Agent bindet - die Vorlage **AgenticOS**, die
+eine neue Organisation beim ersten Start bekommt - tragen das Abzeichen
 **Empfohlen**, und ein mit **New agent** angelegter Agent startet mit genau diesen
-eingeschaltet, so konfiguriert wie in der Vorlage. Sein Autor schaltet ab, was der
+eingeschaltet, so konfiguriert wie in der Vorlage, dazu mit ihren Instruktionen,
+Skills, Plattform-Werkzeugen und ihrem Budget. Sein Autor schaltet ab, was der
 Agent nicht tun soll.
+
+Mit welchen Capabilities ein Agent auch endet: Jeder Run erfährt in seinen
+Instruktionen unter **Your setup**, welche er hat und welche nicht - so beschreibt
+er nur, was er kann, und sagt, was für den Rest eingeschaltet werden müsste.
+
+Braucht eine Anfrage eine Capability, die dem Agent fehlt, zeigt er im Chat eine
+Karte dafür, mit seinem Grund. Wer den Agent bearbeiten darf, schaltet sie auf der
+Karte ein - gebunden, wie der Starter-Agent sie bindet, und geprüft, wie eine
+Veröffentlichung prüft. Sofort veröffentlicht wird nur, wenn der Entwurf nichts
+Unveröffentlichtes enthielt und die Person veröffentlichen darf; sonst wartet sie
+im Entwurf auf den Builder. Alle anderen bitten auf der Karte den Besitzer des
+Agents, und der Besitzer erhält eine Benachrichtigung, die die Toolbox des Agents
+öffnet.
 
 Zwei davon hängen davon ab, was die Installation betreibt. Der Arbeitsbereich ist
 ein Container auf dem eigenen Sandbox-Dienst der Installation, den Bootstrap und
@@ -81,6 +95,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | nicht verfügbar |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
+| `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -114,7 +129,8 @@ Builder listet diese für einen Agent auf, der sie hat, ebenso das Arbeiten
 während Tools laufen, das ein übergebenes Tool nur in den Hintergrund schickt.
 *Auf dem Bildschirm* stellt seine Fragen auf der Karte der Anrufansicht in
 `/chat`. Die Chat-Kanal-Abfrage ist *nicht verfügbar*, weil ein Anruf nie über
-einen Kanal geführt wird. *Ohne Wirkung* kennzeichnet drei,
+einen Kanal geführt wird, und ebenso wenig Nächste Schritte, deren Schaltflächen
+ein Anruf nirgends zeigen kann. *Ohne Wirkung* kennzeichnet drei,
 die auf den Modellanfragen eines Text-Runs und deren gespeicherter Historie
 arbeiten, die ein Anruf nicht sendet.
 
@@ -1471,8 +1487,9 @@ der Zeichnung und sendet ihn erst, wenn die Person auf *Senden* klickt; eine Bit
 ohne Klick dahinter wird verworfen. Siehe
 [Folgenachrichten](../artifacts.md#visuals).
 
-**Karten.** `lib/agenticos-map-1.js` zeichnet eine Reiseroute - nummerierte Pins,
-der Reihe nach gesetzt, die Linie dazwischen, Pause und Wiederholung und eine Karte
+**Karten.** `lib/agenticos-map-2.js` zeichnet eine Reiseroute - nummerierte Pins
+der Reihe nach und die Linie dazwischen, sofort alle gezeigt und auf Wunsch einzeln
+gesetzt, auf einer Karte im Verhältnis 16:9 zur Breite der Seite, und eine Karte
 pro Stopp - auf dem Kachelserver, den `VISUAL_MAP_TILES` nennt, oder auf einem
 Deployment ohne einen als Umriss der Stopps. Die Anweisungen der Capability sagen
 dem Modell, welcher Fall vorliegt, damit es keine Straßen verspricht, die es nicht
@@ -2597,6 +2614,44 @@ stehen blieb. Antworten kann nur die gefragte Person, über
 zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
 abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
+
+## Nächste Schritte { #follow-ups }
+
+Am Ende einer Antwort bietet `suggest_next_steps` darunter bis zu drei nächste
+Schritte als Schaltflächen an, jeder höchstens 80 Zeichen lang und so formuliert,
+wie die Person ihn sagen würde: „Mach eine Tabelle daraus“, „Mach das jeden Montag
+um 9:00“. Ein Klick sendet den Schritt als ihre nächste Nachricht. Nur die neueste
+Antwort bietet sie an, und keine, solange ein Durchgang läuft. Nach Smalltalk oder
+einer eigenen Frage lässt der Agent sie weg, und er wiederholt die Schritte nicht
+in seiner Antwort. In Slack, Teams, Telegram und Mattermost kommen die Schritte
+als Nachricht mit Schaltflächen unter der Antwort, und ein Druck ist die Person,
+die diesen Schritt sagt - die Einzelheiten stehen unter
+[Kanäle](../channels.md#next-steps-as-buttons).
+
+**Modell für nächste Schritte** (`model_profile_id`) übergibt die Schritte einem
+eigenen Modell: Der Agent bekommt `suggest_next_steps` nicht mehr angeboten, und
+sobald seine Antwort da ist, liest dieses Modell die Anfrage und die Antwort und
+schreibt bis zu drei Schritte oder keinen. Für drei kurze Schaltflächen reicht ein
+kleines, günstiges Modell, und der Agent verbraucht dafür keine Anfrage mehr. Der
+Aufruf wird zuerst gegen die Budgets geprüft und wie jeder andere auf dem Run
+gebucht; einer, der nicht gemacht werden kann, kostet die Schaltflächen, nie die
+Antwort. Leer bietet der Agent sie selbst an.
+
+`propose_setup` schlägt bis zu drei Dinge zum Einrichten vor, als Karten unter
+der Antwort: einen eigenen Agent der Person, eine Routine oder einen Dienst zum
+Verbinden. Eine Karte wirkt mit einem Klick - eine Routine öffnet den
+Routinendialog ausgefüllt, auf dem Agent, der sie vorgeschlagen hat; ein Agent
+ist eine Frage an den Architect.
+
+Eine Verbindung, die ihren Server mit dem Katalogschlüssel nennt, ist die Karte dieses Dienstes - mit seinem Logo und
+seinem Verbinden, das direkt zur Anmeldung beim Anbieter und zurück ins Gespräch
+führt -, und eine ohne Schlüssel öffnet die Seite der MCP-Server an ihrem
+Hinzufügen-Button. Der AgenticOS-Agent beendet sein Kennenlerngespräch damit und
+bietet eine Verbindungskarte an, wann immer eine Anfrage einen Dienst braucht,
+den die Person noch nicht verbunden hat. Die Karten gibt es nur in der Konsole; eine Chat-App zeichnet sie nicht.
+
+Sie ist im Starter-Agent und im Architect eingeschaltet, und ein Autor kann sie
+abschalten. Ein Sprachanruf lässt sie weg.
 
 ## Was eine Bindung ändern darf { #what-a-binding-may-change }
 

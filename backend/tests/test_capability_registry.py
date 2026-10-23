@@ -1011,7 +1011,7 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "coding_agent",
             "video_generation",
         },
-        "never": {"channel_tools"},
+        "never": {"channel_tools", "follow_ups"},
     }
 
 

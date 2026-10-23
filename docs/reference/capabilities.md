@@ -29,10 +29,23 @@ In a capability's settings, limits, cache lifetimes, prompts and other tuning si
 folded under **Advanced settings**, which opens by itself wherever one of them was
 set.
 
-The capabilities the starter agent binds - the **Claude Code like** template, which
-a fresh organization gets on its first run - carry a **Recommended** badge, and an
+The capabilities the starter agent binds - the **AgenticOS** template, which a
+fresh organization gets on its first run - carry a **Recommended** badge, and an
 agent made with **New agent** starts with exactly those switched on, configured as
-the template configures them. Its author switches off what it should not do.
+the template configures them, along with the template's instructions, skills,
+platform tools and budget. Its author switches off what it should not do.
+
+Whichever capabilities an agent ends up with, every run is told which it has and
+which it has not, under **Your setup** in its instructions - so it describes only
+what it can do, and says what would have to be switched on for the rest.
+
+When a request needs one it lacks, the agent shows a card for it in the chat,
+with its reason. Someone who may edit the agent switches it on from the card,
+bound as the starter binds it and checked as a publish checks it. It is published
+at once only when the draft held nothing unpublished and they may publish;
+otherwise it waits in the draft for the Builder. Anyone else asks the agent's
+owner from the card, and the owner gets a notification that opens the agent's
+Toolbox.
 
 Two of them depend on what the deployment runs. The workspace is a container on
 the deployment's own sandbox service, which bootstrap and the first publish
@@ -74,6 +87,7 @@ browser is pointed at the deployment's browser service
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
+| `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -103,7 +117,8 @@ agent's own text model, which the call hands a task to
 lists those for an agent that has them, and so does Work while tools run, which
 only sends a handed-off tool to the background. *On screen* asks its questions on
 the call view's card in `/chat`. Chat channel lookup is *not available*, because
-a call is never made on a channel. *No effect* marks three that work on a text
+a call is never made on a channel, and neither is Follow-ups, whose buttons a call
+has nowhere to show. *No effect* marks three that work on a text
 run's model requests and their stored history, which a call does not send.
 
 Guardrails screen the call's transcripts. A tool's result is screened, and
@@ -1323,8 +1338,9 @@ stop*, *Use these numbers*. The console shows the text under the drawing and
 sends it only when the person clicks *Send*; a request with no click behind it
 is dropped. See [Follow-ups](../artifacts.md#visuals).
 
-**Maps.** `lib/agenticos-map-1.js` draws an itinerary - numbered pins dropped in
-order, the line between them, pause and replay, and a card per stop - on the
+**Maps.** `lib/agenticos-map-2.js` draws an itinerary - numbered pins in order, the
+line between them, all shown at once and dropped one by one on request, on a map
+16:9 of the page's width, and a card per stop - on the
 tile server `VISUAL_MAP_TILES` names, or as an outline of the stops on a
 deployment that names none. The capability's instructions tell the model which,
 so it does not promise streets it cannot show.
@@ -2310,6 +2326,41 @@ asked can answer, through `POST /runs/{run_id}/answers`; `GET
 /runs/{run_id}/questions` reads the card back. After a day
 (`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
 the person did not answer in time.
+
+## Follow-ups { #follow-ups }
+
+At the end of an answer, `suggest_next_steps` offers up to three next steps as
+buttons under it, each at most 80 characters and phrased as the person would say
+it: "Make it a table", "Do this every Monday at 9:00". A click sends the step as
+their next message. Only the latest answer offers them, and none while a turn is
+running. The agent skips them after small talk or a question of its own, and
+does not repeat the steps in its answer. In Slack, Teams, Telegram and Mattermost
+the steps arrive as a message of buttons under the answer, and a press is the
+presser saying that step - [Channels](../channels.md#next-steps-as-buttons) has
+the detail.
+
+**Model for next steps** (`model_profile_id`) hands the steps to a model of their
+own: the agent is no longer offered `suggest_next_steps`, and once its answer is in
+that model reads the request and the answer and writes up to three steps, or none.
+A small, cheap model is enough for three short buttons, and the agent no longer
+spends a request on them. The call is checked against the budgets first and booked
+on the run like any other; one that cannot be made costs the buttons, never the
+answer. Empty, the agent offers them itself.
+
+`propose_setup` proposes up to three things to set up, drawn as cards under the
+answer: an agent of the person's own, a routine, or a service to connect. A card
+acts in one click - a routine opens the routine dialog filled in, on the agent
+that proposed it; an agent is a question to the Architect.
+
+A connection that names its server by catalog key is that service's card - its logo and its
+Connect, which goes straight to the provider's sign-in and back to the
+conversation - and one that does not opens the MCP servers page at its add
+button. The AgenticOS agent ends its welcome interview with them, and offers a
+connection card whenever a request needs a service the person has not
+connected. The cards are the console's; a chat app does not draw them.
+
+It is on in the starter agent and in the Architect, and an author can switch it
+off. A voice call leaves it out.
 
 ## What a binding may change
 

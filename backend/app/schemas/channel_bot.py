@@ -8,7 +8,7 @@ from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
-from app.services.channels.webhooks import inbound_command_url
+from app.services.channels.webhooks import inbound_command_url, inbound_webhook_url
 from app.services.speech_to_text import is_offered
 
 
@@ -64,6 +64,10 @@ StepDisplay = Literal["timeline", "plan"]
 """How a streamed answer shows its tool calls: one row each, or one plan."""
 
 
+TEAMS_ID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+"""An Entra app id or tenant id: a GUID."""
+
+
 class ChannelBotCreate(BaseSchema):
     """Schema for creating a channel bot."""
 
@@ -116,6 +120,19 @@ class ChannelBotCreate(BaseSchema):
             "The token Mattermost shows for the `/agent` slash command, which every "
             "request from it carries. Mattermost bots only; sealed, never returned."
         ),
+    )
+    teams_app_id: str | None = Field(
+        default=None,
+        pattern=TEAMS_ID_PATTERN,
+        description=(
+            "The Microsoft App ID of the Teams bot's Azure Bot registration. Teams "
+            "bots only; the token is that app's client secret."
+        ),
+    )
+    teams_tenant_id: str | None = Field(
+        default=None,
+        pattern=TEAMS_ID_PATTERN,
+        description="The Entra tenant the single-tenant Azure Bot is registered in. Teams only.",
     )
     stream_answers: bool = Field(
         default=True,
@@ -198,6 +215,23 @@ class ChannelBotCreate(BaseSchema):
                 "A transcription key goes with the bot's own provider and model - "
                 "an inheriting bot uses the key of the level it inherits from"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _a_teams_bot_carries_its_registration(self) -> ChannelBotCreate:
+        """A Teams bot is saved with its app and tenant, and nothing else is (#1985).
+
+        Without both it can neither sign in to answer nor recognise a token meant
+        for it. And it is always a webhook bot: Teams posts every activity to the
+        bot's endpoint, and there is nothing to poll.
+        """
+        teams = self.platform == "teams"
+        if teams and (self.teams_app_id is None or self.teams_tenant_id is None):
+            raise ValueError("A Teams bot needs its Azure Bot's app ID and tenant ID")
+        if not teams and (self.teams_app_id is not None or self.teams_tenant_id is not None):
+            raise ValueError(f"An app and tenant ID are for a Teams bot, not a {self.platform} bot")
+        if teams:
+            self.webhook_mode = True
         return self
 
     @model_validator(mode="after")
@@ -341,6 +375,9 @@ class ChannelBotRead(BaseSchema):
     transcribe_voice_notes: bool = True
     """Whether voice notes are transcribed here at all; off wins over every pair."""
     has_command_token: bool = False
+    # Identifiers, not secrets: the console builds the Teams app package from them.
+    teams_app_id: str | None = None
+    teams_tenant_id: str | None = None
     ack_reaction: str | None = None
     stream_answers: bool = True
     step_display: StepDisplay = "timeline"
@@ -351,6 +388,12 @@ class ChannelBotRead(BaseSchema):
     def command_url(self) -> str | None:
         """The request URL for a Mattermost bot's `/agent` slash command, to paste there."""
         return inbound_command_url(str(self.id)) if self.platform == "mattermost" else None
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def messaging_endpoint(self) -> str | None:
+        """A Teams bot's messaging endpoint, to paste into its Azure Bot resource (#1985)."""
+        return inbound_webhook_url("teams", self.id) if self.platform == "teams" else None
 
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
@@ -499,3 +542,17 @@ class ChannelSessionList(BaseSchema):
 
     items: list[ChannelSessionRead]
     total: int
+
+
+class TeamsConversationRead(BaseSchema):
+    """A Teams channel or group chat a bot is in - somewhere a trigger can post (#1985)."""
+
+    id: UUID
+    bot_id: UUID
+    name: str | None = None
+    conversation_type: Literal["channel", "groupChat"]
+    last_activity_at: datetime
+
+
+class TeamsConversationList(BaseSchema):
+    items: list[TeamsConversationRead]

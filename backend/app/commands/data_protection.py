@@ -154,6 +154,8 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "compaction",
         "context",
         "conversation_search",
+        # Next steps go to the person's own screen, under the answer.
+        "follow_ups",
         "guardrails",
         # The bytes leave the database for the deployment's own file storage,
         # which is a store this report already lists rather than a destination

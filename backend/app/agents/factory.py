@@ -79,6 +79,7 @@ from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.run_reviewer import RunReviewer
+from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.agents.tool_call_ids import UniqueToolCallIds
@@ -422,6 +423,10 @@ def build_agent(
             asking_tool_names=asking,
         ),
         *configured,
+        # Every agent, in text: what it can and cannot do here, from the spec
+        # rather than from a prompt that goes stale the moment a capability is
+        # switched (#2301). A call is told by its text twin instead.
+        *((SetupBriefing.for_spec(spec, agent_id=agent_id),) if voice is None else ()),
         *extra_capabilities,
         *(() if voice is None else (AnswerUnknownTools(),)),
         *(

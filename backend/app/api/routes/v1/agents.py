@@ -42,10 +42,11 @@ from app.api.deps import (
     limit_dictation,
     require,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
@@ -70,6 +71,8 @@ from app.schemas.agent import (
     AgentVersionRead,
     CapabilityCatalog,
     CapabilityCatalogEntry,
+    CapabilityEnabled,
+    CapabilityRequest,
     CapabilityToolContract,
     DelegationTree,
     McpCatalog,
@@ -215,7 +218,13 @@ async def list_platform_mcp_tools() -> Any:
     by who reads this list.
     """
     items = [
-        PlatformMcpTool(name=tool.name, description=tool.summary, writes=tool.writes)
+        PlatformMcpTool(
+            name=tool.name,
+            description=tool.summary,
+            writes=tool.writes,
+            ungated=tool.ungated,
+            held=tool.held,
+        )
         for tool in platform_tool_catalog()
     ]
     return PlatformMcpToolList(items=items, total=len(items))
@@ -312,6 +321,7 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         tags=data.tags,
         group_ids=data.group_ids,
         user_ids=data.user_ids,
+        from_starter=data.from_starter,
     )
 
 
@@ -412,6 +422,39 @@ async def publish_agent(
 ) -> Any:
     """Validate the draft and freeze it as the version that runs."""
     return await service.publish(ctx, agent_id, note=data.note)
+
+
+@router.post(
+    "/{agent_id}/capabilities/{capability_id}/enable",
+    response_model=CapabilityEnabled,
+    openapi_extra=INTERNAL,
+)
+async def enable_capability(
+    agent_id: UUID, capability_id: str, service: AgentRegistrySvc, ctx: Auth
+) -> Any:
+    """Switch on a capability the agent said it lacks, from its card in the chat (#2301).
+
+    Published at once only when nothing else was waiting in the draft and the
+    caller may publish; otherwise it waits in the draft for the Builder.
+    """
+    return await service.enable_capability(ctx, agent_id, capability_id)
+
+
+@router.post(
+    "/{agent_id}/capabilities/{capability_id}/request",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    openapi_extra=INTERNAL,
+)
+async def request_capability(
+    agent_id: UUID,
+    capability_id: str,
+    data: CapabilityRequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Ask the agent's owner to switch a capability on, from its card in the chat (#2301)."""
+    await service.ask_for_capability(ctx, agent_id, capability_id, reason=data.reason)
 
 
 @router.post(
@@ -798,6 +841,10 @@ async def run_agent(
     then is `Idempotency-Key` honoured; a synchronous call carrying one is refused
     rather than letting the caller believe a retry is safe when it is not.
     """
+    if respond_async and data.draft:
+        raise refused_field(
+            "draft", "A draft is tried synchronously - leave out Prefer: respond-async"
+        )
     if respond_async:
         queued = await api_runs.queue(ctx, agent_id, data, idempotency_key=idempotency_key)
         return JSONResponse(
@@ -837,6 +884,7 @@ async def run_agent(
         environment_id=data.environment_id,
         attachments=attachments,
         reports_failure=True,
+        draft=data.draft,
     )
     return AgentRunResult(
         run_id=run.id,

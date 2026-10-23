@@ -107,11 +107,15 @@ The **connection's own URL** is checked at save and resolved again at run time â
 point-in-time check (#840), bearable only because an operator typed it. A URL a *model*
 chose belongs in neither; it needs `safe_download`.
 
-`MCP_ALLOWED_HOSTS` exempts a listed host from the address half of that
-save-time check, and from nothing else. Only `_checked_url`'s four create and
-update callers pass `honour_allowlist=True`. OAuth, the sign-in probe, the catalog
-audit and every `PinnedAsyncClient` request stay strict. Never pass the flag for a
-URL a remote server chose, and never add an exemption to `resolve_pinned_url`.
+`MCP_ALLOWED_HOSTS` exempts a listed host from the address half of the check on
+a connection's own URL: `_checked_url` (save, update, the sign-in probe and the
+OAuth start) always passes `honour_allowlist=True`. The OAuth requests after it
+get `mcp.trusted_hosts_for(server_url)`, which is every listed host when the
+connection's own host is listed and none otherwise. `resolve_pinned_url` still
+resolves and pins a trusted host and refuses loopback, link-local and metadata
+answers for it. The catalog audit stays strict. Never compute the trusted set
+from a URL a remote server named: that is how a public server would aim its
+token endpoint at a listed host.
 
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.

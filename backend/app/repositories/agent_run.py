@@ -33,6 +33,7 @@ from app.db.models.agent_run import (
     RunOrder,
     RunRating,
     RunStatus,
+    RunSurface,
     ToolApproval,
 )
 from app.db.models.conversation import Message
@@ -661,6 +662,35 @@ def _counts_for_a_department() -> list[ColumnElement[bool]]:
     gives them none - so counting them would spend a cap that never held them.
     """
     return [AgentRun.trigger_id.is_(None), AgentRun.initiated_by_publisher_fallback.is_(False)]
+
+
+async def proactive_spend_since(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime
+) -> Decimal:
+    """What the platform spent on one person's background work here since `since` (#2301)."""
+    result = await db.execute(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.PROACTIVE.value,
+            AgentRun.started_at >= since,
+        )
+    )
+    return Decimal(result.scalar_one())
+
+
+async def last_proactive_run_at(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> datetime | None:
+    """When the platform last thought about this person here - their last background run."""
+    result = await db.execute(
+        select(func.max(AgentRun.started_at)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.PROACTIVE.value,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def sum_cost_since(
@@ -2142,10 +2172,23 @@ async def list_stale_approvals(
     return list(result.scalars().all())
 
 
+async def beat_run(db: AsyncSession, *, run_id: UUID, at: datetime) -> None:
+    """Say a run is still being executed, while it is `running`.
+
+    `updated_at` is set to itself so the column's `onupdate` does not fire: it
+    is the run's last *transition*, which a sign of life is not.
+    """
+    await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.status == RunStatus.RUNNING.value)
+        .values(heartbeat_at=at, updated_at=AgentRun.updated_at)
+    )
+
+
 async def fail_stale_runs(
     db: AsyncSession, *, older_than: datetime, ended_at: datetime, error: str
-) -> list[UUID]:
-    """End every run still `running` from before `older_than`, and name which.
+) -> list[AgentRun]:
+    """End every run still `running` with no sign of life since `older_than`, and return them.
 
     A run's row is committed `running` before its model is called (#12), so a
     process that dies mid-run - SIGKILL, OOM, a deploy that does not drain -
@@ -2161,27 +2204,36 @@ async def fail_stale_runs(
     later and wins. `awaiting_approval` is deliberately not here: a parked row
     has a resolver, and the approvals sweep is its ceiling.
 
-    A run's age is its **last transition**, not its `started_at`. A resume
-    keeps the row's original start - the run's span covers both segments - and
-    flips it back to `running` with `mark_running`, whose UPDATE stamps
-    `updated_at`. Aged on `started_at` alone, a run approved more than the
-    ceiling after it first parked would be reaped the moment its replay began,
-    and a scheduled trigger could observe that false terminal status and fire
-    on top of the approved call still executing. `updated_at` is null until a
-    row's first UPDATE, so a never-touched orphan ages from its start.
+    A run's age is its **last sign of life**: the latest of its heartbeat, its
+    last transition and its start. The heartbeat is what makes a short ceiling
+    safe - a live run is stamped every few seconds however long its model
+    takes (`app.services.run_heartbeat`). The transition still counts because
+    a resume keeps the row's original start and flips it back to `running`
+    with `mark_running`, whose UPDATE stamps `updated_at`: aged on its start or
+    a heartbeat from before the park, a replay would be reaped the moment it
+    began, and a scheduled trigger could fire on top of the approved call still
+    executing. `GREATEST` skips nulls, so a never-touched orphan ages from its
+    start, and one with none of the three from when its row was written.
+
+    **A voice run is not this sweep's**: its call is heartbeated and hung up by
+    the voice reaper, which closes the run with it (`close_voice_run`).
     """
-    last_transition = func.coalesce(AgentRun.updated_at, AgentRun.started_at)
+    last_sign_of_life = func.coalesce(
+        func.greatest(AgentRun.heartbeat_at, AgentRun.updated_at, AgentRun.started_at),
+        AgentRun.created_at,
+    )
     result = await db.execute(
         sql_update(AgentRun)
         .where(
             AgentRun.status == RunStatus.RUNNING.value,
-            last_transition < older_than,
+            AgentRun.modality != "voice",
+            last_sign_of_life < older_than,
         )
         .values(status=RunStatus.FAILED.value, ended_at=ended_at, error=error)
-        .returning(AgentRun.id)
+        .returning(AgentRun)
     )
     await db.flush()
-    return [row[0] for row in result.all()]
+    return list(result.scalars().all())
 
 
 async def close_voice_run(

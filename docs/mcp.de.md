@@ -1,5 +1,5 @@
 ---
-source_sha: "7d3991430b9c"
+source_sha: "9025a904cc03"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -62,17 +62,27 @@ konfigurieren wäre.
     exotische.
 
     Ein Betreiber kann einer Connection erlauben, einen Server im eigenen Netz
-    des Deployments zu erreichen, etwa einen Compose-Dienst. Dazu listet er
-    dessen Host in [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Ein
-    gelisteter Host überspringt nur die Adressprüfung. Die URL braucht weiterhin
-    `http` oder `https`, und die OAuth-Anmeldung bei ihm wird weiterhin
-    abgelehnt.
+    des Deployments zu erreichen, etwa einen Compose-Dienst oder einen Server
+    in einem VPN oder Tailnet. Dazu listet er dessen Host in
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Ein gelisteter
+    Host überspringt nur die Adressprüfung. Die URL braucht weiterhin `http`
+    oder `https`.
+
+    Bei einem gelisteten Server kann man sich auch per OAuth anmelden. Ein
+    solcher Server führt die Anmeldung oft selbst, also dürfen seine Discovery,
+    die Client-Registrierung und die Token-Anfragen die gelisteten Hosts
+    erreichen, und keine andere private Adresse. Jede Anfrage bleibt an die
+    geprüfte Adresse gepinnt, und ein gelisteter Name, der mit einer Loopback-,
+    Link-Local- oder Cloud-Metadaten-Adresse antwortet, wird abgelehnt. Die
+    Anmeldung bei einem öffentlichen Server erreicht nie einen gelisteten Host,
+    auch wenn seine Metadaten ihn nennen.
 
     Jedes Konto des Deployments erreicht dann jeden Port dieses Hosts. Listen
     Sie also nur einen Server, der ein Token prüft, und niemals `localhost` oder
-    einen Dienst dieses Stacks wie `app`, `db` oder `redis`. Die Liste wird nur
-    beim Speichern einer Connection gelesen: Einen Host zu entfernen, trennt
-    keine gespeicherte Connection.
+    einen Dienst dieses Stacks wie `app`, `db` oder `redis`. Die Liste wird beim
+    Speichern einer Connection und bei jeder Anmeldung und Token-Erneuerung
+    gelesen. Einen Host zu entfernen, trennt keine gespeicherte Connection, aber
+    eine OAuth-Connection zu ihm erneuert ihr Token nicht mehr.
 
 ### Persönlich oder organisationsweit { #personal-or-organization-wide }
 
@@ -191,7 +201,10 @@ ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren
 Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
 er nichts ohne die Person entwirft, für die er handelt. Das Binding jedes Agents an
 diesen Server gilt mindestens als `writes`, auch bei `none`: Seine Tools handeln mit
-der Berechtigung dessen, der fragt, auch eines Admins.
+der Berechtigung dessen, der fragt, auch eines Admins. Ein Lesezugriff wartet wie
+eine Änderung: `read_conversation`, das dem Modell eine ganze frühere Unterhaltung
+gibt - eine Seite, die der Agent gelesen hat, könnte ihn sonst eine abrufen und
+weiterschicken lassen.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
@@ -404,7 +417,9 @@ Zwei Ränder bleiben, beide schmal und beide gewollt:
 - Die **eigene URL der Connection** wird beim Speichern geprüft und erneut
   aufgelöst, wenn ein Agent läuft — vom Betreiber getippt, sie neu zu binden
   heißt also, der Betreiber zu sein. Ein Host auf `MCP_ALLOWED_HOSTS`
-  überspringt die Adressprüfung.
+  überspringt die Adressprüfung, und die OAuth-Anfragen einer Connection, deren
+  eigener Host gelistet ist, dürfen die gelisteten Hosts erreichen, gepinnt wie
+  jeder andere Schritt.
 
 Nichts, was ein *Modell* wählt, erreicht diese Prüfung überhaupt, und das soll auch
 so sein: Eine URL, die ein Agent ausgewählt hat, gehört zu Pydantic AIs
@@ -507,8 +522,11 @@ weiter, bis die neue Einwilligung eintrifft.
 
 ## Was bei einem Zug passiert { #what-happens-on-a-turn }
 
-Jeder Server wird vor Beginn des Zuges mit einem kurzen `tools/list`-Roundtrip
-geprüft — 3 Sekunden — und die Prüfungen laufen nebenläufig. Ein Server, der in den
+Jeder Server wird vor Beginn des Zuges mit einem kurzen `tools/list`-Handshake
+geprüft, und die Prüfungen laufen nebenläufig. Ein Server hat 3 Sekunden, um die
+Verbindung anzunehmen, und 10 Sekunden für den ganzen Handshake, denn einer, der
+das Token jeder Anfrage bei seinem Identitätsanbieter prüft, ist langsam, ohne
+ausgefallen zu sein. Ein Server, der in den
 letzten zwei Minuten mit derselben Anmeldung auf seine Prüfung geantwortet hat, wird
 nicht erneut geprüft: Der nächste Zug einer Unterhaltung bindet ihn sofort ein. Ist
 er inzwischen ausgefallen, läuft dieser Zug ohne seine Tools weiter, und der nächste
@@ -1034,22 +1052,39 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | Tool | Braucht |
 |---|---|
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
-| `create_agent_draft` | `agents:edit` |
+| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `publish_agent` | `agents:publish` auf diesem Agent |
 | `discard_agent_draft` | `agents:edit`, für Ihren eigenen, nie veröffentlichten Entwurf |
 | `run_agent` | `agents:run` |
-| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_routines` | `agents:view` |
+| `create_routine`, `run_routine_now` | `agents:run` auf dem Agent |
+| `update_routine`, `delete_routine` | wer die Routine angelegt hat, oder `agents:edit` auf ihrem Agent |
+| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
+| `create_skill` | `skills:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
+| `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
 
-Bewusst fehlt: einen Agent veröffentlichen, Zugangsdaten anfassen und etwas
-löschen außer einem Agent-Entwurf, den der Aufrufer selbst angelegt und nie
-veröffentlicht hat - das Rückgängigmachen eines versehentlichen Entwurfs. Einen
-hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
+Ein Agent lässt sich hier von Anfang bis Ende bauen: entwerfen, bearbeiten, mit
+`test_agent_draft` als unveröffentlichter Entwurf ausprobieren - ein Test-Run,
+budgetiert und aufgezeichnet, mit Begründung abgelehnt, wenn der Entwurf nicht
+veröffentlicht werden könnte - und mit `publish_agent` veröffentlichen, das
+dieselben Prüfungen ausführt wie der Button **Publish** der Konsole. Der
+`cron_expression` einer Routine gilt in UTC. `set_my_language` stellt die Sprache
+der Konsole für den Aufrufer um (`en`, `pl` oder `de`), auf jedem Gerät, auf dem
+er sich anmeldet, und `set_my_profile` speichert seine Rolle und woran er
+arbeitet, was von da an jeder Agent erfährt. `create_skill` speichert ein
+Vorgehen, das funktioniert hat, als [Skill](skills.md) - für „mach daraus einen
+Skill“.
+
+Bewusst fehlt: Zugangsdaten anfassen und etwas löschen außer einem Agent-Entwurf,
+den der Aufrufer selbst angelegt und nie veröffentlicht hat - das Rückgängigmachen
+eines versehentlichen Entwurfs - oder einer Routine.
 Verbundene Anwendungen stehen unter **Einstellungen → MCP-Clients**, wo das
 Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
 warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
@@ -1068,14 +1103,21 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   wird gewährt, und wo niemand hinter dem Run steht - ein öffentliches Widget, ein
   Zeitplan im Namen von niemandem - fehlt die Bindung.
 - **Änderungen warten auf Freigabe.** `writes`, der Standard, hält jedes Werkzeug,
-  das etwas ändert (`create_agent_draft`, `run_agent`, `invite_member` und die
-  übrigen), zur Freigabe zurück; `all` auch das Lesen. `none` wird nicht
-  angeboten: Diese Werkzeuge handeln mit der Befugnis eines Menschen.
+  das etwas ändert (`create_agent_draft`, `publish_agent`, `create_routine`,
+  `run_agent`, `invite_member` und die übrigen), zur Freigabe zurück; `all` auch
+  das Lesen. `none` wird nicht angeboten: Diese Werkzeuge handeln mit der Befugnis
+  eines Menschen. Der einzige Schreibzugriff, der nie wartet, ist
+  `set_my_language`: Er ändert die Konsolensprache des Fragenden, auf dessen
+  Wort, und eine Freigabekarte für „auf Englisch umstellen“ wäre die ganze
+  Unterhaltung. `set_my_profile` wartet wie die übrigen, denn was es speichert,
+  wird jedem Agenten mitgeteilt, den die Person ausführt, und eine Seite, die ein
+  Agent gelesen hat, darf es nicht unbemerkt schreiben.
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
   jedes Werkzeug auflisten und die ändernden markieren.
 
-Die Vorlage **Claude Code like** bindet ihn genau so, sodass ein neuer Agent daraus
-die Plattform sofort nachschlagen kann.
+Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
+angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine
+Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bittet.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 

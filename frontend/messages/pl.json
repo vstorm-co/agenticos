@@ -942,7 +942,16 @@
     "voiceProviderChoose": "Wybierz providera",
     "voicePreview": "Posłuchaj tego głosu",
     "voicePreviewStop": "Zatrzymaj",
-    "voicePreviewNeedsKey": "Wybierz klucz, aby posłuchać tego głosu"
+    "voicePreviewNeedsKey": "Wybierz klucz, aby posłuchać tego głosu",
+    "startersTitle": "Pierwsze wiadomości",
+    "startersHint": "Co czat proponuje komuś, kto otwiera tego agenta pierwszy raz - jedno kliknięcie wysyła wiadomość. Najwyżej {max}; bez nich czat pokazuje własne.",
+    "starterNumber": "Pierwsza wiadomość {number}",
+    "removeStarter": "Usuń pierwszą wiadomość {number}",
+    "newStarter": "Nowa pierwsza wiadomość",
+    "newStarterPlaceholder": "W czym możesz mi pomóc?",
+    "addStarter": "Dodaj",
+    "platformUngatedBadge": "własne ustawienie, bez zgody",
+    "platformHeldBadge": "czyta wcześniejsze rozmowy, pyta najpierw"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -1076,7 +1085,6 @@
       "unsetDefault": "Przestań używać {name} jako domyślnego agenta",
       "whoAnswers": "Kto odpowiada w tej rozmowie."
     },
-    "aiCanMakeMistakes": "AI może się mylić. Sprawdzaj ważne informacje.",
     "analyzeFiles": "Przeanalizuj załączone pliki",
     "approve": "Zatwierdź",
     "archive": "Archiwizuj",
@@ -1201,11 +1209,11 @@
     "edit": "Edytuj",
     "editMeans": "Edit pozwala zmienić nazwę, zarchiwizować i usunąć tę konwersację oraz dopisywać do niej tury.",
     "empty": {
-      "brainstormPrompt": "Daj mi 5 pomysłów na następny newsletter zespołu.",
-      "brainstormTitle": "Burza mózgów",
       "commandPalette": "paleta komend",
-      "conceptPrompt": "Wyjaśnij prostymi słowami, co agent AI mógłby zrobić dla mojego zespołu - do 200 słów.",
-      "conceptTitle": "Wyjaśnij pojęcie",
+      "capabilitiesPrompt": "Co możesz tu dla mnie zrobić? Pokaż na przykładzie z mojej pracy.",
+      "capabilitiesTitle": "Co potrafisz?",
+      "routinePrompt": "W każdy poniedziałek o 9:00 wysyłaj mi krótkie podsumowanie najważniejszych wiadomości o AI z ostatniego tygodnia.",
+      "routineTitle": "Ustaw rutynę",
       "docsPrompt": "Podsumuj najważniejsze punkty z moich ostatnich dokumentów.",
       "docsTitle": "Podsumuj dokumenty",
       "greeting": "W czym mogę pomóc, {name}?",
@@ -1277,7 +1285,8 @@
       "commands": "Komendy",
       "commandsHint": "Wybierz z listy - to samo co wpisanie /",
       "project": "Pracuj w projekcie",
-      "projectHint": "Zacznij ten czat w projekcie: z jego plikami i instrukcjami"
+      "projectHint": "Zacznij ten czat w projekcie: z jego plikami i instrukcjami",
+      "reconnecting": "Łączenie ponownie…"
     },
     "knowledgeBase": "Baza wiedzy",
     "link": "Link",
@@ -1607,7 +1616,13 @@
       "generatingVideo": "Tworzy wideo",
       "videoNotStored": "Wideo powstało, ale go nie zapisano.",
       "workingInText": "Pracuje nad tym w trybie tekstowym",
-      "workedInText": "Popracował nad tym w trybie tekstowym"
+      "workedInText": "Popracował nad tym w trybie tekstowym",
+      "suggestingNextSteps": "Proponuje następne kroki",
+      "nextSteps": "Następne kroki",
+      "requestingCapability": "Prosi o capability",
+      "capabilityRequest": "Prośba o capability",
+      "proposingSetup": "Proponuję, co ustawić",
+      "setupProposals": "Do ustawienia"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1995,8 +2010,56 @@
         "mediaFailed": "<strong>Nie udało się przesłać dźwięku rozmowy,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
       },
       "openBuilder": "Otwórz w Agent Builderze",
-      "askEditor": "Poproś kogoś, kto może edytować tego agenta, o konfigurację."
-    }
+      "askEditor": "Poproś kogoś, kto może edytować tego agenta, o konfigurację.",
+      "startPublished": "Rozpocznij rozmowę głosową z opublikowaną wersją - rozmowa nie uruchamia tego draftu"
+    },
+    "extras": {
+      "remembered": "Zapamiętane: {note}",
+      "forgot": "Zapomniane: {note}",
+      "manageMemory": "Zarządzaj",
+      "capabilityNeeded": "{agent} potrzebuje do tego: {name}",
+      "thisAgent": "Ten agent",
+      "switchOn": "Włącz: {name}",
+      "askOwner": "Poproś właściciela agenta",
+      "capabilityOn": "{name}: włączone. Zapytaj jeszcze raz, a zostanie użyte.",
+      "capabilityDrafted": "{name}: jest w drafcie agenta - opublikuj go w Builderze, żeby działało.",
+      "capabilityAsked": "Właściciel dostał prośbę.",
+      "nextSteps": "Następne kroki",
+      "runOnSchedule": "Uruchamiaj to według harmonogramu",
+      "routineFromChat": "Z rozmowy",
+      "makeAgent": "Zrób z tego agenta",
+      "makeAgentAsk": "Zbuduj mi agenta, który robi to, żebym nie musiał za każdym razem prosić w czacie: {request}",
+      "setup": {
+        "agentAsk": "Zbuduj mi agenta, który to robi: {request}",
+        "take": {
+          "agent": "Zbuduj z Architektem",
+          "routine": "Ustaw",
+          "connection": "Podłącz"
+        }
+      },
+      "makeSkill": "Zrób z tego skill",
+      "makeSkillAsk": "Zrób z tego skill, żeby każdy agent zrobił to następnym razem tak samo.\n\nO co prosiłem:\n{request}\n\nJak to zostało zrobione:\n{answer}",
+      "makeSkillFromConversation": "Zrób z tego skill, żeby każdy agent zrobił to następnym razem tak samo. Najpierw przeczytaj całą rozmowę przez read_conversation - jej id to {conversation}.\n\nO co prosiłem:\n{request}"
+    },
+    "suggestions": {
+      "label": "Propozycje dla ciebie",
+      "agentAsk": "Zbuduj mi agenta, który to robi, żebym nie musiał prosić za każdym razem: {request}",
+      "profileSaved": "Zapisane w profilu - twoi agenci wiedzą to od następnej wiadomości.",
+      "packInstalling": "Dodaję rutyny - za chwilę będą w Rutynach.",
+      "notNow": "Nie teraz",
+      "take": {
+        "routine": "Ustaw",
+        "agent": "Zbuduj z Architektem",
+        "profile": "Zapisz w profilu",
+        "role_pack": "Dodaj te rutyny",
+        "finding": "Załatwione"
+      },
+      "open": "Otwórz",
+      "urgent": "Pilne",
+      "more": "{count, plural, =1 {Jeszcze 1 w inboksie} few {Jeszcze # w inboksie} many {Jeszcze # w inboksie} other {Jeszcze # w inboksie}}"
+    },
+    "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
+    "turnLostAskAgain": "Zapytaj ponownie"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
@@ -2670,6 +2733,16 @@
           "description": "Minuty pojawią się tutaj, gdy członkowie lub odwiedzający zadzwonią do agenta."
         },
         "deletedAgent": "Usunięty agent"
+      },
+      "suggestions": {
+        "title": "Briefing",
+        "description": "Znaleziska twoich obserwacji i propozycje nocnego przeglądu - najpierw to, co nie może czekać.",
+        "empty": {
+          "title": "Na razie nic nie zaproponowano",
+          "description": "Tu pojawiają się znaleziska twoich obserwacji i nocne sugestie.",
+          "descriptionOff": "Twoja organizacja ma proaktywność wyłączoną."
+        },
+        "more": "{count, plural, =1 {Jeszcze 1 w inboksie} few {Jeszcze # w inboksie} many {Jeszcze # w inboksie} other {Jeszcze # w inboksie}}"
       }
     },
     "edit": {
@@ -2787,16 +2860,36 @@
       "title": "Pierwsze kroki",
       "progress": "{done} z {total} gotowe",
       "next": "Następny krok",
-      "doneLabel": "Zrobione",
       "dismiss": "Ukryj listę",
       "steps": {
-        "agent": "Utwórz agenta",
+        "agent": "Zbuduj agenta",
         "publish": "Opublikuj go",
         "knowledge": "Daj mu bazę wiedzy",
         "departments": "Dodaj swoje działy",
         "teammate": "Zaproś kogoś z zespołu",
-        "channel": "Wstaw agenta tam, gdzie pisze zespół"
-      }
+        "channel": "Wstaw agenta tam, gdzie pisze zespół",
+        "profile": "Opowiedz agentom o sobie",
+        "chat": "Zacznij rozmowę",
+        "routine": "Ustaw rutynę",
+        "connection": "Podłącz usługę"
+      },
+      "agentAsk": "Pomóż mi zbudować pierwszego agenta. Zapytaj, co ma robić.",
+      "hints": {
+        "profile": "Twoja rola i praca, żeby odpowiedzi do ciebie pasowały.",
+        "chat": "Zapytaj AgenticOS o cokolwiek w twojej pracy.",
+        "routine": "Niech agent robi zadanie według harmonogramu.",
+        "connection": "Poczta, kalendarz albo pliki - na twoim własnym koncie.",
+        "agent": "Architect zbuduje go razem z tobą.",
+        "publish": "Żeby ludzie mogli z niego korzystać w czacie i w kanałach.",
+        "knowledge": "Dokumenty, z których odpowiada.",
+        "departments": "Grupy decydują, kto widzi którego agenta.",
+        "teammate": "Z agentów lepiej korzystać razem.",
+        "channel": "Slack, Teams, Telegram albo Mattermost."
+      },
+      "left": "{count, plural, =1 {Został 1 krok} few {Zostały # kroki} many {Zostało # kroków} other {Zostało # kroków}}",
+      "ratio": "{done}/{total}",
+      "start": "Zacznij",
+      "doneHeading": "Już zrobione"
     },
     "views": {
       "label": "Widok dashboardu",
@@ -3500,7 +3593,8 @@
     "cardYours": "{count, plural, =1 {Twoje konto} few {Twoje # konta} many {Twoich # kont} other {Twoich # kont}}",
     "cardOrganizations": "{count, plural, =1 {Konto organizacji} few {# konta organizacji} many {# kont organizacji} other {# kont organizacji}}",
     "cardYoursAndOrganizations": "Twoje i organizacji",
-    "accountActions": "Więcej dla {name}"
+    "accountActions": "Więcej dla {name}",
+    "watch": "Obserwuj"
   },
   "members": {
     "emailPlaceholder": "kolega@example.com",
@@ -3590,7 +3684,9 @@
     "projects": "Projekty",
     "allProjects": "Wszystkie projekty",
     "backgroundJobs": "Zadania w tle",
-    "loadingPage": "Otwieranie strony"
+    "loadingPage": "Otwieranie strony",
+    "inbox": "Inbox",
+    "inboxCount": "{count, plural, =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -4062,6 +4158,10 @@
         "title": "Co działa bez Ciebie",
         "body": "Każdy harmonogram i wyzwalacz w organizacji, z tym, co ostatnio zrobił. Agent pracujący, gdy nikt nie siedzi przy klawiaturze, pojawia się tu pierwszy."
       },
+      "routines-watches": {
+        "title": "Co obserwuje twoje konta",
+        "body": "Obserwacje czytają twoje własne połączone konta według harmonogramu - review czekające na ciebie, przypisane ci issues - i wrzucają to, co nowe, do twojego inboksu. Każdy wiersz mówi, kiedy ostatnio sprawdzała i ile z tego, co znalazła, wciąż czeka."
+      },
       "run-detail-input": {
         "title": "Co model faktycznie dostał",
         "body": "Prompt w postaci, w jakiej został złożony i wysłany, każde narzędzie z opisem, który czyta model, ustawienia i jeden pasek na żądanie - zapisane z przewodu, więc to jest to, co wysłano, a nie to, co mówi spec."
@@ -4233,9 +4333,28 @@
       "agent-voice": {
         "title": "Głos",
         "body": "Na karcie Rozmowy głosowe ustaw model realtime i głos do rozmów, a na karcie Dyktowanie zdecyduj, czy mikrofon w czacie korzysta z providera, czy z przeglądarki."
+      },
+      "agent-starters": {
+        "title": "Pierwsze wiadomości",
+        "body": "To, co czat proponuje komuś, kto otwiera tego agenta, zanim cokolwiek napisze. Nowa osoba dowiaduje się z nich, do czego jest agent, bardziej niż z opisu, więc niech każda będzie prawdziwym pytaniem, na które agent dobrze odpowiada."
+      },
+      "inbox-filters": {
+        "title": "Co przyszło do ciebie samo",
+        "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
       }
     },
-    "chooseLanguage": "Język"
+    "chooseLanguage": "Język",
+    "chooseRole": "Czym się zajmujesz? Twoi agenci będą to wiedzieć.",
+    "roles": {
+      "leadership": "Zarząd",
+      "sales": "Sprzedaż",
+      "marketing": "Marketing",
+      "support": "Obsługa klienta",
+      "operations": "Operacje",
+      "finance": "Finanse",
+      "people": "HR",
+      "engineering": "IT i inżynieria"
+    }
   },
   "organizations": {
     "accessLost": "Nie masz już dostępu do tej organizacji.",
@@ -4652,6 +4771,15 @@
       "botToken": "Token bota",
       "botTokenHintMattermost": "Token dostępu konta bota",
       "botTokenHintSlack": "Token OAuth użytkownika-bota (xoxb-...) z Twojej aplikacji Slack",
+      "botTokenHintTeams": "Sekret klienta rejestracji aplikacji Azure Bot (Certyfikaty i wpisy tajne w Entra).",
+      "teamsAppId": "Microsoft App ID",
+      "teamsAppIdHint": "W zasobie Azure Bot, w sekcji Konfiguracja. Utwórz bota jako jednodzierżawowego.",
+      "teamsTenantId": "Identyfikator dzierżawy",
+      "teamsTenantIdHint": "Dzierżawa Entra, w której zarejestrowano bota. Tylko Teams tej dzierżawy może do niego pisać.",
+      "teamsEndpoint": "Punkt końcowy wiadomości",
+      "teamsEndpointHint": "Wklej go w konfiguracji Azure Bot i włącz w nim kanał Microsoft Teams.",
+      "teamsPackageWhy": "Prześlij pakiet aplikacji do katalogu aplikacji Teams w swojej dzierżawie, a potem dodaj aplikację do czatu lub zespołu.",
+      "teamsPackageDownload": "Pobierz pakiet aplikacji",
       "botTokenHintTelegram": "Token, który daje @BotFather przy tworzeniu bota",
       "botUpdated": "{bot} zaktualizowany",
       "bots": "Boty",
@@ -5150,6 +5278,7 @@
       "surfaceFilter": "Filtruj według powierzchni",
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
+      "surfaceTeams": "Microsoft Teams",
       "surfaceSchedule": "Harmonogram",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -5366,7 +5495,29 @@
       "prefMcpServerDown": "Serwer MCP nie odpowiada",
       "prefMcpServerDownTrigger": "Serwer MCP organizacji przestał odpowiadać na sprawdzenie lub w trakcie runu. Wysyłane raz na awarię administratorom i właścicielom agentów, którzy z niego korzystają.",
       "prefMcpServerRecovered": "Serwer MCP znów odpowiada",
-      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia."
+      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia.",
+      "agentContext": {
+        "title": "Co twoi agenci o tobie wiedzą",
+        "description": "Każdy agent czyta to na początku rozmowy, więc nie musisz tego powtarzać w czacie.",
+        "role": "Twoja rola",
+        "rolePlaceholder": "Szef sprzedaży",
+        "about": "Nad czym pracujesz",
+        "aboutPlaceholder": "Duzi klienci w Skandynawii; cotygodniowy przegląd lejka z CFO.",
+        "timeZone": "Strefa czasowa",
+        "save": "Zapisz",
+        "saved": "Zapisane - agenci wiedzą to od następnej wiadomości.",
+        "workingHours": "Kiedy pracujesz",
+        "workingHoursHint": "W twojej strefie czasowej. Agenci planują wokół tego; nic nie jest wstrzymywane ani przesuwane.",
+        "workingDays": "Dni pracy",
+        "workStart": "Początek",
+        "workEnd": "Koniec"
+      },
+      "prefSuggestion": "Propozycje dla ciebie",
+      "prefSuggestionTrigger": "AgenticOS zauważył coś, co warto ustawić - prośbę, którą powtarzasz, pakiet dla twojej roli, twój profil. Najwyżej raz dziennie, do ciebie.",
+      "prefCapabilityRequested": "Prośba o capability",
+      "prefCapabilityRequestedTrigger": "Ktoś poprosił o capability, której brakuje jednemu z twoich agentów. Do właściciela agenta, raz na osobę i capability.",
+      "prefFinding": "Znaleziska twoich obserwacji",
+      "prefFindingTrigger": "Coś, o czym obserwacja miała dać znać od razu, i poranny briefing reszty."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -5445,7 +5596,8 @@
       "title": "Rutyny",
       "description": "Wszystko, co Twoi agenci robią sami - według harmonogramu lub w reakcji na zdarzenie.",
       "ideasTitle": "Pomysły na start",
-      "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz."
+      "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz.",
+      "newWatch": "Nowa obserwacja"
     },
     "signIns": {
       "cancel": "Anuluj",
@@ -6144,6 +6296,38 @@
       "saved": "Zapisano ustawienia głosu",
       "providerNoKey": "{name} (brak klucza)",
       "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
+    },
+    "proactive": {
+      "title": "Proaktywność",
+      "description": "Praca, którą platforma wykonuje dla ludzi sama, w tle. Wyłączona, dopóki jej nie włączysz.",
+      "nightly": "Nocne propozycje",
+      "nightlyHint": "Przegląd tygodnia każdej osoby: rutyna dla prośby, którą powtarza, jej profil i pierwsze wiadomości, które proponuje jej pusty czat. Każdy może z tego zrezygnować we własnych ustawieniach.",
+      "model": "Model",
+      "modelHint": "Na czym działa nocny przegląd i obserwacje. Wystarczy mały, tani model.",
+      "modelPlaceholder": "Wybierz model",
+      "modelRequired": "Przed włączeniem wybierz model, na którym ma działać.",
+      "label": "Limit na osobę (USD miesięcznie)",
+      "days": "Dni",
+      "timing": "Kiedy",
+      "timingFixed": "O ustalonej godzinie",
+      "timingBeforeWork": "Godzinę przed godzinami pracy",
+      "hour": "Godzina",
+      "hourHint": "W strefie czasowej każdej osoby.",
+      "hourFallbackHint": "Dla osób, których profil nie podaje godzin pracy, w ich strefie czasowej.",
+      "save": "Zapisz",
+      "saved": "Nocne propozycje zapisane",
+      "off": "Nocne propozycje są wyłączone",
+      "invalid": "Podaj kwotę w dolarach, 0 lub więcej.",
+      "welcome": "Wiadomość powitalna w aplikacjach czatu",
+      "welcomeHint": "Nowa osoba dostaje wiadomość prywatną od Twoich botów w Slacku, Teams i Mattermost.",
+      "welcomeText": "Treść",
+      "welcomeTextHint": "Zostaw puste, by wysłać wbudowane powitanie w języku danej osoby. '{organization}', '{bot}' i '{url}' zostaną uzupełnione.",
+      "welcomeTextPlaceholder": "Witaj w '{organization}'! Pytaj mnie o cokolwiek tutaj.",
+      "welcomeSaved": "Wiadomość powitalna zapisana",
+      "watches": "Obserwowanie połączeń ludzi",
+      "watchesHint": "Każdy wybiera, co obserwować na swoich podłączonych kontach - pull requesty czekające na niego, zaległą fakturę - i dostaje informację, co nowego. Tylko czyta, a znaleziska są prywatne dla każdej osoby.",
+      "watchMinutes": "Najczęściej",
+      "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej."
     }
   },
   "theme": {
@@ -6370,7 +6554,7 @@
     "runAsCreator": "Działa jako osoba, która go utworzyła",
     "runAsMeScheduleHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń - skrzynki, kalendarza - jak twój czat. Może zapisywać dla ciebie notatki; nigdy nie przeszukuje twoich rozmów.",
     "runAsMeEventHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń, jak twój czat. Czyta notatki, ale niczego nie zapisuje, bo treść zdarzenia przychodzi z zewnątrz; nigdy nie przeszukuje twoich rozmów.",
-    "runAsCreatorOthersHint": "Każde uruchomienie korzysta z pamięci i własnych połączeń tej osoby. Włączyć może tylko ona, a zmiana wiadomości, środowiska albo filtra to wyłącza.",
+    "runAsCreatorOthersHint": "Każde uruchomienie korzysta z pamięci i własnych połączeń tej osoby. Włączyć może tylko ona, a zmiana wiadomości, środowiska, filtra albo kanału Teams to wyłącza.",
     "actsAsCreator": "Jako twórca",
     "personalReachHint": "Ten agent korzysta z pamięci, przeszukiwania rozmów albo osobistego połączenia. Harmonogram lub zdarzenie sięga do pamięci i osobistych połączeń tylko wtedy, gdy działa jako osoba, która je utworzyła, a do jej rozmów - nigdy.",
     "cadence": {
@@ -6465,6 +6649,11 @@
     "defaultEnvironment": "Domyślne",
     "environmentFollows": "podąża za publikacjami",
     "environmentBehind": "{count, plural, =1 {1 wersję za najnowszą} few {# wersje za najnowszą} other {# wersji za najnowszą}}",
+    "teamsPost": "Publikuj odpowiedź także w Teams",
+    "teamsPostHint": "Odpowiedź z każdego uruchomienia trafia do tego kanału lub czatu grupowego jako nowa wiadomość.",
+    "teamsPostNowhere": "Nie publikuj",
+    "teamsPostUnnamedChannel": "Kanał w Teams",
+    "teamsPostUnnamedGroup": "Czat grupowy w Teams",
     "environmentCaptionDefault": "Odpalenia używają tego, na co w danej chwili wskazuje środowisko domyślne.",
     "environmentCaptionPinned": "Następne odpalenie uruchomi v{version}.",
     "environmentCaptionTracking": "Następne odpalenie uruchomi v{version} - to środowisko podąża za publikacjami, więc kolejna publikacja zmieni, co się uruchamia.",
@@ -6531,12 +6720,6 @@
     "back": "Wstecz",
     "continue": "Dalej",
     "creating": "Tworzenie…",
-    "presetsLabel": "Szybkie ustawienia",
-    "presetEvery15m": "Co 15 min",
-    "presetHourly": "Co godzinę",
-    "presetEvery6h": "Co 6 h",
-    "presetDaily9": "Codziennie 09:00",
-    "presetWeekdays9": "Dni robocze 09:00",
     "stepConfigure": "Konfiguracja",
     "stepMessage": "Wiadomość",
     "templateScratchHelpEvent": "Napisz własną wiadomość.",
@@ -6552,7 +6735,19 @@
       "skip": "Harmonogram czeka na kolejny termin. Wolny agent działa tak często, jak zdąży skończyć.",
       "queue": "Uruchamia się raz po zakończeniu poprzedniego, niezależnie od liczby pominiętych terminów.",
       "allow": "Startuje o czasie obok trwającego uruchomienia. Płacisz za oba."
-    }
+    },
+    "howOften": "Jak często",
+    "choiceEvery15m": "Co 15 min",
+    "choiceHourly": "Co godzinę",
+    "choiceEvery6h": "Co 6 godzin",
+    "choiceDaily": "Codziennie",
+    "choiceWeekdays": "W dni robocze",
+    "choiceWeekly": "Co tydzień",
+    "choiceCustom": "Własny",
+    "moreOptions": "Więcej opcji",
+    "summaryInterval": "Uruchamia się co {unit, select, minutes {{count, plural, one {minutę} few {# minuty} many {# minut} other {# minuty}}} hours {{count, plural, one {godzinę} few {# godziny} many {# godzin} other {# godziny}}} other {{count, plural, one {dzień} other {# dni}}}}, licząc od zapisania.",
+    "templatesMore": "{count, plural, one {Pokaż jeszcze 1} few {Pokaż jeszcze #} many {Pokaż jeszcze #} other {Pokaż jeszcze #}}",
+    "templatesFewer": "Pokaż mniej"
   },
   "portals": {
     "title": "Portale",
@@ -7137,7 +7332,23 @@
     "organization": "Dla organizacji",
     "organizationDescription": "AI Architect to agent jak każdy inny: nazwę, model i wiedzę zmienisz w Agent Builderze. Wyłączenie go i powitanie są na stronie organizacji.",
     "openBuilder": "Otwórz w Agent Builderze",
-    "openOrganization": "Ustawienia organizacji"
+    "openOrganization": "Ustawienia organizacji",
+    "suggestions": {
+      "title": "Propozycje dla Ciebie",
+      "description": "Co zaproponował nocny przegląd Twojego tygodnia i czy w ogóle ma go robić.",
+      "forMe": "Nocne propozycje dla mnie",
+      "orgOff": "Twoja organizacja ma nocne propozycje wyłączone, więc na razie żadne nie powstają.",
+      "turnedOn": "Nocne propozycje są dla Ciebie włączone",
+      "turnedOff": "Nocne propozycje są dla Ciebie wyłączone",
+      "none": "Na razie nic nie zaproponowano.",
+      "restore": "Przywróć",
+      "restored": "Wróciło do Twoich propozycji",
+      "status": {
+        "open": "Czeka",
+        "accepted": "Przyjęta",
+        "dismissed": "Odrzucona"
+      }
+    }
   },
   "orgAssistant": {
     "title": "AI Architect",
@@ -7391,6 +7602,14 @@
       "example2": "Model 3D magazynu, który można obracać",
       "needs": "Nic dodatkowego. Skill visual-design sprawia, że rysunki wyglądają na zaprojektowane.",
       "never": "Nigdy nie łączy się z siecią - rysunek działa odcięty, jak strona aplikacji."
+    },
+    "follow_ups": {
+      "name": "Następne kroki",
+      "does": "Pod odpowiedzią proponuje do trzech następnych kroków jako przyciski, więc o co zapytać dalej, jest o jedno kliknięcie.",
+      "example1": "Zrób z tego tabelę",
+      "example2": "Rób to w każdy poniedziałek o 9:00",
+      "needs": "Nic dodatkowego. Przyciski widać w czacie, widżecie i na stronie hostowanej.",
+      "never": "Nigdy nie wysyła niczego sam - krok idzie dopiero po kliknięciu."
     }
   },
   "capabilityCategories": {
@@ -7937,6 +8156,12 @@
         "title": "Limit czasu (minuty)",
         "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
       }
+    },
+    "follow_ups": {
+      "model_profile_id": {
+        "title": "Model do następnych kroków",
+        "description": "Profil modelu, który pisze następne kroki, gdy odpowiedź jest gotowa, zamiast własnego modelu agenta proponującego je narzędziem. Na trzy krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie zapytania. Puste pole zostawia to agentowi."
+      }
     }
   },
   "apiReference": {
@@ -8155,5 +8380,182 @@
     "reduce": "Ograniczone",
     "full": "Pełne",
     "motionHint": "„Systemowe” stosuje ustawienie systemu operacyjnego. „Ograniczone” wyłącza animację dyktowania i animacje przesuwania."
+  },
+  "watches": {
+    "title": "Obserwacje",
+    "description": "Asystent sprawdza twoje podłączone konta według harmonogramu i mówi, co nowego. Tylko czyta, a to, co znajdzie, widzisz tylko ty.",
+    "orgOff": "Twoja organizacja nie włączyła obserwacji. Administrator może to zrobić na stronie organizacji, w sekcji Proactivity.",
+    "noConnections": "Najpierw podłącz jedno ze swoich kont na stronie serwerów MCP - GitHub, Linear, skrzynkę pocztową.",
+    "add": "Nowa obserwacja",
+    "resumed": "Znów obserwuję",
+    "paused": "Wstrzymano",
+    "removed": "Przestałem obserwować",
+    "urgentBadge": "Pilne od razu",
+    "stopped": {
+      "watches_off": "Wyłączone w organizacji",
+      "connection_disabled": "Połączenie wyłączone"
+    },
+    "activeLabel": "Obserwuj: {title}",
+    "editLabel": "Edytuj: {title}",
+    "removeLabel": "Przestań obserwować: {title}",
+    "newTitle": "Obserwuj coś",
+    "editTitle": "Edytuj obserwację",
+    "dialogDescription": "Czego szukać na jednym z twoich kont i jak często. Tylko czyta; to, co znajdzie, jest tylko dla ciebie.",
+    "connection": "Konto",
+    "connectionPlaceholder": "Wybierz jedno ze swoich połączeń",
+    "preset": "Czego szukać",
+    "custom": "Coś innego",
+    "name": "Nazwa",
+    "instructions": "Szukaj",
+    "instructionsHint": "Zwykłymi słowami. Napisz, kiedy coś jest pilne.",
+    "instructionsPlaceholder": "Na przykład: wiadomości od klientów, które czekają na moją odpowiedź",
+    "howOften": "Jak często",
+    "urgent": "Daj znać od razu, gdy coś jest pilne",
+    "urgentHint": "W przeciwnym razie to, co znajdzie, czeka na twój poranny briefing.",
+    "exclusions": "Pomijaj",
+    "exclusionsHint": "Po jednym w linii: czego nie chcesz więcej widzieć.",
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "create": "Zacznij obserwować",
+    "saved": "Obserwacja zapisana",
+    "created": "Obserwuję - pierwszy przegląd w ciągu minuty",
+    "cadence": {
+      "everyMinutes": "{count, plural, =1 {Co minutę} few {Co # minuty} many {Co # minut} other {Co # minuty}}",
+      "everyHours": "{count, plural, =1 {Co godzinę} few {Co # godziny} many {Co # godzin} other {Co # godziny}}",
+      "daily": "Codziennie",
+      "weekly": "Co tydzień"
+    },
+    "presets": {
+      "mail-needs-reply": {
+        "title": "Maile czekające na moją odpowiedź",
+        "instructions": "Nieprzeczytane maile od ludzi, w których ktoś o coś pyta albo na mnie czeka. Pomiń newslettery, powiadomienia i potwierdzenia."
+      },
+      "mail-invoices": {
+        "title": "Faktury i zaległe płatności",
+        "instructions": "Faktury, przypomnienia o płatności i wszystko, co mówi o terminie zapłaty. Pilne, jeśli termin już minął."
+      },
+      "mail-newsletters": {
+        "title": "Newslettery, których nie otwieram",
+        "instructions": "Newslettery i nadawcy promocji, od których ciągle coś przychodzi, a ja tego nie otwieram - do wypisania. Podaj nadawcę i ile ostatnio przyszło."
+      },
+      "github-reviews": {
+        "title": "Pull requesty czekające na moje review",
+        "instructions": "Pull requesty, w których poproszono mnie o review, a jeszcze go nie zrobiłem. Podaj, ile każdy czeka."
+      },
+      "github-failing-checks": {
+        "title": "Padające testy w moich pull requestach",
+        "instructions": "Moje otwarte pull requesty, w których padają testy lub checki."
+      },
+      "github-mentions": {
+        "title": "Wzmianki bez mojej odpowiedzi",
+        "instructions": "Issues i pull requesty, w których ktoś mnie oznaczył albo zadał pytanie, a ja nie odpowiedziałem."
+      },
+      "gitlab-reviews": {
+        "title": "Merge requesty czekające na mnie",
+        "instructions": "Merge requesty czekające na moje review albo zatwierdzenie. Podaj, ile każdy czeka."
+      },
+      "gitlab-pipelines": {
+        "title": "Nieudane pipeline'y",
+        "instructions": "Nieudane pipeline'y w moich otwartych merge requestach albo na głównej gałęzi projektów, w których pracuję."
+      },
+      "linear-assigned": {
+        "title": "Zadania przypisane do mnie",
+        "instructions": "Zadania świeżo przypisane do mnie albo moje zadania zmienione przez kogoś innego od ostatniego razu."
+      },
+      "linear-overdue": {
+        "title": "Moje zaległe lub zablokowane zadania",
+        "instructions": "Moje zadania po terminie albo oznaczone jako zablokowane."
+      },
+      "jira-assigned": {
+        "title": "Zgłoszenia Jira przypisane do mnie",
+        "instructions": "Zgłoszenia w Jira świeżo przypisane do mnie albo moje, które ktoś skomentował."
+      },
+      "jira-overdue": {
+        "title": "Moje zaległe zgłoszenia Jira",
+        "instructions": "Moje zgłoszenia w Jira po terminie albo zablokowane."
+      },
+      "slack-unanswered": {
+        "title": "Wiadomości na Slacku czekające na mnie",
+        "instructions": "Wiadomości prywatne i wzmianki o mnie, na które nikt, łącznie ze mną, jeszcze nie odpowiedział."
+      },
+      "teams-unanswered": {
+        "title": "Wiadomości w Teams czekające na mnie",
+        "instructions": "Czaty i wiadomości na kanałach, w których mnie oznaczono, a ja nie odpowiedziałem."
+      },
+      "notion-mentions": {
+        "title": "Wzmianki i komentarze w Notion",
+        "instructions": "Strony i komentarze, w których mnie oznaczono albo czeka na mnie pytanie."
+      },
+      "sentry-new-issues": {
+        "title": "Nowe błędy w moich projektach",
+        "instructions": "Nowe błędy i regresje w moich projektach. Pilne, jeśli dotykają wielu użytkowników."
+      },
+      "pagerduty-incidents": {
+        "title": "Incydenty czekające na mnie",
+        "instructions": "Otwarte incydenty przypisane do mnie albo mojej ścieżki eskalacji, jeszcze niepotwierdzone."
+      },
+      "hubspot-stale-deals": {
+        "title": "Szanse sprzedaży, które ucichły",
+        "instructions": "Moje otwarte szanse bez żadnej aktywności od tygodnia albo zamykające się w tym tygodniu."
+      },
+      "intercom-waiting": {
+        "title": "Rozmowy czekające na moją odpowiedź",
+        "instructions": "Rozmowy przypisane do mnie, które czekają na odpowiedź."
+      },
+      "asana-overdue": {
+        "title": "Zadania na dziś i zaległe",
+        "instructions": "Moje zadania z terminem na dziś albo po terminie."
+      },
+      "todoist-overdue": {
+        "title": "Zadania na dziś i zaległe",
+        "instructions": "Moje zadania z terminem na dziś albo po terminie."
+      },
+      "clickup-overdue": {
+        "title": "Zadania na dziś i zaległe",
+        "instructions": "Moje zadania z terminem na dziś albo po terminie."
+      }
+    },
+    "signInAgain": "Zaloguj się ponownie",
+    "count": "{count, plural, =0 {Jeszcze nic nie obserwujesz} =1 {1 obserwacja} few {# obserwacje} many {# obserwacji} other {# obserwacji}}",
+    "findings": "Co znalazły",
+    "offTitle": "Obserwacje są wyłączone",
+    "noConnectionsTitle": "Połącz konto, żeby je obserwować",
+    "connect": "Otwórz serwery MCP",
+    "emptyTitle": "Jeszcze nic nie obserwujesz",
+    "emptyDescription": "Wybierz jedno ze swoich kont i powiedz, czego szukać. To, co obserwacja znajdzie, trafia do twojego inboksu; pilne rzeczy dostajesz od razu.",
+    "rowLooked": "{cadence} · sprawdzono {when}",
+    "rowFirst": "{cadence} · pierwsze sprawdzenie w ciągu minuty",
+    "waiting": "{count, plural, =1 {1 w inboksie} other {# w inboksie}}",
+    "accountNamed": "{server} ({account})",
+    "createdWhere": "Znajdziesz ją w Rutynach, a to, co znajdzie, trafi do twojego inboksu.",
+    "seeIt": "Pokaż",
+    "manageInRoutines": "Zarządzaj obserwacjami w Rutynach"
+  },
+  "inbox": {
+    "title": "Inbox",
+    "description": "To, co platforma przyniosła ci z własnej inicjatywy: znaleziska twoich obserwacji i propozycje nocnego przeglądu.",
+    "filterLabel": "Pokaż",
+    "filter": {
+      "all": "Wszystko",
+      "urgent": "Pilne",
+      "watches": "Z obserwacji",
+      "suggestions": "Sugestie",
+      "done": "Załatwione"
+    },
+    "empty": {
+      "title": "Nic tu nie czeka",
+      "description": "Tu trafia to, co znajdą twoje obserwacje, i to, co zaproponuje nocny przegląd.",
+      "watches": "Ustaw obserwację"
+    },
+    "doneEmpty": "Na nic jeszcze nie odpowiedziałeś",
+    "waiting": "{count, plural, =0 {Nic nie czeka} =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}",
+    "sourceAt": "{source} · {when}",
+    "source": {
+      "routine": "Pomysł na rutynę",
+      "agent": "Pomysł na agenta",
+      "profile": "Profil",
+      "role_pack": "Pakiet rutyn",
+      "finding": "Obserwacja"
+    }
   }
 }

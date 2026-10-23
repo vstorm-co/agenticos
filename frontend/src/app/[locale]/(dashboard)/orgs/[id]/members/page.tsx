@@ -23,6 +23,7 @@ import {
   InviteMemberDialog,
   OrgApprovalWaiver,
   OrgAssistant,
+  OrgProactivity,
   OrgSpendingLimit,
   OrgVoiceSettings,
 } from "@/components/teams";
@@ -460,6 +461,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       {/* The workspace's own spending ceiling sits with its other settings. It
           hides itself from anyone who may not change them. */}
       {org && <OrgSpendingLimit org={org} />}
+      {org && <OrgProactivity org={org} />}
 
       {/* And whether a chat session here may waive them. Governance, like the
           ceiling above it, and hidden from anybody who may not decide an

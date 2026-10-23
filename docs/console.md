@@ -6,7 +6,8 @@ properly.
 
 If you are looking for one screen, the fastest route is the **"?"** in a page's
 header — it replays that page's walkthrough, and a page whose header carries no
-"?" has no walkthrough to replay.
+"?" has no walkthrough to replay. Chat has no header: its tips are under the chat
+settings, the sliders beside the microphone.
 
 ## The dashboard
 
@@ -39,11 +40,14 @@ members, sandboxes - wait in the catalog, one click away under **Customize**:
 | **Needs attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell) |
 | **Usage & cost** | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
 
-Somebody who builds agents also sees **Get started** above the bands until each
-of its steps is done: create an agent, publish it, give it a knowledge base, add
-departments, invite a teammate and - for whoever may - put an agent in a chat
-app. Each step is ticked from what exists, wherever it was done; closing the card
-hides it in that browser.
+The dashboard opens with **Get started** until each of its steps is done: tell
+agents about yourself, start a conversation, connect a service with your own
+account, set up a routine and build an agent - that one is a question to the
+Architect, which builds it with you. Somebody who builds agents has the
+organization's steps after those: publish an agent, give it a knowledge base, add
+departments, invite a teammate and - for whoever may - put an agent in a chat app.
+Each step is ticked from what exists, wherever it was done, not from a click on the
+card; closing the card hides it in that browser.
 
 Your own view also shows **Discover AgenticOS**: one tile each for what is easy to
 miss - this deployment's own MCP server for Claude Code, Codex or Cursor,
@@ -71,6 +75,24 @@ snapshot you meant to keep.
     A saved arrangement can reorder and hide, but it cannot reveal. Permission
     filtering runs after the layout is resolved, whether the layout came from
     the default or from your own saved one.
+
+## The inbox { #the-inbox }
+
+**Inbox**, under Chat in the sidebar, is what the platform brought you on its
+own: what your [watches](governance.md#proactive-work) found in your connections
+and what the nightly look proposed. The number beside it is how many wait. It
+reads like a mailbox: one row each, urgent ones first, where it came from and
+when, and the answers in the row. Filter by where they came from, or open
+**Done** for what you already took or declined, and bring a declined one back.
+**What they found** on the Watches card under Routines opens it narrowed to
+watches. Shorter rows head your dashboard as **Briefing**, and the empty chat
+with the starter agent offers the first of them as a card, with a link to the
+rest.
+
+What a watch finds that need not be heard at once waits for your morning: at
+the hour your organization's proactivity keeps, one notification and one direct
+message from each of its Slack, Teams and Mattermost bots that knows you list
+what is new. Each finding is in one briefing only.
 
 ## The bell
 
@@ -140,10 +162,17 @@ agents (`agents:run`). It is bound to the
 agents can answer refund questions, why last night's run failed, or what is in a
 knowledge base.
 
-Ask it to draft an agent or invite a colleague, and it first shows you what to approve: an
-agent draft as the draft itself - where it is created, its name, what it may do
-and its instructions - and anything else as the exact call. It acts with your permissions, so it finds
-and does what you could, and no more. Its cost counts like any agent's.
+Tell it what an agent should do and it builds one with you, one question at a
+time, each with proposed answers: it picks the capabilities, the knowledge base
+and the model, says why in a line, drafts the agent, tries it on your own
+questions as the unpublished draft, fixes what was wrong, and publishes it when
+you approve. It sets up a routine the same way.
+
+Before anything changes it shows you what to approve: an agent draft as the
+draft itself - where it is created, its name, what it may do and its
+instructions - and anything else as the exact call. It acts with your
+permissions, so it finds and does what you could, and no more. Its cost counts
+like any agent's.
 
 A speech bubble above it speaks to what is waiting for you — approvals, an
 organization with no agents yet — or to the page you are on, and now and then
@@ -168,8 +197,9 @@ browser asks which tab to share, and one picture is attached to your next
 message.
 
 It plans longer jobs as a checklist you can watch, keeps notes about
-you between conversations, can tell you what your agents cost, and can undo an
-agent draft it made by mistake — never anything else. Besides approvals and an
+you between conversations, can tell you what your agents cost, and deletes
+nothing but an agent draft it made by mistake and a routine you ask it to
+remove. Besides approvals and an
 empty organization, its bubble speaks up when a run of yours has just failed
 and when a form has been open, unfinished, for a minute.
 
@@ -260,7 +290,54 @@ widens what the agent may reach: the server checks each one again as you, agains
 what the agent already has. In the Builder's test panel the menu reads the draft
 you are testing. While a conversation is empty, the box cycles through examples
 built from what the agent can use - its server, a capability, a delegate, a
-skill - and `/`; they are gone the moment you click into it.
+skill - and `/`; they are gone the moment you click into it. Above it, the cards
+are the agent's own **first messages**, set under its instructions in the
+Builder; an agent with none offers the chat's own four, two of them to ask what it
+can do and to set up a routine.
+
+**Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
+offers up to three next steps as buttons under its latest answer, and a click
+sends one. A line says what it noted about you, or forgot, with **Manage** for
+[the notes themselves](reference/capabilities.md#memory-files) - ask it to forget
+something and it does. When a request needs a capability the agent lacks, a card
+asks to switch it on, or to ask the agent's owner
+([how](reference/capabilities.md)).
+
+**Keeping a request that worked.** Hover your own message: the calendar turns it
+into a routine - the same prompt, weekly by default, on the agent that answered -
+and the robot asks the Architect to build an agent that does it. Hover the answer
+and the bookmark asks the Architect to make a [skill](skills.md) of how it was
+done, so any agent can do it the same way next time; it is handed your request
+and the answer, and offered to whoever may write skills.
+
+**Links that point.** A console link an agent writes in its answer - "here is the
+button that connects your Gmail" - opens that page without reloading the console,
+and a `?highlight=` in it points at the control it names, as the Architect's
+links do.
+
+**The AgenticOS agent gets to know you.** While your account says nothing about
+your role or your work, a greeting starts a short interview: what you do, what
+fills your week, which tools you work in - one question at a time, each with
+answers to pick. What you say is saved to your profile, so every agent knows it
+from then on, and the interview ends with up to three cards to set up - a
+routine, a service to connect, an agent of your own - each one click. Skip a
+question, or ask for something real, and it does the work instead.
+
+**What it noticed overnight.** Where your organization turned it on, once a day,
+early in your morning, the platform looks at your recent conversations in a
+background job: a request you keep
+repeating becomes a proposed routine, what an agent learnt about your role
+becomes a proposed profile, and your empty AgenticOS chat gets first messages
+written for your work. Proposals wait as cards in that empty chat, on your
+dashboard and in the bell, and **Settings → Assistant** lists them all - bring a
+dismissed one back there, or leave yourself out; accept one and it is set up, dismiss it and the same proposal is never
+made again. Nothing runs when nothing new happened, and what this may spend is
+[capped per person](governance.md#proactive-work). A chat link with
+`?agent=<slug>` opens the chat on that agent.
+
+**Working hours** under **Settings → Profile** tell agents when you work, so a
+routine they propose lands inside your day. Nothing waits on them: they are
+knowledge for the agent, not a schedule.
 
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
@@ -452,8 +529,8 @@ Before offering a call, the console asks whether this agent can take one
 The answer names what is missing: no voice set up on the agent, the model no
 longer offered, or no key.
 
-The **call button** sits in the chat composer, beside the microphone, for every
-agent. Where this agent cannot take a call it is crossed out, and hovering,
+The **call button** stands in the chat composer where Send is, for every agent,
+while the box is empty; type something and Send comes back. Where this agent cannot take a call it is crossed out, and hovering,
 focusing or pressing it says why. Somebody who may edit the agent gets **Open in
 the Agent Builder**, which opens its Voice card on the Calls tab; anybody else is
 told to ask someone who can.
@@ -523,7 +600,7 @@ page inside it, and stays the way you left it.
 | **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
 | **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
-| **Channels** | Slack, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
+| **Channels** | Slack, Teams, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
 | **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
 | **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
@@ -540,9 +617,18 @@ change takes effect at once, without publishing a new version.
 
 The console speaks English, Polish and German, all of it except the legal
 pages, which stay in English. The walkthrough's first card offers the three, and
-the account menu changes the language at any time; the choice is remembered in
-the browser. Product words - agent, skill, run, budget, MCP and the rest of the
-list in [translating](howto/translate.md) - stay English in every language.
+the account menu changes the language at any time; the choice is kept on your
+account, so the console opens in it on every device you sign in on. You can also
+ask an agent - "switch to English" - and the page changes as it answers, without a
+reload. Every agent answers in it unless you write in another language. Product
+words - agent, skill, run, budget, MCP and the rest of the list in
+[translating](howto/translate.md) - stay English in every language.
+
+The same card asks what you do, and **Settings → Profile** keeps the rest of what
+agents know about you: your role, what you work on and your time zone. Every agent
+reads them at the start of a run, so you never repeat them in a chat; "every Monday
+at 9" is your 9. The time zone is taken from your browser the first time you sign
+in, until you choose one.
 
 ## The next step
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "c820451e5c9f"
+source_sha: "c6da76bc5fe8"
 ---
 
 # Aplikacje { #artifacts }
@@ -131,6 +131,7 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 jako moduł ES, z `addons/controls/OrbitControls.js` obok - zmapuj `three` i `three/addons/` mapą importów |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, jako `window.mermaid` |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, jako `window.L` - rysuje na [kafelkach map](#visuals) deploymentu, jeśli je ma |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: ponumerowane pinezki pokazane po kolei i wbijane jedna po drugiej na życzenie, mapa w proporcji 16:9 do szerokości strony, linia między nimi oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków. `lib/agenticos-map-1.js`, który wbija pinezki przy ładowaniu i ma jedną wysokość, jest dalej serwowany stronom, które go wskazują |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: ponumerowane pinezki wbijane po kolei, linia między nimi, pauza i powtórka oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje
@@ -197,7 +198,9 @@ mogą rysować na prawdziwych kafelkach map: deployment pobiera każdy kafelek z
 tego serwera i serwuje go z własnej ścieżki kafelków, `agenticos.map` mówi
 gdzie, a kit map rysuje na nim trasę z atrybucją serwera pod spodem. Bez tego to
 samo wywołanie rysuje zarys przystanków - pinezki i linię między nimi, bez ulic -
-i tak samo mapa, której kafelki się nie ładują. Obraz mapy w aplikacji czatowej
+i tak samo mapa, której kafelki się nie ładują. Agent mówi o tym w odpowiedzi: że
+nie podłączono serwera map i że administrator włącza prawdziwe mapy tym
+ustawieniem. Obraz mapy w aplikacji czatowej
 jest rysowany w stanie końcowym, ze wszystkimi pinezkami.
 
 **Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest

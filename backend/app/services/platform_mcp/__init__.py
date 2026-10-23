@@ -65,7 +65,9 @@ def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:
     )
     api = PlatformApi(app, token=_mcp_token, on_refusal=_tool_error)
     for tool in platform_tools(api):
-        server.tool(tool.function, annotations=_WRITE if tool.writes else _READ)
+        # A held read is announced as no read-only tool, which is what holds it
+        # for approval under `writes` - see `HELD`.
+        server.tool(tool.function, annotations=_WRITE if tool.writes or tool.held else _READ)
     # Stateless, answering in JSON: a tool call is one request and one answer,
     # so any worker of any replica can serve it, with nothing to keep in memory.
     # FastMCP's Host/Origin guard stays off: it protects unauthenticated local

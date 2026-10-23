@@ -254,6 +254,7 @@ ARTIFACT_LIBRARY: dict[str, str] = {
     "leaflet-1.9.4/leaflet.js": "text/javascript; charset=utf-8",
     "leaflet-1.9.4/leaflet.css": "text/css; charset=utf-8",
     "agenticos-map-1.js": "text/javascript; charset=utf-8",
+    "agenticos-map-2.js": "text/javascript; charset=utf-8",
 }
 """The files a page may load, by the name it loads them as, and their media type.
 

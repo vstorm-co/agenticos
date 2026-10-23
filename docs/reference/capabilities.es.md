@@ -1,5 +1,5 @@
 ---
-source_sha: "95ea32f0c306"
+source_sha: "75c53c320348"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -35,11 +35,24 @@ En los ajustes de una capability, los límites, la vida de la caché, los prompt
 el resto del ajuste fino quedan plegados en **Ajustes avanzados**, que se abren
 solos donde alguno se haya establecido.
 
-Las capabilities que tiene el agente inicial - la plantilla **Claude Code like**,
-que una organización nueva recibe en su primer arranque - llevan la insignia
+Las capabilities que tiene el agente inicial - la plantilla **AgenticOS**, que una
+organización nueva recibe en su primer arranque - llevan la insignia
 **Recommended**, y un agente creado con **New agent** empieza con exactamente esas
-activadas, configuradas como las configura la plantilla. Su autor desactiva lo que
-el agente no deba hacer.
+activadas, configuradas como las configura la plantilla, junto con sus
+instrucciones, skills, herramientas de la plataforma y presupuesto. Su autor
+desactiva lo que el agente no deba hacer.
+
+Acabe con las capabilities que acabe, cada run recibe en sus instrucciones, bajo
+**Your setup**, cuáles tiene y cuáles no - así describe solo lo que puede hacer y
+dice qué habría que activar para el resto.
+
+Cuando una petición necesita una que el agent no tiene, muestra en el chat una
+tarjeta con ella y su motivo. Quien puede editar el agent la activa desde la
+tarjeta, vinculada como la vincula el agent inicial y comprobada como comprueba
+una publicación. Se publica en el acto solo si el borrador no tenía nada sin
+publicar y esa persona puede publicar; si no, espera en el borrador al Builder.
+Cualquier otra persona se lo pide desde la tarjeta al propietario del agent, que
+recibe una notificación que abre el Toolbox del agent.
 
 Dos de ellas dependen de lo que ejecuta el despliegue. El espacio de trabajo es un
 contenedor en el servicio de sandbox del propio despliegue, que el bootstrap y la
@@ -81,6 +94,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | no disponible |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
+| `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | no disponible |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -114,7 +128,8 @@ las enumera para un agent que las tiene, igual que trabajar mientras corren
 herramientas, que solo manda al fondo una herramienta delegada. *En pantalla*
 hace sus preguntas en la tarjeta de la vista de la llamada en `/chat`. La
 consulta del canal de chat *no está disponible*, porque una llamada nunca se
-hace en un canal. *Sin efecto* marca tres que
+hace en un canal, y tampoco Follow-ups, cuyos botones una llamada no tiene dónde
+mostrar. *Sin efecto* marca tres que
 actúan sobre las peticiones al modelo de un run de texto y sobre su historial
 almacenado, que una llamada no envía.
 
@@ -1413,8 +1428,9 @@ dibujo y lo envía solo cuando la persona hace clic en *Enviar*; una petición s
 clic detrás se descarta. Consulte
 [mensajes de seguimiento](../artifacts.md#visuals).
 
-**Mapas.** `lib/agenticos-map-1.js` dibuja un itinerario - chinchetas numeradas que
-caen en orden, la línea entre ellas, pausa y repetición, y una tarjeta por parada -
+**Mapas.** `lib/agenticos-map-2.js` dibuja un itinerario - chinchetas numeradas en
+orden y la línea entre ellas, mostradas a la vez y que caen una a una cuando se pide,
+sobre un mapa 16:9 del ancho de la página, y una tarjeta por parada -
 sobre el servidor de teselas que nombra `VISUAL_MAP_TILES`, o como un contorno de
 las paradas en un despliegue que no nombra ninguno. Las instrucciones de la
 capability le dicen al modelo cuál es el caso, para que no prometa calles que no
@@ -2474,6 +2490,42 @@ detuvo. Solo la persona a quien se preguntó puede responder, mediante
 `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve a leer la
 tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
+
+## Follow-ups { #follow-ups }
+
+Al final de una respuesta, `suggest_next_steps` ofrece debajo hasta tres pasos
+siguientes como botones, cada uno de 80 caracteres como mucho y dicho como lo
+diría la persona: «Hazlo una tabla», «Haz esto cada lunes a las 9:00». Un clic
+envía el paso como su siguiente mensaje. Solo la respuesta más reciente los
+ofrece, y ninguna mientras un turno está en marcha. El agent los omite tras una
+charla trivial o una pregunta suya, y no repite los pasos en su respuesta. En
+Slack, Teams, Telegram y Mattermost los pasos llegan bajo la respuesta como un
+mensaje de botones, y pulsar uno es quien pulsa diciendo ese paso - el detalle
+está en [Canales](../channels.md#next-steps-as-buttons).
+
+**Modelo para los pasos siguientes** (`model_profile_id`) entrega los pasos a un
+modelo propio: al agent ya no se le ofrece `suggest_next_steps`, y cuando su
+respuesta está lista ese modelo lee la petición y la respuesta y escribe hasta tres
+pasos, o ninguno. Para tres botones cortos basta un modelo pequeño y barato, y el
+agent ya no gasta una petición en ellos. La llamada se comprueba antes contra los
+budgets y se anota en el run como cualquier otra; una que no se puede hacer cuesta
+los botones, nunca la respuesta. Vacío, el agent los ofrece él mismo.
+
+`propose_setup` propone hasta tres cosas que configurar, dibujadas como tarjetas
+bajo la respuesta: un agent propio de la persona, una rutina o un servicio que
+conectar. Una tarjeta actúa con un clic - una rutina abre el diálogo de rutinas
+relleno, en el agent que la propuso; un agent es una pregunta al Architect.
+
+Una conexión que nombra su servidor por clave del catálogo es la tarjeta de ese
+servicio - su logo y su botón Conectar, que lleva directo al inicio de sesión del
+proveedor y de vuelta a la conversación - y una sin clave abre la página de
+servidores MCP en su botón de añadir. El agent AgenticOS termina con ellas su
+entrevista de bienvenida, y ofrece una tarjeta de conexión siempre que una
+petición necesita un servicio que la persona no ha conectado. Las tarjetas son de la
+consola; una app de chat no las dibuja.
+
+Está activa en el agent inicial y en el Architect, y un autor puede desactivarla.
+Una llamada de voz la deja fuera.
 
 ## Qué puede cambiar una vinculación { #what-a-binding-may-change }
 

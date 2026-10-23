@@ -1,5 +1,5 @@
 ---
-source_sha: "2a7849df1ca9"
+source_sha: "4b8832761f4a"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -265,7 +265,7 @@ Conecta cualquier servidor MCP por URL y sus herramientas se convierten en inter
 
 ### Channels { #channels }
 
-Las plataformas de chat en las que responde esta organización — Slack, Telegram, Mattermost. Un bot sirve a cada agent vinculado a él, y el vínculo se hace en la pestaña Availability de ese agent.
+Las plataformas de chat en las que responde esta organización — Slack, Teams, Telegram, Mattermost. Un bot sirve a cada agent vinculado a él, y el vínculo se hace en la pestaña Availability de ese agent.
 
 ![Channels](assets/screens/light/channels.webp#only-light)
 ![Channels](assets/screens/dark/channels.webp#only-dark)

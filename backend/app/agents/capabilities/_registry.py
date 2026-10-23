@@ -319,8 +319,8 @@ class CapabilityDef:
     which in a call speaks), `subagents`, `coding_agent` (it works in the
     sandbox), `video_generation` (a clip takes minutes a call cannot wait
     through), and `background_tools`, which only sends those away. The Builder's Voice card lists them. `never` is
-    `channel_tools`, which a call never has a channel to describe for; no spec
-    binds it.
+    `channel_tools`, which a call never has a channel to describe for and no spec
+    binds, and `follow_ups`, whose buttons a call has nowhere to show.
     """
 
     tool_settings: bool = True
@@ -685,6 +685,7 @@ def load_builtins() -> None:
         compaction,
         context,
         conversation_search,
+        follow_ups,
         guardrails,
         image_generation,
         knowledge,

@@ -11,6 +11,13 @@ const state = vi.hoisted(() => ({
   // and the organization's ceiling (#925).
   mayDecide: true,
   orgAllowsWaiving: true,
+  pathname: "/chat",
+  openPage: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
+vi.mock("@/stores/onboarding-store", () => ({
+  useOnboardingStore: (pick: (store: unknown) => unknown) => pick({ openPage: state.openPage }),
 }));
 
 vi.mock("@/hooks", () => ({
@@ -64,6 +71,28 @@ beforeEach(() => {
   state.conversationId = null;
   state.mayDecide = true;
   state.orgAllowsWaiving = true;
+  state.pathname = "/chat";
+  state.openPage = vi.fn();
+});
+
+describe("the page's tips", () => {
+  it("are replayed from the controls, which close first so the tour can walk them (#2301)", async () => {
+    render(<ChatControls />);
+    await userEvent.click(trigger());
+
+    await userEvent.click(screen.getByRole("button", { name: "Show tips for this page" }));
+
+    expect(state.openPage).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+  });
+
+  it("are not offered where the page has none", async () => {
+    state.pathname = "/admin/users";
+    render(<ChatControls />);
+    await userEvent.click(trigger());
+
+    expect(screen.queryByRole("button", { name: "Show tips for this page" })).toBeNull();
+  });
 });
 
 describe("the chat controls trigger", () => {

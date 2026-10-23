@@ -25,8 +25,8 @@ served, because the serving route resolves a leaf name in the caller's own
 directory rather than through this table, but they are not counted against the
 quota and the sweep cannot see them. They go with their organization.
 
-Revision ID: 0160_generated_media
-Revises: 0159_default_organization
+Revision ID: 0170_generated_media
+Revises: 0169_starters_per_membership
 Create Date: 2026-10-22
 """
 
@@ -36,8 +36,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0160_generated_media"
-down_revision: str | None = "0159_default_organization"
+revision: str = "0170_generated_media"
+down_revision: str | None = "0169_starters_per_membership"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

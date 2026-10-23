@@ -64,7 +64,8 @@ export type WidgetId =
   | "artifacts"
   | "voice-minutes"
   | "projects"
-  | "recent-visuals";
+  | "recent-visuals"
+  | "suggestions";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -533,6 +534,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r3",
     category: "workspace",
     seeAll: ROUTES.CHAT,
+  },
+  // The person's briefing (#2301): what their watches found and the nightly look
+  // proposed - their own, so anybody who may talk to an agent may see it.
+  suggestions: {
+    id: "suggestions",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "workspace",
+    seeAll: ROUTES.INBOX,
   },
   "my-summary": {
     id: "my-summary",

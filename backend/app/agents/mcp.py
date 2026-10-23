@@ -29,7 +29,10 @@ from collections.abc import AsyncGenerator, Iterable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
+
+import httpx2
 
 # At import, not on the first turn: `pydantic_ai.mcp` brings in fastmcp's client,
 # and lazily that was a few hundred milliseconds - seconds on a host short of CPU -
@@ -46,10 +49,27 @@ from app.core.sanitize import validate_webhook_url
 
 logger = logging.getLogger(__name__)
 
-# How long a server gets to answer a connect or a probe. A constant rather than
-# a setting: the right value is a property of the protocol round-trip, not of a
-# deployment, and no installation ever tuned it.
+# How long a server gets to accept a connection, and an OAuth request to answer.
+# A constant rather than a setting: the right value is a property of the
+# protocol round-trip, not of a deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
+
+HANDSHAKE_TIMEOUT_SECS = 10.0
+"""How long a probe's whole session may take: `initialize`, `initialized` and `tools/list`.
+
+Apart from the connect timeout because a server can be slow per request without
+being down. One that checks every request's token at its identity provider - an
+OAuth proxy in front of GitHub or Microsoft Entra - spends about a second on
+each, and a probe is three or four requests, so a single 3s budget left it out
+of every turn although it answered every request. A host that does not accept
+the connection still fails within :data:`CONNECT_TIMEOUT_SECS`; one that accepts
+and then hangs holds a turn for this long.
+
+A run's own `initialize` keeps :data:`CONNECT_TIMEOUT_SECS`. It is one request,
+which such a server answers within it, and a server that answered a probe in
+the last :data:`ANSWERED_FOR` seconds is entered without another - so one that
+went down in that window still fails a turn in seconds, not in this budget.
+"""
 
 ANSWERED_FOR = 120.0
 """How long, in seconds, a server that answered its probe is taken to be up without another.
@@ -108,6 +128,47 @@ def _allowed_hosts() -> frozenset[str]:
     return frozenset(host for host in hosts if host)
 
 
+def trusted_hosts_for(server_url: str) -> frozenset[str]:
+    """The listed hosts the OAuth flow for the connection at *server_url* may reach.
+
+    All of `MCP_ALLOWED_HOSTS` when the connection's own host is on it, and none
+    otherwise. Its discovery documents name the addresses the flow fetches, so
+    the decision is made from the URL the connection was saved with, never from
+    an address a server named. That keeps a public server from aiming its token
+    endpoint at a listed host. A flow that began at a listed host may reach the
+    others: a member could already save a connection to any of them, so they
+    open nothing new. A URL `urlparse` cannot read trusts nothing; the guard
+    that checks it next writes the refusal.
+
+    Each host is in the set twice when its spellings differ: as `urlparse`
+    reads a URL a server wrote, and as httpx2 sends it, a name IDNA-encoded.
+    The pinned client checks the URL httpx2 built, so a listed `täst.internal`
+    has to match `xn--tst-qla.internal` there.
+    """
+    try:
+        host = urlparse(server_url).hostname
+    except ValueError:
+        return frozenset()
+    listed = _allowed_hosts()
+    spellings = listed | {_on_the_wire(entry) for entry in listed}
+    if host is None or _on_the_wire(host) not in spellings:
+        return frozenset()
+    return spellings
+
+
+def _on_the_wire(host: str) -> str:
+    """*host* as httpx2 puts it in a request: a name IDNA-encoded, an address as written.
+
+    httpx2's own encoder rather than the `idna` codec, which is IDNA 2003 and
+    spells `straße` differently. A host it cannot encode is kept as typed and
+    matches nothing it would send.
+    """
+    try:
+        return httpx2.URL(scheme="http", host=host).raw_host.decode("ascii")
+    except httpx2.InvalidURL:
+        return host
+
+
 async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     """SSRF-check a URL before we talk to it (same policy as webhooks).
 
@@ -123,7 +184,7 @@ async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     Args:
         url: The URL to check; http or https.
         honour_allowlist: Pass `True` only for a connection's own address, as
-            `mcp_connection._checked_url` saves it. A host on
+            `mcp_connection._checked_url` checks it. A host on
             `MCP_ALLOWED_HOSTS` then skips the address check and is not
             resolved. A URL a remote server chose keeps the strict default.
 
@@ -173,11 +234,14 @@ class McpServerSpec:
     # The organization's connection row this server is, so a call can be
     # recorded against it. None for a member's own connection and for `/mcp`.
     connection_id: UUID | None = None
+    # Tools, by the name the server gives them, that never wait for approval
+    # whatever `approval` says. Only this deployment's own server names any.
+    ungated: frozenset[str] = frozenset()
 
 
 @asynccontextmanager
 async def _mcp_transport(
-    url: str, headers: dict[str, str] | None
+    url: str, headers: dict[str, str] | None, *, timeout: float
 ) -> AsyncGenerator[tuple[Any, Any]]:
     """Open the right client transport for *url*, yielding `(read, write)`.
 
@@ -196,13 +260,17 @@ async def _mcp_transport(
     if infer_transport_type_from_url(url) == "sse":
         from mcp.client.sse import sse_client
 
-        async with sse_client(url, headers=headers or None) as (read, write):
+        async with sse_client(url, headers=headers or None, timeout=CONNECT_TIMEOUT_SECS) as (
+            read,
+            write,
+        ):
             yield read, write
     else:
         from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
+        limits = httpx2.Timeout(timeout, connect=CONNECT_TIMEOUT_SECS)
         async with (
-            create_mcp_http_client(headers=headers or None) as http_client,
+            create_mcp_http_client(headers=headers or None, timeout=limits) as http_client,
             streamable_http_client(url, http_client=http_client) as (read, write),
         ):
             yield read, write
@@ -225,10 +293,11 @@ async def probe_mcp_server(
     """
     from mcp import ClientSession
 
+    budget = timeout or HANDSHAKE_TIMEOUT_SECS
     try:
-        async with asyncio.timeout(timeout or CONNECT_TIMEOUT_SECS):
+        async with asyncio.timeout(budget):
             async with (
-                _mcp_transport(url, headers) as (read, write),
+                _mcp_transport(url, headers, timeout=budget) as (read, write),
                 ClientSession(read, write) as session,
             ):
                 await session.initialize()
@@ -236,7 +305,7 @@ async def probe_mcp_server(
     except (Exception, BaseExceptionGroup) as exc:
         if _carries_base_exception(exc):
             raise
-        raise McpProbeError(probe_error_message(exc)) from exc
+        raise McpProbeError(probe_error_message(exc, timeout=budget)) from exc
     return [
         McpToolInfo(
             name=t.name,
@@ -258,7 +327,7 @@ def _carries_base_exception(exc: BaseException) -> bool:
     return not isinstance(exc, Exception)
 
 
-def probe_error_message(exc: BaseException) -> str:
+def probe_error_message(exc: BaseException, *, timeout: float | None = None) -> str:
     """Human-readable reason for a failed probe.
 
     The MCP client runs on anyio task groups, so failures surface as nested
@@ -267,8 +336,10 @@ def probe_error_message(exc: BaseException) -> str:
     """
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
-    if isinstance(exc, TimeoutError):
+    if isinstance(exc, httpx2.ConnectTimeout):
         return f"Connection timed out after {CONNECT_TIMEOUT_SECS:g}s"
+    if isinstance(exc, TimeoutError):
+        return f"The server timed out after {timeout or HANDSHAKE_TIMEOUT_SECS:g}s"
     return str(exc) or exc.__class__.__name__
 
 
@@ -321,10 +392,12 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
+    prefix = tool_prefix(spec.name)
     return ApprovalMarked(
-        FittedNames(server.prefixed(tool_prefix(spec.name))),
+        FittedNames(server.prefixed(prefix)),
         policy=spec.approval,
         account=spec.account,
+        ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
     )
 
 
@@ -416,6 +489,7 @@ class ApprovalMarked(WrapperToolset[Any]):
 
     policy: McpApproval = "none"
     account: str | None = None
+    ungated: frozenset[str] = frozenset()
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         tools = await super().get_tools(ctx)
@@ -427,7 +501,8 @@ class ApprovalMarked(WrapperToolset[Any]):
                     tool.tool_def,
                     metadata={
                         **(tool.tool_def.metadata or {}),
-                        NEEDS_APPROVAL: needs_approval(tool.tool_def, self.policy),
+                        NEEDS_APPROVAL: name not in self.ungated
+                        and needs_approval(tool.tool_def, self.policy),
                         **named,
                     },
                 ),
@@ -533,6 +608,13 @@ PLATFORM_MCP_NAME = "agenticos"
 
 PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
 
+PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language"})
+"""The platform's writes that never wait for approval - `platform_mcp._tools.UNGATED`.
+
+Named again rather than imported: the platform's server imports the application,
+which imports this layer.
+"""
+
 PLATFORM_MCP_URL = "http://agenticos/mcp"
 """Where the in-process client addresses `/mcp`. The host is never resolved."""
 
@@ -548,6 +630,7 @@ def platform_spec(
         allowed_tools=allowed_tools,
         approval=approval,
         in_process=True,
+        ungated=PLATFORM_UNGATED_TOOLS,
     )
 
 
@@ -558,8 +641,6 @@ def _in_process_client(headers: dict[str, str]) -> Any:
     imports the agent layer, so the agent layer reaching for it at import time
     would be a cycle.
     """
-    import httpx2
-
     app = importlib.import_module("app.main").app
     return httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app=app),

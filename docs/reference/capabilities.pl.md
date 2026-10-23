@@ -1,5 +1,5 @@
 ---
-source_sha: "95ea32f0c306"
+source_sha: "75c53c320348"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -35,11 +35,24 @@ W ustawieniach capability limity, czasy życia cache, prompty i inne strojenie s
 zwinięte pod **Ustawieniami zaawansowanymi**, które otwierają się same, gdy
 któreś z nich zostało ustawione.
 
-Capabilities, które ma agent startowy - szablon **Claude Code like**, który świeża
+Capabilities, które ma agent startowy - szablon **AgenticOS**, który świeża
 organizacja dostaje przy pierwszym uruchomieniu - mają odznakę **Polecane**, a
 agent utworzony przez **New agent** startuje dokładnie z nimi włączonymi i
-skonfigurowanymi tak, jak konfiguruje je szablon. Jego autor wyłącza to, czego
-agent nie powinien robić.
+skonfigurowanymi tak, jak konfiguruje je szablon, razem z instrukcjami, skillami,
+narzędziami platformy i budżetem szablonu. Jego autor wyłącza to, czego agent nie
+powinien robić.
+
+Niezależnie od tego, z jakimi capabilities agent skończy, każdy run dostaje w
+instrukcjach, pod **Your setup**, listę tych, które ma, i tych, których nie ma -
+więc opisuje tylko to, co potrafi, i mówi, co trzeba by włączyć do reszty.
+
+Gdy prośba wymaga capability, której agent nie ma, pokazuje w czacie kartę z
+nią i z powodem. Ktoś, kto może edytować agenta, włącza ją z karty - powiązaną
+tak, jak wiąże ją agent startowy, i sprawdzoną tak, jak sprawdza publikacja.
+Publikuje się od razu tylko wtedy, gdy w szkicu nie było nic nieopublikowanego,
+a ta osoba może publikować; inaczej czeka w szkicu na Builder. Każdy inny prosi
+z karty właściciela agenta, a właściciel dostaje powiadomienie, które otwiera
+Toolbox agenta.
 
 Dwie z nich zależą od tego, co uruchamia wdrożenie. Przestrzeń robocza to
 kontener w usłudze sandbox samego wdrożenia, którą bootstrap i pierwsza publikacja
@@ -81,6 +94,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — | bez zmian |
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | niedostępna |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
+| `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps`, `propose_setup` | — | — | niedostępna |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -113,7 +127,8 @@ agenta, któremu rozmowa przekazuje zadanie
 Builderze wymienia je dla agenta, który je ma, tak jak pracę w trakcie narzędzi,
 która tylko wysyła przekazane narzędzie w tło. *Na ekranie* zadaje pytania na
 karcie w widoku rozmowy w `/chat`. Podgląd kanału czatu jest *niedostępny*, bo
-rozmowy nigdy nie prowadzi się w kanale. *Bez efektu* oznacza trzy capability, które działają na żądaniach
+rozmowy nigdy nie prowadzi się w kanale, i tak samo Następne kroki - rozmowa
+głosowa nie ma gdzie pokazać ich przycisków. *Bez efektu* oznacza trzy capability, które działają na żądaniach
 do modelu w tekstowym runie i na ich zapisanej historii, a tych rozmowa nie
 wysyła.
 
@@ -1385,8 +1400,9 @@ wysłanie wyboru osoby jako jej następnej wiadomości - *Zaplanuj ten przystane
 osoba kliknie *Wyślij*; prośba, za którą nie stoi kliknięcie, jest odrzucana. Zobacz
 [follow-upy](../artifacts.md#visuals).
 
-**Mapy.** `lib/agenticos-map-1.js` rysuje trasę - ponumerowane pinezki wbijane po
-kolei, linię między nimi, pauzę i powtórkę oraz kartę dla każdego przystanku - na
+**Mapy.** `lib/agenticos-map-2.js` rysuje trasę - ponumerowane pinezki po kolei i
+linię między nimi, pokazane od razu i wbijane jedna po drugiej na życzenie, na mapie
+w proporcji 16:9 do szerokości strony, oraz kartę dla każdego przystanku - na
 serwerze kafelków wskazanym przez `VISUAL_MAP_TILES`, a na deploymencie, który
 żadnego nie wskazuje, jako zarys przystanków. Instrukcje capability mówią modelowi,
 który to przypadek, żeby nie obiecywał ulic, których nie pokaże.
@@ -2416,6 +2432,40 @@ może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
 `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
+
+## Następne kroki { #follow-ups }
+
+Na końcu odpowiedzi `suggest_next_steps` proponuje pod nią do trzech następnych
+kroków jako przyciski, każdy najwyżej 80 znaków i sformułowany tak, jak
+powiedziałaby to osoba: „Zrób z tego tabelę”, „Rób to w każdy poniedziałek o
+9:00”. Kliknięcie wysyła krok jako jej następną wiadomość. Proponuje je tylko
+najnowsza odpowiedź, a w trakcie tury żadna. Agent pomija je po small talku albo
+po własnym pytaniu i nie powtarza kroków w odpowiedzi. W Slacku, Teams,
+Telegramie i Mattermost kroki przychodzą pod odpowiedzią jako wiadomość z
+przyciskami, a naciśnięcie jednego to naciskający mówiący ten krok - szczegóły są
+w [Kanałach](../channels.md#next-steps-as-buttons).
+
+**Model do następnych kroków** (`model_profile_id`) oddaje kroki osobnemu modelowi:
+agent nie dostaje już `suggest_next_steps`, a gdy jego odpowiedź jest gotowa, ten
+model czyta prośbę i odpowiedź i pisze do trzech kroków albo żadnego. Na trzy
+krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie
+zapytania. Wywołanie najpierw przechodzi przez budżety i jest księgowane na runie
+jak każde inne; takie, którego nie da się wykonać, kosztuje przyciski, nigdy
+odpowiedź. Puste pole zostawia kroki agentowi.
+
+`propose_setup` proponuje do trzech rzeczy do ustawienia, rysowanych jako karty
+pod odpowiedzią: własnego agenta osoby, rutynę albo usługę do podłączenia. Karta
+działa jednym kliknięciem - rutyna otwiera wypełnione okno rutyny na agencie,
+który ją zaproponował; agent to pytanie do Architekta.
+
+Połączenie, które wskazuje serwer kluczem z katalogu, jest kartą tej usługi - z jej logo i przyciskiem
+Podłącz, który prowadzi prosto do logowania u dostawcy i z powrotem do rozmowy -
+a połączenie bez klucza otwiera stronę serwerów MCP przy przycisku dodawania.
+Agent AgenticOS kończy nimi rozmowę powitalną i proponuje kartę połączenia
+zawsze, gdy prośba wymaga usługi, której osoba jeszcze nie podłączyła. Karty są tylko w konsoli; aplikacja czatu ich nie rysuje.
+
+Jest włączona w agencie startowym i w Architekcie, a autor może ją wyłączyć.
+Rozmowa głosowa jej nie używa.
 
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 

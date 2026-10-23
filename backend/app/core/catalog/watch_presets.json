@@ -1,0 +1,137 @@
+[
+  {
+    "key": "mail-needs-reply",
+    "catalog_key": "m365-mail",
+    "instructions": "Unread mail that needs a reply from me: written by a person rather than sent in bulk, asking me something or waiting on me. Skip newsletters, notifications and receipts.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "mail-invoices",
+    "catalog_key": "m365-mail",
+    "instructions": "Invoices, payment reminders and anything that says a payment is due or overdue. Urgent when it is already past its due date.",
+    "interval_minutes": 360,
+    "urgent": true
+  },
+  {
+    "key": "mail-newsletters",
+    "catalog_key": "m365-mail",
+    "instructions": "Newsletters and promotional senders I keep receiving and never open - worth unsubscribing from. Name the sender and how many arrived lately.",
+    "interval_minutes": 1440
+  },
+  {
+    "key": "github-reviews",
+    "catalog_key": "github",
+    "instructions": "Pull requests where my review is requested and I have not reviewed yet. Say how long each has waited.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "github-failing-checks",
+    "catalog_key": "github",
+    "instructions": "My own open pull requests whose checks are failing.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "github-mentions",
+    "catalog_key": "github",
+    "instructions": "Issues and pull requests where I was mentioned or asked a question that I have not answered.",
+    "interval_minutes": 180
+  },
+  {
+    "key": "gitlab-reviews",
+    "catalog_key": "gitlab",
+    "instructions": "Merge requests waiting on my review or approval. Say how long each has waited.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "gitlab-pipelines",
+    "catalog_key": "gitlab",
+    "instructions": "Failed pipelines on my own open merge requests or on the default branch of projects I work in.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "linear-assigned",
+    "catalog_key": "linear",
+    "instructions": "Issues newly assigned to me, or assigned to me and changed by somebody else since I last looked.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "linear-overdue",
+    "catalog_key": "linear",
+    "instructions": "My issues that are past their due date or marked blocked.",
+    "interval_minutes": 1440
+  },
+  {
+    "key": "jira-assigned",
+    "catalog_key": "atlassian",
+    "instructions": "Jira issues newly assigned to me, or assigned to me and commented on by somebody else.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "jira-overdue",
+    "catalog_key": "atlassian",
+    "instructions": "My Jira issues past their due date, or blocked.",
+    "interval_minutes": 1440
+  },
+  {
+    "key": "slack-unanswered",
+    "catalog_key": "slack",
+    "instructions": "Direct messages and mentions of me that nobody - me included - has answered yet.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "teams-unanswered",
+    "catalog_key": "m365-teams",
+    "instructions": "Chats and channel messages mentioning me that I have not answered yet.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "notion-mentions",
+    "catalog_key": "notion",
+    "instructions": "Pages and comments where I was mentioned or a question waits on me.",
+    "interval_minutes": 180
+  },
+  {
+    "key": "sentry-new-issues",
+    "catalog_key": "sentry",
+    "instructions": "New errors and regressions in my projects. Urgent when one is affecting many users.",
+    "interval_minutes": 60,
+    "urgent": true
+  },
+  {
+    "key": "pagerduty-incidents",
+    "catalog_key": "pagerduty",
+    "instructions": "Open incidents assigned to me or my escalation policy, not yet acknowledged.",
+    "interval_minutes": 15,
+    "urgent": true
+  },
+  {
+    "key": "hubspot-stale-deals",
+    "catalog_key": "hubspot",
+    "instructions": "My open deals with no activity for a week, or closing this week.",
+    "interval_minutes": 1440
+  },
+  {
+    "key": "intercom-waiting",
+    "catalog_key": "intercom",
+    "instructions": "Conversations assigned to me that are waiting on a reply.",
+    "interval_minutes": 60
+  },
+  {
+    "key": "asana-overdue",
+    "catalog_key": "asana",
+    "instructions": "My tasks that are due today or overdue.",
+    "interval_minutes": 1440
+  },
+  {
+    "key": "todoist-overdue",
+    "catalog_key": "todoist",
+    "instructions": "My tasks that are due today or overdue.",
+    "interval_minutes": 1440
+  },
+  {
+    "key": "clickup-overdue",
+    "catalog_key": "clickup",
+    "instructions": "My tasks that are due today or overdue.",
+    "interval_minutes": 1440
+  }
+]

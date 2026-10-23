@@ -100,6 +100,8 @@ export const qk = {
     // Under the list's prefix, so every bot mutation refreshes the one a dialog
     // has open too - its "inherit" hint reads the bot's agent.
     detail: (botId: string) => ["channel-bots", botId] as const,
+    /** The Teams channels and group chats a trigger can post into (#1985). */
+    teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its
@@ -470,6 +472,17 @@ export const qk = {
   slashCommands: {
     list: () => ["slash-commands", "list"] as const,
   },
+  // What the platform proposed to the signed-in person overnight (#2301).
+  watches: {
+    mine: () => ["watches"] as const,
+    presets: () => ["watches", "presets"] as const,
+  },
+  suggestions: {
+    mine: () => ["suggestions"] as const,
+    // Under `mine`'s prefix, so an answer anywhere refreshes the history too.
+    history: () => ["suggestions", "history"] as const,
+    starters: () => ["suggestions", "starters"] as const,
+  },
   notifications: {
     all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,
@@ -572,6 +585,8 @@ export const qk = {
     // of each query is its own resource rather than a filter over one blob.
     listPage: (query: string, category: string, auth: string, page: number) =>
       ["mcp-servers", "list", query, category, auth, page] as const,
+    // One server by its key, curated or mirrored - what a chat's connection card shows.
+    entry: (key: string) => ["mcp-servers", "entry", key] as const,
   },
   sessions: {
     // The namespace, for invalidating every page at once: a revocation shifts

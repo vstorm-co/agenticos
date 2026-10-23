@@ -181,7 +181,9 @@ async def _resolves(url: str) -> bool:
         return False
     try:
         await asyncio.get_running_loop().getaddrinfo(host, None)
-    except OSError:
+    except OSError, UnicodeError:
+        # `UnicodeError`: the IDNA codec refuses an empty or over-long label
+        # before any query is made (#2352).
         return False
     return True
 

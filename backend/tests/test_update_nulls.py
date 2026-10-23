@@ -59,6 +59,7 @@ from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.watch import Watch
 from app.db.updates import cleared, writable
 from app.schemas.agent import AgentDraftUpdate
 from app.schemas.agent_embed import EmbedUpdate
@@ -88,6 +89,7 @@ from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
+from app.schemas.watch import WatchUpdate
 
 # Which row each `*Update` schema writes, and `None` where it writes no single
 # one. Declared by hand because nothing in the code says it: the pairing lives in
@@ -133,6 +135,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     UserSlashCommandUpdate: UserSlashCommand,
     UserUpdate: User,
     VisibilityUpdate: None,
+    WatchUpdate: Watch,
 }
 
 # What is left, and none of it writes a row. `ingestion_config` merges two Pydantic

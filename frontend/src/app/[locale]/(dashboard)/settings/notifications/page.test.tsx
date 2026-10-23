@@ -21,7 +21,7 @@ import type { NotificationPreference } from "@/lib/notification-preferences-api"
  * `useNotificationPreferences` is mocked here rather than exercised for real
  * - its own wiring to `GET`/`PATCH /notifications/preferences` is
  * `use-notification-preferences.test.ts`'s job - so what this file pins for
- * it is that the page renders exactly the twenty togglable pairs the
+ * it is that the page renders exactly the thirty togglable pairs the
  * backend's `_TOGGLABLE_PAIRS` produces, in the shape the hook hands back.
  */
 
@@ -96,15 +96,15 @@ describe("the notifications settings page", () => {
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
   });
 
-  it("offers exactly the twenty togglable pairs the backend produces", () => {
+  it("offers exactly the thirty togglable pairs the backend produces", () => {
     render(<NotificationsSettingsPage />);
 
     // run_completed, run_failed, artifact_version_published, resource_shared,
     // budget_warning, mcp_server_down, mcp_server_recovered, ingestion_completed,
-    // ingestion_failed and announcement each offer both channels (10*2 = 20);
-    // budget_exceeded, approval_requested, usage_report and agent_usage_report
-    // offer only in-app (4*1 = 4). 20 + 4 = 24, plus the three legacy email
-    // switches above = 27 on the page total.
+    // ingestion_failed, announcement, suggestion, finding and capability_requested
+    // each offer both channels (13*2 = 26); budget_exceeded, approval_requested,
+    // usage_report and agent_usage_report offer only in-app (4*1 = 4). 26 + 4 =
+    // 30, plus the three legacy email switches above = 33 on the page total.
     expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
     expect(
@@ -126,7 +126,14 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "MCP server answering again - In-app" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(27);
+    expect(screen.getByRole("switch", { name: "Suggestions for you - Email" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "A capability asked for - In-app" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Findings from your watches - In-app" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(33);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

@@ -44,6 +44,25 @@ vi.mock("./tool-call-card", () => ({
     </div>
   ),
 }));
+// The shortcuts are tested on their own; here it only matters where they are offered.
+vi.mock("./turn-shortcuts", () => ({
+  TurnShortcuts: ({ request, agentId }: { request: string; agentId: string | null }) => (
+    <div data-testid="turn-shortcuts" data-agent={agentId ?? ""} data-request={request} />
+  ),
+}));
+// What a turn left - memory notes, cards - is tested on its own; here only that
+// it sits above the time and actions, named by the agent that answered.
+vi.mock("./turn-extras", () => ({
+  // Nothing for an unnamed agent, as the real one draws nothing for a turn that
+  // left nothing - so the tests about the answer's own parts are not about it.
+  TurnExtras: ({ agentName }: { agentName?: string }) =>
+    agentName ? <div data-testid="turn-extras" data-agent={agentName} /> : null,
+}));
+vi.mock("./skill-shortcut", () => ({
+  SkillShortcut: ({ request, answer }: { request: string; answer: string }) => (
+    <div data-testid="skill-shortcut" data-request={request} data-answer={answer} />
+  ),
+}));
 // Ratings own their own fetch; this file cares only that they are offered.
 vi.mock("./rating-buttons", () => ({
   RatingButtons: ({
@@ -216,6 +235,58 @@ describe("a turn in the transcript", () => {
   it("offers no pin outside the test panel, nor on an answer", () => {
     item({ role: "user", content: "Refunds?" });
     expect(screen.queryByRole("button", { name: /Pin to ask again/ })).toBeNull();
+  });
+
+  it("puts what the turn left under the answer and above its time and actions", () => {
+    item(
+      { content: "Here they are", timestamp: new Date() },
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent },
+    );
+
+    const extras = screen.getByTestId("turn-extras");
+    expect(extras).toHaveAttribute("data-agent", "Support");
+    const time = screen.getByRole("button", { name: "rate" });
+    // Before the footer in the document: read with the answer, not after its receipt.
+    expect(extras.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("offers to keep a person's request, but not an answer, nor in the test panel", () => {
+    const { rerender } = item(
+      { role: "user", content: "Refunds?" },
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent },
+    );
+    expect(screen.getByTestId("turn-shortcuts")).toHaveAttribute("data-agent", "a-1");
+    expect(screen.getByTestId("turn-shortcuts")).toHaveAttribute("data-request", "Refunds?");
+
+    rerender(<MessageItem message={message({ content: "Here they are" })} />);
+    expect(screen.queryByTestId("turn-shortcuts")).toBeNull();
+
+    rerender(
+      <MessageItem
+        message={message({ role: "user", content: "Refunds?" })}
+        pins={{ pinned: [], toggle: vi.fn() }}
+      />,
+    );
+    expect(screen.queryByTestId("turn-shortcuts")).toBeNull();
+  });
+
+  it("offers to make a skill of a finished answer it was handed the request for", () => {
+    const { rerender } = render(
+      <MessageItem message={message({ content: "Here they are" })} request="Refunds?" />,
+    );
+    expect(screen.getByTestId("skill-shortcut")).toHaveAttribute("data-request", "Refunds?");
+    expect(screen.getByTestId("skill-shortcut")).toHaveAttribute("data-answer", "Here they are");
+
+    rerender(
+      <MessageItem
+        message={message({ content: "Here they", isStreaming: true })}
+        request="Refunds?"
+      />,
+    );
+    expect(screen.queryByTestId("skill-shortcut")).toBeNull();
+
+    rerender(<MessageItem message={message({ content: "Here they are" })} />);
+    expect(screen.queryByTestId("skill-shortcut")).toBeNull();
   });
 
   it("names the agent that answered, and the version that did", () => {
@@ -994,6 +1065,18 @@ describe("the runs a turn is made of", () => {
 
     expect(runs.map((run) => run.kind)).toEqual(["tools", "other", "tools"]);
     expect(runs.at(-1)?.isLast).toBe(true);
+  });
+
+  it("leaves out a call drawn under the answer instead, without splitting the run around it", () => {
+    const offer = {
+      id: "s",
+      type: "tool" as const,
+      toolCall: { id: "tc-s", name: "suggest_next_steps", args: {}, status: "completed" as const },
+    };
+    const runs = runsOf([tool("a"), offer, tool("b")]);
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.kind === "tools" && runs[0].parts.map((part) => part.id)).toEqual(["a", "b"]);
   });
 
   it("drops an empty text or thinking part rather than drawing an empty bubble", () => {

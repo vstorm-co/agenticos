@@ -7,6 +7,7 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   background_tools: 222,
   text_to_speech: 28,
   video_generation: 300,
+  follow_ups: 172,
 };
 
 /** Visuals: a board standing on the base with a small diagram on it, and `draw()` above. */
@@ -125,9 +126,41 @@ const VIDEO_GENERATION =
   '<text x="0" y="2.4" class="tx mono s7 mid b" >action()</text></g></g>' +
   "</svg>";
 
+/**
+ * Follow-ups: an answer standing on the base, three next steps waiting under
+ * it as buttons, and the one about to be pressed lifting off.
+ */
+const FOLLOW_UPS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)"><path class="igrid2" d="M21 3V81M42 3V81M63 3V81M3 21H81M3 42H81M3 63H81"/></g>' +
+  '<polygon class="int" points="71.2,22 128.8,54 126.6,55 69.4,23"/>' +
+  '<polygon class="inr" points="128.8,54 128.8,84 126.6,85 126.6,55"/>' +
+  '<polygon class="inl" points="69.4,53 126.6,85 126.6,55 69.4,23"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 69.4 23)">' +
+  '<rect x="6" y="8" width="44" height="3" rx="1.5" class="mu" />' +
+  '<rect x="6" y="14" width="36" height="3" rx="1.5" class="mu" />' +
+  '<rect x="6" y="20" width="40" height="3" rx="1.5" class="mu" /></g>' +
+  '<g class="breathe" style="animation-delay:0s"><g transform="matrix(0.9 0.5 0 1 136 64)">' +
+  '<rect x="0" y="0" width="30" height="8" rx="4" class="ict" /></g></g>' +
+  '<g class="breathe" style="animation-delay:-0.6s"><g transform="matrix(0.9 0.5 0 1 150 72)">' +
+  '<rect x="0" y="0" width="30" height="8" rx="4" class="ict" /></g></g>' +
+  '<g class="bob"><g transform="matrix(0.9 0.5 0 1 164 64)">' +
+  '<rect x="0" y="0" width="30" height="8" rx="4" class="ac" /></g></g>' +
+  '<g class="bob"><g transform="translate(176 36)"><rect x="-19" y="-9" width="38" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >next →</text></g></g>' +
+  "</svg>";
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
   text_to_speech: TEXT_TO_SPEECH,
   video_generation: VIDEO_GENERATION,
+  follow_ups: FOLLOW_UPS,
 };

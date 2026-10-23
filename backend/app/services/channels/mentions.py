@@ -60,6 +60,7 @@ from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment, channel_key
 from app.services.channels.chart_png import render_chart_png
+from app.services.channels.next_steps import next_steps_of
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.transcript import RecordedToolCall
 from app.services.usage_report import (
@@ -88,6 +89,7 @@ _SURFACES: dict[str, RunSurface] = {
     "slack": RunSurface.SLACK,
     "telegram": RunSurface.TELEGRAM,
     "mattermost": RunSurface.MATTERMOST,
+    "teams": RunSurface.TEAMS,
 }
 
 
@@ -243,6 +245,9 @@ class AnsweredTurn:
 
     run_id: UUID | None = None
     """The run that answered, so the thumbs under the answer can rate it (#2084)."""
+
+    next_steps: list[str] = field(default_factory=list)
+    """What the answer offered to do next, posted under it as buttons (#2301)."""
 
     image_png: bytes | None = None
     """A chart the turn drew, rendered for a surface that cannot run Recharts.
@@ -438,6 +443,7 @@ class ChannelAgentRouter:
             parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
             run_id=run.id,
+            next_steps=next_steps_of(called),
         )
 
     async def answer_default(
@@ -551,6 +557,7 @@ class ChannelAgentRouter:
             parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
             run_id=run.id,
+            next_steps=next_steps_of(called),
         )
 
     async def _with_usage(

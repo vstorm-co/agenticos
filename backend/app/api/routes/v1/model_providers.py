@@ -15,6 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.model_profile import (
     ImageModelRead,
@@ -83,10 +84,14 @@ async def list_provider_catalog() -> Any:
 @router.get(
     "/model-profiles",
     response_model=ModelProfileList,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[PUBLIC, Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_model_profiles(service: ModelProfileSvc, ctx: Auth) -> Any:
-    """Selectable models. Readable by anyone who can see agents - the Builder's dropdown."""
+    """Selectable models. Readable by anyone who can see agents - the Builder's dropdown.
+
+    Public, so a key - and the Architect, choosing the model a draft publishes
+    on - can read which models the organization has (#2301).
+    """
     items = await service.list_profiles(ctx)
     return ModelProfileList(items=items, total=len(items))
 

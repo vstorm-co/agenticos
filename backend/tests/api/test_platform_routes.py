@@ -1727,6 +1727,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # it is what says how to. Only an agent its organization chose to serve
         # has one; every other id is a 404.
         ("GET", f"{V1}/a2a/{{agent_id}}/.well-known/agent-card.json"),
+        # Teams (#1985): every activity carries a Bot Connector JWT, verified
+        # against the issuer's published keys, this bot's app id as audience and
+        # the activity's own service before anything in the body is used.
+        ("POST", f"{V1}/teams/{{bot_id}}/messages"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A

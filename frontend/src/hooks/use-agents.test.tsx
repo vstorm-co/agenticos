@@ -137,6 +137,21 @@ describe("useAgents", () => {
       spec: expect.objectContaining({ name: "Support", spec_version: 3 }),
     });
   });
+
+  it("passes on a request for the starter agent's defaults", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
+
+    const { result } = renderHook(() => useAgents(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.create.mutateAsync({ spec: SPEC, from_starter: true });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/agents",
+      expect.objectContaining({ from_starter: true }),
+    );
+  });
 });
 
 describe("useAgent draft", () => {

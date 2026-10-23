@@ -122,3 +122,46 @@ async def test_a_request_past_the_caps_is_refused_before_anything_is_queued(
 
     assert response.status_code == 422
     api_runs.queue.assert_not_awaited()
+
+
+async def test_a_draft_is_not_queued() -> None:
+    """A draft is tried while somebody waits for the answer (#2301)."""
+    api_runs = MagicMock(queue=AsyncMock())
+    async with _client(api_runs) as client:
+        response = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/run",
+            json={"prompt": "hi", "draft": True},
+            headers={"Prefer": "respond-async"},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["details"]["fields"][0]["field"] == "draft"
+    api_runs.queue.assert_not_awaited()
+
+
+async def test_a_draft_is_run_as_the_draft() -> None:
+    """What `test_agent_draft` asks for: the runner is told to run the draft."""
+    run = MagicMock(
+        id=uuid4(),
+        status="completed",
+        cost_usd=0,
+        cost_is_partial=False,
+        input_tokens=1,
+        output_tokens=1,
+        cache_read_tokens=0,
+        cache_write_tokens=0,
+    )
+    runner = MagicMock(
+        execute=AsyncMock(return_value=("Hello", run)), parked_calls=AsyncMock(return_value=[])
+    )
+    conversations = MagicMock(for_api_run=AsyncMock(return_value=(uuid4(), [])))
+    async with _client(MagicMock()) as client:
+        app.dependency_overrides[deps.get_agent_runner_service] = lambda: runner
+        app.dependency_overrides[deps.get_conversation_service] = lambda: conversations
+        response = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/run", json={"prompt": "hi", "draft": True}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["output"] == "Hello"
+    assert runner.execute.await_args.kwargs["draft"] is True

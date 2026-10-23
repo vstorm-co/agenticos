@@ -6,6 +6,7 @@ import {
   FileText,
   FolderKanban,
   FolderOpen,
+  Inbox,
   BookOpen,
   Bot,
   Building2,
@@ -50,6 +51,8 @@ export type NavItem = {
   tabbed?: boolean;
   /** Lit on its own page only - a project's page lights the project's own row instead. */
   exact?: boolean;
+  /** A count beside the label: how much waits there. Only the inbox has one. */
+  count?: "inbox";
 };
 
 /** The section hue a group carries - see "Section hues" in `globals.css`. */
@@ -77,6 +80,14 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
       { labelKey: "chat", href: ROUTES.CHAT, icon: MessageSquare },
+      // What the platform brought each person on its own (#2301): theirs, so ungated.
+      {
+        labelKey: "inbox",
+        href: ROUTES.INBOX,
+        icon: Inbox,
+        dataTour: "nav-inbox",
+        count: "inbox",
+      },
     ],
   },
   // Somebody's ongoing work: the projects they are in, most recent first, drawn

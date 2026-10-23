@@ -1,5 +1,5 @@
 ---
-source_sha: "aec1756f1b79"
+source_sha: "d30c628ff803"
 ---
 
 # Ihr erster Agent { #your-first-agent }
@@ -62,7 +62,7 @@ ein neues Model umstellen, ohne einen einzigen Agent anzufassen.
 !!! tip "Oder von einem Template ausgehen"
 
     **Agents → Agent templates** liefert neunundzwanzig fertige Agents:
-    achtundzwanzig nach Branche gruppiert und **Claude Code like** unter
+    achtundzwanzig nach Branche gruppiert und **AgenticOS** unter
     *Allgemeiner Einsatz* - ein Agent für jede Aufgabe, der in einem Workspace
     arbeitet, plant, an Spezialisten delegiert und im Web recherchiert. Jeder
     kommt mit geschriebenen Instructions, eingeschalteten Capabilities und den

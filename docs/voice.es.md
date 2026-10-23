@@ -1,5 +1,5 @@
 ---
-source_sha: "e67d7a32f400"
+source_sha: "8f67edc78560"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -50,10 +50,13 @@ sección, fuera de los budgets como un dictado, así que se limita por persona
 (`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) y queda en caché una semana por voz e
 idioma.
 
-**Todo agent ofrece el botón.** En `/chat` el botón de llamada está junto al
-micrófono en cada agent. Para uno sin voz, o con una clave que ya no puede
+**Todo agent ofrece el botón.** En `/chat` el botón de llamada ocupa el lugar
+de Enviar mientras el cuadro está vacío, y Enviar vuelve en cuanto se escribe algo,
+en cada agent. Para uno sin voz, o con una clave que ya no puede
 mantener una llamada, aparece tachado, y su motivo lleva a quien puede editar el
-agent a la pestaña de llamadas de su tarjeta Voice.
+agent a la pestaña de llamadas de su tarjeta Voice. La ventana del Architect y el
+panel de pruebas del Builder lo ofrecen igual; en el panel de pruebas la llamada
+ejecuta la versión publicada, no el borrador que se prueba, y el botón lo dice.
 
 **El embed.** Un widget o una página alojada ofrecen llamadas solo cuando su
 propio interruptor «Voice calls» está activado. Guardar el interruptor activado

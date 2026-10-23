@@ -138,6 +138,271 @@ Two things are versioned separately from this file and worth knowing about:
   names, which before was sent to the wrong provider at every call; a `custom`
   key is still accepted (#2258).
 
+## [1.15.0] - 2026-10-23
+
+### Added
+
+- **The agents people meet first guide them (#2301).** The general-purpose
+  starter agent is now called **AgenticOS** and wears the product's logo. It leads
+  with the answer, asks one question with proposed answers when a request is
+  ambiguous, uses what it has without being asked, and after a task offers the one
+  next step that fits - often something the person has not used yet: a routine for
+  a request that will come back, an app to share, a service to connect. It
+  remembers preferences and what was declined, and switches the console's
+  language when asked. The **Architect** builds an agent with you from "what
+  should it do" to a tested, published agent, one decision at a time: it proposes
+  the capabilities, knowledge and model, explains each choice in a line, tries the
+  draft on your own questions and publishes it when you approve.
+- **A new agent starts as AgenticOS.** An agent made with **New agent** gets the
+  starter's instructions - opening with its own `{{agent_name}}` - and whatever of
+  its capabilities, skills, platform tools, first messages and budget the creator
+  left empty; `POST /agents` does the same with `"from_starter": true`, and
+  otherwise fills in only the instructions of a spec that has none.
+  `backend/app/agents/default_instructions.py` is gone; the template is the one
+  source.
+- **Every agent knows its own setup.** Each text run's instructions carry a
+  **Your setup** section assembled from the spec: the capabilities the agent has,
+  in the Toolbox's words, and the ones it has not, so "what can you do?" is
+  answered from what is switched on and a request needing something missing is
+  told what to switch on and where.
+- **The platform's MCP server builds and schedules.** New tools: `update_agent_draft`,
+  `test_agent_draft`, `publish_agent` (needs `agents:publish`, always waits for
+  approval, runs the Publish checks), `list_models`, `list_routines`,
+  `create_routine`, `update_routine`, `run_routine_now`, `delete_routine`,
+  `search_mcp_servers`, `list_my_connections` and `set_my_language`. The last is
+  the one write no binding holds for approval, and the Builder's platform card
+  says so.
+- **The console's language is kept on the account.** Chosen in the account menu or
+  through an agent, it holds on every device, and the open console switches the
+  moment an agent's `set_my_language` call answers. Every agent answers in it.
+- **What agents know about you.** The walkthrough's first card asks your role, and
+  **Settings → Profile** keeps it with what you work on and your time zone, which
+  is taken from the browser until you choose one. Every run is told them after its
+  instructions, so "every Monday at 9" is the person's 9 and nobody repeats their
+  role in a chat. Migration `0160_user_profile` adds nullable `users.locale`,
+  `time_zone`, `job_title` and `about`; nothing changes for anybody until they set
+  one.
+- **Next steps as buttons.** The new `follow_ups` capability's
+  `suggest_next_steps` puts up to three next steps under the latest answer, and a
+  click sends one. On in AgenticOS and the Architect; left out of voice calls.
+- **A capability an agent lacks, switched on from the chat.** When a request needs
+  one, the agent shows a card. Someone who may edit it switches it on -
+  published at once when the draft held nothing else, otherwise saved to it - and
+  anyone else asks the owner, who is notified
+  (`POST /agents/{id}/capabilities/{capability_id}/enable` and `/request`, console
+  only). Migration `0161_capability_requested` adds the `capability_requested`
+  event.
+- **Keeping a request that worked.** Under your own message, one click makes it a
+  weekly routine on the agent that answered, another asks the Architect to build
+  an agent that does it. A line under an answer says what the agent remembered or
+  forgot about you, with a link to manage it.
+- **A routine's finish says what it found.** Its creator's notification names the
+  routine and opens with the start of the answer, instead of the generic "run
+  completed" one. AgenticOS offers a **Weekly tips** routine once, from the new
+  `weekly_tips` template.
+- **Get started for everybody.** The dashboard's checklist now leads with your
+  own steps, ticked from what you have done - telling agents about yourself, a
+  first conversation, a service connected with your own account, a routine and an
+  agent of your own - and keeps the organization's after them for whoever builds
+  agents. The next step says what it is for.
+- **First messages.** `AgentSpec.starters`, up to four, set under the instructions
+  in the Builder, are the cards an empty chat offers; an agent with none shows the
+  chat's own, now including "What can you do?" and "Set up a routine". The
+  Architect ships with four. The spec stays at version 13: the field is optional.
+- **Public API.** `POST /agents/{id}/run` takes `"draft": true` to run the
+  unpublished draft as a test (not with `Prefer: respond-async`); the trigger
+  routes under `/agents/{id}/triggers` and `GET /triggers`,
+  `GET /providers/model-profiles`, `GET /me/mcp-connections` and the new
+  `PUT /users/me/locale` are reachable with an organization key.
+- **Microsoft Teams as a channel** (#1985). An agent answers in a personal chat,
+  in a group chat and in a team channel's thread when it is @mentioned, through a
+  single-tenant Azure Bot reached over the Bot Connector's own protocol. Every
+  activity's JWT is checked - signature, issuer, this bot's app ID, expiry and the
+  service it names - before anything runs. Approvals and questions are Adaptive
+  Cards decided by whoever pressed them; files reach a personal chat through
+  Teams' consent card; the console builds the Teams app package. Where the
+  deployment signs people in with Entra in the same tenant, a Teams account is
+  linked to its member without a link. A trigger can post each answer to a Teams
+  channel or group chat.
+- **AgenticOS gets to know you (#2301).** While your account says nothing about
+  your role, a greeting starts a three-question interview - what you do, what
+  fills your week, which tools you use - saved to your profile through the new
+  `set_my_profile` platform tool (`PATCH /users/me/agent-context` over the API;
+  held for your approval like every write, since every agent is told what it
+  saves) and ended with up to three setup cards from the new
+  `propose_setup` tool: a routine, a service to connect or an agent of your own,
+  each one click. It offers the **Morning briefing** routine once, links to the
+  console with `?highlight=` so the page opens pointing at the control, and saves
+  a procedure as a skill with the new `create_skill` tool. A link the agent writes
+  opens in the console without a reload.
+- **The platform's own initiative, as background jobs.** Once a night, early in
+  each person's morning, one model call per person reads what they asked recently
+  and proposes a routine for a request they keep repeating, a profile, the first
+  messages their empty chat offers, and a role pack of agents. Proposals wait as
+  cards in the empty AgenticOS chat and in the bell (the new `suggestion` event);
+  a dismissed one is never made again, and nothing runs when nothing new
+  happened. Each call is a run from the new `proactive` surface, capped per
+  person per month by the organization's `proactive_limit_usd` ($1 by default, 0
+  switches it off, set beside the spending limit). **Working hours** in
+  Settings → Profile are told to every agent. The first messages are kept per
+  organization, since they are drawn from one organization's week. Migrations
+  `0163_proactivity` and `0169_starters_per_membership` add `suggestions`,
+  `users.working_hours`, `organization_members.personal_starters` and the limit.
+- **A welcome in the chat apps.** A new member - invited, joining the default
+  organization or synced from the directory - gets one direct message from each
+  of the organization's Slack, Mattermost and Teams bots that finds them by email.
+  **The Slack manifest gains `users:read.email`: reinstall an existing Slack app
+  from the new manifest** for its welcome; it keeps working without.
+- **Next steps in Slack, Telegram, Mattermost and Teams.** The steps an answer
+  offers arrive as a message of buttons, and a press is the presser's next
+  message, held to the link, the access policy and the rate limit. Migration
+  `0164_channel_next_steps` adds `channel_prompts.chat_type` and the `follow_up`
+  kind.
+- **A model of their own for next steps.** The follow-ups capability takes a
+  **Model for next steps**: set, the agent is no longer offered
+  `suggest_next_steps`, and once its answer is in that model writes up to three
+  steps from the request and the answer - checked against the budgets and booked
+  on the run. They reach the console, the chat apps and the run history as the
+  agent's own call would.
+- **Make a skill of this.** A button under an answer hands the Architect your
+  request and the conversation's id, and the Architect reads the whole of it -
+  steps and tool calls included - with the new `read_conversation` platform tool
+  (`GET /conversations/{id}/transcript`, `runs:view`) before writing the skill.
+  Offered to whoever may write skills.
+  A chat link with `?agent=<slug>` opens the chat on that agent.
+
+- **Watches over your own connections (#2301).** A person can have the platform
+  keep an eye on one of their own MCP connections - pull requests waiting on
+  their review, an overdue invoice, mentions nobody answered - with a ready-made
+  watch for 15 catalog servers or their own words, on a cadence they choose.
+  Each look offers the model only the tools the server marks read-only, and what
+  is new arrives as a finding (a suggestion of kind `finding`) reported once,
+  with a link to open it; one the person asked to hear about at once and the
+  model judged urgent is also sent as a notification. Set up with **New watch**
+  under **Routines**, where a **Watches** card shows when each last looked and how
+  many of its findings wait, or with **Watch** beside an account's **Tools** on
+  the MCP servers page (`/me/watches`). Any server the person connected may be watched. Off until the
+  organization turns watches on, on the **Proactivity** card, which also sets the
+  most-often; they run on the proactive model and limit. Migration `0167_watches`.
+- **An inbox, and a morning briefing (#2301).** **Inbox**, under Chat in the
+  sidebar with a count of what waits, lists what watches found and what the
+  nightly look proposed like a mailbox - a row each, urgent first, its source and
+  time, the answers in the row - filtered by where it came from, with a **Done**
+  view to bring a declined one back. The dashboard's suggestions card is now
+  **Briefing**, the same rows at the top of the personal view. What a watch finds that
+  need not be heard at once goes out once, at the organization's proactive hour:
+  one notification and one direct message from each Slack, Teams and Mattermost
+  bot that knows the person. Migration `0168_finding_briefed`.
+
+### Changed
+
+- **Proactivity is an organization's choice, off until it turns it on.** The
+  organization page's **Proactivity** card turns on the nightly suggestions
+  with the model they run on (required, never defaulted), the limit per person,
+  the days and the hour - fixed, or an hour before each person's working hours
+  - and, apart, the welcome message in Slack, Teams and Mattermost with its own
+  words. A person can leave themselves out under **Settings → Assistant**, which
+  also lists every suggestion and brings a dismissed one back
+  (`GET /me/suggestions?decided=true`, `POST /me/suggestions/{id}/restore`), and
+  a new **Suggestions for you** dashboard card shows them beside the chat's.
+  Migration `0166_proactivity_settings`.
+- **A turn whose server died ends in two minutes, not six hours.** The process
+  executing a run stamps it alive every `RUN_HEARTBEAT_SECONDS` (new
+  `agent_runs.heartbeat_at`, migration `0165_run_heartbeat`), and the stale-run
+  sweep runs every minute and ends a run silent for
+  `STALE_RUN_REAPED_AFTER_SECONDS` (default 120), which replaces
+  `STALE_RUN_REAPED_AFTER_HOURS`. It tells open consoles, so a chat stops
+  saying "Working" over a turn nobody is answering and offers **Ask again**.
+  Voice calls are left to the voice reaper.
+- A fresh organization's starter agent is installed as **AgenticOS**
+  (`@agenticos`). An organization bootstrapped earlier keeps its
+  `@claude-code-like` agent as it is - an agent's handle never changes - and
+  rerunning bootstrap there installs AgenticOS beside it.
+- **Less under the chat's composer.** The "AI can make mistakes" line is gone,
+  the "?" that replays the chat's tips moved into the chat settings, the
+  composer takes a card's light shadow instead of a dark drop, and a lost
+  connection is said by the box itself - "Reconnecting…" where it asks for a
+  message - instead of a red "Offline" line under it.
+- **The call button stands in Send's place.** While the box is empty, every
+  agent offers the call where Send is, as a waveform - crossed out, saying why,
+  where it cannot take one; type something and Send comes back. Dictation stays
+  where it was. The Architect's window and the Builder's test panel offer it
+  too - the test panel's call runs the published version, and says so.
+- **A routine's schedule asks how often first.** The new-routine dialog is a
+  form's width with its steps as dots, and its schedule step opens on one row -
+  every 15 minutes, hourly, every 6 hours, daily, weekdays, weekly or custom -
+  with only what that choice needs under it, a sentence saying what it means,
+  and what happens when a run is still going under **More options**.
+- **A link to a console page wears its icon.** When an agent links to
+  Routines, MCP servers or any other section, the link carries the sidebar's
+  icon for it, as a link to a known service carries its logo.
+- **Connect a service from the chat.** When a request needs one of your
+  services you have not connected, the agent offers it as a card with the
+  service's logo and **Connect**, which goes straight to its sign-in and back to
+  the conversation (`propose_setup` takes the server's catalog key as
+  `server`).
+- **Map kit version 2, `lib/agenticos-map-2.js`.** An itinerary shows its whole
+  route on load and drops the pins one by one only on request (`autoplay: true`
+  plays them on load); the map is 16:9 of the page's width, never lower than its
+  `height`, so it grows in a wide window and in full screen; and a frame a page
+  draws around it no longer leaves everything touching its edge. The skills and
+  tools name version 2; `agenticos-map-1.js` stays served for the pages that
+  name it.
+- **A map drawn without tiles is explained.** The agent says in its answer that
+  no map server is connected and that an administrator turns real maps on with
+  `VISUAL_MAP_TILES`, instead of a note inside the drawing. Tiles stay off by
+  default.
+
+### Fixed
+
+- **A question an agent asked comes back after leaving the chat.** Leaving the
+  chat page while a turn was being written and coming back showed the turn from
+  memory: its timer kept running, and a question it had parked on never
+  returned as a card. The chat now reads the conversation again.
+- **The `+` in the Architect's window opens.** The window kept its presses from
+  a dialog behind it by stopping them before React saw them, so every control
+  opening on a press - the composer's `+` menu among them - did nothing there.
+
+## [1.14.0] - 2026-10-23
+
+### Added
+
+- **People can sign in with OAuth to an MCP server on `MCP_ALLOWED_HOSTS`.**
+  A server on the deployment's network, a VPN or a tailnet often runs its own
+  sign-in, so its metadata, client registration and token endpoints sit on the
+  same private host. Saving such a connection worked since 1.13.0, but every
+  OAuth step after it was refused, so the sign-in probe, Connect and token
+  refresh all failed. Now the OAuth requests of a connection whose own host is
+  listed may reach the listed hosts, still resolved and pinned, and a listed
+  name that answers a loopback, link-local or metadata address is refused. A
+  public server's sign-in reaches no listed host, even when its metadata names
+  one. Taking a host off the list stops its OAuth connections from renewing
+  their tokens. Carries the scoping from #2356 by @henfircreo.
+
+### Fixed
+
+- **A slow MCP server is no longer left out of every turn.** The probe before
+  a turn gave the whole session - `initialize`, `initialized` and
+  `tools/list` - 3 seconds. A server that checks each request's token at its
+  identity provider, such as an OAuth proxy in front of GitHub or Microsoft
+  Entra, spends about a second per request, so it timed out on every turn and
+  every connection check although it answered each request. A server now gets
+  3 seconds to accept the connection and 10 seconds for the whole handshake,
+  or the `--timeout` the catalog check is given. A host that is down still
+  fails within 3 seconds, and so does a run's own `initialize`.
+
+## [1.13.1] - 2026-10-23
+
+### Fixed
+
+- **A URL whose host name cannot be encoded is refused, not a 500 (#2352).** A
+  host with an empty label (`a..b`) or a label longer than 63 characters made
+  the resolver's IDNA codec raise an error the outbound guard did not catch, so
+  saving an MCP connection with such a URL answered 500 "An unexpected error
+  occurred". The guard now refuses it with "The URL's host name is not valid",
+  a 400 like every other refusal, for every caller. The MCP catalog audit and
+  the browser's endpoint lookup treat such a name as one that does not resolve.
+
 ### Security
 
 - **OpenTelemetry moves to 1.45.1 (0.66b1 for the instrumentation packages).**

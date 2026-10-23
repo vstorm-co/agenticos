@@ -35,6 +35,7 @@ from app.repositories import (
     channel_link_request_repo,
     channel_session_repo,
     member_repo,
+    user_repo,
 )
 from app.schemas.channel_bot import LinkedAgent, LinkedPlace
 from app.services.access import AGENT, resolve_access
@@ -179,6 +180,24 @@ class ChannelLinkService:
             )
 
         return request
+
+    async def link_vouched(self, identity: ChannelIdentity, email: str) -> bool:
+        """Link a chat account to the member its platform's directory names, if one signed in so.
+
+        Only to an account that signs in through this deployment's own identity
+        provider - the directory that vouched for the address is then the one
+        that admitted that account. A password account with the same address
+        proves nothing about who holds the chat account, and is left to the link
+        flow (#1985). Whether the member may then use the bot is the router's
+        membership check, as for any link.
+        """
+        user = await user_repo.get_by_email(self.db, email)
+        if user is None or not user.is_active or user.oauth_provider != "oidc":
+            return False
+        await channel_identity_repo.update(
+            self.db, db_identity=identity, update_data={"user_id": user.id}
+        )
+        return True
 
     async def linked(self, user_id: UUID) -> list[ChannelIdentity]:
         """The chat accounts this person has connected."""

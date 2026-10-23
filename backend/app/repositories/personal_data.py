@@ -34,7 +34,9 @@ from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.session import Session
+from app.db.models.suggestion import Suggestion
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.watch import Watch
 
 
 async def conversations_of(db: AsyncSession, user_id: UUID) -> list[Conversation]:
@@ -130,14 +132,25 @@ async def memberships_of(db: AsyncSession, user_id: UUID) -> list[dict[str, Any]
             Organization.name,
             OrganizationMember.role,
             OrganizationMember.joined_at,
+            OrganizationMember.personal_starters,
+            OrganizationMember.personal_starters_at,
         )
         .join(Organization, Organization.id == OrganizationMember.organization_id)
         .where(OrganizationMember.user_id == user_id)
         .order_by(Organization.name)
     )
+    # The first messages written for them there (#2301) are part of it: their
+    # own requests, read back to them, and kept per organization.
     return [
-        {"id": str(row_id), "organization": name, "role": role, "joined_at": joined_at}
-        for row_id, name, role, joined_at in result.all()
+        {
+            "id": str(row_id),
+            "organization": name,
+            "role": role,
+            "joined_at": joined_at,
+            "personal_starters": starters,
+            "personal_starters_at": starters_at,
+        }
+        for row_id, name, role, joined_at, starters, starters_at in result.all()
     ]
 
 
@@ -238,6 +251,22 @@ async def api_keys_of(db: AsyncSession, user_id: UUID) -> list[ApiKey]:
 async def oauth_grants_of(db: AsyncSession, user_id: UUID) -> list[OAuthGrant]:
     """Every consent they gave a client, revoked ones included."""
     result = await db.execute(select(OAuthGrant).where(OAuthGrant.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def suggestions_for(db: AsyncSession, user_id: UUID) -> list[Suggestion]:
+    """Every proposal the platform made them, dismissed ones included (#2301).
+
+    Drawn from their own requests and kept after a "Not now" so the same one is
+    not made twice - held about them either way.
+    """
+    result = await db.execute(select(Suggestion).where(Suggestion.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def watches_of(db: AsyncSession, user_id: UUID) -> list[Watch]:
+    """What they asked the platform to watch in their connections, in their own words (#2301)."""
+    result = await db.execute(select(Watch).where(Watch.user_id == user_id))
     return list(result.scalars().all())
 
 

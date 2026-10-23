@@ -222,6 +222,23 @@ describe("the workspace panel", () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
+  it("lies over a narrow window's conversation instead of taking a column from it", async () => {
+    // A column of its own squeezed the Architect's composer until its buttons
+    // fell out of the box.
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId={null}
+        attachments={[]}
+        revision={0}
+        overlay
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Show the files" }));
+    expect(screen.getByRole("complementary")).toHaveClass("absolute");
+  });
+
   it("does not list a directory as a file", async () => {
     draw(
       <WorkspaceFiles
