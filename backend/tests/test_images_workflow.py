@@ -167,6 +167,29 @@ class TestEveryJobBoundsItsOwnRuntime:
         assert not excessive
 
 
+class TestEveryPackagePageHasADescription:
+    """GHCR shows a multi-architecture package's description from the manifest
+    list's annotations; the per-architecture labels `metadata-action` writes
+    never reach the page."""
+
+    def test_every_published_image_has_one(self, workflow: dict[str, Any]) -> None:
+        include = workflow["jobs"]["publish"]["strategy"]["matrix"]["include"]
+        described = {entry["image"]: entry["description"] for entry in include}
+        assert set(described) == {"backend", "frontend", "browser"}
+        for image, description in described.items():
+            assert "https://vstorm-co.github.io/agenticos/" in description, image
+            assert len(description) <= 512, f"GHCR truncates {image}'s description at 512"
+
+    def test_the_manifest_list_carries_it(self, workflow: dict[str, Any]) -> None:
+        join = next(
+            step
+            for step in workflow["jobs"]["publish"]["steps"]
+            if "imagetools create" in step.get("run", "")
+        )
+        assert join["env"]["DESCRIPTION"] == "${{ matrix.description }}"
+        assert '"index:org.opencontainers.image.description=$DESCRIPTION"' in join["run"]
+
+
 class TestTheComposeFilesPullWhatTheWorkflowPublishes:
     def test_the_workflow_names_every_published_image(self, workflow: dict[str, Any]) -> None:
         prefix = workflow["env"]["IMAGE_PREFIX"]

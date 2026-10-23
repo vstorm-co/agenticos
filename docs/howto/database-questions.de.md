@@ -1,5 +1,5 @@
 ---
-source_sha: "351588808d86"
+source_sha: "0ac33e6fdc56"
 title: "Fragen aus Ihrer Datenbank beantworten"
 description: "Verbinden Sie einen selbst gehosteten Postgres-MCP-Server hinter einer reinen Leserolle und einem reinen View-Schema, und lassen Sie einen Agent ihn abfragen."
 ---
@@ -91,7 +91,9 @@ private/internal address '::1'. SSRF protection does not allow requests to
 internal networks.
 ```
 
-Die URL einer MCP-Verbindung wird für jede Loopback-, private, Link-Local- oder Shared-CGNAT-Adresse bedingungslos abgelehnt - es gibt keine Ausnahme für die lokale Entwicklung, weil derselbe Check auch eine `cdp_url` und jeden OAuth-Discovery-Hop absichert. Siehe [eine URL, die dieses Deployment nicht erreichen darf, wird abgelehnt](../mcp.md#a-connection). Ein Postgres-MCP-Server, der nur unter `localhost` oder einer privaten Netzwerkadresse erreichbar ist - der gewöhnliche Ort, einen zum ersten Mal laufen zu lassen - kann von der eigenen Maschine dieses Deployments aus nicht verbunden werden. Ihn zu erreichen braucht eine routbare Adresse: einen kleinen Host mit einer öffentlichen oder per VPN erreichbaren IP, oder einen Tunnel, davor.
+Die URL einer MCP-Verbindung wird für jede Loopback-, private, Link-Local- oder Shared-CGNAT-Adresse abgelehnt, es sei denn, der Betreiber listet ihren Host in [`MCP_ALLOWED_HOSTS`](../configuration.md#project-settings). Siehe [eine URL, die dieses Deployment nicht erreichen darf, wird abgelehnt](../mcp.md#a-connection). Ein Postgres-MCP-Server, der nur unter `localhost` oder einer privaten Netzwerkadresse erreichbar ist - der gewöhnliche Ort, einen zum ersten Mal laufen zu lassen - kann von der eigenen Maschine dieses Deployments aus nicht verbunden werden.
+
+Um ihn zu verbinden, betreiben Sie ihn unter einem eigenen Hostnamen im Netz des Deployments und listen diesen Namen, niemals `localhost`. Oder stellen Sie eine routbare Adresse davor: einen kleinen Host mit einer öffentlichen oder per VPN erreichbaren IP, oder einen Tunnel.
 
 Das obige SQL wurde direkt gegen Postgres ausgeführt und geprüft; die Rollenablehnung und die zitierten View-Summen sind echt. Nicht verifiziert wurde, dass ein Agent tatsächlich über den verbundenen Server abfragt, weil der Server nie erreichbar war, um ihn zu verbinden.
 
@@ -107,7 +109,7 @@ Das obige SQL wurde direkt gegen Postgres ausgeführt und geprüft; die Rollenab
 
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 
-- **Die Verbindung wird mit einer SSRF-Meldung abgelehnt.** Die Adresse des Servers ist Loopback, privat oder anderweitig intern für das eigene Netzwerk dieses Deployments - siehe oben. Stellen Sie eine routbare Adresse davor.
+- **Die Verbindung wird mit einer SSRF-Meldung abgelehnt.** Die Adresse des Servers ist Loopback, privat oder anderweitig intern für das eigene Netzwerk dieses Deployments - siehe oben. Stellen Sie eine routbare Adresse davor, oder listen Sie seinen Host in `MCP_ALLOWED_HOSTS`.
 - **Der Agent liest die Basistabelle statt der Views.** `shop_readonly` wurde sowohl auf `public` als auch auf `reporting` gewährt, oder das Schema der Basistabelle wurde ihr nie entzogen. Führen Sie das obige `REVOKE` erneut aus.
 - **Eine Abfrage, die der Agent ausführt, sieht aus, als hätte sie etwas geändert.** Das kann nicht sein, wenn die Rolle wirklich kein Schreibrecht hat - prüfen Sie die Rechte der Rolle, bevor Sie annehmen, der Agent habe sich falsch verhalten.
 - **Die Verbindung wird erfolgreich geprüft, aber der Builder listet keine Tools.** Sie wurde noch nicht geprüft, oder die letzte Prüfung ist fehlgeschlagen - `POST /mcp-connections/{id}/test` aktualisiert sie.
