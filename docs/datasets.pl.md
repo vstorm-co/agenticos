@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "82d8eb0aff12"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -548,13 +548,21 @@ uprawnienia dla datasetów:
 |---|---|---|
 | `datasets:view` | Czytać przypadki i wersje datasetu oraz je eksportować | `read` |
 | `datasets:edit` | Tworzyć datasety, zmieniać przypadki, importować, usuwać, udostępniać | `edit` |
-| `datasets:run` | Uruchamiać evale na datasecie | `use` |
+| `datasets:run` | Uruchamiać evale na datasecie, z `runs:view` | `use` |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
 | `datasets:view` | all | all | all | all | shared | shared |
 | `datasets:edit` | all | all | shared | - | own | - |
 | `datasets:run` | all | all | all | all | shared | - |
+
+Uruchomienie evala wymaga przede wszystkim `runs:view`: za run się płaci, a kto
+nie może go odczytać, nie może go uruchomić. Każda wbudowana rola, która czyta
+runy, ma już `datasets:run` w całej organizacji, a Member, którego
+`datasets:run` sięga tylko udostępnionych datasetów, runów nie czyta. Grant
+`use` na datasecie nie pozwala więc nikomu z wbudowaną rolą uruchomić evala,
+którego bez niego nie mógłby uruchomić; Member, który go ma, widzi kontrolkę
+startu wyłączoną i dowiaduje się dlaczego. Zobacz [Eval runy](evals.md#access).
 
 Członek bez dostępu do datasetu dostaje „nie znaleziono” na każdej trasie,
 niezależnie od tego, na co pozwala mu rola gdzie indziej - samo istnienie

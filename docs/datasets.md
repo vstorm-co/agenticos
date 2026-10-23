@@ -520,13 +520,21 @@ that later. The catalog has three permissions for datasets:
 |---|---|---|
 | `datasets:view` | Read a dataset's cases and versions, and export them | `read` |
 | `datasets:edit` | Create datasets, change cases, import, delete, share | `edit` |
-| `datasets:run` | Run evals over a dataset | `use` |
+| `datasets:run` | Run evals over a dataset, with `runs:view` | `use` |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
 | `datasets:view` | all | all | all | all | shared | shared |
 | `datasets:edit` | all | all | shared | - | own | - |
 | `datasets:run` | all | all | all | all | shared | - |
+
+Starting an eval needs `runs:view` before anything else: a run is paid for, and
+whoever cannot read it may not start it. Every built-in role that reads runs
+already holds `datasets:run` across the organization, and a Member, whose
+`datasets:run` reaches only shared datasets, does not read runs. So a `use`
+grant on a dataset lets nobody with a built-in role start an eval they could
+not start without it; a Member holding one sees the start control disabled,
+saying why. See [Eval runs](evals.md#access).
 
 A member without access to a dataset gets "not found" for it on every route,
 whatever their role allows elsewhere - whether a private dataset exists is

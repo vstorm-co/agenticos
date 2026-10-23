@@ -492,8 +492,8 @@ channel yet.
 
 Starting a run - or asking what it would cost - needs `runs:view` first: a run
 is paid for, and whoever could not read it or cancel it may not start it,
-whatever grants they hold. The console shows them its start controls disabled,
-saying why. Every way to start one asks the same: Run evals, a suite, Test draft
+whatever grants they hold. Where the console would otherwise offer them a start
+control, it shows it disabled, saying why. Every way to start one asks the same: Run evals, a suite, Test draft
 and the assistant's Check with evals.
 
 A start then needs `datasets:run` on the dataset and `agents:run` on the
