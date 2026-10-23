@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Inbox as InboxIcon } from "lucide-react";
+import {
+  CheckCheck,
+  CircleAlert,
+  Inbox as InboxIcon,
+  Radar,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -20,6 +27,14 @@ import { SuggestionRows } from "./suggestion-rows";
 type Filter = "all" | "urgent" | "watches" | "suggestions" | "done";
 
 const FILTERS: Filter[] = ["all", "urgent", "watches", "suggestions", "done"];
+
+const FILTER_ICONS: Record<Filter, LucideIcon> = {
+  all: InboxIcon,
+  urgent: CircleAlert,
+  watches: Radar,
+  suggestions: Sparkles,
+  done: CheckCheck,
+};
 
 const KEEPS: Record<Exclude<Filter, "done">, (item: Suggestion) => boolean> = {
   all: () => true,
@@ -64,7 +79,11 @@ export function InboxPage() {
               labelledBy="inbox-filter-label"
               value={filter}
               onChange={setFilter}
-              options={FILTERS.map((value) => ({ value, label: t(`filter.${value}`) }))}
+              options={FILTERS.map((value) => ({
+                value,
+                label: t(`filter.${value}`),
+                icon: FILTER_ICONS[value],
+              }))}
             />
           </>
         }

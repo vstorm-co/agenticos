@@ -1998,7 +1998,8 @@
         "finding": "Erledigt"
       },
       "open": "Öffnen",
-      "urgent": "Dringend"
+      "urgent": "Dringend",
+      "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
     },
     "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
     "turnLostAskAgain": "Erneut fragen"

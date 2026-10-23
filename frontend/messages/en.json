@@ -1998,7 +1998,8 @@
         "finding": "Done"
       },
       "open": "Open",
-      "urgent": "Urgent"
+      "urgent": "Urgent",
+      "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
     },
     "turnLost": "The agent stopped before it answered - the server running it went away.",
     "turnLostAskAgain": "Ask again"

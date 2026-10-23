@@ -1,10 +1,12 @@
 "use client";
 
-import { ExternalLink, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { useSuggestions } from "@/hooks/use-suggestions";
+import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import {
   SuggestionMark,
@@ -17,7 +19,9 @@ import {
  * What the platform noticed overnight and proposes, above the empty chat (#2301).
  *
  * Made in the background; here the person only decides, through the same
- * actions the inbox offers. "Not now" declines it for good.
+ * actions the inbox offers. "Not now" declines it for good. One card - what
+ * cannot wait first - and the rest a link away: the empty chat is for starting
+ * a conversation, and a stack of cards above the starters drowned them.
  */
 export function SuggestionCards({
   agentId,
@@ -29,9 +33,10 @@ export function SuggestionCards({
   const t = useTranslations("chat.suggestions");
   const { suggestions: open } = useSuggestions();
   const { take, notNow, dialog } = useSuggestionActions(agentId);
-  const suggestions = urgentFirst(open);
+  const [first, ...rest] = urgentFirst(open);
 
-  if (suggestions.length === 0) return null;
+  if (!first) return null;
+  const suggestions = [first];
 
   return (
     <section
@@ -85,6 +90,15 @@ export function SuggestionCards({
           </button>
         </div>
       ))}
+      {rest.length > 0 && (
+        <Link
+          href={ROUTES.INBOX}
+          className="text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 text-xs"
+        >
+          {t("more", { count: rest.length })}
+          <ArrowRight className="h-3 w-3" aria-hidden />
+        </Link>
+      )}
       {dialog}
     </section>
   );

@@ -1,5 +1,5 @@
 ---
-source_sha: "d9bf6745e92a"
+source_sha: "42b85883e8d7"
 ---
 
 # Konsola { #the-console }
@@ -87,12 +87,13 @@ migawkę, którą chciałeś zachować.
 **Inbox**, pod Czatem w pasku bocznym, to to, co platforma przyniosła ci z
 własnej inicjatywy: co twoje [obserwacje](governance.md#proactive-work) znalazły
 na twoich połączeniach i co zaproponował nocny przegląd. Liczba obok mówi, ile
-czeka. Czyta się go jak skrzynkę pocztową: jeden wiersz na rzecz, pilne pierwsze,
-skąd i kiedy przyszła, a odpowiedzi w wierszu. Filtruj po źródle albo otwórz
-**Załatwione**, żeby zobaczyć, co już przyjąłeś lub odrzuciłeś, i przywrócić
-odrzucone. **Co znalazły** na karcie Obserwacje w Rutynach otwiera go zawężonego
-do obserwacji. Krótsze wiersze otwierają twój dashboard jako **Briefing**, a pusty
-czat z agentem startowym pokazuje te same rzeczy jako karty.
+czeka. Czyta się go jak skrzynkę pocztową: jeden wiersz na rzecz, pilne
+pierwsze, skąd i kiedy przyszła, a odpowiedzi w wierszu. Filtruj po źródle albo
+otwórz **Załatwione**, żeby zobaczyć, co już przyjąłeś lub odrzuciłeś, i
+przywrócić odrzucone. **Co znalazły** na karcie Obserwacje w Rutynach otwiera go
+zawężonego do obserwacji. Krótsze wiersze otwierają twój dashboard jako
+**Briefing**, a pusty czat z agentem startowym pokazuje pierwszą z nich jako
+kartę, z linkiem do reszty.
 
 To, co obserwacja znajdzie, a co nie musi trafić do ciebie od razu, czeka na
 twój poranek: o godzinie, którą trzyma proaktywność organizacji, jedno

@@ -95,7 +95,7 @@ describe("SuggestionCards", () => {
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
-  it("puts what cannot wait first, with the server's mark on a finding", () => {
+  it("offers one, what cannot wait first, and leaves the rest to the inbox", () => {
     const routine = suggestion("routine", { prompt: "p" });
     const urgent = {
       ...suggestion("finding", { server: "github", account: null, url: null }),
@@ -105,11 +105,12 @@ describe("SuggestionCards", () => {
     render(<SuggestionCards agentId={null} className="max-w-none" />);
 
     const cards = screen.getAllByRole("group");
-    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
-      "Title finding",
-      "Title routine",
-    ]);
+    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual(["Title finding"]);
     expect(cards[0]).toHaveTextContent("Urgent");
+    expect(screen.getByRole("link", { name: "1 more in your inbox" })).toHaveAttribute(
+      "href",
+      "/inbox",
+    );
   });
 
   it("draws nothing when nothing was proposed", () => {

@@ -1998,7 +1998,8 @@
         "finding": "Załatwione"
       },
       "open": "Otwórz",
-      "urgent": "Pilne"
+      "urgent": "Pilne",
+      "more": "{count, plural, =1 {Jeszcze 1 w inboksie} few {Jeszcze # w inboksie} many {Jeszcze # w inboksie} other {Jeszcze # w inboksie}}"
     },
     "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
     "turnLostAskAgain": "Zapytaj ponownie"

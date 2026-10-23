@@ -82,11 +82,12 @@ snapshot you meant to keep.
 own: what your [watches](governance.md#proactive-work) found in your connections
 and what the nightly look proposed. The number beside it is how many wait. It
 reads like a mailbox: one row each, urgent ones first, where it came from and
-when, and the answers in the row. Filter by where they came from, or open **Done**
-for what you already took or declined, and bring a declined one back. **What they
-found** on the Watches card under Routines opens it narrowed to watches. Shorter
-rows head your dashboard as **Briefing**, and the empty chat with the starter
-agent shows the same items as cards.
+when, and the answers in the row. Filter by where they came from, or open
+**Done** for what you already took or declined, and bring a declined one back.
+**What they found** on the Watches card under Routines opens it narrowed to
+watches. Shorter rows head your dashboard as **Briefing**, and the empty chat
+with the starter agent offers the first of them as a card, with a link to the
+rest.
 
 What a watch finds that need not be heard at once waits for your morning: at
 the hour your organization's proactivity keeps, one notification and one direct

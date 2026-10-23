@@ -1,5 +1,5 @@
 ---
-source_sha: "d9bf6745e92a"
+source_sha: "42b85883e8d7"
 ---
 
 # Die Konsole { #the-console }
@@ -100,8 +100,8 @@ Filtern Sie nach Herkunft, oder öffnen Sie **Erledigt** für das, was Sie schon
 angenommen oder abgelehnt haben, und holen Sie Abgelehntes zurück. **Was sie
 gefunden haben** auf der Karte Beobachtungen unter Routinen öffnet ihn auf
 Beobachtungen eingegrenzt. Kürzere Zeilen stehen oben auf Ihrem Dashboard als
-**Briefing**, und der leere Chat mit dem Start-Agent zeigt dieselben Einträge
-als Karten.
+**Briefing**, und der leere Chat mit dem Start-Agent zeigt den ersten davon als
+Karte, mit einem Link zum Rest.
 
 Was eine Beobachtung findet und nicht sofort gemeldet werden muss, wartet auf
 Ihren Morgen: zu der Stunde, die die Proaktivität der Organisation hält, nennen

@@ -1,5 +1,5 @@
 ---
-source_sha: "d9bf6745e92a"
+source_sha: "42b85883e8d7"
 ---
 
 # La consola { #the-console }
@@ -100,7 +100,7 @@ Filtra por su origen, o abre **Hecho** para ver lo que ya aceptaste o
 descartaste y recuperar algo descartado. **What they found** en la tarjeta de
 vigilancias de Rutinas la abre filtrada a las vigilancias. Filas más cortas
 encabezan tu dashboard como **Briefing**, y el chat vacío con el agente inicial
-muestra lo mismo como tarjetas.
+muestra el primero como tarjeta, con un enlace al resto.
 
 Lo que una vigilancia encuentra y no hace falta avisar al momento espera a tu
 mañana: a la hora que mantiene la proactividad de la organización, una
