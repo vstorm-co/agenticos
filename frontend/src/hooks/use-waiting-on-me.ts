@@ -1,5 +1,6 @@
 "use client";
 
+import { suiteState } from "@/components/evals/suites/suite-format";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useWaitingSuggestions } from "@/hooks/use-authoring";
 import { useVisibleEvalSuites } from "@/hooks/use-eval-suites";
@@ -31,8 +32,7 @@ export function useWaitingOnMe() {
   const { waiting } = useWaitingSuggestions({ enabled: can(Perm.agentsEdit) });
   return {
     review: review.total,
-    suites: suites.filter((suite) => suite.is_active && suite.last_result?.status === "failed")
-      .length,
+    suites: suites.filter((suite) => suiteState(suite) === "failing").length,
     suggestions: suggestionCount(waiting),
   };
 }

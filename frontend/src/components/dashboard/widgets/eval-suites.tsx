@@ -4,11 +4,10 @@ import Link from "next/link";
 import { ListChecks } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { RESULT_TONE } from "@/components/evals/suites/suite-format";
+import { RESULT_TONE, suiteState, type SuiteState } from "@/components/evals/suites/suite-format";
 import { Badge } from "@/components/ui";
 import { useVisibleEvalSuites } from "@/hooks/use-eval-suites";
 import { ROUTES } from "@/lib/constants";
-import type { EvalSuite } from "@/types/eval-suites";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -16,20 +15,8 @@ import type { DashboardWidgetProps } from "./types";
 /** How many a card lists; each agent's Evals tab has the rest. */
 const SHOWN = 6;
 
-type State = "failing" | "inconclusive" | "passing" | "waiting" | "paused";
-
-/** Where a suite stands, by its last result - a paused one is paused whatever it last did. */
-export function suiteState(suite: EvalSuite): State {
-  if (!suite.is_active) return "paused";
-  const status = suite.last_result?.status;
-  if (status === "failed" || status === "error" || status === "skipped") return "failing";
-  if (status === "inconclusive") return "inconclusive";
-  if (status === "passed") return "passing";
-  return "waiting";
-}
-
 /** The order a reader scans them in: what needs looking at first. */
-const ORDER: State[] = ["failing", "inconclusive", "waiting", "passing", "paused"];
+const ORDER: SuiteState[] = ["failing", "inconclusive", "waiting", "passing", "paused"];
 
 /**
  * The organization's eval suites at a glance: how many pass, fail, wait for

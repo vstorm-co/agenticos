@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui";
 import type { Period } from "@/lib/dashboard/period";
 import { evalSuite, suiteResult } from "@/test-utils/eval-suites";
-import { EvalSuitesWidget, suiteState } from "./eval-suites";
+import { suiteState } from "@/components/evals/suites/suite-format";
+import { EvalSuitesWidget } from "./eval-suites";
 
 const visible = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useVisibleEvalSuites: () => visible.value }));

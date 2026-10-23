@@ -22,6 +22,22 @@ export const RESULT_TONE: Record<
   error: "warning",
 };
 
+export type SuiteState = "failing" | "inconclusive" | "passing" | "waiting" | "paused";
+
+/**
+ * Where a suite stands, by its last result - a paused one is paused whatever it
+ * last did, and a result that errored or was skipped counts as failing, since
+ * nothing vouched for the version.
+ */
+export function suiteState(suite: EvalSuite): SuiteState {
+  if (!suite.is_active) return "paused";
+  const status = suite.last_result?.status;
+  if (status === "failed" || status === "error" || status === "skipped") return "failing";
+  if (status === "inconclusive") return "inconclusive";
+  if (status === "passed") return "passing";
+  return "waiting";
+}
+
 /** The repeat choices the form offers; `custom` takes a cron expression as it is. */
 export type ScheduleFrequency = "daily" | "weekdays" | "weekly" | "custom";
 
