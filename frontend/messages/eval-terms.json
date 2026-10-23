@@ -170,10 +170,12 @@
     },
     "allow": {
       "pl": [
-        "Eval judge"
+        "Eval judge",
+        "Knowledge gap drafter"
       ],
       "de": [
-        "Eval judge"
+        "Eval judge",
+        "Knowledge gap drafter"
       ]
     }
   }

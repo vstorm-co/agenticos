@@ -9,6 +9,7 @@ would be answered by rewriting what must not change.
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -86,6 +87,44 @@ def test_what_a_reader_does_not_read_as_prose_is_left_alone(docs: Path) -> None:
     assert guard.offences() == []
 
 
+def test_a_title_or_description_a_search_result_shows_is_checked(docs: Path) -> None:
+    _write(
+        docs,
+        "evals.pl.md",
+        "---\ntitle: Trzy case'y\nseo_description: Activity\nsource_sha: case\n---\nTekst.\n",
+    )
+
+    assert [(line, form) for _, line, form, _ in guard.offences()] == [
+        (2, "case'"),
+        (3, "Activity"),
+    ]
+
+
+def test_an_english_label_is_left_alone_only_right_after_the_bold_translated_one(
+    docs: Path,
+) -> None:
+    _write(
+        docs,
+        "evals.pl.md",
+        "Otwórz **Aktywność** (Activity) albo\n"
+        "zakładkę **Aktywność**\n"
+        "(Activity) w panelu,\n"
+        "ale nie Aktywność (Activity) ani werdykt (Activity, 2 case'y).\n",
+    )
+
+    assert [(line, form) for _, line, form, _ in guard.offences()] == [
+        (4, "case'"),
+        (4, "Activity"),
+        (4, "Activity"),
+    ]
+
+
+def test_a_fence_closes_only_on_the_marker_that_opened_it(docs: Path) -> None:
+    _write(docs, "evals.pl.md", "~~~\n```\ncase = 1\n```\ncase = 2\n~~~\nDwa case'y.\n")
+
+    assert [line for _, line, _, _ in guard.offences()] == [7]
+
+
 def test_a_page_checked_for_activity_alone_is_checked_for_nothing_else(docs: Path) -> None:
     _write(docs, "governance.pl.md", "Trzy case'y w Activity.\n")
 
@@ -101,7 +140,9 @@ def test_a_word_wrong_in_one_sense_only_is_checked_where_it_says_so(docs: Path) 
     ]
 
 
-def test_the_verdict_is_said_and_the_exit_code_gates(docs: Path, capsys) -> None:
+def test_the_verdict_is_said_and_the_exit_code_gates(
+    docs: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     assert guard.main() == 0
     assert "use the glossary's words" in capsys.readouterr().out
 
@@ -111,6 +152,32 @@ def test_the_verdict_is_said_and_the_exit_code_gates(docs: Path, capsys) -> None
     out = capsys.readouterr().out
     assert "docs/evals.pl.md:1: \"case'\" - write 'przypadek'" in out
     assert "translate.md" in out
+
+
+def test_a_page_the_terms_name_and_the_docs_lack_is_named_not_raised(
+    docs: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (docs / "governance.pl.md").unlink()
+
+    assert guard.main() == 1
+    assert "docs/governance.pl.md" in capsys.readouterr().out
+
+
+def test_every_word_the_guard_asks_for_is_in_the_glossary_table() -> None:
+    terms = json.loads(guard.TERMS.read_text(encoding="utf-8"))
+    page = (REPO_ROOT / "docs" / "howto" / "translate.md").read_text(encoding="utf-8")
+    table = page.split("## The words the eval screens use", 1)[1].split("\n\n## ", 1)[0]
+    cells = {cell.strip() for row in table.splitlines() for cell in row.split("|")}
+    words = {word for cell in cells for word in re.split(r", | / | albo ", cell)}
+    words |= {word.rsplit(" ", 1)[-1] for word in set(words)}
+
+    asked = {
+        word
+        for entries in terms["mixed"].values()
+        for entry in entries
+        for word in re.split(r", | albo ", entry["use"])
+    }
+    assert asked <= words, sorted(asked - words)
 
 
 def test_the_shared_terms_carry_what_the_guard_reads() -> None:
