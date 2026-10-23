@@ -1,5 +1,5 @@
 ---
-source_sha: "f52fe0c3eb1a"
+source_sha: "6073011135ba"
 ---
 
 # Sandbox { #the-sandbox }
@@ -46,9 +46,10 @@ flowchart LR
 
 `sandboxd` to serwer z [`pydantic-ai-backend`](https://github.com/vstorm-co/pydantic-ai-backend),
 dostarczany jako `ghcr.io/vstorm-co/sandboxd`; backend rozmawia z nim po HTTP,
-z tokenem w `SANDBOXD_TOKEN`. Dwa pozostałe backendy sandboksa, które spec może
-wskazać — `daytona` i `state` — to usługa hostowana i dokument w Postgresie
-i żaden z nich nie ma nic wspólnego z powyższym.
+z tokenem w `SANDBOXD_TOKEN`. Pozostałe backendy sandboksa — połączenia `daytona`
+i `e2b` oraz `state` — to usługi hostowane i dokument w Postgresie i żaden z nich
+nie ma nic wspólnego z powyższym; własny komputer osoby też nie (zobacz
+[Poza sandboxd](#beyond-sandboxd)).
 
 !!! danger "Ten token jest równoważny rootowi"
 
@@ -609,6 +610,30 @@ usunięte albo unieważnione, usuń sandboxy w konsoli dostawcy. Potem usuń
 połączenie jeszcze raz i potwierdź, że to zrobiono: tombstone'y zostaną
 zapomniane, a ich liczba trafi do logu audytu.
 
+## Poza sandboxd { #beyond-sandboxd }
+
+Jeszcze dwa miejsca, gdzie mogą działać narzędzia sandboksa runa - z tymi samymi
+narzędziami i bez niczego z powyższej izolacji.
+
+**Połączenie E2B.** Połączenie sandboksa rodzaju `e2b` uruchamia sandboksy na
+własnym koncie [E2B](https://e2b.dev) organizacji: jego klucz API to sekret
+połączenia w vault, a domyślny runtime połączenia nazywa szablon E2B - puste dla
+domyślnego szablonu E2B, `desktop` dla szablonu, którym steruje computer use.
+Każde utworzenie, podłączenie i zniszczenie odbywa się tym kluczem, nigdy
+`E2B_API_KEY`, który akurat ma proces wdrożenia, więc sandboksy każdej organizacji
+działają i są rozliczane na jej własnym koncie. Sandbox jest na koniec swojej
+godziny wstrzymywany, a nie zabijany, więc workspace o dłuższym zakresie zachowuje
+pliki, a sweep niszczenia kończy go tak jak sandbox Daytona.
+
+**Własny komputer osoby.** W [aplikacji desktopowej](desktop.md#work-on-this-computer)
+czat może pracować w folderze na komputerze, na którym działa. Narzędzia sięgają
+go przez połączenie aplikacji z serwerem, a to aplikacja - nie ten serwer -
+odrzuca każdy folder i tryb, którego osoba nie przyznała; zapisy działają pod
+Seatbelt na macOS albo bubblewrap na Linuksie. Tylko własne czaty osoby i
+triggery działające jako ich twórca sięgają jej komputera; run czeka do dziesięciu
+minut, aż się połączy. Nic z tego nie jest tu trzymane: nie ma wiersza workspace'u
+ani sesji do sprzątania.
+
 ## Podsumowanie { #recap }
 
 - Kontener API **nie trzyma gniazda Dockera**. Trzyma je `sandboxd`, a sandbox
@@ -622,3 +647,5 @@ zapomniane, a ich liczba trafi do logu audytu.
   a nigdy zawartości, i przeżywa agenta.
 - **Pliki są trzymane bezterminowo**, chyba że ustawisz `SANDBOXD_WORKSPACE_TTL`.
   Zużycie dysku tylko rośnie.
+- **E2B i własny komputer osoby** to też sandboksy: jeden na własnym kluczu
+  organizacji, drugi trzymany tego, co osoba na nim przyznała.

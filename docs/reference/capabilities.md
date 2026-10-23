@@ -841,6 +841,9 @@ deny a batch aimed at a window you do not trust to stay put.
 |---|---|---|
 | `sandbox` | A Linux desktop (XFCE and Firefox) inside the agent's own [sandbox](#files-shell), the same machine its shell and file tools work on | The [Sandbox](#files-shell) capability on a sandbox connection, running the `desktop` runtime |
 | `daemon` | A `computerd` the operator runs: their own Linux desktop (X11), a Mac's own screen (`uv run deploy/computer/computerd.py`) or a desktop in a container (`deploy/computer/Dockerfile`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and the daemon's token as the binding's secret |
+| `e2b` | An E2B desktop of the run's own, from E2B's `desktop` template, killed when the run lets go of it | The organization's E2B key as the binding's secret |
+| `local` | The person's own screen, in a chat working on their computer through the [desktop app](../desktop.md#the-screen) | Nothing: the app asks the person before the first screenshot |
+| `auto` | The person's screen when the chat works on their computer, else an E2B desktop when the binding names a key, else the sandbox | What the desktop it lands on needs |
 
 A sandbox desktop needs nothing of its own: no address, no token and no
 provider. It lives and is shared exactly as the sandbox is, per conversation or
@@ -878,7 +881,7 @@ credentials is refused.
 
 | Config | Default | Range |
 |---|---|---|
-| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
 | `daemon_url` | empty, refused at publish for `daemon` | an allowed host, no query, fragment or credentials |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, not above `max_actions` |
@@ -888,6 +891,14 @@ credentials is refused.
 The chat draws the desktop in a window under the message while the agent
 works: one window per run, opened by its first screenshot, with a frame after
 every call and a line per action. Text the model types is shown there as typed.
+
+**Watching and taking over.** Every desktop is also published to the run's live
+view, the one a browse uses, so a run from a channel or a routine can be watched
+from the console. **Take over** hands the desktop to the person between the
+agent's calls: their clicks, keys and scrolls are carried out on it, the agent
+waits, and **Give back** returns it with the model told to look again. Who may
+watch and take over is the browse's rule; the person's own screen is theirs
+alone.
 
 **A screenshot the user keeps.** `computer_screenshot` is for the model, and
 nothing keeps it: a run waiting on approval, its manifest and a compacted

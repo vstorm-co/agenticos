@@ -1,5 +1,5 @@
 ---
-source_sha: "f52fe0c3eb1a"
+source_sha: "6073011135ba"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -48,9 +48,10 @@ flowchart LR
 
 `sandboxd` ist der Server aus [`pydantic-ai-backend`](https://github.com/vstorm-co/pydantic-ai-backend),
 ausgeliefert als `ghcr.io/vstorm-co/sandboxd`; das Backend spricht über HTTP mit
-ihm, mit dem Token in `SANDBOXD_TOKEN`. Die beiden anderen Sandbox-Backends, die
-ein Spec benennen kann — `daytona` und `state` — sind ein gehosteter Dienst und ein
-Dokument in Postgres, und keines von beiden hat mit dem oben Genannten zu tun.
+ihm, mit dem Token in `SANDBOXD_TOKEN`. Die anderen Sandbox-Backends -
+`daytona`- und `e2b`-Verbindungen sowie `state` - sind gehostete Dienste und ein
+Dokument in Postgres, und keines davon hat mit dem oben Genannten zu tun; der
+eigene Computer der Person auch nicht (siehe [Jenseits von sandboxd](#beyond-sandboxd)).
 
 !!! danger "Der Token ist root-äquivalent"
 
@@ -645,6 +646,32 @@ widerrufen wurden, lösche die Sandboxes in der Konsole des Anbieters. Lösche d
 die Verbindung erneut und bestätige das: Ihre Tombstones werden vergessen, und
 ihre Anzahl landet im Audit-Log.
 
+## Jenseits von sandboxd { #beyond-sandboxd }
+
+Zwei weitere Orte, an denen die Sandbox-Werkzeuge eines Runs arbeiten können - mit
+denselben Werkzeugen und ohne die Abschottung von oben.
+
+**Eine E2B-Verbindung.** Eine Sandbox-Verbindung der Art `e2b` betreibt Sandboxes
+auf dem eigenen [E2B](https://e2b.dev)-Konto der Organisation: Ihr API-Schlüssel
+ist das Vault-Secret der Verbindung, und die Standard-Runtime der Verbindung nennt
+eine E2B-Vorlage - leer für die Standardvorlage von E2B, `desktop` für die
+Vorlage, die Computer Use steuert. Jedes Anlegen, Verbinden und Zerstören geschieht
+mit diesem Schlüssel, nie mit einem `E2B_API_KEY`, den der Prozess des Deployments
+zufällig hat, also laufen die Sandboxes jeder Organisation auf ihrem eigenen Konto
+und werden dort abgerechnet. Eine Sandbox wird am Ende ihrer Stunde pausiert statt
+beendet, damit ein länger gültiger Workspace seine Dateien behält, und der
+Zerstörungs-Sweep beendet sie wie eine Daytona-Sandbox.
+
+**Der eigene Computer der Person.** In der [Desktop-App](desktop.md#work-on-this-computer)
+kann ein Chat in einem Ordner auf dem Computer arbeiten, auf dem sie läuft. Die
+Werkzeuge erreichen ihn über die Verbindung der App zum Server, und die App - nicht
+dieser Server - lehnt jeden Ordner und Modus ab, den die Person nicht gewährt hat;
+Schreibzugriffe laufen unter Seatbelt auf macOS oder bubblewrap auf Linux. Nur die
+eigenen Chats einer Person und Trigger, die als ihr Ersteller handeln, erreichen
+ihren Computer; ein Run wartet bis zu zehn Minuten, bis er sich verbindet. Nichts
+davon wird hier gehalten: Es gibt keine Workspace-Zeile und keine Sitzung zum
+Aufräumen.
+
 ## Zusammenfassung { #recap }
 
 - Der API-Container **hält keinen Docker-Socket**. `sandboxd` tut es, und ein
@@ -658,3 +685,6 @@ ihre Anzahl landet im Audit-Log.
   Plattform**, hält einen Pfad und nie eine Nutzlast, und überlebt den Agent.
 - **Dateien werden unbegrenzt aufbewahrt**, sofern Sie `SANDBOXD_WORKSPACE_TTL` nicht
   setzen. Der Plattenverbrauch wächst nur.
+- **E2B und der eigene Computer der Person** sind ebenfalls Sandboxes: die eine
+  auf dem eigenen Schlüssel der Organisation, der andere an das gebunden, was die
+  Person auf ihm gewährt hat.

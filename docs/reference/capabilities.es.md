@@ -1,5 +1,5 @@
 ---
-source_sha: "7b7a3c86350d"
+source_sha: "75f91f5aa939"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -901,6 +901,9 @@ un lote dirigido a una ventana en la que no confíes que siga igual.
 |---|---|---|
 | `sandbox` | Un escritorio Linux (XFCE y Firefox) dentro de la propia [sandbox](#files-shell) del agent, la misma máquina en la que trabajan su shell y sus tools de archivos | La capability [Sandbox](#files-shell) sobre una conexión de sandbox, con el runtime `desktop` |
 | `daemon` | Un `computerd` que ejecuta el operador: su propio escritorio Linux (X11), la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) o un escritorio en un contenedor (`deploy/computer/Dockerfile`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y el token del daemon como secreto de la vinculación |
+| `e2b` | Un escritorio E2B propio del run, de la plantilla `desktop` de E2B, terminado cuando el run lo suelta | La clave de E2B de la organización como secreto del binding |
+| `local` | La propia pantalla de la persona, en un chat que trabaja en su ordenador a través de la [app de escritorio](../desktop.md#the-screen) | Nada: la app pregunta a la persona antes de la primera captura |
+| `auto` | La pantalla de la persona cuando el chat trabaja en su ordenador; si no, un escritorio E2B cuando el binding nombra una clave; si no, la sandbox | Lo que necesite el escritorio en el que acabe |
 
 Un escritorio en la sandbox no necesita nada propio: ni dirección, ni token, ni
 proveedor. Vive y se comparte exactamente como la sandbox, por conversación o
@@ -940,7 +943,7 @@ fragmento o credenciales.
 
 | Ajuste | Por defecto | Rango |
 |---|---|---|
-| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
 | `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido, sin query, fragmento ni credenciales |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, no más que `max_actions` |
@@ -950,6 +953,14 @@ fragmento o credenciales.
 El chat dibuja el escritorio en una ventana bajo el mensaje mientras el agent
 trabaja: una ventana por run, abierta por la primera captura, con un fotograma
 tras cada llamada y una línea por acción. El texto que escribe el modelo se muestra ahí tal como se escribió.
+
+**Ver y tomar el control.** Cada escritorio se publica también en la vista en vivo
+del run, la misma que usa un browse, así que un run de un canal o de una rutina se
+puede ver desde la consola. **Tomar el control** pasa el escritorio a la persona
+entre las llamadas del agent: sus clics, teclas y desplazamientos se ejecutan en
+él, el agent espera, y **Devolver** se lo devuelve con la indicación al modelo de
+que vuelva a mirar. Quién puede ver y tomar el control es la regla del browse; la
+pantalla propia de la persona es solo suya.
 
 **Una captura que el usuario conserva.** `computer_screenshot` es para el
 modelo, y nada la guarda: un run que espera aprobación, su manifiesto y una

@@ -42,9 +42,10 @@ flowchart LR
 
 `sandboxd` is the server from [`pydantic-ai-backend`](https://github.com/vstorm-co/pydantic-ai-backend),
 shipped as `ghcr.io/vstorm-co/sandboxd`; the backend talks to it over HTTP with
-the token in `SANDBOXD_TOKEN`. The other two sandbox backends a spec can name —
-`daytona` and `state` — are a hosted service and a document in Postgres, and
-neither involves any of the above.
+the token in `SANDBOXD_TOKEN`. The other sandbox backends — `daytona` and `e2b`
+connections, and `state` — are hosted services and a document in Postgres, and
+none of them involves any of the above; neither does the person's own computer
+(see [Beyond sandboxd](#beyond-sandboxd)).
 
 !!! danger "The token is root-equivalent"
 
@@ -588,6 +589,30 @@ connection's credential was deleted or revoked - delete the sandboxes in the
 provider's console. Then delete the connection again and confirm that you did:
 its tombstones are forgotten, and how many goes in the audit log.
 
+## Beyond sandboxd { #beyond-sandboxd }
+
+Two more places a run's sandbox tools can work, each with the same tools and
+none of the containment above.
+
+**An E2B connection.** A sandbox connection of kind `e2b` runs sandboxes on the
+organization's own [E2B](https://e2b.dev) account: its API key is the
+connection's vault secret, and the connection's default runtime names an E2B
+template - empty for E2B's default, `desktop` for the template computer use
+drives. Every create, attach and destroy is made with that key, never with an
+`E2B_API_KEY` the deployment's process happens to have, so each organization's
+sandboxes run, and are billed, on its own account. A sandbox is paused at the end
+of its hour rather than killed, so a longer-scoped workspace keeps its files, and
+the destroy sweep ends it as it ends a Daytona one.
+
+**The person's own computer.** In the [desktop app](desktop.md#work-on-this-computer)
+a chat can work in a folder on the computer it runs on. The tools reach it
+through the app's connection to the server, and the app - not this server -
+refuses any folder or mode the person did not grant; writes run under Seatbelt on
+macOS or bubblewrap on Linux. Only a person's own chats, and triggers that act as
+their creator, reach their computer; a run waits up to ten minutes for it to
+connect. Nothing of it is kept here: there is no workspace row and no session to
+reap.
+
 ## Recap
 
 - The API container **holds no Docker socket**. `sandboxd` does, and a sandbox is
@@ -598,5 +623,7 @@ its tombstones are forgotten, and how many goes in the audit log.
   the one it runs on, composed from the same catalogue that built it.
 - The record of what an agent did lives in **this platform's table**, holds a path
   and never a payload, and outlives the agent.
+- **E2B and the person's own computer** are sandboxes too: one on the
+  organization's own key, the other held to what the person granted on it.
 - **Files are kept indefinitely** unless you set `SANDBOXD_WORKSPACE_TTL`. Disk use
   only grows.

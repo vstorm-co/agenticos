@@ -1,5 +1,5 @@
 ---
-source_sha: "7b7a3c86350d"
+source_sha: "75f91f5aa939"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -942,6 +942,9 @@ zutrauen, unverändert zu bleiben.
 |---|---|---|
 | `sandbox` | Ein Linux-Desktop (XFCE und Firefox) in der eigenen [Sandbox](#files-shell) des Agents, auf derselben Maschine, auf der seine Shell- und Datei-Tools arbeiten | Die Capability [Sandbox](#files-shell) auf einer Sandbox-Verbindung, mit der Runtime `desktop` |
 | `daemon` | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und das Token des Daemons als Secret der Bindung |
+| `e2b` | Ein eigener E2B-Desktop des Runs aus der `desktop`-Vorlage von E2B, beendet, wenn der Run ihn loslässt | Der E2B-Schlüssel der Organisation als Secret der Bindung |
+| `local` | Der eigene Bildschirm der Person, in einem Chat, der über die [Desktop-App](../desktop.md#the-screen) auf ihrem Computer arbeitet | Nichts: Die App fragt die Person vor dem ersten Screenshot |
+| `auto` | Der Bildschirm der Person, wenn der Chat auf ihrem Computer arbeitet, sonst ein E2B-Desktop, wenn die Bindung einen Schlüssel nennt, sonst die Sandbox | Was der Desktop braucht, auf dem es landet |
 
 Ein Sandbox-Desktop braucht nichts Eigenes: keine Adresse, kein Token und keinen
 Provider. Er lebt und wird geteilt genau wie die Sandbox, pro Gespräch oder pro
@@ -985,7 +988,7 @@ oder Zugangsdaten wird verweigert.
 
 | Einstellung | Standard | Bereich |
 |---|---|---|
-| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
 | `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host, ohne Query, Fragment oder Zugangsdaten |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nicht über `max_actions` |
@@ -996,6 +999,15 @@ Der Chat zeichnet den Desktop in einem Fenster unter der Nachricht, während der
 Agent arbeitet: ein Fenster pro Run, geöffnet vom ersten Screenshot, mit einem
 Bild nach jedem Aufruf und einer Zeile pro Aktion. Text, den
 das Modell tippt, ist dort so zu sehen, wie er getippt wurde.
+
+**Zusehen und übernehmen.** Jeder Desktop wird auch in der Live-Ansicht des Runs
+veröffentlicht, derselben, die ein Browse nutzt, sodass ein Run aus einem Kanal
+oder einer Routine von der Konsole aus beobachtet werden kann. **Übernehmen**
+überlässt den Desktop zwischen den Aufrufen des Agents der Person: Ihre Klicks,
+Tasten und Scrollbewegungen werden darauf ausgeführt, der Agent wartet, und
+**Zurückgeben** gibt ihn zurück, wobei das Modell angewiesen wird, erneut
+hinzusehen. Wer zusehen und übernehmen darf, regelt der Browse; der eigene
+Bildschirm der Person gehört nur ihr.
 
 **Ein Screenshot, den der Nutzer behält.** `computer_screenshot` ist für das
 Modell, und nichts bewahrt ihn auf: Ein Run, der auf eine Freigabe wartet,

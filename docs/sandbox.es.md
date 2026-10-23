@@ -1,5 +1,5 @@
 ---
-source_sha: "f52fe0c3eb1a"
+source_sha: "6073011135ba"
 ---
 
 # La sandbox { #the-sandbox }
@@ -47,9 +47,10 @@ flowchart LR
 
 `sandboxd` es el servidor de [`pydantic-ai-backend`](https://github.com/vstorm-co/pydantic-ai-backend),
 distribuido como `ghcr.io/vstorm-co/sandboxd`; el backend habla con él por HTTP
-con el token que hay en `SANDBOXD_TOKEN`. Los otros dos backends de sandbox que
-un spec puede nombrar —`daytona` y `state`— son un servicio alojado y un
-documento en Postgres, y ninguno implica nada de lo anterior.
+con el token que hay en `SANDBOXD_TOKEN`. Los demás backends de sandbox -las
+conexiones `daytona` y `e2b`, y `state`- son servicios alojados y un documento en
+Postgres, y ninguno implica nada de lo anterior; tampoco el ordenador propio de la
+persona (ver [Más allá de sandboxd](#beyond-sandboxd)).
 
 !!! danger "El token equivale a root"
 
@@ -627,6 +628,32 @@ sandboxes en la consola del proveedor. Después vuelve a borrar la conexión y
 confirma que lo hiciste: sus tombstones se olvidan, y cuántos eran queda en el
 registro de auditoría.
 
+## Más allá de sandboxd { #beyond-sandboxd }
+
+Dos sitios más donde pueden trabajar las herramientas de sandbox de un run, con
+las mismas herramientas y sin nada del aislamiento de arriba.
+
+**Una conexión E2B.** Una conexión de sandbox de tipo `e2b` ejecuta sandboxes en la
+cuenta propia de [E2B](https://e2b.dev) de la organización: su clave de API es el
+secreto del vault de la conexión, y el runtime por defecto de la conexión nombra
+una plantilla de E2B - vacío para la plantilla por defecto de E2B, `desktop` para
+la que maneja computer use. Cada creación, conexión y destrucción se hace con esa
+clave, nunca con un `E2B_API_KEY` que tenga el proceso del despliegue, así que las
+sandboxes de cada organización corren, y se facturan, en su propia cuenta. Una
+sandbox se pausa al final de su hora en lugar de terminarse, para que un workspace
+de alcance más largo conserve sus archivos, y el barrido de destrucción la termina
+como a una de Daytona.
+
+**El ordenador propio de la persona.** En la
+[app de escritorio](desktop.md#work-on-this-computer) un chat puede trabajar en una
+carpeta del ordenador donde corre. Las herramientas llegan a él por la conexión de
+la app con el servidor, y es la app - no este servidor - la que rechaza cualquier
+carpeta o modo que la persona no concedió; las escrituras corren bajo Seatbelt en
+macOS o bubblewrap en Linux. Solo los chats propios de una persona, y los triggers
+que actúan como su creador, llegan a su ordenador; un run espera hasta diez minutos
+a que se conecte. Aquí no se guarda nada de ello: no hay fila de workspace ni
+sesión que limpiar.
+
 ## Resumen { #recap }
 
 - El contenedor de la API **no tiene ningún socket de Docker**. `sandboxd` sí, y
@@ -640,3 +667,5 @@ registro de auditoría.
   lleva una ruta y nunca una carga útil, y sobrevive al agent.
 - **Los archivos se conservan indefinidamente** salvo que fijes
   `SANDBOXD_WORKSPACE_TTL`. El uso de disco solo crece.
+- **E2B y el ordenador propio de la persona** también son sandboxes: una con la
+  clave propia de la organización, el otro sujeto a lo que la persona concedió en él.

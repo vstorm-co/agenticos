@@ -1,5 +1,5 @@
 ---
-source_sha: "7b7a3c86350d"
+source_sha: "75f91f5aa939"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -887,6 +887,9 @@ partię wymierzoną w okno, któremu nie ufasz, że pozostanie bez zmian.
 |---|---|---|
 | `sandbox` | Pulpit Linux (XFCE i Firefox) we własnym [sandboksie](#files-shell) agenta, na tej samej maszynie, na której działają jego powłoka i narzędzia plikowe | Capability [Sandbox](#files-shell) na połączeniu sandboksa, z runtime'em `desktop` |
 | `daemon` | `computerd` uruchomiony przez operatora: jego własny pulpit Linux (X11), własny ekran Maca (`uv run deploy/computer/computerd.py`) albo pulpit w kontenerze (`deploy/computer/Dockerfile`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz token daemona jako sekret bindingu |
+| `e2b` | Pulpit E2B własny dla runa, z szablonu `desktop` E2B, zabijany, gdy run go puszcza | Klucz E2B organizacji jako sekret bindingu |
+| `local` | Własny ekran osoby, w czacie pracującym na jej komputerze przez [aplikację desktopową](../desktop.md#the-screen) | Nic: aplikacja pyta osobę przed pierwszym zrzutem |
+| `auto` | Ekran osoby, gdy czat pracuje na jej komputerze, w przeciwnym razie pulpit E2B, gdy binding wskazuje klucz, w przeciwnym razie sandbox | To, czego potrzebuje pulpit, na który trafi |
 
 Pulpit w sandboksie nie potrzebuje niczego własnego: ani adresu, ani tokena, ani
 providera. Żyje i jest współdzielony dokładnie tak jak sandbox, na rozmowę albo
@@ -925,7 +928,7 @@ fragmentem albo danymi logowania jest odrzucany.
 
 | Ustawienie | Domyślnie | Zakres |
 |---|---|---|
-| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
 | `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host, bez query, fragmentu ani danych logowania |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nie więcej niż `max_actions` |
@@ -936,6 +939,13 @@ Czat rysuje pulpit w oknie pod wiadomością, gdy agent pracuje: jedno okno na
 run, otwarte przez pierwszy zrzut ekranu, z klatką po każdym wywołaniu i linią
 na akcję. Tekst wpisywany przez model
 jest tam widoczny tak, jak został wpisany.
+
+**Oglądanie i przejmowanie.** Każdy pulpit jest też publikowany w podglądzie runa
+na żywo, tym samym, którego używa browse, więc run z kanału albo rutyny można
+oglądać z konsoli. **Przejmij** oddaje pulpit osobie między wywołaniami agenta:
+jej kliknięcia, klawisze i przewijania są na nim wykonywane, agent czeka, a
+**Oddaj** zwraca go, a model dostaje polecenie, żeby spojrzeć jeszcze raz. Kto może
+oglądać i przejmować, to reguła browse; własny ekran osoby jest tylko jej.
 
 **Zrzut ekranu, który zostaje u użytkownika.** `computer_screenshot` jest dla
 modelu i nic go nie przechowuje: run czekający na akceptację, jego manifest i
