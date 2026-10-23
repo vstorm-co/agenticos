@@ -51,11 +51,16 @@ async def get_by_name(
 
 
 async def lock(db: AsyncSession, suite_id: UUID, *, organization_id: UUID) -> EvalSuite | None:
-    """The suite, held until the transaction ends - against a sweep starting it meanwhile."""
+    """The suite, held until the transaction ends - against a sweep starting it meanwhile.
+
+    `FOR NO KEY UPDATE`, not `FOR UPDATE`: a guard row written in the same
+    transaction holds a key share on the suite for its foreign key, and two
+    changes to one suite's guards would each wait on the other's.
+    """
     result = await db.execute(
         select(EvalSuite)
         .where(EvalSuite.id == suite_id, EvalSuite.organization_id == organization_id)
-        .with_for_update()
+        .with_for_update(key_share=True)
         .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()

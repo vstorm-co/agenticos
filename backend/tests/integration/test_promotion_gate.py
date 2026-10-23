@@ -19,9 +19,10 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
+import anyio
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
     AuthorizationError,
@@ -38,7 +39,7 @@ from app.db.models.eval_run import EvalRun
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.notification import Notification
 from app.db.models.promotion_gate import EnvironmentGuard, PromotionOverride
-from app.repositories import promotion_gate_repo
+from app.repositories import eval_suite_repo, promotion_gate_repo
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate
 from app.schemas.eval_suite import EvalSuiteThreshold, EvalSuiteUpdate
@@ -337,6 +338,36 @@ async def test_a_suite_guarding_two_environments_stays_pinned_until_both_are_gon
     await db.refresh(suite)
     assert (suite.pinned_dataset_version, suite.pinned_scoring) == (None, None)
     assert (await EvalSuiteService(db).get(ctx, agent.id, suite.id)).pin is None
+
+
+async def test_two_changes_to_one_suites_guards_wait_on_each_other_rather_than_deadlock(
+    db, engine
+) -> None:
+    """Each writes a guard row - a key share on the suite for its foreign key - and then
+    locks the suite to pin it; a lock that took the key share's place would deadlock."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    suite = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(await _dataset(db, ctx)))
+    environments = AgentEnvironmentService(db)
+    left, right = [
+        await environments.create(ctx, agent.id, EnvironmentCreate(name=name, version_id=first.id))
+        for name in ("left", "right")
+    ]
+    await db.commit()
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with sessions() as one, sessions() as two:
+        for session, environment in ((one, left), (two, right)):
+            await promotion_gate_repo.replace_guards(
+                session, environment.id, [suite.id], organization_id=ctx.organization_id
+            )
+        with anyio.fail_after(5):
+            held = await eval_suite_repo.lock(one, suite.id, organization_id=ctx.organization_id)
+        assert held is not None
+        await one.commit()
+        with anyio.fail_after(5):
+            assert await eval_suite_repo.lock(two, suite.id, organization_id=ctx.organization_id)
+        await two.commit()
 
 
 async def test_a_raised_bar_makes_an_earlier_pass_stale(db) -> None:
