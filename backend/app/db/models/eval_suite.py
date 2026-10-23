@@ -66,14 +66,15 @@ class EvalSuiteResultStatus(StrEnum):
     or past an efficiency ceiling."""
 
     INCONCLUSIVE = "inconclusive"
-    """The result cannot be vouched for: a case could not be graded, or the two
-    sides were graded differently - and nothing failed outright."""
+    """The result cannot be vouched for: a case could not be graded, the two
+    sides were graded differently, or the eval run was cancelled - and nothing
+    failed outright."""
 
     SKIPPED = "skipped"
     """Never ran: the budget, the cost ceiling, AI assistance off, or nothing to run."""
 
     ERROR = "error"
-    """The eval run ended without a result - failed, cancelled or out of budget."""
+    """The eval run ended without a result - failed or out of budget."""
 
     @property
     def open(self) -> bool:

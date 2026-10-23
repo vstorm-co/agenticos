@@ -50,13 +50,13 @@ const BUILDER_STEPS = [
   "agent-availability",
   "agent-evals",
   "agent-eval-suites",
+  "agent-gaps",
   "agent-history",
   "agent-test-connections",
   "agent-environment-guards",
   "agent-test-draft",
   "agent-test",
   "agent-share",
-  "agent-gaps",
   "agent-publish",
 ];
 

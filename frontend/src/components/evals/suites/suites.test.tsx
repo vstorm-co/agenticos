@@ -30,7 +30,7 @@ function mutation(overrides: Partial<Mutation> = {}): Mutation {
 
 const hooks = vi.hoisted(() => ({
   suites: [] as unknown[],
-  isLoading: false,
+  isPending: false,
   error: null as unknown,
   refetch: (() => undefined) as () => unknown,
   create: undefined as unknown,
@@ -48,7 +48,7 @@ const hooks = vi.hoisted(() => ({
 vi.mock("@/hooks/use-eval-suites", () => ({
   useEvalSuites: () => ({
     suites: hooks.suites,
-    isLoading: hooks.isLoading,
+    isPending: hooks.isPending,
     error: hooks.error,
     refetch: hooks.refetch,
     create: hooks.create,
@@ -102,7 +102,7 @@ const ESTIMATE = {
 
 beforeEach(() => {
   hooks.suites = [];
-  hooks.isLoading = false;
+  hooks.isPending = false;
   hooks.error = null;
   hooks.refetch = vi.fn();
   hooks.create = mutation();
@@ -126,11 +126,18 @@ function card(suites: EvalSuite[], canManage = true) {
 }
 
 describe("EvalSuitesCard", () => {
-  it("teaches what a suite is when there is none, and offers one to whoever may", async () => {
+  it("says in one line that there is none, and offers one to whoever may", async () => {
     card([]);
-    expect(screen.getByText("No suites yet")).toBeInTheDocument();
+    expect(screen.getByText(/^No suites yet/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "New suite" })).toHaveLength(1);
     await userEvent.click(screen.getByRole("button", { name: "New suite" }));
     expect(screen.getByRole("dialog", { name: "New suite" })).toBeInTheDocument();
+  });
+
+  it("offers no suite to whoever may not save one", () => {
+    card([], false);
+    expect(screen.getByText(/^No suites yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New suite" })).toBeNull();
   });
 
   it("offers nothing to change to whoever may not", () => {
@@ -139,12 +146,13 @@ describe("EvalSuitesCard", () => {
     expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
   });
 
-  it("waits, and says when the suites could not be read", async () => {
-    hooks.isLoading = true;
+  it("holds a skeleton until the suites are read, and says when they could not be", async () => {
+    hooks.isPending = true;
     const { rerender } = card([]);
-    expect(screen.queryByText("No suites yet")).toBeNull();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText(/^No suites yet/)).toBeNull();
 
-    hooks.isLoading = false;
+    hooks.isPending = false;
     hooks.error = new Error("boom");
     rerender(<EvalSuitesCard agentId="agent-1" canManage />);
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -190,6 +198,22 @@ describe("EvalSuitesCard", () => {
     expect(screen.getByText("Paused")).toBeInTheDocument();
     expect(screen.getByText("Running")).toBeInTheDocument();
     expect(screen.getByText(/^Next /)).toBeInTheDocument();
+  });
+
+  it("shows what each suite's results must meet", () => {
+    card([
+      evalSuite({
+        threshold: {
+          min_pass_rate: 0.7,
+          max_confirmed_regressions: 0,
+          max_cost_per_pass_rise: null,
+          max_p95_rise: null,
+        },
+      }),
+      evalSuite({ id: "suite-2", name: "Lenient" }),
+    ]);
+    expect(screen.getByText("≥70% · 0 regressions")).toHaveAttribute("title", "Threshold");
+    expect(screen.getByText("0 regressions")).toBeInTheDocument();
   });
 
   it("runs, pauses, resumes and deletes a suite from its row", async () => {
@@ -320,6 +344,7 @@ describe("SuiteResultsSheet", () => {
       suiteResult({ id: "r3", status: "error", reason: null, summary: null, settled_at: null }),
       suiteResult({ id: "r4", status: "running", summary: null, version_number: null }),
       suiteResult({ id: "r5", status: "inconclusive", summary: null }),
+      suiteResult({ id: "r6", status: "inconclusive", reason: "cancelled", summary: null }),
     ]);
 
     const sheet = screen.getByRole("dialog");
@@ -336,6 +361,7 @@ describe("SuiteResultsSheet", () => {
     expect(
       within(sheet).getByText("Only the judge could grade these cases, and AI assistance is off."),
     ).toBeInTheDocument();
+    expect(within(sheet).getByText("Its eval run was stopped.")).toBeInTheDocument();
     expect(within(sheet).getByRole("link", { name: "Turn on AI assistance" })).toHaveAttribute(
       "href",
       "/orgs/org-1/members",

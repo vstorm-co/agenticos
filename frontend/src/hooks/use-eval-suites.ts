@@ -102,7 +102,7 @@ export function useEvalSuites(agentId: string) {
 
   return {
     suites: query.data?.items ?? [],
-    isLoading: query.isLoading,
+    isPending: query.isPending,
     error: query.error,
     refetch: query.refetch,
     create,

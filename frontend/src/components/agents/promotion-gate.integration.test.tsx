@@ -175,6 +175,12 @@ describe("promoting onto a guarded environment", () => {
           state: "skipped",
           result: suiteResult({ status: "skipped", reason: "ai_assistance_off", summary: null }),
         }),
+        guard({
+          suite_id: "e",
+          suite_name: "Stopped one",
+          state: "inconclusive",
+          result: suiteResult({ status: "inconclusive", reason: "cancelled", summary: null }),
+        }),
         guard({ suite_id: "c", suite_name: "Paused one", state: "paused", paused_reason: null }),
         guard({
           suite_id: "d",
@@ -192,6 +198,7 @@ describe("promoting onto a guarded environment", () => {
     expect(
       within(dialog).getByText("Only the judge could grade these cases, and AI assistance is off."),
     ).toBeInTheDocument();
+    expect(within(dialog).getByText("Its eval run was stopped.")).toBeInTheDocument();
     expect(within(dialog).getByText("Paused: its owner left")).toBeInTheDocument();
     // Two badges, and the hand-paused one's own line.
     expect(within(dialog).getAllByText("Paused")).toHaveLength(3);

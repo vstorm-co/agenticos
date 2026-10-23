@@ -46,7 +46,7 @@ const INPUT: EvalSuiteInput = {
 
 async function suites() {
   const { result } = renderHook(() => useEvalSuites("agent-1"), { wrapper });
-  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  await waitFor(() => expect(result.current.isPending).toBe(false));
   return result;
 }
 

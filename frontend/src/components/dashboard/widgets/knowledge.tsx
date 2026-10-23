@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Figure } from "@/components/ui";
 import { useKnowledgeBases } from "@/hooks";
@@ -26,6 +26,7 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function KnowledgeWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.knowledge");
+  const locale = useLocale();
   const { kbs, isLoading, listError, fetchKBs } = useKnowledgeBases();
 
   if (isLoading) {
@@ -53,14 +54,14 @@ export function KnowledgeWidget({ title, hint, seeAll, options }: DashboardWidge
         />
       ) : (
         <div className="grid flex-1 grid-cols-3 content-center gap-4">
-          <Figure label={t("collections")} value={kbs.length.toLocaleString()} />
+          <Figure label={t("collections")} value={kbs.length.toLocaleString(locale)} />
           <Figure
             label={t("documents")}
-            value={documents.toLocaleString()}
+            value={documents.toLocaleString(locale)}
             caption={unindexed > 0 ? t("notIndexed", { count: unindexed }) : undefined}
             captionTone={unindexed > 0 ? "destructive" : "muted"}
           />
-          <Figure label={t("chunks")} value={chunks.toLocaleString()} />
+          <Figure label={t("chunks")} value={chunks.toLocaleString(locale)} />
         </div>
       )}
     </WidgetFrame>

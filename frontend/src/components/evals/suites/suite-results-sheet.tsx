@@ -24,7 +24,7 @@ import { useOrgStore } from "@/stores/org-store";
 import type { EvalSuite, EvalSuiteResult } from "@/types/eval-suites";
 import { Perm } from "@/types/permissions";
 import { percent } from "../format";
-import { RESULT_TONE, reasonText, skipText } from "./suite-format";
+import { RESULT_TONE, resultReasons } from "./suite-format";
 import { SuitePin } from "./suite-pin";
 
 /** What one page of results holds. */
@@ -103,11 +103,7 @@ function ResultRow({ agentId, result }: { agentId: string; result: EvalSuiteResu
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const summary = result.summary;
-  const why = ["failed", "inconclusive"].includes(result.status)
-    ? (summary?.reasons ?? []).map((reason) => reasonText(reason, t, locale))
-    : ["skipped", "error"].includes(result.status)
-      ? [skipText(result, t)].filter((text): text is string => text !== null)
-      : [];
+  const why = resultReasons(result, t, locale);
   const assistanceOff =
     result.reason === "ai_assistance_off" && can(Perm.orgSettings) && activeOrgId !== null;
 

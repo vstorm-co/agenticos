@@ -10,8 +10,8 @@ import { formatDateTime } from "@/lib/utils";
 import type { EvalSuite } from "@/types/eval-suites";
 import { percent } from "../format";
 import { SuiteFormDialog } from "./suite-form-dialog";
+import { RESULT_TONE, thresholdText, whenLabels } from "./suite-format";
 import { SuitePinBadge } from "./suite-pin";
-import { RESULT_TONE, whenLabels } from "./suite-format";
 import { SuiteResultsSheet } from "./suite-results-sheet";
 
 /**
@@ -70,6 +70,9 @@ export function SuiteRow({ suite, canManage }: { suite: EvalSuite; canManage: bo
               : t(`status.${last.status}`)}
           </Badge>
         )}
+        <span className="text-muted-foreground text-xs" title={t("form.threshold")}>
+          {thresholdText(suite.threshold, t, locale)}
+        </span>
         {!suite.is_active && (
           <Badge variant="outline">
             {suite.paused_reason ? t(`paused.${suite.paused_reason}`) : t("paused.byPerson")}
