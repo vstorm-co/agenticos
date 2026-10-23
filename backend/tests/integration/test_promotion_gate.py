@@ -370,6 +370,53 @@ async def test_two_changes_to_one_suites_guards_wait_on_each_other_rather_than_d
         await two.commit()
 
 
+async def test_a_guard_left_unpinned_holds_every_version_back_until_it_is_pinned(db) -> None:
+    """A guard set up on an empty dataset before guards were pinned: whatever a builder
+    adds to the dataset later, it lets nothing through until an override holder pins it."""
+    ctx = await _owner(db)
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=0)
+    suite = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(dataset))
+    staging = await AgentEnvironmentService(db).create(
+        ctx, agent.id, EnvironmentCreate(name="staging", version_id=first.id)
+    )
+    # As the migration left it: a guard row, and no pin.
+    await promotion_gate_repo.replace_guards(
+        db, staging.id, [suite.id], organization_id=ctx.organization_id
+    )
+    agent.owner_user_id = builder.user_id
+    await db.flush()
+    second = await _published(db, ctx, agent)
+    suites = EvalSuiteService(db)
+
+    with pytest.raises(BadRequestError, match="no cases yet"):
+        await suites.move_pin(ctx, agent.id, suite.id)
+    await DatasetService(db).add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "x"}])
+    )
+    gate = await _check(db, ctx, agent, staging.id, second)
+    ran = await PromotionGateService(db).run(
+        ctx, agent.id, staging.id, PromotionGateRun(version_id=second.id)
+    )
+    read = await suites.get(ctx, agent.id, suite.id)
+
+    assert [g.state for g in gate.guards] == ["unpinned"] and not gate.passing
+    assert ran.started == []
+    assert read.pin is not None and read.pin.dataset_version is None
+    with pytest.raises(PromotionBlockedError):
+        await _promote(db, ctx, agent, staging.id, second)
+    with pytest.raises(AuthorizationError, match="override promotions"):
+        await suites.move_pin(builder, agent.id, suite.id)
+
+    pinned = await suites.move_pin(ctx, agent.id, suite.id)
+
+    assert pinned.pin is not None and pinned.pin.dataset_version == 1
+    assert [g.state for g in (await _check(db, ctx, agent, staging.id, second)).guards] == [
+        "unchecked"
+    ]
+
+
 async def test_a_raised_bar_makes_an_earlier_pass_stale(db) -> None:
     ctx = await _owner(db)
     agent, first = await _agent(db, ctx)

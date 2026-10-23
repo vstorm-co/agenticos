@@ -9231,6 +9231,9 @@
       "pin": {
         "badge": "Pinned to v{version}",
         "pinned": "Pinned to dataset v{pinned}.",
+        "unpinnedBadge": "Not pinned",
+        "unpinned": "Not pinned to a dataset version yet, so it holds every promotion back until it is pinned.",
+        "pinTo": "Pin to v{latest}",
         "current": "Guards on dataset v{pinned}, as it is now.",
         "behind": "Pinned to dataset v{pinned}. The dataset is now at v{latest}.",
         "scoringChanged": "Its grading has changed since.",
@@ -9729,7 +9732,8 @@
       "checking": "Checking",
       "stale": "Out of date",
       "unchecked": "Not checked",
-      "paused": "Paused"
+      "paused": "Paused",
+      "unpinned": "Not pinned"
     },
     "hint": {
       "passed": "Passed on this version.",
@@ -9739,7 +9743,8 @@
       "error": "Ended without a verdict on this version.",
       "checking": "A run on this version is waiting or going.",
       "stale": "Its last result read other cases or another threshold than the suite holds now.",
-      "unchecked": "Has not run on this version yet."
+      "unchecked": "Has not run on this version yet.",
+      "unpinned": "Not pinned to a dataset version yet. Somebody who may override promotions pins it from the suite before it can pass."
     },
     "passing": "Every guard passed on v{version}.",
     "overrideTitle": "Promote anyway",

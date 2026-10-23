@@ -19,6 +19,7 @@ GuardState = Literal[
     "stale",
     "unchecked",
     "paused",
+    "unpinned",
 ]
 """Where one guard stands on a version.
 
@@ -26,7 +27,10 @@ GuardState = Literal[
 `inconclusive`, `skipped` and `error` are its last result there; `checking` is a
 run waiting or going; `stale` is a result over another dataset version or
 threshold than the suite holds now; `unchecked` is no result at all; `paused` is
-a suite that will not produce one until it is resumed.
+a suite that will not produce one until it is resumed; `unpinned` is a guard
+not pinned to a dataset version yet - set up before guards were pinned, on a
+dataset that had none - which holds every version back until somebody who may
+override promotions pins it.
 """
 
 

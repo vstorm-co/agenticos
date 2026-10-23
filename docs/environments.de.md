@@ -1,5 +1,5 @@
 ---
-source_sha: "1e6c2157f0f6"
+source_sha: "642a7f01331a"
 ---
 
 # Umgebungen { #environments }
@@ -92,7 +92,10 @@ Suite sagt, wann das Dataset weitergegangen ist, und **Move the pin**
 neueste Version und das aktuelle Scoring; das braucht `promotions:override` und
 wird als Änderung der Wächter verzeichnet. Eine Suite, die nichts mehr bewacht,
 liest wieder die neueste Version, und eine, deren Dataset noch keine Fälle hat,
-kann kein Wächter werden. Die Version des Judge-Agents selbst gehört
+kann kein Wächter werden. Ein Wächter, der eingerichtet wurde, bevor Wächter
+festgelegt wurden, auf einem Dataset, das damals keine Fälle hatte, ist nicht
+festgelegt: Er hält jede Version zurück, bis ihn jemand festlegt, der Promotionen
+übergehen darf. Die Version des Judge-Agents selbst gehört
 nicht zur Festlegung: Ein neu veröffentlichter Judge bewertet den nächsten Run
 des Wächters.
 

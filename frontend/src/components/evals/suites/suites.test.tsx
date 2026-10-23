@@ -304,6 +304,38 @@ describe("SuiteResultsSheet", () => {
     expect(within(sheet).queryByRole("button", { name: /Move the pin/ })).toBeNull();
   });
 
+  it("says a guard is not pinned yet and pins it for whoever may override", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({
+        pin: { dataset_version: null, latest_dataset_version: 2, scoring_current: null },
+      }),
+    );
+
+    expect(screen.getAllByText("Not pinned").length).toBeGreaterThan(0);
+    const sheet = screen.getByRole("dialog");
+    expect(
+      within(sheet).getByText(
+        "Not pinned to a dataset version yet, so it holds every promotion back until it is pinned.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Pin to v2" }));
+    expect((hooks.movePin as Mutation).mutate).toHaveBeenCalledWith("suite-1");
+  });
+
+  it("offers no pin while a guard's dataset has no version to pin it to", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({
+        pin: { dataset_version: null, latest_dataset_version: 0, scoring_current: null },
+      }),
+    );
+
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: /Pin to/ })).toBeNull();
+  });
+
   it("offers no move when the guard checks the dataset as it is", async () => {
     access.allowed = new Set([Perm.promotionsOverride]);
     await open(

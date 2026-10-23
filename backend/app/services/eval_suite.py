@@ -226,18 +226,25 @@ def _pin_record(suite: EvalSuite) -> dict[str, Any] | None:
     return {"dataset_version": pin[0], "scoring_hash": scoring_hash(pin[1])}
 
 
-def _pin_read(suite: EvalSuite, dataset: Dataset | None) -> EvalSuitePin | None:
-    """The pin, beside its dataset as it is now - unless the reader cannot see the dataset."""
+def _pin_read(suite: EvalSuite, dataset: Dataset | None, *, guards: bool) -> EvalSuitePin | None:
+    """The pin, beside its dataset as it is now - unless the reader cannot see the dataset.
+
+    A guard not pinned yet reads as a pin to no version, so it can be pinned from
+    where it shows.
+    """
     pin = pin_of(suite)
-    if pin is None:
+    if pin is None and not guards:
         return None
     if dataset is None:
-        return EvalSuitePin(dataset_version=pin[0])
+        return EvalSuitePin(dataset_version=None if pin is None else pin[0])
     return EvalSuitePin(
-        dataset_version=pin[0],
+        dataset_version=None if pin is None else pin[0],
         latest_dataset_version=dataset.latest_version,
         scoring_current=(
-            scoring_hash(pin[1]) == scoring_hash(DatasetScoring.model_validate(dataset.scoring))
+            None
+            if pin is None
+            else scoring_hash(pin[1])
+            == scoring_hash(DatasetScoring.model_validate(dataset.scoring))
         ),
     )
 
@@ -371,6 +378,7 @@ class EvalSuiteService:
         )
         latest = await eval_suite_repo.latest_results(self.db, ids, organization_id=org)
         current = await eval_suite_repo.open_results(self.db, ids, organization_id=org)
+        guarding = await promotion_gate_repo.guarding(self.db, ids, organization_id=org)
         checked = [
             result.dataset_id
             for result in (*latest.values(), *current.values())
@@ -425,6 +433,7 @@ class EvalSuiteService:
                     pin=_pin_read(
                         suite,
                         datasets[suite.dataset_id] if suite.dataset_id in readable else None,
+                        guards=suite.id in guarding,
                     ),
                     last_result=(
                         self.result_read(last, cases_visible=last.dataset_id in readable)
@@ -709,7 +718,8 @@ class EvalSuiteService:
                 cannot run.
             AuthorizationError: The caller may not edit the agent, or may not
                 override promotions.
-            BadRequestError: The suite guards no environment.
+            BadRequestError: The suite guards no environment, or its dataset has
+                no version to pin it to.
         """
         from app.services.promotion_gate import PromotionGateService
 
@@ -722,7 +732,7 @@ class EvalSuiteService:
                 ),
                 details={"suite_id": suite.id, "permission": Perm.PROMOTIONS_OVERRIDE.value},
             )
-        await self.datasets.get(ctx, suite.dataset_id, perm=Perm.DATASETS_RUN)
+        dataset = await self.datasets.get(ctx, suite.dataset_id, perm=Perm.DATASETS_RUN)
         await eval_suite_repo.lock(self.db, suite.id, organization_id=ctx.organization_id)
         guarded = await promotion_gate_repo.guarded_by(
             self.db, suite.id, organization_id=ctx.organization_id
@@ -732,6 +742,14 @@ class EvalSuiteService:
                 message=(
                     f"'{suite.name}' guards no environment, so it reads the latest version "
                     "of its dataset already."
+                ),
+                details={"suite_id": suite.id},
+            )
+        if dataset.latest_version == 0:
+            raise BadRequestError(
+                message=(
+                    f"'{suite.name}': this suite's dataset has no cases yet, so there is no "
+                    "version to pin it to. Add cases first."
                 ),
                 details={"suite_id": suite.id},
             )

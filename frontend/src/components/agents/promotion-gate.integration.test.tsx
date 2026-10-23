@@ -182,6 +182,7 @@ describe("promoting onto a guarded environment", () => {
           result: suiteResult({ status: "inconclusive", reason: "cancelled", summary: null }),
         }),
         guard({ suite_id: "c", suite_name: "Paused one", state: "paused", paused_reason: null }),
+        guard({ suite_id: "f", suite_name: "Unpinned one", state: "unpinned" }),
         guard({
           suite_id: "d",
           suite_name: "Gone owner",
@@ -200,6 +201,12 @@ describe("promoting onto a guarded environment", () => {
     ).toBeInTheDocument();
     expect(within(dialog).getByText("Its eval run was stopped.")).toBeInTheDocument();
     expect(within(dialog).getByText("Paused: its owner left")).toBeInTheDocument();
+    expect(within(dialog).getByText("Not pinned")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Not pinned to a dataset version yet. Somebody who may override promotions pins it from the suite before it can pass.",
+      ),
+    ).toBeInTheDocument();
     // Two badges, and the hand-paused one's own line.
     expect(within(dialog).getAllByText("Paused")).toHaveLength(3);
   });

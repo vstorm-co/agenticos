@@ -82,12 +82,14 @@ def guard_state(
     the scoring it was graded under; `waiting` is such a result still to start
     or finish; `dataset_version` and `scoring_hash` are what the suite would
     read and grade by now. A paused guard holds the version back whatever it
-    found before the pause.
+    found before the pause, and so does one not pinned to a dataset version yet.
     """
     from app.services.eval_suite import threshold_of
 
     if not suite.is_active:
         return "paused", settled[0] if settled is not None else waiting
+    if suite.pinned_dataset_version is None:
+        return "unpinned", settled[0] if settled is not None else waiting
     if settled is not None:
         result, number, hashed = settled
         current = (
@@ -380,7 +382,7 @@ class PromotionGateService:
         suites = EvalSuiteService(self.db)
         started = []
         for guard in gate.guards:
-            if guard.state in ("passed", "checking", "paused"):
+            if guard.state in ("passed", "checking", "paused", "unpinned"):
                 continue
             await suites.run_on_version(
                 ctx,

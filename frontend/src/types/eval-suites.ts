@@ -135,7 +135,8 @@ export interface EvalSuite {
 
 /** The dataset version a guard reads, beside the one its dataset is at now. */
 export interface EvalSuitePin {
-  dataset_version: number;
+  /** Null on a guard not pinned yet, which holds every promotion back until it is. */
+  dataset_version: number | null;
   /** Null when the reader cannot see the dataset. */
   latest_dataset_version: number | null;
   /** Whether the dataset is graded now as the guard grades it; null when the reader cannot see it. */

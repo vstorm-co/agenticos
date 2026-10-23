@@ -186,7 +186,12 @@ class EvalSuitePin(BaseSchema):
     moves it onto newer ones.
     """
 
-    dataset_version: int = Field(description="The dataset version the guard reads")
+    dataset_version: int | None = Field(
+        description=(
+            "The dataset version the guard reads; null on a guard not pinned yet, which "
+            "holds every promotion back until somebody who may override promotions pins it"
+        )
+    )
     latest_dataset_version: int | None = Field(
         default=None, description="The dataset's version now; null when the reader cannot see it"
     )
@@ -213,7 +218,8 @@ class EvalSuiteRead(BaseSchema):
         default=None,
         description=(
             "Whether the dataset has a version yet - a suite on one with none cannot guard an "
-            "environment. Null when the reader cannot see the dataset"
+            "environment. A version that holds no cases still counts; a run on it is refused. "
+            "Null when the reader cannot see the dataset"
         ),
     )
     environment_id: UUID | None

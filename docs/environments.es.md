@@ -1,5 +1,5 @@
 ---
-source_sha: "1e6c2157f0f6"
+source_sha: "642a7f01331a"
 ---
 
 # Entornos { #environments }
@@ -86,8 +86,13 @@ cambia lo que comprueba la guardiana.
 El panel de la suite dice cuándo el dataset ha avanzado, y **Move the pin**
 (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) lleva la guardiana a la
 última versión y al scoring actual; necesita `promotions:override` y se registra
-como un cambio de las guardianas. Una suite que deja de guardar vuelve a leer la
-última versión, y una cuyo dataset aún no tiene casos no puede ser guardiana. La versión del propio agente juez no forma parte de la fijación:
+como un cambio de las guardianas.
+
+Una suite que deja de guardar vuelve a leer la
+última versión, y una cuyo dataset aún no tiene casos no puede ser guardiana.
+Una guardiana configurada antes de que las guardianas se fijaran, sobre un
+dataset que entonces no tenía casos, no está fijada: detiene cada versión hasta
+que la fije alguien que pueda pasar por encima de las promociones. La versión del propio agente juez no forma parte de la fijación:
 un juez publicado de nuevo puntúa la siguiente ejecución de la guardiana.
 
 El diálogo de promoción muestra lo mismo y ejecuta las guardianas que no han
