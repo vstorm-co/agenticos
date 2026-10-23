@@ -490,7 +490,13 @@ channel yet.
 
 ## Access { #access }
 
-Starting a run needs `datasets:run` on the dataset and `agents:run` on the
+Starting a run - or asking what it would cost - needs `runs:view` first: a run
+is paid for, and whoever could not read it or cancel it may not start it,
+whatever grants they hold. The console shows them its start controls disabled,
+saying why. Every way to start one asks the same: Run evals, a suite, Test draft
+and the assistant's Check with evals.
+
+A start then needs `datasets:run` on the dataset and `agents:run` on the
 agent, each resolved with the resource's grants. Running the draft also needs
 `agents:edit` on the agent, because the draft is the editors' work in progress.
 The judge, when one scores the dataset, needs what

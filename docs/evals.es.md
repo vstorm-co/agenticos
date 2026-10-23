@@ -1,5 +1,5 @@
 ---
-source_sha: "2e02221984a4"
+source_sha: "04e11cdd6373"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -524,7 +524,13 @@ Slack todavía no es un canal de notificaciones.
 
 ## Acceso { #access }
 
-Iniciar un run requiere `datasets:run` en el dataset y `agents:run` en el
+Iniciar un run - o preguntar cuánto costaría - requiere primero `runs:view`:
+un run se paga, y quien no podría leerlo ni cancelarlo no puede iniciarlo,
+tenga los grants que tenga. La consola le muestra los controles de inicio
+desactivados y le dice por qué. Cada forma de iniciar uno pide lo mismo: Run
+evals, una suite, Test draft y el Comprobar con evals del asistente.
+
+Un inicio requiere luego `datasets:run` en el dataset y `agents:run` en el
 agent, cada uno resuelto con los grants del recurso. Ejecutar el borrador
 requiere además `agents:edit` en el agent, porque el borrador es el trabajo en
 curso de los editores. El juez, cuando puntúa el dataset, requiere lo que dice
