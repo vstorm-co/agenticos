@@ -1,5 +1,6 @@
 """OrganizationMember repository (PostgreSQL async)."""
 
+from datetime import datetime
 from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
@@ -490,6 +491,17 @@ async def list_for_user_by_source(
         )
     )
     return list(result.scalars().all())
+
+
+async def set_personal_starters(
+    db: AsyncSession, member: OrganizationMember, *, starters: list[str], at: datetime
+) -> OrganizationMember:
+    """Keep the first messages written for this person in this organization."""
+    member.personal_starters = starters
+    member.personal_starters_at = at
+    await db.flush()
+    await db.refresh(member)
+    return member
 
 
 async def update_role(

@@ -387,7 +387,6 @@ def _user(**overrides):
         "job_title": None,
         "about": None,
         "working_hours": None,
-        "personal_starters": None,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -395,7 +394,9 @@ def _user(**overrides):
 
 class TestTheNightlyLook:
     @staticmethod
-    def _patches(*, user=None, member=True, agent=True, last=None, requests=(), reading=None):
+    def _patches(
+        *, user=None, member=True, agent=True, last=None, requests=(), reading=None, starters=None
+    ):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
         thinker.think = AsyncMock(return_value=reading)
@@ -407,7 +408,11 @@ class TestTheNightlyLook:
                 ),
                 patch(
                     f"{NIGHTLY}.member_repo.get_active",
-                    new=AsyncMock(return_value=MagicMock(role="member") if member else None),
+                    new=AsyncMock(
+                        return_value=(
+                            MagicMock(role="member", personal_starters=starters) if member else None
+                        )
+                    ),
                 ),
                 patch(
                     f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
@@ -427,6 +432,7 @@ class TestTheNightlyLook:
                     new=AsyncMock(return_value=([], 0)),
                 ),
                 patch(f"{NIGHTLY}.user_repo.update", new=AsyncMock()),
+                patch(f"{NIGHTLY}.member_repo.set_personal_starters", new=AsyncMock()),
                 patch(
                     f"{NIGHTLY}.suggestion_repo.propose", new=AsyncMock(return_value=MagicMock())
                 ),
@@ -456,15 +462,14 @@ class TestTheNightlyLook:
             "routines",
             "connections",
             "update",
+            "starters",
             "propose",
             "notify",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
 
     async def test_a_quiet_week_with_first_messages_written_costs_nothing(self):
-        made, thinker, _ = await self._look(
-            user=_user(personal_starters=["a"]), last=datetime.now(UTC), requests=()
-        )
+        made, thinker, _ = await self._look(starters=["a"], last=datetime.now(UTC), requests=())
 
         assert made == 0
         thinker.think.assert_not_awaited()
@@ -528,8 +533,11 @@ class TestTheNightlyLook:
         )
 
         assert made == 4
-        update = mocks["update"].await_args.kwargs["update_data"]
-        assert update["personal_starters"] == ["Pokaż mój pipeline", "Plan na dziś"]
+        # Kept on the membership: they come from this organization's week (Codex on #2324).
+        assert mocks["starters"].await_args.kwargs["starters"] == [
+            "Pokaż mój pipeline",
+            "Plan na dziś",
+        ]
         proposed = [call.kwargs for call in mocks["propose"].await_args_list]
         assert [p["kind"] for p in proposed] == ["routine", "agent", "profile", "role_pack"]
         assert proposed[0]["payload"] == {"prompt": "Raport sprzedaży", "cron": "0 7 * * 1"}

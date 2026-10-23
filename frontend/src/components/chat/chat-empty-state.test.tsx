@@ -14,13 +14,14 @@ const env = vi.hoisted(() => ({
 
 vi.mock("@/hooks", () => ({
   useAuth: () => ({
-    user: {
-      full_name: "Ada Lovelace",
-      email: "ada@example.com",
-      personal_starters: env.personal,
-    },
+    user: { full_name: "Ada Lovelace", email: "ada@example.com" },
   }),
   useAgents: () => ({ agents: env.agents }),
+}));
+// Kept per organization, read from their own route (Codex on #2324). Answers
+// whatever the cache holds even when disabled, as a real query would.
+vi.mock("@/hooks/use-suggestions", () => ({
+  usePersonalStarters: () => env.personal ?? [],
 }));
 vi.mock("@/hooks/use-mentionables", () => ({
   useMentionables: (agentId: string | null) => ({ items: agentId === "a1" ? env.items : [] }),

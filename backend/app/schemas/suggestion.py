@@ -39,3 +39,11 @@ class SuggestionRead(BaseSchema):
 class SuggestionList(BaseSchema):
     items: list[SuggestionRead]
     total: int
+
+
+class PersonalStarters(BaseSchema):
+    """The first messages written for the person in one organization (#2301)."""
+
+    items: list[str] = Field(
+        description="Offered after the starter agent's own in its empty chat; empty until written."
+    )

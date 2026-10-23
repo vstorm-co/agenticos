@@ -43,6 +43,11 @@ export async function listSuggestionHistory(): Promise<Suggestion[]> {
   return (await apiClient.get<SuggestionList>("/me/suggestions?decided=true")).items;
 }
 
+/** The first messages written for the person in the active organization, none until written. */
+export async function listPersonalStarters(): Promise<string[]> {
+  return (await apiClient.get<{ items: string[] }>("/me/suggestions/starters")).items;
+}
+
 /** Bring back one the person dismissed, to answer again. */
 export async function restoreSuggestion(id: string): Promise<Suggestion> {
   return apiClient.post<Suggestion>(`/me/suggestions/${id}/restore`);

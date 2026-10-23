@@ -209,7 +209,11 @@ class TestTheExport:
         organization, _ = await _org_and_agent(db)
         db.add(
             OrganizationMember(
-                id=uuid4(), organization_id=organization.id, user_id=user_id, role="member"
+                id=uuid4(),
+                organization_id=organization.id,
+                user_id=user_id,
+                role="member",
+                personal_starters=["Plan my week"],
             )
         )
         await db.flush()
@@ -219,6 +223,8 @@ class TestTheExport:
         assert [(row["organization"], row["role"]) for row in export.memberships] == [
             ("Acme", "member")
         ]
+        # The first messages written for them there, drawn from their own requests.
+        assert export.memberships[0]["personal_starters"] == ["Plan my week"]
 
     async def test_the_archive_flag_and_the_layout_are_the_values_on_the_row(self, db):
         """Both were exported as `null` for every person: the model's attributes
@@ -275,7 +281,6 @@ class TestTheExport:
         user.time_zone = "Europe/Warsaw"
         user.locale = "pl"
         user.working_hours = {"days": [1, 2, 3, 4, 5], "start": "09:00", "end": "17:00"}
-        user.personal_starters = ["Plan my week"]
         user.proactive_opt_out = True
         await db.flush()
 
@@ -286,7 +291,6 @@ class TestTheExport:
         assert export.profile["time_zone"] == "Europe/Warsaw"
         assert export.profile["locale"] == "pl"
         assert export.profile["working_hours"]["start"] == "09:00"
-        assert export.profile["personal_starters"] == ["Plan my week"]
         assert export.profile["proactive_opt_out"] is True
 
     async def test_it_carries_what_the_platform_proposed_to_them_declined_ones_too(self, db):

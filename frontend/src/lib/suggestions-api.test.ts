@@ -6,6 +6,7 @@ vi.mock("./api-client", () => ({ apiClient: { get, post } }));
 import {
   acceptSuggestion,
   dismissSuggestion,
+  listPersonalStarters,
   listSuggestionHistory,
   listSuggestions,
   restoreSuggestion,
@@ -38,5 +39,14 @@ describe("the suggestion history", () => {
 
     expect(get).toHaveBeenCalledWith("/me/suggestions?decided=true");
     expect(post).toHaveBeenCalledWith("/me/suggestions/s3/restore");
+  });
+});
+
+describe("the first messages written for the person", () => {
+  it("reads them for the active organization", async () => {
+    get.mockResolvedValue({ items: ["Plan my week"] });
+
+    expect(await listPersonalStarters()).toEqual(["Plan my week"]);
+    expect(get).toHaveBeenCalledWith("/me/suggestions/starters");
   });
 });

@@ -16,7 +16,7 @@ from app.core.permissions import AuthContext
 from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
 from app.db.models.user import User
 from app.db.updates import writable
-from app.repositories import suggestion_repo, user_repo
+from app.repositories import member_repo, suggestion_repo, user_repo
 from app.schemas.user import UserUpdate
 from app.services.proactive import ProactiveService
 
@@ -46,6 +46,13 @@ class SuggestionService:
         return await suggestion_repo.list_open(
             self.db, organization_id=ctx.organization_id, user_id=self._person(ctx)
         )
+
+    async def starters(self, ctx: AuthContext) -> list[str]:
+        """The first messages written for the person in this organization, or none yet."""
+        member = await member_repo.get(
+            self.db, organization_id=ctx.organization_id, user_id=self._person(ctx)
+        )
+        return list(member.personal_starters or []) if member is not None else []
 
     async def restore(self, ctx: AuthContext, suggestion_id: UUID) -> Suggestion:
         """Bring back one the person dismissed, to answer again.

@@ -43,8 +43,6 @@ export interface User {
   about?: string | null;
   /** When the person works, in their own time zone - knowledge for the agent only. */
   working_hours?: WorkingHours | null;
-  /** The first messages an empty chat with the starter agent offers them, written for them. */
-  personal_starters?: string[] | null;
   /** This person left themselves out of the organization's nightly look (#2301). */
   proactive_opt_out?: boolean;
   /**

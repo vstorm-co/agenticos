@@ -479,6 +479,7 @@ export const qk = {
     mine: () => ["suggestions"] as const,
     // Under `mine`'s prefix, so an answer anywhere refreshes the history too.
     history: () => ["suggestions", "history"] as const,
+    starters: () => ["suggestions", "starters"] as const,
   },
   notifications: {
     all: () => ["notifications"] as const,

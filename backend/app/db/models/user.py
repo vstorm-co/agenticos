@@ -96,16 +96,9 @@ class User(Base, TimestampMixin):
     # `WorkingHours`. Knowledge for the agent only: nothing is held back or moved
     # outside these hours, an agent just plans around them.
     working_hours: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    # The first messages an empty chat with the starter agent offers this person,
-    # written for them in the background from their role, connections and recent
-    # conversations. Null until the first sweep, which the fixed four stand in for.
-    personal_starters: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     # This person said no to the organization's nightly look at their week.
     proactive_opt_out: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
-    )
-    personal_starters_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
     )
 
     sessions: Mapped[list[Session]] = relationship(

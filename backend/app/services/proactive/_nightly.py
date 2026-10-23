@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.person_briefing import LANGUAGE_NAMES
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext
+from app.db.models.organization import OrganizationMember
 from app.db.models.suggestion import SuggestionKind
 from app.db.models.user import User
 from app.repositories import (
@@ -170,7 +171,7 @@ class NightlyLook:
             limit=MAX_REQUESTS,
         )
         new_since_last = last is None or any(message.created_at > last for message in requests)
-        if not new_since_last and user.personal_starters:
+        if not new_since_last and member.personal_starters:
             return 0
 
         notes = await memory_repo.list_for_owner(
@@ -214,18 +215,22 @@ class NightlyLook:
         )
         if reading is None:
             return 0
-        return await self._record(organization_id, user, reading, now=now)
+        return await self._record(organization_id, user, member, reading, now=now)
 
     async def _record(
-        self, organization_id: UUID, user: User, reading: NightlyReading, *, now: datetime
+        self,
+        organization_id: UUID,
+        user: User,
+        member: OrganizationMember,
+        reading: NightlyReading,
+        *,
+        now: datetime,
     ) -> int:
         starters = [text.strip()[:STARTER_CHARS] for text in reading.starters if text.strip()]
         if starters:
-            await user_repo.update(
-                self.db,
-                db_user=user,
-                update_data={"personal_starters": starters, "personal_starters_at": now},
-            )
+            # On the membership: they are drawn from this organization's
+            # conversations, and another organization's chat must not offer them.
+            await member_repo.set_personal_starters(self.db, member, starters=starters, at=now)
         proposed = 0
         for repeat in reading.repeats:
             kind = SuggestionKind.AGENT if repeat.as_agent else SuggestionKind.ROUTINE

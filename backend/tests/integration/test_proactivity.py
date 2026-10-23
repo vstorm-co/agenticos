@@ -396,6 +396,30 @@ class TestTheProactivitySettings:
         assert (org.welcome_dm_enabled, org.welcome_dm_text) == (True, "Hi from {bot}")
 
 
+class TestPersonalStarters:
+    async def test_they_are_kept_per_organization(self, db):
+        """Codex on #2324: written from one organization's week, so another
+        organization the same person belongs to offers none of them."""
+        from app.core.permissions import AuthContext, OrgRoleName
+        from app.services.suggestions import SuggestionService
+
+        person = await _person(db)
+        here = await _organization(db, person)
+        elsewhere = await _organization(db, person)
+        member = await member_repo.get(db, organization_id=here.id, user_id=person.id)
+        assert member is not None
+
+        await member_repo.set_personal_starters(db, member, starters=["Plan my week"], at=_NOW)
+
+        def ctx(org: Organization) -> AuthContext:
+            return AuthContext(user_id=person.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+
+        service = SuggestionService(db)
+        assert await service.starters(ctx(here)) == ["Plan my week"]
+        assert await service.starters(ctx(elsewhere)) == []
+        assert member.personal_starters_at == _NOW
+
+
 class TestTheSuggestionHistory:
     async def test_every_proposal_newest_first_and_a_dismissed_one_waits_again(self, db) -> None:
         from app.db.models.suggestion import SuggestionStatus

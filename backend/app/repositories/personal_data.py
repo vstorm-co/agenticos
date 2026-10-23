@@ -132,14 +132,25 @@ async def memberships_of(db: AsyncSession, user_id: UUID) -> list[dict[str, Any]
             Organization.name,
             OrganizationMember.role,
             OrganizationMember.joined_at,
+            OrganizationMember.personal_starters,
+            OrganizationMember.personal_starters_at,
         )
         .join(Organization, Organization.id == OrganizationMember.organization_id)
         .where(OrganizationMember.user_id == user_id)
         .order_by(Organization.name)
     )
+    # The first messages written for them there (#2301) are part of it: their
+    # own requests, read back to them, and kept per organization.
     return [
-        {"id": str(row_id), "organization": name, "role": role, "joined_at": joined_at}
-        for row_id, name, role, joined_at in result.all()
+        {
+            "id": str(row_id),
+            "organization": name,
+            "role": role,
+            "joined_at": joined_at,
+            "personal_starters": starters,
+            "personal_starters_at": starters_at,
+        }
+        for row_id, name, role, joined_at, starters, starters_at in result.all()
     ]
 
 

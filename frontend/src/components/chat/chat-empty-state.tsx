@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, useAuth } from "@/hooks";
 import { useMentionables } from "@/hooks/use-mentionables";
+import { usePersonalStarters } from "@/hooks/use-suggestions";
 import { VISUALS_ID } from "@/lib/agent-spec";
 import { useAgentSelectionStore } from "@/stores";
 
@@ -76,7 +77,8 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
   // can draw (#2302).
   const isStarter = agent?.slug === STARTER_SLUG;
   const own = agent?.starters ?? [];
-  const personal = isStarter ? (user?.personal_starters ?? []) : [];
+  const written = usePersonalStarters(isStarter);
+  const personal = isStarter ? written : [];
   const starters = own.length ? own : personal;
   const suggestions: WelcomeSuggestion[] = starters.length
     ? starters.map((starter, index) => ({

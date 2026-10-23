@@ -136,8 +136,6 @@ _PROFILE_FIELDS = (
     "job_title",
     "about",
     "working_hours",
-    "personal_starters",
-    "personal_starters_at",
     "proactive_opt_out",
 )
 

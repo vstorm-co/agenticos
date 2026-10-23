@@ -8,11 +8,12 @@ const api = vi.hoisted(() => ({
   acceptSuggestion: vi.fn(),
   dismissSuggestion: vi.fn(),
   listSuggestionHistory: vi.fn(),
+  listPersonalStarters: vi.fn(),
   restoreSuggestion: vi.fn(),
 }));
 vi.mock("@/lib/suggestions-api", () => api);
 
-import { useSuggestionHistory, useSuggestions } from "./use-suggestions";
+import { usePersonalStarters, useSuggestionHistory, useSuggestions } from "./use-suggestions";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -50,5 +51,18 @@ describe("useSuggestionHistory", () => {
     expect(api.restoreSuggestion).toHaveBeenCalledWith("s1");
     // The history sits under the open list's key, so both are read again.
     await waitFor(() => expect(api.listSuggestionHistory).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("usePersonalStarters", () => {
+  it("reads them only where they are offered", async () => {
+    api.listPersonalStarters.mockResolvedValue(["Plan my week"]);
+
+    const off = renderHook(() => usePersonalStarters(false), { wrapper });
+    expect(off.result.current).toEqual([]);
+    expect(api.listPersonalStarters).not.toHaveBeenCalled();
+
+    const { result } = renderHook(() => usePersonalStarters(true), { wrapper });
+    await waitFor(() => expect(result.current).toEqual(["Plan my week"]));
   });
 });

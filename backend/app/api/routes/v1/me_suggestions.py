@@ -10,7 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query
 
 from app.api.deps import Auth, SuggestionSvc
-from app.schemas.suggestion import SuggestionList, SuggestionRead
+from app.schemas.suggestion import PersonalStarters, SuggestionList, SuggestionRead
 
 router = APIRouter()
 
@@ -28,6 +28,12 @@ async def list_my_suggestions(
     return SuggestionList(
         items=[SuggestionRead.model_validate(item) for item in items], total=len(items)
     )
+
+
+@router.get("/starters", response_model=PersonalStarters)
+async def my_personal_starters(service: SuggestionSvc, ctx: Auth) -> Any:
+    """The first messages the nightly look wrote for the person in this organization."""
+    return PersonalStarters(items=await service.starters(ctx))
 
 
 @router.post("/{suggestion_id}/accept", response_model=SuggestionRead)

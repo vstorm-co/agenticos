@@ -277,6 +277,14 @@ class OrganizationMember(Base):
         default=MembershipSource.MANUAL.value,
         server_default=MembershipSource.MANUAL.value,
     )
+    # The first messages an empty chat with the starter agent offers this person
+    # here, written in the background from what they did in this organization -
+    # so on the membership, never the account, which every organization reads.
+    # Null until the first look, which the agent's own starters stand in for.
+    personal_starters: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    personal_starters_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     organization: Mapped[Organization] = relationship("Organization", back_populates="members")
 

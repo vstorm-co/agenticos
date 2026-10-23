@@ -180,9 +180,6 @@ class UserRead(UserBase, TimestampSchema):
     job_title: str | None = None
     about: str | None = None
     working_hours: WorkingHours | None = None
-    # The first messages an empty chat with the starter agent offers this person,
-    # written for them in the background; null until the first sweep reaches them.
-    personal_starters: list[str] | None = None
     proactive_opt_out: bool = False
 
 

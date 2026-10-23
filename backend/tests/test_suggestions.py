@@ -171,6 +171,23 @@ class TestDeciding:
 
         assert listed.await_args.kwargs == {"organization_id": ORG, "user_id": USER}
 
+    @pytest.mark.parametrize(
+        ("member", "expected"),
+        [
+            (MagicMock(personal_starters=["Plan my week"]), ["Plan my week"]),
+            (MagicMock(personal_starters=None), []),
+            (None, []),
+        ],
+        ids=["written", "not-yet", "no-membership"],
+    )
+    async def test_the_first_messages_are_this_persons_in_this_organization(self, member, expected):
+        """Codex on #2324: written from one organization's week, read only there."""
+        get = AsyncMock(return_value=member)
+        with patch(f"{SERVICE}.member_repo.get", new=get):
+            assert await SuggestionService(MagicMock()).starters(CTX) == expected
+
+        assert get.await_args.kwargs == {"organization_id": ORG, "user_id": USER}
+
     async def test_with_the_decided_ones_it_is_every_proposal_this_person_had_here(self):
         """What Settings lists, so a dismissed one can be found and brought back."""
         listed = AsyncMock(return_value=[])
@@ -244,6 +261,15 @@ class TestTheRoutes:
         service.accept.assert_awaited_once_with(CTX, open_one.id)
         service.dismiss.assert_awaited_once_with(CTX, open_one.id)
         assert service.list_mine.await_args.kwargs == {"decided": False}
+
+    async def test_the_first_messages_written_for_them(self, service):
+        service.starters = AsyncMock(return_value=["Plan my week"])
+
+        answer = await self._call("GET", "/starters")
+
+        assert answer.status_code == 200
+        assert answer.json() == {"items": ["Plan my week"]}
+        service.starters.assert_awaited_once_with(CTX)
 
     async def test_the_history_and_bringing_one_back(self, service):
         dismissed = _suggestion("routine", {}, status="dismissed")
