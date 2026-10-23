@@ -206,6 +206,42 @@ Two things are versioned separately from this file and worth knowing about:
   its page through the app's lock. `GET`/`PUT`/`DELETE /api/v1/push/apns`
   (setting it needs an app admin), `POST`/`DELETE /api/v1/push/apns/devices`;
   `POST /api/v1/push/test` now reaches iPhones too; migration `0173_apns`.
+- **Work on this computer** (#2305): in the desktop app a chat's settings
+  offer "Work on: Cloud / This computer". The person picks a folder in the
+  native dialog and how far a run may go there - read only, write in the
+  folder (sandboxed by Seatbelt on macOS and bubblewrap on Linux) or full
+  access, which asks before each command - and the agent's file and shell
+  tools work in it through the app, which refuses any folder or mode the
+  person did not grant. The choice is remembered per conversation. Link the
+  computer once under Settings → Desktop app; the tray says when an agent is
+  working there. A run waits up to ten minutes for the computer to connect,
+  saying so in the chat, and an operation that finds it gone mid-run waits up
+  to five minutes for it to come back.
+- **Triggers that work on your computer** (#2305): a trigger that acts as its
+  creator can name a folder on their computer (`local_target`); each fire
+  works there through the desktop app. Only the creator sets it, and turning
+  acting-as-creator off clears it.
+- **Computer use on your own screen** (#2305): the desktop `local` - and
+  `auto`, now the default - drives the person's own screen in a chat working on
+  this computer. The app asks before the first screenshot, frames the screen
+  while the agent holds it, and gives it back on Cmd/Ctrl+Alt+Esc. macOS asks
+  for Screen Recording and Accessibility.
+- **Watch and take over a desktop** (#2305): every desktop a run works is
+  published to the live view a browse uses, so the chat and the console offer
+  Take over; the agent waits while the person holds it and is told to look
+  again after.
+- **E2B** (#2305): a sandbox connection can be of kind `e2b`, on the
+  organization's own E2B key - never the process's `E2B_API_KEY` - with its
+  default runtime naming an E2B template. Computer use's desktop `e2b` opens an
+  E2B desktop of the run's own on the binding's key and kills it after; `auto`
+  takes it when a key is named.
+- **More on the phone** (#2097): live activities for a voice call (with its
+  clock, and when the agent asks something on it) and for a question an agent
+  is waiting on; a pinned-agents widget on Android; the share of the monthly
+  cap left on both glance widgets; the dashboard's spend, failures and recent
+  conversations in the offline copy; pages that slide in the direction of
+  travel. The Devices list says which sign-ins receive push. In a browser that
+  can install the console, a strip offers to (on an iPhone it says how).
 
 ### Fixed
 
