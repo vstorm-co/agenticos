@@ -9036,7 +9036,12 @@
       "approve": "Approve",
       "reject": "Reject",
       "runTitle": "{agent} is working",
-      "runBody": "Tap to follow it in AgenticOS."
+      "runBody": "Tap to follow it in AgenticOS.",
+      "questionTitle": "{agent} has a question for you",
+      "questionBody": "Tap to answer it in AgenticOS.",
+      "callTitle": "On a call with {agent}",
+      "callBody": "Tap to go back to the call.",
+      "callAsking": "It is asking you something - tap to answer."
     },
     "share": {
       "notAttached": "Could not attach: {names}"

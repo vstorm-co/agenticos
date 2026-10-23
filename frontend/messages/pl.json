@@ -8821,7 +8821,12 @@
       "approve": "Zatwierdź",
       "reject": "Odrzuć",
       "runTitle": "{agent} pracuje",
-      "runBody": "Stuknij, żeby śledzić to w AgenticOS."
+      "runBody": "Stuknij, żeby śledzić to w AgenticOS.",
+      "questionTitle": "{agent} ma do ciebie pytanie",
+      "questionBody": "Stuknij, aby odpowiedzieć w AgenticOS.",
+      "callTitle": "Rozmowa z {agent}",
+      "callBody": "Stuknij, aby wrócić do rozmowy.",
+      "callAsking": "Agent o coś pyta - stuknij, aby odpowiedzieć."
     },
     "share": {
       "notAttached": "Nie udało się dołączyć: {names}"

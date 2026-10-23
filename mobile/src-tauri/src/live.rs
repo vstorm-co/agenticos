@@ -42,6 +42,10 @@ pub struct LiveActivity {
 pub enum Kind {
     Run,
     Approval,
+    /// An agent's question waiting on the person's answer.
+    Question,
+    /// A voice call in progress, with its clock.
+    Call,
 }
 
 const MAX_TEXT: usize = 300;

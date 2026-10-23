@@ -29,6 +29,7 @@ import { iphonePush, syncIphonePush } from "@/lib/mobile/apns";
 import { phonePushStatus, syncPhonePush } from "@/lib/mobile/push";
 import { recordSessionApp } from "@/lib/session-app";
 import { useAuthStore, useComposerIntentStore } from "@/stores";
+import { useLiveCallStore } from "@/stores/live-call-store";
 import { Perm } from "@/types/permissions";
 
 const APPROVALS_PATH = "/runs?tab=approvals";
@@ -76,11 +77,12 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     error: runsError,
   } = useRuns(undefined, {
     enabled: can(Perm.runsView) && userId !== undefined,
-    statuses: ["running"],
+    statuses: ["running", "awaiting_answer"],
     userId,
     refetchIntervalMs: RUNNING_POLL_MS,
   });
   const { agents } = useAgents({ enabled: can(Perm.agentsView) });
+  const call = useLiveCallStore((state) => state.call);
   const requestIntent = useComposerIntentStore((state) => state.request);
   const openShared = useOpenShared();
 
@@ -99,16 +101,47 @@ function Bridge({ shell }: { shell: ShellInfo }) {
       approveLabel: t("approve"),
       rejectLabel: t("reject"),
     }));
-    const working = runs.slice(0, MAX_RUNS).map((run): LiveActivity => ({
-      id: `run:${run.id}`,
-      kind: "run",
-      title: t("runTitle", { agent: names.get(run.agent_id) ?? t("anAgent") }),
-      body: t("runBody"),
-      path: `/runs?run=${encodeURIComponent(run.id)}`,
-      ...(run.started_at ? { startedAt: Date.parse(run.started_at) } : {}),
-    }));
-    return [...waiting, ...working];
-  }, [agents, approvals, runs, t]);
+    // An agent's question is the person's to answer, so it is drawn like an
+    // approval - up front - and opens the conversation it was asked in.
+    const asking = runs
+      .filter((run) => run.status === "awaiting_answer")
+      .map((run): LiveActivity => ({
+        id: `question:${run.id}`,
+        kind: "question",
+        title: t("questionTitle", { agent: names.get(run.agent_id) ?? t("anAgent") }),
+        body: t("questionBody"),
+        path: run.conversation_id
+          ? `/chat?c=${encodeURIComponent(run.conversation_id)}`
+          : `/runs?run=${encodeURIComponent(run.id)}`,
+      }));
+    const working = runs
+      .filter((run) => run.status === "running" && run.id !== call?.runId)
+      .slice(0, MAX_RUNS)
+      .map((run): LiveActivity => ({
+        id: `run:${run.id}`,
+        kind: "run",
+        title: t("runTitle", { agent: names.get(run.agent_id) ?? t("anAgent") }),
+        body: t("runBody"),
+        path: `/runs?run=${encodeURIComponent(run.id)}`,
+        ...(run.started_at ? { startedAt: Date.parse(run.started_at) } : {}),
+      }));
+    const calling: LiveActivity[] =
+      call === null
+        ? []
+        : [
+            {
+              id: `call:${call.callId}`,
+              kind: "call",
+              title: t("callTitle", { agent: names.get(call.agentId) ?? t("anAgent") }),
+              body: call.asking ? t("callAsking") : t("callBody"),
+              path: call.conversationId
+                ? `/chat?c=${encodeURIComponent(call.conversationId)}`
+                : "/chat",
+              startedAt: call.startedAt,
+            },
+          ];
+    return [...calling, ...waiting, ...asking, ...working];
+  }, [agents, approvals, runs, call, t]);
 
   // The sessions list names this app, not the webview's engine.
   useEffect(() => {

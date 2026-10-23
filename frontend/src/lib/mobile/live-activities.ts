@@ -12,7 +12,8 @@ import { isConsolePath } from "@/lib/desktop/paths";
 import { invokeShell, ShellError } from "@/lib/desktop/shell";
 import type { ComposerIntent } from "@/stores/composer-intent-store";
 
-export type LiveActivityKind = "run" | "approval";
+/** A run going, an approval or a question waiting on the person, or a voice call. */
+export type LiveActivityKind = "run" | "approval" | "question" | "call";
 
 /** One live activity, in the shape `live.rs` reads. */
 export interface LiveActivity {

@@ -70,6 +70,7 @@ import {
   useFilePreviewStore,
   useOrgStore,
 } from "@/stores";
+import { useLiveCallStore } from "@/stores/live-call-store";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import { useComposerIntentStore } from "@/stores/composer-intent-store";
 import { cn } from "@/lib/utils";
@@ -290,7 +291,7 @@ export function ChatContainer({
   // conversation opens it. Whether this page has a call open is kept apart from
   // which conversation it is in: a call started in a new chat has none until the
   // server names one, and leaving it before then still hangs it up.
-  const openCallRef = useRef<{ conversationId: string | null } | null>(null);
+  const openCallRef = useRef<{ conversationId: string | null; agentId?: string } | null>(null);
   const handleVoiceConversation = useCallback(
     (id: string) => {
       const open = openCallRef.current;
@@ -313,10 +314,37 @@ export function ChatContainer({
     onTurnSaved: handleVoiceTurnSaved,
     onConversation: handleVoiceConversation,
   });
+  // What the phone app draws as a live activity while this page holds a call.
+  const setLiveCall = useLiveCallStore((state) => state.set);
+  const {
+    phase,
+    callId,
+    runId: callRun,
+    startedAt,
+    conversationId: callConversation,
+    questions,
+  } = voice.call;
+  useEffect(() => {
+    const agentId = openCallRef.current?.agentId ?? null;
+    const live = phase === "live" || phase === "reconnecting";
+    setLiveCall(
+      live && callId !== null && agentId !== null && startedAt !== null
+        ? {
+            callId,
+            runId: callRun,
+            agentId,
+            conversationId: callConversation,
+            startedAt,
+            asking: questions !== null,
+          }
+        : null,
+    );
+  }, [phase, callId, callRun, startedAt, callConversation, questions, setLiveCall]);
+  useEffect(() => () => setLiveCall(null), [setLiveCall]);
   const startCall = useCallback(
     (transport: VoiceTransport) => {
       if (selectedAgentId === null) return;
-      openCallRef.current = { conversationId: currentConversationId };
+      openCallRef.current = { conversationId: currentConversationId, agentId: selectedAgentId };
       void voice.start({
         kind: "console",
         agentId: selectedAgentId,

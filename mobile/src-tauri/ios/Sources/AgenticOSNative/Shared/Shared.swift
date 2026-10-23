@@ -148,7 +148,7 @@ public enum ActivityLink {
 
     /// The console's id for it - `run:<id>`, `approval:<id>`.
     public var key: String
-    /// `run` or `approval`.
+    /// `run`, `approval`, `question` or `call`.
     public var kind: String
     /// The console page a tap opens.
     public var path: String
@@ -162,5 +162,8 @@ public enum ActivityLink {
     }
 
     public var isApproval: Bool { kind == "approval" && approvalId != nil }
+    /// Somebody is waiting on the person: an approval to decide or a question to answer.
+    public var isWaiting: Bool { isApproval || kind == "question" }
+    public var isCall: Bool { kind == "call" }
   }
 #endif

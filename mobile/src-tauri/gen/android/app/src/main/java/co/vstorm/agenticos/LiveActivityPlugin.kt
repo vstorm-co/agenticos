@@ -103,17 +103,26 @@ class LiveActivityPlugin(private val activity: Activity) : Plugin(activity) {
             return
         }
         val deciding = args.kind == "approval" && args.approvalId != null
+        // A question waits on the person as an approval does; a call is going on.
+        val waiting = deciding || args.kind == "question"
+        val calling = args.kind == "call"
         val open = "agenticos://activity/open?path=" + Uri.encode(args.path)
-        val builder = NotificationCompat.Builder(activity, if (deciding) URGENT else QUIET)
+        val builder = NotificationCompat.Builder(activity, if (waiting) URGENT else QUIET)
             .setSmallIcon(R.drawable.ic_stat_agenticos)
             .setContentTitle(args.title)
             .setContentText(args.body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(args.body))
             .setContentIntent(link(open))
-            .setOngoing(!deciding)
+            .setOngoing(!waiting)
             .setOnlyAlertOnce(true)
-            .setCategory(if (deciding) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_PROGRESS)
-            .setPriority(if (deciding) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW)
+            .setCategory(
+                when {
+                    waiting -> NotificationCompat.CATEGORY_REMINDER
+                    calling -> NotificationCompat.CATEGORY_CALL
+                    else -> NotificationCompat.CATEGORY_PROGRESS
+                },
+            )
+            .setPriority(if (waiting) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
         val started = args.startedAt
         if (started != null) {

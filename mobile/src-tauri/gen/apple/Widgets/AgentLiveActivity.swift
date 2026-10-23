@@ -3,8 +3,8 @@ import SwiftUI
 import WidgetKit
 
 /// What an agent is doing, drawn by the system while the app is away
-/// (`LiveActivityPlugin`): a run with its clock, or an approval with its two
-/// buttons, on the lock screen and in the Dynamic Island. Every tap is an
+/// (`LiveActivityPlugin`): a run or a voice call with its clock, a question
+/// waiting on an answer, or an approval with its two buttons, on the lock screen and in the Dynamic Island. Every tap is an
 /// `agenticos://activity` link, so a decision goes through the app's lock and
 /// is made by the console with its own session.
 struct AgentLiveActivity: Widget {
@@ -17,7 +17,7 @@ struct AgentLiveActivity: Widget {
       let state = context.state
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          Blob(waiting: attributes.isApproval)
+          Blob(waiting: attributes.isWaiting)
             .frame(width: 40, height: 40)
             .padding(.leading, 4)
         }
@@ -44,14 +44,14 @@ struct AgentLiveActivity: Widget {
           }
         }
       } compactLeading: {
-        Blob(waiting: attributes.isApproval).frame(width: 22, height: 22)
+        Blob(waiting: attributes.isWaiting).frame(width: 22, height: 22)
       } compactTrailing: {
         Trailing(attributes: attributes, state: state, compact: true)
       } minimal: {
-        Blob(waiting: attributes.isApproval).frame(width: 22, height: 22)
+        Blob(waiting: attributes.isWaiting).frame(width: 22, height: 22)
       }
       .widgetURL(ActivityLink.open(attributes.path))
-      .keylineTint(attributes.isApproval ? .orange : Blob.skin)
+      .keylineTint(attributes.isWaiting ? .orange : Blob.skin)
     }
   }
 }
@@ -64,9 +64,10 @@ private struct Trailing: View {
   let compact: Bool
 
   var body: some View {
-    if attributes.isApproval {
+    if attributes.isWaiting {
       if compact {
-        Image(systemName: "hand.raised.fill").foregroundStyle(.orange)
+        Image(systemName: attributes.isApproval ? "hand.raised.fill" : "questionmark.bubble.fill")
+          .foregroundStyle(.orange)
       } else {
         Text("activity.waiting")
           .font(.caption.weight(.semibold))
@@ -76,12 +77,17 @@ private struct Trailing: View {
           .foregroundStyle(.orange)
       }
     } else if let started = state.startedAt {
-      Text(timerInterval: started...Date.distantFuture, countsDown: false)
-        .font(compact ? .caption.weight(.semibold) : .title3.weight(.semibold))
-        .monospacedDigit()
-        .multilineTextAlignment(.trailing)
-        .frame(maxWidth: compact ? 52 : 80, alignment: .trailing)
-        .foregroundStyle(Blob.skin)
+      HStack(spacing: 4) {
+        if attributes.isCall {
+          Image(systemName: "phone.fill").font(.caption).foregroundStyle(.green)
+        }
+        Text(timerInterval: started...Date.distantFuture, countsDown: false)
+          .font(compact ? .caption.weight(.semibold) : .title3.weight(.semibold))
+          .monospacedDigit()
+          .multilineTextAlignment(.trailing)
+          .frame(maxWidth: compact ? 52 : 80, alignment: .trailing)
+          .foregroundStyle(Blob.skin)
+      }
     } else {
       Image(systemName: "ellipsis").foregroundStyle(Blob.skin)
     }
@@ -119,7 +125,7 @@ private struct LockScreenActivity: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 12) {
-        Blob(waiting: attributes.isApproval).frame(width: 40, height: 40)
+        Blob(waiting: attributes.isWaiting).frame(width: 40, height: 40)
         VStack(alignment: .leading, spacing: 3) {
           Text(state.title).font(.headline).lineLimit(2)
           if !state.body.isEmpty {
