@@ -20,6 +20,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, suppress
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -74,6 +75,17 @@ logger = logging.getLogger(__name__)
 
 #: How long a drainer waits when the organization has no free slot.
 _FULL_BACKOFF_SECONDS = 2.0
+
+
+@dataclass(frozen=True)
+class _Asked:
+    """What an attempt asked the agent, kept before a refresh of its revision can change it."""
+
+    revision_id: UUID
+    input: str
+    history: list[dict[str, Any]]
+
+
 _ANONYMISED_MEANWHILE = (
     "The case was anonymised while it was being answered, so its answer was not kept."
 )
@@ -345,6 +357,12 @@ class EvalRunWorker:
             # Each cascades to the attempt, so the attempt existing means they do.
             assert arm is not None and revision is not None and dataset is not None
             calls: list[RecordedToolCall] = []
+            asked = _Asked(revision.id, revision.input, list(revision.history or []))
+
+            async def linked(agent_run: AgentRun) -> None:
+                attempt.agent_run_id = agent_run.id
+                await db.flush()
+
             try:
                 output, agent_run = await AgentRunnerService(db).execute(
                     ctx,
@@ -365,18 +383,21 @@ class EvalRunWorker:
                     candidate=_candidate(arm),
                     model_profile_id=arm.model_profile_id,
                     tool_calls=calls,
+                    started=linked,
                 )
             except Exception as exc:
                 logger.exception("Eval case %s failed to run", attempt_id)
+                if attempt.agent_run_id is not None:
+                    await self._erased_meanwhile(db, asked, {attempt.agent_run_id})
                 await self._fail(db, attempt, run_failure_summary(exc))
                 return False
             if agent_run.status == RunStatus.BUDGET_EXCEEDED.value:
-                await self._erased_meanwhile(db, revision.id, agent_run)
+                await self._erased_meanwhile(db, asked, {agent_run.id})
                 await self._fail(db, attempt, agent_run.error or "Budget exceeded", agent_run)
                 await self._stop_for_budget(db)
                 return True
             if agent_run.status != RunStatus.COMPLETED.value:
-                await self._erased_meanwhile(db, revision.id, agent_run)
+                await self._erased_meanwhile(db, asked, {agent_run.id})
                 await self._fail(
                     db, attempt, agent_run.error or f"The run ended {agent_run.status}", agent_run
                 )
@@ -411,7 +432,7 @@ class EvalRunWorker:
                     enqueue_review=False,
                 )
             except NothingToScoreError as exc:
-                if await self._erased_meanwhile(db, revision.id, agent_run):
+                if await self._erased_meanwhile(db, asked, {agent_run.id}):
                     await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
                     return False
                 # Nothing the scorers check applies to this case: it was answered
@@ -431,14 +452,14 @@ class EvalRunWorker:
                 return False
             except Exception as exc:
                 logger.exception("Eval case %s failed to score", attempt_id)
-                if await self._erased_meanwhile(db, revision.id, agent_run):
+                if await self._erased_meanwhile(db, asked, {agent_run.id}):
                     await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
                     return False
                 await self._fail(
                     db, attempt, run_failure_summary(exc), agent_run, answer=output, calls=rows
                 )
                 return False
-            if await self._erased_meanwhile(db, revision.id, agent_run, score):
+            if await self._erased_meanwhile(db, asked, {agent_run.id}, score):
                 await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
                 return False
             await self._finish(
@@ -458,27 +479,30 @@ class EvalRunWorker:
     async def _erased_meanwhile(
         self,
         db: AsyncSession,
-        revision_id: UUID,
-        agent_run: AgentRun,
+        asked: _Asked,
+        runs: set[UUID],
         score: CaseScore | None = None,
     ) -> bool:
-        """Whether the case was anonymised while it was answered, forgetting what was kept if so.
+        """Whether an erasure changed the case while it was answered, forgetting what was kept if so.
 
         Checked just before the attempt is written: the judge's run commits, so a
-        lock taken earlier is gone by then. Held from here, the revision's lock
-        makes an erasure that starts later wait for this write and clear it, and
-        one that committed first is seen. The account's row is locked by an
-        erasure before the revision, and the score written above already holds
-        its share of that row, so the two queue rather than deadlock.
+        lock taken earlier is gone by then. The revision is held in share mode
+        from here to the commit - another attempt at it shares it, and an
+        erasure's update of it waits for this write and then clears it, while
+        one that committed first shows as a question or history unlike the one
+        the agent was asked.
         """
         held = await dataset_repo.lock_revision(
-            db, revision_id, organization_id=self.organization_id
+            db, asked.revision_id, organization_id=self.organization_id
         )
-        if held is not None and held.anonymised_at is None:
+        if (
+            held is not None
+            and held.anonymised_at is None
+            and (held.input, held.history) == (asked.input, asked.history)
+        ):
             return False
-        runs = {agent_run.id}
         if score is not None:
-            runs |= personal_data_repo.judge_runs_of(score)
+            runs = runs | personal_data_repo.judge_runs_of(score)
             personal_data_repo.forget_answer(score)
         await personal_data_repo.forget_runs(db, runs)
         return True

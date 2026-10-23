@@ -12,6 +12,7 @@ removing it: deleting a colleague's account must not delete the agent the team
 runs on. `docs/security.md` has the table, with the reason for each.
 """
 
+import re
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
@@ -192,18 +193,11 @@ async def verdicts_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
     return list(result.scalars().all())
 
 
-def _runs_they_started(user_id: UUID) -> Select[UUID]:
-    """Their runs, not a visitor's a surface they published ran in their name."""
-    return select(AgentRun.id).where(
-        AgentRun.user_id == user_id, AgentRun.initiated_by_publisher_fallback.is_(False)
-    )
-
-
 async def scored_answers_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
     """Eval scores of runs they started, each holding a copy of the answer it scored."""
     result = await db.execute(
         select(CaseScore)
-        .where(CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_started(user_id)))
+        .where(CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_asked(user_id)))
         .order_by(CaseScore.created_at.desc())
     )
     return list(result.scalars().all())
@@ -539,7 +533,7 @@ async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
     """
     result = await db.execute(
         select(CaseScore).where(
-            CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_started(user_id))
+            CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_asked(user_id))
         )
     )
     scores = list(result.scalars().all())
@@ -731,7 +725,9 @@ async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
     await db.flush()
 
 
-async def scrub_history_turns_of(db: AsyncSession, user_id: UUID, *, placeholder: str) -> int:
+async def scrub_history_turns_of(
+    db: AsyncSession, user_id: UUID, *, placeholder: str
+) -> list[UUID]:
     """Replace their turns in the history of cases asked by somebody else.
 
     A case taken from a shared thread - a project chat, a channel - keeps the
@@ -742,7 +738,7 @@ async def scrub_history_turns_of(db: AsyncSession, user_id: UUID, *, placeholder
     case came from, as long as that thread is there.
 
     Returns:
-        How many case revisions lost a turn.
+        The revisions that lost a turn, whose copies in eval results go next.
     """
     written = await db.execute(
         select(Message.conversation_id, Message.content).where(
@@ -761,7 +757,7 @@ async def scrub_history_turns_of(db: AsyncSession, user_id: UUID, *, placeholder
             ),
         )
     )
-    scrubbed = 0
+    scrubbed: list[UUID] = []
     for case in result.scalars().all():
         theirs = said.get(case.source_conversation_id) if case.source_conversation_id else None
         history: list[dict[str, Any]] = []
@@ -783,7 +779,7 @@ async def scrub_history_turns_of(db: AsyncSession, user_id: UUID, *, placeholder
         if history != case.history:
             case.history = history
             case.history_author_ids = authors
-            scrubbed += 1
+            scrubbed.append(case.id)
     await db.flush()
     return scrubbed
 
@@ -843,8 +839,8 @@ async def clear_case_notes_of(
         )
         for row in result.scalars().all():
             assert row.source_run_id is not None and row.note is not None
-            note = row.note.split()
-            if any(_within(comment.split(), note) for comment in comments[row.source_run_id]):
+            note = _words(row.note)
+            if any(_within(_words(comment), note) for comment in comments[row.source_run_id]):
                 row.note = None
                 cleared += 1
     await db.flush()
@@ -859,8 +855,15 @@ _EDGE_WORDS = 3
 """How many of a comment's words a quote must carry across its edge to repeat it."""
 
 
+def _words(text: str) -> list[str]:
+    """The words of a text, without the punctuation and case a curator may have changed."""
+    return re.findall(r"\w+", text.casefold())
+
+
 def _within(inner: list[str], outer: list[str]) -> bool:
-    return any(outer[start : start + len(inner)] == inner for start in range(len(outer)))
+    return bool(inner) and any(
+        outer[start : start + len(inner)] == inner for start in range(len(outer))
+    )
 
 
 def _repeats(quote: str, comment: str) -> bool:
@@ -1170,3 +1173,20 @@ async def linked_people(db: AsyncSession, identity_ids: Iterable[UUID]) -> dict[
         )
     )
     return {identity: user for identity, user in result.tuples() if user is not None}
+
+
+async def asker_of(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> UUID | None:
+    """Who one run answered: the account that started it, else the one its chat identity is linked to."""
+    result = await db.execute(
+        select(
+            sa_case(
+                (AgentRun.initiated_by_publisher_fallback.is_(False), AgentRun.user_id),
+                else_=None,
+            ),
+            ChannelIdentity.user_id,
+        )
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == AgentRun.channel_identity_id)
+        .where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
+    )
+    row = result.tuples().first()
+    return None if row is None else row[0] or row[1]

@@ -908,8 +908,8 @@ class DatasetService:
                         )
                     ).get(message.id)
         if asked_by is None and case.source_run_id is not None:
-            asked_by = next(
-                iter(await personal_data_repo.askers_of(self.db, [case.source_run_id])), None
+            asked_by = await personal_data_repo.asker_of(
+                self.db, case.source_run_id, organization_id=ctx.organization_id
             )
         note = case.content.note
         return Authorship(

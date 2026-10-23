@@ -639,6 +639,16 @@ class TestTheirComments:
         await db.refresh(rated)
         assert rated.note is None
 
+    async def test_a_note_quoting_their_comment_with_its_punctuation_goes(self, db, world) -> None:
+        [rated] = await world._revisions(world.rated_case)
+        rated.note = f'"wrong floor, ask {MARKER}." - flagged by support'
+        await db.flush()
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        await db.refresh(rated)
+        assert rated.note is None
+
     async def test_a_note_that_only_shares_letters_with_their_comment_stays(
         self, db, world
     ) -> None:
@@ -1085,6 +1095,81 @@ class TestRunsOfALinkedChatAccount:
 
         assert await db.get(KnowledgeSearch, search.id) is None
         assert await personal_data_repo.askers_of(db, [run.id]) == set()
+
+
+class TestCopiesOfACaseThatLostATurn:
+    async def test_what_an_eval_kept_of_a_colleagues_case_holding_their_turn_goes(
+        self, db, world
+    ) -> None:
+        thread, _ = await _channel_thread(world)
+        answer = (
+            await db.execute(
+                select(Message).where(Message.conversation_id == thread.id, Message.ordinal == 3)
+            )
+        ).scalar_one()
+        case = await _from_answer(world, answer.id)
+        arm = (await db.execute(select(EvalRunArm))).scalars().first()
+        assert arm is not None
+        attempt = EvalRunCase(
+            organization_id=world.ctx.organization_id,
+            eval_run_id=arm.eval_run_id,
+            arm_id=arm.id,
+            case_id=case.case_id,
+            case_revision_id=case.id,
+            position=99,
+            answer=f"Answering whether {MARKER} is on call",
+            calls=[{"tool": "roster", "args": {"who": MARKER}}],
+        )
+        db.add(attempt)
+        await db.flush()
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        await db.refresh(attempt)
+        assert (attempt.answer, attempt.calls) == (None, [])
+
+
+class TestTheirScoredAnswers:
+    async def test_an_answer_a_chat_account_of_theirs_got_is_cleared_from_its_score(
+        self, db, world
+    ) -> None:
+        identity = ChannelIdentity(
+            platform="slack", platform_user_id=uuid4().hex[:10], user_id=world.person.id
+        )
+        db.add(identity)
+        await db.flush()
+        run = AgentRun(
+            organization_id=world.ctx.organization_id,
+            agent_id=world.agent.id,
+            user_id=world.ctx.user_id,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=identity.id,
+            status="completed",
+        )
+        db.add(run)
+        await db.flush()
+        [revision] = await world._revisions(world.others_case)
+        score = await case_score_repo.create(
+            db,
+            organization_id=world.ctx.organization_id,
+            dataset_id=world.dataset_id,
+            case_revision_id=revision.id,
+            case_id=revision.case_id,
+            run_id=run.id,
+            eval_run_id=None,
+            answer=f"Here you go, {MARKER}",
+            scoring={},
+            results=[],
+            judge=None,
+            passed=True,
+            review_state="none",
+            created_by_user_id=None,
+        )
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        await db.refresh(score)
+        assert score.answer is None
 
 
 class TestPurgingTwice:

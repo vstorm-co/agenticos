@@ -67,16 +67,18 @@ async def lock(db: AsyncSession, dataset_id: UUID, *, organization_id: UUID) -> 
 async def lock_revision(
     db: AsyncSession, revision_id: UUID, *, organization_id: UUID
 ) -> DatasetCase | None:
-    """One case revision locked until the transaction ends, read afresh.
+    """One case revision held in share mode until the transaction ends, read afresh.
 
-    Anonymising a revision updates its row, so a writer holding this lock sees
-    an erasure that committed first, and one that starts later waits for the
-    writer and then clears what it wrote.
+    An erasure updates the row, so a writer holding this sees an erasure that
+    committed first, and one that starts later waits for the writer and then
+    clears what it wrote. Share mode, because writers of the same revision -
+    two arms of one eval, a grade written beside them - must not queue on each
+    other, and a score's foreign key already holds a weaker lock on the row.
     """
     result = await db.execute(
         select(DatasetCase)
         .where(DatasetCase.id == revision_id, DatasetCase.organization_id == organization_id)
-        .with_for_update()
+        .with_for_update(read=True)
         .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()

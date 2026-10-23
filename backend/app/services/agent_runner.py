@@ -5103,6 +5103,7 @@ class AgentRunnerService:
         steering: SteeringInbox | None = None,
         aside: bool = False,
         reports_failure: bool = False,
+        started: Callable[[AgentRun], Awaitable[None]] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -5148,6 +5149,10 @@ class AgentRunnerService:
         `steering` is the inbox of a surface whose person may add to the task
         while it runs, and `aside` answers a question on the side of one (#2087).
 
+        `started` is told the run's row once it exists, before the model is
+        called, so a caller that keeps a link to the run has it even when the
+        run then fails or is stopped; what it writes is committed with the run.
+
         `reports_failure` is for the HTTP API: a run that fails once started raises
         :class:`RunFailedError` naming it - :class:`ModelCallFailedError` when the
         model provider was what failed - instead of the bare exception, so the
@@ -5175,6 +5180,8 @@ class AgentRunnerService:
             candidate=candidate,
             aside=aside,
         )
+        if started is not None:
+            await started(prepared.run)
         prepared.built.deps.steering = steering
         if steering is not None:
             steering.screen = input_screen_for(prepared.spec)

@@ -50,7 +50,7 @@ from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
-from app.repositories import eval_run_repo
+from app.repositories import eval_run_repo, personal_data_repo
 from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
@@ -177,7 +177,9 @@ class Model:
     """Stands in for the runner: answers from a script, and writes the run row a real run would.
 
     `answer(prompt, call)` decides the text; `status(call)` the run's ending;
-    `before(call)` runs first, as a person acting mid-run would.
+    `before(call)` runs first, as a person acting mid-run would;
+    `fails_once_started(call)` raises after the run's row exists, as a provider's
+    failure does.
     """
 
     def __init__(
@@ -189,6 +191,7 @@ class Model:
         before: Any = None,
         tools: Any = lambda call: [],
         raises: Any = lambda call: None,
+        fails_once_started: Any = lambda call: None,
     ) -> None:
         self.db = db
         self.answer = answer
@@ -196,6 +199,7 @@ class Model:
         self.before = before
         self.tools = tools
         self.raises = raises
+        self.fails_once_started = fails_once_started
         self.calls: list[dict[str, Any]] = []
 
     async def execute(self, runner: AgentRunnerService, ctx: AuthContext, agent_id, prompt, **kw):
@@ -229,6 +233,11 @@ class Model:
         )
         self.db.add(run)
         await self.db.flush()
+        if kw.get("started") is not None:
+            await kw["started"](run)
+        late = self.fails_once_started(call)
+        if late is not None:
+            raise late
         for index, (tool, args, held) in enumerate(self.tools(call)):
             kw["tool_calls"].append(
                 RecordedToolCall(tool_call_id=f"call-{index}", tool_name=tool, args=args)
@@ -2445,6 +2454,58 @@ async def test_an_answer_graded_while_its_case_was_anonymised_is_not_kept(db) ->
         await db.execute(select(CaseScore).where(CaseScore.eval_run_id == started.id))
     ).scalars()
     assert score.answer is None
+
+
+async def _attempt_after_an_erasure(db, model: Model, dataset, started, ctx) -> EvalRunCase:
+    await _run_to_end(db, model, started.id, ctx)
+    [attempt] = await eval_run_repo.list_cases(db, started.id, organization_id=ctx.organization_id)
+    assert attempt.status == "failed"
+    assert (attempt.answer, attempt.calls) == (None, [])
+    assert attempt.agent_run_id is not None
+    return attempt
+
+
+@pytest.mark.parametrize("failure", ["a provider error", "nothing to score", "a scorer error"])
+async def test_a_case_anonymised_while_it_was_answered_keeps_nothing_however_it_ended(
+    db, failure: str
+) -> None:
+    """Every way an attempt can end after the agent ran checks for an erasure first, and
+    the run's manifest forgets the question even when the run failed."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    grade = ScoringService.score_case
+
+    async def erase(call: int) -> None:
+        await _anonymise(db, dataset, 1)
+
+    async def graded_during_an_erasure(service, *args, **kwargs):
+        await _anonymise(db, dataset, 1)
+        if failure == "nothing to score":
+            raise NothingToScoreError(case_id=uuid.uuid4())
+        raise RuntimeError("The scorer broke")
+
+    model = Model(
+        db,
+        before=erase if failure == "a provider error" else None,
+        fails_once_started=(lambda call: RuntimeError("503"))
+        if failure == "a provider error"
+        else lambda call: None,
+    )
+    forget = AsyncMock(wraps=personal_data_repo.forget_runs)
+    with (
+        patch.object(
+            ScoringService,
+            "score_case",
+            new=grade if failure == "a provider error" else graded_during_an_erasure,
+        ),
+        patch.object(personal_data_repo, "forget_runs", new=forget),
+    ):
+        attempt = await _attempt_after_an_erasure(db, model, dataset, started, ctx)
+
+    assert forget.await_args is not None
+    assert attempt.agent_run_id in forget.await_args.args[1]
 
 
 async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:

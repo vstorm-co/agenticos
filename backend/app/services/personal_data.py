@@ -321,10 +321,10 @@ class PersonalDataService:
         anonymised = await personal_data_repo.anonymise_dataset_cases_of(
             self.db, user_id, placeholder=ANONYMISED_CASE_INPUT, at=datetime.now(UTC)
         )
-        case_copies = await personal_data_repo.purge_case_copies(self.db, anonymised)
-        history_turns = await personal_data_repo.scrub_history_turns_of(
+        scrubbed = await personal_data_repo.scrub_history_turns_of(
             self.db, user_id, placeholder=ANONYMISED_CASE_INPUT
         )
+        case_copies = await personal_data_repo.purge_case_copies(self.db, [*anonymised, *scrubbed])
         case_notes = await personal_data_repo.clear_case_notes_of(
             self.db, user_id, comments=comments
         )
@@ -350,7 +350,7 @@ class PersonalDataService:
             dataset_cases=dataset_cases,
             anonymised_cases=len(anonymised),
             case_copies=case_copies,
-            history_turns=history_turns,
+            history_turns=len(scrubbed),
             case_notes=case_notes,
             evidence_quotes=evidence_quotes,
             gap_drafts=gap_drafts,

@@ -17,7 +17,7 @@ from decimal import Decimal
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.agents.model_resolver import ModelRequestSpec
@@ -35,8 +35,9 @@ from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.case_score import CaseScore
 from app.db.models.credential import ModelProfile
-from app.db.models.dataset import DatasetVersion
+from app.db.models.dataset import DatasetCase, DatasetVersion
 from app.db.models.eval_run import EvalRun
 from app.db.models.intercepted_tool_call import (
     InterceptedToolCall,
@@ -46,6 +47,7 @@ from app.db.models.intercepted_tool_call import (
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
+from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
 from app.repositories import (
     agent_repo,
@@ -54,6 +56,7 @@ from app.repositories import (
     conversation_repo,
     dataset_repo,
     intercepted_tool_call_repo,
+    personal_data_repo,
 )
 from app.schemas.dataset import (
     DatasetCaseCreate,
@@ -1175,6 +1178,75 @@ class TestGradingAgain:
         assert again.judge is not None and again.judge.prompt_version == JUDGE_PROMPT_VERSION
         assert (again.human_passed, again.outcome, again.review_state) == (False, False, "done")
         assert len(await _eval_runs(db, tenant)) == 3
+
+    async def _failed_once(self, db, monkeypatch):
+        """A score whose judge failed, ready to be graded again by a judge that answers."""
+        judging = Judge()
+        answers = iter(["It is fine."])
+
+        def model(self) -> FunctionModel:
+            async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+                text = next(answers, None)
+                if text is not None:
+                    return ModelResponse(parts=[TextPart(text)])
+                return await judging.model().function(messages, info)  # type: ignore[misc]
+
+            return FunctionModel(respond)
+
+        monkeypatch.setattr(ModelRequestSpec, "build", model)
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        failed = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        stored = await db.get(CaseScore, failed.id)
+        assert stored is not None
+        return tenant, dataset, stored, scoring
+
+    async def test_the_judge_runs_a_new_grade_replaces_forget_what_they_were_shown(
+        self, db, monkeypatch
+    ) -> None:
+        tenant, dataset, score, scoring = await self._failed_once(db, monkeypatch)
+        replaced = personal_data_repo.judge_runs_of(score)
+        assert replaced
+
+        await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+        kept = (
+            await db.execute(select(RunManifest).where(RunManifest.run_id.in_(replaced)))
+        ).scalars()
+        for manifest in kept:
+            await db.refresh(manifest)
+            assert "messages" not in manifest.payload
+            assert manifest.truncated is True
+
+    async def test_a_grade_finished_after_its_case_was_anonymised_is_not_kept(
+        self, db, monkeypatch
+    ) -> None:
+        tenant, dataset, score, scoring = await self._failed_once(db, monkeypatch)
+        before = list(score.results)
+        evaluate = ScoringService.evaluate
+
+        async def graded_during_an_erasure(service, *args, **kwargs):
+            evaluation = await evaluate(service, *args, **kwargs)
+            revision = await db.get(DatasetCase, score.case_revision_id)
+            assert revision is not None
+            await db.execute(
+                update(DatasetCase)
+                .where(DatasetCase.id == revision.id)
+                .values(input="[Removed]", anonymised_at=datetime.now(UTC))
+            )
+            return evaluation
+
+        monkeypatch.setattr(ScoringService, "evaluate", graded_during_an_erasure)
+        await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+        await db.refresh(score)
+        assert score.answer is None
+        assert [r["status"] for r in score.results] == [r["status"] for r in before]
 
     async def test_a_waiting_answer_scored_again_to_a_pass_leaves_the_queue(
         self, db, monkeypatch

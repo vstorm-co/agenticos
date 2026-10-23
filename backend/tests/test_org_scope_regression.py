@@ -89,6 +89,7 @@ TENANT_REQUIRED = [
     (dataset_repo, "lock_revision"),
     (message_rating_repo, "get_down_rating_notes_for_messages"),
     (message_rating_repo, "noter_of"),
+    (personal_data_repo, "asker_of"),
     (dataset_repo, "lock"),
     (dataset_repo, "list_visible"),
     (dataset_repo, "create"),
