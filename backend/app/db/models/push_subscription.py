@@ -36,6 +36,14 @@ class PushSubscription(Base, TimestampMixin):
     p256dh: Mapped[str] = mapped_column(String(128), nullable=False)
     auth: Mapped[str] = mapped_column(String(64), nullable=False)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The sign-in that registered it, so the Devices list can say which of
+    them receive push (#2305). Null for a row registered before it was kept."""
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:

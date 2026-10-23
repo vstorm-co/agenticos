@@ -187,11 +187,13 @@ class ApnsService:
             environment="sandbox" if row.apns_sandbox else "production",
         )
 
-    async def register(self, user_id: uuid.UUID, token: str) -> None:
+    async def register(
+        self, user_id: uuid.UUID, token: str, *, session_id: uuid.UUID | None = None
+    ) -> None:
         """Push to this iPhone from now on. Refused where there is no key to push with."""
         if not (await self.read()).configured:
             raise BadRequestError(message="This deployment has no APNs key, so no iPhone push.")
-        await device_repo.upsert(self.db, user_id=user_id, token=token)
+        await device_repo.upsert(self.db, user_id=user_id, token=token, session_id=session_id)
 
     async def unregister(self, user_id: uuid.UUID, token: str) -> None:
         if not await device_repo.delete_for_user(self.db, user_id=user_id, token=token):

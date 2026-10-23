@@ -32,6 +32,14 @@ class ApnsDevice(Base, TimestampMixin):
     token: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     """The device token, hex. Unique: an iPhone signed in as somebody else
     replaces its row."""
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The sign-in that registered it, so the Devices list can say which of
+    them receive push (#2305). Null for a row registered before it was kept."""
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:

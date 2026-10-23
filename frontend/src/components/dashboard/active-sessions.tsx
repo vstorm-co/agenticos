@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Globe, Monitor, Smartphone, Trash2 } from "lucide-react";
+import { Bell, Globe, Monitor, Smartphone, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -213,6 +213,15 @@ export function ActiveSessions() {
                       {session.is_current && (
                         <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium tracking-wide uppercase">
                           {t("current")}
+                        </span>
+                      )}
+                      {session.push && (
+                        <span
+                          className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs font-normal"
+                          title={t("pushOnHint")}
+                        >
+                          <Bell className="h-3 w-3" aria-hidden />
+                          {t("pushOn")}
                         </span>
                       )}
                     </p>

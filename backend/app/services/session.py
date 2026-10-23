@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthenticationError, NotFoundError
 from app.core.security import create_refresh_token, read_uuid_claim
 from app.db.models.session import Session
+from app.repositories import push_subscription as push_repo
 from app.repositories import session_repo
 from app.schemas.session import SessionAppUpdate, SessionListResponse, SessionRead
 
@@ -464,6 +465,7 @@ class SessionService:
             self.db, user_id, open_only=True, now=now, skip=skip, limit=limit
         )
         total = await self.count_user_sessions(user_id, now=now)
+        pushed = await push_repo.sessions_with_push(self.db, [s.id for s in sessions])
         return SessionListResponse(
             items=[
                 SessionRead(
@@ -474,6 +476,7 @@ class SessionService:
                     is_current=s.id == current_session_id,
                     app_platform=s.app_platform,
                     app_version=s.app_version,
+                    push=s.id in pushed,
                     created_at=s.created_at,
                     last_used_at=s.last_used_at,
                 )

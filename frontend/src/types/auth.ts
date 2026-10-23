@@ -73,6 +73,8 @@ export interface Session {
   /** The AgenticOS app the session runs in - `macos`, `ios`… - or null for a browser. */
   app_platform?: string | null;
   app_version?: string | null;
+  /** This sign-in registered its browser or phone for push notifications. */
+  push?: boolean;
   created_at: string;
   last_used_at: string;
 }

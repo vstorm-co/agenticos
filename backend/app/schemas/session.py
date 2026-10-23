@@ -23,6 +23,8 @@ class SessionRead(BaseSchema):
     """The AgenticOS app this session signed in through (`AppPlatform`), or null
     for a browser. Validated where it is written, `SessionAppUpdate`."""
     app_version: str | None = None
+    push: bool = False
+    """Whether this sign-in registered its browser or phone for push (#2305)."""
     created_at: datetime
     last_used_at: datetime
 

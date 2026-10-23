@@ -10,13 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.apns_device import ApnsDevice
 
 
-async def upsert(db: AsyncSession, *, user_id: uuid.UUID, token: str) -> None:
+async def upsert(
+    db: AsyncSession, *, user_id: uuid.UUID, token: str, session_id: uuid.UUID | None = None
+) -> None:
     """Keep this iPhone's token for this person. An iPhone now signed in as
     somebody else becomes theirs."""
     await db.execute(
         insert(ApnsDevice)
-        .values(id=uuid.uuid4(), token=token, user_id=user_id)
-        .on_conflict_do_update(index_elements=[ApnsDevice.token], set_={"user_id": user_id})
+        .values(id=uuid.uuid4(), token=token, user_id=user_id, session_id=session_id)
+        .on_conflict_do_update(
+            index_elements=[ApnsDevice.token],
+            set_={"user_id": user_id, "session_id": session_id},
+        )
     )
     await db.flush()
 

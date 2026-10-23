@@ -3034,7 +3034,9 @@
       "openGroup": "Open the group",
       "widen": "Show the last 90 days"
     },
-    "appSession": "AgenticOS for {platform} {version}"
+    "appSession": "AgenticOS for {platform} {version}",
+    "pushOn": "Push",
+    "pushOnHint": "This device receives push notifications"
   },
   "errors": {
     "authorizationFailed": "Authorization failed",

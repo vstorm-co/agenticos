@@ -163,7 +163,12 @@ class WebPushService:
         return public
 
     async def subscribe(
-        self, user_id: uuid.UUID, subscription: PushSubscriptionCreate, *, user_agent: str | None
+        self,
+        user_id: uuid.UUID,
+        subscription: PushSubscriptionCreate,
+        *,
+        user_agent: str | None,
+        session_id: uuid.UUID | None = None,
     ) -> None:
         """Keep a browser's - or the phone app's - subscription. An endpoint
         inside the deployment's network is refused here, and again at every
@@ -179,6 +184,7 @@ class WebPushService:
             p256dh=subscription.keys.p256dh,
             auth=subscription.keys.auth,
             user_agent=user_agent,
+            session_id=session_id,
         )
 
     async def unsubscribe(self, user_id: uuid.UUID, endpoint: str) -> None:

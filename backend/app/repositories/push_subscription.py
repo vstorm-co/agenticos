@@ -7,6 +7,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.apns_device import ApnsDevice
 from app.db.models.push_subscription import PushSubscription
 
 
@@ -18,6 +19,7 @@ async def upsert(
     p256dh: str,
     auth: str,
     user_agent: str | None,
+    session_id: uuid.UUID | None = None,
 ) -> None:
     """Keep this browser's subscription for this person.
 
@@ -25,7 +27,13 @@ async def upsert(
     keys, and a browser now signed in as somebody else becomes theirs - the
     previous person stops receiving pushes in a browser they no longer use.
     """
-    values = {"p256dh": p256dh, "auth": auth, "user_agent": user_agent, "user_id": user_id}
+    values = {
+        "p256dh": p256dh,
+        "auth": auth,
+        "user_agent": user_agent,
+        "user_id": user_id,
+        "session_id": session_id,
+    }
     await db.execute(
         insert(PushSubscription)
         .values(id=uuid.uuid4(), endpoint=endpoint, **values)
@@ -76,3 +84,16 @@ async def mark_sent(db: AsyncSession, subscription_id: uuid.UUID, at: datetime) 
         .values(last_sent_at=at)
     )
     await db.flush()
+
+
+async def sessions_with_push(db: AsyncSession, session_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Which of these sign-ins registered a browser or a phone for push."""
+    if not session_ids:
+        return set()
+    web = await db.execute(
+        select(PushSubscription.session_id).where(PushSubscription.session_id.in_(session_ids))
+    )
+    phones = await db.execute(
+        select(ApnsDevice.session_id).where(ApnsDevice.session_id.in_(session_ids))
+    )
+    return {sid for sid in [*web.scalars(), *phones.scalars()] if sid is not None}

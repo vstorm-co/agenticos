@@ -9,6 +9,7 @@ from fastapi import APIRouter, Header, Query, status
 from app.api.deps import (
     ApnsSvc,
     CurrentAppAdmin,
+    CurrentSessionId,
     CurrentUser,
     DeploymentSettingsSvc,
     PushSvc,
@@ -38,11 +39,14 @@ async def subscribe(
     subscription: PushSubscriptionCreate,
     current_user: CurrentUser,
     push: WebPushSvc,
+    session_id: CurrentSessionId,
     user_agent: str | None = Header(default=None),
 ) -> None:
     """Push to this browser from now on. Its endpoint must belong to a browser
     push service - Google's, Mozilla's, Apple's or Microsoft's."""
-    await push.subscribe(current_user.id, subscription, user_agent=user_agent)
+    await push.subscribe(
+        current_user.id, subscription, user_agent=user_agent, session_id=session_id
+    )
 
 
 @router.delete("/subscriptions", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -79,10 +83,13 @@ async def clear_apns_key(user: CurrentAppAdmin, deployment: DeploymentSettingsSv
 
 @router.post("/apns/devices", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def register_iphone(
-    device: ApnsDeviceCreate, current_user: CurrentUser, apns: ApnsSvc
+    device: ApnsDeviceCreate,
+    current_user: CurrentUser,
+    apns: ApnsSvc,
+    session_id: CurrentSessionId,
 ) -> None:
     """Push to this iPhone from now on. 400 where the deployment has no APNs key."""
-    await apns.register(current_user.id, device.token)
+    await apns.register(current_user.id, device.token, session_id=session_id)
 
 
 @router.delete("/apns/devices", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
