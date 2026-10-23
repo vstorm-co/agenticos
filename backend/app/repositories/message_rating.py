@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, case, func, or_, select, type_coerce
+from sqlalchemy import ColumnElement, and_, case, distinct, func, or_, select, type_coerce
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -15,6 +15,7 @@ from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
+from app.repositories.agent_run import served_runs
 
 
 async def get_rating_by_message_and_user(
@@ -460,20 +461,22 @@ async def group_down_rated(
 async def down_rated_by_agent(
     db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
 ) -> dict[UUID, int]:
-    """How many answers of each agent somebody rated down in the window, by agent.
+    """How many answers of each agent's served runs in the window somebody rated
+    down, by agent - an answer two people rated down counts once.
 
-    A count only: what was asked, answered and said about it stays with the run.
+    The runs improving the agent reads as evidence, so an agent flagged here is one
+    the assistant has something to read about. A count only: what was asked,
+    answered and said about it stays with the run.
     """
     result = await db.execute(
-        select(AgentRun.agent_id, func.count())
+        select(AgentRun.agent_id, func.count(distinct(Message.id)))
         .select_from(MessageRating)
         .join(Message, Message.id == MessageRating.message_id)
         .join(AgentRun, AgentRun.id == Message.run_id)
         .where(
-            AgentRun.organization_id == organization_id,
+            *served_runs(organization_id=organization_id, since=start),
+            AgentRun.started_at < end,
             MessageRating.rating < 0,
-            MessageRating.created_at >= start,
-            MessageRating.created_at < end,
         )
         .group_by(AgentRun.agent_id)
     )

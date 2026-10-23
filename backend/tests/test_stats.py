@@ -16,7 +16,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import AuthorizationError, ValidationError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.repositories.agent_run import WindowAggregates, WindowBreakdown
 from app.services.stats import StatsService, plan_timeline, resolve_window
 
@@ -729,8 +729,9 @@ class TestWhoNeedsAttention:
     def signals(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
         """Three agents' signals, and a visibility rule the test can narrow."""
         refunds, clerk, hidden = uuid4(), uuid4(), uuid4()
-        failing, passing, paused = (
+        failing, passing, erroring, paused = (
             MagicMock(id=uuid4(), agent_id=clerk, is_active=True),
+            MagicMock(id=uuid4(), agent_id=refunds, is_active=True),
             MagicMock(id=uuid4(), agent_id=refunds, is_active=True),
             MagicMock(id=uuid4(), agent_id=hidden, is_active=False),
         )
@@ -752,20 +753,27 @@ class TestWhoNeedsAttention:
         )
         monkeypatch.setattr(
             "app.services.stats.eval_suite_repo.list_for_organization",
-            AsyncMock(return_value=[failing, passing, paused]),
+            AsyncMock(return_value=[failing, passing, erroring, paused]),
         )
         latest = AsyncMock(
             return_value={
                 failing.id: MagicMock(status="failed"),
                 passing.id: MagicMock(status="passed"),
+                erroring.id: MagicMock(status="error"),
             }
         )
         monkeypatch.setattr("app.services.stats.eval_suite_repo.latest_results", latest)
         monkeypatch.setattr(
             "app.services.stats.agent_repo.get_many", AsyncMock(return_value=agents)
         )
+        # Everything visible may be viewed; only the clerk may be edited.
         monkeypatch.setattr(
-            "app.services.stats.accessible_ids", AsyncMock(side_effect=lambda *_a, **_k: visible)
+            "app.services.stats.accessible_ids",
+            AsyncMock(
+                side_effect=lambda _db, _ctx, _rows, perm, **_k: (
+                    visible if perm is Perm.AGENTS_VIEW else {clerk}
+                )
+            ),
         )
         return {"refunds": refunds, "clerk": clerk, "latest": latest}
 
@@ -774,10 +782,11 @@ class TestWhoNeedsAttention:
             _ctx(), from_date=date(2026, 9, 1), to_date=date(2026, 9, 30)
         )
 
+        # An errored result alerts as a failed one does; Improve goes where the reader may edit.
         assert [
-            (item.name, item.rated_down, item.failed_runs, item.failing_suites)
+            (item.name, item.rated_down, item.failed_runs, item.failing_suites, item.can_edit)
             for item in result.items
-        ] == [("Refund desk", 5, 0, 0), ("Clerk", 0, 1, 1)]
+        ] == [("Refund desk", 5, 0, 1, False), ("Clerk", 0, 1, 1, True)]
         assert (result.from_date, result.to_date) == (date(2026, 9, 1), date(2026, 9, 30))
 
     async def test_a_paused_suite_is_not_read_and_an_unseen_agent_is_left_out(
@@ -786,7 +795,7 @@ class TestWhoNeedsAttention:
         result = await StatsService(MagicMock()).attention(_ctx())
 
         asked = signals["latest"].await_args.args[1]
-        assert len(asked) == 2
+        assert len(asked) == 3
         assert "Hidden" not in [item.name for item in result.items]
 
     async def test_it_is_refused_without_runs_view(self, signals) -> None:

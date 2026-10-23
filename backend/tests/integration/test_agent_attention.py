@@ -76,17 +76,21 @@ async def _run(db, agent: Agent, *, status: str = "completed", **extra) -> Agent
     return run
 
 
-async def _rated(db, agent: Agent, rater: User, rating: int, *, at: datetime = _NOW) -> None:
-    conversation = Conversation(organization_id=agent.organization_id, user_id=rater.id)
+async def _rated(
+    db, agent: Agent, raters: list[User], rating: int, *, at: datetime = _NOW, **run
+) -> None:
+    """One answer of a run started at `at`, rated `rating` by each of `raters`."""
+    conversation = Conversation(organization_id=agent.organization_id, user_id=raters[0].id)
     db.add(conversation)
     await db.flush()
-    run = await _run(db, agent, conversation_id=conversation.id)
+    answered = await _run(db, agent, conversation_id=conversation.id, started_at=at, **run)
     message = Message(
-        conversation_id=conversation.id, role="assistant", content="ok", run_id=run.id
+        conversation_id=conversation.id, role="assistant", content="ok", run_id=answered.id
     )
     db.add(message)
     await db.flush()
-    db.add(MessageRating(message_id=message.id, user_id=rater.id, rating=rating, created_at=at))
+    for rater in raters:
+        db.add(MessageRating(message_id=message.id, user_id=rater.id, rating=rating))
     await db.flush()
 
 
@@ -98,14 +102,18 @@ async def _world(db) -> dict:
     mine = await _agent(db, organization, reader, "Mine")
     elsewhere = await _agent(db, await _org(db, owner), owner, "Elsewhere")
 
-    await _rated(db, refunds, owner, -1)
-    await _rated(db, refunds, reader, -1)
-    await _rated(db, refunds, owner, 1)
-    await _rated(db, refunds, owner, -1, at=_NOW - timedelta(days=10))
-    await _rated(db, mine, reader, -1)
-    await _rated(db, elsewhere, owner, -1)
+    await _rated(db, refunds, [owner, reader], -1)
+    await _rated(db, refunds, [reader], -1)
+    await _rated(db, refunds, [owner], 1)
+    await _rated(db, refunds, [owner], -1, at=_NOW - timedelta(days=10))
+    await _rated(db, mine, [reader], -1)
+    await _rated(db, elsewhere, [owner], -1)
 
     parent = await _run(db, clerk)
+    # Answers improving the clerk would not read: a Builder test, an eval's case, a delegate's.
+    await _rated(db, clerk, [owner], -1, is_test=True)
+    await _rated(db, clerk, [owner], -1, surface=RunSurface.EVAL.value)
+    await _rated(db, clerk, [owner], -1, parent_run_id=parent.id)
     await _run(db, clerk, status="failed")
     await _run(db, clerk, status="budget_exceeded", surface=RunSurface.EVAL.value)
     await _run(db, clerk, status="failed", is_test=True)
@@ -139,6 +147,7 @@ async def test_the_counts_are_one_organizations_real_answers_and_runs(db) -> Non
     rated = await rating_repo.down_rated_by_agent(db, organization_id=org, **_WINDOW)
     failed = await agent_run_repo.failed_by_agent(db, organization_id=org, **_WINDOW)
 
+    # Two people rating one answer down is one answer; the clerk's test, eval and delegate are not.
     assert rated == {refunds.id: 2, mine.id: 1}
     # The eval's, the test's, the delegate's and last week's failures are not the clerk failing now.
     assert failed == {clerk.id: 1}
@@ -163,13 +172,19 @@ async def test_an_agent_the_reader_may_not_view_is_left_out(db, monkeypatch) -> 
         AuthContext(user_id=world["reader"].id, organization_id=org, role=_READER), **window
     )
 
-    assert [(item.name, item.rated_down, item.failed_runs) for item in everything.items] == [
-        ("Refund desk", 2, 0),
-        ("Clerk", 0, 1),
-        ("Mine", 1, 0),
+    assert [
+        (item.name, item.rated_down, item.failed_runs, item.can_edit) for item in everything.items
+    ] == [
+        ("Refund desk", 2, 0, True),
+        ("Clerk", 0, 1, True),
+        ("Mine", 1, 0, True),
     ]
     # Their own agent and the one granted to them; the clerk, which nobody shared, is not named.
-    assert [item.name for item in theirs.items] == ["Refund desk", "Mine"]
+    # A read grant shows an agent without offering to change it.
+    assert [(item.name, item.can_edit) for item in theirs.items] == [
+        ("Refund desk", False),
+        ("Mine", False),
+    ]
 
 
 @pytest.mark.security

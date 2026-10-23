@@ -305,10 +305,13 @@ class AgentAttention(BaseSchema):
     Attributes:
         agent_id: The agent.
         name: Its name.
-        rated_down: Its answers somebody rated down.
-        failed_runs: Its own runs that failed, ran out of budget or were stopped
-            in a loop - not an eval's, a test's or a delegate's.
-        failing_suites: Its active eval suites whose latest result failed.
+        rated_down: Answers of its runs in the window somebody rated down, each
+            counted once - only the runs improving it reads as evidence.
+        failed_runs: Those runs that failed, ran out of budget or were stopped in
+            a loop - not an eval's, a test's or a delegate's.
+        failing_suites: Its active eval suites whose latest result alerts its owner -
+            anything but a pass, as `EvalSuiteResultStatus.alerting` says.
+        can_edit: Whether the caller may edit it, a grant included - where Improve is offered.
     """
 
     agent_id: UUID
@@ -316,6 +319,7 @@ class AgentAttention(BaseSchema):
     rated_down: int
     failed_runs: int
     failing_suites: int
+    can_edit: bool
 
 
 class AgentAttentionList(BaseSchema):

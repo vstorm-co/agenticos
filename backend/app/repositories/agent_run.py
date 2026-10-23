@@ -2491,27 +2491,38 @@ async def decide_approval(
     return approval
 
 
+def served_runs(*, organization_id: UUID, since: datetime) -> list[ColumnElement[bool]]:
+    """The runs that served somebody since `since` - what improving an agent reads
+    as evidence, and what says an agent needs attention.
+
+    Never an eval run: the assistant is checked by evals, so the runs those
+    produce - the cases, their reruns, the judge and the assistant's own - stay
+    out of what it reads. Never a Builder test run, which is the author trying
+    things rather than a reader being served, and never a delegate's run, whose
+    prompt is its parent's wording rather than a person's.
+    """
+    return [
+        AgentRun.organization_id == organization_id,
+        AgentRun.surface != RunSurface.EVAL.value,
+        AgentRun.is_test.is_(False),
+        AgentRun.parent_run_id.is_(None),
+        AgentRun.started_at >= since,
+    ]
+
+
 _FAILED = (RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value, RunStatus.LOOP_STOPPED.value)
 
 
 async def failed_by_agent(
     db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
 ) -> dict[UUID, int]:
-    """How many of each agent's own runs failed in the window, by agent.
-
-    The runs that served somebody - not an eval's case, not a Builder test, and
-    not a delegate, whose failure is its parent run's.
-    """
+    """How many of each agent's served runs started in the window failed, by agent."""
     result = await db.execute(
         select(AgentRun.agent_id, func.count())
         .where(
-            AgentRun.organization_id == organization_id,
-            AgentRun.status.in_(_FAILED),
-            AgentRun.started_at >= start,
+            *served_runs(organization_id=organization_id, since=start),
             AgentRun.started_at < end,
-            AgentRun.parent_run_id.is_(None),
-            AgentRun.surface != RunSurface.EVAL.value,
-            AgentRun.is_test.is_(False),
+            AgentRun.status.in_(_FAILED),
         )
         .group_by(AgentRun.agent_id)
     )

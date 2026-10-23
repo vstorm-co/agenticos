@@ -599,7 +599,7 @@ class StatsService:
         self, ctx: AuthContext, *, from_date: date | None = None, to_date: date | None = None
     ) -> AgentAttentionList:
         """The agents the caller may see that need a look: answers rated down and
-        own runs failed in the window, and eval suites whose latest result failed.
+        own runs failed in the window, and eval suites whose latest result alerts.
 
         Counts only, over everybody's runs, so it demands `runs:view` as
         `scope=org` does; an agent the caller may not view is left out however
@@ -628,13 +628,16 @@ class StatsService:
         failing = Counter(
             suite.agent_id
             for suite in suites
-            if suite.id in latest and latest[suite.id].status == EvalSuiteResultStatus.FAILED.value
+            if suite.id in latest and EvalSuiteResultStatus(latest[suite.id].status).alerting
         )
         agents = await agent_repo.get_many(
             self.db, sorted({*rated, *failed, *failing}), organization_id=org
         )
         visible = await accessible_ids(
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        editable = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_EDIT, resource_type=AGENT
         )
         items = [
             AgentAttention(
@@ -643,6 +646,7 @@ class StatsService:
                 rated_down=rated.get(agent.id, 0),
                 failed_runs=failed.get(agent.id, 0),
                 failing_suites=failing[agent.id],
+                can_edit=agent.id in editable,
             )
             for agent in agents.values()
             if agent.id in visible
