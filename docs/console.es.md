@@ -1,5 +1,5 @@
 ---
-source_sha: "6eec37027f9c"
+source_sha: "d9bf6745e92a"
 ---
 
 # La consola { #the-console }
@@ -47,17 +47,16 @@ clic bajo **Customize**:
 | **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
 | **Usage & cost** | Qué agents se usan, gasto, [minutos de voz](#voice-calls), cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
 
-Quien construye agents ve además **Get started** encima de las bandas hasta
-completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,
-añadir departamentos, invitar a alguien del equipo y - quien pueda - poner un agent
-en una app de chat. Cada paso se marca a partir de lo que existe, se haya hecho
-donde se haya hecho; cerrar la tarjeta la oculta en ese navegador.
+El dashboard se abre con **Get started** hasta completar cada paso: contarles a
+los agents sobre ti, empezar una conversación, conectar un servicio con tu
+propia cuenta, configurar una rutina y crear un agent - este último es una
+pregunta al Architect, que lo crea contigo.
 
-Tu propia vista se abre con **Your first steps** hasta que haces cada uno:
-contarles a los agents sobre ti, empezar una conversación, configurar una rutina,
-conectar un servicio con tu propia cuenta y crear un agent - este último es una
-pregunta al Architect, que lo crea contigo. Cada paso se marca a partir de lo que
-has hecho, no de un clic en la tarjeta.
+Quien construye agents tiene después los pasos de la organización: publicar un
+agent, darle una base de conocimiento, añadir departamentos, invitar a alguien
+del equipo y - quien pueda - poner un agent en una app de chat. Cada paso se
+marca a partir de lo que existe, se haya hecho donde se haya hecho, no de un
+clic en la tarjeta; cerrar la tarjeta la oculta en ese navegador.
 
 Tu propia vista muestra además **Discover AgenticOS**: una tarjeta por cada cosa
 fácil de pasar por alto - el servidor MCP propio de este despliegue para Claude
@@ -93,10 +92,15 @@ instantánea que querías conservar.
 La **bandeja** (Inbox), bajo Chat en la barra lateral, es lo que la plataforma
 te trajo por iniciativa propia: lo que tus
 [vigilancias](governance.md#proactive-work) encontraron en tus conexiones y lo
-que propuso la revisión nocturna. El número a su lado dice cuánto espera. Lo
-urgente va primero; filtra por su origen, o abre **Hecho** para ver lo que ya
-aceptaste o descartaste y recuperar algo descartado. Las mismas tarjetas
-encabezan tu dashboard como **Briefing**, y el chat vacío con el agente inicial.
+que propuso la revisión nocturna. El número a su lado dice cuánto espera. Se lee
+como un buzón: una fila por elemento, lo urgente primero, de dónde vino y
+cuándo, y las respuestas en la fila.
+
+Filtra por su origen, o abre **Hecho** para ver lo que ya aceptaste o
+descartaste y recuperar algo descartado. **What they found** en la tarjeta de
+vigilancias de Rutinas la abre filtrada a las vigilancias. Filas más cortas
+encabezan tu dashboard como **Briefing**, y el chat vacío con el agente inicial
+muestra lo mismo como tarjetas.
 
 Lo que una vigilancia encuentra y no hace falta avisar al momento espera a tu
 mañana: a la hora que mantiene la proactividad de la organización, una

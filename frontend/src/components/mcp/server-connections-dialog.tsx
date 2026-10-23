@@ -19,7 +19,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { AddToAgent } from "@/components/agents/add-to-agent";
-import { WatchDialog } from "@/components/assistant/watch-dialog";
+import { WatchDialog } from "@/components/watches/watch-dialog";
 import { UsedBy } from "@/components/agents/used-by";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { McpCallLog } from "./mcp-call-log";

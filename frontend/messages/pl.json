@@ -2676,38 +2676,6 @@
         },
         "deletedAgent": "Usunięty agent"
       },
-      "getting-started": {
-        "title": "Twoje pierwsze kroki",
-        "description": "Co warto tu zrobić w następnej kolejności - odhacza się samo, gdy to zrobisz.",
-        "progress": "Zrobione: {done} z {total}",
-        "agentAsk": "Pomóż mi zbudować pierwszego agenta. Zapytaj, co ma robić.",
-        "done": {
-          "title": "Wszystko gotowe",
-          "description": "Każdy pierwszy krok jest zrobiony. Możesz usunąć tę kartę z dashboardu, kiedy chcesz."
-        },
-        "steps": {
-          "profile": {
-            "title": "Opowiedz agentom o sobie",
-            "body": "Twoja rola i praca, żeby odpowiedzi do ciebie pasowały."
-          },
-          "chat": {
-            "title": "Zacznij rozmowę",
-            "body": "Zapytaj AgenticOS o cokolwiek w twojej pracy."
-          },
-          "routine": {
-            "title": "Ustaw rutynę",
-            "body": "Niech agent robi zadanie według harmonogramu."
-          },
-          "connection": {
-            "title": "Podłącz usługę",
-            "body": "Poczta, kalendarz albo pliki - na twoim własnym koncie."
-          },
-          "agent": {
-            "title": "Zbuduj agenta",
-            "body": "Architect zbuduje go razem z tobą."
-          }
-        }
-      },
       "suggestions": {
         "title": "Briefing",
         "description": "Znaleziska twoich obserwacji i propozycje nocnego przeglądu - najpierw to, co nie może czekać.",
@@ -2837,12 +2805,29 @@
       "doneLabel": "Zrobione",
       "dismiss": "Ukryj listę",
       "steps": {
-        "agent": "Utwórz agenta",
+        "agent": "Zbuduj agenta",
         "publish": "Opublikuj go",
         "knowledge": "Daj mu bazę wiedzy",
         "departments": "Dodaj swoje działy",
         "teammate": "Zaproś kogoś z zespołu",
-        "channel": "Wstaw agenta tam, gdzie pisze zespół"
+        "channel": "Wstaw agenta tam, gdzie pisze zespół",
+        "profile": "Opowiedz agentom o sobie",
+        "chat": "Zacznij rozmowę",
+        "routine": "Ustaw rutynę",
+        "connection": "Podłącz usługę"
+      },
+      "agentAsk": "Pomóż mi zbudować pierwszego agenta. Zapytaj, co ma robić.",
+      "hints": {
+        "profile": "Twoja rola i praca, żeby odpowiedzi do ciebie pasowały.",
+        "chat": "Zapytaj AgenticOS o cokolwiek w twojej pracy.",
+        "routine": "Niech agent robi zadanie według harmonogramu.",
+        "connection": "Poczta, kalendarz albo pliki - na twoim własnym koncie.",
+        "agent": "Architect zbuduje go razem z tobą.",
+        "publish": "Żeby ludzie mogli z niego korzystać w czacie i w kanałach.",
+        "knowledge": "Dokumenty, z których odpowiada.",
+        "departments": "Grupy decydują, kto widzi którego agenta.",
+        "teammate": "Z agentów lepiej korzystać razem.",
+        "channel": "Slack, Teams, Telegram albo Mattermost."
       }
     },
     "views": {
@@ -4111,6 +4096,10 @@
       "routines-list": {
         "title": "Co działa bez Ciebie",
         "body": "Każdy harmonogram i wyzwalacz w organizacji, z tym, co ostatnio zrobił. Agent pracujący, gdy nikt nie siedzi przy klawiaturze, pojawia się tu pierwszy."
+      },
+      "routines-watches": {
+        "title": "Co obserwuje twoje konta",
+        "body": "Obserwacje czytają twoje własne połączone konta według harmonogramu - review czekające na ciebie, przypisane ci issues - i wrzucają to, co nowe, do twojego inboksu. Każdy wiersz mówi, kiedy ostatnio sprawdzała i ile z tego, co znalazła, wciąż czeka."
       },
       "run-detail-input": {
         "title": "Co model faktycznie dostał",
@@ -5546,7 +5535,8 @@
       "title": "Rutyny",
       "description": "Wszystko, co Twoi agenci robią sami - według harmonogramu lub w reakcji na zdarzenie.",
       "ideasTitle": "Pomysły na start",
-      "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz."
+      "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz.",
+      "newWatch": "Nowa obserwacja"
     },
     "signIns": {
       "cancel": "Anuluj",
@@ -6276,12 +6266,7 @@
       "watches": "Obserwowanie połączeń ludzi",
       "watchesHint": "Każdy wybiera, co obserwować na swoich podłączonych kontach - pull requesty czekające na niego, zaległą fakturę - i dostaje informację, co nowego. Tylko czyta, a znaleziska są prywatne dla każdej osoby.",
       "watchMinutes": "Najczęściej",
-      "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
-      "watchServers": "Serwery, które można obserwować",
-      "watchServersAll": "Wszystkie serwery",
-      "watchServersSome": "Tylko te",
-      "watchServersSearch": "Szukaj serwerów",
-      "watchServersPicked": "{count, plural, =0 {Jeszcze nic nie wybrano} =1 {Wybrano 1} few {Wybrano #} many {Wybrano #} other {Wybrano #}}"
+      "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej."
     }
   },
   "theme": {
@@ -8248,19 +8233,17 @@
     "motionHint": "„Systemowe” stosuje ustawienie systemu operacyjnego. „Ograniczone” wyłącza animację dyktowania i animacje przesuwania."
   },
   "watches": {
-    "title": "Obserwowanie twoich połączeń",
+    "title": "Obserwacje",
     "description": "Asystent sprawdza twoje podłączone konta według harmonogramu i mówi, co nowego. Tylko czyta, a to, co znajdzie, widzisz tylko ty.",
     "orgOff": "Twoja organizacja nie włączyła obserwacji. Administrator może to zrobić na stronie organizacji, w sekcji Proactivity.",
     "noConnections": "Najpierw podłącz jedno ze swoich kont na stronie serwerów MCP - GitHub, Linear, skrzynkę pocztową.",
-    "add": "Obserwuj coś",
+    "add": "Nowa obserwacja",
     "resumed": "Znów obserwuję",
     "paused": "Wstrzymano",
     "removed": "Przestałem obserwować",
-    "rowDetail": "{connection} · {cadence}",
     "urgentBadge": "Pilne od razu",
     "stopped": {
       "watches_off": "Wyłączone w organizacji",
-      "server_not_allowed": "Serwer niedozwolony",
       "connection_disabled": "Połączenie wyłączone"
     },
     "activeLabel": "Obserwuj: {title}",
@@ -8383,14 +8366,28 @@
         "instructions": "Moje zadania z terminem na dziś albo po terminie."
       }
     },
-    "signInAgain": "Zaloguj się ponownie"
+    "signInAgain": "Zaloguj się ponownie",
+    "count": "{count, plural, =0 {Jeszcze nic nie obserwujesz} =1 {1 obserwacja} few {# obserwacje} many {# obserwacji} other {# obserwacji}}",
+    "findings": "Co znalazły",
+    "offTitle": "Obserwacje są wyłączone",
+    "noConnectionsTitle": "Połącz konto, żeby je obserwować",
+    "connect": "Otwórz serwery MCP",
+    "emptyTitle": "Jeszcze nic nie obserwujesz",
+    "emptyDescription": "Wybierz jedno ze swoich kont i powiedz, czego szukać. To, co obserwacja znajdzie, trafia do twojego inboksu; pilne rzeczy dostajesz od razu.",
+    "rowLooked": "{cadence} · sprawdzono {when}",
+    "rowFirst": "{cadence} · pierwsze sprawdzenie w ciągu minuty",
+    "waiting": "{count, plural, =1 {1 w inboksie} other {# w inboksie}}",
+    "accountNamed": "{server} ({account})",
+    "createdWhere": "Znajdziesz ją w Rutynach, a to, co znajdzie, trafi do twojego inboksu.",
+    "seeIt": "Pokaż",
+    "manageInRoutines": "Zarządzaj obserwacjami w Rutynach"
   },
   "inbox": {
     "title": "Inbox",
     "description": "To, co platforma przyniosła ci z własnej inicjatywy: znaleziska twoich obserwacji i propozycje nocnego przeglądu.",
     "filterLabel": "Pokaż",
     "filter": {
-      "all": "{count, plural, =0 {Wszystko} other {Wszystko (#)}}",
+      "all": "Wszystko",
       "urgent": "Pilne",
       "watches": "Z obserwacji",
       "suggestions": "Sugestie",
@@ -8398,8 +8395,18 @@
     },
     "empty": {
       "title": "Nic tu nie czeka",
-      "description": "Tu trafiają znaleziska twoich obserwacji i nocne sugestie. Obserwację ustawisz w Ustawienia → Asystent."
+      "description": "Tu trafia to, co znajdą twoje obserwacje, i to, co zaproponuje nocny przegląd.",
+      "watches": "Ustaw obserwację"
     },
-    "doneEmpty": "Na nic jeszcze nie odpowiedziałeś"
+    "doneEmpty": "Na nic jeszcze nie odpowiedziałeś",
+    "waiting": "{count, plural, =0 {Nic nie czeka} =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}",
+    "sourceAt": "{source} · {when}",
+    "source": {
+      "routine": "Pomysł na rutynę",
+      "agent": "Pomysł na agenta",
+      "profile": "Profil",
+      "role_pack": "Pakiet rutyn",
+      "finding": "Obserwacja"
+    }
   }
 }

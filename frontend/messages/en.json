@@ -2676,38 +2676,6 @@
         },
         "deletedAgent": "Deleted agent"
       },
-      "getting-started": {
-        "title": "Your first steps",
-        "description": "The next things worth doing here, ticked off as you do them.",
-        "progress": "{done} of {total} done",
-        "agentAsk": "Help me build my first agent. Ask me what I want it to do.",
-        "done": {
-          "title": "You are set up",
-          "description": "Every first step is done. Remove this card from the dashboard whenever you like."
-        },
-        "steps": {
-          "profile": {
-            "title": "Tell agents about you",
-            "body": "Your role and work, so answers fit you."
-          },
-          "chat": {
-            "title": "Start a conversation",
-            "body": "Ask AgenticOS anything about your work."
-          },
-          "routine": {
-            "title": "Set up a routine",
-            "body": "Let an agent do a task on a schedule."
-          },
-          "connection": {
-            "title": "Connect a service",
-            "body": "Your mail, calendar or files, with your own account."
-          },
-          "agent": {
-            "title": "Build an agent",
-            "body": "The Architect builds one with you."
-          }
-        }
-      },
       "suggestions": {
         "title": "Briefing",
         "description": "What your watches found and the nightly look proposed - what cannot wait first.",
@@ -2837,12 +2805,29 @@
       "doneLabel": "Done",
       "dismiss": "Hide the checklist",
       "steps": {
-        "agent": "Create an agent",
+        "agent": "Build an agent",
         "publish": "Publish it",
         "knowledge": "Give it a knowledge base",
         "departments": "Add your departments",
         "teammate": "Invite a teammate",
-        "channel": "Put an agent where your team chats"
+        "channel": "Put an agent where your team chats",
+        "profile": "Tell agents about you",
+        "chat": "Start a conversation",
+        "routine": "Set up a routine",
+        "connection": "Connect a service"
+      },
+      "agentAsk": "Help me build my first agent. Ask me what I want it to do.",
+      "hints": {
+        "profile": "Your role and work, so answers fit you.",
+        "chat": "Ask AgenticOS anything about your work.",
+        "routine": "Let an agent do a task on a schedule.",
+        "connection": "Your mail, calendar or files, with your own account.",
+        "agent": "The Architect builds one with you.",
+        "publish": "So people can use it in chat and in channels.",
+        "knowledge": "The documents it answers from.",
+        "departments": "Groups decide who sees which agent.",
+        "teammate": "Agents are worth more shared.",
+        "channel": "Slack, Teams, Telegram or Mattermost."
       }
     },
     "views": {
@@ -4342,6 +4327,10 @@
         "title": "What runs without you",
         "body": "Every schedule and trigger across the organization, with what it last did. An agent working while nobody is at the keyboard shows up here first."
       },
+      "routines-watches": {
+        "title": "What watches your accounts",
+        "body": "Watches read your own connected accounts on a schedule - reviews waiting on you, issues assigned to you - and put what is new in your inbox. Each row says when it last looked and how much of what it found still waits."
+      },
       "run-detail-input": {
         "title": "What the model was actually given",
         "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request - recorded from the wire, so it is what was sent rather than what the spec says."
@@ -5775,7 +5764,8 @@
       "title": "Routines",
       "description": "Everything your agents do on their own - on a schedule, or on an event.",
       "ideasTitle": "Ideas to start from",
-      "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save."
+      "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save.",
+      "newWatch": "New watch"
     },
     "signIns": {
       "cancel": "Cancel",
@@ -6505,12 +6495,7 @@
       "watches": "Watch people's connections",
       "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
       "watchMinutes": "Most often",
-      "watchMinutesHint": "How often one watch may look at most. More often costs more.",
-      "watchServers": "Servers that may be watched",
-      "watchServersAll": "Every server",
-      "watchServersSome": "Only these",
-      "watchServersSearch": "Search servers",
-      "watchServersPicked": "{count, plural, =0 {None picked yet} =1 {1 picked} other {# picked}}"
+      "watchMinutesHint": "How often one watch may look at most. More often costs more."
     }
   },
   "theme": {
@@ -8463,19 +8448,17 @@
     "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations."
   },
   "watches": {
-    "title": "Watching your connections",
+    "title": "Watches",
     "description": "The assistant checks your own connected accounts on a schedule and tells you what is new. It only reads, and only you see what it finds.",
     "orgOff": "Your organization has not turned watches on. An admin can do it on the organization's page, under Proactivity.",
     "noConnections": "Connect one of your own accounts on the MCP servers page first - GitHub, Linear, your mailbox.",
-    "add": "Watch something",
+    "add": "New watch",
     "resumed": "Watching again",
     "paused": "Paused",
     "removed": "Stopped watching",
-    "rowDetail": "{connection} · {cadence}",
     "urgentBadge": "Urgent at once",
     "stopped": {
       "watches_off": "Off for the organization",
-      "server_not_allowed": "Server not allowed",
       "connection_disabled": "Connection off"
     },
     "activeLabel": "Watch {title}",
@@ -8598,14 +8581,28 @@
         "instructions": "My tasks that are due today or overdue."
       }
     },
-    "signInAgain": "Sign in to it again"
+    "signInAgain": "Sign in to it again",
+    "count": "{count, plural, =0 {Nothing watched yet} =1 {1 watch} other {# watches}}",
+    "findings": "What they found",
+    "offTitle": "Watches are off",
+    "noConnectionsTitle": "Connect an account to watch",
+    "connect": "Open MCP servers",
+    "emptyTitle": "Nothing watched yet",
+    "emptyDescription": "Pick one of your accounts and say what to look for. What a watch finds lands in your inbox; the urgent things reach you at once.",
+    "rowLooked": "{cadence} · looked {when}",
+    "rowFirst": "{cadence} · first look within a minute",
+    "waiting": "{count, plural, =1 {1 in your inbox} other {# in your inbox}}",
+    "accountNamed": "{server} ({account})",
+    "createdWhere": "It is under Routines, and what it finds lands in your inbox.",
+    "seeIt": "See it",
+    "manageInRoutines": "Manage your watches in Routines"
   },
   "inbox": {
     "title": "Inbox",
     "description": "What the platform brought you on its own: what your watches found and what the nightly look proposed.",
     "filterLabel": "Show",
     "filter": {
-      "all": "{count, plural, =0 {All} other {All (#)}}",
+      "all": "All",
       "urgent": "Urgent",
       "watches": "From watches",
       "suggestions": "Suggestions",
@@ -8613,8 +8610,18 @@
     },
     "empty": {
       "title": "Nothing waits here",
-      "description": "Findings from your watches and the nightly suggestions arrive here. Set up a watch under Settings → Assistant."
+      "description": "What your watches find and what the nightly look proposes arrives here.",
+      "watches": "Set up a watch"
     },
-    "doneEmpty": "Nothing answered yet"
+    "doneEmpty": "Nothing answered yet",
+    "waiting": "{count, plural, =0 {Nothing waiting} =1 {1 waiting} other {# waiting}}",
+    "sourceAt": "{source} · {when}",
+    "source": {
+      "routine": "Routine idea",
+      "agent": "Agent idea",
+      "profile": "Profile",
+      "role_pack": "Routine pack",
+      "finding": "Watch"
+    }
   }
 }

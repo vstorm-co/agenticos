@@ -1,5 +1,5 @@
 ---
-source_sha: "f5710e265fa6"
+source_sha: "68203f63bdc3"
 ---
 
 # Governance { #governance }
@@ -526,14 +526,16 @@ que no le pasó nada nuevo no cuesta nada: la tarea solo llama al modelo cuando 
 algo que leer.
 
 Las **vigilancias** apuntan el mismo trabajo a las conexiones propias de una
-persona. Se activan aparte en la misma tarjeta (`proactive_watches_enabled`), con
-el mismo modelo y dentro del mismo límite. Una persona elige una de sus propias
-conexiones MCP en **Ajustes → Asistente** o desde el menú de la cuenta en la
-página de servidores MCP, y dice qué buscar - una vigilancia hecha para ese
-servidor o sus propias palabras - y cada cuánto, nunca más a menudo de lo que
-permite la organización (`proactive_watch_min_minutes`, cada hora por defecto).
-La organización también puede limitar qué servidores del catálogo se pueden
-vigilar (`proactive_watch_servers`).
+persona. Se activan aparte en la misma tarjeta (`proactive_watches_enabled`),
+con el mismo modelo y dentro del mismo límite. Una persona crea una con **New
+watch** en **Rutinas**, donde una tarjeta de vigilancias muestra cada una con
+cuándo revisó por última vez y cuántos de sus hallazgos esperan, o desde el menú
+de la cuenta en la página de servidores MCP.
+
+Elige una de sus propias conexiones MCP - cualquier servidor que haya conectado
+- y dice qué buscar - una vigilancia hecha para ese servidor o sus propias
+palabras - y cada cuánto, nunca más a menudo de lo que permite la organización
+(`proactive_watch_min_minutes`, cada hora por defecto).
 
 Cada revisión es un run de la superficie **proactive** al que solo se le ofrecen
 las herramientas que el servidor marca como de solo lectura (`readOnlyHint`), así

@@ -125,13 +125,12 @@ class Organization(Base, TimestampMixin):
     proactive_timing: Mapped[ProactiveTiming] = mapped_column(
         String(16), nullable=False, default="fixed", server_default=text("'fixed'")
     )
-    # Whether people may point the look at their own connections (`Watch`), which
-    # catalog servers they may (null for every one), and how often a watch may be
-    # read at most. It runs on the same model and limit as the nightly look.
+    # Whether people may point the look at their own connections (`Watch`), and
+    # how often a watch may be read at most. It runs on the same model and limit as
+    # the nightly look.
     proactive_watches_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
-    proactive_watch_servers: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     proactive_watch_min_minutes: Mapped[int] = mapped_column(
         Integer, nullable=False, default=60, server_default=text("60")
     )

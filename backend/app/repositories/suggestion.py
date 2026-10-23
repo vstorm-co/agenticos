@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -134,6 +134,21 @@ async def titles_for_watch(db: AsyncSession, *, watch_id: UUID, limit: int) -> l
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def open_findings_by_watch(db: AsyncSession, *, watch_ids: list[UUID]) -> dict[UUID, int]:
+    """How many of each watch's findings still wait for their person; a watch with none is absent."""
+    if not watch_ids:
+        return {}
+    result = await db.execute(
+        select(Suggestion.watch_id, func.count())
+        .where(
+            Suggestion.watch_id.in_(watch_ids),
+            Suggestion.status == SuggestionStatus.OPEN.value,
+        )
+        .group_by(Suggestion.watch_id)
+    )
+    return {watch_id: count for watch_id, count in result.tuples().all() if watch_id is not None}
 
 
 async def unbriefed_findings(

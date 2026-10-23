@@ -17,7 +17,7 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization
 from app.db.models.watch import Watch
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo, organization_repo, watch_repo
+from app.repositories import mcp_connection_repo, organization_repo, suggestion_repo, watch_repo
 from app.schemas.watch import WatchCreate, WatchRead, WatchStopped, WatchUpdate
 from app.services import watch_presets
 
@@ -29,15 +29,14 @@ def stopped_by(organization: Organization, connection: McpConnection) -> WatchSt
     """Why the organization's rules or the connection keep a watch from being read, if they do."""
     if not organization.proactive_watches_enabled:
         return "watches_off"
-    allowed = organization.proactive_watch_servers
-    if allowed is not None and connection.catalog_key not in allowed:
-        return "server_not_allowed"
     if not connection.is_enabled:
         return "connection_disabled"
     return None
 
 
-def watch_read(watch: Watch, *, organization: Organization, connection: McpConnection) -> WatchRead:
+def watch_read(
+    watch: Watch, *, organization: Organization, connection: McpConnection, waiting: int = 0
+) -> WatchRead:
     return WatchRead(
         id=watch.id,
         connection_id=watch.connection_id,
@@ -53,6 +52,7 @@ def watch_read(watch: Watch, *, organization: Organization, connection: McpConne
         stopped=stopped_by(organization, connection),
         next_run_at=watch.next_run_at,
         last_run_at=watch.last_run_at,
+        waiting=waiting,
         created_at=watch.created_at,
     )
 
@@ -99,21 +99,32 @@ class WatchService:
     async def list_mine(self, ctx: AuthContext) -> list[WatchRead]:
         person = self._person(ctx)
         organization = await self._organization(ctx)
-        reads: list[WatchRead] = []
-        for watch in await watch_repo.list_own(
+        watches = await watch_repo.list_own(
             self.db, organization_id=ctx.organization_id, user_id=person
-        ):
+        )
+        waiting = await suggestion_repo.open_findings_by_watch(
+            self.db, watch_ids=[watch.id for watch in watches]
+        )
+        reads: list[WatchRead] = []
+        for watch in watches:
             connection = await mcp_connection_repo.get_by_id(self.db, watch.connection_id)
             if connection is not None:
-                reads.append(watch_read(watch, organization=organization, connection=connection))
+                reads.append(
+                    watch_read(
+                        watch,
+                        organization=organization,
+                        connection=connection,
+                        waiting=waiting.get(watch.id, 0),
+                    )
+                )
         return reads
 
     async def create(self, ctx: AuthContext, data: WatchCreate) -> WatchRead:
         """Set up a watch, first read within a minute.
 
         Raises:
-            BadRequestError: Where the organization has watches off or does not
-                allow this server, the cadence is more often than it allows, the
+            BadRequestError: Where the organization has watches off, the cadence
+                is more often than it allows, the
                 preset is for another server, or the person already has
                 `MAX_WATCHES` - each naming the field it is about.
         """
@@ -123,10 +134,6 @@ class WatchService:
         stopped = stopped_by(organization, connection)
         if stopped == "watches_off":
             raise BadRequestError(message="Your organization has not turned watches on")
-        if stopped == "server_not_allowed":
-            raise refused_field(
-                "connection_id", "Your organization does not allow watching this server"
-            )
         self._often_enough(organization, data.interval_minutes)
         if data.preset_key is not None:
             preset = watch_presets.BY_KEY.get(data.preset_key)

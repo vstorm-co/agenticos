@@ -79,9 +79,11 @@ Two things are versioned separately from this file and worth knowing about:
   routine and opens with the start of the answer, instead of the generic "run
   completed" one. AgenticOS offers a **Weekly tips** routine once, from the new
   `weekly_tips` template.
-- **Your first steps.** A card at the top of your own dashboard, ticked from what
-  you have done: telling agents about yourself, a first conversation, a routine, a
-  service connected with your own account, and an agent of your own.
+- **Get started for everybody.** The dashboard's checklist now leads with your
+  own steps, ticked from what you have done - telling agents about yourself, a
+  first conversation, a service connected with your own account, a routine and an
+  agent of your own - and keeps the organization's after them for whoever builds
+  agents. The next step says what it is for.
 - **First messages.** `AgentSpec.starters`, up to four, set under the instructions
   in the Builder, are the cards an empty chat offers; an agent with none shows the
   chat's own, now including "What can you do?" and "Set up a routine". The
@@ -152,16 +154,18 @@ Two things are versioned separately from this file and worth knowing about:
   Each look offers the model only the tools the server marks read-only, and what
   is new arrives as a finding (a suggestion of kind `finding`) reported once,
   with a link to open it; one the person asked to hear about at once and the
-  model judged urgent is also sent as a notification. Set up under **Settings →
-  Assistant** or from an account's menu on the MCP servers page
-  (`/me/watches`). Off until the organization turns watches on, on the
-  **Proactivity** card, which also sets the most-often and which servers may be
-  watched; they run on the proactive model and limit. Migration `0167_watches`.
+  model judged urgent is also sent as a notification. Set up with **New watch**
+  under **Routines**, where a **Watches** card shows when each last looked and how
+  many of its findings wait, or from an account's menu on the MCP servers page
+  (`/me/watches`). Any server the person connected may be watched. Off until the
+  organization turns watches on, on the **Proactivity** card, which also sets the
+  most-often; they run on the proactive model and limit. Migration `0167_watches`.
 - **An inbox, and a morning briefing (#2301).** **Inbox**, under Chat in the
-  sidebar with a count of what waits, holds what watches found and what the
-  nightly look proposed - urgent first, filtered by where it came from, and a
-  **Done** view to bring a declined one back. The dashboard's suggestions card
-  is now **Briefing**, at the top of the personal view. What a watch finds that
+  sidebar with a count of what waits, lists what watches found and what the
+  nightly look proposed like a mailbox - a row each, urgent first, its source and
+  time, the answers in the row - filtered by where it came from, with a **Done**
+  view to bring a declined one back. The dashboard's suggestions card is now
+  **Briefing**, the same rows at the top of the personal view. What a watch finds that
   need not be heard at once goes out once, at the organization's proactive hour:
   one notification and one direct message from each Slack, Teams and Mattermost
   bot that knows the person. Migration `0168_finding_briefed`.

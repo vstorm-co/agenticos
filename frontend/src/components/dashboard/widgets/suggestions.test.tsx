@@ -18,10 +18,10 @@ vi.mock("@/hooks", () => ({ useOrganizations: () => ({ activeOrg: state.org }) }
 vi.mock("@/hooks/use-suggestions", () => ({
   useSuggestions: () => ({ suggestions: state.suggestions }),
 }));
-vi.mock("@/components/chat/suggestion-cards", () => ({
-  SuggestionCards: ({ agentId, items }: { agentId: string | null; items: { id: string }[] }) => {
+vi.mock("@/components/inbox/suggestion-rows", () => ({
+  SuggestionRows: ({ items, dense }: { items: { id: string }[]; dense?: boolean }) => {
     state.shown = items;
-    return <div data-testid="cards" data-agent={agentId ?? ""} />;
+    return <div data-testid="rows" data-dense={String(dense)} />;
   },
 }));
 vi.mock("../widget-frame", () => ({
@@ -43,11 +43,11 @@ beforeEach(() => {
 });
 
 describe("SuggestionsWidget", () => {
-  it("shows the chat's own cards, for any agent the person picks", () => {
+  it("shows the inbox's own rows, tightened", () => {
     state.suggestions = [{ id: "s1" }];
     render(<SuggestionsWidget {...props} />);
 
-    expect(screen.getByTestId("cards")).toHaveAttribute("data-agent", "");
+    expect(screen.getByTestId("rows")).toHaveAttribute("data-dense", "true");
     expect(screen.queryByRole("link")).toBeNull();
   });
 

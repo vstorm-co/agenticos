@@ -26,9 +26,6 @@ vi.mock("@/stores", () => ({
     pick({ activeOrgId: state.orgId }),
 }));
 // The person's suggestions are tested on their own; here only that they are offered.
-vi.mock("./your-watches", () => ({
-  YourWatches: () => <section aria-label="Watching your connections" />,
-}));
 vi.mock("./your-suggestions", () => ({
   YourSuggestions: () => <section aria-label="Suggestions for you" />,
 }));
@@ -104,6 +101,11 @@ describe("Settings → Assistant", () => {
     render(<AssistantSettings />);
 
     expect(screen.queryByText("For the organization")).toBeNull();
+    // Watches are managed under Routines; this page only points there.
+    expect(screen.getByRole("link", { name: "Manage your watches in Routines" })).toHaveAttribute(
+      "href",
+      "/routines",
+    );
     fireEvent.click(screen.getByRole("switch", { name: "Show tips in speech bubbles" }));
     expect(JSON.parse(localStorage.getItem("assistant-bubbles")!)).toMatchObject({ off: true });
 

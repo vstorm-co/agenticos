@@ -1,20 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Inbox as InboxIcon } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { SuggestionCards } from "@/components/chat/suggestion-cards";
+import { SuggestionMark } from "@/components/chat/suggestion-actions";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ChoiceGroup } from "@/components/settings/choice-group";
-import { EmptyState } from "@/components/states";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, ListCard, ListCardEmpty } from "@/components/ui";
 import { useSuggestionHistory, useSuggestions } from "@/hooks/use-suggestions";
 import { getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import type { Suggestion } from "@/lib/suggestions-api";
+import { timeAgo } from "@/lib/utils";
+import { SuggestionRows } from "./suggestion-rows";
 
 type Filter = "all" | "urgent" | "watches" | "suggestions" | "done";
+
+const FILTERS: Filter[] = ["all", "urgent", "watches", "suggestions", "done"];
 
 const KEEPS: Record<Exclude<Filter, "done">, (item: Suggestion) => boolean> = {
   all: () => true,
@@ -23,49 +28,74 @@ const KEEPS: Record<Exclude<Filter, "done">, (item: Suggestion) => boolean> = {
   suggestions: (item) => item.kind !== "finding",
 };
 
+/** `?filter=watches` from the Watches card opens the inbox already narrowed. */
+function initialFilter(param: string | null): Filter {
+  return FILTERS.find((each) => each === param) ?? "all";
+}
+
 /**
  * Everything the platform brought the person on its own (#2301): what their
  * watches found and what the nightly look proposed, open ones to act on and,
- * under Done, what they already took or declined - with the way back.
+ * under Done, what they already took or declined - with the way back. One card,
+ * read like a mailbox: the filters in its header, a row per item.
  */
 export function InboxPage() {
   const t = useTranslations("inbox");
   const { suggestions } = useSuggestions();
-  const [filter, setFilter] = useState<Filter>("all");
+  const asked = useSearchParams().get("filter");
+  const [filter, setFilter] = useState<Filter>(() => initialFilter(asked));
   const open = filter === "done" ? [] : suggestions.filter(KEEPS[filter]);
 
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} description={t("description")} />
-      <div data-tour="inbox-filters">
-        <ChoiceGroup<Filter>
-          labelledBy="inbox-filter-label"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "all", label: t("filter.all", { count: suggestions.length }) },
-            { value: "urgent", label: t("filter.urgent") },
-            { value: "watches", label: t("filter.watches") },
-            { value: "suggestions", label: t("filter.suggestions") },
-            { value: "done", label: t("filter.done") },
-          ]}
-        />
-        <span id="inbox-filter-label" className="sr-only">
-          {t("filterLabel")}
-        </span>
-      </div>
-      {filter === "done" ? (
-        <Decided />
-      ) : open.length === 0 ? (
-        <EmptyState
-          icon={InboxIcon}
-          title={t("empty.title")}
-          description={t("empty.description")}
-        />
-      ) : (
-        <SuggestionCards agentId={null} items={open} className="max-w-3xl" />
-      )}
+      <ListCard
+        namedByPage
+        title={t("title")}
+        counted={t("waiting", { count: suggestions.length })}
+        contentClassName="p-0"
+        headerTour="inbox-filters"
+        controls={
+          <>
+            <span id="inbox-filter-label" className="sr-only">
+              {t("filterLabel")}
+            </span>
+            <ChoiceGroup<Filter>
+              labelledBy="inbox-filter-label"
+              value={filter}
+              onChange={setFilter}
+              options={FILTERS.map((value) => ({ value, label: t(`filter.${value}`) }))}
+            />
+          </>
+        }
+      >
+        {filter === "done" ? (
+          <Decided />
+        ) : open.length === 0 ? (
+          <Nothing filter={filter} />
+        ) : (
+          <SuggestionRows items={open} />
+        )}
+      </ListCard>
     </div>
+  );
+}
+
+/** Nothing waits: where things come from, and for watches where they are set up. */
+function Nothing({ filter }: { filter: Exclude<Filter, "done"> }) {
+  const t = useTranslations("inbox");
+  const router = useRouter();
+  return (
+    <ListCardEmpty
+      icon={InboxIcon}
+      title={t("empty.title")}
+      description={t("empty.description")}
+      cta={
+        filter === "all" || filter === "watches"
+          ? { label: t("empty.watches"), onClick: () => router.push(ROUTES.ROUTINES) }
+          : undefined
+      }
+    />
   );
 }
 
@@ -74,10 +104,12 @@ function Decided() {
   const t = useTranslations("inbox");
   const tStatus = useTranslations("assistantSettings.suggestions");
   const tErrors = useTranslations("errors");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const { history, restore } = useSuggestionHistory();
   const decided = history.filter((item) => item.status !== "open");
   if (decided.length === 0) {
-    return <EmptyState icon={InboxIcon} title={t("doneEmpty")} />;
+    return <ListCardEmpty icon={InboxIcon} title={t("doneEmpty")} />;
   }
   const bringBack = async (id: string) => {
     try {
@@ -88,13 +120,17 @@ function Decided() {
     }
   };
   return (
-    <ul className="divide-foreground/10 max-w-3xl divide-y">
+    <ul className="divide-border divide-y">
       {decided.map((item) => (
-        <li key={item.id} className="flex items-center gap-3 py-2.5">
+        <li key={item.id} className="flex items-center gap-3 px-4 py-3 sm:px-5">
+          <SuggestionMark suggestion={item} className="bg-muted opacity-60 shadow-none" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{item.title}</p>
+            <p className="text-muted-foreground truncate text-sm">{item.title}</p>
             {item.detail && <p className="text-muted-foreground truncate text-xs">{item.detail}</p>}
           </div>
+          <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
+            {timeAgo(item.created_at, tTime, locale)}
+          </span>
           <Badge variant="secondary">{tStatus(`status.${item.status}`)}</Badge>
           {item.status === "dismissed" && (
             <Button size="sm" variant="outline" onClick={() => bringBack(item.id)}>

@@ -63,7 +63,6 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
-        "src/components/dashboard/widgets/getting-started.tsx",
         // What the nightly look proposed (#2301).
         "src/components/dashboard/widgets/suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
@@ -108,6 +107,8 @@ export default defineConfig({
         "src/components/live-updates/**/*.tsx",
         // The AI Architect in the corner of every page, and its settings (#2063).
         "src/components/assistant/**/*.tsx",
+        // Watches over a person's own connections, managed under Routines (#2301).
+        "src/components/watches/**/*.tsx",
         "src/components/browser/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
@@ -146,9 +147,10 @@ export default defineConfig({
         "src/components/settings/agent-context-settings.tsx",
         "src/components/settings/working-hours-field.tsx",
         "src/components/chat/suggestion-cards.tsx",
+        "src/components/chat/suggestion-actions.tsx",
         "src/components/teams/org-proactivity.tsx",
-        "src/components/teams/watch-server-picker.tsx",
         "src/components/inbox/inbox-page.tsx",
+        "src/components/inbox/suggestion-rows.tsx",
         "src/components/chat/turn-extras.tsx",
         "src/components/chat/turn-shortcuts.tsx",
         "src/components/chat/setup-proposals.tsx",

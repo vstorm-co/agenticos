@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
   presets: [] as WatchPreset[],
   create: vi.fn(),
   update: vi.fn(),
+  path: "/mcp-servers",
+  push: vi.fn(),
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
@@ -33,6 +35,13 @@ vi.mock("@/hooks", () => ({
   useOrganizations: () => ({
     activeOrg: state.floor === null ? null : { proactive_watch_min_minutes: state.floor },
   }),
+  useMcpCatalog: () => ({
+    servers: [{ key: "github", name: "GitHub", icon: "github", url: null }],
+  }),
+}));
+vi.mock("next/navigation", () => ({
+  usePathname: () => state.path,
+  useRouter: () => ({ push: state.push }),
 }));
 vi.mock("@/hooks/use-watches", () => ({
   useWatchPresets: () => state.presets,
@@ -78,6 +87,7 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
   stopped: null,
   next_run_at: "2026-10-22T10:00:00Z",
   last_run_at: null,
+  waiting: 0,
   created_at: "2026-10-22T09:00:00Z",
   ...overrides,
 });
@@ -87,6 +97,8 @@ beforeEach(() => {
   state.presets = [REVIEWS, FAILING, { ...REVIEWS, key: "linear-assigned", server: "linear" }];
   state.create.mockReset().mockResolvedValue(undefined);
   state.update.mockReset().mockResolvedValue(undefined);
+  state.path = "/mcp-servers";
+  state.push.mockReset();
   refusal.value = null;
   toastSuccess.mockReset();
   toastError.mockReset();
@@ -117,7 +129,28 @@ describe("WatchDialog", () => {
       interval_minutes: 180,
     });
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-    expect(toastSuccess).toHaveBeenCalledWith("Watching - the first look is within a minute");
+    // Started from an account's menu, it says where the watch now lives.
+    const [message, options] = toastSuccess.mock.calls[0]!;
+    expect(message).toBe("Watching - the first look is within a minute");
+    expect(options.description).toBe(
+      "It is under Routines, and what it finds lands in your inbox.",
+    );
+    options.action.onClick();
+    expect(state.push).toHaveBeenCalledWith("/routines");
+  });
+
+  it("names each account by its server, and offers no way to Routines from Routines", async () => {
+    state.path = "/pl/routines";
+    render(<WatchDialog open onOpenChange={vi.fn()} />);
+    await userEvent.click(screen.getByRole("combobox", { name: "Account" }));
+    expect(await screen.findByRole("option", { name: "GitHub" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: "Our wiki" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Wiki");
+    await userEvent.type(screen.getByLabelText("Look for"), "Pricing");
+    await userEvent.click(screen.getByRole("button", { name: "Start watching" }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(toastSuccess.mock.calls[0]![1].action).toBeUndefined();
   });
 
   it("takes the person's own words for a server with no presets", async () => {

@@ -94,9 +94,6 @@ def upgrade() -> None:
         ),
     )
     op.add_column(
-        "organizations", sa.Column("proactive_watch_servers", postgresql.JSONB(), nullable=True)
-    )
-    op.add_column(
         "organizations",
         sa.Column(
             "proactive_watch_min_minutes",
@@ -149,7 +146,6 @@ def downgrade() -> None:
     op.drop_constraint("ck_organization_watch_min_minutes", "organizations", type_="check")
     for column in (
         "proactive_watch_min_minutes",
-        "proactive_watch_servers",
         "proactive_watches_enabled",
     ):
         op.drop_column("organizations", column)

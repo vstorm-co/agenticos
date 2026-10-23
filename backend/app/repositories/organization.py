@@ -252,12 +252,10 @@ async def set_watch_policy(
     org: Organization,
     *,
     enabled: bool,
-    servers: list[str] | None,
     min_minutes: int,
 ) -> Organization:
-    """Write whether people here may watch their connections, which, and how often at most."""
+    """Write whether people here may watch their connections, and how often at most."""
     org.proactive_watches_enabled = enabled
-    org.proactive_watch_servers = servers
     org.proactive_watch_min_minutes = min_minutes
     await db.flush()
     await db.refresh(org)

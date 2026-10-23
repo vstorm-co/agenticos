@@ -1,5 +1,5 @@
 ---
-source_sha: "6eec37027f9c"
+source_sha: "d9bf6745e92a"
 ---
 
 # Die Konsole { #the-console }
@@ -46,19 +46,15 @@ Mitglieder, Sandboxes - wartet im Katalog, einen Klick entfernt unter **Customiz
 | **Needs attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell) |
 | **Usage & cost** | Welche Agents genutzt werden, Ausgaben, [Anrufminuten](#voice-calls), wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
 
-Wer Agents baut, sieht über den Bändern außerdem **Erste Schritte**, bis jeder
-Schritt erledigt ist: einen Agent anlegen, ihn veröffentlichen, ihm eine
-Wissensbasis geben, Abteilungen hinzufügen, jemanden aus dem Team einladen und -
-wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach dem
-abgehakt, was existiert, wo auch immer er erledigt wurde; wer die Karte schließt,
-blendet sie in diesem Browser aus.
-
-Ihre eigene Ansicht öffnet mit **Ihre ersten Schritte (Your first steps)**, bis
-jeder erledigt ist: Agents etwas über sich erzählen, ein Gespräch beginnen, eine
-Routine einrichten, einen Dienst mit dem eigenen Konto verbinden und einen Agent
-bauen - Letzteres ist eine Frage an den Architect, der ihn mit Ihnen baut. Jeder
-Schritt wird an dem abgehakt, was Sie getan haben, nicht an einem Klick auf die
-Karte.
+Das Dashboard öffnet mit **Erste Schritte**, bis jeder Schritt erledigt ist:
+Agents etwas über sich erzählen, ein Gespräch beginnen, einen Dienst mit dem
+eigenen Konto verbinden, eine Routine einrichten und einen Agent bauen -
+Letzteres ist eine Frage an den Architect, der ihn mit Ihnen baut. Wer Agents
+baut, hat danach die Schritte der Organisation: einen Agent veröffentlichen, ihm
+eine Wissensbasis geben, Abteilungen hinzufügen, jemanden aus dem Team einladen
+und - wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach dem
+abgehakt, was existiert, wo auch immer er erledigt wurde, nicht nach einem Klick
+auf die Karte; wer die Karte schließt, blendet sie in diesem Browser aus.
 
 Ihre eigene Ansicht zeigt außerdem **AgenticOS entdecken**: je eine Kachel für das,
 was leicht übersehen wird - den eigenen MCP-Server dieses Deployments für Claude
@@ -97,10 +93,15 @@ Der **Posteingang**, unter dem Chat in der Seitenleiste, ist, was die Plattform
 Ihnen aus eigener Initiative gebracht hat: was Ihre
 [Beobachtungen](governance.md#proactive-work) in Ihren Verbindungen gefunden und
 was der nächtliche Blick vorgeschlagen hat. Die Zahl daneben sagt, wie viel
-wartet. Dringendes kommt zuerst; filtern Sie nach Herkunft, oder öffnen Sie
-**Erledigt** für das, was Sie schon angenommen oder abgelehnt haben, und holen
-Sie Abgelehntes zurück. Dieselben Karten stehen oben auf Ihrem Dashboard als
-**Briefing** und im leeren Chat mit dem Start-Agent.
+wartet. Er liest sich wie ein Postfach: eine Zeile je Eintrag, Dringendes
+zuerst, woher und wann, und die Antworten in der Zeile.
+
+Filtern Sie nach Herkunft, oder öffnen Sie **Erledigt** für das, was Sie schon
+angenommen oder abgelehnt haben, und holen Sie Abgelehntes zurück. **Was sie
+gefunden haben** auf der Karte Beobachtungen unter Routinen öffnet ihn auf
+Beobachtungen eingegrenzt. Kürzere Zeilen stehen oben auf Ihrem Dashboard als
+**Briefing**, und der leere Chat mit dem Start-Agent zeigt dieselben Einträge
+als Karten.
 
 Was eine Beobachtung findet und nicht sofort gemeldet werden muss, wartet auf
 Ihren Morgen: zu der Stunde, die die Proaktivität der Organisation hält, nennen

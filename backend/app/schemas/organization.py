@@ -119,14 +119,6 @@ class OrganizationUpdate(BaseSchema):
             "'budgets:manage'."
         ),
     )
-    proactive_watch_servers: list[str] | None = Field(
-        default=None,
-        max_length=200,
-        description=(
-            "The catalog servers a watch may read, by key. Send null for every one; "
-            "omit to leave it alone."
-        ),
-    )
     proactive_watch_min_minutes: int | None = Field(
         default=None,
         ge=MIN_WATCH_MINUTES,
@@ -221,9 +213,6 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     proactive_hour: int = 5
     proactive_timing: ProactiveTiming = "fixed"
     proactive_watches_enabled: bool = False
-    proactive_watch_servers: list[str] | None = Field(
-        default=None, description="The catalog servers a watch may read; null for every one."
-    )
     proactive_watch_min_minutes: int = 60
     welcome_dm_enabled: bool = False
     welcome_dm_text: str | None = None

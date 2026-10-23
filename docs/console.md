@@ -40,17 +40,14 @@ members, sandboxes - wait in the catalog, one click away under **Customize**:
 | **Needs attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell) |
 | **Usage & cost** | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
 
-Somebody who builds agents also sees **Get started** above the bands until each
-of its steps is done: create an agent, publish it, give it a knowledge base, add
-departments, invite a teammate and - for whoever may - put an agent in a chat
-app. Each step is ticked from what exists, wherever it was done; closing the card
-hides it in that browser.
-
-Your own view opens with **Your first steps** until each is done: tell agents
-about yourself, start a conversation, set up a routine, connect a service with
-your own account, and build an agent - that one is a question to the Architect,
-which builds it with you. Each is ticked from what you have done, not from a
-click on the card.
+The dashboard opens with **Get started** until each of its steps is done: tell
+agents about yourself, start a conversation, connect a service with your own
+account, set up a routine and build an agent - that one is a question to the
+Architect, which builds it with you. Somebody who builds agents has the
+organization's steps after those: publish an agent, give it a knowledge base, add
+departments, invite a teammate and - for whoever may - put an agent in a chat app.
+Each step is ticked from what exists, wherever it was done, not from a click on the
+card; closing the card hides it in that browser.
 
 Your own view also shows **Discover AgenticOS**: one tile each for what is easy to
 miss - this deployment's own MCP server for Claude Code, Codex or Cursor,
@@ -83,11 +80,13 @@ snapshot you meant to keep.
 
 **Inbox**, under Chat in the sidebar, is what the platform brought you on its
 own: what your [watches](governance.md#proactive-work) found in your connections
-and what the nightly look proposed. The number beside it is how many wait.
-Urgent ones come first; filter by where they came from, or open **Done** for
-what you already took or declined, and bring a declined one back. The same
-cards head your dashboard as **Briefing**, and the empty chat with the starter
-agent.
+and what the nightly look proposed. The number beside it is how many wait. It
+reads like a mailbox: one row each, urgent ones first, where it came from and
+when, and the answers in the row. Filter by where they came from, or open **Done**
+for what you already took or declined, and bring a declined one back. **What they
+found** on the Watches card under Routines opens it narrowed to watches. Shorter
+rows head your dashboard as **Briefing**, and the empty chat with the starter
+agent shows the same items as cards.
 
 What a watch finds that need not be heard at once waits for your morning: at
 the hour your organization's proactivity keeps, one notification and one direct

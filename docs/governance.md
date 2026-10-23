@@ -490,12 +490,13 @@ only calls the model when there is something to read.
 
 **Watches** point the same work at a person's own connections, switched on
 separately on the same card (`proactive_watches_enabled`), on the same model and
-inside the same limit. A person picks one of their own MCP connections under
-**Settings → Assistant** or from the account's menu on the MCP servers page, and
-says what to look for - a ready-made watch for that server or their own words -
-and how often, never more often than the organization allows
-(`proactive_watch_min_minutes`, an hour by default). The organization can also
-narrow which catalog servers may be watched (`proactive_watch_servers`).
+inside the same limit. A person starts one with **New watch** under **Routines**,
+where a Watches card lists each with when it last looked and how many of its
+findings wait, or from the account's menu on the MCP servers page. They pick one
+of their own MCP connections - any server they connected - and say what to look
+for - a ready-made watch for that server or their own words - and how often,
+never more often than the organization allows (`proactive_watch_min_minutes`, an
+hour by default).
 
 Each look is one run from the **proactive** surface, offered only the tools the
 server marks read-only (`readOnlyHint`), so a watch never changes anything in the

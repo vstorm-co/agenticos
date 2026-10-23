@@ -1,5 +1,5 @@
 ---
-source_sha: "6eec37027f9c"
+source_sha: "d9bf6745e92a"
 ---
 
 # Konsola { #the-console }
@@ -45,17 +45,14 @@ sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 | **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage & cost** | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
 
-Kto buduje agentów, widzi też nad pasmami kartę **Get started**, dopóki nie
-wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę
-wiedzy, dodać działy, zaprosić kogoś z zespołu i - jeśli może - wstawić agenta do
-komunikatora. Każdy krok jest odhaczany na podstawie tego, co istnieje, gdziekolwiek
-go zrobiono; zamknięcie karty ukrywa ją w tej przeglądarce.
-
-Twój własny widok otwiera się kartą **Twoje pierwsze kroki (Your first steps)**,
-dopóki nie zrobisz każdego z nich: opowiedzieć agentom o sobie, zacząć rozmowę,
-ustawić rutynę, podłączyć usługę własnym kontem i zbudować agenta - to ostatnie
-jest pytaniem do Architekta, który buduje go razem z tobą. Każdy krok odhacza się
-z tego, co zrobiłeś, a nie z kliknięcia na karcie.
+Dashboard otwiera się kartą **Get started**, dopóki nie zrobisz wszystkich jej
+kroków: opowiedzieć agentom o sobie, zacząć rozmowę, podłączyć usługę własnym
+kontem, ustawić rutynę i zbudować agenta - to ostatnie jest pytaniem do
+Architekta, który buduje go razem z tobą. Kto buduje agentów, ma po nich kroki
+organizacji: opublikować agenta, dać mu bazę wiedzy, dodać działy, zaprosić kogoś
+z zespołu i - jeśli może - wstawić agenta do komunikatora. Każdy krok jest
+odhaczany na podstawie tego, co istnieje, gdziekolwiek go zrobiono, a nie z
+kliknięcia na karcie; zamknięcie karty ukrywa ją w tej przeglądarce.
 
 Twój własny widok pokazuje też **Odkryj AgenticOS**: po jednym kafelku na to, co
 łatwo przeoczyć - własny serwer MCP tego wdrożenia dla Claude Code, Codex albo
@@ -90,9 +87,12 @@ migawkę, którą chciałeś zachować.
 **Inbox**, pod Czatem w pasku bocznym, to to, co platforma przyniosła ci z
 własnej inicjatywy: co twoje [obserwacje](governance.md#proactive-work) znalazły
 na twoich połączeniach i co zaproponował nocny przegląd. Liczba obok mówi, ile
-czeka. Pilne są pierwsze; filtruj po źródle albo otwórz **Załatwione**, żeby
-zobaczyć, co już przyjąłeś lub odrzuciłeś, i przywrócić odrzucone. Te same karty
-otwierają twój dashboard jako **Briefing** i pusty czat z agentem startowym.
+czeka. Czyta się go jak skrzynkę pocztową: jeden wiersz na rzecz, pilne pierwsze,
+skąd i kiedy przyszła, a odpowiedzi w wierszu. Filtruj po źródle albo otwórz
+**Załatwione**, żeby zobaczyć, co już przyjąłeś lub odrzuciłeś, i przywrócić
+odrzucone. **Co znalazły** na karcie Obserwacje w Rutynach otwiera go zawężonego
+do obserwacji. Krótsze wiersze otwierają twój dashboard jako **Briefing**, a pusty
+czat z agentem startowym pokazuje te same rzeczy jako karty.
 
 To, co obserwacja znajdzie, a co nie musi trafić do ciebie od razu, czeka na
 twój poranek: o godzinie, którą trzyma proaktywność organizacji, jedno

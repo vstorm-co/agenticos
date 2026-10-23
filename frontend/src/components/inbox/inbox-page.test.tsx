@@ -15,6 +15,8 @@ const state = vi.hoisted(() => ({
   history: [] as Suggestion[],
   restore: vi.fn(),
   shown: [] as Suggestion[],
+  filter: null as string | null,
+  push: vi.fn(),
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
@@ -23,11 +25,17 @@ vi.mock("@/hooks/use-suggestions", () => ({
   useSuggestions: () => ({ suggestions: state.open }),
   useSuggestionHistory: () => ({ history: state.history, restore: state.restore }),
 }));
-vi.mock("@/components/chat/suggestion-cards", () => ({
-  SuggestionCards: ({ items }: { items: Suggestion[] }) => {
+vi.mock("./suggestion-rows", () => ({
+  SuggestionRows: ({ items }: { items: Suggestion[] }) => {
     state.shown = items;
-    return <div data-testid="cards" />;
+    return <div data-testid="rows" />;
   },
+}));
+vi.mock("@/hooks", () => ({ useMcpCatalog: () => ({ servers: [] }) }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(state.filter ? { filter: state.filter } : {}),
+  useRouter: () => ({ push: state.push }),
+  usePathname: () => "/inbox",
 }));
 vi.mock("@/components/dashboard/page-header", () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
@@ -51,6 +59,8 @@ beforeEach(() => {
   state.open = [];
   state.history = [];
   state.shown = [];
+  state.filter = null;
+  state.push.mockReset();
   state.restore.mockReset().mockResolvedValue(undefined);
   toastSuccess.mockReset();
   toastError.mockReset();
@@ -65,6 +75,7 @@ describe("InboxPage", () => {
     render(<InboxPage />);
 
     expect(screen.getByRole("heading", { name: "Inbox" })).toBeInTheDocument();
+    expect(screen.getByText("3 waiting")).toBeInTheDocument();
     expect(state.shown).toEqual([finding, urgent, routine]);
     await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
     expect(state.shown).toEqual([urgent]);
@@ -74,10 +85,28 @@ describe("InboxPage", () => {
     expect(state.shown).toEqual([routine]);
   });
 
-  it("says nothing waits, and where things come from", () => {
+  it("says nothing waits, and sends the person to set up a watch", async () => {
     render(<InboxPage />);
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "All" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Set up a watch" }));
+    expect(state.push).toHaveBeenCalledWith("/routines");
+
+    // Nothing urgent is not a reason to set up a watch.
+    await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
+    expect(screen.queryByRole("button", { name: "Set up a watch" })).toBeNull();
+  });
+
+  it("opens already narrowed to what a link asked for, and ignores what it does not know", () => {
+    state.open = [item("f", { kind: "finding" }), item("r")];
+    state.filter = "watches";
+    const { unmount } = render(<InboxPage />);
+    expect(screen.getByRole("radio", { name: "From watches" })).toBeChecked();
+    expect(state.shown.map((each) => each.id)).toEqual(["f"]);
+    unmount();
+
+    state.filter = "spam";
+    render(<InboxPage />);
+    expect(screen.getByRole("radio", { name: "All" })).toBeChecked();
   });
 
   it("lists what was answered and brings a declined one back", async () => {

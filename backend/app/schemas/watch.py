@@ -13,7 +13,7 @@ MAX_WATCH_MINUTES = 10080
 """A week: a watch read less often than that is a routine's job."""
 
 MAX_EXCLUSIONS = 20
-WatchStopped = Literal["watches_off", "server_not_allowed", "connection_disabled"]
+WatchStopped = Literal["watches_off", "connection_disabled"]
 
 
 class WatchCreate(BaseSchema):
@@ -91,6 +91,7 @@ class WatchRead(BaseSchema):
     )
     next_run_at: datetime
     last_run_at: datetime | None
+    waiting: int = Field(default=0, description="Its findings still open in the person's inbox.")
     created_at: datetime
 
 

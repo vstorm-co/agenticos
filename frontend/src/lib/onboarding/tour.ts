@@ -724,6 +724,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // - welcome, the dashboard, the chat, finish - and a seventh about work nobody
   // has scheduled yet is a page a first login has no reason to visit.
   { id: "routines-list", page: ROUTES.ROUTINES, target: "routines-list" },
+  // Watches over the reader's own connections (#2301); the card's header is always drawn.
+  { id: "routines-watches", page: ROUTES.ROUTINES, target: "routines-watches" },
   {
     id: "routines-create",
     page: ROUTES.ROUTINES,

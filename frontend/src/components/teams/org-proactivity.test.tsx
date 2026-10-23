@@ -118,7 +118,6 @@ describe("OrgProactivity", () => {
       proactive_hour: 5,
       proactive_timing: "fixed",
       proactive_watches_enabled: false,
-      proactive_watch_servers: null,
       proactive_watch_min_minutes: 60,
     });
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Nightly suggestions saved"));
@@ -136,20 +135,11 @@ describe("OrgProactivity", () => {
     expect(state.setProactivity).not.toHaveBeenCalled();
   });
 
-  it("turns watches on with how often at most and only the servers ticked", async () => {
+  it("turns watches on with how often at most", async () => {
     render(<OrgProactivity org={org({ proactive_model_profile_id: "mp-1" })} />);
     await userEvent.click(screen.getByRole("switch", { name: "Watch people's connections" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Most often" }));
     await userEvent.click(await screen.findByRole("option", { name: "Every 3 hours" }));
-    await userEvent.click(screen.getByRole("radio", { name: "Only these" }));
-    expect(screen.getByText("None picked yet")).toBeInTheDocument();
-    await userEvent.type(screen.getByRole("textbox", { name: "Search servers" }), "lin");
-    expect(screen.queryByText("GitHub")).toBeNull();
-    await userEvent.click(screen.getByRole("checkbox"));
-    expect(screen.getByText("1 picked")).toBeInTheDocument();
-    await userEvent.clear(screen.getByRole("textbox", { name: "Search servers" }));
-    await userEvent.click(screen.getAllByRole("checkbox")[0]!);
-    await userEvent.click(screen.getAllByRole("checkbox")[1]!);
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
 
     expect(state.setProactivity).toHaveBeenCalledWith(
@@ -157,33 +147,23 @@ describe("OrgProactivity", () => {
       expect.objectContaining({
         proactive_enabled: false,
         proactive_watches_enabled: true,
-        proactive_watch_servers: ["github"],
         proactive_watch_min_minutes: 180,
       }),
     );
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Nightly suggestions saved"));
   });
 
-  it("allows every server again in one choice", async () => {
+  it("shows the floor already saved", () => {
     render(
       <OrgProactivity
         org={org({
           proactive_model_profile_id: "mp-1",
           proactive_watches_enabled: true,
-          proactive_watch_servers: ["github"],
           proactive_watch_min_minutes: 1440,
         })}
       />,
     );
     expect(screen.getByRole("combobox", { name: "Most often" })).toHaveTextContent("Daily");
-    await userEvent.click(screen.getByRole("radio", { name: "Every server" }));
-    expect(screen.queryByRole("textbox", { name: "Search servers" })).toBeNull();
-    await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
-
-    expect(state.setProactivity).toHaveBeenCalledWith(
-      "o1",
-      expect.objectContaining({ proactive_watch_servers: null }),
-    );
   });
 
   it("is turned on with a model from the organization's, before work, at seven", async () => {

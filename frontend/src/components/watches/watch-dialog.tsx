@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -26,10 +27,12 @@ import { FormField } from "@/components/ui/form-field";
 import { useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatchPresets, useWatches } from "@/hooks/use-watches";
 import { submitFailure } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import { DIALOG_BODY, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { allowedIntervals, cadenceLabel } from "@/lib/watch-cadence";
 import type { Watch } from "@/lib/watches-api";
+import { WatchAccount, useAccountName } from "./watch-account";
 
 const CUSTOM = "custom";
 const FIELDS = ["connection_id", "interval_minutes", "preset_key", "title", "instructions"];
@@ -80,6 +83,9 @@ export function WatchDialog({
   const presets = useWatchPresets();
   const { activeOrg } = useOrganizations();
   const { create, update } = useWatches();
+  const accountName = useAccountName();
+  const router = useRouter();
+  const onRoutines = usePathname().endsWith(ROUTES.ROUTINES);
   const [draft, setDraft] = useState(() => startFrom(watch, connectionId));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -131,7 +137,19 @@ export function WatchDialog({
           interval_minutes: draft.interval,
         });
       }
-      toast.success(watch ? t("saved") : t("created"));
+      if (watch) {
+        toast.success(t("saved"));
+      } else {
+        // Started from an account's menu, the watch would otherwise vanish into
+        // a page the person has not seen: say where it lives and where its
+        // findings go.
+        toast.success(t("created"), {
+          description: t("createdWhere"),
+          action: onRoutines
+            ? undefined
+            : { label: t("seeIt"), onClick: () => router.push(ROUTES.ROUTINES) },
+        });
+      }
       onOpenChange(false);
     } catch (failure) {
       const problem = submitFailure(failure, { fields: FIELDS }, tErrors);
@@ -167,8 +185,15 @@ export function WatchDialog({
               </SelectTrigger>
               <SelectContent>
                 {connections.map((each) => (
-                  <SelectItem key={each.id} value={each.id}>
-                    {each.label ?? each.name}
+                  <SelectItem
+                    key={each.id}
+                    value={each.id}
+                    textValue={accountName(each.catalog_key, each.label ?? each.name).name}
+                  >
+                    <WatchAccount
+                      server={each.catalog_key}
+                      connectionName={each.label ?? each.name}
+                    />
                   </SelectItem>
                 ))}
               </SelectContent>

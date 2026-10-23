@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Zap } from "lucide-react";
+import { CalendarClock, Radar, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { TriggerTemplate } from "@/types/trigger-templates";
@@ -12,6 +12,8 @@ import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-d
 import { RoutineIdeas } from "@/components/triggers/routine-ideas";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { Button } from "@/components/ui";
+import { WatchDialog } from "@/components/watches/watch-dialog";
+import { WatchesCard, useCanWatch } from "@/components/watches/watches-card";
 import { useCanCreateTrigger } from "@/hooks";
 
 /**
@@ -25,6 +27,9 @@ import { useCanCreateTrigger } from "@/hooks";
  * controls are hidden, not
  * disabled, for a caller who may not run an agent; the list still shows, because
  * each row resolves its own controls from its `can_manage`.
+ *
+ * A watch over the person's own connections (#2301) is the third kind of thing
+ * that runs on its own, so it lives here too, with its own card and button.
  */
 export default function RoutinesPage() {
   const t = useTranslations("pages.routines");
@@ -33,6 +38,8 @@ export default function RoutinesPage() {
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [idea, setIdea] = useState<TriggerTemplate | null>(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const canWatch = useCanWatch();
+  const [creatingWatch, setCreatingWatch] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -42,16 +49,26 @@ export default function RoutinesPage() {
         title={t("title")}
         description={t("description")}
         actions={
-          canCreate ? (
+          canCreate || canWatch ? (
             <div className="flex flex-wrap gap-2" data-tour="routines-create">
-              <Button variant="outline" onClick={() => setCreatingEvent(true)}>
-                <Zap className="h-4 w-4" />
-                {tt("newEvent")}
-              </Button>
-              <Button onClick={() => setCreatingSchedule(true)}>
-                <CalendarClock className="h-4 w-4" />
-                {tt("newSchedule")}
-              </Button>
+              {canWatch && (
+                <Button variant="outline" onClick={() => setCreatingWatch(true)}>
+                  <Radar className="h-4 w-4" />
+                  {t("newWatch")}
+                </Button>
+              )}
+              {canCreate && (
+                <>
+                  <Button variant="outline" onClick={() => setCreatingEvent(true)}>
+                    <Zap className="h-4 w-4" />
+                    {tt("newEvent")}
+                  </Button>
+                  <Button onClick={() => setCreatingSchedule(true)}>
+                    <CalendarClock className="h-4 w-4" />
+                    {tt("newSchedule")}
+                  </Button>
+                </>
+              )}
             </div>
           ) : undefined
         }
@@ -62,6 +79,8 @@ export default function RoutinesPage() {
       <div data-tour="routines-list">
         <ScheduledTab />
       </div>
+
+      <WatchesCard onNew={() => setCreatingWatch(true)} />
 
       {canCreate && (
         <RoutineIdeas
@@ -84,6 +103,10 @@ export default function RoutinesPage() {
             setIdea(null);
           }}
         />
+      )}
+
+      {creatingWatch && (
+        <WatchDialog open onOpenChange={(next) => !next && setCreatingWatch(false)} />
       )}
 
       {creatingEvent && (

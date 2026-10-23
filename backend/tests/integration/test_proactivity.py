@@ -450,16 +450,14 @@ class TestDeletingTheModelItRunsOn:
         await db.refresh(org)
         assert org.proactive_enabled is True
 
-        await organization_repo.set_watch_policy(
-            db, org, enabled=True, servers=["github"], min_minutes=30
-        )
+        await organization_repo.set_watch_policy(db, org, enabled=True, min_minutes=30)
         await organization_repo.stop_proactivity_on(
             db, organization_id=org.id, model_profile_id=model
         )
         await db.refresh(org)
         assert org.proactive_enabled is False
         assert org.proactive_watches_enabled is False
-        assert (org.proactive_watch_servers, org.proactive_watch_min_minutes) == (["github"], 30)
+        assert org.proactive_watch_min_minutes == 30
 
 
 async def _own_connection(db, person: User, *, name: str = "github"):
@@ -585,6 +583,12 @@ class TestWatches:
             if item.urgent
         ]
         assert urgent.watch_id == watch.id
+        await suggestion_repo.decide(db, suggestion=urgent, status=SuggestionStatus.DISMISSED)
+        other = await _watch(db, org, person, connection)
+        assert await suggestion_repo.open_findings_by_watch(db, watch_ids=[watch.id, other.id]) == {
+            watch.id: 2
+        }
+        assert await suggestion_repo.open_findings_by_watch(db, watch_ids=[]) == {}
 
         await watch_repo.delete(db, watch)
         assert await suggestion_repo.list_open(db, organization_id=org.id, user_id=person.id) == []
@@ -602,9 +606,7 @@ class TestTheMorningBriefing:
 
         person = await _person(db)
         org = await _organization(db, person)
-        await organization_repo.set_watch_policy(
-            db, org, enabled=True, servers=None, min_minutes=60
-        )
+        await organization_repo.set_watch_policy(db, org, enabled=True, min_minutes=60)
         connection = await _own_connection(db, person)
         watch = await _watch(db, org, person, connection)
         made = {}

@@ -2676,38 +2676,6 @@
         },
         "deletedAgent": "Gelöschter Agent"
       },
-      "getting-started": {
-        "title": "Ihre ersten Schritte",
-        "description": "Was sich hier als Nächstes lohnt - abgehakt, sobald Sie es getan haben.",
-        "progress": "{done} von {total} erledigt",
-        "agentAsk": "Helfen Sie mir, meinen ersten Agent zu bauen. Fragen Sie mich, was er tun soll.",
-        "done": {
-          "title": "Alles eingerichtet",
-          "description": "Jeder erste Schritt ist erledigt. Entfernen Sie diese Karte vom Dashboard, wann immer Sie möchten."
-        },
-        "steps": {
-          "profile": {
-            "title": "Erzählen Sie Agents von sich",
-            "body": "Ihre Rolle und Arbeit, damit Antworten zu Ihnen passen."
-          },
-          "chat": {
-            "title": "Ein Gespräch beginnen",
-            "body": "Fragen Sie AgenticOS alles zu Ihrer Arbeit."
-          },
-          "routine": {
-            "title": "Eine Routine einrichten",
-            "body": "Ein Agent erledigt eine Aufgabe nach Zeitplan."
-          },
-          "connection": {
-            "title": "Einen Dienst verbinden",
-            "body": "Mail, Kalender oder Dateien, mit Ihrem eigenen Konto."
-          },
-          "agent": {
-            "title": "Einen Agent bauen",
-            "body": "Der Architect baut ihn mit Ihnen."
-          }
-        }
-      },
       "suggestions": {
         "title": "Briefing",
         "description": "Funde Ihrer Beobachtungen und Vorschläge des nächtlichen Blicks - zuerst, was nicht warten kann.",
@@ -2837,12 +2805,29 @@
       "doneLabel": "Erledigt",
       "dismiss": "Checkliste ausblenden",
       "steps": {
-        "agent": "Einen Agent anlegen",
+        "agent": "Einen Agent bauen",
         "publish": "Ihn veröffentlichen",
         "knowledge": "Ihm eine Wissensbasis geben",
         "departments": "Ihre Abteilungen hinzufügen",
         "teammate": "Jemanden aus dem Team einladen",
-        "channel": "Einen Agent dorthin bringen, wo Ihr Team chattet"
+        "channel": "Einen Agent dorthin bringen, wo Ihr Team chattet",
+        "profile": "Erzählen Sie Agents von sich",
+        "chat": "Ein Gespräch beginnen",
+        "routine": "Eine Routine einrichten",
+        "connection": "Einen Dienst verbinden"
+      },
+      "agentAsk": "Helfen Sie mir, meinen ersten Agent zu bauen. Fragen Sie mich, was er tun soll.",
+      "hints": {
+        "profile": "Ihre Rolle und Arbeit, damit Antworten zu Ihnen passen.",
+        "chat": "Fragen Sie AgenticOS alles zu Ihrer Arbeit.",
+        "routine": "Ein Agent erledigt eine Aufgabe nach Zeitplan.",
+        "connection": "Mail, Kalender oder Dateien, mit Ihrem eigenen Konto.",
+        "agent": "Der Architect baut ihn mit Ihnen.",
+        "publish": "Damit andere ihn im Chat und in Kanälen nutzen können.",
+        "knowledge": "Die Dokumente, aus denen er antwortet.",
+        "departments": "Gruppen entscheiden, wer welchen Agent sieht.",
+        "teammate": "Agents nutzt man besser gemeinsam.",
+        "channel": "Slack, Teams, Telegram oder Mattermost."
       }
     },
     "views": {
@@ -4223,6 +4208,10 @@
       "routines-list": {
         "title": "Was ohne Sie läuft",
         "body": "Jeder Zeitplan und jeder Trigger in der Organisation, mit dem, was er zuletzt getan hat. Ein Agent, der arbeitet, während niemand an der Tastatur sitzt, taucht hier zuerst auf."
+      },
+      "routines-watches": {
+        "title": "Was Ihre Konten beobachtet",
+        "body": "Beobachtungen lesen Ihre eigenen verbundenen Konten nach Zeitplan - Reviews, die auf Sie warten, Ihnen zugewiesene Issues - und legen Neues in Ihren Posteingang. Jede Zeile sagt, wann zuletzt geprüft wurde und wie viel vom Gefundenen noch wartet."
       },
       "run-detail-input": {
         "title": "Was das Modell tatsächlich bekommen hat",
@@ -5657,7 +5646,8 @@
       "title": "Routinen",
       "description": "Alles, was Ihre Agents von allein tun - nach Zeitplan oder auf ein Ereignis.",
       "ideasTitle": "Ideen zum Starten",
-      "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern."
+      "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern.",
+      "newWatch": "Neue Beobachtung"
     },
     "signIns": {
       "cancel": "Abbrechen",
@@ -6388,12 +6378,7 @@
       "watches": "Verbindungen der Mitglieder beobachten",
       "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
       "watchMinutes": "Höchstens",
-      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
-      "watchServers": "Server, die beobachtet werden dürfen",
-      "watchServersAll": "Alle Server",
-      "watchServersSome": "Nur diese",
-      "watchServersSearch": "Server suchen",
-      "watchServersPicked": "{count, plural, =0 {Noch keiner gewählt} =1 {1 gewählt} other {# gewählt}}"
+      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr."
     }
   },
   "theme": {
@@ -8346,19 +8331,17 @@
     "motionHint": "System folgt der Einstellung Ihres Betriebssystems. Reduziert schaltet die Diktieranimation und Gleitanimationen aus."
   },
   "watches": {
-    "title": "Ihre Verbindungen beobachten",
+    "title": "Beobachtungen",
     "description": "Der Assistent prüft Ihre eigenen verbundenen Konten nach Zeitplan und sagt Ihnen, was neu ist. Er liest nur, und was er findet, sehen nur Sie.",
     "orgOff": "Ihre Organisation hat Beobachtungen nicht eingeschaltet. Ein Admin kann das auf der Seite der Organisation unter Proactivity tun.",
     "noConnections": "Verbinden Sie zuerst eines Ihrer eigenen Konten auf der Seite der MCP-Server - GitHub, Linear, Ihr Postfach.",
-    "add": "Etwas beobachten",
+    "add": "Neue Beobachtung",
     "resumed": "Wird wieder beobachtet",
     "paused": "Pausiert",
     "removed": "Beobachtung beendet",
-    "rowDetail": "{connection} · {cadence}",
     "urgentBadge": "Dringendes sofort",
     "stopped": {
       "watches_off": "In der Organisation aus",
-      "server_not_allowed": "Server nicht erlaubt",
       "connection_disabled": "Verbindung aus"
     },
     "activeLabel": "{title} beobachten",
@@ -8481,14 +8464,28 @@
         "instructions": "Meine Aufgaben, die heute fällig oder überfällig sind."
       }
     },
-    "signInAgain": "Erneut anmelden"
+    "signInAgain": "Erneut anmelden",
+    "count": "{count, plural, =0 {Noch nichts beobachtet} =1 {1 Beobachtung} other {# Beobachtungen}}",
+    "findings": "Was sie gefunden haben",
+    "offTitle": "Beobachtungen sind aus",
+    "noConnectionsTitle": "Verbinden Sie ein Konto, um es zu beobachten",
+    "connect": "MCP-Server öffnen",
+    "emptyTitle": "Noch nichts beobachtet",
+    "emptyDescription": "Wählen Sie eines Ihrer Konten und sagen Sie, wonach gesucht werden soll. Was eine Beobachtung findet, landet in Ihrem Posteingang; Dringendes erreicht Sie sofort.",
+    "rowLooked": "{cadence} · geprüft {when}",
+    "rowFirst": "{cadence} · erste Prüfung innerhalb einer Minute",
+    "waiting": "{count, plural, =1 {1 im Posteingang} other {# im Posteingang}}",
+    "accountNamed": "{server} ({account})",
+    "createdWhere": "Sie steht unter Routinen, und was sie findet, landet in Ihrem Posteingang.",
+    "seeIt": "Anzeigen",
+    "manageInRoutines": "Beobachtungen unter Routinen verwalten"
   },
   "inbox": {
     "title": "Posteingang",
     "description": "Was die Plattform Ihnen aus eigener Initiative gebracht hat: Funde Ihrer Beobachtungen und Vorschläge des nächtlichen Blicks.",
     "filterLabel": "Anzeigen",
     "filter": {
-      "all": "{count, plural, =0 {Alle} other {Alle (#)}}",
+      "all": "Alle",
       "urgent": "Dringend",
       "watches": "Aus Beobachtungen",
       "suggestions": "Vorschläge",
@@ -8496,8 +8493,18 @@
     },
     "empty": {
       "title": "Hier wartet nichts",
-      "description": "Funde Ihrer Beobachtungen und die nächtlichen Vorschläge kommen hierher. Eine Beobachtung richten Sie unter Einstellungen → Assistent ein."
+      "description": "Hier landet, was Ihre Beobachtungen finden und was der nächtliche Blick vorschlägt.",
+      "watches": "Beobachtung einrichten"
     },
-    "doneEmpty": "Noch nichts beantwortet"
+    "doneEmpty": "Noch nichts beantwortet",
+    "waiting": "{count, plural, =0 {Nichts wartet} =1 {1 wartet} other {# warten}}",
+    "sourceAt": "{source} · {when}",
+    "source": {
+      "routine": "Routine-Idee",
+      "agent": "Agent-Idee",
+      "profile": "Profil",
+      "role_pack": "Routinenpaket",
+      "finding": "Beobachtung"
+    }
   }
 }

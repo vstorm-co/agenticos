@@ -20,7 +20,7 @@ const org = vi.hoisted(() => ({ watches: true }));
 vi.mock("@/hooks", () => ({
   useOrganizations: () => ({ activeOrg: { proactive_watches_enabled: org.watches } }),
 }));
-vi.mock("@/components/assistant/watch-dialog", () => ({
+vi.mock("@/components/watches/watch-dialog", () => ({
   WatchDialog: ({
     connectionId,
     onOpenChange,

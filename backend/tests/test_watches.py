@@ -52,15 +52,8 @@ def _ctx(user_id: uuid.UUID | None = USER) -> AuthContext:
     return AuthContext(user_id=user_id, organization_id=ORG, role=OrgRoleName.MEMBER)
 
 
-def _organization(
-    *, on: bool = True, servers: list[str] | None = None, floor: int = 60
-) -> MagicMock:
-    return MagicMock(
-        id=ORG,
-        proactive_watches_enabled=on,
-        proactive_watch_servers=servers,
-        proactive_watch_min_minutes=floor,
-    )
+def _organization(*, on: bool = True, floor: int = 60) -> MagicMock:
+    return MagicMock(id=ORG, proactive_watches_enabled=on, proactive_watch_min_minutes=floor)
 
 
 def _connection(
@@ -143,13 +136,11 @@ class TestWhatStopsAWatch:
         ("organization", "connection", "stopped"),
         [
             (_organization(on=False), _connection(), "watches_off"),
-            (_organization(servers=["linear"]), _connection(), "server_not_allowed"),
-            (_organization(servers=["github"]), _connection(server=None), "server_not_allowed"),
             (_organization(), _connection(enabled=False), "connection_disabled"),
-            (_organization(servers=["github"]), _connection(), None),
+            (_organization(), _connection(), None),
             (_organization(), _connection(server=None), None),
         ],
-        ids=["off", "other-server", "custom-under-a-list", "disabled", "listed", "all"],
+        ids=["off", "disabled", "catalog-server", "custom-server"],
     )
     def test_the_organizations_rules_and_the_connection(self, organization, connection, stopped):
         assert stopped_by(organization, connection) == stopped
@@ -198,7 +189,6 @@ class TestSettingOneUp:
         ("organization", "connection", "data", "field"),
         [
             (_organization(on=False), _connection(), {}, None),
-            (_organization(servers=["linear"]), _connection(), {}, "connection_id"),
             (_organization(floor=120), _connection(), {"interval_minutes": 60}, "interval_minutes"),
             (_organization(), _connection(), {"preset_key": "linear-assigned"}, "preset_key"),
             (_organization(), _connection(), {"preset_key": "nothing-like-it"}, "preset_key"),
@@ -209,7 +199,6 @@ class TestSettingOneUp:
         ],
         ids=[
             "watches-off",
-            "server-not-allowed",
             "too-often",
             "preset-for-another-server",
             "unknown-preset",
@@ -340,11 +329,17 @@ class TestListingThem:
                 f"{SERVICE}.mcp_connection_repo.get_by_id",
                 new=AsyncMock(side_effect=[connection, None]),
             ),
+            patch(
+                f"{SERVICE}.suggestion_repo.open_findings_by_watch",
+                new=AsyncMock(return_value={kept.id: 3}),
+            ) as waiting,
         ):
             reads = await WatchService(MagicMock()).list_mine(_ctx())
 
+        assert waiting.await_args.kwargs["watch_ids"] == [kept.id, orphan.id]
         assert [read.id for read in reads] == [kept.id]
         assert reads[0].stopped == "connection_disabled"
+        assert reads[0].waiting == 3
 
 
 class TestOneLook:
@@ -495,7 +490,6 @@ class TestOneLook:
             "gone",
             "paused",
             "watches-off",
-            "server-not-allowed",
             "left-the-organization",
             "no-account",
             "credential-dead",
@@ -506,7 +500,6 @@ class TestOneLook:
         watch = None if case == "gone" else _watch(is_active=case != "paused")
         organization = {
             "watches-off": _organization(on=False),
-            "server-not-allowed": _organization(servers=["linear"]),
         }.get(case)
         think = AsyncMock()
         with ExitStack() as stack:

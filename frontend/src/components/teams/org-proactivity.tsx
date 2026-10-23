@@ -26,7 +26,6 @@ import { cn } from "@/lib/utils";
 import { WATCH_INTERVALS, cadenceLabel } from "@/lib/watch-cadence";
 import type { Organization, ProactiveTiming } from "@/types";
 import { Perm } from "@/types/permissions";
-import { WatchServerPicker } from "./watch-server-picker";
 
 /** The fields the server names in a refusal, so a message lands under its input. */
 const MODEL_FIELD = "proactive_model_profile_id";
@@ -47,7 +46,6 @@ interface Proactivity {
   hour: number;
   timing: ProactiveTiming;
   watches: boolean;
-  watchServers: string[] | null;
   watchMinutes: number;
 }
 
@@ -61,7 +59,6 @@ function stored(org: Organization): Proactivity {
     hour: org.proactive_hour ?? 5,
     timing: org.proactive_timing ?? "fixed",
     watches: org.proactive_watches_enabled ?? false,
-    watchServers: org.proactive_watch_servers ?? null,
     watchMinutes: org.proactive_watch_min_minutes ?? 60,
   };
 }
@@ -131,7 +128,6 @@ function NightlyForm({ org }: { org: Organization }) {
         proactive_hour: form.hour,
         proactive_timing: form.timing,
         proactive_watches_enabled: form.watches,
-        proactive_watch_servers: form.watchServers,
         proactive_watch_min_minutes: form.watchMinutes,
       });
       toast.success(form.enabled || form.watches ? t("saved") : t("off"));
@@ -289,12 +285,7 @@ function NightlyForm({ org }: { org: Organization }) {
         </div>
       )}
       {form.watches && (
-        <WatchPolicy
-          minutes={form.watchMinutes}
-          servers={form.watchServers}
-          disabled={saving}
-          onChange={edit}
-        />
+        <WatchPolicy minutes={form.watchMinutes} disabled={saving} onChange={edit} />
       )}
       {changed && (
         <Button onClick={save} disabled={saving}>
@@ -305,15 +296,13 @@ function NightlyForm({ org }: { org: Organization }) {
   );
 }
 
-/** How often a watch may run at most here, and which servers it may read. */
+/** How often a watch may run at most here; any server a person connected may be watched. */
 function WatchPolicy({
   minutes,
-  servers,
   disabled,
   onChange,
 }: {
   minutes: number;
-  servers: string[] | null;
   disabled: boolean;
   onChange: (next: Partial<Proactivity>) => void;
 }) {
@@ -343,17 +332,6 @@ function WatchPolicy({
           </SelectContent>
         </Select>
       </FormField>
-      <div className="space-y-2 sm:col-span-2">
-        <p id="org-watch-servers" className="text-sm font-medium">
-          {t("watchServers")}
-        </p>
-        <WatchServerPicker
-          labelledBy="org-watch-servers"
-          value={servers}
-          disabled={disabled}
-          onChange={(watchServers) => onChange({ watchServers })}
-        />
-      </div>
     </div>
   );
 }
