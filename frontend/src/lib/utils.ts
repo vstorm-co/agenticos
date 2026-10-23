@@ -124,12 +124,16 @@ export function formatDateTime(date: Date | string, locale: string): string {
  * both rest on that distinction, so an unfinished run reads as unknown here and
  * never as zero.
  */
-export function formatRunDuration(startedAt: string | null, endedAt: string | null): string {
+export function formatRunDuration(
+  startedAt: string | null,
+  endedAt: string | null,
+  locale: string,
+): string {
   if (!startedAt || !endedAt) return "-";
   const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
   if (Number.isNaN(ms) || ms < 0) return "-";
   if (ms < 1000) return `${Math.round(ms)} ms`;
-  return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
+  return `${(ms / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
 }
 
 export function truncate(str: string, maxLength: number): string {

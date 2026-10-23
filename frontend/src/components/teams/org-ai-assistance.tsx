@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
 import { SettingsSection } from "@/components/settings/settings-section";
+import { AI_ASSISTANCE_ANCHOR } from "@/components/teams/enable-ai-assistance-link";
 import { Switch } from "@/components/ui";
 import { useOrganizations, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
@@ -43,18 +44,20 @@ function AiAssistanceSwitch({ org }: { org: Organization }) {
   };
 
   return (
-    <SettingsSection title={t("aiAssistance")} description={t("aiAssistanceDescription")}>
-      <label className="flex items-start gap-3">
-        <Switch
-          checked={org.ai_assistance_enabled}
-          disabled={saving}
-          onCheckedChange={(next) => void handleChange(next)}
-          aria-label={t("aiAssistance")}
-        />
-        <span className="text-muted-foreground text-xs leading-relaxed">
-          {t("aiAssistanceHint")}
-        </span>
-      </label>
-    </SettingsSection>
+    <div id={AI_ASSISTANCE_ANCHOR} data-tour={AI_ASSISTANCE_ANCHOR}>
+      <SettingsSection title={t("aiAssistance")} description={t("aiAssistanceDescription")}>
+        <label className="flex items-start gap-3">
+          <Switch
+            checked={org.ai_assistance_enabled}
+            disabled={saving}
+            onCheckedChange={(next) => void handleChange(next)}
+            aria-label={t("aiAssistance")}
+          />
+          <span className="text-muted-foreground text-xs leading-relaxed">
+            {t("aiAssistanceHint")}
+          </span>
+        </label>
+      </SettingsSection>
+    </div>
   );
 }
