@@ -1,5 +1,5 @@
 ---
-source_sha: "ed99ff543d6e"
+source_sha: "2e02221984a4"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -25,9 +25,12 @@ La pestaña **Evals** de un agent se abre con un gráfico de líneas de su tasa 
 aprobados run a run, el más antiguo a la izquierda, una línea por dataset, cada
 una con su propio trazo. Un punto es rojo donde el run rompió casos, verde donde
 los arregló, ámbar donde hizo ambas cosas y hueco para un borrador; al pasar el
-cursor dice qué se ejecutó, frente a qué y cuándo, y un clic abre el run. El
-gráfico se abre con los últimos 12 runs; arrastra los tiradores del rango de
-debajo, o muévelos con las flechas, para ver más o menos.
+cursor dice qué se ejecutó, frente a qué y cuándo, y un clic abre el run.
+
+El eje nombra cada punto por lo que se ejecutó y cuándo: la hora para un run de
+hoy, la fecha para los anteriores. Con más de 12 runs aparece un rango debajo
+del gráfico, que se abre con los últimos 12; arrastra sus tiradores, o muévelos
+con las flechas, para ver más o menos.
 
 Debajo están sus runs, agrupados por dataset, cada uno indicando qué se probó
 frente a qué, su veredicto (Breaks 2, Worse overall · 4 broke, First result,
@@ -399,13 +402,13 @@ el baseline se ejecuta en el primer modelo indicado y cada brazo se compara con
 
 ## Suites { #suites }
 
-Una **suite** es un eval run que nadie tiene que acordarse de iniciar. Nombra
-el agent, el dataset, el entorno cuya versión comprueba y un umbral que debe
-cumplir cada resultado, y se ejecuta sola. La tarjeta **Suites** encabeza la
-pestaña Evals de un agent: el dataset de cada suite, cuándo se ejecuta y cómo
-le fue la última vez. Al abrir una se listan todos sus resultados, por qué no
-pasaron, los casos que se rompieron y un enlace al eval run detrás; la página
-de ese run nombra la suite que lo inició.
+Una **suite** es un eval run que nadie tiene que acordarse de iniciar. Nombra el
+agent, el dataset, el entorno cuya versión comprueba y un umbral que debe
+cumplir cada resultado, y se ejecuta sola. La tarjeta **Suites** está debajo de
+los runs en la pestaña Evals de un agent: el dataset de cada suite, cuándo se
+ejecuta, su umbral y cómo le fue la última vez. Al abrir una se listan todos sus
+resultados, por qué no pasaron, los casos que se rompieron y un enlace al eval
+run detrás; la página de ese run nombra la suite que lo inició.
 
 ### Cuándo se ejecuta una suite { #when-a-suite-runs }
 

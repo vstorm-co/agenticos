@@ -19,10 +19,8 @@ export interface PassRatePoint {
   index: number;
   /** 0..1. */
   rate: number;
-  /** What ran, as short as the axis has room for: "v7", "D". */
+  /** What ran and when, as short as the axis has room for: "v7 · 07:55", "Draft · Oct 21". */
   tick: string;
-  /** When the run started, in the reader's words - shown only while the range is dragged. */
-  when: string;
   /** A draft is drawn hollow: it is not a version anyone is talking to. */
   draft: boolean;
   /** The point's own colour - the verdict's, or the line's when there is none. */
@@ -47,7 +45,6 @@ export interface PassRateLine {
 interface Row {
   index: number;
   tick: string;
-  when: string;
   point: PassRatePoint;
   [line: string]: number | string | PassRatePoint;
 }
@@ -61,7 +58,6 @@ function rows(lines: PassRateLine[]): Row[] {
       line.points.map((point) => ({
         index: point.index,
         tick: point.tick,
-        when: point.when,
         point,
         [line.key]: point.rate,
       })),
@@ -86,10 +82,10 @@ function PointTip({ active, payload }: { active?: boolean; payload?: { payload: 
 
 /**
  * Pass rate by run, one line per series, each point in its verdict's colour
- * and opening its run, over a range a person drags to widen or narrow - the
- * newest `recent` runs to begin with. Split out so pages don't statically
- * import recharts; colours are CSS variables because recharts renders raw SVG,
- * which Tailwind cannot reach.
+ * and opening its run. Given `recent`, over a range a person drags to widen or
+ * narrow - the newest `recent` runs to begin with; without it, every run. Split
+ * out so pages don't statically import recharts; colours are CSS variables
+ * because recharts renders raw SVG, which Tailwind cannot reach.
  */
 export function PassRateLinesImpl({
   lines,
@@ -97,7 +93,7 @@ export function PassRateLinesImpl({
   rangeLabel,
 }: {
   lines: PassRateLine[];
-  recent: number;
+  recent: number | null;
   rangeLabel: string;
 }) {
   const router = useRouter();
@@ -167,11 +163,14 @@ export function PassRateLinesImpl({
             activeDot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 7)}
           />
         ))}
-        {data.length > 1 && (
+        {recent !== null && (
           <Brush
-            dataKey="when"
+            dataKey="tick"
             height={28}
             travellerWidth={10}
+            // Recharts draws these labels outside the handles, where the chart's
+            // edge cuts them off; the axis above already names the runs in range.
+            tickFormatter={() => ""}
             startIndex={Math.max(0, data.length - recent)}
             endIndex={data.length - 1}
             stroke="oklch(from var(--color-foreground) l c h / 0.3)"

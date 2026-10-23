@@ -23,9 +23,11 @@ An agent's **Evals** tab opens on a line chart of its pass rate run by run,
 oldest on the left, a line per dataset, each with its own dash. A point is red
 where the run broke cases, green where it fixed them, amber where it did both,
 and hollow for a draft; hovering it says what ran, against what and when, and
-clicking it opens the run. The chart starts on the last 12 runs; drag the
-handles of the range under it, or move them with the arrow keys, to see more or
-fewer.
+clicking it opens the run.
+
+The axis names each point by what ran and when - the time for a run today, the
+date before. Past 12 runs a range appears under the chart, starting on the last
+12; drag its handles, or move them with the arrow keys, to see more or fewer.
 
 Below it are its runs, grouped by dataset, each naming what was tested against
 what, its verdict (Breaks 2, Worse overall · 4 broke, First result, Pending) and
@@ -376,11 +378,11 @@ first model named, and every arm is compared with it.
 
 A **suite** is an eval run nobody has to remember to start. It names the
 agent, the dataset, the environment whose version it checks and a threshold
-every result must meet, and it runs on its own. The **Suites** card heads an
-agent's Evals tab: each suite's dataset, when it runs and how it last came
-out. Opening one lists every result, why it fell short, the cases that broke
-and a link to the eval run behind it; that run's page names the suite that
-started it.
+every result must meet, and it runs on its own. The **Suites** card sits under
+the runs on an agent's Evals tab: each suite's dataset, when it runs, its
+threshold and how it last came out. Opening one lists every result, why it fell
+short, the cases that broke and a link to the eval run behind it; that run's
+page names the suite that started it.
 
 ### When a suite runs { #when-a-suite-runs }
 
