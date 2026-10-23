@@ -98,6 +98,9 @@ class TestTheKey:
             _pem(rsa.generate_private_key(public_exponent=65537, key_size=2048)),
             _pem(ec.generate_private_key(ec.SECP384R1())),
         ],
+        # The keys are generated at collection, so their text cannot be the test ids:
+        # each xdist worker would collect a different name and the run would stop.
+        ids=["not-a-key", "rsa-2048", "ec-p384"],
     )
     def test_anything_else_is_refused(self, pem: str) -> None:
         with pytest.raises(BadRequestError):
