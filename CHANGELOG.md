@@ -36,7 +36,9 @@ Two things are versioned separately from this file and worth knowing about:
   an agent, an inline specialist or a pinned delegate without a sandbox
   connection to run it in. An approved
   batch runs only on a screen still the shape it was approved against, and
-  `max_actions` counts across approvals. The model's screenshots are not
+  `max_actions` counts across approvals; each run, and each delegation
+  to the same delegate, starts a session of its own, and a batch is refused
+  after a screenshot fails until one succeeds. The model's screenshots are not
   kept: a parked run, its manifest and a compacted conversation hold a
   sentence in their place, and the file each is taken through is removed from
   the sandbox or the daemon's host once read. The chat draws the desktop live in a window under

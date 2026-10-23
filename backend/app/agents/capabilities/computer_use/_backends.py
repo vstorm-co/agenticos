@@ -222,7 +222,9 @@ def check_daemon_url(url: str) -> None:
     try:
         _ = parsed.port
     except ValueError as exc:
-        raise UrlRefusedError(f"The daemon_url has an invalid port: {exc}") from exc
+        # Not `exc`'s text: it quotes the port as given, which may be a secret
+        # pasted after a colon.
+        raise UrlRefusedError("The daemon_url's port must be a number from 0 to 65535") from exc
     allowed = {host.strip().lower() for host in settings.COMPUTER_DAEMON_ALLOWED_HOSTS}
     if parsed.hostname.lower() not in allowed:
         raise UrlRefusedError(

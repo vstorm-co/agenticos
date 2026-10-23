@@ -121,9 +121,9 @@ class ToolPolicy:
 class _Session:
     """What the tools share within one run: the desktop, and what was last shown.
 
-    The capability is assembled per run, so this is per run too - a resumed run
-    starts a new one and opens the desktop again, which in the sandbox is the
-    same desktop the run before it left. What it must not forget across that,
+    One per run, delegations included (:meth:`ComputerToolset.for_run`) - a
+    resumed run starts a new one and opens the desktop again, which in the
+    sandbox is the same desktop the run before it left. What it must not forget across that,
     the actions already taken and the screenshot last shown, it recalls from the
     history (:meth:`recall`).
     """
@@ -205,11 +205,21 @@ class ComputerToolset(FunctionToolset[Any]):
     `BrowserToolset`'s are, because nothing promises a toolset is entered once.
     """
 
-    def __init__(self, session: _Session) -> None:
+    def __init__(self, session: _Session, policy: ToolPolicy) -> None:
         # Sequential: two batches at once would click over each other on one screen.
         super().__init__(sequential=True)
         self.session = session
+        self._policy = policy
         self._entered = 0
+
+    async def for_run(self, ctx: RunContext[Any]) -> ComputerToolset:
+        """A session of its own for each run.
+
+        A delegate's built agent is cached and run once per delegation, so one
+        shared session would hand a delegation the screenshot, the action count
+        and the live window of the one before it - or of one running beside it.
+        """
+        return build_toolset(self.session.factory, self._policy)
 
     async def __aenter__(self) -> ComputerToolset:
         self._entered += 1
@@ -269,6 +279,10 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
 
     async def look(ctx: RunContext[Any], computer: Computer) -> tuple[bytes, Screen, str]:
         """Capture the screen, draw it in the run's window, and say which window that is."""
+        # Forgotten before the capture, not replaced after it: if it fails - often
+        # right after actions that changed the screen - the next batch is refused
+        # until a screenshot succeeds, rather than aimed by the one before.
+        session.screen = session.seen = None
         capture = await computer.capture()
         image, screen = await anyio.to_thread.run_sync(
             fit, capture, policy.max_width, policy.max_height
@@ -502,7 +516,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
             done += 1
         return done, None
 
-    toolset = ComputerToolset(session)
+    toolset = ComputerToolset(session, policy)
     toolset.add_function(computer_screenshot, takes_ctx=True)
     toolset.add_function(computer_act, takes_ctx=True)
     toolset.add_function(computer_save_screenshot, takes_ctx=True)

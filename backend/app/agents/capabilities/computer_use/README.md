@@ -110,6 +110,9 @@ action carries at most 2000 characters.
 - An approval bound to the pixels. A resumed batch is refused on a screen of
   another shape, but a desktop is never the same twice - a clock, a cursor, a
   notification - so the same shape with different contents still runs.
+- Two runs on one desktop at once. Each run has a session of its own,
+  delegations included, but a daemon, or a sandbox shared with delegates, is
+  one screen, and nothing queues one run's clicks behind another's.
 - A cloud desktop. A cloud sandbox provider (E2B, for one) would arrive as a
   sandbox connection kind, and its desktop would come with it.
 - A sandbox desktop is not hidden from the shell: an agent with `execute` can

@@ -723,6 +723,70 @@ class TestTheTools:
         assert desktop.captures == 0
 
     @pytest.mark.security
+    @pytest.mark.parametrize("failed", ["looking", "after-acting"])
+    async def test_a_screenshot_that_failed_leaves_no_screen_to_act_on(self, failed: str):
+        """The last screenshot shown stops counting once a capture is tried and fails.
+
+        Points chosen on it would be aimed at whatever the failed capture would
+        have shown - after a batch, a screen that batch changed.
+        """
+        desktop = _Desktop()
+        tools = _tools(desktop)
+        ctx = _ctx(retries=1)
+        await tools["computer_screenshot"](ctx)
+        desktop.blind = True
+        if failed == "looking":
+            await tools["computer_screenshot"](ctx)
+        else:
+            await tools["computer_act"](ctx, [Click(x=10, y=10)])
+        desktop.blind = False
+        performed = len(desktop.performed)
+
+        with pytest.raises(ModelRetry, match="Take a screenshot with `computer_screenshot` first"):
+            await tools["computer_act"](ctx, [Click(x=10, y=10)])
+        assert len(desktop.performed) == performed
+
+    @pytest.mark.security
+    async def test_every_run_of_one_built_agent_has_a_session_of_its_own(self):
+        """A delegate's agent is built once per parent run and run for each delegation.
+
+        The second run was shown no screenshot, so its points are refused rather
+        than aimed by the first run's, and it starts its action count at zero.
+        """
+        desktop = _Desktop()
+        script = [
+            [ToolCallPart("computer_screenshot", {})],
+            [ToolCallPart("computer_act", {"actions": [{"action": "click", "x": 10, "y": 10}]})],
+            [TextPart("first done")],
+            [ToolCallPart("computer_act", {"actions": [{"action": "click", "x": 10, "y": 10}]})],
+            [TextPart("second done")],
+        ]
+
+        async def factory(workspace: Workspace) -> Any:
+            return desktop
+
+        def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            return ModelResponse(parts=script.pop(0))
+
+        agent = Agent(
+            FunctionModel(model),
+            deps_type=AgentDeps,
+            capabilities=[ComputerUse(factory=factory, policy=ToolPolicy(max_actions=1))],
+        )
+        await agent.run("first", deps=AgentDeps(run_id=uuid4()))
+        second = await agent.run("second", deps=AgentDeps(run_id=uuid4()))
+
+        assert len(desktop.performed) == 1
+        refused = [
+            part.model_response()
+            for message in second.new_messages()
+            for part in getattr(message, "parts", [])
+            if part.part_kind == "retry-prompt"
+        ]
+        assert len(refused) == 1
+        assert "Take a screenshot with `computer_screenshot` first" in refused[0]
+
+    @pytest.mark.security
     async def test_a_resumed_batch_off_the_screen_is_still_refused(self):
         desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
         answer = await _tools(desktop)["computer_act"](
@@ -1184,7 +1248,7 @@ class TestTheDaemonAllowlist:
         [
             ("", "needs a daemon_url"),
             ("ftp://desk.internal", "http or https URL"),
-            ("http://desk.internal:99999", "invalid port"),
+            ("http://desk.internal:99999", "port must be a number"),
             ("http://desk.internal:8765?x=1", "no query or fragment"),
             ("http://desk.internal:8765/#top", "no query or fragment"),
             ("http://desk.internal:8765?", "no query or fragment"),
@@ -1202,6 +1266,18 @@ class TestTheDaemonAllowlist:
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", ["desk.internal"])
         with pytest.raises(UrlRefusedError, match=message):
             validate_daemon_url(ComputerUseConfig(desktop="daemon", daemon_url=url))
+
+    @pytest.mark.security
+    def test_a_secret_pasted_as_the_port_is_not_repeated(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", ["desk.internal"])
+        with pytest.raises(UrlRefusedError) as refused:
+            validate_daemon_url(
+                ComputerUseConfig(
+                    desktop="daemon", daemon_url="http://desk.internal:client_secret=sh-key"
+                )
+            )
+        assert "sh-key" not in str(refused.value)
+        assert "port must be a number" in str(refused.value)
 
     def test_the_sandbox_has_no_url_to_check(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [])
