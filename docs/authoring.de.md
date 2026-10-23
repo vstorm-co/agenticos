@@ -1,5 +1,5 @@
 ---
-source_sha: "0bce8e124ea1"
+source_sha: "5821f497cd86"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -205,9 +205,12 @@ wie vielen Runs.
 Ein Modellwechsel wird erst angenommen, wenn er sich bewährt hat. **Annehmen**
 bleibt deaktiviert und sagt warum, bis eine [Prüfung mit Evals](#check-with-evals)
 der wartenden Vorschläge auf diesem Modell gelaufen ist und keine bestätigte
-Regression gefunden hat. Eine Prüfung, die nichts entschieden hat - eine
-unbewertete Antwort oder kein Urteil -, hält ihn ebenfalls zurück: Bewerten Sie
-die Antworten oder starten Sie die Prüfung erneut.
+Regression gefunden hat. Eine Prüfung, die einen Fall unentschieden ließ -
+nichts hat ihn bewertet, oder der Provider oder ein Bewerter ist daran
+gescheitert - oder zu keinem Urteil kam, hält ihn ebenfalls zurück: Bewerten Sie
+die Antworten oder starten Sie die Prüfung erneut. Ebenso eine Prüfung, in der
+der Agent abgestürzt ist: Beheben Sie, was gescheitert ist, und starten Sie sie
+erneut.
 
 ## Skills { #skills }
 

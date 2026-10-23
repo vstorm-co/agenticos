@@ -24,13 +24,20 @@ def _run(
     verdict: str | None = "better",
     regressions: int = 0,
     ungraded: int = 0,
+    incomplete: int = 0,
+    crashed: int = 0,
     outcome: bool = True,
 ) -> Any:
+    decided = SimpleNamespace(incomplete=0, ungraded=0, crashed=0)
     return SimpleNamespace(
         status=status,
         arms=[
-            SimpleNamespace(id=uuid.uuid4(), role=ArmRole.BASELINE, ungraded_cases=[]),
-            SimpleNamespace(id=uuid.uuid4(), role=ArmRole.CANDIDATE, ungraded_cases=[1] * ungraded),
+            SimpleNamespace(id=uuid.uuid4(), role=ArmRole.BASELINE, summary=decided),
+            SimpleNamespace(
+                id=uuid.uuid4(),
+                role=ArmRole.CANDIDATE,
+                summary=SimpleNamespace(incomplete=incomplete, ungraded=ungraded, crashed=crashed),
+            ),
         ],
         outcome=SimpleNamespace(verdict=verdict, regressions_confirmed=regressions)
         if outcome
@@ -70,6 +77,9 @@ async def _gate(monkeypatch, mock_db_session, runs: list[Any], *, model: str = M
         (_run(verdict="invalid"), "inconclusive"),
         (_run(verdict=None), "inconclusive"),
         (_run(ungraded=2), "inconclusive"),
+        (_run(incomplete=1), "inconclusive"),
+        (_run(crashed=1), "crashed"),
+        (_run(regressions=1, ungraded=2), "regression"),
         (_run(outcome=False), "inconclusive"),
     ],
 )

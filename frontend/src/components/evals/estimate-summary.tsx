@@ -33,6 +33,13 @@ export function graders(
   return list.format(parts);
 }
 
+/** Said before a run starts when some of its cases have nothing to grade them. */
+export function UngradedWarning({ count }: { count: number }) {
+  const t = useTranslations("evals.estimate");
+  if (count === 0) return null;
+  return <p className="text-warning text-xs">{t("ungraded", { count })}</p>;
+}
+
 function ArmLine({
   arm,
   agentId,
@@ -135,6 +142,7 @@ export function EstimateSummary({
           {t("judgeSameModel", { model: judgedOwnModel.model_label })}
         </p>
       )}
+      <UngradedWarning count={estimate.ungraded_cases} />
       {!estimate.affordable && <p className="text-destructive text-xs">{t("unaffordable")}</p>}
     </div>
   );

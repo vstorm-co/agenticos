@@ -20,6 +20,8 @@ ThresholdReasonCode = Literal[
     "p95_rise",
     "invalid_comparison",
     "ungraded",
+    "incomplete",
+    "crashed",
 ]
 
 

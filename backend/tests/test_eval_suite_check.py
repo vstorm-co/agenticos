@@ -36,9 +36,8 @@ def _run(status: EvalRunStatus) -> SimpleNamespace:
 
 
 def _read(*, ungraded: int) -> SimpleNamespace:
-    candidate = SimpleNamespace(
-        role=ArmRole.CANDIDATE, summary=_summary(), ungraded_cases=[object()] * ungraded
-    )
+    summary = _summary(passed=10 - ungraded, ungraded=ungraded)
+    candidate = SimpleNamespace(role=ArmRole.CANDIDATE, summary=summary)
     baseline = SimpleNamespace(role=ArmRole.BASELINE)
     return SimpleNamespace(arms=[baseline, candidate])
 

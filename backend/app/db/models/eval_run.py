@@ -107,6 +107,18 @@ class CaseAttemptStatus(StrEnum):
     """Never started - the run was cancelled or ran out of budget first."""
 
 
+class AttemptFault(StrEnum):
+    """Whose failure a failed attempt was, which decides whether it counts against the agent."""
+
+    AGENT = "agent"
+    """The agent's own: a tool raised, it hit its step limit, it looped, a guardrail
+    stopped it. The case failed."""
+
+    INFRASTRUCTURE = "infrastructure"
+    """Somebody else's: the provider failed after its retries, a scorer raised, the
+    run was cancelled or ran out of budget. The case is incomplete, not failed."""
+
+
 class EvalRun(Base):
     """One run of an agent over one dataset version."""
 
@@ -336,11 +348,14 @@ class EvalRunCase(Base):
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set on a failed attempt only; one without it reads as the infrastructure's.
+    fault: Mapped[str | None] = mapped_column(String(16), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("arm_id", "case_id", "attempt", name="uq_eval_run_case_attempt"),
+        CheckConstraint("fault IN ('agent', 'infrastructure')", name="ck_eval_run_case_fault"),
         CheckConstraint("attempt >= 0", name="ck_eval_run_case_attempt"),
         CheckConstraint(
             "status IN ('pending', 'running', 'done', 'failed', 'skipped')",

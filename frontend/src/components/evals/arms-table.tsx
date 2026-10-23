@@ -100,7 +100,9 @@ export function ArmsTable({
                     <SideLabel agentId={agentId} arm={arm} baseline={baseline} check={check} />
                   </td>
                   <td className="py-2 pr-3">{percent(summary?.pass_rate ?? null, locale)}</td>
-                  <td className="py-2 pr-3">{summary?.incomplete ?? "—"}</td>
+                  <td className="py-2 pr-3">
+                    {summary === undefined ? "—" : summary.incomplete + summary.ungraded}
+                  </td>
                   <td className="py-2 pr-3">{usd(summary?.cost_per_pass_usd ?? null, locale)}</td>
                   <td className="py-2 pr-3">
                     {summary === undefined || summary.avg_tokens === null

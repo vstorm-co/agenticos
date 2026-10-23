@@ -17,6 +17,12 @@ export type ArmSource = "version" | "draft" | "explicit";
 export type AttemptStatus = "pending" | "running" | "done" | "failed" | "skipped";
 export type CallOutcome = "executed" | "blocked" | "replayed" | "divergent";
 export type Flip = "regression" | "fixed" | "unchanged" | "incomplete";
+/**
+ * How one attempt came out: `failed` includes a run the agent crashed;
+ * `incomplete` is one the provider or a scorer failed on, or that never ran;
+ * `ungraded` is an answer nothing grades.
+ */
+export type CaseState = "passed" | "failed" | "incomplete" | "ungraded";
 export type Verdict = "better" | "worse" | "mixed" | "no_difference" | "invalid";
 /** Which way the candidate moved as a whole, when the confirmed flips can tell. */
 export type Overall = "better" | "worse";
@@ -83,14 +89,22 @@ export interface EvalRunEstimate {
   agent_after_usd: string | null;
   org_after_usd: string | null;
   affordable: boolean;
+  /** Cases nothing in the dataset's scoring would grade; any makes the result inconclusive. */
+  ungraded_cases: number;
 }
 
 /** Both axes for one arm: quality as each case settled on its attempts, efficiency over first ones. */
 export interface ArmSummary {
   cases: number;
   passed: number;
+  /** A case the agent crashed on included. */
   failed: number;
+  /** Undecided because the provider, a scorer or the run failed on them, or their tries tied. */
   incomplete: number;
+  /** Undecided because nothing in the scoring grades them. */
+  ungraded: number;
+  /** First answers the agent's run failed before giving; each fails a suite even when its reruns pass. */
+  crashed: number;
   /** Each case settled by the majority of its attempts - its first alone when it was not rerun. */
   pass_rate: number | null;
   /** The first attempts alone, reruns aside. */
@@ -124,6 +138,8 @@ export interface EvalRunArm {
   ungraded_cases: { case_id: string; input: string }[];
   /** This side's failed first answers not yet waiting for review. */
   unsent_failed: number;
+  /** The error every first answer of this side failed with, when they all failed with one. */
+  failed_alike: string | null;
 }
 
 /**
@@ -142,6 +158,8 @@ export interface EvalOutcome {
   baseline_pass_rate: number | null;
   candidate_first_pass_rate: number | null;
   baseline_first_pass_rate: number | null;
+  /** The candidate's cases neither passed nor failed. */
+  candidate_undecided: number;
 }
 
 export interface EvalRun {
@@ -226,6 +244,7 @@ export interface EvalAttempt {
   latency_ms: number | null;
   error: string | null;
   outcome: boolean | null;
+  state: CaseState;
   score: CaseScore | null;
 }
 
@@ -267,6 +286,8 @@ export interface CaseFlip {
   baseline_reruns: (boolean | null)[];
   candidate_reruns: (boolean | null)[];
   tags: string[];
+  /** Why the candidate's first answer failed, when its run crashed rather than answered. */
+  candidate_error: string | null;
 }
 
 export interface Efficiency {

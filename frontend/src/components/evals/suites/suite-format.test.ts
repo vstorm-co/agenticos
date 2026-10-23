@@ -111,6 +111,8 @@ describe("reasonText", () => {
     expect(say("p95_rise", 1, 0.5)).toBe("reason.p95Rise(100%,50%)");
     expect(say("invalid_comparison")).toBe("reason.invalid");
     expect(say("ungraded", 2)).toBe("reason.ungraded(2)");
+    expect(say("incomplete", 1)).toBe("reason.incomplete(1)");
+    expect(say("crashed", 3)).toBe("reason.crashed(3)");
     expect(
       reasonText({ code: "regressions", value: null, limit: null, detail: null }, t, "en"),
     ).toBe("reason.regressions(0,0)");

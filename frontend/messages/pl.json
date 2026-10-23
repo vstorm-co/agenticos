@@ -8206,7 +8206,8 @@
         "judge": "{name}",
         "judgeRubric": "{name} według kryteriów: {criteria}"
       },
-      "judgeSameModel": "Sędzia ocenia na {model}, tym samym modelu, który jest testowany, i może faworyzować odpowiedzi podobne do swoich. Daj sędziemu inny model na jego stronie."
+      "judgeSameModel": "Sędzia ocenia na {model}, tym samym modelu, który jest testowany, i może faworyzować odpowiedzi podobne do swoich. Daj sędziemu inny model na jego stronie.",
+      "ungraded": "{count, plural, one {# przypadek nie ma czym go ocenić.} few {# przypadki nie mają czym ich ocenić.} many {# przypadków nie ma czym ich ocenić.} other {# przypadku nie ma czym ocenić.}} Wynik będzie nierozstrzygnięty."
     },
     "runFor": "Uruchom za {amount}",
     "runTitle": "{dataset} v{version} · {candidate}",
@@ -8279,7 +8280,9 @@
         "worse": "Psuje przypadki",
         "no_difference": "Brak powtarzalnej zmiany",
         "invalid": "Nieporównywalne",
-        "mixed": "Mieszany"
+        "mixed": "Mieszany",
+        "inconclusive": "Nierozstrzygnięty",
+        "failedAlike": "Nie udało się uruchomić"
       },
       "regressionsConfirmed": "Potwierdzone regresje",
       "regressionsUnconfirmed": "Niepotwierdzone regresje",
@@ -8335,7 +8338,8 @@
       "flip": {
         "regression": "{confirmed, select, true {Potwierdzona regresja} other {Regresja, niepotwierdzona}}",
         "fixed": "{confirmed, select, true {Potwierdzona naprawa} other {Naprawione, niepotwierdzone}}",
-        "incomplete": "Bez oceny na {side}"
+        "incomplete": "Bez oceny na {side}",
+        "crashed": "{confirmed, select, true {Zepsute: agent się wysypał} other {Zepsute raz: agent się wysypał}}"
       },
       "dot": "{side}: {state, select, passed {zaliczony} failed {niezaliczony} undecided {nierozstrzygnięty} incomplete {nieukończony} other {oczekuje}}",
       "brokenFirst": "Widzisz pierwsze {count} z {total, plural, one {# przypadku} few {# przypadków} many {# przypadków} other {# przypadku}}, które się zepsuły.",
@@ -8379,16 +8383,18 @@
     "runCount": "{count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
     "sideModel": "{name} · {model}",
     "headline": {
-      "first": "To pierwszy wynik {candidate} na datasecie {dataset}: zalicza {rate} przypadków. Kolejne wersje będą z nim porównywane.",
+      "first": "To pierwszy wynik {candidate} na datasecie {dataset}: zalicza {rate} rozstrzygniętych przypadków{undecided, plural, =0 {} other {, a # z {cases} pozostaje nierozstrzygniętych}}. Kolejne wersje będą z nim porównywane.",
       "worse": "{candidate} psuje {broke, plural, one {# przypadek, który przechodził} few {# przypadki, które przechodziły} many {# przypadków, które przechodziły} other {# przypadku, które przechodziły}} na {baseline}, za każdym razem: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
       "better": "{candidate} naprawia {fixed, plural, one {# przypadek, który nie przechodził} few {# przypadki, które nie przechodziły} many {# przypadków, które nie przechodziły} other {# przypadku, które nie przechodziły}} na {baseline}, za każdym razem: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
       "no_difference": "Brak powtarzalnej zmiany: {changes, plural, =0 {{candidate} radzi sobie tak samo jak {baseline} na datasecie {dataset}.} one {# przypadek zmienił się raz, a przy ponownym pytaniu wypadł inaczej, więc żadna różnica w odsetku zaliczeń między {candidate} a {baseline} na datasecie {dataset} nie jest powtarzalną zmianą.} few {# przypadki zmieniły się raz, a przy ponownym pytaniu wypadły inaczej, więc żadna różnica w odsetku zaliczeń między {candidate} a {baseline} na datasecie {dataset} nie jest powtarzalną zmianą.} many {# przypadków zmieniło się raz, a przy ponownym pytaniu wypadło inaczej, więc żadna różnica w odsetku zaliczeń między {candidate} a {baseline} na datasecie {dataset} nie jest powtarzalną zmianą.} other {# przypadku zmieniło się raz, a przy ponownym pytaniu wypadło inaczej, więc żadna różnica w odsetku zaliczeń między {candidate} a {baseline} na datasecie {dataset} nie jest powtarzalną zmianą.}}",
       "invalid": "{candidate} i {baseline} nie da się porównać: strony oceniał inny sędzia albo inna rubryka.",
       "mixed": "Mieszany: {candidate} psuje {broke, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} i naprawia {fixed} względem {baseline}, za każdym razem. Psuje: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
       "overall": "{overall, select, worse {Gorszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada gorzej niż {baseline}.} other {Lepszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada lepiej niż {baseline}.}}",
-      "passRate": "Zaliczone {from} → {to}, każdy przypadek tak, jak wypadła większość jego prób",
+      "passRate": "Zaliczone {from} → {to}, każdy przypadek tak, jak wypadła większość jego prób{undecided, plural, =0 {} other { · # z {cases} nierozstrzygniętych}}",
       "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}",
-      "unsteady": "Uruchom run ponownie albo przetestuj na stabilniejszym modelu: model, który za każdym razem odpowiada inaczej, nie potwierdzi żadnej zmiany."
+      "unsteady": "Uruchom run ponownie albo przetestuj na stabilniejszym modelu: model, który za każdym razem odpowiada inaczej, nie potwierdzi żadnej zmiany.",
+      "failedAlike": "Każdy przypadek zakończył się tym samym błędem, więc ten wynik nic nie mówi o odpowiedziach agenta. Popraw konfigurację i uruchom go ponownie: {error}",
+      "undecidedWhy": "Nierozstrzygnięty, dopóki każdy przypadek nie ma werdyktu: {ungraded, plural, =0 {} one {# nie ma czym go ocenić} few {# nie mają czym ich ocenić} many {# nie ma czym ich ocenić} other {# nie ma czym ich ocenić}}{both, select, true {, a } other {}}{incomplete, plural, =0 {} one {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} few {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} many {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} other {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis}}."
     },
     "live": {
       "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Przypadki, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
@@ -8430,12 +8436,13 @@
       "no_difference": "Brak powtarzalnej zmiany",
       "invalid": "Nieporównywalne",
       "mixed": "Mieszany · zepsute: {broke}, naprawione: {fixed}",
-      "overall": "{overall, select, worse {Gorszy ogólnie} other {Lepszy ogólnie}} · zepsute: {broke}, naprawione: {fixed}"
+      "overall": "{overall, select, worse {Gorszy ogólnie} other {Lepszy ogólnie}} · zepsute: {broke}, naprawione: {fixed}",
+      "inconclusive": "Nierozstrzygnięty"
     },
     "row": {
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
-      "rate": "{model} {rate}",
+      "rate": "{model} {rate}{undecided, plural, =0 {} one { · # nierozstrzygnięty} few { · # nierozstrzygnięte} many { · # nierozstrzygniętych} other { · # nierozstrzygniętego}}",
       "firstRate": "Same pierwsze odpowiedzi: {rate}"
     },
     "dataset": {
@@ -8537,7 +8544,8 @@
       "failing": {
         "regression": "Psuje się powtarzalnie: {input}",
         "failed": "Niezaliczony: {input}",
-        "ungraded": "Nieoceniony: {input}"
+        "ungraded": "Nieoceniony: {input}",
+        "incomplete": "Nierozstrzygnięty: {input}"
       },
       "reason": {
         "passRateBelow": "Odsetek zaliczonych {value} jest poniżej minimum {limit}.",
@@ -8546,7 +8554,9 @@
         "costRise": "Koszt na zaliczony przypadek wzrósł o {value}, ponad limit {limit}.",
         "p95Rise": "Opóźnienie p95 wzrosło o {value}, ponad limit {limit}.",
         "invalid": "Obie strony oceniono inaczej, więc nie da się ich porównać.",
-        "ungraded": "{count, plural, one {# przypadku} few {# przypadków} many {# przypadków} other {# przypadku}} nie udało się ocenić, więc suita nie może ręczyć za ten wynik."
+        "ungraded": "{count, plural, one {# przypadek nie ma czym go ocenić} few {# przypadki nie mają czym ich ocenić} many {# przypadków nie ma czym ich ocenić} other {# przypadku nie ma czym ocenić}}, więc suita nie może ręczyć za ten wynik.",
+        "incomplete": "{count, plural, one {# przypadku} few {# przypadków} many {# przypadków} other {# przypadku}} nie dało się rozstrzygnąć - zawiódł provider albo scorer - więc suita nie może ręczyć za ten wynik.",
+        "crashed": "Run agenta nie powiódł się na {count, plural, one {# przypadku} few {# przypadkach} many {# przypadkach} other {# przypadku}}; nieudany run oblewa suitę."
       },
       "skip": {
         "budget": "Kosztowałaby więcej, niż zostało w budżecie w tym miesiącu.",
@@ -9362,8 +9372,9 @@
       "expects": "Oczekiwany efekt: {effect}",
       "blocked": {
         "check_first": "Zmianę modelu przyjmuje się, gdy się opłaca. Najpierw uruchom Sprawdź w ewaluacji na tych sugestiach.",
-        "inconclusive": "Ostatnie sprawdzenie tego modelu niczego nie rozstrzygnęło. Oceń otwarte odpowiedzi albo uruchom je ponownie.",
-        "regression": "Ostatnie sprawdzenie tego modelu zepsuło przypadki, które wcześniej przechodziły. Popraw sugestie albo odrzuć tę."
+        "inconclusive": "Ostatnie sprawdzenie tego modelu zostawiło nierozstrzygnięte przypadki. Oceń otwarte odpowiedzi albo uruchom je ponownie.",
+        "regression": "Ostatnie sprawdzenie tego modelu zepsuło przypadki, które wcześniej przechodziły. Popraw sugestie albo odrzuć tę.",
+        "crashed": "Run agenta nie powiódł się na przypadkach w ostatnim sprawdzeniu tego modelu. Napraw to, co zawiodło, i uruchom sprawdzenie ponownie."
       }
     },
     "evidence": {

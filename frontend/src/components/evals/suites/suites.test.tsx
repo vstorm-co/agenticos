@@ -269,6 +269,7 @@ describe("SuiteResultsSheet", () => {
             { case_id: "c1", input: "Can I return it?", kind: "regression" },
             { case_id: "c2", input: "Where is it?", kind: "failed" },
             { case_id: "c3", input: "Who decides?", kind: "ungraded" },
+            { case_id: "c4", input: "Is it late?", kind: "incomplete" },
           ],
         }),
       }),
@@ -294,6 +295,7 @@ describe("SuiteResultsSheet", () => {
     expect(within(sheet).getByText("Breaks reproducibly: Can I return it?")).toBeInTheDocument();
     expect(within(sheet).getByText("Failed: Where is it?")).toBeInTheDocument();
     expect(within(sheet).getByText("Not graded: Who decides?")).toBeInTheDocument();
+    expect(within(sheet).getByText("Could not be decided: Is it late?")).toBeInTheDocument();
     expect(
       within(sheet).getByText(/Pass rate 50% over 4 cases · 1 confirmed regression/),
     ).toBeInTheDocument();
@@ -340,7 +342,12 @@ describe("SuiteFormDialog", () => {
   it("prices the suite once a dataset is chosen, and saves it", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     hooks.estimate = mutation({
-      data: { run: ESTIMATE, paired_run: ESTIMATE, fires_per_month: 30, monthly_usd: "6.00" },
+      data: {
+        run: { ...ESTIMATE, ungraded_cases: 2 },
+        paired_run: ESTIMATE,
+        fires_per_month: 30,
+        monthly_usd: "6.00",
+      },
     });
     const dialog = await openNew();
     expect(within(dialog).getByRole("button", { name: "Create suite" })).toBeDisabled();
@@ -358,6 +365,11 @@ describe("SuiteFormDialog", () => {
     });
     expect(within(dialog).getByText("One run: about $0.20 for 4 cases.")).toBeInTheDocument();
     expect(within(dialog).getByText(/previous version runs beside it/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "2 cases have nothing to grade them. The result will be inconclusive.",
+      ),
+    ).toBeInTheDocument();
     expect(
       within(dialog).getByText("The schedule: 30 runs in 30 days, about $6.00."),
     ).toBeInTheDocument();

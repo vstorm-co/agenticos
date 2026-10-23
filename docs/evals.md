@@ -162,6 +162,11 @@ A run that could not tell anybody anything is refused before it is estimated:
   instead;
 - a baseline for a first version, which has nothing before it.
 
+A version where only some cases have nothing to grade them still runs, and the
+estimate counts them first (`ungraded_cases`): the start dialog, a check of
+suggestions and a suite's dialog say "1 case has nothing to grade it. The
+result will be inconclusive."
+
 ### Checking suggestions { #checking-suggestions }
 
 The [authoring assistant](authoring.md#check-with-evals) starts eval runs to check
@@ -253,11 +258,31 @@ Each arm of the run is summarised on two axes, and per tag:
 
 | Axis | Measures |
 |---|---|
-| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many could not be decided |
+| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many were left undecided, and why |
 | Efficiency | Cost per passed case, tokens per case, and latency at p50 and p95 |
 
-A case whose required scorer could not run is **undecided**, never a pass. One
-the judge failed on or skipped is **not graded**: the run lists those scores as
+Every attempt comes out one of four ways (`state` on the attempt):
+
+- **passed** or **failed** on its grade;
+- **failed** too when the agent's run failed - a tool that raised, its step
+  limit, a loop, a guardrail, a request the provider refused - which fails a
+  suite outright, even when the case's reruns pass;
+- **incomplete** when the provider failed after its retries (an error 5xx, 408
+  or 429, or no answer at all), a scorer raised, the run was cancelled or ran
+  out of budget, or its tries tied;
+- **ungraded** when nothing grades the answer - no required scorer applies, or
+  only the judge could and AI assistance is off.
+
+Neither of the last two is ever a pass; the summary counts them apart
+(`incomplete`, `ungraded`).
+
+A run's header says "Pass rate 67% · 1 of 3 cases undecided" and calls the
+result inconclusive until every case is decided. A provider that rejects the
+credentials is named as such, and a side whose every answer failed with one
+error says so instead of a verdict. A case the agent crashed on where the
+baseline passed is a regression like any other, shown with its error.
+
+An answer the judge failed on or skipped is **not graded**: the run lists those scores as
 `ungraded_score_ids`, and grading them again
 (`POST /api/v1/datasets/{id}/scores/rescore`) reads the answer kept on the
 attempt rather than asking the agent. A person's verdict in the
@@ -438,8 +463,15 @@ efficiency: the rise in cost per passed case and in p95 latency against the
 baseline; left empty, they check nothing.
 
 A result whose comparison is [invalid](#a-different-judge-invalidates-the-comparison),
-or in which any case could not be graded, is **inconclusive** - never passed -
-unless something failed outright, and it names the cases nobody graded.
+or with any case left incomplete or ungraded, is **inconclusive** - never
+passed - unless something failed outright: a confirmed regression, or a
+minimum the pass rate misses even were every undecided case to pass. It names
+the cases left undecided.
+
+A case the agent crashed on is not undecided: it failed, and like a confirmed
+regression it fails the result outright, with or without a minimum or a
+baseline - fourteen crashes and one pass also read a pass rate of about 7%.
+
 Republishing the judge changes how answers are graded, so the next result of
 every suite it grades for is inconclusive once, and its owner is told. A pass
 rate below the minimum fails a result whatever its comparison: the minimum

@@ -42,6 +42,7 @@ _SUMMARY = ArmSummaryRead(
     passed=1,
     failed=0,
     incomplete=0,
+    ungraded=0,
     pass_rate=1.0,
     first_pass_rate=1.0,
     cost_usd=Decimal("0.01"),

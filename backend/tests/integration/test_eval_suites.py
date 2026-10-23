@@ -51,7 +51,7 @@ from app.db.models.user import User
 from app.repositories import agent_environment_repo
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
-from app.schemas.eval_run import ArmSummaryRead, EvalUngradedCaseRead
+from app.schemas.eval_run import ArmSummaryRead
 from app.schemas.eval_suite import (
     EvalSuiteCreate,
     EvalSuiteEstimateRequest,
@@ -1282,6 +1282,7 @@ async def test_a_run_in_which_nothing_could_be_graded_is_inconclusive(db) -> Non
         passed=0,
         failed=0,
         incomplete=4,
+        ungraded=0,
         pass_rate=None,
         first_pass_rate=None,
         cost_usd=Decimal("0.04"),
@@ -1478,34 +1479,36 @@ async def test_a_suite_on_an_environment_being_removed_pauses_and_says_why(db) -
 
 
 async def test_a_case_no_scorer_decided_keeps_the_suite_from_passing_and_says_which(db) -> None:
+    """A reference answer nothing compares with: the cases graded all pass, the suite does not."""
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    await DatasetService(db).add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Name one primary colour.", reference_answer="Red."),
+    )
     service = EvalSuiteService(db)
-    suite = await service.create(ctx, agent.id, _suite_data(dataset))
+    suite = await service.create(
+        ctx,
+        agent.id,
+        _suite_data(dataset, threshold=EvalSuiteThreshold(min_pass_rate=0.9)),
+    )
     await service.run_now(ctx, agent.id, suite.id)
     await _finish_runs(db, Model(db))
-    real = EvalRunService.get
 
-    async def one_ungraded(self, reader, run_id):
-        read = await real(self, reader, run_id)
-        candidate = read.arms[0]
-        undecided = EvalUngradedCaseRead(case_id=uuid.uuid4(), input="Where is my parcel?")
-        arms = [candidate.model_copy(update={"ungraded_cases": [undecided]}), *read.arms[1:]]
-        return read.model_copy(update={"arms": arms})
-
-    with patch.object(EvalRunService, "get", new=one_ungraded):
-        await service.settle_finished(now=datetime.now(UTC))
+    await service.settle_finished(now=datetime.now(UTC))
 
     [result] = await _results(db, suite.id)
     assert result.status == "inconclusive"
     assert result.summary is not None
+    assert result.summary["pass_rate"] == 1.0
     assert [(r["code"], r["value"]) for r in result.summary["reasons"]] == [("ungraded", 1.0)]
     assert [(c["input"], c["kind"]) for c in result.summary["failing_cases"]] == [
-        ("Where is my parcel?", "ungraded")
+        ("Name one primary colour.", "ungraded")
     ]
     [notice] = await _notifications(db, ctx.user_id)
-    assert "could not decide" in notice.summary and "Where is my parcel?" in notice.summary
+    assert "could not decide" in notice.summary and "Name one primary colour." in notice.summary
 
 
 @pytest.mark.security

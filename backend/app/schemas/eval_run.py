@@ -26,6 +26,7 @@ VerdictLiteral = Literal["better", "worse", "mixed", "no_difference", "invalid"]
 OverallLiteral = Literal["better", "worse"]
 TrendLiteral = Literal["better", "worse", "unchanged", "unknown"]
 EstimateBasisLiteral = Literal["history", "fallback", "cached"]
+CaseStateLiteral = Literal["passed", "failed", "incomplete", "ungraded"]
 
 MAX_MODELS = 4
 MAX_RERUNS = 5
@@ -141,6 +142,14 @@ class EvalRunEstimate(BaseSchema):
     agent_after_usd: Decimal | None
     org_after_usd: Decimal | None
     affordable: bool
+    ungraded_cases: int = Field(
+        default=0,
+        description=(
+            "How many of the cases nothing in the dataset's scoring would grade - "
+            "with AI assistance off, the judge grades none. Any makes the result "
+            "inconclusive"
+        ),
+    )
     proposal_check: ProposalCheckRecord | None = Field(
         default=None,
         description="What a check of the authoring assistant's proposal would measure; null otherwise",
@@ -152,8 +161,21 @@ class ArmSummaryRead(BaseSchema):
 
     cases: int
     passed: int
-    failed: int
-    incomplete: int
+    failed: int = Field(description="Settled as failed, a case the agent crashed on included")
+    incomplete: int = Field(
+        description=(
+            "Undecided because something failed on them - the provider, a scorer, the "
+            "run itself - or their tries tied"
+        )
+    )
+    ungraded: int = Field(description="Undecided because nothing in the scoring grades them")
+    crashed: int = Field(
+        default=0,
+        description=(
+            "First answers the agent's run failed before giving; each fails a suite even "
+            "when its reruns pass"
+        ),
+    )
     pass_rate: float | None = Field(
         description=(
             "Passed over decided cases, each case settled by the majority of its "
@@ -207,6 +229,13 @@ class EvalRunArmRead(BaseSchema):
         default=0,
         description="This side's failed first answers not yet in the review queue",
     )
+    failed_alike: str | None = Field(
+        default=None,
+        description=(
+            "The error every one of this side's first answers failed with, when they all "
+            "failed with the same one - a configuration to fix, not answers to read"
+        ),
+    )
 
 
 class ComparisonSide(BaseSchema):
@@ -242,6 +271,9 @@ class EvalOutcomeRead(BaseSchema):
     baseline_pass_rate: float | None
     candidate_first_pass_rate: float | None
     baseline_first_pass_rate: float | None
+    candidate_undecided: int = Field(
+        description="The candidate's cases neither passed nor failed, whatever kept them undecided"
+    )
 
 
 class RoutingErrorRead(BaseSchema):
@@ -391,6 +423,13 @@ class EvalAttemptRead(BaseSchema):
     latency_ms: int | None
     error: str | None
     outcome: bool | None
+    state: CaseStateLiteral = Field(
+        description=(
+            "How the attempt came out: `failed` includes a run the agent crashed; "
+            "`incomplete` is one the provider or a scorer failed on, or that never ran; "
+            "`ungraded` is an answer nothing grades"
+        )
+    )
     score: CaseScoreRead | None
 
 
@@ -439,6 +478,10 @@ class CaseFlipRead(BaseSchema):
     baseline_reruns: list[bool | None]
     candidate_reruns: list[bool | None]
     tags: list[str]
+    candidate_error: str | None = Field(
+        default=None,
+        description="Why the candidate's first answer failed, when its run crashed rather than answered",
+    )
 
 
 class EfficiencyRead(BaseSchema):

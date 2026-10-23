@@ -8839,7 +8839,8 @@
         "judge": "{name}",
         "judgeRubric": "{name} nach {criteria}"
       },
-      "judgeSameModel": "Der Bewerter bewertet auf {model}, dem getesteten Modell, und bevorzugt womöglich Antworten wie seine eigenen. Gib dem Bewerter auf seiner Seite ein anderes Modell."
+      "judgeSameModel": "Der Bewerter bewertet auf {model}, dem getesteten Modell, und bevorzugt womöglich Antworten wie seine eigenen. Gib dem Bewerter auf seiner Seite ein anderes Modell.",
+      "ungraded": "{count, plural, =1 {1 Fall hat nichts, das ihn bewertet.} other {# Fälle haben nichts, das sie bewertet.}} Das Ergebnis wird nicht entschieden sein."
     },
     "runFor": "Für {amount} starten",
     "runTitle": "{dataset} v{version} · {candidate}",
@@ -8912,7 +8913,9 @@
         "worse": "Verschlechtert Fälle",
         "no_difference": "Keine reproduzierbare Änderung",
         "invalid": "Nicht vergleichbar",
-        "mixed": "Gemischt"
+        "mixed": "Gemischt",
+        "inconclusive": "Nicht entschieden",
+        "failedAlike": "Konnte nicht laufen"
       },
       "regressionsConfirmed": "Bestätigte Regressionen",
       "regressionsUnconfirmed": "Unbestätigte Regressionen",
@@ -8968,7 +8971,8 @@
       "flip": {
         "regression": "{confirmed, select, true {Bestätigte Regression} other {Regression, unbestätigt}}",
         "fixed": "{confirmed, select, true {Bestätigte Behebung} other {Behoben, unbestätigt}}",
-        "incomplete": "Auf {side} nicht bewertet"
+        "incomplete": "Auf {side} nicht bewertet",
+        "crashed": "{confirmed, select, true {Verschlechtert: der Agent ist abgestürzt} other {Einmal verschlechtert: der Agent ist abgestürzt}}"
       },
       "dot": "{side}: {state, select, passed {bestanden} failed {nicht bestanden} undecided {unentschieden} incomplete {nicht abgeschlossen} other {ausstehend}}",
       "brokenFirst": "Die ersten {count} der {total} verschlechterten Fälle werden gezeigt.",
@@ -9012,16 +9016,18 @@
     "runCount": "{count, plural, =1 {1 Run} other {# Runs}}",
     "sideModel": "{name} · {model}",
     "headline": {
-      "first": "Das ist das erste Ergebnis von {candidate} auf {dataset}: {rate} der Fälle bestehen. Spätere Versionen werden damit verglichen.",
+      "first": "Das ist das erste Ergebnis von {candidate} auf {dataset}: {rate} der entschiedenen Fälle bestehen{undecided, plural, =0 {} other {, und # von {cases} Fällen sind nicht entschieden}}. Spätere Versionen werden damit verglichen.",
       "worse": "{candidate} verschlechtert {broke, plural, =1 {1 Fall, der auf {baseline} bestand} other {# Fälle, die auf {baseline} bestanden}}, bei jeder Frage: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
       "better": "{candidate} behebt {fixed, plural, =1 {1 Fall, der auf {baseline} durchfiel} other {# Fälle, die auf {baseline} durchfielen}}, bei jeder Frage: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
       "no_difference": "Keine Änderung hielt: {changes, plural, =0 {{candidate} schneidet auf {dataset} so gut ab wie {baseline}.} =1 {1 Fall änderte sich einmal und fiel bei erneuter Frage anders aus, daher ist ein Unterschied in der Bestehensquote zwischen {candidate} und {baseline} auf {dataset} keine reproduzierbare Änderung.} other {# Fälle änderten sich einmal und fielen bei erneuter Frage anders aus, daher ist ein Unterschied in der Bestehensquote zwischen {candidate} und {baseline} auf {dataset} keine reproduzierbare Änderung.}}",
       "invalid": "{candidate} und {baseline} lassen sich nicht vergleichen: Die Seiten wurden von einem anderen Bewerter oder nach einer anderen Rubrik bewertet.",
       "mixed": "Gemischt: {candidate} verschlechtert gegenüber {baseline} {broke, plural, =1 {1 Fall} other {# Fälle}} und behebt {fixed}, bei jeder Frage. Verschlechtert: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
       "overall": "{overall, select, worse {Insgesamt schlechter: Über alle bestätigten Änderungen schneidet {candidate} schlechter ab als {baseline}.} other {Insgesamt besser: Über alle bestätigten Änderungen schneidet {candidate} besser ab als {baseline}.}}",
-      "passRate": "Bestehensquote {from} → {to}, jeder Fall so, wie die meisten seiner Versuche ausfielen",
+      "passRate": "Bestehensquote {from} → {to}, jeder Fall so, wie die meisten seiner Versuche ausfielen{undecided, plural, =0 {} other { · # von {cases} Fällen nicht entschieden}}",
       "firstPassRate": "Nur die ersten Antworten: {from} → {to}",
-      "unsteady": "Starte den Run erneut oder teste auf einem beständigeren Modell: Ein Modell, das jedes Mal anders antwortet, kann keine Änderung bestätigen."
+      "unsteady": "Starte den Run erneut oder teste auf einem beständigeren Modell: Ein Modell, das jedes Mal anders antwortet, kann keine Änderung bestätigen.",
+      "failedAlike": "Jeder Fall ist auf dieselbe Weise gescheitert, daher sagt dieses Ergebnis nichts über die Antworten des Agenten. Behebe die Einrichtung und starte es erneut: {error}",
+      "undecidedWhy": "Nicht entschieden, bis jeder Fall ein Urteil hat: {ungraded, plural, =0 {} =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}{both, select, true {, und } other {}}{incomplete, plural, =0 {} =1 {1 Fall ließ sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder seine Versuche gingen unentschieden aus} other {# Fälle ließen sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert, oder ihre Versuche gingen unentschieden aus}}."
     },
     "live": {
       "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",
@@ -9063,12 +9069,13 @@
       "no_difference": "Keine reproduzierbare Änderung",
       "invalid": "Nicht vergleichbar",
       "mixed": "Gemischt · {broke} verschlechtert, {fixed} behoben",
-      "overall": "{overall, select, worse {Insgesamt schlechter} other {Insgesamt besser}} · {broke} verschlechtert, {fixed} behoben"
+      "overall": "{overall, select, worse {Insgesamt schlechter} other {Insgesamt besser}} · {broke} verschlechtert, {fixed} behoben",
+      "inconclusive": "Nicht entschieden"
     },
     "row": {
       "against": "{candidate} vs. {baseline}",
       "agent": "{agent} · {title}",
-      "rate": "{model} {rate}",
+      "rate": "{model} {rate}{undecided, plural, =0 {} other { · # nicht entschieden}}",
       "firstRate": "Nur die ersten Antworten: {rate}"
     },
     "dataset": {
@@ -9170,7 +9177,8 @@
       "failing": {
         "regression": "Bricht reproduzierbar: {input}",
         "failed": "Nicht bestanden: {input}",
-        "ungraded": "Nicht bewertet: {input}"
+        "ungraded": "Nicht bewertet: {input}",
+        "incomplete": "Nicht entschieden: {input}"
       },
       "reason": {
         "passRateBelow": "Die Bestehensquote {value} liegt unter dem Minimum von {limit}.",
@@ -9179,7 +9187,9 @@
         "costRise": "Die Kosten pro bestandenem Fall stiegen um {value}, über die Grenze von {limit}.",
         "p95Rise": "Die p95-Latenz stieg um {value}, über die Grenze von {limit}.",
         "invalid": "Beide Seiten wurden unterschiedlich bewertet und lassen sich nicht vergleichen.",
-        "ungraded": "{count, plural, =1 {1 Fall konnte} other {# Fälle konnten}} nicht bewertet werden, daher kann die Suite für dieses Ergebnis nicht einstehen."
+        "ungraded": "{count, plural, =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}, daher kann die Suite für dieses Ergebnis nicht einstehen.",
+        "incomplete": "{count, plural, =1 {1 Fall ließ} other {# Fälle ließen}} sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert - daher kann die Suite für dieses Ergebnis nicht einstehen.",
+        "crashed": "Der Run des Agenten ist bei {count, plural, =1 {1 Fall} other {# Fällen}} gescheitert; ein gescheiterter Run lässt die Suite durchfallen."
       },
       "skip": {
         "budget": "Er würde mehr kosten, als das Budget in diesem Monat noch hat.",
@@ -9462,8 +9472,9 @@
       "expects": "Erwartet: {effect}",
       "blocked": {
         "check_first": "Ein Modellwechsel wird angenommen, wenn er sich auszahlt. Führe zuerst Mit Evals prüfen für diese Vorschläge aus.",
-        "inconclusive": "Die letzte Prüfung dieses Modells hat nichts entschieden. Bewerte die offenen Antworten oder prüfe erneut.",
-        "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen."
+        "inconclusive": "Die letzte Prüfung dieses Modells hat Fälle offen gelassen. Bewerte die offenen Antworten oder prüfe erneut.",
+        "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen.",
+        "crashed": "Der Run des Agenten ist in der letzten Prüfung dieses Modells bei Fällen gescheitert. Behebe, was gescheitert ist, und prüfe erneut."
       }
     },
     "evidence": {

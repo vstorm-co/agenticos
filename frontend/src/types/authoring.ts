@@ -153,8 +153,8 @@ export interface Hunk {
   effect: FieldEffect | null;
   /** Names of the models, collections, context files and servers it refers to. */
   names: Record<string, string>;
-  /** Why Accept is refused for now: `check_first`, `inconclusive` or `regression`. */
-  blocked: "check_first" | "inconclusive" | "regression" | null;
+  /** Why Accept is refused for now: `check_first`, `inconclusive`, `regression` or `crashed`. */
+  blocked: "check_first" | "inconclusive" | "regression" | "crashed" | null;
   expected_effect: string;
   rationale: string;
   evidence: EvidenceItem[];
