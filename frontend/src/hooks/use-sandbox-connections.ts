@@ -64,8 +64,13 @@ export function useSandboxConnections(): UseSandboxConnectionsResult {
     queryFn: listSandboxConnections,
   });
 
+  // The capability catalog recommends a container workspace only where one would
+  // publish, which is what registering or removing a connection changes.
   const invalidate = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: qk.sandboxConnections.all() });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.sandboxConnections.all() }),
+      queryClient.invalidateQueries({ queryKey: qk.agents.capabilityCatalog() }),
+    ]);
   }, [queryClient]);
 
   const create = useCallback(

@@ -587,16 +587,17 @@ export function usePromptVariables() {
 }
 
 /**
- * Everything an agent can be given.
+ * Everything an agent can be given, and what a new one starts with.
  *
- * Cached indefinitely: the catalog changes when the backend is redeployed, not
- * while someone is building an agent.
+ * `recommended` depends on the organization - a container workspace only where
+ * one would publish - so it is kept for a minute, as the server keeps it, and
+ * dropped whenever a sandbox connection changes.
  */
 export function useCapabilityCatalog() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: qk.agents.capabilityCatalog(),
     queryFn: () => apiClient.get<CapabilityCatalog>("/agents/capabilities"),
-    staleTime: Infinity,
+    staleTime: 60_000,
   });
   const guide = useCapabilityGuide();
   // Named and described in the reader's language wherever the console has the
@@ -609,7 +610,7 @@ export function useCapabilityCatalog() {
       }),
     [data, guide],
   );
-  return { capabilities, isLoading };
+  return { capabilities, isLoading, isFetching, refetch };
 }
 
 /**

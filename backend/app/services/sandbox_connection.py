@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+import anyio
 from pydantic import SecretStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,9 +90,11 @@ two answers to "which key opens this host" and only one of them stays right.
 LOCAL_CONNECTION_NAME = "This deployment's sandbox"
 """What the connection set up on its own is called (#2070)."""
 
-# The Builder asks `can_provide` each time it lists capabilities, and the answer
-# changes only when a connection is registered or the sandbox service starts or stops.
+# The Builder asks `can_provide` each time it lists capabilities. A no is kept
+# briefly, because it may be a sandbox service still starting.
 _PROVIDES_SECONDS = 60.0
+_REFUSES_SECONDS = 10.0
+_PROBE_SECONDS = 2.0
 _provides: dict[UUID, tuple[float, bool]] = {}
 
 
@@ -231,6 +234,7 @@ class SandboxConnectionService:
         row = await sandbox_connection_repo.update_connection(
             self.db, connection=row, update_data=changes
         )
+        _provides.pop(ctx.organization_id, None)
         if promoting:
             await sandbox_connection_repo.clear_default(
                 self.db, organization_id=ctx.organization_id, except_id=row.id
@@ -281,6 +285,7 @@ class SandboxConnectionService:
         try:
             async with self.db.begin_nested():
                 await sandbox_connection_repo.delete(self.db, connection=row)
+            _provides.pop(ctx.organization_id, None)
         except IntegrityError:
             # A conversation deleted meanwhile wrote a tombstone the count above
             # could not see; the foreign key refuses to take it with the
@@ -354,16 +359,20 @@ class SandboxConnectionService:
         It would when the organization has a default sandbox connection, or when
         this deployment runs a sandbox service that the first publish sets one up
         on (`ensure_local_connection`). Nothing is set up here - a listing must
-        not register a connection - and the answer is kept for a minute per
-        organization, since the Builder asks each time it opens. A service that
-        should answer and does not is logged as a warning, and answered no.
+        not register a connection. The answer is kept per organization, a yes
+        for a minute and a no for ten seconds, and forgotten when a connection
+        is registered, edited or removed. A service that should answer and does
+        not within two seconds is logged as a warning, and answered no.
         """
         now = time.monotonic()
         kept = _provides.get(organization_id)
-        if kept is not None and now - kept[0] < _PROVIDES_SECONDS:
+        if kept is not None and now < kept[0]:
             return kept[1]
         answer = await self._provides(organization_id)
-        _provides[organization_id] = (now, answer)
+        _provides[organization_id] = (
+            now + (_PROVIDES_SECONDS if answer else _REFUSES_SECONDS),
+            answer,
+        )
         return answer
 
     async def _provides(self, organization_id: UUID) -> bool:
@@ -373,7 +382,10 @@ class SandboxConnectionService:
             return False
         if await member_repo.first_owner_id(self.db, organization_id=organization_id) is None:
             return False
-        if await self._first_answering() is None:
+        answering = None
+        with anyio.move_on_after(_PROBE_SECONDS):
+            answering = await self._first_answering()
+        if answering is None:
             logger.warning(
                 "sandbox_service_not_answering", extra={"organization_id": str(organization_id)}
             )

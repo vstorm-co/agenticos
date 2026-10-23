@@ -4396,6 +4396,43 @@ class TestAgentTemplates:
         assert create.await_args.kwargs["visibility"] is Visibility.ORG
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("can_provide", "config"),
+        [
+            (True, {"backend": "service", "include_execute": True}),
+            (False, {"backend": "state"}),
+        ],
+    )
+    async def test_a_template_s_workspace_is_one_the_organization_can_publish(
+        self, can_provide, config
+    ):
+        template = MagicMock()
+        template.key, template.name = "general/coder", "Coder"
+        template.description, template.instructions = "Writes code.", "You write..."
+        template.capabilities = (
+            {"id": "sandbox", "config": {"backend": "service", "include_execute": True}},
+        )
+        template.skills, template.mcp, template.attach, template.budget_usd = (), (), (), None
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "coder", template.name
+        org = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch(
+                f"{REGISTRY_PATH}.SandboxConnectionService.can_provide",
+                new=AsyncMock(return_value=can_provide),
+            ) as asked,
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            await AgentRegistryService(_db()).install_template(org, "general/coder")
+
+        asked.assert_awaited_once_with(org.organization_id)
+        assert create.await_args.args[1].capabilities[0].config == config
+
+    @pytest.mark.anyio
     async def test_a_bundled_skill_is_bound_without_a_gallery_install(self):
         """`artifact-pages` ships with every organization; there is nothing to install.
 

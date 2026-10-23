@@ -6,7 +6,7 @@ import {
   audiencePayload,
   type Audience,
 } from "@/components/sharing/audience-picker";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ChipsInput } from "@/components/agents/chips-input";
@@ -81,7 +81,16 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   // A new agent starts with what the starter agent has - the Claude Code like
   // template - so it can ask, plan, search, work in a sandbox and delegate from
   // its first run; its author switches off what it should not do.
-  const { capabilities: catalog, isLoading: catalogLoading } = useCapabilityCatalog();
+  const {
+    capabilities: catalog,
+    isFetching: catalogFetching,
+    refetch: refetchCatalog,
+  } = useCapabilityCatalog();
+  // Asked again on every open: whether the organization can run a container
+  // workspace changes while the page stays open, and the dialog stays mounted.
+  useEffect(() => {
+    if (open) void refetchCatalog({ cancelRefetch: false });
+  }, [open, refetchCatalog]);
   const starter = catalog.flatMap((entry) =>
     entry.recommended ? [{ ...entry.recommended, enabled: true }] : [],
   );
@@ -249,7 +258,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={!name.trim() || create.isPending || catalogLoading}
+            disabled={!name.trim() || create.isPending || catalogFetching}
           >
             {t("create")}
           </Button>

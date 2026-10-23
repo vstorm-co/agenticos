@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import anyio
 import pytest
 from pydantic import ValidationError
 
@@ -1728,7 +1729,7 @@ class TestWhetherAContainerWorkspaceWouldPublish:
 
         create.assert_not_awaited()
 
-    async def test_the_answer_is_kept_for_a_minute_per_organization(self, monkeypatch):
+    async def test_a_yes_is_kept_for_a_minute_per_organization(self, monkeypatch):
         service, answering = self._setup(monkeypatch)
         org, other = uuid.uuid4(), uuid.uuid4()
         clock = [1000.0]
@@ -1741,6 +1742,55 @@ class TestWhetherAContainerWorkspaceWouldPublish:
 
         clock[0] += 61
         assert await service.can_provide(org) is False
+
+    async def test_a_no_is_asked_again_after_ten_seconds(self, monkeypatch):
+        """A sandbox service still starting answers no to the first ask."""
+        service, answering = self._setup(monkeypatch)
+        answering.return_value = None
+        org = uuid.uuid4()
+        clock = [1000.0]
+        monkeypatch.setattr(sandbox_connection_service.time, "monotonic", lambda: clock[0])
+
+        assert await service.can_provide(org) is False
+        answering.return_value = "http://sandboxd:8080"
+        clock[0] += 5
+        assert await service.can_provide(org) is False
+
+        clock[0] += 6
+        assert await service.can_provide(org) is True
+
+    async def test_a_service_slower_than_the_probe_allows_is_a_no(self, monkeypatch):
+        service, answering = self._setup(monkeypatch)
+        monkeypatch.setattr(sandbox_connection_service, "_PROBE_SECONDS", 0.01)
+
+        async def hang() -> str:
+            await anyio.sleep(5)
+            return "http://sandboxd:8080"
+
+        answering.side_effect = hang
+
+        assert await service.can_provide(uuid.uuid4()) is False
+
+    async def test_editing_or_removing_a_connection_asks_again(self, monkeypatch):
+        service, _answering = self._setup(monkeypatch)
+        ctx = _ctx()
+        row = _row()
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(
+            sandbox_connection_repo, "update_connection", AsyncMock(return_value=row)
+        )
+        monkeypatch.setattr(sandbox_connection_repo, "delete", AsyncMock())
+        monkeypatch.setattr(project_repo, "names_on_connection", AsyncMock(return_value=[]))
+        monkeypatch.setattr(pending_destroy_repo, "count_on_connection", AsyncMock(return_value=0))
+        service.db.begin_nested = MagicMock(return_value=AsyncMock())
+
+        await service.can_provide(ctx.organization_id)
+        await service.update(ctx, row.id, SandboxConnectionUpdate(is_default=True))
+        assert ctx.organization_id not in sandbox_connection_service._provides
+
+        await service.can_provide(ctx.organization_id)
+        await service.delete(ctx, row.id)
+        assert ctx.organization_id not in sandbox_connection_service._provides
 
     async def test_registering_a_connection_asks_again(self, monkeypatch):
         service, _answering = self._setup(monkeypatch, token="")
