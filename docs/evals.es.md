@@ -1,5 +1,5 @@
 ---
-source_sha: "4f0258a1df00"
+source_sha: "34cd8b6a3651"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -379,10 +379,17 @@ confirmada**. Un arreglo se confirma igual.
 Todo baseline se repite junto al candidato - uno que respondió aquí o uno cuyas
 primeras respuestas vinieron de un run anterior -, así que ambos lados confirman
 un cambio el mismo día, y una respuesta afortunada del baseline no confirma
-nada. Un run comparado con un baseline necesita al menos una repetición; un run
-sin baseline puede omitirlas. Un run escrito antes de que los baselines se
-guardaran en él, comparado con un run anterior al que nunca volvió a preguntar,
-lo dice, y ninguno de sus cambios queda confirmado.
+nada. La única excepción es un baseline que es el propio candidato en un
+momento anterior - el mismo spec sobre el mismo modelo, ejecutado de la misma
+forma, como aquel con el que compara una suite que comprueba una versión cada
+día: sus repeticiones solo volverían a ser las del candidato, así que no se
+repite, y solo las repeticiones del candidato confirman la deriva.
+
+Un run comparado con un baseline necesita al menos una repetición; un run sin
+baseline puede omitirlas. Un run comparado con un run anterior al que nunca
+volvió a preguntar - uno escrito antes de que los baselines se guardaran en los
+runs, o uno comparado a mano con otro run - lo dice, y ninguno de sus cambios
+queda confirmado.
 
 Las repeticiones suben el listón en vez de bajarlo: un cambio solo se confirma
 cuando se mantiene en cada repetición, así que más repeticiones confirman menos
@@ -537,6 +544,11 @@ el mismo run. Tras un resultado que no se pudo comparar con esa ejecución -
 porque la puntuación cambió desde entonces -, la siguiente ejecuta a su lado la
 versión anterior, puntuada como se puntúa ahora, para que pueda volver a aprobar
 y ser la ejecución con la que se comparan las siguientes.
+
+Cuando ejecutar ambos superaría el `max_run_usd` de la suite, pero el candidato
+por sí solo no, el candidato se ejecuta solo y se mide con sus propios números;
+el resultado dice «Not compared: running the earlier version too would exceed
+the suite's cost cap.» y se avisa al propietario de la suite.
 
 Una [comprobación de las sugerencias del asistente de autoría](authoring.md#check-with-evals)
 ejecutada en una suite se mide con el mismo umbral, pero no es un resultado de la

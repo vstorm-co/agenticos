@@ -1,5 +1,5 @@
 ---
-source_sha: "4f0258a1df00"
+source_sha: "34cd8b6a3651"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -378,11 +378,17 @@ jako **niepotwierdzona**. Naprawa jest potwierdzana tak samo.
 Każdy baseline jest powtarzany obok kandydata - taki, który odpowiadał tutaj,
 albo taki, którego pierwsze odpowiedzi pochodzą z wcześniejszego runa - więc obie
 strony potwierdzają odwrócenie tego samego dnia, a jedna szczęśliwa odpowiedź
-baseline'u niczego nie potwierdza. Run porównywany z baseline'em potrzebuje co
-najmniej jednej powtórki; run bez baseline'u może je pominąć. Run zapisany,
-zanim baseline'y były w nim przechowywane, porównany z wcześniejszym runem,
-któremu nigdy nie zadał pytań ponownie, mówi o tym, i żadne z jego odwróceń nie
-jest potwierdzone.
+baseline'u niczego nie potwierdza. Jedynym wyjątkiem jest baseline, który jest
+samym kandydatem we wcześniejszym czasie - ten sam spec na tym samym modelu,
+uruchomiony tak samo, jak ten, z którym porównuje się suita sprawdzająca
+codziennie jedną wersję: jego powtórki byłyby znowu tylko powtórkami kandydata,
+więc nie jest powtarzany, a dryf potwierdzają same powtórki kandydata.
+
+Run porównywany z baseline'em potrzebuje co najmniej jednej powtórki; run bez
+baseline'u może je pominąć. Run porównany z wcześniejszym runem, któremu nigdy
+nie zadał pytań ponownie - zapisany, zanim baseline'y były przechowywane w
+runach, albo porównany ręcznie z innym runem - mówi o tym, i żadne z jego
+odwróceń nie jest potwierdzone.
 
 Powtórki podnoszą poprzeczkę, a nie ją obniżają: odwrócenie jest potwierdzone
 tylko wtedy, gdy utrzyma się przy każdej powtórce, więc więcej powtórek
@@ -536,6 +542,11 @@ publikacja i promocja uruchamiają baseline w tym samym runie. Po wyniku,
 którego nie dało się porównać z tym runem - bo od tamtej pory zmieniło się
 ocenianie - następny uruchamia obok siebie poprzednią wersję, ocenianą tak, jak
 teraz, więc może znowu przejść i stać się runem, z którym porównuje się kolejne.
+
+Gdy uruchomienie obu przekroczyłoby `max_run_usd` suity, a sam kandydat by go
+nie przekroczył, kandydat uruchamia się sam i jest oceniany według własnych
+liczb; wynik mówi „Not compared: running the earlier version too would exceed
+the suite's cost cap.”, a właściciel suity dostaje wiadomość.
 
 [Sprawdzenie sugestii asystenta tworzenia](authoring.md#check-with-evals)
 uruchomione na suicie jest oceniane według tego samego progu, ale nie jest

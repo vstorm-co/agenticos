@@ -356,10 +356,16 @@ the same way.
 Every baseline is rerun beside the candidate - one that answered
 here, or one whose first answers came from an earlier run - so both sides
 confirm a flip the same day, and one lucky answer of the baseline confirms
-nothing. A run compared with a baseline needs at least one rerun; a run with
-none may skip them. A run written before baselines were kept on it, compared
-with an earlier run it never asked again, says so, and none of its flips is
-confirmed.
+nothing. The one exception is a baseline that is the candidate itself at an
+earlier time - the same spec on the same model, run the same way, as a suite
+checking one version every day compares with: its reruns would only be the
+candidate's again, so it is not rerun, and the candidate's reruns alone
+confirm the drift.
+
+A run compared with a baseline needs at least one rerun; a run with
+none may skip them. A run compared with an earlier run it never asked again -
+one written before baselines were kept on runs, or one compared by hand with
+another run - says so, and none of its flips is confirmed.
 
 Reruns raise the bar rather than lower it: a flip confirms only when it holds on
 every rerun, so more reruns confirm fewer flips. A small or cheap model that
@@ -496,6 +502,11 @@ drift; a publish or a promotion runs its baseline in the same run. After a
 result that could not be compared with that run - the grading changed since -
 the next one runs the version before beside it, graded the way it is now, so it
 can pass again and become the run the ones after it are compared with.
+
+When running both would cross the suite's `max_run_usd` and the candidate alone would
+not, the candidate runs alone, held to its own numbers; the result says "Not
+compared: running the earlier version too would exceed the suite's cost cap."
+and its owner is told.
 
 A [check of the authoring assistant's suggestions](authoring.md#check-with-evals)
 run on a suite is held to the same threshold, but it is not a result of the

@@ -1,5 +1,5 @@
 ---
-source_sha: "4f0258a1df00"
+source_sha: "34cd8b6a3651"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -400,11 +400,19 @@ selben Run - jede Wiederholung der Baseline wieder besteht; sonst wird sie als
 Jede Baseline wird neben dem Kandidaten wiederholt - eine, die hier geantwortet
 hat, oder eine, deren erste Antworten aus einem früheren Run stammen -, sodass
 beide Seiten ein Kippen am selben Tag bestätigen und eine glückliche Antwort der
-Baseline nichts bestätigt. Ein Run, der mit einer Baseline verglichen wird,
-braucht mindestens eine Wiederholung; ein Run ohne Baseline darf sie
-überspringen. Ein Run, der geschrieben wurde, bevor Baselines an ihm gespeichert
-wurden, und mit einem früheren Run verglichen wird, den er nie erneut gefragt
-hat, sagt das, und keiner seiner gekippten Fälle ist bestätigt.
+Baseline nichts bestätigt. Die einzige Ausnahme ist eine Baseline, die der
+Kandidat selbst zu einem früheren Zeitpunkt ist - derselbe Spec auf demselben
+Modell, auf dieselbe Weise ausgeführt, wie sie eine Suite, die täglich eine
+Version prüft, zum Vergleich heranzieht: Ihre Wiederholungen wären nur wieder
+die des Kandidaten, daher wird sie nicht wiederholt, und die Wiederholungen des
+Kandidaten allein bestätigen die Drift.
+
+Ein Run, der mit einer Baseline verglichen wird, braucht mindestens eine
+Wiederholung; ein Run ohne Baseline darf sie überspringen. Ein Run, der mit
+einem früheren Run verglichen wird, den er nie erneut gefragt hat - einer, der
+geschrieben wurde, bevor Baselines an Runs gespeichert wurden, oder einer, der
+von Hand mit einem anderen Run verglichen wurde -, sagt das, und keiner seiner
+gekippten Fälle ist bestätigt.
 
 Wiederholungen heben die Latte, statt sie zu senken: Ein Kippen gilt nur als
 bestätigt, wenn es bei jeder Wiederholung hält, daher bestätigen mehr
@@ -564,6 +572,12 @@ laufen. Nach einem Ergebnis, das sich mit diesem Lauf nicht vergleichen ließ -
 weil sich die Bewertung seitdem geändert hat -, lässt der nächste die Version
 davor neben sich laufen, so bewertet, wie es jetzt geschieht, damit er wieder
 bestehen und der Lauf werden kann, mit dem die folgenden verglichen werden.
+
+Wenn beide zusammen das `max_run_usd` der Suite überschreiten würden, der
+Kandidat allein aber nicht, läuft der Kandidat allein und wird an seinen eigenen
+Zahlen gemessen; das Ergebnis sagt „Not compared: running the earlier version
+too would exceed the suite's cost cap.“, und der Eigentümer der Suite wird
+benachrichtigt.
 
 Eine [Prüfung der Vorschläge des Authoring-Assistenten](authoring.md#check-with-evals)
 auf einer Suite wird am selben Schwellenwert gemessen, ist aber kein Ergebnis der
