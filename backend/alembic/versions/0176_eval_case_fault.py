@@ -8,7 +8,7 @@ revision keep no fault and read as incomplete, since their error text cannot
 say reliably which it was.
 
 Revision ID: 0176_eval_case_fault
-Revises: 0180_improvement_sessions
+Revises: 0178_eval_run_proposal_check
 Create Date: 2026-10-22
 """
 
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0176_eval_case_fault"
-down_revision: str | None = "0180_improvement_sessions"
+down_revision: str | None = "0178_eval_run_proposal_check"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

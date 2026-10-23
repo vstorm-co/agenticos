@@ -96,7 +96,10 @@ export function VerdictHeadline({
   const to = percent(comparison.candidate_summary.pass_rate, locale);
   const { incomplete, ungraded, cases } = candidate.summary;
   const counted = { undecided: incomplete + ungraded, cases };
-  const values = { candidate: sideName(candidate, tSide), dataset: run.dataset_name };
+  const values = {
+    candidate: sideName(candidate, tSide, run.proposal_check),
+    dataset: run.dataset_name,
+  };
   const why = counted.undecided > 0 && (
     <span className="text-muted-foreground block text-sm font-normal">
       {t("undecidedWhy", { ungraded, incomplete, both: String(ungraded > 0 && incomplete > 0) })}

@@ -6,7 +6,12 @@ import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
-import type { ArmSummary, ComparisonSide, EvalRunArm } from "@/types/eval-runs";
+import type {
+  ArmSummary,
+  ComparisonSide,
+  EvalRunArm,
+  ProposalCheckRecord,
+} from "@/types/eval-runs";
 import { percent, seconds, usd } from "./format";
 import { sideName } from "./names";
 
@@ -14,14 +19,16 @@ function SideLabel({
   agentId,
   arm,
   baseline,
+  check,
 }: {
   agentId: string;
   arm: EvalRunArm;
   baseline: ComparisonSide | null;
+  check: ProposalCheckRecord | null | undefined;
 }) {
   const t = useTranslations("evals");
   const locale = useLocale();
-  const name = t("sideModel", { name: sideName(arm, t), model: arm.model_label });
+  const name = t("sideModel", { name: sideName(arm, t, check), model: arm.model_label });
   // A reused side answered nothing here: it is an earlier run's result, and
   // says which.
   if (arm.reused_from_arm_id === null || baseline === null) return <>{name}</>;
@@ -52,6 +59,7 @@ export function ArmsTable({
   tag,
   live,
   baseline,
+  check,
 }: {
   agentId: string;
   arms: EvalRunArm[];
@@ -60,6 +68,8 @@ export function ArmsTable({
   live: boolean;
   /** The side the candidate is compared with, to name the run a reused result came from. */
   baseline: ComparisonSide | null;
+  /** What a check of a proposal measured, to name its candidate by what it adds. */
+  check?: ProposalCheckRecord | null;
 }) {
   const t = useTranslations("evals.arms");
   const locale = useLocale();
@@ -87,7 +97,7 @@ export function ArmsTable({
               return (
                 <tr key={arm.id} className="border-t">
                   <td className="py-2 pr-3">
-                    <SideLabel agentId={agentId} arm={arm} baseline={baseline} />
+                    <SideLabel agentId={agentId} arm={arm} baseline={baseline} check={check} />
                   </td>
                   <td className="py-2 pr-3">{percent(summary?.pass_rate ?? null, locale)}</td>
                   <td className="py-2 pr-3">

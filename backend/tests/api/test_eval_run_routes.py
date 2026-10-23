@@ -189,11 +189,11 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     assert listed.json()["total"] == 1
     assert drafts.status_code == by_dataset.status_code == named.status_code == 200
     assert service.list_for_agent.await_args_list[0].kwargs == {
-        "draft": False,
+        "draft": None,
         "skip": 20,
         "limit": 10,
     }
-    assert service.list_for_agent.await_args.kwargs["draft"] is True
+    assert service.list_for_agent.await_args.kwargs["draft"] == "current"
     assert service.list_for_dataset.await_args.kwargs == {"skip": 0, "limit": 5}
     assert service.cases.await_args.kwargs["case_ids"] == [_RUN.id, _RUN.agent_id]
     assert service.recent.await_args.kwargs == {"limit": 5}

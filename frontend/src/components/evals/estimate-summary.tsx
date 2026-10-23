@@ -5,9 +5,10 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
-import type { ArmEstimate, EvalRunEstimate } from "@/types/eval-runs";
+import type { ArmEstimate, EvalRunEstimate, ProposalCheckRecord } from "@/types/eval-runs";
 import type { DatasetScoring } from "@/types/scoring";
 import { usd } from "./format";
+import { sideName } from "./names";
 
 /** What grades a dataset's answers, by name, in the order the scorers run. */
 export function graders(
@@ -39,14 +40,19 @@ export function UngradedWarning({ count }: { count: number }) {
   return <p className="text-warning text-xs">{t("ungraded", { count })}</p>;
 }
 
-function ArmLine({ arm, agentId }: { arm: ArmEstimate; agentId: string }) {
+function ArmLine({
+  arm,
+  agentId,
+  check,
+}: {
+  arm: ArmEstimate;
+  agentId: string;
+  check: ProposalCheckRecord | null | undefined;
+}) {
   const t = useTranslations("evals.estimate");
   const locale = useLocale();
   const tEvals = useTranslations("evals");
-  const name =
-    arm.version_number === null
-      ? tEvals("draft")
-      : tEvals("version", { version: arm.version_number });
+  const name = sideName(arm, tEvals, check);
   return (
     <span className="text-muted-foreground">
       {t("side", { name, model: arm.model_label })}
@@ -100,7 +106,7 @@ export function EstimateSummary({
       <ul className="space-y-1">
         {estimate.arms.map((arm, index) => (
           <li key={index} className="flex items-center justify-between gap-3">
-            <ArmLine arm={arm} agentId={agentId} />
+            <ArmLine arm={arm} agentId={agentId} check={estimate.proposal_check} />
             <span className="tabular-nums">{usd(arm.cost_usd, locale)}</span>
           </li>
         ))}

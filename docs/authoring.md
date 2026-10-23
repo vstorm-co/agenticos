@@ -16,8 +16,8 @@ draft is published.
 It does three things:
 
 - **Improve** an agent: suggest changes from its rated-down and failed runs.
-- **Verify** your own edits: compare the draft with the published version against
-  the same evidence, and say what the edits improve, what they risk and what they
+- **Verify** your own edits: compare the draft with the version it is based on -
+  the latest published one - against the same evidence, and say what the edits improve, what they risk and what they
   removed.
 - **Improve a skill** or a **context file**: suggest a new body from the runs
   that read it.
@@ -95,19 +95,31 @@ dropped or its lines joined still finds the draft's own text.
 
 ### Check with evals { #check-with-evals }
 
-**Check with evals** runs a [dataset](datasets.md) against the draft as it would
-be with every waiting suggestion accepted, beside the published version in the
-same [eval run](evals.md#a-baseline-in-the-same-run). Nothing is accepted by
-checking, and the draft does not change. While a waiting suggestion no longer
+**Check with evals** runs a [dataset](datasets.md) against the draft's base - the
+latest published version - with every waiting suggestion made, beside that
+version in the same [eval run](evals.md#a-baseline-in-the-same-run). A guard can
+hold production on an older version; the check never measures against it, so
+what the latest version changed is on both sides and never blamed on a
+suggestion. When the draft has moved from its base - edits of your own, or
+suggestions accepted earlier - the draft itself is the baseline, run fresh rather
+than taken from an earlier run, so the suggestions are the one difference; the
+estimate prices that side too. The sides are named for what they are, in the
+dialog and on the run: "v2 + 1 suggestion" against "v2", or "Draft + 2
+suggestions" against "Draft". Nothing is accepted by checking, and the draft does
+not change. While a waiting suggestion no longer
 fits the draft, or clashes with another, the check is refused until it is
 accepted or dismissed: the run measures exactly what waits.
 
 Instead of a dataset, the check can run one of the agent's
 [eval suites](evals.md#suites): its dataset, in its environment. The run compares
-the draft with the published version as any check does, and once it completes it
+the two sides as any check does, and once it completes it
 also says what the suite would have said: passed, failed or inconclusive, and
 why, by the threshold the suite had when the check started. That shows on the
 run and beside the check on the strip, worded as the suite's own results are.
+
+The strip states each finished check in one sentence linking its run - "audit-smoke
+would fail: breaks “Do you ship to Canada?”", or what it broke and fixed on the
+dataset.
 
 The check is not one of the suite's runs: it is in no suite's history and
 notifies nobody, and the run's own verdict is what Accept goes by. A skill or
@@ -116,6 +128,14 @@ context change checked on a suite of the agent it runs on gets the same.
 The cases taken from the conversations the suggestions were derived from are left
 out, and the run says how many: a change is never measured on the data it was
 fitted to. A dataset made only of such cases is refused.
+
+A check counts as the draft's test once the draft is exactly what it checked -
+every checked suggestion accepted and nothing else changed - so the publish
+dialog reports its verdict; after a further edit it says that test is out of
+date. A check measured against the draft itself never counts: it says nothing
+of the draft against the published version it would replace. A check sends nothing to a dataset's [review queue](datasets.md#review) by
+itself, since nothing was accepted; its run page says so beside **Send failed to
+review**.
 
 Each suggestion states the effect it expects. The strip shows it beside the eval
 runs that checked the suggestions, so you can compare the prediction with what

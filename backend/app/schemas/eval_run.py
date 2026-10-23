@@ -32,6 +32,28 @@ MAX_MODELS = 4
 MAX_RERUNS = 5
 
 
+class ProposalCheckRecord(BaseSchema):
+    """What a check of the authoring assistant's proposal measured, kept on its run.
+
+    Attributes:
+        kind: Suggestions to an agent's draft, or a proposed skill or context
+            file body served in place of the stored one.
+        base_version: The version the change was measured on: the latest
+            published version the draft is based on for suggestions, the
+            version production runs for a skill or context file. Null for an
+            agent never published.
+        on_draft: The suggestions were measured on the draft as it stands,
+            because it differs from `base_version` - the baseline is the draft
+            itself, so only the suggestions differ between the two sides.
+        suggestions: How many suggestions the candidate carries.
+    """
+
+    kind: Literal["agent", "skill", "context"]
+    base_version: int | None
+    on_draft: bool = False
+    suggestions: int = Field(ge=1)
+
+
 class EvalRunRequest(BaseSchema):
     """What to run, as a person asks for it - the same body estimates and starts.
 
@@ -127,6 +149,10 @@ class EvalRunEstimate(BaseSchema):
             "with AI assistance off, the judge grades none. Any makes the result "
             "inconclusive"
         ),
+    )
+    proposal_check: ProposalCheckRecord | None = Field(
+        default=None,
+        description="What a check of the authoring assistant's proposal would measure; null otherwise",
     )
 
 
@@ -344,6 +370,13 @@ class EvalRunRead(BaseSchema):
         description=(
             "Whether the agent's draft changed since this run tested it. Sent on the "
             "single-run read of a run of the draft; null otherwise"
+        ),
+    )
+    proposal_check: ProposalCheckRecord | None = Field(
+        default=None,
+        description=(
+            "What a check of the authoring assistant's proposal measured; null for any "
+            "other run. Such a run sends nothing to review by itself"
         ),
     )
     suite_check: EvalSuiteCheckRead | None = Field(

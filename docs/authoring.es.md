@@ -1,5 +1,5 @@
 ---
-source_sha: "2d8ad168bb1c"
+source_sha: "5821f497cd86"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -18,9 +18,9 @@ Hace tres cosas:
 
 - **Mejorar** un agent: sugerir cambios a partir de sus runs valorados
   negativamente y fallidos.
-- **Verificar** tus propios cambios: comparar el draft con la versión publicada
-  con la misma evidencia y decir qué mejoran los cambios, qué arriesgan y qué
-  quitaron.
+- **Verificar** tus propios cambios: comparar el draft con la versión en la que
+  se basa - la última publicada - con la misma evidencia y decir qué mejoran los
+  cambios, qué arriesgan y qué quitaron.
 - **Mejorar un skill** o un **archivo de contexto**: sugerir un cuerpo nuevo a
   partir de los runs que lo leyeron.
 
@@ -100,20 +100,33 @@ texto del draft.
 
 ### Comprobar con evals { #check-with-evals }
 
-**Comprobar con evals** ejecuta un [dataset](datasets.md) contra el draft tal como
-quedaría con todas las sugerencias pendientes aceptadas, junto a la versión
-publicada en el mismo [eval run](evals.md#a-baseline-in-the-same-run). Comprobar
-no acepta nada y el draft no cambia. Mientras una sugerencia pendiente ya no
+**Comprobar con evals** ejecuta un [dataset](datasets.md) contra la base del
+draft - la última versión publicada - con todas las sugerencias pendientes
+aplicadas, junto a esa versión en el mismo
+[eval run](evals.md#a-baseline-in-the-same-run). Una guardiana puede retener
+producción en una versión anterior; la comprobación nunca mide contra ella, así
+que lo que cambió la última versión está en ambos lados y nunca se atribuye a una
+sugerencia. Cuando el draft se ha alejado de su base - con cambios tuyos o con
+sugerencias aceptadas antes -, el baseline es el propio draft, ejecutado de nuevo
+en lugar de tomado de un run anterior, para que las sugerencias sean la única
+diferencia; la estimación también pone precio a ese lado. Los lados se nombran
+por lo que son, en el diálogo y en el run: "v2 + 1 suggestion" frente a "v2", o
+"Draft + 2 suggestions" frente a "Draft". Comprobar no acepta nada y el draft no
+cambia. Mientras una sugerencia pendiente ya no
 encaje en el draft, o choque con otra, la comprobación se rechaza hasta que se
 acepte o se descarte: el run mide exactamente lo que espera.
 
 En lugar de un dataset, la comprobación puede ejecutar una de las
 [suites](evals.md#suites) del agente: su dataset, en su entorno. El run compara
-el draft con la versión publicada como cualquier comprobación y, cuando termina,
-también dice qué habría dicho la suite: aprobado, suspendido o sin conclusión, y
-por qué, según el umbral que la suite tenía al empezar la comprobación. Se ve en
-el run y junto a la comprobación en la franja, con la misma redacción que los
-resultados de la propia suite.
+los dos lados como cualquier comprobación y, cuando termina, también dice qué
+habría dicho la suite: aprobado, suspendido o sin conclusión, y por qué, según el
+umbral que la suite tenía al empezar la comprobación. Se ve en el run y junto a
+la comprobación en la franja, con la misma redacción que los resultados de la
+propia suite.
+
+La franja resume cada comprobación terminada en una frase que enlaza su run -
+"audit-smoke would fail: breaks “Do you ship to Canada?”", o lo que rompió y
+arregló en el dataset.
 
 La comprobación no es uno de los runs de la suite: no está en ningún historial
 de suite, no avisa a nadie, y Aceptar se guía por el veredicto del propio run.
@@ -123,6 +136,15 @@ funciona recibe lo mismo.
 Los casos tomados de las conversaciones de las que salieron las sugerencias
 quedan fuera, y el run dice cuántos: un cambio nunca se mide con los datos a los
 que se ajustó. Un dataset hecho solo de esos casos se rechaza.
+
+Una comprobación cuenta como la prueba del draft en cuanto el draft es
+exactamente lo que comprobó - cada sugerencia comprobada aceptada y nada más
+cambiado -, así que el diálogo de publicación informa de su veredicto; tras otro
+cambio, dice que esa prueba está desactualizada. Una comprobación medida contra
+el propio draft nunca cuenta: no dice nada del draft frente a la versión
+publicada que sustituiría. Una comprobación no envía nada
+por sí sola a la [cola de revisión](datasets.md#review) de un dataset, ya que no
+se aceptó nada; la página de su run lo dice junto a **Send failed to review**.
 
 Cada sugerencia indica el efecto que espera. La barra lo muestra junto a los eval
 runs que comprobaron las sugerencias, para que puedas comparar la predicción con
