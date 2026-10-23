@@ -580,7 +580,6 @@ async def test_running_the_draft_needs_edit_access_to_the_agent(db) -> None:
 
 
 @pytest.mark.security
-@pytest.mark.security
 async def test_a_grant_on_the_dataset_is_not_enough_to_start_without_runs_view(db) -> None:
     """A Member with a use grant on the dataset could start a run they then could not
     read or cancel; starting is refused before the grants are looked at."""

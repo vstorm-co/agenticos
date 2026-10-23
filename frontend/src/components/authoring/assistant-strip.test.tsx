@@ -155,13 +155,36 @@ describe("AssistantStrip", () => {
 
   it("says a check with evals needs runs:view to somebody who may not read runs", async () => {
     state.runsView = false;
-    strip();
+    const { rerender } = render(
+      <AssistantStrip
+        agentId="agent-1"
+        currentVersionId="v1"
+        storedDraft={DRAFT}
+        canCheck={false}
+        checkNeedsRunsView
+        persist={vi.fn()}
+        onDraft={vi.fn()}
+      />,
+    );
 
     const check = screen.getByRole("button", { name: /Check with evals/ });
     expect(check).toHaveAttribute("aria-disabled", "true");
     expect(check).toHaveAttribute("title", "Needs permission to read runs");
     await userEvent.click(check);
     expect(screen.queryByRole("heading", { name: "Check with evals" })).toBeNull();
+
+    // Nothing to run a check on either: reading runs would not be enough, so no reason is given.
+    rerender(
+      <AssistantStrip
+        agentId="agent-1"
+        currentVersionId="v1"
+        storedDraft={DRAFT}
+        canCheck={false}
+        persist={vi.fn()}
+        onDraft={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /Check with evals/ })).toBeNull();
   });
 
   it("offers no new request until it knows whether one is already at work", () => {

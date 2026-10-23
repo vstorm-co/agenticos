@@ -39,6 +39,7 @@ export function AssistantStrip({
   currentVersionId,
   storedDraft,
   canCheck,
+  checkNeedsRunsView = false,
   persist,
   onDraft,
 }: {
@@ -48,6 +49,8 @@ export function AssistantStrip({
   storedDraft: AgentSpec;
   /** Whether this caller may run the draft on a dataset, which checking does. */
   canCheck: boolean;
+  /** Whether it could, but for reading runs - the check is then shown disabled, saying so. */
+  checkNeedsRunsView?: boolean;
   /** Store the page's draft; false when it did not store. */
   persist: () => Promise<boolean>;
   onDraft: (spec: AgentSpec) => void;
@@ -129,7 +132,7 @@ export function AssistantStrip({
                   {t("check")}
                 </Button>
               )}
-              {!canAsk && (
+              {checkNeedsRunsView && (
                 <NeedsRunsView size="sm" variant="outline">
                   {t("check")}
                 </NeedsRunsView>

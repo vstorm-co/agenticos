@@ -43,6 +43,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.dataset import Dataset
+from app.db.models.eval_run import EvalRun
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.notification import Notification
 from app.db.models.organization import Organization, OrganizationMember
@@ -344,23 +345,6 @@ async def test_a_daily_suite_runs_once_a_day_and_records_its_result(db) -> None:
     run = await service.evals.get(ctx, results[0].eval_run_id)
     assert run.suite is not None
     assert (run.suite.id, run.suite.trigger) == (suite.id, "schedule")
-
-
-@pytest.mark.security
-async def test_running_a_suite_now_needs_runs_view(db) -> None:
-    ctx = await _owner(db)
-    agent, _ = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx)
-    service = EvalSuiteService(db)
-    created = await service.create(ctx, agent.id, _suite_data(dataset))
-    held = AuthContext.has
-
-    def has(caller: AuthContext, perm: Perm) -> bool:
-        return perm != Perm.RUNS_VIEW and held(caller, perm)
-
-    with patch.object(AuthContext, "has", has), pytest.raises(AuthorizationError) as refused:
-        await service.run_now(ctx, agent.id, created.id)
-    assert refused.value.details == {"permission": "runs:view"}
 
 
 async def test_a_paused_suite_does_not_run(db) -> None:
@@ -1097,6 +1081,29 @@ async def _role(db: AsyncSession, ctx: AuthContext, user_id: uuid.UUID, role: Or
     ).scalar_one()
     member.role = role.value
     await db.flush()
+
+
+@pytest.mark.security
+async def test_an_owner_who_can_no_longer_read_runs_starts_no_run(db) -> None:
+    """A Member still runs the agent and the dataset, but starting an eval needs
+    runs:view - so the scheduled run is refused before anything is spent."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    suite = await EvalSuiteService(db).create(
+        builder, agent.id, _suite_data(dataset, on_publish=True)
+    )
+    await _role(db, ctx, builder.user_id, OrgRoleName.MEMBER)
+
+    await AgentRegistryService(db).publish(ctx, agent.id)
+    await EvalSuiteService(db).start_due(now=datetime.now(UTC))
+
+    row = await db.get(EvalSuite, suite.id)
+    assert row is not None and (row.is_active, row.paused_reason) == (False, "owner_lacks_access")
+    [result] = await _results(db, suite.id)
+    assert (result.status, result.reason) == ("error", "owner_lacks_access")
+    assert (await db.scalar(select(func.count()).select_from(EvalRun))) == 0
 
 
 async def test_an_owner_who_lost_access_pauses_the_suite_and_hears_why(db) -> None:
