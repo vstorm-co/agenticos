@@ -360,6 +360,26 @@
     "neverEdited": "nigdy nieedytowany",
     "neverPublished": "Nigdy nieopublikowany.",
     "newAgent": "Nowy agent",
+    "newKindLabel": "Co utworzyć",
+    "newKindAgent": "Agent",
+    "newKindSystem": "Agent systemowy",
+    "systemKindLabel": "Rodzaj agenta systemowego",
+    "systemKind": {
+      "judge": "Sędzia",
+      "judgeBody": "Ocenia odpowiedzi w ewaluacjach według kryteriów datasetu; dataset może wybrać go jako własnego.",
+      "drafter": "Autor uzupełnień luk",
+      "drafterBody": "Pisze fragment, którego brakuje w bazie wiedzy, do przejrzenia przez człowieka.",
+      "generator": "Generator przypadków",
+      "generatorBody": "Pisze przypadki testowe dla datasetu z instrukcji, wiedzy i czatów agenta.",
+      "classifier": "Klasyfikator luk",
+      "classifierBody": "Czyta odpowiedzi i komentarze, żeby odróżnić brak wiedzy od innych pomyłek.",
+      "improver": "Asystent autorski",
+      "improverBody": "Proponuje zmiany w agencie na podstawie ocen i wyników runów."
+    },
+    "systemKindLocked": "Platforma uruchamia jednego na organizację, więc kolejny nigdy by nie zadziałał. Zmień zamiast tego tego, który już jest.",
+    "systemKindOpenOwn": "Otwórz go",
+    "systemRunsOn": "Startuje na pierwszym modelu organizacji; model zmienisz na jego stronie.",
+    "systemNamePlaceholder": "Druga opinia",
     "newEnvironment": "Nowe środowisko",
     "noCapabilityOrToolMatches": "Żadna capability ani narzędzie nie pasuje do „{query}”.",
     "noDelegatesYet": "Brak delegatów. Tylko opublikowany agent może nim być - jest wtedy wersja do przypięcia.",
@@ -687,8 +707,18 @@
     "generatorKindHint": "Przygotowuje przypadki testowe do datasetu z agenta, jego bazy wiedzy, prawdziwych czatów i red teamingu; każdą propozycję człowiek akceptuje albo odrzuca.",
     "improverKind": "{count, plural, one {Asystent tworzenia (#)} few {Asystenci tworzenia (#)} many {Asystentów tworzenia (#)} other {Asystenci tworzenia (#)}}",
     "improverKindHint": "Czyta źle ocenione odpowiedzi i nieudane runy i sugeruje zmiany w agentach i skillach, gdy ktoś poprosi o ulepszenie.",
-    "defaultJudge": "Domyślny sędzia",
-    "defaultJudgeHint": "Ocenia każdy dataset, który nie ma własnego sędziego.",
+    "defaultBadge": {
+      "judge": "Domyślny sędzia",
+      "judgeHint": "Ocenia każdy dataset, który nie ma własnego sędziego.",
+      "drafter": "Domyślny autor uzupełnień",
+      "drafterHint": "Pisze to, czego brakuje każdej bazie wiedzy.",
+      "generator": "Domyślny generator przypadków",
+      "generatorHint": "Pisze przypadki, o które prosi każdy dataset.",
+      "classifier": "Domyślny klasyfikator luk",
+      "classifierHint": "Czyta odpowiedzi dla luk każdej bazy wiedzy.",
+      "improver": "Domyślny asystent autorski",
+      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi."
+    },
     "judgeUsedBy": "{more, plural, =0 {Używają go: {names}} one {Używają go: {names} i # inny} few {Używają go: {names} i # inne} many {Używają go: {names} i # innych} other {Używają go: {names} i # innych}}",
     "judgeUnused": "Żaden dataset jeszcze nie używa tego sędziego.",
     "judgeDatasets": "Datasety",
@@ -3857,7 +3887,7 @@
       },
       "flow-agent-create": {
         "title": "Nazwij agenta",
-        "body": "Wybierz New agent - nadaj mu nazwę i krótki opis, i utwórz go. Otworzy się kreator, gdzie dzieje się reszta. Przejdziemy dalej, gdy tylko powstanie."
+        "body": "Wybierz New agent, zostaw zaznaczone Agent, nadaj mu nazwę i krótki opis, a potem go utwórz. Otworzy się builder, w którym dzieje się reszta. Przejdziemy dalej, gdy tylko powstanie."
       },
       "flow-agent-instructions": {
         "title": "Napisz jego instrukcje",
@@ -4346,7 +4376,7 @@
       },
       "agents-system": {
         "title": "Agenci systemowi",
-        "body": "Agenci, których uruchamia sama platforma, pogrupowani według tego, co robią: sędziowie oceniający odpowiedzi w ewaluacjach i autor szkiców, który pisze, czego brakuje przy luce w wiedzy. Otwórz agenta, żeby zmienić jego instrukcje, model albo budżet; dataset wybiera sędziego w zakładce Ocenianie."
+        "body": "Agenci, których platforma uruchamia sama, pogrupowani według zadań: sędziowie oceniający odpowiedzi w ewaluacjach, generator przypadków, autor i klasyfikator luk oraz asystent autorski. Otwórz jednego, żeby zmienić instrukcje, model lub budżet; dataset wybiera sędziego na karcie Grading, a New agent dodaje kolejnego sędziego."
       },
       "dataset-judge": {
         "title": "Sędzia",

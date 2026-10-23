@@ -103,6 +103,13 @@ describe("AgentCard", () => {
     expect(screen.getByText("Default judge")).toBeInTheDocument();
   });
 
+  it("names the kind a seeded agent is the default of", () => {
+    mount({ system_key: "case_generator", name: "Case generator", kind: "generator" });
+
+    expect(screen.getByText("Default case generator")).toBeInTheDocument();
+    expect(screen.queryByText("Default judge")).toBeNull();
+  });
+
   it("lets an editor open a card with no menu, as a judge's has none", () => {
     render(
       <AgentCard

@@ -360,6 +360,26 @@
     "neverEdited": "nie bearbeitet",
     "neverPublished": "Nie veröffentlicht.",
     "newAgent": "Neuer Agent",
+    "newKindLabel": "Was erstellt wird",
+    "newKindAgent": "Agent",
+    "newKindSystem": "Systemagent",
+    "systemKindLabel": "Art des Systemagents",
+    "systemKind": {
+      "judge": "Bewerter",
+      "judgeBody": "Bewertet Antworten in Evals nach den Kriterien eines Datasets; ein Dataset kann ihn als eigenen wählen.",
+      "drafter": "Lückenentwurf",
+      "drafterBody": "Entwirft den Abschnitt, der einer Wissensdatenbank fehlt, zur Prüfung durch einen Menschen.",
+      "generator": "Fallgenerator",
+      "generatorBody": "Entwirft Testfälle für ein Dataset aus den Anweisungen, dem Wissen und den Chats eines Agents.",
+      "classifier": "Lückenklassifizierer",
+      "classifierBody": "Liest Antworten und Kommentare, um fehlendes Wissen von anderen Fehlern zu unterscheiden.",
+      "improver": "Autorenassistent",
+      "improverBody": "Schlägt Änderungen an einem Agent aus seinen Bewertungen und Run-Ergebnissen vor."
+    },
+    "systemKindLocked": "Die Plattform führt einen pro Organisation aus, ein weiterer liefe nie. Ändern Sie stattdessen den der Organisation.",
+    "systemKindOpenOwn": "Öffnen",
+    "systemRunsOn": "Er startet auf dem ersten Modell der Organisation; das Modell ändern Sie auf seiner Seite.",
+    "systemNamePlaceholder": "Zweitmeinung",
     "newEnvironment": "Neue Umgebung",
     "noCapabilityOrToolMatches": "Keine Capability und kein Tool passt zu „{query}“.",
     "noDelegatesYet": "Noch keine Delegaten. Nur ein veröffentlichter Agent kann einer sein – dann gibt es eine Version zum Festsetzen.",
@@ -813,8 +833,18 @@
     "generatorKindHint": "Er entwirft Testfälle für ein Dataset aus einem Agent, seiner Wissensbasis, echten Chats und Red Teaming; jeden Entwurf nimmt ein Mensch an oder verwirft ihn.",
     "improverKind": "{count, plural, =1 {Authoring-Assistent (1)} other {Authoring-Assistenten (#)}}",
     "improverKindHint": "Er liest schlecht bewertete Antworten und fehlgeschlagene Runs und schlägt Änderungen an Agents und Skills vor, wenn jemand um eine Verbesserung bittet.",
-    "defaultJudge": "Standard-Bewerter",
-    "defaultJudgeHint": "Bewertet jedes Dataset ohne eigenen Bewerter.",
+    "defaultBadge": {
+      "judge": "Standardbewerter",
+      "judgeHint": "Bewertet jedes Dataset, das keinen eigenen Bewerter hat.",
+      "drafter": "Standard-Lückenentwurf",
+      "drafterHint": "Entwirft, was jeder Wissensdatenbank fehlt.",
+      "generator": "Standard-Fallgenerator",
+      "generatorHint": "Entwirft die Fälle, die jedes Dataset anfordert.",
+      "classifier": "Standard-Lückenklassifizierer",
+      "classifierHint": "Liest die Antworten für die Lücken jeder Wissensdatenbank.",
+      "improver": "Standard-Autorenassistent",
+      "improverHint": "Schlägt die Verbesserungen vor, die jedem Agent angeboten werden."
+    },
     "judgeUsedBy": "{more, plural, =0 {Genutzt von {names}} other {Genutzt von {names} und # weiteren}}",
     "judgeUnused": "Noch kein Dataset nutzt diesen Bewerter.",
     "judgeDatasets": "Datasets",
@@ -3970,7 +4000,7 @@
       },
       "flow-agent-create": {
         "title": "Benennen Sie Ihren Agent",
-        "body": "Wählen Sie Neuer Agent, geben Sie ihm einen Namen und eine kurze Beschreibung und erstellen Sie ihn. Das öffnet den Builder, wo der Rest passiert. Wir machen weiter, sobald er erstellt ist."
+        "body": "Wählen Sie New agent, lassen Sie Agent ausgewählt, geben Sie ihm einen Namen und eine kurze Beschreibung und erstellen Sie ihn. Das öffnet den Builder, in dem der Rest geschieht. Wir machen weiter, sobald er erstellt ist."
       },
       "flow-agent-instructions": {
         "title": "Schreiben Sie seine Instruktionen",
@@ -4459,7 +4489,7 @@
       },
       "agents-system": {
         "title": "System-Agents",
-        "body": "Die Agents, die die Plattform selbst ausführt, nach ihrer Aufgabe gruppiert: die Bewerter, die Eval-Antworten benoten, und der Entwerfer, der schreibt, was einer Wissenslücke fehlt. Öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern; ein Dataset wählt seinen Bewerter im Tab Bewertung."
+        "body": "Die Agents, die die Plattform selbst ausführt, nach Aufgabe gruppiert: die Bewerter für Eval-Antworten, der Fallgenerator, Lückenentwurf und Lückenklassifizierer sowie der Autorenassistent. Öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern; ein Dataset wählt seinen Bewerter auf dem Grading-Tab, und New agent fügt einen weiteren Bewerter hinzu."
       },
       "dataset-judge": {
         "title": "Der Bewerter",
