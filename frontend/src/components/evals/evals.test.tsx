@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CANDIDATE_ESTIMATE,
@@ -36,7 +36,7 @@ vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
     rangeLabel,
   }: {
     lines: PassRateLine[];
-    recent: number;
+    recent: number | null;
     rangeLabel: string;
   }) => (
     <p>{`${rangeLabel}, last ${recent}: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
@@ -164,16 +164,27 @@ describe("passRateLines", () => {
   const t = (key: string, values?: Record<string, string | number>) =>
     values ? `${key}:${Object.values(values).join("|")}` : key;
 
+  afterEach(() => vi.useRealTimers());
+
   it("puts finished runs in order, a line per group by its dash, each point in its verdict's colour", () => {
+    // On the reader's wall clock, so "today" is the same day in every time zone.
+    const at = (day: number, hour: number) => new Date(2026, 9, day, hour).toISOString();
+    vi.useFakeTimers({ now: new Date(2026, 9, 15, 12), toFake: ["Date"] });
     const lines = passRateLines(
       [
-        worse({ id: "late", created_at: "2026-10-15T10:00:00Z" }),
+        worse({ id: "late", created_at: at(15, 10) }),
         evalRun({
           id: "early",
+          created_at: at(14, 10),
           arms: [arm({ source: "draft", version_number: null })],
           outcome: { ...worse().outcome!, verdict: "better", baseline: null },
         }),
-        evalRun({ id: "other", dataset_id: "ds-2", dataset_name: "shipping" }),
+        evalRun({
+          id: "other",
+          created_at: at(14, 11),
+          dataset_id: "ds-2",
+          dataset_name: "shipping",
+        }),
         evalRun({ id: "live", status: "running" }),
         evalRun({ id: "nothing", arms: [arm({ summary: { ...SUMMARY, pass_rate: null } })] }),
         evalRun({ id: "armless", arms: [] }),
@@ -189,9 +200,13 @@ describe("passRateLines", () => {
       ["shipping", "var(--color-muted-foreground)", "6 4"],
     ]);
     const [refunds, shipping] = lines;
-    expect(refunds?.points.map((p) => [p.index, p.tick, p.draft, p.color])).toEqual([
-      [0, "trend.draftTick", true, "var(--color-success)"],
-      [2, "version:7", false, "var(--color-destructive)"],
+    expect(refunds?.points.map((p) => [p.index, p.draft, p.color])).toEqual([
+      [0, true, "var(--color-success)"],
+      [2, false, "var(--color-destructive)"],
+    ]);
+    expect(refunds?.points.map((p) => p.tick)).toEqual([
+      "trend.tick:draft|Oct 14",
+      expect.stringMatching(/^trend\.tick:version:7\|\d{2}:\d{2}/),
     ]);
     // A first result has no verdict, so nothing to colour it with.
     expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([
@@ -206,7 +221,6 @@ describe("passRateLines", () => {
       "trend.verdict:worse",
     ]);
     expect(late?.details).toHaveLength(4);
-    expect(late?.when).toBe(late?.details[3]);
     expect(shipping?.points[0]?.details.slice(0, 2)).toEqual([
       "trend.rate:75%",
       "trend.verdict:none",
@@ -222,8 +236,7 @@ describe("PassRateChart", () => {
     points: Array.from({ length: count }, (_, i) => ({
       index: offset + i,
       rate: 0.5,
-      tick: "v1",
-      when: "Oct 16",
+      tick: "v1 · Oct 16",
       draft: false,
       color: "var(--series-1)",
       href: "/agents/a/evals/r",
@@ -232,7 +245,7 @@ describe("PassRateChart", () => {
     })),
   });
 
-  it("starts on the newest runs over a range to drag, and keys its lines and colours", async () => {
+  it("past twelve runs, starts on the newest over a range to drag, and keys its lines and colours", async () => {
     render(
       <PassRateChart
         lines={[line("a", "refunds", 10), { ...line("b", "shipping", 4, 10), dash: "6 4" }]}
@@ -249,9 +262,11 @@ describe("PassRateChart", () => {
     expect(screen.getByText(/Drag the handles under the chart/)).toBeInTheDocument();
   });
 
-  it("names no line when there is only one", async () => {
-    render(<PassRateChart lines={[line("a", "refunds", 3)]} />);
-    expect(await screen.findByText("Runs shown, last 12: a×3")).toBeInTheDocument();
+  it("shows every run with no range to drag while they all fit, and names no single line", async () => {
+    render(<PassRateChart lines={[line("a", "refunds", 12)]} />);
+    expect(await screen.findByText("Runs shown, last null: a×12")).toBeInTheDocument();
+    expect(screen.queryByText(/Drag the handles/)).toBeNull();
+    expect(screen.getByText(/^Each point is a run/)).toBeInTheDocument();
     expect(screen.queryByText("refunds")).toBeNull();
   });
 });
