@@ -40,7 +40,7 @@ from app.core.exceptions import (
     NotFoundError,
     NothingToScoreError,
 )
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import (
@@ -54,11 +54,13 @@ from app.db.models.eval_run import (
 from app.db.models.intercepted_tool_call import InterceptedToolCall, InterceptionOutcome
 from app.db.session import get_worker_db_context
 from app.repositories import (
+    agent_repo,
     dataset_repo,
     eval_run_repo,
     intercepted_tool_call_repo,
 )
 from app.schemas.scoring import DatasetScoring
+from app.services.access import AGENT, DATASET, resolve_access
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
@@ -74,6 +76,7 @@ logger = logging.getLogger(__name__)
 #: How long a drainer waits when the organization has no free slot.
 _FULL_BACKOFF_SECONDS = 2.0
 _STARTER_GONE = "Whoever started this eval is no longer a member."
+_NO_LONGER_RUNS = "Whoever started this eval may no longer run its agent or its dataset."
 
 
 type Sessions = Callable[[], AbstractAsyncContextManager[AsyncSession]]
@@ -246,6 +249,8 @@ class EvalRunWorker:
                 lost = None if ctx is not None else _STARTER_GONE
             except AuthenticationError as refused:
                 ctx, lost = None, refused.message
+            if ctx is not None and not await self._may_still_run(db, ctx, run):
+                ctx, lost = None, _NO_LONGER_RUNS
             if ctx is None:
                 await eval_run_repo.update_run(
                     db,
@@ -264,6 +269,24 @@ class EvalRunWorker:
                 values={"status": EvalRunStatus.RUNNING.value, "started_at": datetime.now(UTC)},
             )
             return ctx
+
+    @staticmethod
+    async def _may_still_run(db: AsyncSession, ctx: AuthContext, run: EvalRun) -> bool:
+        """Whether the authority rebuilt for the run still runs its agent and its dataset.
+
+        Checked when the run starts rather than only when it was asked for: a role
+        lost, or a key narrowed, in between must not leave the run spending on
+        what its starter could no longer start.
+        """
+        org = run.organization_id
+        agent = await agent_repo.get(db, run.agent_id, organization_id=org)
+        dataset = await dataset_repo.get(db, run.dataset_id, organization_id=org)
+        return (
+            agent is not None
+            and dataset is not None
+            and await resolve_access(db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
+            and await resolve_access(db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET)
+        )
 
     async def _wave(self, ctx: AuthContext) -> None:
         drainers = [

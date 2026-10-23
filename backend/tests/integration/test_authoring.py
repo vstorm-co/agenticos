@@ -61,7 +61,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import KEY_GONE, ApiKeyService
 from app.services.authoring import AuthoringService
-from app.services.authoring_worker import AuthoringRun, AuthoringWorker
+from app.services.authoring_worker import AuthoringWorker
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
@@ -1606,7 +1606,10 @@ async def test_the_improver_never_reads_an_eval_run_a_score_or_a_dataset(db):
 
 
 class TestARequestStartedWithAnApiKey:
-    """The assistant's job does no more than the request that started it could do now."""
+    """The assistant's job does no more than the request that started it could do now.
+
+    No route that starts one accepts a key today; this holds the worker to it.
+    """
 
     async def _started(self, db: AsyncSession):
         ctx, agent, _ = await _setup(db)
@@ -1624,24 +1627,24 @@ class TestARequestStartedWithAnApiKey:
         return ctx, created.id, started
 
     @pytest.mark.security
-    async def test_it_works_with_the_key_narrowed_as_it_stands_now(self, db):
+    async def test_a_key_narrowed_since_stops_it_before_it_reads_a_run(self, db):
         ctx, key_id, started = await self._started(db)
         key = await db.get(ApiKey, key_id)
         assert key is not None
-        key.scopes = [Perm.AGENTS_VIEW.value]
+        key.scopes = [Perm.AGENTS_VIEW.value, Perm.AGENTS_EDIT.value]
         await db.flush()
-        seen: list[AuthContext] = []
 
-        async def execute(run: AuthoringRun) -> None:
-            seen.append(run.ctx)
+        await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
 
-        with patch.object(AuthoringRun, "execute", execute):
-            await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
-
-        [asked] = seen
-        assert (asked.user_id, asked.api_key_id) == (ctx.user_id, key_id)
-        assert asked.key_scopes == frozenset({Perm.AGENTS_VIEW})
-        assert not asked.has(Perm.RUNS_VIEW)
+        request = await authoring_repo.get_request(
+            db, started.id, organization_id=ctx.organization_id
+        )
+        assert request is not None
+        assert (request.status, request.error) == (
+            "failed",
+            "Whoever started this may no longer read runs.",
+        )
+        assert request.run_ids == []
 
     @pytest.mark.security
     async def test_a_key_revoked_since_stops_it(self, db):

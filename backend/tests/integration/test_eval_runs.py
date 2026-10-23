@@ -2593,7 +2593,11 @@ _STARTS_EVALS = (
 
 
 class TestAnEvalStartedWithAnApiKey:
-    """A job does no more than the request that started it could do now."""
+    """A job does no more than the request that started it could do now.
+
+    No route that starts an eval accepts a key today; these hold the worker to
+    it for the day one does, through the real start and the real worker.
+    """
 
     async def _started(self, db: AsyncSession):
         ctx = await _owner(db)
@@ -2606,36 +2610,62 @@ class TestAnEvalStartedWithAnApiKey:
         )
         return ctx, key_id, started
 
+    async def _worked(self, db: AsyncSession, ctx: AuthContext, run_id: uuid.UUID) -> EvalRun:
+        await EvalRunWorker(
+            run_id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock()
+        ).run()
+        run = await eval_run_repo.get(db, run_id, organization_id=ctx.organization_id)
+        assert run is not None
+        await db.refresh(run)
+        attempts = await eval_run_repo.list_cases(db, run_id, organization_id=ctx.organization_id)
+        assert all(attempt.agent_run_id is None for attempt in attempts)
+        return run
+
     @pytest.mark.security
-    async def test_its_cases_run_with_the_key_narrowed_as_it_stands_now(self, db) -> None:
+    @pytest.mark.parametrize("taken", [Perm.AGENTS_RUN, Perm.DATASETS_RUN])
+    async def test_a_key_narrowed_since_stops_the_run_before_it_spends(
+        self, db, taken: Perm
+    ) -> None:
         ctx, key_id, started = await self._started(db)
         key = await db.get(ApiKey, key_id)
         assert key is not None
-        key.scopes = [Perm.RUNS_VIEW.value, Perm.AGENTS_VIEW.value]
+        key.scopes = [perm.value for perm in _STARTS_EVALS if perm != taken]
         await db.flush()
-        model = Model(db)
 
-        await _run_to_end(db, model, started.id, ctx)
+        run = await self._worked(db, ctx, started.id)
 
-        [call] = model.calls
-        asked = call["ctx"]
-        assert (asked.user_id, asked.api_key_id) == (ctx.user_id, key_id)
-        assert asked.key_scopes == frozenset({Perm.RUNS_VIEW, Perm.AGENTS_VIEW})
-        assert not asked.has(Perm.AGENTS_RUN)
-        assert asked.subject_is_publisher_fallback
+        assert (run.status, run.error) == (
+            "failed",
+            "Whoever started this eval may no longer run its agent or its dataset.",
+        )
+
+    @pytest.mark.security
+    async def test_an_issuer_who_lost_their_role_since_stops_the_run(self, db) -> None:
+        """The key is unchanged; the role it is narrowed from is what moved."""
+        ctx, _, started = await self._started(db)
+        member = (
+            await db.execute(
+                select(OrganizationMember).where(
+                    OrganizationMember.organization_id == ctx.organization_id,
+                    OrganizationMember.user_id == ctx.user_id,
+                )
+            )
+        ).scalar_one()
+        member.role = OrgRoleName.VIEWER.value
+        await db.flush()
+
+        run = await self._worked(db, ctx, started.id)
+
+        assert run.status == "failed"
 
     @pytest.mark.security
     async def test_a_key_revoked_since_stops_the_run(self, db) -> None:
         ctx, key_id, started = await self._started(db)
         await ApiKeyService(db).revoke(ctx, key_id)
-        model = Model(db)
 
-        await _run_to_end(db, model, started.id, ctx)
+        run = await self._worked(db, ctx, started.id)
 
-        run = await eval_run_repo.get(db, started.id, organization_id=ctx.organization_id)
-        assert run is not None
         assert (run.status, run.error) == ("failed", KEY_GONE)
-        assert model.calls == []
 
     @pytest.mark.security
     async def test_a_key_of_another_organization_stops_the_run(self, db) -> None:
@@ -2646,13 +2676,10 @@ class TestAnEvalStartedWithAnApiKey:
         assert run is not None
         run.created_by_api_key_id = foreign
         await db.flush()
-        model = Model(db)
 
-        await _run_to_end(db, model, started.id, ctx)
+        worked = await self._worked(db, ctx, started.id)
 
-        await db.refresh(run)
-        assert (run.status, run.error) == ("failed", KEY_GONE)
-        assert model.calls == []
+        assert (worked.status, worked.error) == ("failed", KEY_GONE)
 
     async def test_a_run_started_signed_in_records_no_key(self, db) -> None:
         ctx = await _owner(db)
