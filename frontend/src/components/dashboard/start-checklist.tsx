@@ -6,6 +6,7 @@ import {
   Bot,
   CalendarClock,
   Check,
+  ArrowRight,
   ChevronRight,
   Library,
   MessageSquare,
@@ -152,10 +153,10 @@ function Checklist({
   const [dismissed, setDismissed] = useState(() => readDismissed(orgId));
   const personal = usePersonalSteps();
   const steps = [...personal.steps, ...more];
-  const left = steps.filter((step) => !step.done).length;
-  const next = steps.find((step) => !step.done);
+  const open = steps.filter((step) => !step.done);
+  const [next, ...later] = open;
 
-  if (dismissed || personal.loading || left === 0) return null;
+  if (dismissed || personal.loading || !next) return null;
 
   const dismiss = () => {
     setDismissed(true);
@@ -165,137 +166,175 @@ function Checklist({
       // Nowhere to keep it; it stays closed for this visit.
     }
   };
-  const done = steps.length - left;
-  // Headed only when there are two: a member's card is their own steps alone.
-  const groups =
-    more.length > 0
-      ? [
-          { key: "you", steps: personal.steps },
-          { key: "organization", steps: more },
-        ]
-      : [{ key: null, steps: personal.steps }];
+  const done = steps.filter((step) => step.done);
+  const NextIcon = ICONS[next.id];
 
   return (
-    <Card className={cn("@container mt-6 flex flex-col", className)}>
-      <CardContent className="flex flex-1 flex-col gap-4 p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-2">
-            <h2 className="text-sm font-semibold">{t("title")}</h2>
-            <div className="flex items-center gap-2.5">
-              <div
-                className="bg-muted h-1.5 w-28 overflow-hidden rounded-full"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={steps.length}
-                aria-valuenow={done}
-                aria-label={t("title")}
-              >
-                <div
-                  className="bg-success h-full rounded-full transition-[width]"
-                  style={{ width: `${(done / steps.length) * 100}%` }}
-                />
-              </div>
-              <span className="text-muted-foreground text-xs">
-                {t("progress", { done, total: steps.length })}
-              </span>
-            </div>
+    <Card className={cn("mt-6 flex flex-col", className)}>
+      <CardContent className="flex flex-1 flex-col gap-5 p-5">
+        <div className="flex items-center gap-4">
+          <ProgressRing done={done.length} total={steps.length} />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-semibold tracking-tight">{t("title")}</h2>
+            <p className="text-muted-foreground text-sm">{t("left", { count: open.length })}</p>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 self-start"
             aria-label={t("dismiss")}
             onClick={dismiss}
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="grid gap-x-6 gap-y-4 @2xl:grid-cols-2">
-          {groups.map((group) => (
-            <section key={group.key ?? "steps"} className="space-y-1">
-              {group.key && (
-                <h3 className="text-muted-foreground px-2.5 text-[11px] font-medium tracking-wide uppercase">
-                  {t(`groups.${group.key}`)}
-                </h3>
-              )}
-              <ol className="space-y-0.5">
-                {group.steps.map((step) => (
-                  <li key={step.id}>
-                    <StepRow step={step} next={step === next} />
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ))}
+
+        {/* The one thing to do now, said plainly and with its own button. */}
+        <div className="bg-muted/60 flex items-start gap-3.5 rounded-xl p-4">
+          <span className="bg-card text-foreground shadow-card flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+            <NextIcon className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1 space-y-3">
+            <div>
+              <p className="text-muted-foreground text-xs">{t("next")}</p>
+              <p className="text-sm font-semibold">{t(`steps.${next.id}`)}</p>
+              <p className="text-muted-foreground text-sm">{t(`hints.${next.id}`)}</p>
+            </div>
+            <StepAction step={next} className="h-8">
+              {t("start")}
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </StepAction>
+          </div>
         </div>
+
+        {later.length > 0 && (
+          <ol className="-mt-1 space-y-0.5">
+            {later.map((step) => {
+              const Icon = ICONS[step.id];
+              return (
+                <li key={step.id}>
+                  <StepLink
+                    step={step}
+                    className="group hover:bg-muted/50 flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
+                  >
+                    <span className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
+                      <Icon className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm">{t(`steps.${step.id}`)}</span>
+                    <ChevronRight
+                      className="text-muted-foreground group-hover:text-foreground h-4 w-4 shrink-0 transition-colors"
+                      aria-hidden
+                    />
+                  </StepLink>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+
+        {done.length > 0 && (
+          <div className="mt-auto space-y-2 border-t pt-4">
+            <p className="text-muted-foreground text-xs">{t("doneHeading")}</p>
+            <ul className="flex flex-wrap gap-1.5">
+              {done.map((step) => (
+                <li key={step.id}>
+                  <StepLink
+                    step={step}
+                    className="bg-muted/60 text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1.5 text-xs transition-colors"
+                  >
+                    <span className="bg-success flex h-3.5 w-3.5 items-center justify-center rounded-full text-white">
+                      <Check className="h-2.5 w-2.5" aria-hidden />
+                    </span>
+                    {t(`steps.${step.id}`)}
+                  </StepLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-/**
- * One step: its mark, ticked when done; what it is for while it is not; the next
- * one raised and labelled. A step with no page is a question to the Architect.
- */
-function StepRow({ step, next }: { step: Step; next: boolean }) {
+/** How far along, as a ring with the count in it. */
+function ProgressRing({ done, total }: { done: number; total: number }) {
+  const t = useTranslations("dashboard.startChecklist");
+  const radius = 22;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <div
+      className="relative h-14 w-14 shrink-0"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-valuenow={done}
+      aria-valuetext={t("progress", { done, total })}
+      aria-label={t("title")}
+    >
+      <svg viewBox="0 0 56 56" className="h-14 w-14 -rotate-90" aria-hidden>
+        <circle cx="28" cy="28" r={radius} className="stroke-muted" strokeWidth="5" fill="none" />
+        <circle
+          cx="28"
+          cy="28"
+          r={radius}
+          className="stroke-success transition-[stroke-dashoffset] duration-500"
+          strokeWidth="5"
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - done / total)}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular-nums">
+        {t("ratio", { done, total })}
+      </span>
+    </div>
+  );
+}
+
+/** A step's own place: its page, or for an agent of one's own, a question to the Architect. */
+function StepLink({
+  step,
+  className,
+  children,
+}: {
+  step: Step;
+  className: string;
+  children: React.ReactNode;
+}) {
   const t = useTranslations("dashboard.startChecklist");
   const ask = useArchitectAskStore((state) => state.ask);
-  const Icon = ICONS[step.id];
-  // A done step is one quiet line; what is left gets its mark and what it is for.
-  const className = cn(
-    "group flex w-full items-center gap-3 rounded-lg px-2.5 text-left transition-colors",
-    step.done ? "py-1" : "py-2",
-    next ? "bg-muted/70 hover:bg-muted" : "hover:bg-muted/50",
-  );
-  const body = (
-    <>
-      {step.done ? (
-        <span className="flex w-8 shrink-0 justify-center">
-          <span className="bg-success flex h-4 w-4 items-center justify-center rounded-full text-white">
-            <Check className="h-2.5 w-2.5" aria-hidden />
-            <span className="sr-only">{t("doneLabel")}</span>
-          </span>
-        </span>
-      ) : (
-        <span className="bg-card text-foreground shadow-card flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-          <Icon className="h-4 w-4" aria-hidden />
-        </span>
-      )}
-      <span className="min-w-0 flex-1">
-        <span
-          className={cn(
-            "block truncate text-sm",
-            step.done ? "text-muted-foreground" : "text-foreground font-medium",
-          )}
-        >
-          {t(`steps.${step.id}`)}
-        </span>
-        {!step.done && (
-          <span className="text-muted-foreground block truncate text-xs">
-            {t(`hints.${step.id}`)}
-          </span>
-        )}
-      </span>
-      {next && (
-        <span className="bg-foreground text-background shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium">
-          {t("next")}
-        </span>
-      )}
-      {!step.done && (
-        <ChevronRight
-          className="text-muted-foreground group-hover:text-foreground h-4 w-4 shrink-0 transition-colors"
-          aria-hidden
-        />
-      )}
-    </>
-  );
   return step.href ? (
     <Link href={step.href} className={className}>
-      {body}
+      {children}
     </Link>
   ) : (
     <button type="button" onClick={() => ask(t("agentAsk"))} className={className}>
-      {body}
+      {children}
     </button>
+  );
+}
+
+/** The next step's button: the same destination as its row, drawn as the card's one call to act. */
+function StepAction({
+  step,
+  className,
+  children,
+}: {
+  step: Step;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const t = useTranslations("dashboard.startChecklist");
+  const ask = useArchitectAskStore((state) => state.ask);
+  return step.href ? (
+    <Button asChild size="sm" className={className}>
+      <Link href={step.href}>{children}</Link>
+    </Button>
+  ) : (
+    <Button size="sm" className={className} onClick={() => ask(t("agentAsk"))}>
+      {children}
+    </Button>
   );
 }

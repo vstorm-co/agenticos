@@ -2802,8 +2802,7 @@
     "startChecklist": {
       "title": "Pierwsze kroki",
       "progress": "{done} z {total} gotowe",
-      "next": "Następny",
-      "doneLabel": "Zrobione",
+      "next": "Następny krok",
       "dismiss": "Ukryj listę",
       "steps": {
         "agent": "Zbuduj agenta",
@@ -2830,10 +2829,10 @@
         "teammate": "Z agentów lepiej korzystać razem.",
         "channel": "Slack, Teams, Telegram albo Mattermost."
       },
-      "groups": {
-        "you": "Ty",
-        "organization": "Twoja organizacja"
-      }
+      "left": "{count, plural, =1 {Został 1 krok} few {Zostały # kroki} many {Zostało # kroków} other {Zostało # kroków}}",
+      "ratio": "{done}/{total}",
+      "start": "Zacznij",
+      "doneHeading": "Już zrobione"
     },
     "views": {
       "label": "Widok dashboardu",

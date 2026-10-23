@@ -79,29 +79,36 @@ describe("the dashboard's start checklist", () => {
   it("leads with the person's own steps and says what the next one is for", () => {
     render(<StartChecklist orgId="o1" />);
 
-    expect(screen.getByText("0 of 10 done")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Tell agents about you/ })).toHaveAttribute(
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "0 of 10 done");
+    expect(screen.getByText("0/10")).toBeInTheDocument();
+    expect(screen.getByText("10 steps left")).toBeInTheDocument();
+    expect(screen.getByText("Your role and work, so answers fit you.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute(
       "href",
       "/settings/profile",
     );
-    expect(screen.getByText("Your role and work, so answers fit you.")).toBeInTheDocument();
+    expect(screen.queryByText("Already done")).toBeNull();
   });
 
-  it("ticks the organization's steps for a builder and links to what is left", () => {
+  it("raises the next step, lists the rest, and keeps what is done as links", () => {
     personalDone();
     data.agents = [{ status: "draft", owner_user_id: "u1", slug: "mine" }];
     data.groups = [{}];
     render(<StartChecklist orgId="o1" />);
 
-    expect(screen.getByText("6 of 10 done")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Publish it/ })).toHaveAttribute("href", "/agents");
-    expect(screen.getByRole("link", { name: /Invite a teammate/ })).toHaveAttribute(
+    expect(screen.getByText("6/10")).toBeInTheDocument();
+    expect(screen.getByText("4 steps left")).toBeInTheDocument();
+    // The organization's first step left is the next, for a builder whose own are done.
+    expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute("href", "/agents");
+    expect(screen.getByRole("link", { name: "Invite a teammate" })).toHaveAttribute(
       "href",
       "/orgs/o1/members",
     );
-    // The builder's card names whose steps are whose; the first left is marked next.
-    expect(screen.getByRole("heading", { name: "Your organization" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Publish it.*Next/ })).toBeInTheDocument();
+    expect(screen.getByText("Already done")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add your departments" })).toHaveAttribute(
+      "href",
+      "/groups",
+    );
   });
 
   it("asks the Architect for the agent a person did not build, not the ones every org has", async () => {
@@ -110,18 +117,27 @@ describe("the dashboard's start checklist", () => {
     data.perms = new Set();
     render(<StartChecklist orgId="o1" />);
 
-    expect(screen.getByText("4 of 5 done")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Build an agent/ }));
+    expect(screen.getByText("4/5")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(data.ask).toHaveBeenCalledWith(
       "Help me build my first agent. Ask me what I want it to do.",
     );
+  });
+
+  it("asks the Architect from a row too, when building an agent is not the next step", async () => {
+    data.agents = [{ status: "published", owner_user_id: "u1", slug: "architect" }];
+    data.perms = new Set();
+    render(<StartChecklist orgId="o1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Build an agent" }));
+    expect(data.ask).toHaveBeenCalled();
   });
 
   it("leaves the chat-app step to whoever may add one", () => {
     data.perms = new Set(["agents:edit"]);
     render(<StartChecklist orgId="o1" />);
 
-    expect(screen.getByText("0 of 9 done")).toBeInTheDocument();
+    expect(screen.getByText("9 steps left")).toBeInTheDocument();
   });
 
   it("goes once everything is done, for a builder and for a reader alike", () => {

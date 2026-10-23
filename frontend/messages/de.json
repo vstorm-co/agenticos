@@ -2802,8 +2802,7 @@
     "startChecklist": {
       "title": "Erste Schritte",
       "progress": "{done} von {total} erledigt",
-      "next": "Als Nächstes",
-      "doneLabel": "Erledigt",
+      "next": "Nächster Schritt",
       "dismiss": "Checkliste ausblenden",
       "steps": {
         "agent": "Einen Agent bauen",
@@ -2830,10 +2829,10 @@
         "teammate": "Agents nutzt man besser gemeinsam.",
         "channel": "Slack, Teams, Telegram oder Mattermost."
       },
-      "groups": {
-        "you": "Sie",
-        "organization": "Ihre Organisation"
-      }
+      "left": "{count, plural, =1 {Noch 1 Schritt} other {Noch # Schritte}}",
+      "ratio": "{done}/{total}",
+      "start": "Loslegen",
+      "doneHeading": "Schon erledigt"
     },
     "views": {
       "label": "Dashboard-Ansicht",
