@@ -3,9 +3,10 @@
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import CroniterBadDateError, croniter
-from pydantic import ConfigDict, Field, computed_field, model_validator
+from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.core.config import settings
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource
@@ -18,6 +19,17 @@ from app.schemas.base import BaseSchema, TimestampSchema
 # past its own limit. Capping at the column's own ceiling refuses both before a row
 # is touched; a cadence longer than 68 years is a cron expression's job anyway.
 MAX_INTERVAL_SECONDS = 2_147_483_647
+
+
+def valid_time_zone(value: str | None) -> str | None:
+    """`value` if it names an IANA zone, for a schedule's `time_zone`."""
+    if value is None:
+        return None
+    try:
+        ZoneInfo(value)
+    except ZoneInfoNotFoundError, ValueError:
+        raise ValueError("Not an IANA time zone, such as Europe/Warsaw") from None
+    return value
 
 
 def _cron_has_next(expression: str) -> bool:
@@ -297,6 +309,21 @@ class TriggerCreate(BaseSchema):
         default=None, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS
     )
     cron_expression: str | None = Field(default=None, max_length=255)
+    time_zone: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "The IANA zone a cron schedule is read in, e.g. Europe/Warsaw. Omitted on "
+            "create, the person's own zone - UTC for an account that names none"
+        ),
+    )
+
+    @field_validator("time_zone")
+    @classmethod
+    def _a_zone_that_exists(cls, value: str | None) -> str | None:
+        """Refused here rather than at a fire, where a typo would read every time wrong."""
+        return valid_time_zone(value)
+
     overlap: TriggerOverlapName | None = Field(
         default=None,
         description=(
@@ -447,6 +474,16 @@ class TriggerUpdate(BaseSchema):
         default=None, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS
     )
     cron_expression: str | None = Field(default=None, max_length=255)
+    time_zone: str | None = Field(
+        default=None, max_length=64, description="The zone a cron schedule is read in"
+    )
+
+    @field_validator("time_zone")
+    @classmethod
+    def _a_zone_that_exists(cls, value: str | None) -> str | None:
+        """Refused here rather than at a fire, where a typo would read every time wrong."""
+        return valid_time_zone(value)
+
     overlap: TriggerOverlapName | None = Field(
         default=None, description="A schedule's overlap policy; see `TriggerCreate.overlap`"
     )
@@ -522,6 +559,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None
     cron_expression: str | None = None
+    time_zone: str | None = None
     overlap: TriggerOverlapName = "skip"
     event_source: Literal["github", "gmail", "outlook", "webhook"] | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)

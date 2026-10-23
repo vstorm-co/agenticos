@@ -251,6 +251,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
             "agent_id": str(AGENT),
             "prompt": "Summarise the week's AI news in English.",
             "cron_expression": "0 7 * * 1",
+            "time_zone": "Europe/Warsaw",
             "name": "Weekly AI news",
         },
         (
@@ -263,6 +264,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
                     "name": "Weekly AI news",
                     "schedule_kind": "cron",
                     "cron_expression": "0 7 * * 1",
+                    "time_zone": "Europe/Warsaw",
                 }
             },
         ),
@@ -318,6 +320,15 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
             "PATCH",
             f"/agents/{AGENT}/triggers/{RUN}",
             {"json": {"schedule_kind": "interval", "interval_seconds": 1800}},
+        ),
+    ),
+    (
+        "update_routine",
+        {"agent_id": str(AGENT), "routine_id": str(RUN), "time_zone": "Asia/Tokyo"},
+        (
+            "PATCH",
+            f"/agents/{AGENT}/triggers/{RUN}",
+            {"json": {"time_zone": "Asia/Tokyo"}},
         ),
     ),
     (

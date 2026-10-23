@@ -14,6 +14,7 @@ import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic import ValidationError as PydanticValidationError
@@ -71,6 +72,8 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     # `create` refreshes the row before returning it, so it serializes without a
     # MissingGreenlet on a live session; the mock must await.
     service.db.refresh = AsyncMock()
+    # A cron with no zone reads its maker's account; none here, so UTC.
+    service.db.get = AsyncMock(return_value=None)
     # The fire-recovery path rolls its own half-written state back before it
     # reads anything; the mock must await.
     service.db.rollback = AsyncMock()
@@ -109,6 +112,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "schedule_kind": "interval",
         "interval_seconds": 300,
         "cron_expression": None,
+        "time_zone": None,
         "event_source": None,
         "event_config": {},
         "event_secret_encrypted": None,
@@ -179,6 +183,21 @@ class TestScheduleMath:
         trigger = _trigger(schedule_kind="cron", interval_seconds=None, cron_expression="0 9 * * *")
         assert _next_fire_from(trigger, now=now) == datetime(2026, 1, 2, 9, 0, tzinfo=UTC)
 
+    def test_a_cron_in_a_zone_fires_at_that_zones_hour_across_daylight_saving(self):
+        """`0 9 * * *` in Warsaw is 08:00 UTC in winter and 07:00 UTC in summer:
+        the hour the person meant, not a fixed offset that drifts at the switch."""
+        trigger = _trigger(
+            schedule_kind="cron",
+            interval_seconds=None,
+            cron_expression="0 9 * * *",
+            time_zone="Europe/Warsaw",
+        )
+        winter = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+        assert _next_fire_from(trigger, now=winter) == datetime(2026, 1, 2, 8, 0, tzinfo=UTC)
+        # 29 March 2026 is the spring switch; the day after fires an hour earlier in UTC.
+        spring = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
+        assert _next_fire_from(trigger, now=spring) == datetime(2026, 3, 29, 7, 0, tzinfo=UTC)
+
     @pytest.mark.parametrize(
         ("changes", "action"),
         [
@@ -227,6 +246,64 @@ class TestCreate:
         assert repo.create.call_args.kwargs["interval_seconds"] is None
         # The next 09:00 UTC, not an interval out - so the fire lands on the hour.
         assert repo.create.call_args.kwargs["next_fire_at"].hour == 9
+        assert repo.create.call_args.kwargs["time_zone"] is None
+
+    async def test_a_cron_schedule_with_no_zone_takes_its_makers_zone(self):
+        """A cron with no zone of its own is read where the person making it lives -
+        "every day at 9" from Warsaw is nine in Warsaw, not nine in Greenwich."""
+        agent = _agent()
+        service = _service(agent)
+        cron = TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="0 9 * * *")
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.user_repo") as users,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            users.get_by_id = AsyncMock(return_value=MagicMock(time_zone="Europe/Warsaw"))
+            repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
+            await service.create(_ctx(), agent.id, cron)
+        assert repo.create.call_args.kwargs["time_zone"] == "Europe/Warsaw"
+        fire = repo.create.call_args.kwargs["next_fire_at"]
+        assert fire.astimezone(ZoneInfo("Europe/Warsaw")).hour == 9
+
+    async def test_a_named_zone_wins_over_the_makers_own(self):
+        agent = _agent()
+        service = _service(agent)
+        cron = TriggerCreate(
+            prompt="run",
+            schedule_kind="cron",
+            cron_expression="0 9 * * *",
+            time_zone="America/New_York",
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.user_repo") as users,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            users.get_by_id = AsyncMock(return_value=MagicMock(time_zone="Europe/Warsaw"))
+            repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
+            await service.create(_ctx(), agent.id, cron)
+        assert repo.create.call_args.kwargs["time_zone"] == "America/New_York"
+        users.get_by_id.assert_not_awaited()
+
+    async def test_a_cron_made_without_a_member_stays_in_utc(self):
+        """An API key or a platform caller has no account, so no zone to borrow."""
+        agent = _agent()
+        service = _service(agent)
+        ctx = AuthContext(user_id=None, organization_id=_ORG, role=OrgRoleName.OWNER)
+        assert await service._own_time_zone(ctx) is None
+        with patch("app.services.agent_trigger.user_repo") as users:
+            users.get_by_id = AsyncMock(return_value=None)
+            assert await service._own_time_zone(_ctx()) is None
+
+    def test_an_unknown_zone_is_a_422_at_the_schema(self):
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(
+                prompt="run",
+                schedule_kind="cron",
+                cron_expression="0 9 * * *",
+                time_zone="Mars/Olympus",
+            )
 
     def test_an_unparsable_cron_is_a_422_at_the_schema(self):
         """The database CHECK cannot judge a crontab expression, so the schema
@@ -2170,6 +2247,32 @@ class TestEventTriggerRestrictions:
         assert changes["interval_seconds"] == 600
         assert changes["cron_expression"] is None
         assert changes["next_fire_at"] is not None
+
+    async def test_moving_a_cron_schedule_to_another_zone_keeps_its_kind(self):
+        """Only the zone changes: the schedule stays a cron, keeps its expression,
+        and its next fire moves to that zone's hour."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(
+            agent_id=agent.id,
+            schedule_kind="cron",
+            interval_seconds=None,
+            cron_expression="0 9 * * *",
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(
+                _ctx(), agent.id, trigger.id, TriggerUpdate(time_zone="Asia/Tokyo")
+            )
+        changes = repo.update.call_args.kwargs["update_data"]
+        assert changes["schedule_kind"] == "cron"
+        assert changes["cron_expression"] == "0 9 * * *"
+        assert changes["time_zone"] == "Asia/Tokyo"
+        assert changes["next_fire_at"].astimezone(ZoneInfo("Asia/Tokyo")).hour == 9
 
     async def test_switching_an_interval_schedule_to_cron_in_place(self):
         """The other direction: a named `schedule_kind` with its expression retimes

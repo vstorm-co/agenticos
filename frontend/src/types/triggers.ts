@@ -60,6 +60,8 @@ export interface Trigger {
   schedule_kind: ScheduleKind;
   interval_seconds: number | null;
   cron_expression: string | null;
+  /** The IANA zone a cron is read in; null reads it in UTC. */
+  time_zone: string | null;
   /** A schedule's overlap policy; an event trigger carries `skip` and ignores it. */
   overlap: TriggerOverlap;
   event_source: EventSource | null;
@@ -119,6 +121,8 @@ export interface TriggerCreate {
   schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
   cron_expression?: string | null;
+  /** A cron's IANA zone; omitted, the server takes the caller's own. */
+  time_zone?: string | null;
   /** Schedules only; the server stores `skip` when omitted. */
   overlap?: TriggerOverlap;
   event_source?: EventSource | null;
@@ -166,6 +170,7 @@ export interface TriggerUpdate {
   schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
   cron_expression?: string | null;
+  time_zone?: string | null;
   overlap?: TriggerOverlap;
   is_active?: boolean;
   environment_id?: string | null;

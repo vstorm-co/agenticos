@@ -48,6 +48,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: 900,
     cron_expression: null,
+    time_zone: null,
     overlap: "skip",
     event_source: null,
     event_config: {},
@@ -85,7 +86,11 @@ async function mount({ canCreate = true } = {}) {
   await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // A new schedule is read in its maker's zone; pinned so no run reads the laptop's.
+  useAuthStore.setState({ user: { id: "me", time_zone: "Europe/Warsaw" } as never });
+});
 
 describe("TriggersPanel", () => {
   it("says the agent runs only when messaged rather than showing an empty box", async () => {
@@ -478,7 +483,7 @@ describe("TriggersPanel", () => {
     ]);
     await mount();
 
-    await waitFor(() => expect(screen.getByText("Every Mon, Tue at 09:00 UTC")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("Every Mon, Tue at 09:00 (UTC)")).toBeVisible());
     expect(screen.queryByText("Cron 0 9 * * 1,2 (UTC)")).toBeNull();
   });
 
@@ -544,6 +549,57 @@ describe("TriggersPanel", () => {
     });
   });
 
+  it("moves a schedule saved in UTC to another zone, keeping its hour", async () => {
+    const user = userEvent.setup();
+    // A row from before schedules had zones names none: it was read in UTC and
+    // the editor says so, rather than quietly showing the editor's own zone.
+    const daily = {
+      schedule_kind: "cron" as const,
+      interval_seconds: null,
+      cron_expression: "0 9 * * *",
+    };
+    serve([trigger(daily)]);
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger(daily));
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const zone = within(dialog).getByLabelText("Time zone");
+    expect(zone).toHaveValue("UTC");
+    await user.clear(zone);
+    await user.type(zone, "Europe/Warsaw");
+    expect(
+      within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
+    ).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      schedule_kind: "cron",
+      cron_expression: "0 9 * * *",
+      time_zone: "Europe/Warsaw",
+    });
+  });
+
+  it("refuses a zone the server would not know, before anything is sent", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    const zone = within(dialog).getByLabelText("Time zone");
+    expect(zone).toHaveValue("Europe/Warsaw");
+    await user.clear(zone);
+    await user.type(zone, "Mars/Olympus");
+
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(/Choose a time zone/);
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
   it("creates a schedule that queues behind a run still going", async () => {
     const user = userEvent.setup();
     serve([]);
@@ -600,7 +656,9 @@ describe("TriggersPanel", () => {
       "aria-checked",
       "true",
     );
-    expect(within(dialog).getByText("Runs every day at 09:00 UTC.")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
@@ -611,6 +669,7 @@ describe("TriggersPanel", () => {
       overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * *",
+      time_zone: "Europe/Warsaw",
     });
   });
 
@@ -629,7 +688,7 @@ describe("TriggersPanel", () => {
     await user.click(choice);
     expect(choice).toHaveAttribute("aria-checked", "true");
     // Only what the choice needs opens under it: the time, not the days.
-    expect(within(dialog).getByLabelText("Time (UTC)")).toHaveValue("09:00");
+    expect(within(dialog).getByLabelText("Time")).toHaveValue("09:00");
     expect(within(dialog).queryByRole("group", { name: "On these days" })).toBeNull();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
@@ -641,6 +700,7 @@ describe("TriggersPanel", () => {
       overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * 1,2,3,4,5",
+      time_zone: "Europe/Warsaw",
     });
   });
 

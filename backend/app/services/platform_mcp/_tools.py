@@ -341,7 +341,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def list_routines(agent_id: UUID | None = None, limit: int = 50) -> dict[str, Any]:
         """Routines: agents that run themselves on a schedule or when something happens.
 
-        Each has its prompt, cadence (a cron in UTC, or an interval in seconds),
+        Each has its prompt, cadence (a cron read in its `time_zone`, or an interval in seconds),
         whether it is active, when it fires next and its last run. Pass `agent_id`
         for one agent's. Needs `agents:view`.
         """
@@ -354,15 +354,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         prompt: str,
         cron_expression: str | None = None,
         every_minutes: int | None = None,
+        time_zone: str | None = None,
         name: str | None = None,
         runs_as_me: bool = True,
     ) -> dict[str, Any]:
         """Make an agent run itself on a schedule - a Routine. Needs `agents:run` on it.
 
-        Give one cadence. `cron_expression` is a five-field crontab **in UTC**, so
-        convert the person's local time first: 9:00 on weekdays in Warsaw is
-        `0 8 * * 1-5` in winter and `0 7 * * 1-5` in summer. `every_minutes` is a
-        plain interval. `prompt` is what the agent is asked each time, and that run
+        Give one cadence. `cron_expression` is a five-field crontab read in
+        `time_zone`, an IANA name such as `Europe/Warsaw`; left out, it is the
+        person's own zone from their account (UTC when they set none). Write the
+        local time as the person said it - 9:00 on weekdays is `0 9 * * 1-5` -
+        and the hour holds through daylight saving. `every_minutes` is a plain
+        interval. `prompt` is what the agent is asked each time, and that run
         starts with none of this conversation - write it as a complete request:
         what to do, from which sources, in which language, and what to produce.
         `runs_as_me` fires as the person creating it, with their memory and their
@@ -375,6 +378,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         if cron_expression is not None:
             body["schedule_kind"] = "cron"
             body["cron_expression"] = cron_expression
+        if time_zone is not None:
+            body["time_zone"] = time_zone
         if every_minutes is not None:
             body["interval_seconds"] = every_minutes * 60
         return await api.request("POST", f"/agents/{agent_id}/triggers", json=body)
@@ -386,11 +391,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         prompt: str | None = None,
         cron_expression: str | None = None,
         every_minutes: int | None = None,
+        time_zone: str | None = None,
         name: str | None = None,
     ) -> dict[str, Any]:
-        """Pause or resume a routine, or change its prompt, cadence or name.
+        """Pause or resume a routine, or change its prompt, cadence, zone or name.
 
-        Only what you pass changes; a cron is in UTC, as for `create_routine`.
+        Only what you pass changes; a cron is read in the routine's `time_zone`,
+        as for `create_routine`, and passing only `time_zone` moves the same hour
+        to another zone.
         Needs to be the routine's creator, or `agents:edit` on its agent.
         """
         body: dict[str, Any] = {}
@@ -406,6 +414,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         if every_minutes is not None:
             body["schedule_kind"] = "interval"
             body["interval_seconds"] = every_minutes * 60
+        if time_zone is not None:
+            body["time_zone"] = time_zone
         return await api.request("PATCH", f"/agents/{agent_id}/triggers/{routine_id}", json=body)
 
     async def run_routine_now(agent_id: UUID, routine_id: UUID) -> dict[str, Any]:

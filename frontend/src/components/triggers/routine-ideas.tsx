@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 import { ListCard } from "@/components/ui";
 import { useTriggerTemplates } from "@/hooks/use-trigger-templates";
 import { templateIcon } from "@/lib/trigger-template-icons";
-import { cadenceText } from "@/lib/trigger-format";
+import { cadenceText, defaultTimeZone } from "@/lib/trigger-format";
+import { useAuthStore } from "@/stores";
 import type { TriggerTemplate } from "@/types/trigger-templates";
 
 /**
@@ -24,6 +25,8 @@ export function RoutineIdeas({ onPick }: { onPick: (template: TriggerTemplate) =
   const t = useTranslations("pages.routines");
   const tt = useTranslations("triggers");
   const { templates } = useTriggerTemplates();
+  // A template's hour is local: the schedule made from it is read in this zone.
+  const zone = defaultTimeZone(useAuthStore((state) => state.user?.time_zone));
   const ideas = templates.filter(
     (template) => template.trigger_type === "schedule" && template.suggested_cadence,
   );
@@ -63,6 +66,7 @@ export function RoutineIdeas({ onPick }: { onPick: (template: TriggerTemplate) =
                         schedule_kind: cadence.schedule_kind,
                         cron_expression: cadence.cron_expression ?? null,
                         interval_seconds: cadence.interval_seconds ?? null,
+                        time_zone: zone,
                       },
                       tt,
                     )}

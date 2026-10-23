@@ -50,6 +50,7 @@ import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore, useAuthStore } from "@/stores";
 import {
   type CronFrequency,
+  defaultTimeZone,
   eventFilterConfig,
   FILTER_KEYS,
   type IntervalUnit,
@@ -237,6 +238,12 @@ export function TriggerFormDialog({
   const [cronWeekdays, setCronWeekdays] = useState<number[]>(cronSeed?.weekdays ?? [1]);
   const [cronDayOfMonth, setCronDayOfMonth] = useState(cronSeed?.dayOfMonth ?? "1");
   const [cronAdvanced, setCronAdvanced] = useState(trigger?.cron_expression ?? "0 9 * * *");
+  // The zone the time is read in. A saved row with none was read in UTC and still
+  // is; a new one starts in the maker's own.
+  const accountZone = useAuthStore((state) => state.user?.time_zone);
+  const [timeZone, setTimeZone] = useState(
+    trigger ? (trigger.time_zone ?? "UTC") : defaultTimeZone(accountZone),
+  );
   // Whether the user actually touched a cadence control. Seeding the editor from
   // a non-round interval rounds it (`intervalToUnit`), so comparing a rebuilt
   // cadence to the original would report a change on a prompt-only edit and reset
@@ -389,7 +396,7 @@ export function TriggerFormDialog({
   /** The cadence fields a schedule sends - on create, and on a cadence edit. */
   function scheduleCadence(): Pick<
     TriggerCreate,
-    "schedule_kind" | "interval_seconds" | "cron_expression"
+    "schedule_kind" | "interval_seconds" | "cron_expression" | "time_zone"
   > {
     if (scheduleKind === "cron") {
       // "Every N days" is an interval, not cron: `*/N` on day-of-month steps
@@ -402,7 +409,7 @@ export function TriggerFormDialog({
           interval_seconds: unitToSeconds("days", clampInt(cronEveryDays, 1, 31, 1)),
         };
       }
-      return { schedule_kind: "cron", cron_expression: composeCron() };
+      return { schedule_kind: "cron", cron_expression: composeCron(), time_zone: timeZone };
     }
     return {
       schedule_kind: "interval",
@@ -497,7 +504,11 @@ export function TriggerFormDialog({
 
   // A preset always composes a valid expression; only the raw "advanced" escape
   // hatch can be left empty, so it is the one cron shape worth guarding.
-  const cronValid = cronFreq !== "advanced" || cronAdvanced.trim().length > 0;
+  // The zone is the other half of every cron shape but "every N days", which is
+  // sent as an interval and so has no clock to read.
+  const cronValid =
+    (cronFreq !== "advanced" || cronAdvanced.trim().length > 0) &&
+    (cronFreq === "everyNDays" || isTimeZone(timeZone));
   const scheduleValid = scheduleKind === "cron" ? cronValid : intervalCountValid(intervalCount);
   const taskValid = prompt.trim().length > 0 && effectiveAgentId !== null;
   // Editing a schedule can change its cadence, so the cadence is guarded then
@@ -599,6 +610,8 @@ export function TriggerFormDialog({
         onDayOfMonth: onCadence(setCronDayOfMonth),
         advanced: cronAdvanced,
         onAdvanced: onCadence(setCronAdvanced),
+        timeZone,
+        onTimeZone: onCadence(setTimeZone),
       }}
     />
   );
@@ -897,6 +910,8 @@ interface CronBuilderState {
   onDayOfMonth: (value: string) => void;
   advanced: string;
   onAdvanced: (value: string) => void;
+  timeZone: string;
+  onTimeZone: (value: string) => void;
 }
 
 interface ScheduleFieldsProps {
@@ -986,6 +1001,8 @@ function CronBuilder({
   onDayOfMonth,
   advanced,
   onAdvanced,
+  timeZone,
+  onTimeZone,
 }: CronBuilderState) {
   const t = useTranslations("triggers");
   return (
@@ -1006,15 +1023,22 @@ function CronBuilder({
       </FormField>
 
       {freq === "advanced" ? (
-        <FormField label={t("cronExpression")} htmlFor="cron-advanced" description={t("cronHelp")}>
-          <Input
-            id="cron-advanced"
-            value={advanced}
-            onChange={(event) => onAdvanced(event.target.value)}
-            placeholder="0 9 * * *"
-            className="font-mono"
-          />
-        </FormField>
+        <>
+          <FormField
+            label={t("cronExpression")}
+            htmlFor="cron-advanced"
+            description={t("cronHelp")}
+          >
+            <Input
+              id="cron-advanced"
+              value={advanced}
+              onChange={(event) => onAdvanced(event.target.value)}
+              placeholder="0 9 * * *"
+              className="font-mono"
+            />
+          </FormField>
+          <ZoneField value={timeZone} onChange={onTimeZone} />
+        </>
       ) : (
         <>
           {freq === "everyNDays" && (
@@ -1053,24 +1077,77 @@ function CronBuilder({
 
           {/* An "every N days" cadence is a continuous interval with no time of
               day to anchor to, so it offers no time field. */}
-          {freq !== "everyNDays" && <TimeField value={time} onChange={onTime} />}
+          {freq !== "everyNDays" && (
+            <TimeField value={time} onChange={onTime} zone={timeZone} onZone={onTimeZone} />
+          )}
         </>
       )}
     </div>
   );
 }
 
-function TimeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+/** Every zone this browser knows, for the picker's suggestions and its check. */
+const ZONES = Intl.supportedValuesOf("timeZone");
+
+/** Whether `zone` is one the server will accept - an IANA name, or plain UTC. */
+function isTimeZone(zone: string): boolean {
+  return zone === "UTC" || ZONES.includes(zone);
+}
+
+/** The clock time and the zone it is read in - one is meaningless without the other. */
+function TimeField({
+  value,
+  onChange,
+  zone,
+  onZone,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  zone: string;
+  onZone: (value: string) => void;
+}) {
   const t = useTranslations("triggers");
   return (
-    <FormField label={t("timeLabel")} htmlFor="cron-time">
+    <div className="flex flex-wrap items-start gap-3">
+      <FormField label={t("timeLabel")} htmlFor="cron-time">
+        <Input
+          id="cron-time"
+          type="time"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-36"
+        />
+      </FormField>
+      <div className="min-w-48 flex-1">
+        <ZoneField value={zone} onChange={onZone} />
+      </div>
+    </div>
+  );
+}
+
+/** An IANA zone, typed or picked from the browser's list. */
+function ZoneField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const t = useTranslations("triggers");
+  const valid = isTimeZone(value);
+  return (
+    <FormField label={t("timeZoneLabel")} htmlFor="cron-zone" description={t("timeZoneHelp")}>
       <Input
-        id="cron-time"
-        type="time"
+        id="cron-zone"
+        list="cron-zones"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-36"
+        aria-invalid={!valid}
+        onChange={(event) => onChange(event.target.value.trim())}
       />
+      <datalist id="cron-zones">
+        {ZONES.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      {!valid && (
+        <p className="text-destructive text-xs" role="alert">
+          {t("timeZoneInvalid")}
+        </p>
+      )}
     </FormField>
   );
 }
@@ -1135,7 +1212,12 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
         <WeekdayPills weekdays={cron.weekdays} onToggle={cron.onToggleWeekday} />
       )}
       {(choice === "daily" || choice === "weekdays" || choice === "weekly") && (
-        <TimeField value={cron.time} onChange={cron.onTime} />
+        <TimeField
+          value={cron.time}
+          onChange={cron.onTime}
+          zone={cron.timeZone}
+          onZone={cron.onTimeZone}
+        />
       )}
       {choice === "custom" && <ScheduleFields {...schedule} />}
       <CadenceSummary {...schedule} />
@@ -1169,6 +1251,7 @@ function CadenceSummary({ scheduleKind, intervalCount, intervalUnit, cron }: Sch
       <CronSummary
         freq={cron.freq}
         time={cron.time}
+        zone={cron.timeZone}
         everyDays={cron.everyDays}
         weekdays={cron.weekdays}
         dayOfMonth={cron.dayOfMonth}
@@ -1181,12 +1264,14 @@ function CadenceSummary({ scheduleKind, intervalCount, intervalUnit, cron }: Sch
 function CronSummary({
   freq,
   time,
+  zone,
   everyDays,
   weekdays,
   dayOfMonth,
 }: {
   freq: CronFrequency;
   time: string;
+  zone: string;
   everyDays: string;
   weekdays: number[];
   dayOfMonth: string;
@@ -1201,12 +1286,12 @@ function CronSummary({
       .sort((a, b) => a - b)
       .map((value) => t(weekdayKey(value)))
       .join(", ");
-    return <>{t("summaryWeekly", { time, days })}</>;
+    return <>{t("summaryWeekly", { time, zone, days })}</>;
   }
   if (freq === "monthly") {
-    return <>{t("summaryMonthly", { day: clampInt(dayOfMonth, 1, 31, 1), time })}</>;
+    return <>{t("summaryMonthly", { day: clampInt(dayOfMonth, 1, 31, 1), time, zone })}</>;
   }
-  return <>{t("summaryDaily", { time })}</>;
+  return <>{t("summaryDaily", { time, zone })}</>;
 }
 
 interface EventFieldsProps {

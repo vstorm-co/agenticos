@@ -41,6 +41,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: null,
     cron_expression: null,
+    time_zone: null,
     overlap: "skip",
     event_source: "github",
     event_config: {},

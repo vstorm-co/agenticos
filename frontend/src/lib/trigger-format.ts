@@ -15,6 +15,17 @@ export type IntervalUnit = "minutes" | "hours" | "days";
  */
 export type CronFrequency = "daily" | "everyNDays" | "weekly" | "monthly" | "advanced";
 
+/**
+ * The zone a new schedule is read in: the account's, else this browser's.
+ *
+ * The server falls back to the account's zone too, but the form shows the zone
+ * before anything is saved, and an account with none yet is still somewhere -
+ * `AccountTimeZone` records this same browser zone on it at the next load.
+ */
+export function defaultTimeZone(accountZone: string | null | undefined): string {
+  return accountZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
 /** The weekdays, in cron's numbering (0 = Sunday), Monday-first for display. */
 export const WEEKDAYS: readonly { value: number; key: string }[] = [
   { value: 1, key: "weekdayMon" },
@@ -177,6 +188,7 @@ export type FiringShape = Pick<
   Trigger,
   "trigger_type" | "schedule_kind" | "cron_expression" | "interval_seconds"
 > &
+  Partial<Pick<Trigger, "time_zone">> &
   Partial<Pick<Trigger, "portal_key" | "provider_target" | "event_source" | "event_config">>;
 
 /** The GitHub webhook a trigger fires on - `issues` when its filter names none. */
@@ -244,7 +256,7 @@ function presetEventKey(portalKey: string, event: string): string {
 
 /**
  * What makes a trigger fire, in one line - "Every 15 minutes", "Daily at 09:00
- * UTC", "On new GitHub issues".
+ * (Europe/Warsaw)", "On new GitHub issues".
  *
  * A function over the reduced summary rather than markup, because two surfaces
  * need the same sentence in different shapes: `TriggerSummary` renders it, and a
@@ -295,29 +307,32 @@ function githubEventKey(event: string): string {
 
 export function cadenceText(trigger: FiringShape, t: Translate): string {
   const summary = triggerSummary(trigger);
+  // A row with no zone is read in UTC, which is what the server does with it.
+  const zone = trigger.time_zone ?? "UTC";
   switch (summary.kind) {
     case "interval":
       if (summary.unit === "days") return t("cadence.everyDays", { count: summary.count });
       if (summary.unit === "hours") return t("cadence.everyHours", { count: summary.count });
       return t("cadence.everyMinutes", { count: summary.count });
     case "cron":
-      return t("cadence.cron", { expression: summary.expression });
+      return t("cadence.cron", { expression: summary.expression, zone });
     case "cronDaily":
-      return t("cadence.cronDaily", { time: summary.time });
+      return t("cadence.cronDaily", { time: summary.time, zone });
     case "cronWeekly":
       // Monday to Friday is said as such rather than as five day names.
       if ([...summary.weekdays].sort().join(",") === "1,2,3,4,5") {
-        return t("cadence.cronWeekdays", { time: summary.time });
+        return t("cadence.cronWeekdays", { time: summary.time, zone });
       }
       // Monday-first, the order the picker shows, not cron's Sunday-zero order.
       return t("cadence.cronWeekly", {
         time: summary.time,
+        zone,
         days: WEEKDAYS.filter((day) => summary.weekdays.includes(day.value))
           .map((day) => t(day.key))
           .join(", "),
       });
     case "cronMonthly":
-      return t("cadence.cronMonthly", { day: summary.day, time: summary.time });
+      return t("cadence.cronMonthly", { day: summary.day, time: summary.time, zone });
     case "preset":
       // One static ICU key, "{event} in {target}", with the event phrase chosen
       // per portal by a fixed key so the catalog check can see it.

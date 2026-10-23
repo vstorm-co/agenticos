@@ -47,6 +47,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: 900,
     cron_expression: null,
+    time_zone: null,
     overlap: "skip",
     event_source: null,
     event_config: {},
@@ -181,12 +182,27 @@ describe("the routines widget", () => {
   });
 
   it("says when a live schedule fires next, in UTC, with the year when it is far", () => {
-    // UTC because the cadence beside it is; the year because a 999-day interval
+    // UTC because a row with no zone is read there; the year because a 999-day interval
     // can put the fire outside the current one, where "Jan 5" alone names the
     // wrong January.
     renderWidget([trigger({ next_fire_at: "2099-01-05T12:00:00Z" })]);
 
     expect(screen.getByText(/next Jan 5, 2099.*UTC/)).toBeVisible();
+  });
+
+  it("says the next fire in the schedule's own zone, as its cadence does", () => {
+    renderWidget([
+      trigger({
+        schedule_kind: "cron",
+        interval_seconds: null,
+        cron_expression: "0 9 * * *",
+        time_zone: "Europe/Warsaw",
+        next_fire_at: "2099-01-05T08:00:00Z",
+      }),
+    ]);
+
+    expect(screen.getByText(/Daily at 09:00 \(Europe\/Warsaw\)/)).toBeVisible();
+    expect(screen.getByText(/next Jan 5, 2099, 09:00.*\(Europe\/Warsaw\)/)).toBeVisible();
   });
 
   it("keeps the year out of a fire within the current one", () => {

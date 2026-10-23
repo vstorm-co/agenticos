@@ -81,10 +81,9 @@ class ScheduleKind(enum.StrEnum):
     """How a *schedule* trigger decides it is due.
 
     `INTERVAL` is "every N seconds since the last fire". `CRON` is a crontab
-    expression evaluated in UTC - "daily at 09:00" is `0 9 * * *` - which the
-    service computes the next fire for with croniter. UTC keeps a schedule
-    surviving a restart without a stored timezone to reason about; a caller who
-    means a local hour converts it when building the expression.
+    expression evaluated in the trigger's `time_zone` - "daily at 09:00" is
+    `0 9 * * *` at nine where the person is - which the service computes the next
+    fire for with croniter. A trigger with no zone is read in UTC.
 
     Only meaningful when `trigger_type = schedule`; an event trigger leaves it at
     its default and the shape CHECK ignores it.
@@ -214,6 +213,10 @@ class AgentTrigger(Base, TimestampMixin):
     )
     interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cron_expression: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The IANA zone a cron expression is read in - `0 9 * * *` at nine o'clock
+    # where the person is, through daylight saving. Null is UTC, which is what
+    # every schedule made before zones meant; an interval ignores it.
+    time_zone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     overlap: Mapped[str] = mapped_column(
         String(8), nullable=False, default=TriggerOverlap.SKIP.value, server_default="skip"
     )

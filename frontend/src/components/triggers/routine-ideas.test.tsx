@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
 import { RoutineIdeas } from "./routine-ideas";
+import { useAuthStore } from "@/stores";
 import type { TriggerTemplate } from "@/types/trigger-templates";
 
 const catalog = vi.hoisted(() => ({ templates: [] as TriggerTemplate[] }));
@@ -22,6 +23,7 @@ const BRIEFING: TriggerTemplate = {
 };
 
 function renderIdeas(onPick = vi.fn()) {
+  useAuthStore.setState({ user: { id: "u-1", time_zone: "Europe/Warsaw" } as never });
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <RoutineIdeas onPick={onPick} />
@@ -45,7 +47,8 @@ describe("RoutineIdeas - ready-made routines to start from", () => {
     const onPick = renderIdeas();
 
     expect(screen.getByText("Daily briefing")).toBeInTheDocument();
-    expect(screen.getByText("Daily at 08:00 UTC")).toBeInTheDocument();
+    // The template's hour is local, read in the zone the schedule will get.
+    expect(screen.getByText("Daily at 08:00 (Europe/Warsaw)")).toBeInTheDocument();
     expect(screen.getByText("Every hour")).toBeInTheDocument();
     // An event idea belongs to the event flow's own step, not here.
     expect(screen.queryByText("Issue triage")).toBeNull();

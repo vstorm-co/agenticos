@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   cadenceText,
+  defaultTimeZone,
   intervalToUnit,
   parseCron,
   triggerSummary,
@@ -25,6 +26,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: 300,
     cron_expression: null,
+    time_zone: null,
     overlap: "skip",
     event_source: null,
     event_config: {},
@@ -194,6 +196,13 @@ describe("triggerSummary", () => {
   });
 });
 
+describe("defaultTimeZone", () => {
+  it("takes the account's zone, and this browser's when the account has none", () => {
+    expect(defaultTimeZone("Asia/Tokyo")).toBe("Asia/Tokyo");
+    expect(defaultTimeZone(null)).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  });
+});
+
 describe("cadenceText", () => {
   // The sentence two surfaces read - `TriggerSummary` renders it, the dashboard's
   // routines card puts it beside a cost - so it is asserted here rather than
@@ -217,23 +226,30 @@ describe("cadenceText", () => {
 
   it("reads a builder-made cron in the language the builder showed", () => {
     const cron = (expression: string) =>
-      cadenceText(trigger({ schedule_kind: "cron", cron_expression: expression }), t);
+      cadenceText(
+        trigger({ schedule_kind: "cron", cron_expression: expression, time_zone: "Asia/Tokyo" }),
+        t,
+      );
 
-    expect(cron("0 9 * * *")).toBe('cadence.cronDaily({"time":"09:00"})');
+    // Each line names the zone its hour is read in.
+    expect(cron("0 9 * * *")).toBe('cadence.cronDaily({"time":"09:00","zone":"Asia/Tokyo"})');
     // The weekday names are themselves keys, resolved by the same translator -
     // Monday-first, the order the picker shows, not cron's Sunday-zero order.
     expect(cron("0 9 * * 1,2")).toBe(
-      'cadence.cronWeekly({"time":"09:00","days":"weekdayMon, weekdayTue"})',
+      'cadence.cronWeekly({"time":"09:00","zone":"Asia/Tokyo","days":"weekdayMon, weekdayTue"})',
     );
-    expect(cron("0 9 3 * *")).toBe('cadence.cronMonthly({"day":3,"time":"09:00"})');
+    expect(cron("0 9 3 * *")).toBe(
+      'cadence.cronMonthly({"day":3,"time":"09:00","zone":"Asia/Tokyo"})',
+    );
     // Monday to Friday is said as weekdays, not as five day names.
-    expect(cron("0 8 * * 1-5")).toBe('cadence.cronWeekdays({"time":"08:00"})');
+    expect(cron("0 8 * * 1-5")).toBe('cadence.cronWeekdays({"time":"08:00","zone":"Asia/Tokyo"})');
     expect(cron("0 9 */3 * *")).toBe('cadence.everyDays({"count":3})');
   });
 
   it("shows raw notation only for an expression somebody typed themselves", () => {
+    // A row saved before schedules had zones names none, and was read in UTC.
     expect(cadenceText(trigger({ schedule_kind: "cron", cron_expression: "*/7 * * * *" }), t)).toBe(
-      'cadence.cron({"expression":"*/7 * * * *"})',
+      'cadence.cron({"expression":"*/7 * * * *","zone":"UTC"})',
     );
   });
 

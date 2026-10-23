@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TriggerFormDialog } from "./trigger-form-dialog";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/stores";
 import type { TriggerTemplate } from "@/types/trigger-templates";
 
 vi.mock("@/lib/api-client", async () => {
@@ -55,6 +56,7 @@ function serve(templates: TriggerTemplate[] = [DAILY, WEEKLY]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuthStore.setState({ user: { id: "me", time_zone: "Europe/Warsaw" } as never });
   serve();
 });
 
@@ -109,6 +111,7 @@ describe("New-schedule template picker", () => {
       overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * 1",
+      time_zone: "Europe/Warsaw",
     });
   });
 

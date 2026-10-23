@@ -39,6 +39,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from croniter import croniter
 from fastapi.encoders import jsonable_encoder
@@ -80,6 +81,7 @@ from app.repositories import (
     member_repo,
     organization_secret_repo,
     teams_conversation_repo,
+    user_repo,
 )
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
@@ -181,20 +183,27 @@ class EventFireDecision:
     `fire-trigger` for every tenant rather than for this one."""
 
 
-def _cron_next(expression: str, *, now: datetime) -> datetime:
-    """The first instant a cron expression matches strictly after `now`.
+def _cron_next(expression: str, *, now: datetime, time_zone: str | None = None) -> datetime:
+    """The first instant a cron expression matches strictly after `now`, in UTC.
 
-    Evaluated in UTC: `now` is tz-aware UTC and croniter carries that tzinfo
-    through, so `0 9 * * *` fires at 09:00 UTC. The expression is validated when
-    the trigger is created (:class:`app.schemas.agent_trigger.TriggerCreate`), so
-    one read back off a row parses here.
+    Read in `time_zone` - `0 9 * * *` is nine o'clock there, through daylight
+    saving - and in UTC when there is none. croniter walks the zone's own wall
+    clock when started from a time in it. The expression and the zone are
+    validated when the trigger is made (:class:`app.schemas.agent_trigger.TriggerCreate`),
+    so ones read back off a row parse here.
     """
+    start = now.astimezone(ZoneInfo(time_zone)) if time_zone else now
     # croniter ships no type information; the cast is what annotates the result.
-    return cast(datetime, croniter(expression, now).get_next(datetime))
+    return cast(datetime, croniter(expression, start).get_next(datetime)).astimezone(UTC)
 
 
 def _next_fire(
-    *, schedule_kind: str, interval_seconds: int | None, cron_expression: str | None, now: datetime
+    *,
+    schedule_kind: str,
+    interval_seconds: int | None,
+    cron_expression: str | None,
+    now: datetime,
+    time_zone: str | None = None,
 ) -> datetime:
     """When a schedule with these fields should next fire, measured from `now`.
 
@@ -207,7 +216,7 @@ def _next_fire(
     guard here would be an untestable branch under the 100% gate.
     """
     if schedule_kind == ScheduleKind.CRON.value:
-        return _cron_next(cast(str, cron_expression), now=now)
+        return _cron_next(cast(str, cron_expression), now=now, time_zone=time_zone)
     return now + timedelta(seconds=cast(int, interval_seconds))
 
 
@@ -218,6 +227,7 @@ def _next_fire_from(trigger: AgentTrigger, *, now: datetime) -> datetime:
         interval_seconds=trigger.interval_seconds,
         cron_expression=trigger.cron_expression,
         now=now,
+        time_zone=trigger.time_zone,
     )
 
 
@@ -238,9 +248,11 @@ def _resolve_cadence(trigger: AgentTrigger, changes: dict[str, Any]) -> None:
         kind = changes["schedule_kind"]
     elif "cron_expression" in changes:
         kind = ScheduleKind.CRON.value
-    else:
-        # `touches_cadence` guarantees a cadence key; interval is what is left.
+    elif "interval_seconds" in changes:
         kind = ScheduleKind.INTERVAL.value
+    else:
+        # Only the zone moved: the schedule keeps the kind it has.
+        kind = trigger.schedule_kind
     if kind == ScheduleKind.INTERVAL.value:
         interval = changes.get("interval_seconds", trigger.interval_seconds)
         if interval is None:
@@ -655,6 +667,7 @@ class AgentTriggerService:
         delivery_mode: str | None = None
         portal: portal_catalog.PortalEntry | None = None
         plaintext_secret: str | None = None
+        time_zone = data.time_zone
 
         if data.trigger_type == TriggerType.EVENT.value:
             if data.portal_key is not None:
@@ -726,11 +739,16 @@ class AgentTriggerService:
                 # to the pasted-URL path rather than a half-set trigger.
                 delivery_mode = "manual"
         else:
+            # A cron schedule with no zone of its own means the hour where its
+            # maker is: their account's zone, UTC for one that names none.
+            if data.schedule_kind == ScheduleKind.CRON.value and time_zone is None:
+                time_zone = await self._own_time_zone(ctx)
             next_fire_at = _next_fire(
                 schedule_kind=data.schedule_kind,
                 interval_seconds=data.interval_seconds,
                 cron_expression=data.cron_expression,
                 now=now,
+                time_zone=time_zone,
             )
         _guard_shared_mailbox(ctx, event_source, event_config, before=None)
 
@@ -745,6 +763,7 @@ class AgentTriggerService:
             schedule_kind=data.schedule_kind,
             interval_seconds=data.interval_seconds,
             cron_expression=data.cron_expression,
+            time_zone=time_zone,
             event_source=event_source,
             event_config=event_config,
             event_secret_encrypted=event_secret_encrypted,
@@ -894,6 +913,13 @@ class AgentTriggerService:
         trigger.delivery_mode = "auto_webhook"
         await self.db.flush()
 
+    async def _own_time_zone(self, ctx: AuthContext) -> str | None:
+        """The zone the caller's account names, or `None` - UTC - for one that names none."""
+        if ctx.user_id is None:
+            return None
+        user = await user_repo.get_by_id(self.db, ctx.user_id)
+        return user.time_zone if user is not None else None
+
     async def _deregister_webhook(self, ctx: AuthContext, trigger: AgentTrigger) -> None:
         """Remove a trigger's provider webhook, best-effort, before it is deleted.
 
@@ -1002,7 +1028,7 @@ class AgentTriggerService:
         # cron, or a switch between the two - rather than deleted and recreated. An
         # event has no cadence, so any cadence field on one is refused here rather
         # than written through the shape CHECK as a 500.
-        cadence_keys = ("schedule_kind", "interval_seconds", "cron_expression")
+        cadence_keys = ("schedule_kind", "interval_seconds", "cron_expression", "time_zone")
         touches_cadence = any(key in changes for key in cadence_keys)
         if touches_cadence and trigger.trigger_type != TriggerType.SCHEDULE.value:
             raise BadRequestError(
@@ -1035,6 +1061,7 @@ class AgentTriggerService:
                 interval_seconds=changes.get("interval_seconds", trigger.interval_seconds),
                 cron_expression=changes.get("cron_expression", trigger.cron_expression),
                 now=datetime.now(UTC),
+                time_zone=changes.get("time_zone", trigger.time_zone),
             )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
         await record_audit(
