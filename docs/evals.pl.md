@@ -1,5 +1,5 @@
 ---
-source_sha: "53a16e0d54c9"
+source_sha: "987851dfb2a9"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -45,9 +45,13 @@ jaki istnieje - jest już wybrany; środowisko, nagrania i powtórki są pod
 **Advanced**. Koszt jest wyliczany, gdy pola się ustalą, i mówi, co ocenia
 odpowiedzi oraz ile zostanie potem w budżecie agenta i organizacji; run
 startuje dopiero z przycisku, który podaje tę kwotę. **Draft differs from vN**
-na stronie agenta ma przycisk **Test draft**, który otwiera ten sam dialog, a
-dialog publikacji mówi, co znalazł ostatni run draftu - albo że draftu nie
-testowano od jego ostatniej zmiany - nie wstrzymując publikacji.
+na stronie agenta - vN to najnowsza opublikowana wersja, a gdy strażnicy
+produkcji trzymają ją na starszej, drugi znaczek mówi na której, na przykład
+"produkcja na v1 (czeka na evale)" - ma przycisk **Test draft**, który otwiera
+ten sam dialog. Dialog publikacji mówi, co znalazł ostatni run draftu -
+[sprawdzenie sugestii asystenta](authoring.md#check-with-evals) liczy się, gdy
+zostaną przyjęte - albo że draftu nie testowano od jego ostatniej zmiany, albo
+że test, który miał, jest nieaktualny, nie wstrzymując publikacji.
 
 Strona runa otwiera się jego werdyktem w kilku zdaniach - przypadki, które
 kandydat psuje albo naprawia za każdym razem, gdy jest o nie pytany, jeden z
@@ -77,8 +81,10 @@ nadal obejmuje wszystkie przypadki.
 Gdy są już powtórki, run wysyła do [kolejki przeglądu](datasets.md#review)
 datasetu to, za czym może się opowiedzieć - każdą potwierdzoną regresję i każdą
 odpowiedź, przy której ocenie jego sędzia zawiódł, po jednej na przypadek - i
-podaje, ile ich jest (`routed_to_review`). Pominięty sędzia nie wysyła nic: jego
-odpowiedzi czekają na stronie runu na **Grade again**. Gdy wysyłka zostanie
+podaje, ile ich jest (`routed_to_review`).
+[Sprawdzenie propozycji asystenta](authoring.md#check-with-evals) samo z siebie
+nie wysyła nic, bo nic nie zostało przyjęte. Pominięty sędzia nie wysyła nic:
+jego odpowiedzi czekają na stronie runu na **Grade again**. Gdy wysyłka zostanie
 odrzucona, run i tak się kończy, a jego strona mówi dlaczego (`routing_error`). **Send failed to review** wysyła
 resztę niezaliczonych odpowiedzi jednej strony, dla każdego, kto może edytować
 dataset, a przypadek, którego ocenę osoba uchyliła, jest oznaczany jako
@@ -299,8 +305,12 @@ GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents
 ```
 
 `?draft=current` zostawia runy, które testowały draft w obecnym stanie - ten
-sam spec, niezależnie od kolejności, w jakiej zapisano jego klucze - i to
-właśnie czyta dialog publikacji.
+sam spec, niezależnie od kolejności, w jakiej zapisano jego klucze, a wśród
+nich sprawdzenie sugestii, które potem przyjęto - i to właśnie czyta dialog
+publikacji. `?draft=earlier` zostawia runy, które testowały inny draft od
+opublikowania najnowszej wersji - sprawdzenie dopiero wtedy, gdy przyjęto którąś
+z jego sugestii: test, od którego draft już odszedł. Sprawdzenie mierzone
+względem samego draftu nie liczy się w żadnym z nich.
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 

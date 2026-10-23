@@ -590,7 +590,8 @@ class EvalRunWorker:
 
         Only what the run itself can stand behind: the regressions it confirmed
         and the answers the judge failed to grade. The rest of its failures go
-        when a person sends them.
+        when a person sends them. A check of the authoring assistant's proposal
+        sends nothing: it measures a change nobody accepted.
 
         The answers and their scores are kept by then, so a refusal here leaves
         the run to complete: what was refused is kept on it as `routing_error`,
@@ -600,7 +601,11 @@ class EvalRunWorker:
             run = await eval_run_repo.get(
                 db, self.eval_run_id, organization_id=self.organization_id
             )
-            if run is None or run.status != EvalRunStatus.RUNNING.value:
+            if (
+                run is None
+                or run.status != EvalRunStatus.RUNNING.value
+                or run.proposal_check is not None
+            ):
                 return
             try:
                 async with db.begin_nested():
