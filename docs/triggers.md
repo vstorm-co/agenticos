@@ -5,11 +5,13 @@ An **event trigger** fires an agent when something happens somewhere else.
 There are two ways that reaches us, and which one a source uses is the source's own
 business rather than yours:
 
-- **Pushed.** A provider POSTs a signed payload — a GitHub issue, or anything that
-  can send signed JSON (the **API** source).
-- **Polled.** The platform reads a connected account on a schedule. **Gmail** and
-  **Outlook** are this: nothing is posted to us, so there is no URL to configure and
-  no secret to keep. You connect the mailbox and that is the whole setup.
+- **Pushed.** A provider POSTs a signed payload: **GitHub**, **HubSpot**,
+  **Zendesk**, or anything that can send signed JSON (the **API** source).
+- **Polled.** The platform reads a connected account on a schedule: the mailboxes
+  (**Gmail**, **Outlook**), the files (**Google Drive**, **OneDrive & SharePoint**)
+  and the calendars (**Google Calendar**, **Outlook Calendar**). Nothing is posted
+  to us, so there is no URL to configure and no secret to keep. You connect the
+  account and that is the whole setup.
 
 [Concepts](concepts.md#trigger) covers what a trigger *is* and how a fired run
 behaves; [Governance](governance.md) covers what it spends and how a refusal is
@@ -27,6 +29,17 @@ the delivery has to contain, and how to test the whole thing from a laptop.
     pre-fills the prompt and a sane cadence. An event template — "triage the new
     issue", "draft a reply to the email" — pre-fills the prompt on its own source's
     message step. Neither starts from a blank box.
+
+## A schedule's time zone
+
+A schedule set to run at a time of day - daily at 09:00, weekdays at 08:30 - is
+read in a **time zone**, an IANA name such as `Europe/Warsaw`. A new one takes
+yours, from the time zone on your account, unless the form or the API names
+another (`time_zone`). It keeps its hour through daylight saving: "daily at
+09:00" in Warsaw is 08:00 UTC in winter and 07:00 UTC in summer, and the run
+moves with it. A schedule saved before schedules had zones is read in UTC, as it
+always was, until somebody picks a zone for it. An interval schedule has no time
+of day and no zone.
 
 ## A schedule whose last run is still going
 
@@ -96,25 +109,28 @@ flowchart TD
   {PUBLIC_BASE_URL}/api/v1/webhooks/triggers/{source}/{trigger_id}
   ```
 
-  `source` is one of `github` or `webhook` (the API source's wire name); `trigger_id`
-  is an unguessable UUID. The dialog fills this in for you - copy it, do not build it
-  by hand. **`gmail` and `outlook` have no URL**: a polled source has no inbound
-  door, and a POST naming one is answered like any delivery with nothing to do.
+  `source` is one of `github`, `hubspot`, `zendesk` or `webhook` (the API source's
+  wire name); `trigger_id` is an unguessable UUID. The dialog fills this in for you -
+  copy it, do not build it by hand. **A polled source has no URL**: it has no
+  inbound door, and a POST naming one is answered like any delivery with nothing to
+  do.
 
-- **The signature** is `HMAC-SHA256` over the **exact raw request bytes**, keyed with
-  the signing secret, hex-encoded, and prefixed with `sha256=`. It rides in a header
-  that depends on the source:
+- **The signature** is an `HMAC-SHA256` keyed with the signing secret, in each
+  provider's own scheme:
 
-  | Source | Header |
-  |---|---|
-  | `github` | `X-Hub-Signature-256` |
-  | `webhook` | `X-Signature-256` |
+  | Source | Header | What is signed |
+  |---|---|---|
+  | `github` | `X-Hub-Signature-256` | The raw body, `sha256=<hex>` |
+  | `webhook` | `X-Signature-256` | The raw body, `sha256=<hex>` - or the time and the body, see [below](#signing-a-delivery-yourself) |
+  | `hubspot` | `X-HubSpot-Signature-v3` | The method, the URL, the body and `X-HubSpot-Request-Timestamp`, base64 |
+  | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` and the body, base64 |
 
-  GitHub signs deliveries natively under its own `X-Hub-Signature-256` header, so you
-  give GitHub the secret and it does the signing. The API source reuses the identical
-  scheme under `X-Signature-256`, which whatever you point at the URL has to set itself.
-  A **polled** source signs nothing and holds no secret: it was not addressed, it was
-  read, and the account's own OAuth grant is what authorized reading it.
+  GitHub, HubSpot and Zendesk sign their own deliveries, so you give the provider
+  the secret - or, for HubSpot and Zendesk, take the one it issued - and it does the
+  signing. The API source reuses GitHub's scheme under `X-Signature-256`, which
+  whatever you point at the URL has to set itself. A **polled** source signs
+  nothing and holds no secret: it was not addressed, it was read, and the account's
+  own OAuth grant is what authorized reading it.
 
 !!! danger "The signature is not decoration"
 
@@ -138,7 +154,18 @@ in a read, a listing, or the URL.
 A verified delivery that has nothing to do - an inactive trigger, or a payload the
 filter does not match - answers `202` exactly as a fired one does, so holding the secret
 tells you nothing about which triggers exist. A body that is not a JSON object is a
-`400`.
+`400` (HubSpot's array of events is the one exception the door expects).
+
+**One trigger fires at most 60 times a minute.** A verified delivery past that is
+refused with `429` and a `Retry-After`, and the provider's retry fires it once the
+minute has passed. It is counted only once the signature holds, so nobody without
+the secret can use it up, and it is what stops a leaked secret or a relay stuck in
+a loop from spending the budget in an afternoon.
+
+**What arrived is data, never instructions.** The run's message is your prompt,
+then the event inside an `<event_content>` block that tells the model to read it
+as data. An issue, an email or a file name is written by whoever sent it, and a
+sentence in it that sounds like an order is still part of the event.
 
 ## Rotating the secret, and editing the filter
 
@@ -176,7 +203,9 @@ Gmail is polled, so the setup is a consent screen and nothing else.
 1. **Connect the account.** *Routines → New event trigger → Gmail → Connect account*.
    That needs `mcp:manage`, the same permission every other connected account needs.
 2. **Pick what fires it**: any new message, inbox only, or marked important. Narrow
-   further with a sender or subject substring, or a Gmail label.
+   further with a sender or subject substring, or a Gmail label. A sender filter
+   fires only on mail the sender's domain signed - see
+   [Who sent it](#who-sent-it-a-sender-filter-is-a-trust-decision).
 3. **Write the prompt**, or start from the "draft a reply" template.
 
 There is no URL to paste and no secret to store, because nothing posts to us. What
@@ -196,6 +225,11 @@ you should know about how it reads:
   backlog is not re-read for ever.
 - **One message can fire several triggers.** Unlike a webhook, whose URL names
   exactly one - "any message" and "marked important" on the same mailbox both fire.
+- **Only mail that arrived.** Gmail's history reports the account's own sends,
+  drafts, spam and bin as added messages too. None of them fires a trigger -
+  an agent that replies by email would otherwise set itself off, and spam would
+  hand anyone with an address a run - unless the trigger's `label` names one
+  (`SENT`, `DRAFT`, `SPAM` or `TRASH`).
 - **A missed week repairs itself.** Google keeps about a week of history. A cursor
   older than that resynchronises to now rather than parking the mailbox for ever.
 - **A withdrawn consent stops the triggers.** When Google refuses the grant for
@@ -266,6 +300,130 @@ What differs from Gmail:
 Delivery ids are Outlook's immutable message ids, so a message read twice - a
 retried tick, a slow poll overlapping the next - fires each trigger once.
 
+## Who sent it: a sender filter is a trust decision
+
+`sender_contains` reads the `From` header, which the sender writes: a message
+claiming to come from `ceo@acme.com` costs nothing to send. So a Gmail or Outlook
+trigger that filters on the sender fires only on mail the sender's domain
+**vouched for**: DMARC passed, or a DKIM signature passed for that domain or a
+parent of it.
+
+The verdict is the one your mail provider wrote when the message
+arrived - the topmost `Authentication-Results` header - so a copy the sender pasted
+into the message counts for nothing. SPF alone is not enough: it checks the
+envelope sender, which nobody sees. In Outlook, mail between two mailboxes of your
+own tenant counts as vouched for, because Exchange marks it internal.
+
+| `authenticated_only` | What fires |
+|---|---|
+| unset (the default) | Vouched-for mail only when the trigger filters on the sender; anything when it does not |
+| `true` | Vouched-for mail only, with or without a sender filter |
+| `false` | Anything the other filters let through |
+
+A relay of your own that signs nothing - an internal scanner, an old mail
+gateway - is refused by a sender filter. The refusal is logged
+(`trigger_mail_unauthenticated`, with the sender's domain), and setting
+`authenticated_only` to `false` in the trigger's `event_config` lets that sender
+through.
+
+## HubSpot
+
+HubSpot posts webhooks from an app - a private app in your HubSpot account is
+enough - and signs them with that app's **client secret**.
+
+1. **Create the trigger** with source **A HubSpot webhook** and paste the app's
+   client secret (*Settings → Integrations → Private Apps → your app → Auth*).
+   There is no Generate button: HubSpot signs with its own secret, not one we
+   could make.
+2. **Subscribe the app's webhooks** to the events you want - `contact.creation`,
+   `deal.propertyChange`, `ticket.creation` - with the trigger's URL as the
+   target.
+
+HubSpot sends up to a hundred events in one delivery, and the trigger fires once
+for it when any event passes the filter: `subscription_types` keeps the named
+event types, `property_names` a property change to the named properties. The
+run is told every event in the batch, up to twenty.
+
+A delivery is verified by HubSpot's v3 signature, over the method, the URL HubSpot
+called, the body and a timestamp that has to be within five minutes. HubSpot
+still signs CRM object subscriptions with its older v1 scheme, which has no time
+in it, and those are accepted too: a batch is recognised by its events, so a v1
+delivery replayed later fires nothing. The URL in the signature is the one the
+dialog gave you, so a deployment behind a proxy still verifies.
+
+## Zendesk
+
+Zendesk issues each webhook its own **signing secret**.
+
+1. **Create a webhook in Zendesk** (*Admin Center → Apps and integrations →
+   Webhooks*) pointing at a trigger's URL - create the trigger with source **A
+   Zendesk webhook** first and paste any placeholder, then come back.
+2. **Reveal the webhook's secret** on its page and paste it into the trigger as its
+   signing secret.
+3. **Decide when it is called.** A webhook subscribed to Zendesk events -
+   `zen:event-type:ticket.created` and the like - carries its event's type, and
+   the trigger's `event_types` keeps the ones named. A webhook a Zendesk trigger
+   or automation calls carries whatever JSON its admin wrote and no type, so it
+   fires a trigger that names none: the Zendesk rule already decided when.
+
+A delivery is verified over its timestamp and its body and has to be within five
+minutes of our clock; Zendesk's invocation id recognises a retried one.
+
+## Files: Google Drive, OneDrive and SharePoint
+
+Two polled portals, each a separate consent so neither asks for more than files:
+
+| | Google Drive | OneDrive & SharePoint |
+|---|---|---|
+| Vault secret | The Google OAuth client Gmail uses, with the Drive API enabled | The Microsoft OAuth app Outlook uses |
+| Permission | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `offline_access` (no admin consent) |
+| Where it looks | Every file the account can see, shared drives included | The account's own OneDrive, or one SharePoint site's document library per `site_url` |
+| Narrows by | `folder_id` (the folder's link or id), `name_contains` | `folder_path` (a folder and everything under it), `name_contains` |
+
+Both fire on `change`: `created`, `modified`, or `any` (the default); the presets
+offer **New files** and **New or changed files**.
+
+- **A file being edited is one run, not one a minute.** Google Docs saves as
+  somebody types and OneDrive reports every save, so a change to a file that
+  already fired is held back for half an hour.
+- **The account's own edits fire nothing** unless `include_own_changes` is set: an
+  agent writing through the same grant would otherwise set itself off.
+- **Connecting fires nothing.** Both start reading from now - a new SharePoint
+  library is read from the moment its first trigger is - never from the drive's
+  history. A burst - a folder synced in bulk - is bounded to the 25 most recently
+  changed files a tick.
+- **The run is told which file, not what is in it.** Only metadata is read: the
+  name, type, link, who changed it and where it sits. An agent that should read the
+  file does so with its own tools.
+- **A site that cannot be read stops its triggers**, with the reason in the audit
+  log, while the account's other places are read on.
+
+## Meetings: Google Calendar and Outlook Calendar
+
+A calendar trigger fires **before** a meeting rather than when something
+changed: 15 minutes ahead by default, anywhere from 5 to 120 (`minutes_before`).
+The presets are **Before each meeting**, **Before meetings with outsiders** and
+**An hour before**; the run gets the subject, the time, the organizer, who is
+coming, who of them is from outside your domain, the join link and the
+description - enough to prepare a brief.
+
+| | Google Calendar | Outlook Calendar |
+|---|---|---|
+| Vault secret | The Google OAuth client, with the Calendar API enabled | The Microsoft OAuth app |
+| Permission | `calendar.events.readonly` | `Calendars.Read`, `offline_access` |
+| Calendar read | The account's primary calendar | The account's default calendar |
+
+- **Only a meeting.** One with nobody else on it, one you declined, one that was
+  cancelled and an all-day event never fire. Rooms do not count as people.
+- **Once per meeting.** Each meeting is announced once for each lead a trigger
+  watches, and the announcement is recorded with the account's position, so a
+  slow tick or a restart does not fire it twice. A meeting booked inside the lead
+  - at 10:50 for 11:00, on a 15-minute trigger - fires at once; one moved to
+  another time fires again for its new time.
+- **`external_only`** keeps the meetings with somebody from outside the
+  account's own domain; `subject_contains` and `attendee_contains` narrow by
+  subject and by an attendee's address (`@client.com`).
+
 ## Two ways to connect GitHub, and how to tell which you are running
 
 There are two, and a deployment can offer either or both. The picker shows
@@ -295,9 +453,12 @@ platform when the trigger was created.
      a setup prerequisite here rather than something read at runtime.
    - **Webhook secret**: generate one. It signs every delivery from every
      installation of this App.
-   - **Permissions**: `Issues: Read-only` and `Metadata: Read-only`. Nothing else
-     is read, and anything more is access nobody needs.
-   - **Subscribe to events**: `Issues`.
+   - **Permissions**: `Metadata: Read-only`, plus read-only access to what your
+     triggers fire on - `Issues` for issues and their comments, `Pull requests`,
+     `Actions` for workflow runs, `Contents` for releases and pushes. Nothing
+     else is read.
+   - **Subscribe to events**: the ones your triggers use - `Issues`,
+     `Issue comment`, `Pull request`, `Workflow run`, `Release`, `Push`.
 2. **Generate a private key** on the same page and download the PEM.
 3. **Store all three in the vault** as a **GitHub App** secret - the App ID, the
    private key and the webhook secret. One per organization, org-visible: the
@@ -355,8 +516,8 @@ On the App path there is nothing to wire: skip to
 [Setting up the App](#setting-up-the-app-once-per-organization).
 
 GitHub signs its own deliveries, so this is the quickest source to wire up by
-hand. Create the trigger with source **GitHub** first, copy its webhook URL and
-signing secret, then:
+hand. A preset registers the hook itself; by hand, create the trigger with source
+**GitHub** first, copy its webhook URL and signing secret, then:
 
 1. In the repository you want to watch, go to **Settings → Webhooks → Add webhook**.
 2. **Payload URL** - paste the webhook URL from the trigger dialog.
@@ -364,13 +525,31 @@ signing secret, then:
    the signature covers the exact bytes GitHub sends, and the form encoding changes them,
    so a form-encoded delivery verifies against nothing and comes back `403`.
 4. **Secret** - paste the signing secret.
-5. **Which events?** - choose *Let me select individual events*, tick **Issues**, and
-   untick everything else. Only `issues` webhooks reach the fire path at all (the event
-   type is read from the `X-GitHub-Event` header); anything else is discarded. Narrow
-   *which* issue actions fire with the trigger's filter - it defaults to issue creation
-   (`opened`).
-6. **Add webhook.** GitHub sends a `ping`, which is not an `issues` event, so it will not
+5. **Which events?** - choose *Let me select individual events* and tick the one the
+   trigger's `event` names; a delivery of any other event (read from the
+   `X-GitHub-Event` header) is discarded. Narrow *which* actions fire with the
+   trigger's filter.
+6. **Add webhook.** GitHub sends a `ping`, which is no trigger's event, so it will not
    fire the agent - that is expected.
+
+**What a GitHub trigger can fire on**, its `event`, with what fires by default:
+
+| `event` | Fires on, unless `actions` says otherwise | Also narrows by |
+|---|---|---|
+| `issues` (the default) | A new issue (`opened`) | |
+| `pull_request` | `opened`, `ready_for_review`, `review_requested` | `branches` (the base) |
+| `issue_comment` | A new comment (`created`) | `mention`, a phrase it must contain such as `@agent` |
+| `workflow_run` | A finished run (`completed`) that failed | `conclusions`, `branches` |
+| `release` | A published release | |
+| `push` | A push to a branch | `branches` |
+
+**Whose issues fire it.** On a public repository anyone can open an issue, and
+every one would be a run and a page of a stranger's text in the prompt. So an
+issue, a pull request or a comment fires only when GitHub calls its author the
+repository's `OWNER`, `MEMBER` or `COLLABORATOR` - set `authors` to `anyone` to
+let everybody through. A bot never fires one, and neither does the account the
+trigger was connected with, so an agent commenting through it cannot set itself
+off.
 
 When a delivery is refused, diagnose it in GitHub's **Recent Deliveries** tab on the
 webhook: it shows the exact request and the response. A `403` there is a signature
@@ -408,9 +587,9 @@ the agent reads it. If you want the *filtering*, connect the mailbox instead.
 
 ## Signing a delivery yourself
 
-For the generic `webhook` source (and to test any source by hand), you sign the request
-yourself. Two footguns decide whether the signature verifies, because both change the
-bytes:
+For the generic `webhook` source (and to test the GitHub one by hand), you sign the
+request yourself. Two footguns decide whether the signature verifies, because both
+change the bytes:
 
 - **Sign the bytes you send, and only those.** `echo` appends a trailing newline that
   gets signed but may not be sent, or sent but not signed; use `printf '%s'` and pass the
@@ -458,6 +637,20 @@ bytes:
 
 For the `github` source the algorithm is identical; only the header name changes to
 `X-Hub-Signature-256`.
+
+**Sign the time too, against replays.** A body-only signature carries no time, so a
+captured delivery could be sent again for ever. Send `X-Signature-Timestamp` (Unix
+seconds) and sign `{timestamp}.{body}` instead: a delivery more than five minutes
+from our clock is refused, and dropping the header to replay it fails too, since
+the signature no longer covers the bare body. A sender that sends no timestamp is
+verified as before.
+
+```bash
+TS="$(date +%s)"
+SIG="sha256=$(printf '%s.%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
+curl -sS -X POST "$URL" -H 'Content-Type: application/json' \
+  -H "X-Signature-Timestamp: $TS" -H "X-Signature-256: $SIG" --data-raw "$BODY"
+```
 
 ## Zapier and Make cannot do this without a code step
 
@@ -515,9 +708,12 @@ Two ways through it:
 
 - A trigger hands you a **URL** and a **signing secret**. The URL is its identity
   and never changes; the secret is a credential and can be rotated.
-- The signature is `HMAC-SHA256` over the **exact raw bytes**, and it is what makes
-  a delivery authentic rather than merely addressed correctly.
+- The signature is an `HMAC-SHA256` over the **exact raw bytes**, in each provider's
+  scheme, and it is what makes a delivery authentic rather than merely addressed
+  correctly. HubSpot's and Zendesk's secrets are the provider's to issue.
 - A `202` means **accepted**, not finished. Read the run in Activity.
-- **Gmail and Outlook are polled**, so they have no URL and no secret at all —
-  connect the mailbox and that is the setup.
+- **The mailboxes, files and calendars are polled**, so they have no URL and no
+  secret at all - connect the account and that is the setup.
+- A sender filter fires only on mail the sender's domain signed.
+- A schedule's time of day is read in its time zone, yours by default.
 - On a laptop, reach for **Run now** before you reach for a tunnel.

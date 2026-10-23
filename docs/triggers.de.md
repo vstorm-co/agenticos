@@ -1,5 +1,5 @@
 ---
-source_sha: "00c29f22362b"
+source_sha: "863f89d4d163"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -9,12 +9,15 @@ Ein **Event-Trigger** löst einen Agent aus, wenn woanders etwas passiert.
 Es gibt zwei Wege, auf denen das bei uns ankommt, und welchen eine Quelle nutzt,
 ist die Sache der Quelle und nicht Ihre:
 
-- **Geschoben.** Ein Provider schickt per POST eine signierte Payload — ein
-  GitHub-Issue, oder alles, was signiertes JSON senden kann (die Quelle **API**).
-- **Abgefragt.** Die Plattform liest ein verbundenes Konto nach einem Zeitplan.
-  **Gmail** und **Outlook** sind so: es wird nichts an uns gepostet, es gibt also
-  keine URL zu konfigurieren und kein Secret zu verwahren. Sie verbinden das Postfach, und
-  das ist die gesamte Einrichtung.
+- **Geschoben.** Ein Provider schickt per POST eine signierte Payload: **GitHub**,
+  **HubSpot**, **Zendesk**, oder alles, was signiertes JSON senden kann (die
+  Quelle **API**).
+- **Abgefragt.** Die Plattform liest ein verbundenes Konto nach einem Zeitplan: die
+  Postfächer (**Gmail**, **Outlook**), die Dateien (**Google Drive**, **OneDrive &
+  SharePoint**) und die Kalender (**Google Calendar**, **Outlook Calendar**). Es
+  wird nichts an uns gepostet, es gibt also keine URL zu konfigurieren und kein
+  Secret zu verwahren. Sie verbinden das Konto, und das ist die gesamte
+  Einrichtung.
 
 [Konzepte](concepts.md#trigger) behandelt, was ein Trigger *ist* und wie sich ein
 ausgelöster Run verhält; [Governance](governance.md) behandelt, was er ausgibt
@@ -34,6 +37,17 @@ Ganze von einem Laptop aus testen.
     Takt vor. Ein Event-Template — "triagiere das neue Issue", "entwirf eine Antwort
     auf die E-Mail" — füllt den Prompt am Nachrichtenschritt seiner eigenen Quelle
     vor. Keines beginnt bei einem leeren Feld.
+
+## Die Zeitzone eines Zeitplans { #a-schedules-time-zone }
+
+Ein Zeitplan auf eine Uhrzeit - täglich um 09:00, werktags um 08:30 - wird in
+einer **Zeitzone** gelesen, einem IANA-Namen wie `Europe/Warsaw`. Ein neuer
+übernimmt Ihre, aus der Zeitzone Ihres Kontos, sofern das Formular oder die API
+keine andere nennt (`time_zone`). Er behält seine Stunde über die Zeitumstellung:
+"täglich um 09:00" in Warschau ist im Winter 08:00 UTC und im Sommer 07:00 UTC,
+und der Run wandert mit. Ein Zeitplan, der gespeichert wurde, bevor Zeitpläne
+Zeitzonen hatten, wird wie immer in UTC gelesen, bis jemand ihm eine Zone wählt.
+Ein Intervall-Zeitplan hat keine Uhrzeit und keine Zone.
 
 ## Ein Zeitplan, dessen letzter Run noch läuft { #a-schedule-whose-last-run-is-still-going }
 
@@ -101,36 +115,37 @@ flowchart TD
 ```
 
 - **Die URL** wird auf der einen öffentlichen Adresse des Deployments
-  (`PUBLIC_BASE_URL`) aufgebaut und nicht auf dem Origin des Dashboards - der
-  Webhook wird vom API-Host bedient, der meist ein anderer Origin ist als die UI.
-  Ihre Form lautet:
+  (`PUBLIC_BASE_URL`) gebaut, nicht auf dem Origin des Dashboards - der Webhook
+  wird vom API-Host ausgeliefert, der meist ein anderer Origin als die UI ist. Ihre
+  Form ist:
 
   ```
   {PUBLIC_BASE_URL}/api/v1/webhooks/triggers/{source}/{trigger_id}
   ```
 
-  `source` ist entweder `github` oder `webhook` (der Leitungsname der Quelle API);
-  `trigger_id` ist eine nicht erratbare UUID. Der Dialog füllt das für Sie aus -
-  kopieren Sie es, bauen Sie es nicht von Hand. **`gmail` und `outlook` haben keine
-  URL**: eine abgefragte Quelle hat keine eingehende Tür, und ein POST, der eine
-  benennt, wird wie jede Zustellung ohne etwas zu tun beantwortet.
+  `source` ist `github`, `hubspot`, `zendesk` oder `webhook` (der Leitungsname der
+  Quelle API); `trigger_id` ist eine nicht erratbare UUID. Der Dialog füllt das für
+  Sie aus - kopieren Sie sie, bauen Sie sie nicht von Hand. **Eine abgefragte
+  Quelle hat keine URL**: sie hat keine Eingangstür, und ein POST, der sie nennt,
+  wird wie jede Zustellung beantwortet, bei der nichts zu tun ist.
 
-- **Die Signatur** ist `HMAC-SHA256` über die **exakten rohen Anfrage-Bytes**, mit
-  dem Signatur-Secret als Schlüssel, hex-kodiert und mit `sha256=` vorangestellt.
-  Sie reist in einem Header mit, der von der Quelle abhängt:
+- **Die Signatur** ist ein `HMAC-SHA256` mit dem Signatur-Secret als Schlüssel,
+  im Schema des jeweiligen Providers:
 
-  | Quelle | Header |
-  |---|---|
-  | `github` | `X-Hub-Signature-256` |
-  | `webhook` | `X-Signature-256` |
+  | Quelle | Header | Was signiert wird |
+  |---|---|---|
+  | `github` | `X-Hub-Signature-256` | Der rohe Body, `sha256=<hex>` |
+  | `webhook` | `X-Signature-256` | Der rohe Body, `sha256=<hex>` - oder Zeit und Body, siehe [unten](#signing-a-delivery-yourself) |
+  | `hubspot` | `X-HubSpot-Signature-v3` | Methode, URL, Body und `X-HubSpot-Request-Timestamp`, base64 |
+  | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` und der Body, base64 |
 
-  GitHub signiert seine Zustellungen von Haus aus unter seinem eigenen Header
-  `X-Hub-Signature-256`, Sie geben GitHub also das Secret und es übernimmt das
-  Signieren. Die Quelle API verwendet dasselbe Verfahren unter `X-Signature-256`
-  wieder, das setzen muss, was auch immer Sie auf die URL zeigen lassen. Eine
-  **abgefragte** Quelle signiert nichts und hält kein Secret: sie wurde nicht
-  adressiert, sie wurde gelesen, und die OAuth-Zustimmung des Kontos ist das, was
-  das Lesen autorisiert hat.
+  GitHub, HubSpot und Zendesk signieren ihre Zustellungen selbst, Sie geben dem
+  Provider also das Secret - oder übernehmen bei HubSpot und Zendesk das, das er
+  ausgestellt hat - und er signiert. Die Quelle API verwendet das Schema von
+  GitHub unter `X-Signature-256`, das setzen muss, was immer Sie auf die URL
+  richten. Eine **abgefragte** Quelle signiert nichts und hält kein Secret: sie
+  wurde nicht adressiert, sondern gelesen, und die eigene OAuth-Zustimmung des
+  Kontos hat das Lesen autorisiert.
 
 !!! danger "Die Signatur ist keine Zierde"
 
@@ -158,6 +173,19 @@ Eine verifizierte Zustellung, für die es nichts zu tun gibt - ein inaktiver
 Trigger, oder eine Payload, auf die der Filter nicht passt - antwortet genauso mit
 `202` wie eine auslösende, das Secret zu halten sagt Ihnen also nichts darüber,
 welche Trigger es gibt. Ein Body, der kein JSON-Objekt ist, ist eine `400`.
+
+**Ein Trigger löst höchstens 60 Mal pro Minute aus.** Eine verifizierte
+Zustellung darüber wird mit `429` und `Retry-After` abgelehnt, und der erneute
+Versuch des Providers löst sie aus, sobald die Minute vorbei ist. Gezählt wird
+erst, wenn die Signatur stimmt, niemand ohne das Secret kann das Kontingent also
+aufbrauchen - und es ist das, was ein geleaktes Secret oder ein Relay in einer
+Schleife davon abhält, das Budget an einem Nachmittag auszugeben.
+
+**Was ankam, sind Daten, nie Anweisungen.** Die Nachricht des Runs ist Ihr
+Prompt, danach das Ereignis in einem `<event_content>`-Block, der dem Modell sagt,
+es als Daten zu lesen. Ein Issue, eine E-Mail oder ein Dateiname stammt von dem,
+der sie geschickt hat, und ein Satz darin, der wie ein Befehl klingt, ist trotzdem
+Teil des Ereignisses.
 
 ## Das Secret rotieren und den Filter bearbeiten { #rotating-the-secret-and-editing-the-filter }
 
@@ -203,7 +231,9 @@ nichts.
    verbundene Konto braucht.
 2. **Wählen Sie, was auslöst**: jede neue Nachricht, nur der Posteingang, oder als
    wichtig markiert. Grenzen Sie weiter ein mit einem Teilstring in Absender oder
-   Betreff, oder mit einem Gmail-Label.
+   Betreff, oder mit einem Gmail-Label. Ein Absenderfilter löst nur bei E-Mails
+   aus, die die Domain des Absenders signiert hat - siehe
+   [Wer sie geschickt hat](#who-sent-it-a-sender-filter-is-a-trust-decision).
 3. **Schreiben Sie den Prompt**, oder gehen Sie vom Template "draft a reply" aus.
 
 Es gibt keine URL zum Einfügen und kein Secret zum Speichern, weil nichts an uns
@@ -226,6 +256,12 @@ postet. Was Sie darüber wissen sollten, wie es liest:
 - **Eine Nachricht kann mehrere Trigger auslösen.** Anders als bei einem Webhook,
   dessen URL genau einen benennt - "jede Nachricht" und "als wichtig markiert" auf
   demselben Postfach lösen beide aus.
+- **Nur, was ankam.** Die Historie von Gmail meldet auch die eigenen gesendeten
+  Nachrichten des Kontos, Entwürfe, Spam und Papierkorb als hinzugefügt. Keine
+  davon löst einen Trigger aus - ein Agent, der per E-Mail antwortet, würde sich
+  sonst selbst auslösen, und Spam gäbe jedem mit einer Adresse einen Run - es sei
+  denn, das `label` des Triggers nennt eine davon (`SENT`, `DRAFT`, `SPAM` oder
+  `TRASH`).
 - **Eine verpasste Woche repariert sich selbst.** Google hält etwa eine Woche
   Historie vor. Ein Cursor, der älter ist als das, synchronisiert sich auf jetzt,
   statt das Postfach für immer stillzulegen.
@@ -307,6 +343,142 @@ Zustellungs-IDs sind Outlooks unveränderliche Nachrichten-IDs, eine zweimal
 gelesene Nachricht - ein wiederholter Tick, eine langsame Abfrage, die sich mit
 der nächsten überschneidet - löst also jeden Trigger einmal aus.
 
+## Wer sie geschickt hat: ein Absenderfilter ist eine Vertrauensentscheidung { #who-sent-it-a-sender-filter-is-a-trust-decision }
+
+`sender_contains` liest den Header `From`, den der Absender schreibt: eine
+Nachricht, die angeblich von `ceo@acme.com` kommt, kostet nichts. Ein Gmail- oder
+Outlook-Trigger, der nach dem Absender filtert, löst deshalb nur bei E-Mails aus,
+für die die Domain des Absenders **gebürgt** hat: DMARC hat bestanden, oder eine
+DKIM-Signatur hat für diese Domain oder eine übergeordnete bestanden.
+
+Das Urteil
+ist das, das Ihr Mail-Provider beim Eintreffen geschrieben hat - der oberste
+Header `Authentication-Results` -, eine Kopie, die der Absender in die Nachricht
+eingefügt hat, zählt also nichts. SPF allein genügt nicht: es prüft den
+Umschlag-Absender, den niemand sieht. In Outlook gilt E-Mail zwischen zwei
+Postfächern Ihres eigenen Tenants als verbürgt, weil Exchange sie als intern
+kennzeichnet.
+
+| `authenticated_only` | Was auslöst |
+|---|---|
+| nicht gesetzt (Standard) | Nur verbürgte E-Mails, wenn der Trigger nach dem Absender filtert; alles, wenn nicht |
+| `true` | Nur verbürgte E-Mails, mit oder ohne Absenderfilter |
+| `false` | Alles, was die anderen Filter durchlassen |
+
+Ein eigenes Relay, das nichts signiert - ein interner Scanner, ein altes
+Mail-Gateway - wird von einem Absenderfilter abgelehnt. Die Ablehnung wird
+protokolliert (`trigger_mail_unauthenticated`, mit der Domain des Absenders), und
+`authenticated_only` auf `false` in der `event_config` des Triggers lässt diesen
+Absender durch.
+
+## HubSpot { #hubspot }
+
+HubSpot verschickt Webhooks aus einer App - eine Private App in Ihrem
+HubSpot-Konto genügt - und signiert sie mit dem **Client Secret** dieser App.
+
+1. **Legen Sie den Trigger an** mit der Quelle **Ein HubSpot-Webhook** und fügen
+   Sie das Client Secret der App ein (*Settings → Integrations → Private Apps →
+   Ihre App → Auth*). Es gibt keinen Generate-Button: HubSpot signiert mit seinem
+   eigenen Secret, nicht mit einem, das wir erzeugen könnten.
+2. **Abonnieren Sie die Webhooks der App** für die gewünschten Ereignisse -
+   `contact.creation`, `deal.propertyChange`, `ticket.creation` - mit der URL des
+   Triggers als Ziel.
+
+HubSpot schickt bis zu hundert Ereignisse in einer Zustellung, und der Trigger
+löst dafür einmal aus, wenn irgendein Ereignis den Filter passiert:
+`subscription_types` behält die genannten Ereignistypen, `property_names` eine
+Eigenschaftsänderung an den genannten Eigenschaften. Der Run erfährt jedes
+Ereignis des Stapels, bis zu zwanzig.
+
+Eine Zustellung wird mit der v3-Signatur von HubSpot verifiziert, über die
+Methode, die von HubSpot aufgerufene URL, den Body und einen Zeitstempel, der
+innerhalb von fünf Minuten liegen muss. Abonnements von CRM-Objekten signiert
+HubSpot noch mit dem älteren v1-Schema, ohne Zeit, und auch diese werden
+angenommen: ein Stapel wird an seinen Ereignissen erkannt, eine später
+wiedergegebene v1-Zustellung löst also nichts aus. Die URL in der Signatur ist die,
+die Ihnen der Dialog gegeben hat, ein Deployment hinter einem Proxy verifiziert
+also trotzdem.
+
+## Zendesk { #zendesk }
+
+Zendesk stellt jedem Webhook sein eigenes **Signatur-Secret** aus.
+
+1. **Legen Sie in Zendesk einen Webhook an** (*Admin Center → Apps and
+   integrations → Webhooks*), der auf die URL eines Triggers zeigt - legen Sie
+   zuerst den Trigger mit der Quelle **Ein Zendesk-Webhook** an, setzen Sie ein
+   vorläufiges Secret ein und kommen Sie zurück.
+2. **Zeigen Sie das Secret des Webhooks an** auf seiner Seite und fügen Sie es als
+   Signatur-Secret in den Trigger ein.
+3. **Entscheiden Sie, wann er aufgerufen wird.** Ein Webhook, der Zendesk-Ereignisse
+   abonniert - `zen:event-type:ticket.created` und ähnliche -, trägt den Typ
+   seines Ereignisses, und `event_types` des Triggers behält die genannten. Ein
+   Webhook, den ein Zendesk-Trigger oder eine Automation aufruft, trägt das JSON,
+   das sein Admin geschrieben hat, und keinen Typ, er löst also einen Trigger aus,
+   der keinen nennt: wann, hat die Zendesk-Regel schon entschieden.
+
+Eine Zustellung wird über ihren Zeitstempel und ihren Body verifiziert und muss
+innerhalb von fünf Minuten unserer Uhr liegen; die Aufruf-ID von Zendesk erkennt
+eine wiederholte.
+
+## Dateien: Google Drive, OneDrive und SharePoint { #files-google-drive-onedrive-and-sharepoint }
+
+Zwei abgefragte Portale, jedes eine eigene Zustimmung, damit keines um mehr bittet
+als Dateien:
+
+| | Google Drive | OneDrive & SharePoint |
+|---|---|---|
+| Secret im Vault | Der Google-OAuth-Client von Gmail, mit aktivierter Drive API | Die Microsoft-OAuth-App von Outlook |
+| Berechtigung | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `offline_access` (ohne Administratorzustimmung) |
+| Wo es schaut | Jede Datei, die das Konto sieht, geteilte Ablagen eingeschlossen | Das eigene OneDrive des Kontos, oder die Dokumentbibliothek einer SharePoint-Website je `site_url` |
+| Grenzt ein nach | `folder_id` (Link oder ID des Ordners), `name_contains` | `folder_path` (ein Ordner und alles darunter), `name_contains` |
+
+Beide lösen bei `change` aus: `created`, `modified` oder `any` (Standard); die
+Presets bieten **New files** und **New or changed files**.
+
+- **Eine Datei in Bearbeitung ist ein Run, nicht einer pro Minute.** Google Docs
+  speichert beim Tippen, und OneDrive meldet jedes Speichern, eine Änderung an
+  einer Datei, die schon ausgelöst hat, wird also eine halbe Stunde zurückgehalten.
+- **Die eigenen Bearbeitungen des Kontos lösen nichts aus**, sofern
+  `include_own_changes` nicht gesetzt ist: ein Agent, der über dieselbe Zustimmung
+  schreibt, würde sich sonst selbst auslösen.
+- **Verbinden löst nichts aus.** Beide lesen ab jetzt - eine neue
+  SharePoint-Bibliothek ab dem Moment ihres ersten Triggers -, nie aus der
+  Historie des Laufwerks. Ein Schwall - ein in einem Rutsch synchronisierter
+  Ordner - ist auf die 25 zuletzt geänderten Dateien pro Tick begrenzt.
+- **Der Run erfährt, welche Datei, nicht was darin steht.** Gelesen werden nur
+  Metadaten: Name, Typ, Link, wer sie geändert hat und wo sie liegt. Ein Agent,
+  der die Datei lesen soll, tut das mit seinen eigenen Werkzeugen.
+- **Eine Website, die nicht gelesen werden kann, stoppt ihre Trigger**, mit dem
+  Grund im Audit-Log, während die anderen Orte des Kontos weiter gelesen werden.
+
+## Termine: Google Calendar und Outlook Calendar { #meetings-google-calendar-and-outlook-calendar }
+
+Ein Kalender-Trigger löst **vor** einem Termin aus statt dann, wenn sich etwas
+geändert hat: standardmäßig 15 Minuten vorher, irgendwo zwischen 5 und 120
+(`minutes_before`). Die Presets sind **Before each meeting**, **Before meetings
+with outsiders** und **An hour before**; der Run erhält Betreff, Zeit, Organisator,
+wer kommt, wer davon von außerhalb Ihrer Domain ist, den Teilnahmelink und die
+Beschreibung - genug, um ein Briefing vorzubereiten.
+
+| | Google Calendar | Outlook Calendar |
+|---|---|---|
+| Secret im Vault | Der Google-OAuth-Client, mit aktivierter Calendar API | Die Microsoft-OAuth-App |
+| Berechtigung | `calendar.events.readonly` | `Calendars.Read`, `offline_access` |
+| Gelesener Kalender | Der Hauptkalender des Kontos | Der Standardkalender des Kontos |
+
+- **Nur ein Termin.** Einer ohne sonst jemanden, einer, den Sie abgelehnt haben,
+  ein abgesagter und ein ganztägiger lösen nie aus. Räume zählen nicht als
+  Menschen.
+- **Einmal pro Termin.** Jeder Termin wird für jede Vorlaufzeit, die ein Trigger
+  beobachtet, einmal angekündigt, und die Ankündigung wird mit der Position des
+  Kontos gespeichert, ein langsamer Tick oder ein Neustart löst ihn also nicht
+  doppelt aus. Ein Termin, der innerhalb der Vorlaufzeit gebucht wird - um 10:50
+  für 11:00, bei einem 15-Minuten-Trigger -, löst sofort aus; einer, der auf eine
+  andere Zeit verschoben wird, löst für die neue Zeit erneut aus.
+- **`external_only`** behält die Termine mit jemandem von außerhalb der eigenen
+  Domain des Kontos; `subject_contains` und `attendee_contains` grenzen nach Betreff
+  und nach der Adresse eines Teilnehmers ein (`@client.com`).
+
 ## Zwei Wege, GitHub anzubinden, und woran Sie erkennen, welcher läuft { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
 
 Es gibt zwei, und ein Deployment kann einen oder beide anbieten. Die Auswahl
@@ -336,9 +508,12 @@ von der Plattform beim Anlegen hinzugefügt.
      hier eine Voraussetzung der Einrichtung ist und kein Laufzeitwert.
    - **Webhook-Secret**: erzeugen. Es signiert jede Lieferung jeder Installation
      dieser App.
-   - **Berechtigungen**: `Issues: Read-only` und `Metadata: Read-only`. Mehr wird
-     nicht gelesen, und alles darüber wäre Zugriff, den niemand braucht.
-   - **Events abonnieren**: `Issues`.
+   - **Berechtigungen**: `Metadata: Read-only`, dazu Lesezugriff auf das, worauf
+     Ihre Trigger auslösen - `Issues` für Issues und ihre Kommentare,
+     `Pull requests`, `Actions` für Workflow-Runs, `Contents` für Releases und
+     Pushes. Mehr wird nicht gelesen.
+   - **Events abonnieren**: die, die Ihre Trigger verwenden - `Issues`,
+     `Issue comment`, `Pull request`, `Workflow run`, `Release`, `Push`.
 2. **Privaten Schlüssel erzeugen** auf derselben Seite und das PEM herunterladen.
 3. **Alle drei im Vault ablegen** als **GitHub App**-Secret - App-ID, privater
    Schlüssel und Webhook-Secret. Eines je Organisation, organisationsweit
@@ -406,14 +581,31 @@ schnellsten verdrahten lässt. Legen Sie zuerst den Trigger mit der Quelle
    GitHub sendet, und die Formularkodierung ändert sie, eine formularkodierte
    Zustellung verifiziert also gegen nichts und kommt mit `403` zurück.
 4. **Secret** - fügen Sie das Signatur-Secret ein.
-5. **Which events?** - wählen Sie *Let me select individual events*, kreuzen Sie
-   **Issues** an und entfernen Sie alle anderen Haken. Nur `issues`-Webhooks
-   erreichen den Auslösepfad überhaupt (der Event-Typ wird aus dem Header
-   `X-GitHub-Event` gelesen); alles andere wird verworfen. Grenzen Sie mit dem
-   Filter des Triggers ein, *welche* Issue-Aktionen auslösen - standardmäßig ist
-   das das Anlegen eines Issues (`opened`).
-6. **Add webhook.** GitHub sendet ein `ping`, was kein `issues`-Event ist, es wird
-   den Agent also nicht auslösen - das ist erwartet.
+5. **Which events?** - wählen Sie *Let me select individual events* und kreuzen Sie
+   das an, das `event` des Triggers nennt; eine Zustellung jedes anderen Events
+   (aus dem Header `X-GitHub-Event` gelesen) wird verworfen. Grenzen Sie mit dem
+   Filter des Triggers ein, *welche* Aktionen auslösen.
+6. **Add webhook.** GitHub sendet ein `ping`, was das Event keines Triggers ist, es
+   wird den Agent also nicht auslösen - das ist erwartet.
+
+**Worauf ein GitHub-Trigger auslösen kann**, sein `event`, mit dem, was standardmäßig auslöst:
+
+| `event` | Löst aus bei, sofern `actions` nichts anderes sagt | Grenzt außerdem ein nach |
+|---|---|---|
+| `issues` (Standard) | Ein neues Issue (`opened`) | |
+| `pull_request` | `opened`, `ready_for_review`, `review_requested` | `branches` (die Basis) |
+| `issue_comment` | Ein neuer Kommentar (`created`) | `mention`, eine Phrase, die er enthalten muss, etwa `@agent` |
+| `workflow_run` | Ein beendeter Run (`completed`), der fehlschlug | `conclusions`, `branches` |
+| `release` | Ein veröffentlichtes Release | |
+| `push` | Ein Push auf einen Branch | `branches` |
+
+**Wessen Issues auslösen.** In einem öffentlichen Repository kann jeder ein Issue
+eröffnen, und jedes wäre ein Run und eine Seite fremden Texts im Prompt. Ein Issue,
+ein Pull Request oder ein Kommentar löst deshalb nur aus, wenn GitHub seinen Autor
+als `OWNER`, `MEMBER` oder `COLLABORATOR` des Repositorys führt - setzen Sie
+`authors` auf `anyone`, um alle durchzulassen. Ein Bot löst nie aus, ebenso wenig
+das Konto, über das der Trigger verbunden wurde, ein Agent, der darüber
+kommentiert, kann sich also nicht selbst auslösen.
 
 Wird eine Zustellung abgelehnt, diagnostizieren Sie das im Tab **Recent
 Deliveries** des Webhooks bei GitHub: er zeigt die genaue Anfrage und die Antwort.
@@ -455,7 +647,7 @@ Postfach.
 
 ## Eine Zustellung selbst signieren { #signing-a-delivery-yourself }
 
-Für die generische Quelle `webhook` (und um jede Quelle von Hand zu testen)
+Für die generische Quelle `webhook` (und um die GitHub-Quelle von Hand zu testen)
 signieren Sie die Anfrage selbst. Zwei Fußangeln entscheiden darüber, ob die
 Signatur verifiziert, denn beide verändern die Bytes:
 
@@ -508,6 +700,21 @@ Signatur verifiziert, denn beide verändern die Bytes:
 
 Für die Quelle `github` ist der Algorithmus identisch; nur der Headername wechselt
 zu `X-Hub-Signature-256`.
+
+**Signieren Sie auch die Zeit, gegen Wiederholungen.** Eine Signatur nur über den
+Body trägt keine Zeit, eine abgefangene Zustellung könnte also für immer erneut
+geschickt werden. Senden Sie `X-Signature-Timestamp` (Unix-Sekunden) und signieren
+Sie stattdessen `{timestamp}.{body}`: eine Zustellung, die mehr als fünf Minuten
+von unserer Uhr abweicht, wird abgelehnt, und den Header wegzulassen, um sie
+wiederzugeben, scheitert ebenfalls, weil die Signatur den bloßen Body nicht mehr
+abdeckt. Ein Absender, der keinen Zeitstempel schickt, wird wie bisher verifiziert.
+
+```bash
+TS="$(date +%s)"
+SIG="sha256=$(printf '%s.%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
+curl -sS -X POST "$URL" -H 'Content-Type: application/json' \
+  -H "X-Signature-Timestamp: $TS" -H "X-Signature-256: $SIG" --data-raw "$BODY"
+```
 
 ## Zapier und Make können das ohne einen Code-Schritt nicht { #zapier-and-make-cannot-do-this-without-a-code-step }
 
@@ -574,10 +781,15 @@ hindurch:
 - Ein Trigger gibt Ihnen eine **URL** und ein **Signatur-Secret**. Die URL ist
   seine Identität und ändert sich nie; das Secret ist eine Zugangsinformation und
   kann rotiert werden.
-- Die Signatur ist `HMAC-SHA256` über die **exakten rohen Bytes**, und sie ist das,
-  was eine Zustellung authentisch macht statt bloß korrekt adressiert.
+- Die Signatur ist ein `HMAC-SHA256` über die **exakten rohen Bytes**, im Schema
+  des jeweiligen Providers, und sie ist das, was eine Zustellung authentisch macht
+  statt bloß korrekt adressiert. Die Secrets von HubSpot und Zendesk stellt der
+  Provider aus.
 - Eine `202` bedeutet **angenommen**, nicht fertig. Lesen Sie den Run in Activity.
-- **Gmail und Outlook werden abgefragt**, sie haben also überhaupt keine URL und
-  kein Secret — verbinden Sie das Postfach, und das ist die Einrichtung.
+- **Postfächer, Dateien und Kalender werden abgefragt**, sie haben also überhaupt
+  keine URL und kein Secret - verbinden Sie das Konto, und das ist die Einrichtung.
+- Ein Absenderfilter löst nur bei E-Mails aus, die die Domain des Absenders
+  signiert hat.
+- Die Uhrzeit eines Zeitplans wird in seiner Zeitzone gelesen, standardmäßig Ihrer.
 - Greifen Sie auf einem Laptop nach **Run now**, bevor Sie nach einem Tunnel
   greifen.
