@@ -5739,7 +5739,7 @@
       "prefPromotionOverridden": "Eine Promotion ging an ihren Evals vorbei",
       "prefPromotionOverriddenTrigger": "Eine Version kam in eine Umgebung, vorbei an einer Ihrer Eval-Suites, die auf ihr nicht bestanden hatte. Nennt die Suites und die Begründung.",
       "prefSharedChangeApplied": "Eine Änderung gilt jetzt für deinen Agent",
-      "prefSharedChangeAppliedTrigger": "Jemand hat eine Änderung an einer Kontextdatei oder einem Skill angewendet, die dein Agent liest, und seine Eval-Suites wurden eingereiht. Nennt die Datei oder den Skill, nie den Inhalt."
+      "prefSharedChangeAppliedTrigger": "Jemand hat eine Änderung an einer Kontextdatei oder einem Skill angewendet, die dein Agent liest. Seine Eval-Suites, die bei einer solchen Änderung laufen, wurden eingereiht. Nennt die Datei oder den Skill, nie den Inhalt."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -9595,9 +9595,10 @@
     "goesLive": {
       "now": "Gilt sofort für {agents}.",
       "agent": "{name} ({environments})",
-      "guardedBy": "{name}, geschützt durch {suites}",
-      "guards": "{name}, geschützt durch {count, plural, =1 {1 Eval-Suite} other {# Eval-Suites}}",
       "hidden": "{count, plural, =1 {1 Agent, den du nicht sehen kannst} other {# Agents, die du nicht sehen kannst}}",
+      "runsNow": "Läuft jetzt: {suites}.",
+      "atPromotion": "{suites} {count, plural, =1 {prüft} other {prüfen}} es bei der nächsten Promotion.",
+      "suites": "{count, plural, =1 {1 Eval-Suite} other {# Eval-Suites}}",
       "nowhere": "Noch liest ihn kein veröffentlichter Agent, das Anwenden ändert heute also keine Antworten."
     }
   },

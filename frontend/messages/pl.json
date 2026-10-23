@@ -5626,7 +5626,7 @@
       "prefPromotionOverridden": "Promocja pominęła evale",
       "prefPromotionOverriddenTrigger": "Wersja trafiła do środowiska z pominięciem Twojej suity evali, która na niej nie przeszła. Podaje suity i podany powód.",
       "prefSharedChangeApplied": "Zmiana weszła dla twojego agenta",
-      "prefSharedChangeAppliedTrigger": "Ktoś zastosował zmianę pliku kontekstu albo skilla, z którego korzysta twój agent, a jego suity eval trafiły do kolejki. Podaje nazwę pliku albo skilla, nigdy treść."
+      "prefSharedChangeAppliedTrigger": "Ktoś zastosował zmianę pliku kontekstu albo skilla, z którego korzysta twój agent. Jego suity ewaluacji uruchamiane przy takiej zmianie trafiły do kolejki. Podaje nazwę pliku albo skilla, nigdy treść."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -9489,9 +9489,10 @@
     "goesLive": {
       "now": "Wchodzi od razu dla: {agents}.",
       "agent": "{name} ({environments})",
-      "guardedBy": "{name} strzeżone przez {suites}",
-      "guards": "{name} strzeżone przez {count, plural, one {# suitę} few {# suity} many {# suit} other {# suity}}",
       "hidden": "{count, plural, one {# agent, którego nie widzisz} few {# agentów, których nie widzisz} many {# agentów, których nie widzisz} other {# agenta, którego nie widzisz}}",
+      "runsNow": "Uruchamia teraz: {suites}.",
+      "atPromotion": "{suites} {count, plural, one {sprawdzi} few {sprawdzą} many {sprawdzi} other {sprawdzi}} to przy następnej promocji.",
+      "suites": "{count, plural, one {# suita ewaluacji} few {# suity ewaluacji} many {# suit ewaluacji} other {# suity ewaluacji}}",
       "nowhere": "Żaden opublikowany agent jeszcze go nie czyta, więc zastosowanie nie zmieni dziś żadnych odpowiedzi."
     }
   },

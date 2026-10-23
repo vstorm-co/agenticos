@@ -248,14 +248,19 @@ export interface ContextChangeList {
   total: number;
 }
 
-/** An agent a change to a context file or skill reaches the moment it is applied. */
+/**
+ * An agent a change to a context file or skill reaches the moment it is applied,
+ * and what checks it: suites by name for a reader of runs, counted for anybody else.
+ */
 export interface ReachedAgent {
   id: string;
   name: string;
-  environments: {
-    name: string;
-    /** The guarding eval suites by name; empty for a reader without runs:view. */
-    guarded_by: string[];
-    guards: number;
-  }[];
+  /** Where it goes live for the agent. */
+  environments: string[];
+  /** The eval suites applying it queues. */
+  runs_now: string[];
+  runs_now_count: number;
+  /** Guards of those environments that do not run on a change: they check it at the next promotion. */
+  at_promotion: string[];
+  at_promotion_count: number;
 }

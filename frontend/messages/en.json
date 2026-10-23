@@ -5857,7 +5857,7 @@
       "prefPromotionOverridden": "A promotion went past its evals",
       "prefPromotionOverriddenTrigger": "A version went to an environment past an eval suite you own that had not passed on it. Names the suites and the reason given.",
       "prefSharedChangeApplied": "A change went live for your agent",
-      "prefSharedChangeAppliedTrigger": "Somebody applied a change to a context file or skill your agent reads, and its eval suites were queued. Names the file or skill, never its content."
+      "prefSharedChangeAppliedTrigger": "Somebody applied a change to a context file or skill your agent reads. Its eval suites that run on such a change were queued. Names the file or skill, never its content."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -9712,9 +9712,10 @@
     "goesLive": {
       "now": "Goes live now for {agents}.",
       "agent": "{name} ({environments})",
-      "guardedBy": "{name} guarded by {suites}",
-      "guards": "{name} guarded by {count, plural, =1 {1 eval suite} other {# eval suites}}",
       "hidden": "{count, plural, =1 {1 agent you cannot see} other {# agents you cannot see}}",
+      "runsNow": "Runs now: {suites}.",
+      "atPromotion": "{suites} {count, plural, =1 {checks} other {check}} it at the next promotion.",
+      "suites": "{count, plural, =1 {1 eval suite} other {# eval suites}}",
       "nowhere": "No published agent reads it yet, so applying it changes no answers today."
     }
   },
