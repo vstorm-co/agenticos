@@ -54,7 +54,11 @@ async def get_pending_for_skill(
         statement = statement.where(SkillProposal.skill_id.is_(None), SkillProposal.name == name)
     else:
         statement = statement.where(SkillProposal.skill_id == skill_id)
-    result = await db.execute(statement.order_by(SkillProposal.created_at.desc(), SkillProposal.id))
+    result = await db.execute(
+        statement.order_by(SkillProposal.created_at.desc(), SkillProposal.id).execution_options(
+            populate_existing=True
+        )
+    )
     return result.scalars().first()
 
 
@@ -186,10 +190,11 @@ async def replace_pending(
 ) -> SkillProposal | None:
     """Rewrite the waiting proposal for this skill, or `None` when none is left to rewrite.
 
-    A decision or another rewrite that changed the one read in between leaves it
-    to a second read, so two turns at once still leave one proposal waiting.
+    A decision or another rewrite that changed the one read in between sends it
+    back to read again, as often as that happens - each miss is somebody else's
+    write landing - so turns at once still leave one proposal waiting.
     """
-    for _ in range(2):
+    while True:
         pending = await get_pending_for_skill(
             db, organization_id=organization_id, skill_id=skill_id, name=name, agent_id=agent_id
         )
@@ -205,4 +210,3 @@ async def replace_pending(
         )
         if rewritten is not None:
             return rewritten
-    return None

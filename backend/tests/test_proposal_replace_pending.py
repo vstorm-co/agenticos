@@ -63,10 +63,13 @@ async def test_a_proposal_that_moved_meanwhile_is_read_again_and_rewritten(repla
 
     assert await replace(session) is second
     assert session.statements == 4
+    # However often it moves, the one waiting is rewritten rather than joined by another.
+    third = _row()
+    assert await replace(_Session(_row(), None, _row(), None, third, third)) is third
 
 
 @pytest.mark.parametrize("replace", [_context, _skill])
 async def test_nothing_left_waiting_leaves_the_caller_to_propose_anew(replace):
     assert await replace(_Session(None)) is None
-    # Twice moved under it: the caller makes a proposal of its own.
-    assert await replace(_Session(_row(), None, _row(), None)) is None
+    # Decided while it was being rewritten: the caller makes a proposal of its own.
+    assert await replace(_Session(_row(), None, None)) is None
