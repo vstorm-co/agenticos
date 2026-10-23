@@ -1,5 +1,5 @@
 ---
-source_sha: "7ee2682460dc"
+source_sha: "01842b2510fe"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -252,7 +252,8 @@ cytuje jeden z tych ekranów, używa tego samego słowa.
 | judge | sędzia | der Bewerter | el juez |
 | review | przegląd | die Prüfung | la revisión |
 | environment | środowisko | die Umgebung | el entorno |
-| draft | wersja robocza | der Entwurf | el borrador |
+| draft: an agent's unpublished spec | wersja robocza | der Entwurf | el borrador |
+| draft: a text waiting to be accepted - a gap's content, a generated case | szkic | der Entwurf | el borrador |
 | the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
