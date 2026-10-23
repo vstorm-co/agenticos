@@ -1,5 +1,5 @@
 ---
-source_sha: "3a56d4c17513"
+source_sha: "7185172468f4"
 ---
 
 # Sandbox { #the-sandbox }
@@ -60,6 +60,30 @@ ponieważ wygenerowanie go na nowo osierocia każdy workspace, który usługa
 aktualnie trzyma. To także powód, dla którego własny dashboard usługi jest
 wyłączony (`SANDBOXD_UI_ENABLED: 0`): ta strona prosi człowieka o wklejenie
 tokena do przeglądarki.
+
+## Workspace nowego agenta { #a-new-agents-workspace }
+
+Nowy agent zaczyna z workspace'em, który jego organizacja może opublikować.
+Kontenerowy workspace z szablonu startowego zostaje, gdy organizacja ma domyślne
+połączenie z sandboxem albo gdy to wdrożenie uruchamia `sandboxd`, a organizacja
+ma właściciela, na którego można je zarejestrować — pierwsza publikacja zakłada
+wtedy to połączenie. W przeciwnym razie agent zaczyna na przechowywanym
+workspace'ie `state`: pliki bez shella, które niczego nie potrzebują, więc nowy
+agent publikuje się na wdrożeniu bez usługi sandboxa.
+
+Katalog capability, od którego zaczyna Builder, i instalacja szablonu pytają o to
+dla każdej organizacji osobno, a odpowiedź jest trzymana przez minutę. `sandboxd`,
+który powinien odpowiedzieć, a nie odpowiada, trafia do logu jako
+`sandbox_service_not_answering`, a agent zaczyna na `state`. Zapisany już agent
+zachowuje swój spec.
+
+Publikacja odrzucona z braku sandboxa proponuje poprawkę obok powodu.
+**Przełącz workspace na Pliki** przepisuje wersję roboczą na workspace `state`,
+zapisuje ją i sprawdza ponownie. **Przestań udostępniać to, czego ten agent nie
+może udostępnić** robi to samo z listą udostępniania delegacji, która nazywa
+capability, której agent już nie ma. Żadna z nich nie publikuje: to pozostaje
+osobnym kliknięciem. Kody przychodzą w `details.fixes` odmowy (zob.
+[architekturę](architecture.md#a-refusal-that-names-a-field)).
 
 ## Sesja i to, co ją współdzieli { #a-session-and-what-shares-one }
 
@@ -602,6 +626,9 @@ zapomniane, a ich liczba trafi do logu audytu.
   jest jego rodzeństwem, a nie kontenerem w jego środku.
 - **Klucz sesji** zawiera w sobie zasięg, organizację, rodzaj backendu i host —
   czyli dokładnie to, co decyduje, kto dzieli kontener.
+- **Nowy agent zaczyna na workspace'ie, który jego organizacja może
+  opublikować**: kontenerowym tam, gdzie połączenie istnieje albo da się je
+  założyć, a w przeciwnym razie na `state`.
 - **Dostarczany jest jeden runtime**, `workbench`, a model jest informowany o tym,
   co w nim jest, składanym z tego samego katalogu, który go zbudował.
 - Zapis tego, co zrobił agent, żyje w **tabeli tej platformy**, trzyma ścieżkę,

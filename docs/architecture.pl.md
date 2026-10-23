@@ -1,5 +1,5 @@
 ---
-source_sha: "94cd032fa02a"
+source_sha: "e631cab52e05"
 ---
 
 # Architektura { #architecture }
@@ -562,6 +562,13 @@ niosącym `input`, `ctx` i `url`, którego nic na frontendzie nie czytało.
 zepsute odwołania, przy których nie ma czego oznaczyć. Odpowiada więc
 `details.problems` — po wierszu na każdy, które Builder wypisuje — oraz
 `details.fields` dla tego podzbioru, który pole nazywa.
+
+Gdy część z nich da się usunąć jednym kliknięciem, odpowiada też `details.fixes`,
+listą kodów: `use_state_workspace` przenosi workspace na przechowywany backend
+`state`, który nie potrzebuje połączenia z sandboxem, a `stop_sharing_unbound`
+usuwa z `share_with_delegates` to, czego agent nie może udostępnić. Builder
+pokazuje przycisk dla każdego znanego kodu i pomija resztę. Poprawka zapisuje
+wersję roboczą i waliduje ją ponownie; nigdy nie publikuje.
 
 Konfiguracja capability to jedyna część speca renderowana jako generowany
 formularz, więc jej odmowy nazywają pole:

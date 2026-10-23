@@ -56,6 +56,28 @@ alone afterwards, because regenerating it orphans every workspace the service is
 currently holding. That is also why the service's own dashboard is off (`SANDBOXD_UI_ENABLED: 0`): that page
 asks a human to paste the token into a browser.
 
+## A new agent's workspace
+
+A new agent starts with a workspace its organization can publish. The container
+workspace from the starter template is kept when the organization has a default
+sandbox connection, or when this deployment runs `sandboxd` and the organization has
+an owner to register one under — the first publish sets that connection up.
+Otherwise the agent starts on the stored `state` workspace: files without a shell,
+which needs nothing, so a new agent publishes on a deployment with no sandbox
+service.
+
+The capability catalog the Builder starts from and a template install both ask
+this per organization, and the answer is kept for a minute. A `sandboxd` that
+should answer and does not is logged as `sandbox_service_not_answering`, and the
+agent starts on `state`. An agent that is already saved keeps its spec.
+
+A publish refused for want of a sandbox offers a fix beside the reason.
+**Switch the workspace to Files** rewrites the draft onto the `state` workspace,
+saves it and checks it again. **Stop sharing what this agent cannot share** does the
+same for a delegation share list that names a capability the agent no longer holds.
+Neither publishes: that stays a click of its own. The codes travel in the refusal's
+`details.fixes` (see [architecture](architecture.md#a-refusal-that-names-a-field)).
+
 ## A session, and what shares one
 
 !!! abstract "One container per session, never one for everybody"
@@ -581,6 +603,8 @@ its tombstones are forgotten, and how many goes in the audit log.
   its sibling rather than a container inside it.
 - A **session key** folds in scope, organization, backend kind and host — which is
   precisely what decides who shares a container.
+- A **new agent starts on a workspace its organization can publish**: the container
+  one where a connection exists or can be set up, `state` otherwise.
 - **One runtime ships**, `workbench`, and the model is told what is in it, composed
   from the same catalogue that built it.
 - The record of what an agent did lives in **this platform's table**, holds a path
