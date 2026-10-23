@@ -116,7 +116,7 @@ def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[Non
 
 @cache
 def _settlers() -> dict[str, Settler]:
-    from app.worker.tasks import rag_tasks
+    from app.worker.tasks import authoring_tasks, eval_tasks, rag_tasks
 
     return {
         jobs.INGEST_DOCUMENT.kind: _settler(jobs.INGEST_DOCUMENT, rag_tasks.settle_lost_ingest),
@@ -124,6 +124,10 @@ def _settlers() -> dict[str, Settler]:
             jobs.SYNC_COLLECTION, rag_tasks.settle_lost_collection_sync
         ),
         jobs.SYNC_SOURCE.kind: _settler(jobs.SYNC_SOURCE, rag_tasks.settle_lost_source_sync),
+        jobs.RUN_EVAL.kind: _settler(jobs.RUN_EVAL, eval_tasks.settle_lost_eval),
+        jobs.RUN_AUTHORING.kind: _settler(
+            jobs.RUN_AUTHORING, authoring_tasks.settle_lost_authoring
+        ),
     }
 
 
@@ -132,8 +136,9 @@ async def settle_ended(kind: str, payload: dict[str, JsonValue], why: str) -> No
 
     The ingestion kinds leave a document `processing` or a sync log `running`
     when their process dies - the handler never reaches its own cleanup - and
-    nothing else would ever finish them (Codex, #2248). Every other kind leaves
-    nothing behind.
+    nothing else would ever finish them (Codex, #2248). An eval run or an
+    authoring request left live would hold its suite, its gate and its eval
+    slots until a sweep gave up on it. Every other kind leaves nothing behind.
     """
     settle = _settlers().get(kind)
     if settle is not None:

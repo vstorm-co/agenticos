@@ -117,7 +117,7 @@ describe("KnowledgeGapDraftPanel", () => {
     expect(screen.getByText(/AI assistance is off/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Enable AI assistance" })).toHaveAttribute(
       "href",
-      "/orgs/o1/members",
+      "/orgs/o1/members#org-ai-assistance",
     );
     expect(screen.getByText("editor Parental leave")).toBeInTheDocument();
   });

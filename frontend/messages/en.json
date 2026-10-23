@@ -5682,7 +5682,7 @@
       "decidedSection": "Decided",
       "waitingSection": "Waiting on you",
       "share": "Share",
-      "monthAgainstCap": "${spent} of ${cap} this month",
+      "monthAgainstCap": "{spent} of {cap} this month",
       "spendOverTime": "Spend over time",
       "spendOverTimeHint": "What each day of the window cost, in UTC days.",
       "actionInService": "{action} in {service}",
@@ -9178,8 +9178,9 @@
       "label": "Pass rate by run",
       "single": "One run so far. Run another to see a trend.",
       "legend": "Each point is a run, oldest on the left; hover one for what ran, against what and when, and click it to open the run. Drag the handles under the chart to show more runs or fewer.",
+      "legendAll": "Each point is a run, oldest on the left; hover one for what ran, against what and when, and click it to open the run.",
       "range": "Runs shown",
-      "draftTick": "D",
+      "tick": "{side} · {when}",
       "comparedWith": "compared with {name}",
       "rate": "Pass rate {rate}",
       "verdict": "{verdict, select, better {Fixes cases} worse {Breaks cases} mixed {Breaks some cases, fixes others} no_difference {No reproducible change} invalid {Not comparable} other {First result}}",
@@ -9245,8 +9246,7 @@
       "description": "Datasets this agent is held to, run on their own: on a schedule, when a version is published or promoted, or when a skill or knowledge base it reads changes.",
       "new": "New suite",
       "empty": {
-        "title": "No suites yet",
-        "body": "A suite runs a dataset against the agent without anyone remembering to - every night, on every publish, or when a skill it reads changes - and tells you when a case breaks."
+        "line": "No suites yet, so this agent is checked only when somebody starts a run."
       },
       "created": "Suite created",
       "saved": "Suite saved",
@@ -9389,6 +9389,12 @@
         "cancel": "Cancel",
         "save": "Save",
         "create": "Create suite"
+      },
+      "threshold": {
+        "minPassRate": "≥{rate}",
+        "regressions": "{count, plural, =0 {0 regressions} one {≤# regression} other {≤# regressions}}",
+        "costRise": "cost/pass ≤+{rise}",
+        "p95Rise": "p95 ≤+{rise}"
       }
     },
     "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",

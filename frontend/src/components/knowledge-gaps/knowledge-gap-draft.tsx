@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BookCheck, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { EnableAiAssistanceLink } from "@/components/teams/enable-ai-assistance-link";
 import { Alert, AlertDescription, Button } from "@/components/ui";
 import { useDraftKnowledgeGap } from "@/hooks/use-knowledge-gaps";
 import { useOrganizations } from "@/hooks/use-organizations";
@@ -41,9 +42,7 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
         <p className="bg-muted rounded-md px-3 py-2 text-xs">
           {t("aiOff")}{" "}
           {can(Perm.orgSettings) ? (
-            <Link href={ROUTES.ORG_MEMBERS(activeOrg.id)} className="font-medium underline">
-              {t("enableAi")}
-            </Link>
+            <EnableAiAssistanceLink orgId={activeOrg.id}>{t("enableAi")}</EnableAiAssistanceLink>
           ) : (
             t("askAdmin")
           )}

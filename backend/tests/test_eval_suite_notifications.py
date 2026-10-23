@@ -97,6 +97,17 @@ def test_an_undecided_result_names_the_cases_nobody_graded() -> None:
     )
 
 
+def test_a_cancelled_run_says_it_was_cancelled_rather_than_below_a_threshold() -> None:
+    suite, result, agent = _rows(status="inconclusive", reason="cancelled")
+    told = EvalSuiteSummary(
+        pass_rate=None, first_pass_rate=None, cases=0, message="Its eval run was cancelled."
+    )
+
+    assert _suite_summary(suite, result, agent=agent, summary=told) == (
+        "Refunds could not decide on Clerk v7: Its eval run was cancelled."
+    )
+
+
 def test_a_failure_with_nothing_recorded_still_reads() -> None:
     suite, result, agent = _rows(status="failed", version_number=None)
     assert _suite_summary(suite, result, agent=agent, summary=None) == (
