@@ -25,7 +25,12 @@ export function useAgentTestSet(agentId: string) {
   const build = useMutation({
     mutationFn: (request: AgentTestSetRequest) =>
       apiClient.post<AgentTestSetBootstrap>(`/agents/${agentId}/test-set`, request),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
+    // A build may create the test set's judge, which is an agent too.
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+      ]),
   });
   return { estimate, build };
 }

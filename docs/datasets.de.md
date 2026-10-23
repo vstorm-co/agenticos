@@ -1,5 +1,5 @@
 ---
-source_sha: "b06c6d375552"
+source_sha: "da374789a9c4"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -296,8 +296,9 @@ Eine Verbesserung lässt sich nur an Testfragen messen. `POST
 /agents/{id}/test-set` erstellt sie für einen Agent in einem Aufruf, und der
 Verbesserungsassistent ruft es auf, wenn der Agent keine hat:
 
-- der erste Aufruf legt "<agent> - test questions" an, ein Dataset, das den
-  Agent nennt; spätere Aufrufe fügen ihm die neuesten bewerteten Antworten als
+- der erste Aufruf legt "<agent> - test questions" an, ein privates Dataset, das
+  den Agent nennt, sodass die kopierten Fragen niemanden sonst erreichen, bis es
+  geteilt wird; spätere Aufrufe fügen ihm die neuesten bewerteten Antworten als
   neue Version hinzu und behalten, was es enthielt (`since` nimmt nur die seitdem
   bewerteten Antworten);
 - eine positiv bewertete Antwort wird zu einer Frage mit dieser Antwort als
@@ -312,8 +313,11 @@ Verbesserungsassistent ruft es auf, wenn der Agent keine hat:
   sie danach prüft;
 - die Bewertung vergleicht Antworten mit der Referenzantwort und lässt eine
   durchfallen, die das Gegenbeispiel wiederholt, mit einem Bewerter auf einem
-  anderen Modell als dem des Agents. Ist nur ein Modell eingerichtet oder die
-  KI-Unterstützung ausgeschaltet, sagt das Ergebnis das ausdrücklich.
+  anderen Modell als dem des Agents. Ist nur ein Modell eingerichtet, die
+  KI-Unterstützung ausgeschaltet oder darf der Aufrufer den Bewerter nicht
+  veröffentlichen, sagt das Ergebnis das ausdrücklich. Eine Bewertung, die schon
+  jemand im Testset eingerichtet hat, bleibt, wie sie ist; das Ergebnis sagt, wenn
+  sie auf demselben Modell wie der Agent läuft.
 
 Weniger als drei bewertbare Fragen sind zu wenige, um eine Änderung zu messen,
 und das Ergebnis sagt das. `POST /agents/{id}/test-set/estimate` beziffert die

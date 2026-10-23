@@ -22,7 +22,7 @@ export interface AgentTestSetJudge {
   independent: boolean;
   /** Why it is not independent, in words for the person. */
   reason: string | null;
-  reason_code: "one_model" | "ai_off" | null;
+  reason_code: "one_model" | "ai_off" | "cannot_publish" | "unknown_model" | "shares_model" | null;
 }
 
 export interface AgentTestSetBootstrap {

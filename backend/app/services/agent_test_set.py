@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
+from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
     AiAssistanceDisabledError,
     AlreadyExistsError,
@@ -32,7 +33,7 @@ from app.core.exceptions import (
     BadRequestError,
     SystemAgentUnavailableError,
 )
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
@@ -64,6 +65,19 @@ RATED_LIMIT = 50
 _NAME_TRIES = 10
 
 REASONS: dict[JudgeReason, str] = {
+    "cannot_publish": (
+        "Your role cannot publish agents, so the standard grader is used, and it may run "
+        "on the same model as the agent. Ask an Owner or an Admin to build the test set "
+        "for a grader on another model."
+    ),
+    "unknown_model": (
+        "This agent has no model set yet, so the standard grader is used and nothing "
+        "shows whether it runs on another model."
+    ),
+    "shares_model": (
+        "The test set's grader runs on the same model as the agent, or on one that cannot "
+        "be told apart. Its grading was left as it is; pick another judge on its Grading tab."
+    ),
     "one_model": (
         "Only one model is set up, so the grader runs on the same model as the agent. "
         "Add another model to have answers graded by a different one."
@@ -84,6 +98,15 @@ def is_gradable(case: DatasetCase, scoring: DatasetScoring) -> bool:
     checks = scoring.checks.enabled and bool(case.checks or scoring.checks.defaults)
     trajectory = scoring.trajectory.enabled and bool(case.expected_tool_calls)
     return judge or reference or checks or trajectory
+
+
+def _set_up(scoring: DatasetScoring) -> bool:
+    """Whether somebody already chose how the dataset grades with a judge."""
+    return scoring.judge.enabled or scoring.judge.agent_id is not None or scoring.reference.enabled
+
+
+def _not_independent(reason: JudgeReason) -> AgentTestSetJudge:
+    return AgentTestSetJudge(independent=False, reason=REASONS[reason], reason_code=reason)
 
 
 def _same_model(one: ModelProfile | None, other: ModelProfile | None) -> bool:
@@ -115,9 +138,11 @@ class AgentTestSetService:
         """Create the agent's test set, or add its newest rated answers to it.
 
         The test set is the newest dataset made for the agent that the caller
-        may edit, or a new one named after the agent. Rated answers are added in
-        one version, each question on its own - a conversation is not copied
-        into a case nobody chose to keep it in. More questions are asked for
+        may edit, or a new private one named after the agent - it copies other
+        people's questions, so nobody else reads them until it is shared. Rated
+        answers are added in one version, each question on its own - a
+        conversation is not copied into a case nobody chose to keep it in. More
+        questions are asked for
         until :data:`TARGET` can be graded outside the evidence conversations,
         or `more` of them whatever the count; they are written by a job and
         join the test set when ready, so `gradable` does not count them yet.
@@ -133,7 +158,7 @@ class AgentTestSetService:
         agent = await AgentRegistryService(self.db).get(ctx, agent_id)
         dataset, created = await self._dataset(ctx, agent)
         counts = await self._add_rated(ctx, dataset, agent_id, since)
-        judge = await self._grade(ctx, dataset, agent)
+        judge = await self._grade(ctx, dataset, agent, created=created)
         gradable = await self.gradable_count(
             ctx, dataset.id, evidence_conversation_ids=evidence_conversation_ids
         )
@@ -213,7 +238,7 @@ class AgentTestSetService:
         except AiAssistanceDisabledError, BadRequestError:
             return AgentTestSetEstimate(cost_usd=Decimal(0), priced=True, generate=0)
         return AgentTestSetEstimate(
-            cost_usd=cost or Decimal(0), priced=cost is not None, generate=count
+            cost_usd=cost or Decimal(0), priced=cost is not None, generate=request.count
         )
 
     async def _dataset(self, ctx: AuthContext, agent: Agent) -> tuple[Dataset, bool]:
@@ -232,7 +257,9 @@ class AgentTestSetService:
                 continue
             read = await self.datasets.create(
                 ctx,
-                DatasetCreate(name=name, description=f"Test questions for {agent.name}."),
+                DatasetCreate(
+                    name=name, description=f"Test questions for {agent.name}.", visibility="private"
+                ),
                 agent_id=agent.id,
             )
             return await self.datasets.get(ctx, read.id, perm=Perm.DATASETS_EDIT), True
@@ -241,15 +268,31 @@ class AgentTestSetService:
             details={"agent_id": agent.id},
         )
 
+    async def _held_answers(self, ctx: AuthContext, dataset: Dataset) -> set[UUID]:
+        """The answers the newest version already holds as cases."""
+        version = await dataset_repo.get_version(
+            self.db, dataset.id, dataset.latest_version, organization_id=ctx.organization_id
+        )
+        if version is None:
+            return set()
+        cases = await dataset_repo.list_cases(
+            self.db, version.id, organization_id=ctx.organization_id, limit=None
+        )
+        return {case.source_message_id for case in cases if case.source_message_id is not None}
+
     async def _add_rated(
         self, ctx: AuthContext, dataset: Dataset, agent_id: UUID, since: datetime | None
     ) -> AgentTestSetCounts:
+        # Filtered before the limit: answers the caller cannot open, or the test
+        # set holds already, would otherwise crowd out the ones still to add.
         rated = await agent_run_repo.rated_answers(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
             since=since,
             limit=RATED_LIMIT,
+            owner_id=None if ctx.scope_for(Perm.RUNS_VIEW) >= Scope.ALL else ctx.subject_id,
+            excluding=await self._held_answers(ctx, dataset),
         )
         counts = AgentTestSetCounts(
             rated_good=0, rated_bad=0, skipped=0, from_others=0, generated_requested=0
@@ -281,7 +324,7 @@ class AgentTestSetService:
                 counts.rated_bad += 1
             else:
                 counts.rated_good += 1
-            if owners[conversation] != ctx.user_id:
+            if owners[conversation] != ctx.subject_id:
                 counts.from_others += 1
         return counts
 
@@ -294,34 +337,63 @@ class AgentTestSetService:
             self.db, spec.model_profile_id, organization_id=ctx.organization_id
         )
 
-    async def _grade(self, ctx: AuthContext, dataset: Dataset, agent: Agent) -> AgentTestSetJudge:
-        """Compare with the good answers, avoid the bad ones, on a judge of another model."""
+    async def _grade(
+        self, ctx: AuthContext, dataset: Dataset, agent: Agent, *, created: bool
+    ) -> AgentTestSetJudge:
+        """Compare with the good answers, avoid the bad ones, on a judge of another model.
+
+        Grading somebody already set up on the dataset is left as it is - only
+        said to share the agent's model when it does - so building the test set
+        again never replaces a judge or a rubric a person chose.
+        """
         if not await AiAssistanceService(self.db).is_enabled(organization_id=ctx.organization_id):
-            return AgentTestSetJudge(
-                independent=False, reason=REASONS["ai_off"], reason_code="ai_off"
-            )
+            return _not_independent("ai_off")
         answers_on = await self._profile(ctx, agent)
         scoring = DatasetScoring.model_validate(dataset.scoring)
-        if scoring.judge.agent_id is not None:
-            own = await agent_repo.get(
-                self.db, scoring.judge.agent_id, organization_id=ctx.organization_id
-            )
-            if not _same_model(await self._profile(ctx, own), answers_on):
-                return await self._switch_on(ctx, dataset, scoring.judge.agent_id)
+        if not created and _set_up(scoring):
+            return await self._report(ctx, scoring, answers_on)
+        if answers_on is None:
+            await self._switch_on(ctx, dataset, None)
+            return _not_independent("unknown_model")
         other = next(
             (
                 profile
                 for profile in await credential_repo.list_profiles(
                     self.db, organization_id=ctx.organization_id
                 )
-                if answers_on is None or not _same_model(profile, answers_on)
+                if not _same_model(profile, answers_on)
             ),
             None,
         )
-        if other is None:
-            return await self._default_judge(ctx, dataset)
+        if other is None or not ctx.has(Perm.AGENTS_PUBLISH):
+            # A judge the caller may not publish stays a draft, and a draft grades nothing.
+            await self._switch_on(ctx, dataset, None)
+            return _not_independent("one_model" if other is None else "cannot_publish")
         judge = await self._create_judge(ctx, dataset, agent, other)
         return AgentTestSetJudge(agent_id=judge, independent=True)
+
+    async def _report(
+        self, ctx: AuthContext, scoring: DatasetScoring, answers_on: ModelProfile | None
+    ) -> AgentTestSetJudge:
+        """Whether grading as the dataset has it runs on another model than the agent's."""
+        judge = (
+            await agent_repo.get(
+                self.db, scoring.judge.agent_id, organization_id=ctx.organization_id
+            )
+            if scoring.judge.agent_id is not None
+            else await agent_repo.get_system(
+                self.db, organization_id=ctx.organization_id, key=JUDGE.key
+            )
+        )
+        judged_on = await self._profile(ctx, judge)
+        if judged_on is None or answers_on is None or _same_model(judged_on, answers_on):
+            return AgentTestSetJudge(
+                agent_id=scoring.judge.agent_id,
+                independent=False,
+                reason=REASONS["shares_model"],
+                reason_code="shares_model",
+            )
+        return AgentTestSetJudge(agent_id=scoring.judge.agent_id, independent=True)
 
     async def _create_judge(
         self, ctx: AuthContext, dataset: Dataset, agent: Agent, profile: ModelProfile
@@ -343,16 +415,7 @@ class AgentTestSetService:
             details={"agent_id": agent.id},
         )
 
-    async def _default_judge(self, ctx: AuthContext, dataset: Dataset) -> AgentTestSetJudge:
-        """Grade with the organization's default judge, which shares the agent's only model."""
-        await self._switch_on(ctx, dataset, None)
-        return AgentTestSetJudge(
-            independent=False, reason=REASONS["one_model"], reason_code="one_model"
-        )
-
-    async def _switch_on(
-        self, ctx: AuthContext, dataset: Dataset, judge_id: UUID | None
-    ) -> AgentTestSetJudge:
+    async def _switch_on(self, ctx: AuthContext, dataset: Dataset, judge_id: UUID | None) -> None:
         """The judge on, with a starting criterion, and the reference compared."""
         await self.db.refresh(dataset)
         scoring = DatasetScoring.model_validate(dataset.scoring)
@@ -362,7 +425,6 @@ class AgentTestSetService:
             scoring.judge.criteria = [STARTING_CRITERION]
         scoring.reference.enabled = True
         await self.scoring.set_scoring(ctx, dataset.id, scoring)
-        return AgentTestSetJudge(agent_id=judge_id, independent=True)
 
     async def _request(self, ctx: AuthContext, agent: Agent, count: int) -> CaseGenerationRequest:
         spec = await self._spec(ctx, agent)

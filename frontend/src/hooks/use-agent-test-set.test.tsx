@@ -29,5 +29,6 @@ describe("useAgentTestSet", () => {
       ["/agents/a1/test-set", { since: "2026-10-01T00:00:00Z" }],
     ]);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["datasets"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents"] });
   });
 });

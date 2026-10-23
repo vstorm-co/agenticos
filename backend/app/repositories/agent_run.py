@@ -1,6 +1,6 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -779,12 +779,16 @@ async def rated_answers(
     agent_id: UUID,
     since: datetime | None,
     limit: int,
+    owner_id: UUID | None = None,
+    excluding: Collection[UUID] = (),
 ) -> list[RatedAnswer]:
     """This agent's rated answers, rated down first, then by the newest rating.
 
-    `since` keeps the answers rated at or after it. The traffic is what
-    :func:`questions_asked` reads - production only, the tenant held on both the
-    run and the conversation - for the reason it gives.
+    `since` keeps the answers rated at or after it; `owner_id` only those in that
+    person's own conversations, for a caller who reads no one else's; `excluding`
+    leaves out answers already taken, before the limit is applied. The traffic is
+    what :func:`questions_asked` reads - production only, the tenant held on both
+    the run and the conversation - for the reason it gives.
     """
     rated_down = func.bool_or(MessageRating.rating < 0)
     where = [
@@ -797,6 +801,10 @@ async def rated_answers(
     ]
     if since is not None:
         where.append(MessageRating.created_at >= since)
+    if owner_id is not None:
+        where.append(Conversation.user_id == owner_id)
+    if excluding:
+        where.append(Message.id.not_in(list(excluding)))
     result = await db.execute(
         select(Message.id, Message.conversation_id, rated_down, Conversation.user_id)
         .join(MessageRating, MessageRating.message_id == Message.id)

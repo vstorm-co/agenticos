@@ -1,5 +1,5 @@
 ---
-source_sha: "b06c6d375552"
+source_sha: "da374789a9c4"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -282,8 +282,9 @@ Una mejora solo se puede medir con preguntas de prueba. `POST
 /agents/{id}/test-set` las construye para un agent en una sola llamada, y el
 asistente de mejora lo llama cuando el agent no tiene ninguna:
 
-- la primera llamada crea "<agent> - test questions", un dataset que nombra al
-  agent; las llamadas siguientes le añaden las respuestas valoradas más
+- la primera llamada crea "<agent> - test questions", un dataset privado que
+  nombra al agent, para que las preguntas que copia no lleguen a nadie más hasta
+  que se comparta; las llamadas siguientes le añaden las respuestas valoradas más
   recientes como una versión nueva y conservan lo que ya tenía (`since` toma
   solo las respuestas valoradas desde ese momento);
 - una respuesta con un pulgar arriba se convierte en una pregunta con esa
@@ -298,8 +299,11 @@ asistente de mejora lo llama cuando el agent no tiene ninguna:
   y el resultado dice cuántas se pidieron, para que alguien las revise después;
 - la calificación compara las respuestas con la respuesta de referencia y
   suspende la que repite el contraejemplo, con un juez que funciona sobre un
-  modelo distinto del del agent. Con un solo modelo configurado, o con la
-  asistencia de IA desactivada, el resultado lo dice con palabras.
+  modelo distinto del del agent. Con un solo modelo configurado, con la
+  asistencia de IA desactivada o si quien llama no puede publicar el juez, el
+  resultado lo dice con palabras. La calificación que alguien ya configuró en el
+  conjunto de prueba se deja como está; el resultado dice cuándo usa el mismo
+  modelo que el agent.
 
 Menos de tres preguntas que se puedan calificar son demasiado pocas para medir
 un cambio, y el resultado lo dice. `POST /agents/{id}/test-set/estimate` pone

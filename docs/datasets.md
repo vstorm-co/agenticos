@@ -265,8 +265,9 @@ An improvement can only be measured on test questions. `POST
 /agents/{id}/test-set` builds them for an agent in one call, and the improvement
 wizard calls it when the agent has none:
 
-- the first call creates "<agent> - test questions", a dataset that names the
-  agent; later calls add the newest rated answers to it as a new version and keep
+- the first call creates "<agent> - test questions", a private dataset that
+  names the agent, so the questions it copies reach no one else until it is
+  shared; later calls add the newest rated answers to it as a new version and keep
   what it held (`since` takes only the answers rated since then);
 - an answer rated up becomes a question with that answer as the good answer,
   and one rated down a question with it as the answer to avoid and the
@@ -279,7 +280,9 @@ wizard calls it when the agent has none:
   result says how many were asked for, for somebody to review afterwards;
 - grading compares answers with the good answer and fails one that repeats the
   answer to avoid, on a judge running on another model than the agent's. With
-  only one model set up, or with AI assistance off, the result says so in words.
+  only one model set up, AI assistance off, or a caller who may not publish the
+  judge, the result says so in words. Grading somebody already set up on the
+  test set is left as it is; the result says when it shares the agent's model.
 
 Fewer than three questions that can be graded is too few to measure a change,
 and the result says so. `POST /agents/{id}/test-set/estimate` prices the

@@ -46,6 +46,7 @@ from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import agent_repo
+from app.schemas.dataset import DatasetCreate
 from app.schemas.scoring import DatasetScoring
 from app.services import agent_test_set, change_feed
 from app.services.agent_test_set import REASONS, AgentTestSetService
@@ -53,6 +54,7 @@ from app.services.case_generation.drafts import DraftedCase, DraftedCases
 from app.services.case_generation.worker import CaseGenerationWorker
 from app.services.dataset import DatasetService
 from app.services.rag.models import DocumentChunk
+from app.services.scoring import ScoringService
 from app.services.system_agent_runner import SystemAgentResult, SystemAgentRunner
 from tests.integration import case_generation_world as world
 
@@ -157,10 +159,11 @@ async def test_an_agent_with_rated_answers_gets_a_test_set_graded_on_another_mod
         "generated_requested": 2,
     }
     dataset = await DatasetService(db).read(owner, built.dataset_id)
-    assert (dataset.name, dataset.agent_id, dataset.latest_version) == (
+    assert (dataset.name, dataset.agent_id, dataset.latest_version, dataset.visibility) == (
         "Clerk - test questions",
         agent.id,
         1,
+        "private",
     )
     cases = {
         case.input: case for case in (await DatasetService(db).list_cases(owner, dataset.id)).items
@@ -266,7 +269,8 @@ async def test_an_agent_with_a_test_set_gets_a_new_version_keeping_its_cases(
 
     assert (since.dataset_id, since.created, since.version) == (first.dataset_id, False, 2)
     assert (since.counts.rated_good, since.counts.rated_bad, since.counts.skipped) == (0, 1, 0)
-    assert (again.version, again.counts.skipped) == (2, 2)
+    # Both are held already, so neither is read again.
+    assert (again.version, again.counts.skipped) == (2, 0)
     held = await DatasetService(db).list_cases(owner, first.dataset_id)
     assert [case.input for case in held.items] == ["How long do refunds take?", "Do you gift wrap?"]
 
@@ -358,7 +362,8 @@ async def test_a_question_the_caller_cannot_open_is_left_out(db, monkeypatch) ->
 
     built = await _service(db).bootstrap_for_agent(colleague, agent.id)
 
-    assert (built.counts.rated_good, built.counts.rated_bad, built.counts.skipped) == (1, 0, 1)
+    # The owner's conversation is not one the colleague may open: it is never read.
+    assert (built.counts.rated_good, built.counts.rated_bad, built.counts.skipped) == (1, 0, 0)
     assert built.counts.from_others == 0
 
 
@@ -414,37 +419,92 @@ async def test_a_test_set_the_caller_may_not_edit_is_left_for_one_of_their_own(
 
     assert theirs.created and theirs.dataset_id != owners.dataset_id
     named = await DatasetService(db).read(colleague, theirs.dataset_id)
-    assert named.name == "Clerk - test questions (2)"
+    assert (named.name, named.visibility) == ("Clerk - test questions (2)", "private")
+    # A member may not publish, so no draft judge is made that would grade nothing.
+    assert theirs.judge.model_dump() == {
+        "agent_id": None,
+        "independent": False,
+        "reason": REASONS["cannot_publish"],
+        "reason_code": "cannot_publish",
+    }
+    scoring = DatasetScoring.model_validate(named.scoring)
+    assert scoring.judge.enabled and scoring.judge.agent_id is None
+    assert (await db.execute(select(Agent).where(Agent.kind == "judge"))).first() is not None
     monkeypatch.setattr(agent_test_set, "_NAME_TRIES", 1)
     stranger = await world.member(db, org, OrgRoleName.MEMBER)
     with pytest.raises(BadRequestError, match="Every name for this agent's test set is taken"):
         await _service(db).bootstrap_for_agent(stranger, agent.id)
 
 
-async def test_a_judge_on_the_agent_s_own_model_is_replaced_by_one_on_another(
+async def test_grading_somebody_set_up_is_left_as_it_is_and_its_model_reported(
     db, monkeypatch
 ) -> None:
-    org, owner, _, agent, (claude, gpt) = await _world(db)
+    org, owner, _, agent, (_, gpt) = await _world(db)
     _generator(monkeypatch)
     first = await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
+    service = DatasetService(db)
+    scoring = DatasetScoring.model_validate((await service.read(owner, first.dataset_id)).scoring)
+    scoring.reference.enabled = False
+    await ScoringService(db).set_scoring(owner, first.dataset_id, scoring)
+    version = await agent_repo.get_version(db, agent.current_version_id, organization_id=org.id)
+    assert version is not None
+    version.spec = {**version.spec, "model_profile_id": str(gpt.id)}
+    await db.flush()
 
-    async def answer_on(profile: ModelProfile) -> None:
-        version = await agent_repo.get_version(db, agent.current_version_id, organization_id=org.id)
-        assert version is not None
-        version.spec = {**version.spec, "model_profile_id": str(profile.id)}
-        await db.flush()
-
-    await answer_on(gpt)
     again = await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
 
-    assert again.judge.independent and again.judge.agent_id != first.judge.agent_id
-    judge = await agent_repo.get(db, again.judge.agent_id, organization_id=org.id)
-    assert judge is not None and judge.name == "Clerk - grader (2)"
+    assert again.judge.model_dump() == {
+        "agent_id": first.judge.agent_id,
+        "independent": False,
+        "reason": REASONS["shares_model"],
+        "reason_code": "shares_model",
+    }
+    kept = DatasetScoring.model_validate((await service.read(owner, first.dataset_id)).scoring)
+    assert (kept.judge.agent_id, kept.reference.enabled) == (first.judge.agent_id, False)
+    assert len((await db.execute(select(Agent).where(Agent.kind == "judge"))).all()) == 1
 
-    await answer_on(claude)
+
+async def test_a_grader_takes_the_next_free_name_and_gives_up_after_a_few(db, monkeypatch) -> None:
+    org, owner, _, agent, (claude, _) = await _world(db)
+    _generator(monkeypatch)
+    await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
+
+    async def namesake() -> Agent:
+        other = await world.agent(db, org, visibility="org")
+        spec = {"name": "Clerk", "instructions": "Answer.", "model_profile_id": str(claude.id)}
+        await world.publish(db, other, spec)
+        return other
+
+    second = await _service(db).bootstrap_for_agent(owner, (await namesake()).id, more=1)
+
+    judge = await agent_repo.get(db, second.judge.agent_id, organization_id=org.id)
+    assert judge is not None and judge.name == "Clerk - grader (2)"
+    third = await namesake()
+    await DatasetService(db).create(owner, DatasetCreate(name="Third clerk"), agent_id=third.id)
     monkeypatch.setattr(agent_test_set, "_NAME_TRIES", 1)
     with pytest.raises(BadRequestError, match="Every name for this agent's grader is taken"):
-        await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
+        await _service(db).bootstrap_for_agent(owner, third.id, more=1)
+
+
+async def test_rated_answers_already_held_or_not_the_caller_s_never_crowd_out_the_rest(
+    db, monkeypatch
+) -> None:
+    org, owner, colleague, agent, _ = await _world(db)
+    _generator(monkeypatch)
+    monkeypatch.setattr(agent_test_set, "RATED_LIMIT", 1)
+    await _rate(db, org, agent, colleague, "Their older question?", rating=1, minutes=1)
+    await _rate(db, org, agent, colleague, "Their newer question?", rating=1, minutes=2)
+    await _rate(db, org, agent, owner, "The owner's question?", rating=-1, minutes=3)
+
+    first = await _service(db).bootstrap_for_agent(colleague, agent.id, more=1)
+    second = await _service(db).bootstrap_for_agent(colleague, agent.id, more=1)
+
+    assert (first.counts.rated_good, second.counts.rated_good) == (1, 1)
+    held = await DatasetService(db).list_cases(colleague, first.dataset_id)
+    assert sorted(case.input for case in held.items) == [
+        "Their newer question?",
+        "Their older question?",
+    ]
 
 
 async def test_an_agent_with_knowledge_asks_for_questions_from_it_too(db, monkeypatch) -> None:
@@ -480,6 +540,21 @@ async def test_an_unfinished_draft_agent_is_graded_and_priced_as_far_as_it_can_b
     built = await _service(db).bootstrap_for_agent(owner, draft.id)
     estimate = await _service(db).estimate_bootstrap(owner, draft.id)
 
-    assert built.judge.independent and built.generation_skipped == "nothing_to_draft"
+    assert (built.judge.reason_code, built.generation_skipped) == (
+        "unknown_model",
+        "nothing_to_draft",
+    )
     assert (built.gradable, built.too_few) == (0, True)
     assert estimate.generate == 0
+
+
+async def test_a_rated_answer_with_no_question_before_it_adds_nothing(db, monkeypatch) -> None:
+    org, owner, _, agent, _ = await _world(db)
+    _generator(monkeypatch)
+    _, _, asked = await _rate(db, org, agent, owner, "Lost question?", rating=1, minutes=1)
+    asked.role = "system"
+    await db.flush()
+
+    built = await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
+
+    assert (built.version, built.counts.skipped, built.counts.rated_good) == (0, 1, 0)

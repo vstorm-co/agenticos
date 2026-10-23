@@ -1,5 +1,5 @@
 ---
-source_sha: "b06c6d375552"
+source_sha: "da374789a9c4"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -278,8 +278,9 @@ Ulepszenie da się zmierzyć tylko na pytaniach testowych. `POST
 /agents/{id}/test-set` buduje je dla agenta jednym wywołaniem, a kreator
 ulepszania woła go, gdy agent żadnych nie ma:
 
-- pierwsze wywołanie tworzy "<agent> - test questions", dataset wskazujący
-  agenta; kolejne dodają do niego najnowsze ocenione odpowiedzi jako nową wersję
+- pierwsze wywołanie tworzy "<agent> - test questions", prywatny dataset
+  wskazujący agenta, więc skopiowane pytania nie trafiają do nikogo innego, dopóki
+  nie zostanie udostępniony; kolejne dodają do niego najnowsze ocenione odpowiedzi jako nową wersję
   i zachowują to, co już zawierał (`since` bierze tylko odpowiedzi ocenione od
   tej chwili);
 - odpowiedź oceniona łapką w górę staje się pytaniem z tą odpowiedzią jako
@@ -294,8 +295,10 @@ ulepszania woła go, gdy agent żadnych nie ma:
   a wynik podaje, o ile poproszono, żeby ktoś mógł je potem przejrzeć;
 - ocenianie porównuje odpowiedzi z odpowiedzią wzorcową i oblewa tę, która
   powtarza kontrprzykład, sędzią działającym na innym modelu niż model agenta.
-  Gdy skonfigurowany jest tylko jeden model albo wsparcie AI jest wyłączone,
-  wynik mówi o tym wprost.
+  Gdy skonfigurowany jest tylko jeden model, wsparcie AI jest wyłączone albo
+  wywołujący nie może opublikować sędziego, wynik mówi o tym wprost. Ocenianie,
+  które ktoś już ustawił w zestawie testowym, zostaje bez zmian; wynik mówi, gdy
+  działa na tym samym modelu co agent.
 
 Mniej niż trzy pytania, które da się ocenić, to za mało, by zmierzyć zmianę, i
 wynik o tym mówi. `POST /agents/{id}/test-set/estimate` wycenia pytania, które

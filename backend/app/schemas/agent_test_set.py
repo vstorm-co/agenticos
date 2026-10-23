@@ -10,9 +10,10 @@ from pydantic import Field
 from app.schemas.base import BaseSchema
 from app.schemas.case_generation import MAX_GENERATED
 
-JudgeReason = Literal["one_model", "ai_off"]
-"""Why the grader is not on a model of its own: only one model is set up, or AI
-assistance is off and nothing is graded by it."""
+JudgeReason = Literal["one_model", "ai_off", "cannot_publish", "unknown_model", "shares_model"]
+"""Why the grader is not on a model of its own: only one model is set up, AI
+assistance is off, the caller may not publish a grader, the agent has no model,
+or the grading somebody set up already shares the agent's model."""
 
 GenerationSkipped = Literal["enough", "ai_off", "unavailable", "nothing_to_draft"]
 
