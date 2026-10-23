@@ -49,7 +49,7 @@ from app.db.models.knowledge_gap import (
     TopicStatus,
 )
 from app.db.models.message_rating import MessageRating
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.schemas.knowledge_gap import KnowledgeSearchRecord
 
 REFUSED = "refused"
@@ -110,12 +110,18 @@ def is_miss(threshold: float) -> ColumnElement[bool]:
 
 
 def _status() -> ColumnElement[str]:
-    """A topic's status, reading a covered topic whose document is gone as open again."""
+    """A topic's status, reading a covered topic as open again once its document is gone,
+    or failed to ingest - nothing of it can be retrieved then. A retry that succeeds
+    covers it again."""
+    failed = exists().where(
+        RAGDocument.id == KnowledgeGapTopic.covered_by_document_id,
+        RAGDocument.status == DocumentStatus.ERROR.value,
+    )
     return case(
         (
             and_(
                 KnowledgeGapTopic.status == TopicStatus.COVERED.value,
-                KnowledgeGapTopic.covered_by_document_id.is_(None),
+                or_(KnowledgeGapTopic.covered_by_document_id.is_(None), failed),
             ),
             TopicStatus.OPEN.value,
         ),
@@ -450,6 +456,17 @@ async def count_ungrouped(
     return result.scalar_one()
 
 
+async def lock_topic(db: AsyncSession, topic: KnowledgeGapTopic) -> KnowledgeGapTopic:
+    """Hold a topic's row to the end of the transaction, read afresh once held."""
+    result = await db.execute(
+        select(KnowledgeGapTopic)
+        .where(KnowledgeGapTopic.id == topic.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one()
+
+
 async def get_topic(
     db: AsyncSession, topic_id: UUID, *, organization_id: UUID
 ) -> KnowledgeGapTopic | None:
@@ -478,9 +495,11 @@ async def list_questions(
     organization_id: UUID,
     threshold: float,
     agent_id: UUID | None,
-    limit: int,
+    limit: int | None,
 ) -> list[QuestionRow]:
     """A topic's searches, newest first, each with what the person asked and the answer.
+
+    `None` reads every one of them.
 
     The question and the answer are read from the run's own turns, so a run
     with no conversation - the HTTP API - has neither.
@@ -980,6 +999,21 @@ async def record_classifications(
             },
         )
     )
+    refused_runs = [v.candidate.run_id for v in verdicts if v.verdict == REFUSED]
+    if refused_runs:
+        # A refusal takes the run's searches out of the gaps; out of their topics too, so
+        # a topic left with nothing is removed and no centroid keeps drawing on them.
+        await db.execute(
+            delete(KnowledgeGapMember).where(
+                KnowledgeGapMember.search_id.in_(
+                    select(KnowledgeSearch.id).where(
+                        KnowledgeSearch.organization_id == organization_id,
+                        KnowledgeSearch.run_id.in_(refused_runs),
+                        any_(KnowledgeSearch.knowledge_base_ids) == knowledge_base_id,
+                    )
+                )
+            )
+        )
     misses = [verdict for verdict in verdicts if verdict.signal is not None]
     if not misses:
         return 0

@@ -621,6 +621,11 @@ class TestWhatIdentifiesSomebody:
             ("shared", "7781", 1),
         ]
 
+    def test_a_repeated_identifier_is_counted_each_time_it_is_written(self):
+        flags = _flags("Order 7781, again ORDER 7781.", sources=["order 7781?"], known=[])
+
+        assert [(f.value, f.count) for f in flags] == [("7781", 2)]
+
     def test_content_with_too_many_digits_for_phone_matching_is_still_read(self):
         digits = "1 " * 12_000
 

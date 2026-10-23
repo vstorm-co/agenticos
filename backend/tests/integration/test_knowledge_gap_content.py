@@ -569,3 +569,56 @@ async def test_confirming_one_match_of_a_kind_does_not_confirm_more_of_it(db, up
         {"kind": "personal_data", "value": "email", "count": 2}
     ]
     assert await _documents(db, kb) == []
+
+
+async def test_a_topic_whose_document_failed_to_ingest_is_open_and_can_be_covered_again(
+    db, uploads
+) -> None:
+    del uploads
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    await _add(db, ctx, topic_id, "Visitors park on level -1.")
+    [document] = await _documents(db, kb)
+    document.status = "error"
+    await db.flush()
+    service = KnowledgeGapService(db)
+
+    failed = await service.read(ctx, topic_id)
+    added = await _add(db, ctx, topic_id, "Visitors park on level -2.")
+
+    assert (failed.status, failed.covered_by) == ("open", None)
+    assert (await service.list_for_knowledge_base(ctx, kb.id, status="open")).total == 0
+    assert added.status == "covered"
+    assert added.covered_by is not None and added.covered_by.id != document.id
+
+
+async def test_a_dismissed_topic_takes_no_content_until_it_is_reopened(db, uploads) -> None:
+    del uploads
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    service = KnowledgeGapService(db)
+    await service.set_status(ctx, topic_id, "dismissed")
+
+    with pytest.raises(BadRequestError):
+        await _add(db, ctx, topic_id, "Visitors park on level -1.")
+    with pytest.raises(BadRequestError):
+        await service.save_content(
+            ctx, topic_id, KnowledgeGapContent(title="Parking", content="Level -1.")
+        )
+    await service.set_status(ctx, topic_id, "open")
+    added = await _add(db, ctx, topic_id, "Visitors park on level -1.")
+
+    assert added.status == "covered"
+    assert len(await _documents(db, kb)) == 1
+
+
+async def test_content_with_more_digits_than_the_phone_check_reads_is_refused(db, uploads) -> None:
+    del uploads
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+
+    with pytest.raises(BadRequestError) as refused:
+        await _add(db, ctx, topic_id, "1" * 10_500)
+
+    assert refused.value.details["fields"][0]["field"] == "content"
+    assert await _documents(db, kb) == []

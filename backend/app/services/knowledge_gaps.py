@@ -25,6 +25,7 @@ person confirms it.
 import asyncio
 import logging
 import re
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -43,6 +44,7 @@ from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     IdentifyingContentError,
     NotFoundError,
 )
@@ -194,6 +196,16 @@ def _assign(
     return clusters
 
 
+def _require_open(row: TopicRow) -> None:
+    """Refuse writing a topic's content unless it is open: dismissing or covering it was a
+    decision, which reopening undoes first."""
+    if row.status != TopicStatus.OPEN.value:
+        raise BadRequestError(
+            message="Reopen this topic before you write its content",
+            details={"topic_id": row.topic.id, "status": row.status},
+        )
+
+
 def _require_runs_view(ctx: AuthContext) -> None:
     """Refuse a caller who may not read every run: a topic is made of people's questions."""
     if ctx.scope_for(Perm.RUNS_VIEW) < Scope.ALL:
@@ -282,10 +294,14 @@ def _flags(text: str, *, sources: list[str], known: list[str]) -> list[Knowledge
         for entry in report.counts
         if entry.count
     ]
-    written = _identifying_tokens([text])
+    written = Counter(token.lower() for token in _TOKEN.findall(text) if _identifying(token))
     shared = written.keys() & _identifying_tokens(sources).keys()
     shared -= _identifying_tokens(known).keys()
-    flags.extend(KnowledgeGapFlag(kind="shared", value=written[token]) for token in sorted(shared))
+    first = _identifying_tokens([text])
+    flags.extend(
+        KnowledgeGapFlag(kind="shared", value=first[token], count=written[token])
+        for token in sorted(shared)
+    )
     return flags
 
 
@@ -502,7 +518,8 @@ class KnowledgeGapService:
         covered = {
             row.topic.id: document_id
             for row in rows
-            if (document_id := row.topic.covered_by_document_id) is not None
+            if row.status == TopicStatus.COVERED.value
+            and (document_id := row.topic.covered_by_document_id) is not None
         }
         documents = await knowledge_gap_repo.documents_by_id(
             self.db, list(covered.values()), organization_id=ctx.organization_id
@@ -1009,9 +1026,11 @@ class KnowledgeGapService:
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             NotFoundError: For a topic in a knowledge base the caller may not change.
+            BadRequestError: For a topic that is not open: reopen it first.
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, topic_id, edit=True)
+        _require_open(await self._row(ctx, topic))
         await self._keep(ctx, topic, data)
         return await self.read(ctx, topic.id)
 
@@ -1073,33 +1092,45 @@ class KnowledgeGapService:
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
             AlreadyExistsError: For a topic a document covers already.
-            BadRequestError: Naming `title` or `content`, for a detail still to fill in.
+            BadRequestError: For a dismissed topic; naming `title` or `content`, for a
+                detail still to fill in, or for content with more digits than the
+                phone number check reads.
             IdentifyingContentError: For a flag the caller did not confirm.
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, topic_id, edit=True)
         kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
-        if topic.covered_by_document_id is not None:
+        # Held to the commit, so two additions at once find the first one's document.
+        topic = await knowledge_gap_repo.lock_topic(self.db, topic)
+        row = await self._row(ctx, topic)
+        if row.status == TopicStatus.COVERED.value:
             raise AlreadyExistsError(
                 message="A document covers this topic already; reopen it to add another",
                 details={"topic_id": topic.id, "document_id": topic.covered_by_document_id},
             )
-        row = await self._row(ctx, topic)
+        _require_open(row)
         for field, value in (("title", data.title), ("content", data.content)):
             blanks = _blanks(value)
             if blanks:
                 raise refused_field(
                     field, f"Fill in or remove what is still to fill in: {', '.join(blanks)}"
                 )
+        text = f"{data.title}\n{data.content}"
+        if phone_text_error(text, pii.PHONE_REGIONS) is not None:
+            raise refused_field(
+                "content",
+                "This holds more digits than can be checked for phone numbers; split it "
+                "into smaller documents.",
+            )
         questions = await knowledge_gap_repo.list_questions(
             self.db,
             topic.id,
             organization_id=ctx.organization_id,
             threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
             agent_id=None,
-            limit=TOPIC_QUESTIONS,
+            limit=None,
         )
-        flags = await self._flags(ctx, row, questions, f"{data.title}\n{data.content}")
+        flags = await self._flags(ctx, row, questions, text)
         confirmed = {(flag.kind, flag.value): flag.count for flag in data.confirmed}
         if any(confirmed.get((flag.kind, flag.value), 0) < flag.count for flag in flags):
             raise IdentifyingContentError(
