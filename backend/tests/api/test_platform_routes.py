@@ -264,6 +264,8 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/mcp-catalog", Perm.AGENTS_VIEW),
     Call("GET", "/agents", Perm.AGENTS_VIEW),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
+    # A system agent is an agent too, so it is gated like `create`.
+    Call("POST", "/agents/system", Perm.AGENTS_EDIT, body={"kind": "judge", "name": "Grader"}),
     # Promoting a specialist creates an agent, so it is gated like `create` - and
     # this is where "a specialist created inside someone else's run does not become
     # their agent" is enforced: a caller without `agents:edit` is refused before the
