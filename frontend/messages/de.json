@@ -6767,6 +6767,7 @@
     "generate": "Erzeugen",
     "subjectContains": "Betreff enthält",
     "senderContains": "Absender enthält",
+    "senderVouchedHint": "Löst nur bei E-Mails aus, die die Domain des Absenders signiert hat (DMARC oder DKIM), sodass eine gefälschte Absenderadresse ihn nicht auslöst.",
     "filterOptional": "Optional – leer lassen, um auf alles zu passen",
     "webhookUrl": "Webhook-URL",
     "webhookHelp": "Stellen Sie signierte Ereignisse hierher zu. Das Signatur-Secret authentifiziert sie.",

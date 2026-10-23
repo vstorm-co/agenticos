@@ -171,6 +171,8 @@ describe("PortalTriggerDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: /Any new message/ }));
     await user.type(within(dialog).getByLabelText("Subject contains"), "invoice");
     await user.type(within(dialog).getByLabelText("Sender contains"), "billing@acme.com");
+    // A sender filter is a trust decision, and the form says what makes it hold.
+    expect(within(dialog).getByText(/sender's domain signed/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));

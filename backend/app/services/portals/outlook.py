@@ -28,6 +28,7 @@ import httpx
 
 from app.services.portals.base import NOWHERE, PolledEvent, PolledEvents, PortalAdapter
 from app.services.portals.exceptions import PortalUnreachable
+from app.services.portals.mail_auth import authenticated
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +79,12 @@ _SYNC_LOST = frozenset({"syncstatenotfound", "syncstateinvalid", "resyncrequired
 _PREFER_IDS = 'IdType="ImmutableId"'
 _MESSAGE_FIELDS = (
     "id,subject,from,toRecipients,receivedDateTime,hasAttachments,importance,"
-    "categories,body,bodyPreview,isDraft"
+    "categories,body,bodyPreview,isDraft,internetMessageHeaders"
 )
+# Exchange stamps mail between two of the tenant's own mailboxes `Internal`, and
+# strips this header from anything arriving from outside, so it is the verdict for
+# a sender inside the organization - mail Exchange writes no SPF/DKIM result for.
+_AUTH_AS = "x-ms-exchange-organization-authas"
 
 
 def place_key(*, mailbox: str | None, folder: str) -> str:
@@ -407,6 +412,16 @@ class OutlookPortalAdapter(PortalAdapter):
             ][:_MAX_ATTACHMENTS]
         body = message.get("body")
         text = str(body.get("content") or "") if isinstance(body, dict) else ""
+        sender = _address(message.get("from"))
+        headers = [
+            (str(entry.get("name") or ""), str(entry.get("value") or ""))
+            for entry in message.get("internetMessageHeaders") or []
+            if isinstance(entry, dict)
+        ]
+        internal = any(
+            name.casefold() == _AUTH_AS and value.strip().casefold() == "internal"
+            for name, value in headers
+        )
         return PolledEvent(
             # Immutable, so a retried tick that reads the message twice - or a
             # move between two watched folders - is recognised by the claim.
@@ -416,7 +431,10 @@ class OutlookPortalAdapter(PortalAdapter):
                 "mailbox": mailbox,
                 "folder": folder,
                 "subject": str(message.get("subject") or ""),
-                "from": _address(message.get("from")),
+                "from": sender,
+                # As Gmail's: whether the sender's domain - or the tenant itself -
+                # vouched for the `From`.
+                "authenticated": internal or authenticated(headers, sender),
                 "to": ", ".join(
                     address
                     for entry in message.get("toRecipients") or []

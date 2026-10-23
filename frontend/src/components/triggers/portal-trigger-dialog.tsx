@@ -339,7 +339,13 @@ export function PortalTriggerDialog({
                     key={key}
                     label={t(copy.labelKey)}
                     htmlFor={`portal-filter-${key}`}
-                    description={index === 0 ? t("filterHelp") : undefined}
+                    description={
+                      index === 0
+                        ? t("filterHelp")
+                        : key === "sender_contains"
+                          ? tt("senderVouchedHint")
+                          : undefined
+                    }
                   >
                     <Input
                       id={`portal-filter-${key}`}

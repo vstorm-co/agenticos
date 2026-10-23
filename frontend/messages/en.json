@@ -6884,6 +6884,7 @@
     "generate": "Generate",
     "subjectContains": "Subject contains",
     "senderContains": "Sender contains",
+    "senderVouchedHint": "Fires only on mail the sender's domain signed (DMARC or DKIM), so a forged sender address cannot set it off.",
     "filterOptional": "Optional - leave blank to match any",
     "webhookUrl": "Webhook URL",
     "webhookHelp": "Deliver signed events here. The signing secret authenticates them.",

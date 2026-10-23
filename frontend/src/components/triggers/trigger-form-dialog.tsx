@@ -657,7 +657,11 @@ export function TriggerFormDialog({
                         placeholder={t("filterOptional")}
                       />
                     </FormField>
-                    <FormField label={t(filters[1])} htmlFor="edit-filter-b">
+                    <FormField
+                      label={t(filters[1])}
+                      htmlFor="edit-filter-b"
+                      description={t("senderVouchedHint")}
+                    >
                       <Input
                         id="edit-filter-b"
                         value={filterB}
@@ -1410,7 +1414,11 @@ function EventFields({
               placeholder={t("filterOptional")}
             />
           </FormField>
-          <FormField label={t(filters[1])} htmlFor="trigger-filter-b">
+          <FormField
+            label={t(filters[1])}
+            htmlFor="trigger-filter-b"
+            description={t("senderVouchedHint")}
+          >
             <Input
               id="trigger-filter-b"
               value={filterB}

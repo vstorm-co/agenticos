@@ -279,6 +279,46 @@ class TestANewPlace:
             {"name": "invoice.pdf", "content_type": "application/pdf", "size": 1200},
             {"name": "notes.txt", "content_type": "text/plain", "size": None},
         ]
+        assert payload["authenticated"] is False
+
+    @pytest.mark.parametrize(
+        ("headers", "vouched"),
+        [
+            # Exchange's own verdict on mail from outside.
+            (
+                [
+                    {
+                        "name": "Authentication-Results",
+                        "value": "spf=pass; dmarc=pass header.from=acme.test",
+                    }
+                ],
+                True,
+            ),
+            # Mail between two of the tenant's mailboxes carries no SPF/DKIM result;
+            # Exchange marks it internal and strips that mark from outside mail.
+            ([{"name": "X-MS-Exchange-Organization-AuthAs", "value": "Internal"}], True),
+            ([{"name": "X-MS-Exchange-Organization-AuthAs", "value": "Anonymous"}], False),
+            (
+                [
+                    {"name": "Authentication-Results", "value": "dmarc=fail header.from=acme.test"},
+                    "junk",
+                ],
+                False,
+            ),
+        ],
+    )
+    async def test_exchanges_verdict_on_the_sender_rides_in_the_payload(
+        self, monkeypatch, headers, vouched
+    ):
+        graph = _Graph()
+        graph.deltas["INBOX"] = [[_item("m1", _NOW)]]
+        graph.messages["m1"] = _message("m1", internetMessageHeaders=headers)
+
+        read = await _adapter(graph, monkeypatch).poll(
+            access_token="t", cursor=_cursor(), places={INBOX: _CONNECTED}
+        )
+
+        assert read.events[0].payload["authenticated"] is vouched
 
     async def test_the_body_is_asked_for_as_text_and_clipped(self, monkeypatch):
         graph = _Graph()

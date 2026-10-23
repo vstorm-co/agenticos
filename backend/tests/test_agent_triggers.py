@@ -3033,6 +3033,7 @@ class TestCreatingFromAPortalPreset:
             "subject_contains": "invoice",
             "sender_contains": None,
             "label": None,
+            "authenticated_only": None,
         }
 
     async def test_an_event_config_override_can_set_both_filters(self):
@@ -3062,6 +3063,7 @@ class TestCreatingFromAPortalPreset:
             "subject_contains": "invoice",
             "sender_contains": "@acme.com",
             "label": None,
+            "authenticated_only": None,
         }
 
     async def test_a_malformed_override_is_a_422_not_a_500(self):

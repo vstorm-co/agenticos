@@ -209,6 +209,11 @@ class GmailTriggerConfig(BaseSchema):
     `IMPORTANT`, or a user label - which is how somebody narrows to a filtered
     slice of their mail without writing a substring for it. Unknown keys are
     refused for the same reason as the GitHub config.
+
+    `authenticated_only` fires only on a message whose sender's domain vouched
+    for it (DMARC, or DKIM for that domain - see `portals.mail_auth`). Unset, it
+    follows `sender_contains`: a filter on who sent a message is a trust decision,
+    and the `From` it reads is whatever the sender typed.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -216,6 +221,7 @@ class GmailTriggerConfig(BaseSchema):
     subject_contains: str | None = Field(default=None, max_length=255)
     sender_contains: str | None = Field(default=None, max_length=255)
     label: str | None = Field(default=None, max_length=128)
+    authenticated_only: bool | None = None
 
 
 class OutlookTriggerConfig(BaseSchema):
@@ -231,8 +237,9 @@ class OutlookTriggerConfig(BaseSchema):
 
     The rest narrow what fires: substrings of the subject and sender,
     case-insensitive like Gmail's, and exact matches on what Outlook itself sets -
-    attachments, importance, one of the message's categories. Unknown keys are
-    refused for the same reason as the GitHub config.
+    attachments, importance, one of the message's categories. `authenticated_only`
+    is Gmail's, with mail from inside the tenant counted as vouched for. Unknown
+    keys are refused for the same reason as the GitHub config.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -244,6 +251,7 @@ class OutlookTriggerConfig(BaseSchema):
     has_attachments: bool | None = None
     importance: Literal["low", "normal", "high"] | None = None
     category: str | None = Field(default=None, max_length=255)
+    authenticated_only: bool | None = None
 
 
 class WebhookTriggerConfig(BaseSchema):

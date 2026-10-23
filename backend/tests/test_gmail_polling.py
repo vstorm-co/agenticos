@@ -156,7 +156,30 @@ class TestReadingWhatArrived:
         # The plain-text part, not the HTML one: what reaches the agent should be
         # what a person would read rather than markup it has to strip.
         assert event.payload["text"] == "Please pay this."
+        # No verdict from Gmail, so nothing vouches for the sender.
+        assert event.payload["authenticated"] is False
         assert read.cursor == {"history_id": "510"}
+
+    async def test_gmails_own_verdict_on_the_sender_rides_in_the_payload(self, monkeypatch):
+        """A sender filter fires only on mail the sender's domain signed; the
+        adapter reads Gmail's topmost `Authentication-Results` to say so."""
+        message = _message(
+            "m1", subject="s", sender="Billing <billing@acme.test>", body="b", labels=["INBOX"]
+        )
+        message["payload"]["headers"].insert(
+            0,
+            {
+                "name": "Authentication-Results",
+                "value": "mx.google.com; dmarc=pass header.from=acme.test",
+            },
+        )
+        gmail = _Gmail(history_id="510", added=["m1"], messages={"m1": message})
+
+        read = await _adapter(gmail, monkeypatch).poll(
+            access_token="t", cursor={"history_id": "500"}
+        )
+
+        assert read.events[0].payload["authenticated"] is True
 
     async def test_the_delivery_id_is_gmails_own_so_a_reread_dedups(self, monkeypatch):
         """A crash after dispatch and before the cursor advances re-reads the same

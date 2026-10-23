@@ -6657,6 +6657,7 @@
     "generate": "Generuj",
     "subjectContains": "Temat zawiera",
     "senderContains": "Nadawca zawiera",
+    "senderVouchedHint": "Uruchamia się tylko dla poczty podpisanej przez domenę nadawcy (DMARC lub DKIM), więc podrobiony adres nadawcy go nie uruchomi.",
     "filterOptional": "Opcjonalne - zostaw puste, aby dopasować dowolne",
     "webhookUrl": "Adres webhooka",
     "webhookHelp": "Dostarczaj tu podpisane zdarzenia. Sekret podpisujący je uwierzytelnia.",

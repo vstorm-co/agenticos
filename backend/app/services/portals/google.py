@@ -27,6 +27,7 @@ import httpx
 
 from app.services.portals.base import NOWHERE, PolledEvent, PolledEvents, PortalAdapter
 from app.services.portals.exceptions import PortalUnreachable
+from app.services.portals.mail_auth import authenticated
 
 logger = logging.getLogger(__name__)
 
@@ -228,13 +229,22 @@ class GooglePortalAdapter(PortalAdapter):
                 return None
             raise
         text = _body_text(body.get("payload") or {})
+        sender = _header(body, "From")
+        headers = [
+            (str(entry.get("name") or ""), str(entry.get("value") or ""))
+            for entry in _nested(body, "payload").get("headers") or []
+            if isinstance(entry, dict)
+        ]
         return PolledEvent(
             # Gmail's own id for the message: stable across polls, so the
             # idempotency claim recognises a message a retried tick reads twice.
             delivery_id=f"gmail:{message_id}",
             payload={
                 "subject": _header(body, "Subject"),
-                "from": _header(body, "From"),
+                "from": sender,
+                # Whether the sender's domain vouched for the `From`, so a filter
+                # on the sender cannot be satisfied by an address anybody can type.
+                "authenticated": authenticated(headers, sender),
                 "to": _header(body, "To"),
                 "labels": [str(one) for one in body.get("labelIds") or []],
                 "text": text[:_MAX_BODY_CHARS],

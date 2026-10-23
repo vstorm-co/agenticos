@@ -28,8 +28,10 @@ service.
 import hashlib
 import hmac
 import json
+import logging
 import time
 from collections.abc import Mapping
+from email.utils import parseaddr
 from typing import Any
 
 from app.db.models.agent_trigger import EventSource
@@ -39,6 +41,8 @@ from app.schemas.agent_trigger import (
     OutlookTriggerConfig,
 )
 from app.services.portals import outlook_place
+
+logger = logging.getLogger(__name__)
 
 # Where each source's HMAC-SHA256 signature of the raw body rides. GitHub's is its
 # own native header; the API source reuses the same scheme under a generic one.
@@ -259,6 +263,8 @@ def _gmail_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> boo
         return False
     if parsed.sender_contains is not None and parsed.sender_contains.casefold() not in sender:
         return False
+    if not _vouched_for(payload, parsed.authenticated_only, parsed.sender_contains):
+        return False
     labels = [str(one) for one in payload.get("labels") or []]
     # Gmail's history reports every message added to the mailbox, its own sends
     # and drafts and spam included. None of those is mail that arrived for the
@@ -278,6 +284,26 @@ def _gmail_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> boo
 _GMAIL_NOT_ARRIVALS = frozenset({"SENT", "DRAFT", "SPAM", "TRASH"})
 
 
+def _vouched_for(
+    payload: Mapping[str, Any], authenticated_only: bool | None, sender_contains: str | None
+) -> bool:
+    """Whether a message passes the authenticated-sender rule its trigger asks for.
+
+    Unset, the rule is on exactly when the trigger filters on the sender: "mail
+    from @acme.com" means mail Acme sent, and the `From` alone is whatever anyone
+    typed - a spoofed sender would hand a stranger a run under that filter. A
+    message the rule refuses is logged, because a filter that silently never
+    fires - an internal relay that signs nothing, say - is otherwise invisible.
+    """
+    required = authenticated_only if authenticated_only is not None else sender_contains is not None
+    if not required or payload.get("authenticated") is True:
+        return True
+    # The domain, not the address: enough to see which sender is being refused.
+    domain = parseaddr(str(payload.get("from") or ""))[1].rpartition("@")[2]
+    logger.info("trigger_mail_unauthenticated", extra={"sender_domain": domain})
+    return False
+
+
 def _outlook_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
     # The place first: a message read from one folder never fires a trigger that
     # watches another. The rest as Gmail's - substrings case-insensitive - plus
@@ -290,6 +316,8 @@ def _outlook_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> b
     if parsed.subject_contains is not None and parsed.subject_contains.casefold() not in subject:
         return False
     if parsed.sender_contains is not None and parsed.sender_contains.casefold() not in sender:
+        return False
+    if not _vouched_for(payload, parsed.authenticated_only, parsed.sender_contains):
         return False
     if (
         parsed.has_attachments is not None

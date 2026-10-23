@@ -136,9 +136,39 @@ class TestGmailMatching:
         assert trigger_events.event_matches(
             "gmail",
             headers={},
-            payload={"subject": "hi", "from": "boss@trusted.co"},
+            payload={"subject": "hi", "from": "boss@trusted.co", "authenticated": True},
             config={"sender_contains": "@trusted.co"},
         )
+
+    def test_a_sender_filter_refuses_a_from_its_domain_did_not_vouch_for(self):
+        """`From: boss@trusted.co` costs nothing to type. A filter on the sender is
+        a trust decision, so by default it fires only on mail trusted.co signed."""
+        assert not trigger_events.event_matches(
+            "gmail",
+            headers={},
+            payload={
+                "subject": "wire the money",
+                "from": "boss@trusted.co",
+                "authenticated": False,
+            },
+            config={"sender_contains": "@trusted.co"},
+        )
+
+    def test_the_authenticated_rule_can_be_turned_off_or_on_by_itself(self):
+        unsigned = {"subject": "hi", "from": "relay@trusted.co"}
+        # Off: an internal relay that signs nothing still fires a sender filter.
+        assert trigger_events.event_matches(
+            "gmail",
+            headers={},
+            payload=unsigned,
+            config={"sender_contains": "@trusted.co", "authenticated_only": False},
+        )
+        # On with no sender filter: any unsigned message is refused.
+        assert not trigger_events.event_matches(
+            "gmail", headers={}, payload=unsigned, config={"authenticated_only": True}
+        )
+        # And no rule at all without a sender filter, as before.
+        assert trigger_events.event_matches("gmail", headers={}, payload=unsigned, config={})
 
     def test_subject_and_sender_filters_match_regardless_of_case(self):
         # A domain is case-insensitive by spec and "invoice" should catch "Invoice";
@@ -146,7 +176,7 @@ class TestGmailMatching:
         assert trigger_events.event_matches(
             "gmail",
             headers={},
-            payload={"subject": "Invoice #12", "from": "billing@Vstorm.co"},
+            payload={"subject": "Invoice #12", "from": "billing@Vstorm.co", "authenticated": True},
             config={"subject_contains": "invoice", "sender_contains": "@vstorm.co"},
         )
 
@@ -209,6 +239,7 @@ def _outlook(**overrides: object) -> dict[str, object]:
         "has_attachments": True,
         "attachments": [{"name": "invoice.pdf"}, {"name": ""}, "not an object"],
         "text": "Please pay.",
+        "authenticated": True,
     }
     payload.update(overrides)
     return payload
@@ -237,6 +268,12 @@ class TestOutlookMatching:
         assert self._matches({"subject_contains": "INVOICE", "sender_contains": "@acme.TEST"})
         assert not self._matches({"subject_contains": "receipt"})
         assert not self._matches({"sender_contains": "@other.test"})
+
+    def test_a_sender_filter_needs_a_vouched_for_sender_here_too(self):
+        assert not self._matches({"sender_contains": "@acme.test"}, authenticated=False)
+        assert self._matches(
+            {"sender_contains": "@acme.test", "authenticated_only": False}, authenticated=False
+        )
 
     def test_attachments_importance_and_category_are_exact(self):
         assert self._matches({"has_attachments": True, "importance": "high", "category": "finance"})
