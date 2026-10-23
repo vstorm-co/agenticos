@@ -146,7 +146,7 @@ runner zostanie w ogóle osiągnięty; sekret jest zapieczętowany w
     własnej transakcji żądania, a agent działa w workerze, więc provider dostaje
     swoją odpowiedź po jednym insercie, zamiast czekać na model.
     Nie czytaj `202` jako „agent odpowiedział” - od tego jest przeczytanie runa w
-    Activity.
+    Aktywności (Activity).
 
 Zweryfikowane dostarczenie, przy którym nie ma nic do zrobienia - nieaktywny
 trigger albo payload, którego filtr nie dopasowuje - odpowiada `202` dokładnie
@@ -476,7 +476,7 @@ przekaźnika - nie widzą twojej maszyny. Dwa sposoby, żeby to obejść:
   nigdy się nie zmienia; sekret jest poświadczeniem i może być rotowany.
 - Podpis to `HMAC-SHA256` po **dokładnych surowych bajtach** i to on czyni
   dostarczenie autentycznym, a nie tylko poprawnie zaadresowanym.
-- `202` znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Activity.
+- `202` znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Aktywności.
 - **Gmail jest odpytywany**, więc nie ma URL-a ani sekretu w ogóle — podłącz
   skrzynkę i to cała konfiguracja.
 - Na laptopie sięgnij po **Run now**, zanim sięgniesz po tunel.

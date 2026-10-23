@@ -15,7 +15,7 @@ wiedzy** pokazują takie pytania: te, dla których agent przeszukał swoją
 Luka mówi, czego brakuje. Sama nigdy niczego nie dodaje do bazy wiedzy. Człowiek
 pisze albo znajduje brakujący dokument - może go naszkicować model - i go
 dodaje. Wcześniej może zamienić pytania z tematu na przypadki
-[datasetu](datasets.md), żeby eval pokazał, czy nowy dokument zmienił
+[datasetu](datasets.md), żeby ewaluacja pokazała, czy nowy dokument zmienił
 odpowiedzi.
 
 ## Jak pytanie staje się luką { #how-a-question-becomes-a-gap }
@@ -42,8 +42,8 @@ wyszukiwania poniżej bieżącego ustawienia.
 
 Zapisywane są tylko wyszukiwania, które agent wykonuje w trakcie runa, i tylko
 dla pytań zadanych przez ludzi: wyszukiwanie przez `/rag/search` w HTTP API,
-podgląd na stronie bazy wiedzy, wyszukiwanie wykonane przez run evala ani
-wyszukiwanie z testu draftu w builderze nie są zapisywane. Z zapytania zachowywane jest pierwsze 1000 znaków.
+podgląd na stronie bazy wiedzy, wyszukiwanie wykonane przez run ewaluacji ani
+wyszukiwanie z testu wersji roboczej w Builderze nie są zapisywane. Z zapytania zachowywane jest pierwsze 1000 znaków.
 
 ## Odpowiedzi i komentarze { #answers-and-comments }
 
@@ -52,7 +52,7 @@ czytelnik może ocenić odpowiedź łapką w dół, bo czegoś zabrakło. Samo
 wyszukiwanie nie widzi żadnego z tych przypadków. **Sprawdź N odpowiedzi** na
 zakładce Luki w wiedzy bazy wiedzy prosi model, żeby przeczytał pod tym kątem
 jej ostatnie odpowiedzi. Przycisk jest dostępny, gdy
-[asystent AI](governance.md#ai-assistance) jest włączony, i liczy odpowiedzi
+[wsparcie AI](governance.md#ai-assistance) jest włączone, i liczy odpowiedzi
 jeszcze nieprzeczytane. Gdy przełącznik jest wyłączony, zakładka mówi, ile
 odpowiedzi czeka, z linkiem do przełącznika dla tego, kto może go zmienić.
 
@@ -76,7 +76,7 @@ bazę wiedzy i coś znalazł albo został oceniony łapką w dół z komentarzem
 na wersji agenta powiązanej z bazą wiedzy. Run, którego wyszukiwanie już było
 chybione, liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują
 odpowiedzi, a runy ewaluacji, których pytania są odtwarzane albo generowane, nie
-są nigdy czytane. Testy draftu w builderze, runy delegowane i runy, których
+są nigdy czytane. Testy wersji roboczej w Builderze, runy delegowane i runy, których
 autor nie ma już konta, też nie.
 
 Sprawdzenie dotyczy jednej bazy wiedzy: to, co znajdzie, jest luką tylko tej
@@ -86,7 +86,7 @@ gdy sprawdza się tę drugą.
 Sprawdzenie czyta do 100 odpowiedzi, po 20 na run klasyfikatora. Każdy run jest
 sprawdzany względem budżetu klasyfikatora i organizacji, zanim zostanie
 wywołany model, i jest widoczny w Aktywności pod osobą, która poprosiła:
-wybierz **Każde źródło, z evalami**, żeby go zobaczyć. Każda
+wybierz **Każde źródło, z ewaluacjami**, żeby go zobaczyć. Każda
 przeczytana odpowiedź jest zapamiętywana, niezależnie od werdyktu, więc za żadną
 nie płaci się dwa razy. Odpowiedź z werdyktem „brak luki” jest czytana ponownie
 dopiero po nowej ocenie łapką w dół z komentarzem. Sprawdzenie zatrzymuje się na
@@ -152,15 +152,15 @@ samym temacie.
 | **Dodaj do datasetu** | Zamienia najnowsze pytania tematu (do 200) na przypadki wybranego datasetu, który możesz zmieniać, jako jedną nową wersję. Każdy przypadek to pytanie osoby, a odpowiedź agenta jest kontrprzykładem. Pytanie zadane przez HTTP API nie ma zapisanej odpowiedzi i jest pomijane |
 | **Odrzuć** | Oznacza temat jako niewymagający treści. Odrzucony temat zatrzymuje należące do niego pytania, więc nie wraca jako nowy temat. **Otwórz ponownie** to odwraca |
 
-Po dodaniu dokumentu uruchom eval na datasecie. Przypadki, które nie
+Po dodaniu dokumentu uruchom ewaluację na datasecie. Przypadki, które nie
 przechodziły z powodu brakującej wiedzy, powinny teraz przejść.
 
 ## Szkic brakującej treści { #drafting-the-missing-content }
 
 **Napisz szkic brakującej treści** w otwartym temacie prosi model o napisanie
 fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. To jeden run
-**Knowledge gap drafter**, [agenta systemowego](concepts.md#system-agents),
-którego ma każda organizacja. Agent widzi 20 najnowszych pytań tematu: o co
+**autora szkiców luk** (Knowledge gap drafter),
+[agenta systemowego](concepts.md#system-agents), którego ma każda organizacja. Agent widzi 20 najnowszych pytań tematu: o co
 zapytała każda osoba, czego agent szukał i co znalazł, jaką odpowiedź dostała
 osoba i komentarz zostawiony przy ocenie łapką w dół.
 
@@ -169,8 +169,9 @@ Możesz go skopiować albo pobrać jako Markdown. Nigdy nie jest dodawany do
 bazy wiedzy. Agent nie zna faktów
 twojej firmy: tam, gdzie odpowiedź wymaga liczby, daty albo reguły, wpisuje w
 nawiasach kwadratowych miejsce do uzupełnienia. Ponowny szkic zastępuje
-poprzedni. Kto może edytować draftera, znajdzie przy szkicu **Edytuj instrukcje
-draftera**, a samego draftera w sekcji **Agenci systemowi** na stronie Agents.
+poprzedni. Kto może edytować autora szkiców luk, znajdzie przy szkicu **Edytuj
+instrukcje autora szkiców luk**, a samego agenta w sekcji **Agenci systemowi**
+na stronie **Agenci** (Agents).
 
 Szkic podaje swoje źródła: dokumenty bazy wiedzy, na których się opiera, i
 pytania tematu, na które odpowiada. Każde źródło jest weryfikowane przed
@@ -180,17 +181,17 @@ pokazywane, i liczone przy szkicu. Zachowywanych jest najwyżej 12 źródeł.
 Źródło usunięte później przestaje być pokazywane.
 
 Szkic to run modelu jak każdy inny. Jest odrzucany, gdy organizacja wyłączyła
-[asystenta AI](governance.md#ai-assistance), a jest on wyłączony, dopóki nie
-włączy go ktoś z `org:settings`; do tego czasu temat to mówi, z odnośnikiem do
+[wsparcie AI](governance.md#ai-assistance), a jest ono wyłączone, dopóki nie
+włączy je ktoś z `org:settings`; do tego czasu temat to mówi, z odnośnikiem do
 przełącznika dla tego, kto może go zmienić. Przed wywołaniem modelu sprawdzany
-jest budżet agenta i organizacji, a jego koszt widać w Activity. Grupowanie
+jest budżet agenta i organizacji, a jego koszt widać w Aktywności. Grupowanie
 pytań w tematy nie prosi modelu o pisanie, więc działa niezależnie od
 przełącznika.
 
 ## Dostęp { #access }
 
 Temat składa się z pytań ludzi, więc czytanie luk wymaga `runs:view`, czyli
-uprawnienia, które pozwala czytać w Activity każdy run w organizacji. Członek
+uprawnienia, które pozwala czytać w Aktywności każdy run w organizacji. Członek
 bez niego nie widzi karty ani widżetu, a API mu odmawia.
 
 | Żeby | Potrzebujesz |
@@ -199,7 +200,7 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 | Czytać luki agenta | `runs:view` i `agents:view` na agencie; tematy baz wiedzy, których nie możesz czytać, są pomijane |
 | Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
-| Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap drafter |
+| Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na autorze szkiców luk (Knowledge gap drafter) |
 | Sprawdzić odpowiedzi | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap classifier |
 
 Sprawdzenie odpowiedzi działa później na twojej roli, więc uruchamia się je tylko

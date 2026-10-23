@@ -45,7 +45,7 @@ flowchart LR
     OK -->|no| D
 ```
 
-1. Den Draft bearbeiten, veröffentlichen. Das prägt eine Version und ändert
+1. Den Entwurf bearbeiten, veröffentlichen. Das prägt eine Version und ändert
    nichts, was irgendjemand gerade benutzt.
 2. `staging` darauf zeigen lassen und Ihren Test-Slack-Bot oder einen privaten
    Link an `staging` binden.
@@ -83,7 +83,7 @@ immer er vor der Pause fand.
 Der Promotion-Dialog zeigt dasselbe und lässt die Wächter laufen, die auf der
 Version nicht bestanden haben, jeden neben der Version, die die Umgebung jetzt
 ausliefert (`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
-`GET …/gate?version_id=` liest das Gate). Ein Wächter, der den Judge braucht,
+`GET …/gate?version_id=` liest das Gate). Ein Wächter, der den Bewerter braucht,
 während die [KI-Unterstützung](governance.md#ai-assistance) aus ist, sagt das,
 statt ohne Grund zu blockieren.
 

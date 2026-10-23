@@ -43,7 +43,7 @@ flowchart LR
     OK -->|no| D
 ```
 
-1. Edytuj draft, opublikuj. To wybija wersję i nie zmienia niczego, z czego ktoś
+1. Edytuj wersję roboczą, opublikuj. To wybija wersję i nie zmienia niczego, z czego ktoś
    korzysta.
 2. Wskaż nią `staging` i podepnij swojego testowego bota Slacka albo prywatny
    link do `staging`.
@@ -54,19 +54,19 @@ flowchart LR
 Rollback to ten sam ruch wstecz: przekieruj `production` na wersję, która
 działała. Stara wersja wciąż tam jest, wciąż da się ją odczytać i uruchomić.
 
-[Suita evali](evals.md#suites) ustawiona na promocję sprawdza każdą wersję
+[Suita ewaluacji](evals.md#suites) ustawiona na promocję sprawdza każdą wersję
 wypromowaną na jej środowisko względem wersji, którą zastąpiła, i daje znać
 właścicielowi, gdy wynik nie przechodzi. Sama tylko informuje; środowisko,
 które wskazuje ją jako [strażnika](#guarding-a-promotion-with-evals), czeka, aż
 przejdzie.
 
-## Strażnicy promocji z evali { #guarding-a-promotion-with-evals }
+## Ewaluacja jako strażnik promocji { #guarding-a-promotion-with-evals }
 
-Środowisko może wskazać [suity evali](evals.md#suites), które go **strzegą**.
-Wtedy przyjmuje wersję dopiero, gdy każdy strażnik przeszedł na dokładnie tej
-wersji, na wersji datasetu, którą suita czyta teraz, i przy progu, który ma
-teraz - zaliczenie sprzed dodania case'ów albo sprzed podniesienia progu się nie
-liczy. Promocja, która tego nie spełnia, jest odrzucana (`409`,
+Środowisko może wskazać [suity ewaluacji](evals.md#suites), które go
+**strzegą**. Wtedy przyjmuje wersję dopiero, gdy każdy strażnik przeszedł na
+dokładnie tej wersji, na wersji datasetu, którą suita czyta teraz, i przy
+progu, który ma teraz - zaliczenie sprzed dodania przypadków albo sprzed
+podniesienia progu się nie liczy. Promocja, która tego nie spełnia, jest odrzucana (`409`,
 `PROMOTION_BLOCKED`), a odmowa wymienia każdego strażnika i jego stan: nie
 przeszedł, bez rozstrzygnięcia, nie uruchomił się i dlaczego, jeszcze sprawdza,
 nieaktualny, niesprawdzony albo wstrzymany.
@@ -110,7 +110,7 @@ publikację. To właściwe ustawienie dla `dev` i prawie nigdy właściwe dla
 
 Domyślne wyłączenie jest celowe: publikacja wybija wersję, a decyzja o tym, gdzie
 ta wersja działa, jest osobnym aktem. Sprzęgnięcie ich oznacza, że niedokończona
-edycja dociera do klienta, bo ktoś kliknął Publish, żeby zapisać swoją pracę.
+edycja dociera do klienta, bo ktoś kliknął **Opublikuj** (Publish), żeby zapisać swoją pracę.
 
 Jedynym wyjątkiem jest `production`, które tworzy pierwsza publikacja. Dopóki jest
 jedynym środowiskiem agenta, nie ma skąd promować, więc podąża za publikacjami;
@@ -133,7 +133,7 @@ cotygodniowym raporcie nigdy nie publikuje ponownie strony, którą otwierają
 czytelnicy produkcji. Środowiska z runem, który wciąż pracuje albo czeka na
 akceptację, nie da się usunąć, dopóki run się nie skończy: usunięcie
 przekazałoby ten run domyślnemu środowisku, a jego strony — produkcji. Tak samo
-jest, dopóki eval run w tym środowisku czeka w kolejce albo działa: inaczej
+jest, dopóki run ewaluacji w tym środowisku czeka w kolejce albo działa: inaczej
 szedłby dalej na połączeniach produkcji.
 
 ## Połączenia testowe { #test-connections }
@@ -171,11 +171,11 @@ ustawia. Zapisywane są tylko identyfikatory; klucz testowy zostaje w
 [vault](secrets.md), a wpis audytu zapisuje, ile jest zastąpień, nie to, co
 zawierają.
 
-### W evalu { #in-an-eval }
+### W ewaluacji { #in-an-eval }
 
-Eval uruchamia agenta naprawdę, więc jego narzędzia działałyby naprawdę: agent,
-który wysyła e-maile, wysłałby jeden na każdy przypadek. Run uruchomiony w
-**izolacji** — a tak działa eval — wykonuje narzędzie tylko wtedy, gdy jest to
+Ewaluacja uruchamia agenta naprawdę, więc jego narzędzia działałyby naprawdę:
+agent, który wysyła e-maile, wysłałby jeden na każdy przypadek. Run uruchomiony
+w **izolacji** — a tak działa ewaluacja — wykonuje narzędzie tylko wtedy, gdy jest to
 bezpieczne:
 
 | Narzędzie | Co się dzieje |
@@ -187,7 +187,7 @@ bezpieczne:
 
 Klucz testowy zastępuje poświadczenie, ale URL albo host w konfiguracji
 capability nadal może kierować zapisy na produkcję. Dlatego podmieniony klucz
-pozwala capability zapisywać w evalu tylko wtedy, gdy deklaruje ona
+pozwala capability zapisywać w ewaluacji tylko wtedy, gdy deklaruje ona
 `test_key_isolates`, a [katalog](reference/capabilities.md#what-an-eval-runs)
 wymienia, które to robią.
 
@@ -212,11 +212,11 @@ zapisane jako wymagające zatwierdzenia.
 
 **Testuj** w nagłówku Buildera otwiera czat obok Buildera, a nie nad nim - ten sam
 czat co `/chat`, ze strumieniowaniem, krokami narzędzi, kartami zatwierdzeń i
-pytaniami. Odpowiada jako **szkic**, z nieopublikowanymi zmianami, albo jako wersja
-dowolnego środowiska, i mówi która. Do testu szkicu nic nie trzeba publikować:
-szkic musi przejść te same sprawdzenia co publikacja i uruchomić go może tylko
-osoba, która może edytować agenta. Run zatrzymany na zatwierdzeniu kontynuuje na
-szkicu takim, jaki był na jego początku.
+pytaniami. Odpowiada jako **wersja robocza**, z nieopublikowanymi zmianami, albo
+jako wersja dowolnego środowiska, i mówi która. Do testu wersji roboczej nic nie
+trzeba publikować: wersja robocza musi przejść te same sprawdzenia co publikacja
+i uruchomić ją może tylko osoba, która może edytować agenta. Run zatrzymany na
+zatwierdzeniu kontynuuje na wersji roboczej takiej, jaka była na jego początku.
 
 Każda tura jest tam **runem testowym**: liczonym w budżecie i zapisywanym jak każdy
 inny, oznaczonym `test` w Aktywności i możliwym do odfiltrowania (**With test
@@ -227,10 +227,10 @@ Jego szerokość, to, co odpowiada, i przypięte prompty są zapamiętywane per 
 przeglądarce. Ramka czatu wysyła w każdej turze `draft: true` albo `test: true` z
 `environment_id`.
 
-**Porównaj** stawia dwa czaty obok siebie - szkic i produkcję albo dwa środowiska -
-a pole nad nimi pyta oba o to samo jednocześnie, więc odpowiedzi różnią się tylko
-tym, co odpowiada. **Co zmienia szkic** pokazuje szkic na tle opublikowanej wersji,
-jako ten sam diff, który rysuje historia wersji. Naciśnięcie <kbd>T</kbd> w
+**Porównaj** stawia dwa czaty obok siebie - wersję roboczą i produkcję albo dwa
+środowiska - a pole nad nimi pyta oba o to samo jednocześnie, więc odpowiedzi
+różnią się tylko tym, co odpowiada. **Co zmienia wersja robocza** pokazuje wersję
+roboczą na tle opublikowanej wersji, jako ten sam diff, który rysuje historia wersji. Naciśnięcie <kbd>T</kbd> w
 dowolnym miejscu Buildera, poza polem tekstowym, otwiera albo zamyka panel.
 
 ## Ślady per środowisko { #tracing-per-environment }
@@ -271,12 +271,12 @@ spotykający wersję, której nikt nie wydał.
   publiczny widget mogą serwować różne wersje jednego agenta.
 - **Rollback to przekierowanie**, bo stare wersje pozostają czytelne i
   uruchamialne.
-- Środowisko może być **strzeżone przez suity evali**: wersja trafia na nie
+- Środowisko może być **strzeżone przez suity ewaluacji**: wersja trafia na nie
   dopiero, gdy przejdą na tej wersji, albo z ich pominięciem - z powodem i
   uprawnieniem `promotions:override`.
 - Nazwane środowisko może zastąpić bindingi **połączeniami testowymi**; binding
-  bez takiego połączenia jest tam wyłączony, nigdy nie trafia na produkcję. W evalu
-  narzędzie, które zapisuje i nie ma połączenia testowego, jest **zapisywane, a nie
+  bez takiego połączenia jest tam wyłączony, nigdy nie trafia na produkcję. W
+  ewaluacji narzędzie, które zapisuje i nie ma połączenia testowego, jest **zapisywane, a nie
   uruchamiane**.
 - Środowisko domyślne jest zarządzane przez publikację i celowo nie da się go tu
   edytować.

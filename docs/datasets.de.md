@@ -107,8 +107,8 @@ Datasets öffnet einen einzelnen Fall.
 Das Speichern eines neuen Falls, dessen Frage ein Fall bereits stellt - ohne
 Rücksicht auf Groß- und Kleinschreibung oder Leerraum -, hält an und sagt das,
 mit **Öffnen**, um stattdessen jenen Fall zu lesen, und **Trotzdem
-hinzufügen**, um beide zu behalten. Geprüft wird mit `POST
-/datasets/{id}/cases/twins`, mit der Frage im Body, damit sie nicht in
+hinzufügen**, um beide zu behalten. Geprüft wird mit
+`POST /datasets/{id}/cases/twins`, mit der Frage im Body, damit sie nicht in
 Zugriffsprotokollen landet.
 
 ### Aus einer Datei { #import-and-export }
@@ -314,9 +314,9 @@ Konfiguration auf, mit der er berechnet wurde, sodass ein älterer Score auch
 nach einer Änderung der Konfiguration noch sagt, wie er zustande kam.
 
 Eine Konfiguration, die nichts bewerten könnte, wird abgelehnt: alle Scorer
-ausgeschaltet oder der Judge eingeschaltet ohne ein Kriterium. Ebenso die
+ausgeschaltet oder der Bewerter eingeschaltet ohne ein Kriterium. Ebenso die
 Bewertung eines Falls, an dem keiner der konfigurierten Scorer etwas zu prüfen
-hat - nichts wird gespeichert, und der Judge wird nicht aufgerufen.
+hat - nichts wird gespeichert, und der Bewerter wird nicht aufgerufen.
 
 ### Prüfungen { #checks }
 
@@ -328,7 +328,7 @@ hat - nichts wird gespeichert, und der Judge wird nicht aufgerufen.
 | `json_schema` | `schema`, optional `path` | Die Antwort JSON ist, das dem JSON Schema entspricht |
 | `max_cost_usd` | `value` | Der Run nicht mehr als das gekostet hat |
 | `max_latency_ms` | `value` | Der Run nicht länger als das gedauert hat |
-| `judge` | `criterion` | Der Eval-Judge das Kriterium mit der Bestehensgrenze oder höher bewertet |
+| `judge` | `criterion` | Der Bewerter das Kriterium mit der Bestehensgrenze oder höher bewertet |
 
 `path` liest in eine Antwort hinein, die JSON ist: `items.0.name` ist der Name
 des ersten Elements. Ohne ihn liest eine Regel die ganze Antwort. Textregeln
@@ -344,7 +344,7 @@ verwenden - eine `regex`-Prüfung mit `path` leistet dasselbe unter derselben
 Frist -, und sein `$ref` muss innerhalb des Schemas zeigen.
 
 Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
-Judge-Run wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel
+Run des Bewerters wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel
 nicht ausdrücken kann, etwa „lehnt ab und verrät die Adresse des Kunden nicht“.
 
 ### Erwartete Tool-Aufrufe { #trajectory }
@@ -365,8 +365,8 @@ Umbenennung eines Tools geschrieben wurde, erwartet den alten Namen.
 ### Der Bewerter { #judge }
 
 Ein Bewerter ist ein Agent der Art `judge` (siehe
-[Bewerter](concepts.md#system-agents)). Ein Dataset bewertet mit dem **Eval
-judge**, den die Plattform jeder Organisation hinzufügt, oder mit einem eigenen
+[Bewerter](concepts.md#system-agents)). Ein Dataset bewertet mit dem
+**Eval judge**, den die Plattform jeder Organisation hinzufügt, oder mit einem eigenen
 Bewerter: **Bewerter für dieses Dataset anlegen** auf der Karte Bewerter legt
 einen an, dessen Prompt der des Eval judge mit seinen Bewertungsregeln ist,
 gefolgt von Namen und Beschreibung des Datasets und dem, was der Bewerter laut
@@ -393,8 +393,8 @@ Bewerter zeigt es an.
 
 Ein Bewerter läuft als die Person, die den Score angefordert hat: Ihr Zugriff
 auf ihn wird geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und
-das der Organisation geprüft, und sein Run erscheint in Activity unter der
-Oberfläche `eval`.
+das der Organisation geprüft, und sein Run erscheint in **Aktivität** (Activity)
+unter der Oberfläche `eval`.
 
 Der Bewerter erhält die Notiz des Falls als Grund, warum es den Fall gibt, seine
 früheren Züge und die Frage, die Referenzantwort, wenn sie bewertet wird, das
@@ -456,7 +456,7 @@ Ergebnis eines solchen Runs, das an einen früheren Bewerter-Prompt gebunden ist
 dessen Bewertung sich nicht mit dem Rest des Runs vergleichen ließe; dann wird
 nichts bewertet.
 
-Eine für sich bewertete Antwort, aus dem Chat oder aus Activity, hat keinen Run,
+Eine für sich bewertete Antwort, aus dem Chat oder aus **Aktivität**, hat keinen Run,
 mit dem sie sich vergleichen müsste: Sie wird von der jetzt veröffentlichten
 Version bewertet, und ihr Pin nennt diese Version. Ein Ergebnis wird gebunden,
 ob sein Bewerter bewertet hat oder gescheitert ist, also bleibt ein
@@ -471,7 +471,7 @@ Was eine Bewertung stützt, macht sie nie ungültig: Ein leeres oder zu langes
 Zitat wird verworfen, Zitate über zwölf und eine Regel über 300 Zeichen werden
 gekürzt, und nur eine fehlende Kriteriums-ID oder Note macht ein Urteil
 unlesbar. Ein mehrfach bewertetes Kriterium ist ein Fehler, nicht die zuletzt
-gekommene Note. Der Run des Bewerters in Activity nennt die Felder, die sich
+gekommene Note. Der Run des Bewerters in **Aktivität** nennt die Felder, die sich
 nicht lesen ließen, nie die Antwort selbst, die einen Fall eines Datasets
 wiederholen kann, das sein Leser nicht sehen darf.
 
@@ -503,7 +503,7 @@ Falls nie verdrängt. Der ersetzte verlässt die Warteschlange unentschieden und
 bleibt ein Score; sonst behält der wartende seinen Platz, und der geschickte
 wird nicht eingereiht. Ein entschiedener Score wird nie angetastet.
 
-Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
+Ein Score, der von Hand aus **Aktivität** angefordert wurde, folgt der Einstellung
 **Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,
 jedes Ergebnis, das nicht bestanden hat, oder jedes Ergebnis. Ein bereits
 entschiedener Score bleibt entschieden.
@@ -564,7 +564,7 @@ danach bewertete Antwort, daher wird keines davon im Dialog geändert.
 | Seine Scores zu lesen | `datasets:view` darauf |
 | Scores zur Prüfung zu schicken, eine Prüfentscheidung festzuhalten oder zurückzuziehen | `datasets:edit` darauf |
 
-Eine Begründung, die der Judge geschrieben hat, durchläuft vor dem Speichern
+Eine Begründung, die der Bewerter geschrieben hat, durchläuft vor dem Speichern
 dieselbe Schwärzung von Zugangsdaten wie ein Fall.
 
 Damit ein Agent jeden Fall einer Version in einem Durchgang beantwortet, jede

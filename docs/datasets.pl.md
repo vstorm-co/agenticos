@@ -61,7 +61,7 @@ wygenerowanych przypadków tworzą nową **wersję** datasetu, numerowaną od 1.
 utworzeniu. Edytowany przypadek jest zapisywany jako nowa rewizja, a wersja
 sprzed edycji nadal trzyma poprzednią.
 
-Ma to znaczenie przy porównywaniu wyników. Dwa runy eval na tej samej wersji
+Ma to znaczenie przy porównywaniu wyników. Dwa runy ewaluacji na tej samej wersji
 widziały te same pytania, więc różnica w wynikach pochodzi od agenta, a nie od
 testu. Strona datasetu domyślnie pokazuje najnowszą wersję; starszą wybierasz z
 listy wersji. Starsza wersja jest tylko do odczytu.
@@ -194,7 +194,7 @@ między źródła:
 |---|---|---|
 | Z agenta | Typowe prośby i przypadki brzegowe, z wywołaniami narzędzi, które coś zmieniają, wykonywanymi przez dobrą odpowiedź - narzędzie, które tylko czyta, nigdy nie jest oczekiwane, tak jak w przypadku dodanym z odpowiedzi | Instrukcje agenta, te jego skille, które możesz zobaczyć, i jego narzędzia, pod nazwami, które nadaje im agent |
 | Z wiedzy | Pytania, na które odpowiada baza wiedzy. Każdy przypadek wskazuje dokument, z którego pochodzi fragment, trzyma ten fragment jako odpowiedź wzorcową i ma sprawdzenie `judge`, że odpowiedź zgadza się z fragmentem | Fragmenty z najwyżej 12 zaindeksowanych dokumentów baz wiedzy, których używa agent i które możesz czytać |
-| Z czatów | Parafrazy i trudniejsze warianty tego, o co ludzie pytali agenta, najpierw odpowiedzi ocenione łapką w dół. Każdy przypadek wskazuje pytanie, które wariantuje | Najwyżej 60 pytań zadanych agentowi w tej organizacji, z komentarzem zostawionym przy odpowiedzi ocenionej łapką w dół. Tylko ruch produkcyjny: runy eval i runy uruchomione w izolacji odpowiadały na test, a nie człowiekowi, i są pomijane |
+| Z czatów | Parafrazy i trudniejsze warianty tego, o co ludzie pytali agenta, najpierw odpowiedzi ocenione łapką w dół. Każdy przypadek wskazuje pytanie, które wariantuje | Najwyżej 60 pytań zadanych agentowi w tej organizacji, z komentarzem zostawionym przy odpowiedzi ocenionej łapką w dół. Tylko ruch produkcyjny: runy ewaluacji i runy uruchomione w izolacji odpowiadały na test, a nie człowiekowi, i są pomijane |
 | Red team | Prośby spoza zakresu, wstrzykiwanie promptów, próby wydobycia danych osobowych i obejścia zasad agenta. Każdy przypadek ma tagi `red-team` i `red-team:<kategoria>` oraz sprawdzenie `judge`, że agent odmawia | Instrukcje agenta, te jego skille, które możesz zobaczyć, i jego narzędzia |
 
 **Najpierw szacowany koszt.** Okno pokazuje, o ile przypadków zostanie
@@ -308,7 +308,7 @@ nic nie jest zapisywane, a sędzia nie jest wywoływany.
 | `json_schema` | `schema`, opcjonalnie `path` | Odpowiedź to JSON zgodny z JSON Schema |
 | `max_cost_usd` | `value` | Run kosztował nie więcej niż tyle |
 | `max_latency_ms` | `value` | Run trwał nie dłużej niż tyle |
-| `judge` | `criterion` | Sędzia evali ocenia kryterium na progu zaliczenia lub wyżej |
+| `judge` | `criterion` | Sędzia ewaluacji ocenia kryterium na progu zaliczenia lub wyżej |
 
 `path` sięga do wnętrza odpowiedzi, która jest JSON-em: `items.0.name` to nazwa
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
@@ -368,7 +368,7 @@ model; karta Sędzia go pokazuje.
 
 Sędzia działa jako osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do
 niego, przed wywołaniem modelu sprawdzany jest jego własny budżet i budżet
-organizacji, a jego run pojawia się w Activity pod powierzchnią `eval`.
+organizacji, a jego run pojawia się w Aktywności pod powierzchnią `eval`.
 
 Sędzia dostaje notatkę przypadku jako powód, dla którego przypadek istnieje,
 jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
@@ -427,7 +427,7 @@ nowo od czasu, gdy zawiódł, albo wynik takiego runu przypięty do wcześniejsz
 promptu sędziego, bo jego ocena nie byłaby porównywalna z resztą runu; wtedy nic
 nie jest oceniane.
 
-Odpowiedź oceniona osobno, z czatu albo z Activity, nie ma runu, z którym trzeba
+Odpowiedź oceniona osobno, z czatu albo z Aktywności, nie ma runu, z którym trzeba
 ją porównać: ocenia ją wersja opublikowana teraz, a jej pin wskazuje tę wersję.
 Wynik jest przypinany niezależnie od tego, czy sędzia ocenił, czy zawiódł, więc
 nieudany trzyma się wersji i promptu, przy których zawiódł.
@@ -440,7 +440,7 @@ To, co uzasadnia ocenę, nigdy jej nie unieważnia: pusty albo za długi cytat j
 pomijany, cytaty ponad dwanaście i reguła ponad 300 znaków są przycinane, a
 werdykt jest nieczytelny tylko bez identyfikatora kryterium albo oceny.
 Kryterium ocenione więcej niż raz jest błędem, a nie tą oceną, która przyszła
-ostatnia. Run sędziego w Activity mówi, których pól nie dało się odczytać, nigdy
+ostatnia. Run sędziego w Aktywności mówi, których pól nie dało się odczytać, nigdy
 samą odpowiedź, która może powtarzać przypadek datasetu, którego czytający nie
 widzi.
 
@@ -470,7 +470,7 @@ nierozstrzygnięty i zostaje zwykłym wynikiem; w przeciwnym razie czekający
 zostaje na miejscu, a wysłany nie trafia do kolejki. Wyniku rozstrzygniętego nic
 nie rusza.
 
-Wynik, o który poproszono ręcznie z Activity, podlega ustawieniu **Przegląd
+Wynik, o który poproszono ręcznie z Aktywności, podlega ustawieniu **Przegląd
 przez człowieka** datasetu: nic, dopóki ktoś czegoś nie wyśle, każdy wynik,
 który nie zaliczył, albo każdy wynik. Wynik już rozstrzygnięty pozostaje
 rozstrzygnięty.
@@ -534,7 +534,7 @@ redakcję poświadczeń co przypadek.
 
 Żeby agent odpowiedział na każdy przypadek wersji, każda odpowiedź została
 oceniona za jednym razem, a wynik porównany z wcześniejszą wersją, uruchom
-[eval run](evals.md).
+[run ewaluacji](evals.md).
 
 ## Dostęp { #access }
 
@@ -548,7 +548,7 @@ uprawnienia dla datasetów:
 |---|---|---|
 | `datasets:view` | Czytać przypadki i wersje datasetu oraz je eksportować | `read` |
 | `datasets:edit` | Tworzyć datasety, zmieniać przypadki, importować, usuwać, udostępniać | `edit` |
-| `datasets:run` | Uruchamiać evale na datasecie | `use` |
+| `datasets:run` | Uruchamiać ewaluacje na datasecie | `use` |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|

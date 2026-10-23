@@ -168,7 +168,7 @@ bestehen.
 
 **Fehlenden Inhalt entwerfen** in einem geöffneten Thema bittet ein Modell, die
 Passage oder den FAQ-Eintrag zu schreiben, der der Wissensbasis fehlt. Das ist
-ein Run des **Knowledge gap drafter**, eines
+ein Run des **Lücken-Entwerfers** (Knowledge gap drafter), eines
 [System-Agents](concepts.md#system-agents), den jede Organisation hat. Er sieht
 die 20 neuesten Fragen des Themas: was jede Person gefragt hat, wonach der Agent
 gesucht und was er gefunden hat, welche Antwort die Person bekam und jeden
@@ -179,9 +179,9 @@ seinem Run. Du kannst ihn kopieren oder als Markdown herunterladen. Er wird nie
 der Wissensdatenbank hinzugefügt. Der Entwerfer kennt die Fakten deines Unternehmens nicht: Wo eine
 Antwort eine Zahl, ein Datum oder eine Regel braucht, schreibt er einen
 Platzhalter in eckigen Klammern, den du ausfüllst. Ein neuer Entwurf ersetzt den
-alten. Wer den Drafter bearbeiten darf, findet am Entwurf **Anweisungen des
-Drafters bearbeiten** und den Drafter selbst unter **System-Agents** auf der
-Seite Agents.
+alten. Wer den Lücken-Entwerfer bearbeiten darf, findet am Entwurf
+**Anweisungen des Lücken-Entwerfers bearbeiten** (Edit the drafter's instructions)
+und den Entwerfer selbst unter **System-Agents** auf der Seite Agents.
 
 Ein Entwurf nennt seine Quellen: die Dokumente der Wissensbasis, auf die er
 sich stützt, und die Fragen des Themas, die er beantwortet. Jede wird geprüft,
@@ -195,14 +195,14 @@ Organisation die [KI-Unterstützung](governance.md#ai-assistance) ausgeschaltet
 hat, und das ist sie, bis jemand mit `org:settings` sie einschaltet; bis dahin
 sagt das Thema es, mit einem Link zum Schalter für den, der ihn ändern darf. Vor
 dem Modellaufruf werden das Budget des Entwerfers und das der
-Organisation geprüft, und seine Kosten erscheinen in Activity. Das Gruppieren
+Organisation geprüft, und seine Kosten erscheinen in **Aktivität** (Activity). Das Gruppieren
 von Fragen zu Themen lässt kein Modell etwas schreiben und läuft deshalb
 unabhängig vom Schalter.
 
 ## Zugriff { #access }
 
 Ein Thema besteht aus den Fragen von Menschen, daher braucht das Lesen von
-Lücken `runs:view`, die Berechtigung, die in Activity jeden Run der
+Lücken `runs:view`, die Berechtigung, die in **Aktivität** jeden Run der
 Organisation liest. Ein Mitglied ohne sie sieht weder den Tab noch das Widget,
 und die API verweigert ihm den Zugriff.
 
@@ -212,7 +212,7 @@ und die API verweigert ihm den Zugriff.
 | Die Lücken eines Agents zu lesen | `runs:view` und `agents:view` auf dem Agent; Themen von Wissensdatenbanken, die du nicht lesen darfst, werden ausgelassen |
 | Zu verwerfen, wieder zu öffnen oder neu zu gruppieren | `runs:view` und `collections:edit` auf der Wissensdatenbank, aus deiner Rolle oder einem Bearbeitungs-Grant darauf |
 | Ein Thema zu einem Dataset hinzuzufügen | `runs:view` und `datasets:edit` auf dem Dataset |
-| Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
+| Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Lücken-Entwerfer (Knowledge gap drafter) |
 | Antworten zu prüfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap classifier |
 
 Eine Prüfung der Antworten läuft später mit deiner Rolle, also startest du sie

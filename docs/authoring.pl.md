@@ -11,14 +11,14 @@ ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach
 agenta, w nazwach i opisach jego narzędzi, w jego
 [konfiguracji](#configuration) oraz w skillach i plikach kontekstowych, których
 używa. Nigdy niczego nie zmienia sam: każda sugestia czeka na człowieka, przyjęta trafia do
-[draftu](concepts.md), a nic nie dociera do nikogo, dopóki draft nie zostanie
-opublikowany.
+[wersji roboczej](concepts.md), a nic nie dociera do nikogo, dopóki wersja
+robocza nie zostanie opublikowana.
 
 Robi trzy rzeczy:
 
 - **Ulepsza** agenta: sugeruje zmiany na podstawie jego negatywnie ocenionych i
   nieudanych runów.
-- **Sprawdza** Twoje zmiany: porównuje draft z opublikowaną wersją na tych samych
+- **Sprawdza** Twoje zmiany: porównuje wersję roboczą z opublikowaną wersją na tych samych
   dowodach i mówi, co zmiany poprawiają, czym ryzykują i co usunęły.
 - **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
   runów, które go czytały.
@@ -26,7 +26,7 @@ Robi trzy rzeczy:
 Asystent jest osobnym [agentem systemowym](datasets.md#judge), widocznym razem z
 pozostałymi agentami systemowymi organizacji. Jego instrukcje można edytować jak
 instrukcje każdego agenta, a jego runy są zwykłymi runami: objęte budżetem,
-wycenione i widoczne w Activity.
+wycenione i widoczne w **Aktywności** (Activity).
 
 ## Co czyta { #what-it-reads }
 
@@ -41,10 +41,10 @@ ostatnich 30 dni:
 Udany run bez oceny nie mówi niczego i nie jest czytany. Nie jest też czytany
 test z panelu testowego Buildera ani run delegata.
 
-**Nigdy nie czyta evali.** Runy, które odpowiadały na przypadek
-[evala](evals.md), runy sędziego i własne runy asystenta są pomijane, a wyników
-ocen nie widzi nigdy. Zmiana sprawdzana evalami nie może być dopasowana do
-przypadków, które ją sprawdzają.
+**Nigdy nie czyta ewaluacji.** Runy, które odpowiadały na przypadek
+[ewaluacji](evals.md), runy sędziego i własne runy asystenta są pomijane, a
+wyników ocen nie widzi nigdy. Zmiana sprawdzana ewaluacją nie może być
+dopasowana do przypadków, które ją sprawdzają.
 
 Gdy do przeczytania jest więcej, niż mieści jedno zapytanie, runy są najpierw
 czytane grupami, a sugestie powstają z tego, co pokazała każda grupa.
@@ -67,26 +67,27 @@ nie jest pokazywane.
 
 ## Sugestie { #suggestions }
 
-Ulepsz i Sprawdź otwierają **pasek asystenta** na zakładce Build agenta. Każda
+Ulepsz i Sprawdź otwierają **pasek asystenta** na zakładce **Budowa** (Build)
+agenta. Każda
 sugestia pokazuje zmieniany fragment w jego otoczeniu, powód i dowody, a o
 każdej decyduje się osobno:
 
 | Akcja | Co się dzieje |
 |---|---|
-| **Przyjmij** | Zmiana trafia do draftu. Nic nie jest publikowane. |
+| **Przyjmij** | Zmiana trafia do wersji roboczej. Nic nie jest publikowane. |
 | **Edytuj** | Zamiast sugestii przyjmowane jest Twoje sformułowanie. |
 | **Odrzuć** | Zapisane; późniejsze zlecenie nie zasugeruje tego ponownie. |
-| **Cofnij** | Odwraca decyzję, dopóki pasuje ona do draftu. |
+| **Cofnij** | Odwraca decyzję, dopóki pasuje ona do wersji roboczej. |
 
 Sugestia jest zakotwiczona w miejscu, w którym był jej fragment, i w tym, co go
 otaczało, a nie w samym tekście, więc linia, która występuje dwa razy, jest
-zmieniana tam, gdzie miała być. Jeśli draft poszedł dalej - fragment został
-usunięty albo opis narzędzia zmieniony ręcznie - sugestia mówi, że **nie pasuje
-już do draftu**, i można ją tylko odrzucić. Cofnij odmawia tak samo, gdy
+zmieniana tam, gdzie miała być. Jeśli wersja robocza poszła dalej - fragment
+został usunięty albo opis narzędzia zmieniony ręcznie - sugestia mówi, że **nie
+pasuje już do wersji roboczej**, i można ją tylko odrzucić. Cofnij odmawia tak samo, gdy
 przyjęty tekst został potem zmieniony ręcznie: wyrzuciłoby to tę zmianę.
 
 Nowsze Ulepsz zastępuje oczekujące sugestie; Sprawdź dodaje do nich swoje.
-Opublikowanie draftu je zamyka: decyzje stają się ostateczne, a pasek zachowuje
+Opublikowanie wersji roboczej je zamyka: decyzje stają się ostateczne, a pasek zachowuje
 je jako zapis.
 
 Zmiana zaproponowana przez asystenta, której nie da się zapisać, nie znika po
@@ -95,19 +96,20 @@ powodem: fragmentu, który zmienia, nie ma w instrukcjach albo występuje więce
 niż raz, agent nie ma takiego narzędzia, tego ustawienia asystent nie może
 zmieniać. Worker loguje te same powody. Fragment skopiowany z wyprostowanymi
 cudzysłowami, bez backticków albo ze złączonymi liniami nadal trafia na tekst
-draftu.
+wersji roboczej.
 
-### Sprawdź evalami { #check-with-evals }
+### Sprawdź w ewaluacji { #check-with-evals }
 
-**Sprawdź evalami** uruchamia [dataset](datasets.md) na drafcie takim, jaki byłby
-po przyjęciu wszystkich oczekujących sugestii, obok opublikowanej wersji w tym
-samym [eval runie](evals.md#a-baseline-in-the-same-run). Sprawdzenie niczego nie
-przyjmuje i nie zmienia draftu. Dopóki któraś oczekująca sugestia nie pasuje
-już do draftu albo koliduje z inną, sprawdzenia nie da się uruchomić, dopóki
+**Sprawdź w ewaluacji** (Check with evals) uruchamia [dataset](datasets.md) na
+wersji roboczej takiej, jaka byłaby po przyjęciu wszystkich oczekujących
+sugestii, obok opublikowanej wersji w tym samym
+[runie ewaluacji](evals.md#a-baseline-in-the-same-run). Sprawdzenie niczego nie
+przyjmuje i nie zmienia wersji roboczej. Dopóki któraś oczekująca sugestia nie
+pasuje już do wersji roboczej albo koliduje z inną, sprawdzenia nie da się uruchomić, dopóki
 nie zostanie przyjęta lub odrzucona: run mierzy dokładnie to, co czeka.
 
 Zamiast datasetu sprawdzenie może uruchomić jedną z [suit](evals.md#suites)
-agenta: jej dataset, w jej środowisku. Run porównuje draft z opublikowaną
+agenta: jej dataset, w jej środowisku. Run porównuje wersję roboczą z opublikowaną
 wersją tak jak każde sprawdzenie, a gdy się zakończy, mówi też, jak oceniłaby go
 suita: zaliczona, niezaliczona albo bez rozstrzygnięcia, i dlaczego, według
 progu, jaki suita miała w chwili startu sprawdzenia. Widać to na runie i przy
@@ -121,7 +123,7 @@ Przypadki wzięte z rozmów, z których wzięły się sugestie, są pomijane, a 
 podaje ich liczbę: zmiany nigdy nie mierzy się na danych, do których ją
 dopasowano. Dataset złożony wyłącznie z takich przypadków jest odrzucany.
 
-Każda sugestia podaje oczekiwany efekt. Pasek pokazuje go obok eval runów, które
+Każda sugestia podaje oczekiwany efekt. Pasek pokazuje go obok runów ewaluacji, które
 sprawdzały sugestie, więc możesz porównać przewidywanie z tym, co wykazały runy.
 
 ## Konfiguracja { #configuration }
@@ -144,7 +146,7 @@ serwera MCP, do którego się odnosi, nigdy przez identyfikator.
 | Pliki kontekstowe | Podpiąć albo odpiąć jeden |
 | Narzędzia MCP | Zmienić, które narzędzia podpiętego serwera agent może wywołać |
 
-Nic poza tym nie jest sugestią: zestawy evali i ich progi, datasety, budgety,
+Nic poza tym nie jest sugestią: suity ewaluacji i ich progi, datasety, budgety,
 obserwowalność i przypięty delegat nigdy nie są zmieniane przez asystenta.
 **Edytuj** działa na pojedynczej wartości albo tekście - ustawieniu, limicie
 kroków, opisie; wszystko inne przyjmuje się albo odrzuca tak, jak zasugerowano.
@@ -168,7 +170,7 @@ wycenione na podstawie ostatnich runów agenta. Gdy wycena opiera się na mniej
 niż pięciu, mówi, że to przybliżone oszacowanie, i z ilu runów.
 
 Zmianę modelu przyjmuje się dopiero, gdy się opłaciła. **Przyjmij** pozostaje
-wyłączone i mówi dlaczego, dopóki [sprawdzenie evalami](#check-with-evals)
+wyłączone i mówi dlaczego, dopóki [sprawdzenie w ewaluacji](#check-with-evals)
 czekających sugestii nie przejdzie na tym modelu bez potwierdzonej regresji.
 Sprawdzenie, które niczego nie rozstrzygnęło - odpowiedź bez oceny albo brak
 werdyktu - też ją wstrzymuje: oceń odpowiedzi albo uruchom sprawdzenie ponownie.
@@ -181,7 +183,7 @@ Skille, z uzasadnieniem i dowodami.
 
 Zastosowanie zmiany skilla działa od razu: każdy agent powiązany ze skillem
 czyta nową treść przy następnym runie. Dlatego zmianę skilla można najpierw
-sprawdzić evalami na agencie, który go używa: obie strony uruchamiają
+sprawdzić w ewaluacji na agencie, który go używa: obie strony uruchamiają
 opublikowaną wersję tego agenta, a różni się tylko treść skilla. Zmiana
 napisana dla starszej wersji skilla jest odrzucana, jeśli ktoś w międzyczasie
 zmienił skill.
@@ -196,7 +198,7 @@ zmiana.
 
 Zastosowanie jej działa od razu, jak w przypadku skilla: każdy agent podpięty do
 pliku czyta nową treść przy swoim następnym runie. Dlatego można ją najpierw
-sprawdzić evalami, na agencie, który używa pliku, gdzie różni się tylko treść
+sprawdzić w ewaluacji, na agencie, który używa pliku, gdzie różni się tylko treść
 pliku. Zmiany nie da się zastosować do pliku edytowanego po tym, jak ją
 zaproponowano: porównaj obie wersje i edytuj plik ręcznie albo poproś asystenta
 ponownie.
@@ -204,8 +206,8 @@ ponownie.
 ## Opisanie nowego agenta { #describing-a-new-agent }
 
 Dialog tworzenia pozwala opisać agenta zamiast wypełniać formularz. Opis trafia
-do [Architekta](console.md#the-assistant), który tworzy drafty agentów i pyta,
-zanim któryś utworzy; wynikiem jest zwykły draft.
+do [Architekta](console.md#the-assistant), który tworzy wersje robocze agentów i
+pyta, zanim którąś utworzy; wynikiem jest zwykła wersja robocza.
 
 ## Koszt i budżet { #cost-and-budget }
 
@@ -216,7 +218,7 @@ agenta. Zlecenie, które kosztowałoby więcej, niż zostało asystentowi albo
 organizacji, jest odrzucane, zanim cokolwiek zostanie zapisane.
 
 Na dashboardzie linia wydatków podaje osobno, ile asystent kosztował **na
-ulepszenia**, niezależnie od kosztu evali.
+ulepszenia**, niezależnie od kosztu ewaluacji.
 
 ## Dostęp { #access }
 
@@ -229,7 +231,7 @@ ulepszenia**, niezależnie od kosztu evali.
 | Przyjąć sugestię, która coś podpina albo do czegoś sięga | Także dostępu, by podpiąć to ręcznie |
 | Zastosować albo odrzucić zmianę skilla | `skills:edit` na skillu |
 | Zastosować albo odrzucić zmianę pliku kontekstowego | `context:edit` na pliku |
-| Sprawdzić evalami | Tego, czego wymaga [eval run](evals.md#access), i uprawnień edycji agenta |
+| Sprawdzić w ewaluacji | Tego, czego wymaga [run ewaluacji](evals.md#access), i uprawnień edycji agenta |
 
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego
 agenta.
@@ -240,5 +242,5 @@ Gdy przełącznik **wsparcia AI** organizacji jest wyłączony, asystent nie dzi
 Ulepsz, Sprawdź i ulepszanie skilla albo pliku kontekstowego są odrzucane przez
 serwer, a konsola
 pokazuje je jako wyłączone z linkiem do przełącznika. Sugestie, które już
-czekają, nadal można przyjmować, odrzucać i cofać, a eval run, który nie
+czekają, nadal można przyjmować, odrzucać i cofać, a run ewaluacji, który nie
 potrzebuje sędziego, nadal działa.
