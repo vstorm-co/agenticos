@@ -78,7 +78,10 @@ export function VerdictHeadline({
   const locale = useLocale();
   const { baseline, verdict, overall } = comparison;
   const to = percent(comparison.candidate_summary.pass_rate, locale);
-  const values = { candidate: sideName(candidate, tSide), dataset: run.dataset_name };
+  const values = {
+    candidate: sideName(candidate, tSide, run.proposal_check),
+    dataset: run.dataset_name,
+  };
   if (baseline === null || verdict === null) {
     return <span className="block">{t("first", { ...values, rate: to })}</span>;
   }

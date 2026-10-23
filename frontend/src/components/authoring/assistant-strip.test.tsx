@@ -26,7 +26,7 @@ vi.mock("@/hooks/use-organizations", () => ({
   useAiAssistance: () => ({ orgId: "org-1", enabled: state.enabled }),
 }));
 vi.mock("@/hooks", () => ({
-  useAgentVersion: () => ({ version: state.published }),
+  useDraftBase: () => ({ base: state.published }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
@@ -68,7 +68,6 @@ function strip(persist = vi.fn().mockResolvedValue(true), onDraft = vi.fn()) {
   render(
     <AssistantStrip
       agentId="agent-1"
-      currentVersionId="v1"
       storedDraft={DRAFT}
       canCheck
       persist={persist}
@@ -155,7 +154,6 @@ describe("AssistantStrip", () => {
     const { unmount } = render(
       <AssistantStrip
         agentId="agent-1"
-        currentVersionId="v1"
         storedDraft={DRAFT}
         canCheck
         persist={vi.fn()}
@@ -194,7 +192,6 @@ describe("AssistantStrip", () => {
       const result = render(
         <AssistantStrip
           agentId="agent-1"
-          currentVersionId={null}
           storedDraft={DRAFT}
           canCheck
           persist={vi.fn()}
@@ -219,7 +216,6 @@ describe("AssistantStrip", () => {
     const { unmount } = render(
       <AssistantStrip
         agentId="agent-1"
-        currentVersionId="v1"
         storedDraft={DRAFT}
         canCheck
         persist={vi.fn()}
