@@ -136,11 +136,17 @@ async def get_open_batch(
 async def latest_batch(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID
 ) -> SpecProposalBatch | None:
+    """The agent's newest batch a person has been shown.
+
+    An improvement session's candidate stays out until the session makes it the
+    open batch: until then its hunks are still being checked.
+    """
     result = await db.execute(
         select(SpecProposalBatch)
         .where(
             SpecProposalBatch.organization_id == organization_id,
             SpecProposalBatch.agent_id == agent_id,
+            SpecProposalBatch.status != BatchStatus.CANDIDATE.value,
         )
         .order_by(SpecProposalBatch.created_at.desc())
         .limit(1)
