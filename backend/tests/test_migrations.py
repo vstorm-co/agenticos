@@ -417,7 +417,7 @@ class TestReviewQueueKey:
 
     def test_each_agent_keeps_one_waiting_score_of_a_case_and_the_rest_leave(self):
         assert _alembic("downgrade", "base").returncode == 0
-        up = _alembic("upgrade", "0173_eval_job_pool")
+        up = _alembic("upgrade", "0180_improvement_sessions")
         assert up.returncode == 0, up.stderr
 
         org, dataset, case, revision = (
@@ -517,5 +517,5 @@ class TestReviewQueueKey:
         }
         assert "2 duplicate scores waiting for review left the queue undecided" in up.stderr
 
-        down = _alembic("downgrade", "0173_eval_job_pool")
+        down = _alembic("downgrade", "0180_improvement_sessions")
         assert down.returncode == 0, down.stderr
