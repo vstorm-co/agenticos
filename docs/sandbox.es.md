@@ -1,5 +1,5 @@
 ---
-source_sha: "7185172468f4"
+source_sha: "ca5cf18cee63"
 ---
 
 # La sandbox { #the-sandbox }
@@ -82,7 +82,8 @@ Una publicación rechazada por falta de sandbox ofrece una corrección junto al
 motivo. **Switch the workspace to Files** reescribe el borrador sobre el workspace
 `state`, lo guarda y lo comprueba de nuevo. **Stop sharing what this agent cannot
 share** hace lo mismo con una lista de compartición de la delegación que nombra una
-capability que el agent ya no tiene. Ninguna publica: eso sigue siendo un clic
+capability que el agent ya no tiene, y quita también `subagents`, que un delegado
+nunca hereda. Ninguna publica: eso sigue siendo un clic
 aparte. Los códigos llegan en `details.fixes` del rechazo (ver
 [arquitectura](architecture.md#a-refusal-that-names-a-field)).
 

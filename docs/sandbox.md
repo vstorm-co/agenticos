@@ -74,8 +74,8 @@ agent starts on `state`. An agent that is already saved keeps its spec.
 A publish refused for want of a sandbox offers a fix beside the reason.
 **Switch the workspace to Files** rewrites the draft onto the `state` workspace,
 saves it and checks it again. **Stop sharing what this agent cannot share** does the
-same for a delegation share list that names a capability the agent no longer holds.
-Neither publishes: that stays a click of its own. The codes travel in the refusal's
+same for a delegation share list that names a capability the agent no longer holds,
+and drops `subagents` from it too, which a delegate never inherits. Neither publishes: that stays a click of its own. The codes travel in the refusal's
 `details.fixes` (see [architecture](architecture.md#a-refusal-that-names-a-field)).
 
 ## A session, and what shares one

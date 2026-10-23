@@ -1,5 +1,5 @@
 ---
-source_sha: "7185172468f4"
+source_sha: "ca5cf18cee63"
 ---
 
 # Sandbox { #the-sandbox }
@@ -81,7 +81,8 @@ Publikacja odrzucona z braku sandboxa proponuje poprawkę obok powodu.
 **Przełącz workspace na Pliki** przepisuje wersję roboczą na workspace `state`,
 zapisuje ją i sprawdza ponownie. **Przestań udostępniać to, czego ten agent nie
 może udostępnić** robi to samo z listą udostępniania delegacji, która nazywa
-capability, której agent już nie ma. Żadna z nich nie publikuje: to pozostaje
+capability, której agent już nie ma, i usuwa z niej też `subagents`, którego delegat
+nigdy nie dziedziczy. Żadna z nich nie publikuje: to pozostaje
 osobnym kliknięciem. Kody przychodzą w `details.fixes` odmowy (zob.
 [architekturę](architecture.md#a-refusal-that-names-a-field)).
 

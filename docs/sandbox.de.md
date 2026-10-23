@@ -1,5 +1,5 @@
 ---
-source_sha: "7185172468f4"
+source_sha: "ca5cf18cee63"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -84,8 +84,8 @@ Eine Veröffentlichung, die mangels Sandbox abgelehnt wird, bietet neben dem Gru
 eine Korrektur an. **Workspace auf Dateien umstellen** schreibt den Entwurf auf den
 Workspace `state` um, speichert ihn und prüft ihn erneut. **Nicht mehr teilen, was
 dieser Agent nicht teilen kann** tut dasselbe für eine Teilen-Liste der Delegation,
-die eine Capability nennt, die der Agent nicht mehr hat. Keine von beiden
-veröffentlicht: Das bleibt ein eigener Klick. Die Codes kommen in `details.fixes`
+die eine Capability nennt, die der Agent nicht mehr hat, und streicht daraus auch
+`subagents`, das ein Delegat nie erbt. Keine von beiden veröffentlicht: Das bleibt ein eigener Klick. Die Codes kommen in `details.fixes`
 der Ablehnung (siehe [Architektur](architecture.md#a-refusal-that-names-a-field)).
 
 ## Eine Session, und was sich eine teilt { #a-session-and-what-shares-one }
