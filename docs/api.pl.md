@@ -1,5 +1,5 @@
 ---
-source_sha: "605bfd669efa"
+source_sha: "94a25d5d5895"
 ---
 
 # API HTTP { #the-http-api }
@@ -129,6 +129,17 @@ tylko następne żądanie HTTP.
 Odświeżenie nie zaczyna nowej sesji — refresh token rotuje w miejscu, a access
 token dalej nazywa tę samą sesję — więc długo żyjące połączenie nie zostaje
 przerwane przez rutynowe odświeżenie.
+
+### Praca, która działa po żądaniu { #work-that-runs-after-the-request }
+
+[Eval run](evals.md) albo żądanie do [asystenta tworzenia](authoring.md)
+rozpoczęte kluczem wykonuje się później, w tle, i nie robi więcej, niż ten klucz
+mógłby zrobić w chwili, gdy praca się zaczyna. Worker odtwarza wtedy uprawnienia
+klucza w ich ówczesnym stanie: uprawnienie odebrane w międzyczasie przepada, rola,
+którą wydający w międzyczasie stracił, też, a klucz unieważniony, wygasły albo
+usunięty w międzyczasie zatrzymuje pracę, z powodem zapisanym na runie albo
+żądaniu. Praca rozpoczęta z zalogowanej sesji działa z rolą osoby, która ją
+rozpoczęła, w jej ówczesnym stanie.
 
 ## Nagłówek organizacji { #the-organization-header }
 
