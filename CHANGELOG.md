@@ -25,6 +25,13 @@ Two things are versioned separately from this file and worth knowing about:
   agents, newest first, a page at a time, each opening its verdict. The
   dashboard's Eval runs card opens it from **See all**. `GET /eval-runs/recent`
   takes `skip` and answers the total it pages through.
+- **Agents that need attention (#2382).** A card on the personal dashboard
+  lists the agents with answers rated down, failed runs or a failing eval suite
+  in the period, each with an **Improve** link for a reader who may edit it. The
+  Agents gallery marks the same agents over the last 30 days with a **Needs
+  attention** badge. Both read `GET /stats/attention`, which needs `runs:view`
+  and counts only the runs that served somebody - not a Builder test, an eval
+  case or a delegate - and an answer rated down by two people once.
 
 ### Changed
 
