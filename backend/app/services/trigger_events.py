@@ -181,13 +181,23 @@ def _gmail_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> boo
         return False
     if parsed.sender_contains is not None and parsed.sender_contains.casefold() not in sender:
         return False
+    labels = [str(one) for one in payload.get("labels") or []]
+    # Gmail's history reports every message added to the mailbox, its own sends
+    # and drafts and spam included. None of those is mail that arrived for the
+    # agent: a reply the agent itself sends would fire the trigger again, a loop,
+    # and spam would hand anyone who can send an email a run. Only a trigger that
+    # names one of these labels asks for it.
+    if parsed.label not in _GMAIL_NOT_ARRIVALS and _GMAIL_NOT_ARRIVALS.intersection(labels):
+        return False
     # Gmail's own label, matched exactly rather than as a substring: they are
     # identifiers the API answers with (`INBOX`, `IMPORTANT`, `Label_8`), not prose,
     # so a substring would make `Work` match `Workshop`.
     if parsed.label is None:
         return True
-    labels = [str(one) for one in payload.get("labels") or []]
     return parsed.label in labels
+
+
+_GMAIL_NOT_ARRIVALS = frozenset({"SENT", "DRAFT", "SPAM", "TRASH"})
 
 
 def _outlook_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:

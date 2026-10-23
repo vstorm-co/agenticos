@@ -147,6 +147,26 @@ class TestGmailMatching:
             config={"subject_contains": "invoice", "sender_contains": "@vstorm.co"},
         )
 
+    @pytest.mark.parametrize("label", ["SENT", "DRAFT", "SPAM", "TRASH"])
+    def test_mail_that_did_not_arrive_for_the_agent_never_fires_it(self, label):
+        """Gmail's history reports the account's own sends, its drafts and its spam
+        as added messages. Fired on, an agent replying by email triggers itself -
+        a loop - and spam hands anyone who can send an email a run."""
+        assert not trigger_events.event_matches(
+            "gmail",
+            headers={},
+            payload={"subject": "Re: hi", "from": "me@corp.test", "labels": [label, "INBOX"]},
+            config={},
+        )
+
+    def test_a_trigger_that_names_such_a_label_asks_for_it(self):
+        assert trigger_events.event_matches(
+            "gmail",
+            headers={},
+            payload={"subject": "Hi", "from": "a@b.co", "labels": ["SENT"]},
+            config={"label": "SENT"},
+        )
+
     def test_a_label_filter_matches_the_labels_gmail_reported(self):
         assert trigger_events.event_matches(
             "gmail",
