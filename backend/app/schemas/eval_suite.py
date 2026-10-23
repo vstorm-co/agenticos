@@ -187,9 +187,15 @@ class EvalSuitePin(BaseSchema):
     """
 
     dataset_version: int = Field(description="The dataset version the guard reads")
-    latest_dataset_version: int = Field(description="The dataset's version now")
-    scoring_current: bool = Field(
-        description="Whether the dataset is graded now as the guard grades it"
+    latest_dataset_version: int | None = Field(
+        default=None, description="The dataset's version now; null when the reader cannot see it"
+    )
+    scoring_current: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the dataset is graded now as the guard grades it; null when the reader "
+            "cannot see it"
+        ),
     )
 
 

@@ -43,7 +43,7 @@ from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate
 from app.schemas.eval_suite import EvalSuiteThreshold, EvalSuiteUpdate
 from app.schemas.promotion_gate import PromotionGateRun
-from app.schemas.scoring import DatasetScoring
+from app.schemas.scoring import DatasetScoring, JudgeCreate
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import DatasetService
@@ -215,10 +215,11 @@ async def test_a_run_in_progress_holds_the_version_back(db) -> None:
 
 
 async def test_editing_a_guards_dataset_leaves_what_it_checks_until_the_pin_moves(db) -> None:
-    """Cases, grading and the judge are anybody's to edit; what a guard reads is not."""
+    """Cases, grading and the judge are a builder's to edit; what a guard reads is not."""
     ctx = await _owner(db)
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
     agent, first = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx)
+    dataset = await _dataset(db, builder)
     env_id, suite = await _guarded(db, ctx, agent, first, dataset)
     pinned = (suite.pinned_dataset_version, suite.pinned_scoring)
     assert pinned == (dataset.latest_version, dataset.scoring)
@@ -227,19 +228,21 @@ async def test_editing_a_guards_dataset_leaves_what_it_checks_until_the_pin_move
     assert (await _check(db, ctx, agent, env_id, second)).passing
 
     await DatasetService(db).add_case(
-        ctx,
+        builder,
         dataset.id,
         DatasetCaseCreate(
             input="A new question", checks=[{"type": "contains", "value": "30 days"}]
         ),
     )
-    await ScoringService(db).set_scoring(
-        ctx,
+    scoring = ScoringService(db)
+    await scoring.set_scoring(
+        builder,
         dataset.id,
         DatasetScoring.model_validate(
             {**dataset.scoring, "trajectory": {"enabled": False, "required": False}}
         ),
     )
+    await scoring.create_judge(builder, dataset.id, JudgeCreate(name="Lenient judge"))
     edited = await _check(db, ctx, agent, env_id, second)
     third = await _published(db, ctx, agent)
     await _run_guards(db, ctx, agent, env_id, third, Model(db))
@@ -257,6 +260,48 @@ async def test_editing_a_guards_dataset_leaves_what_it_checks_until_the_pin_move
     assert moved.pin is not None
     assert (moved.pin.dataset_version, moved.pin.scoring_current) == (dataset.latest_version, True)
     assert [g.state for g in (await _check(db, ctx, agent, env_id, second)).guards] == ["stale"]
+
+
+async def test_a_suite_whose_dataset_has_no_cases_cannot_become_a_guard(db) -> None:
+    """It could not pass, and pinned to nothing it would read whatever came first."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+    empty = await _dataset(db, ctx, cases=0)
+    loose = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(empty))
+    environments = AgentEnvironmentService(db)
+
+    with pytest.raises(BadRequestError, match="no cases yet"):
+        await environments.update(
+            ctx, agent.id, env_id, EnvironmentUpdate(guard_suite_ids=[suite.id, loose.id])
+        )
+    with pytest.raises(BadRequestError, match="must have cases"):
+        await EvalSuiteService(db).update(
+            ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=empty.id)
+        )
+
+
+async def test_a_suite_guarding_two_environments_stays_pinned_until_both_are_gone(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    staging, suite = await _guarded(db, ctx, agent, first, dataset)
+    environments = AgentEnvironmentService(db)
+    canary = await environments.create(
+        ctx, agent.id, EnvironmentCreate(name="canary", version_id=first.id)
+    )
+    await environments.update(
+        ctx, agent.id, canary.id, EnvironmentUpdate(guard_suite_ids=[suite.id])
+    )
+
+    await environments.delete(ctx, agent.id, staging)
+    await db.refresh(suite)
+    assert suite.pinned_dataset_version == dataset.latest_version
+
+    await environments.delete(ctx, agent.id, canary.id)
+    await db.refresh(suite)
+    assert (suite.pinned_dataset_version, suite.pinned_scoring) == (None, None)
+    assert (await EvalSuiteService(db).get(ctx, agent.id, suite.id)).pin is None
 
 
 async def test_a_raised_bar_makes_an_earlier_pass_stale(db) -> None:

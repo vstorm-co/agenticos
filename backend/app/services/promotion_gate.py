@@ -33,6 +33,7 @@ from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResult
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
+    dataset_repo,
     eval_run_repo,
     eval_suite_repo,
     member_repo,
@@ -289,13 +290,13 @@ class PromotionGateService:
                 raise refused_field(
                     "guard_suite_ids", "A guard must be one of this agent's eval suites."
                 )
+            if suite_id not in current:
+                await self._refuse_empty_dataset(suite)
         await promotion_gate_repo.replace_guards(
             self.db, environment.id, wanted, organization_id=org
         )
-        await self._pin_guards(
-            added=set(wanted) - set(current),
-            removed=set(current) - set(wanted),
-            organization_id=org,
+        await self.pin_guards(
+            guarding=set(wanted), removed=set(current) - set(wanted), organization_id=org
         )
         if environment.tracks_latest:
             # The guard taken off may have been the last one holding it back.
@@ -320,24 +321,47 @@ class PromotionGateService:
         )
         return True
 
-    async def _pin_guards(
-        self, *, added: set[UUID], removed: set[UUID], organization_id: UUID
+    async def _refuse_empty_dataset(self, suite: EvalSuite) -> None:
+        """A guard is pinned to a dataset version, so a dataset with none yet cannot have one.
+
+        Such a guard could not pass anyway; set up, it would read whatever the
+        dataset's first cases turned out to be.
+        """
+        dataset = await dataset_repo.get(
+            self.db, suite.dataset_id, organization_id=suite.organization_id
+        )
+        assert dataset is not None, "a suite's dataset outlives it"
+        if dataset.latest_version == 0:
+            raise refused_field(
+                "guard_suite_ids",
+                f"'{suite.name}' checks a dataset with no cases yet. Add cases before it "
+                "guards an environment.",
+            )
+
+    async def pin_guards(
+        self, *, guarding: set[UUID], removed: set[UUID], organization_id: UUID
     ) -> None:
-        """Pin a suite that has just become a guard, and unpin one that guards nothing now.
+        """Pin each guard not pinned yet, and unpin a suite that guards nothing now.
 
         A guard checks what it was set up with until somebody who may override
-        promotions moves it; a suite guarding nothing reads the latest.
+        promotions moves it; a suite guarding nothing reads the latest. Each
+        suite is locked, so two changes to the guards at once cannot leave one
+        guarding unpinned.
         """
         from app.services.eval_suite import pin_to_latest, unpin
 
-        for suite_id in sorted(added | removed):
-            suite = await eval_suite_repo.get(self.db, suite_id, organization_id=organization_id)
-            assert suite is not None, "a guard is one of the agent's suites"
-            if suite_id in added and suite.pinned_dataset_version is None:
+        for suite_id in sorted(guarding | removed):
+            suite = await eval_suite_repo.lock(self.db, suite_id, organization_id=organization_id)
+            if suite is None:
+                continue
+            guards = suite_id in guarding or bool(
+                await promotion_gate_repo.guarded_by(
+                    self.db, suite_id, organization_id=organization_id
+                )
+            )
+            if guards and suite.pinned_dataset_version is None:
                 await pin_to_latest(self.db, suite)
-            elif suite_id in removed and not await promotion_gate_repo.guarded_by(
-                self.db, suite_id, organization_id=organization_id
-            ):
+            elif not guards and suite.pinned_dataset_version is not None:
                 await unpin(self.db, suite)
 
     async def run(

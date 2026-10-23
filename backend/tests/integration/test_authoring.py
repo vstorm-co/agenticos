@@ -43,7 +43,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message
-from app.db.models.dataset import DatasetCase
+from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunArm
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.message_rating import MessageRating
@@ -55,12 +55,13 @@ from app.db.models.user import User
 from app.repositories import authoring_repo, eval_suite_repo
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
+from app.schemas.scoring import DatasetScoring
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring import AuthoringService
 from app.services.authoring_worker import AuthoringWorker
 from app.services.dataset import DatasetService
-from app.services.eval_run import EvalRunService
+from app.services.eval_run import EvalRunService, scoring_hash
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
@@ -685,6 +686,24 @@ class TestCheck:
         through_suite = await service.check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
         assert through_suite.dataset_id == dataset.id
         assert through_suite.excluded_case_ids == [first.case_id]
+        # A guard is checked on what it is pinned to, so the check foretells its verdict.
+        row = await db.get(Dataset, dataset.id)
+        assert row is not None
+        pinned = DatasetScoring.model_validate(
+            {**row.scoring, "trajectory": {"enabled": False, "required": False}}
+        )
+        suite.pinned_dataset_version = row.latest_version
+        suite.pinned_scoring = pinned.model_dump(mode="json")
+        await datasets.add_case(
+            ctx,
+            dataset.id,
+            DatasetCaseCreate(input="Q2", checks=[{"type": "contains", "value": "x"}]),
+        )
+        on_pin = await service.check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
+        run = await db.get(EvalRun, on_pin.id)
+        await db.refresh(row)
+        assert on_pin.dataset_version == suite.pinned_dataset_version < row.latest_version
+        assert run is not None and run.scoring_hash == scoring_hash(pinned)
         other = await _clerk(db, ctx)
         foreign = await eval_suite_repo.create(
             db,

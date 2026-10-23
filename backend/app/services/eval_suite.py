@@ -226,10 +226,13 @@ def _pin_record(suite: EvalSuite) -> dict[str, Any] | None:
     return {"dataset_version": pin[0], "scoring_hash": scoring_hash(pin[1])}
 
 
-def _pin_read(suite: EvalSuite, dataset: Dataset) -> EvalSuitePin | None:
+def _pin_read(suite: EvalSuite, dataset: Dataset | None) -> EvalSuitePin | None:
+    """The pin, beside its dataset as it is now - unless the reader cannot see the dataset."""
     pin = pin_of(suite)
     if pin is None:
         return None
+    if dataset is None:
+        return EvalSuitePin(dataset_version=pin[0])
     return EvalSuitePin(
         dataset_version=pin[0],
         latest_dataset_version=dataset.latest_version,
@@ -414,7 +417,10 @@ class EvalSuiteService:
                     schedule=_schedule(suite),
                     next_fire_at=suite.next_fire_at,
                     max_run_usd=suite.max_run_usd,
-                    pin=_pin_read(suite, datasets[suite.dataset_id]),
+                    pin=_pin_read(
+                        suite,
+                        datasets[suite.dataset_id] if suite.dataset_id in readable else None,
+                    ),
                     last_result=(
                         self.result_read(last, cases_visible=last.dataset_id in readable)
                         if last
@@ -559,6 +565,8 @@ class EvalSuiteService:
         """Change, pause or resume a suite. The caller becomes its owner."""
         agent = await self._editable(ctx, agent_id)
         suite = await self._suite(ctx, agent.id, suite_id)
+        # Held for the write, so a pin moved meanwhile is not left on another dataset.
+        await eval_suite_repo.lock(self.db, suite.id, organization_id=ctx.organization_id)
         fields = data.model_fields_set
         values: dict[str, Any] = {"owner_user_id": ctx.user_id}
         if data.name is not None and data.name != suite.name:
@@ -568,7 +576,7 @@ class EvalSuiteService:
             values["description"] = data.description
         if data.dataset_id is not None and data.dataset_id != suite.dataset_id:
             values["dataset_id"] = data.dataset_id
-        await self.datasets.get(
+        dataset = await self.datasets.get(
             ctx, values.get("dataset_id", suite.dataset_id), perm=Perm.DATASETS_RUN
         )
         if "environment_id" in fields:
@@ -596,6 +604,12 @@ class EvalSuiteService:
             schedule = data.schedule if "schedule" in fields else _schedule(suite)
             values.update(self._schedule_columns(schedule, now=now))
         guards = await self._guarding_change(ctx, suite, data=data, values=values)
+        if guards and "dataset_id" in values and dataset.latest_version == 0:
+            raise refused_field(
+                "dataset_id",
+                "This suite guards an environment, so its dataset must have cases. "
+                "Add cases to it first.",
+            )
         if "dataset_id" in values or "environment_id" in values:
             # A waiting result was queued for the version and cases as they were set
             # up; run against the new ones it would record a check nobody asked for.
@@ -686,13 +700,25 @@ class EvalSuiteService:
         A pin that is current already changes nothing and records nothing.
 
         Raises:
-            NotFoundError: No such suite on the agent.
+            NotFoundError: No such suite on the agent, or a dataset the caller
+                cannot run.
             AuthorizationError: The caller may not edit the agent, or may not
                 override promotions.
             BadRequestError: The suite guards no environment.
         """
+        from app.services.promotion_gate import PromotionGateService
+
         agent = await self._editable(ctx, agent_id)
         suite = await self._suite(ctx, agent.id, suite_id)
+        if not PromotionGateService.may_override(ctx):
+            raise AuthorizationError(
+                message=(
+                    f"Moving what '{suite.name}' checks needs permission to override promotions."
+                ),
+                details={"suite_id": suite.id, "permission": Perm.PROMOTIONS_OVERRIDE.value},
+            )
+        await self.datasets.get(ctx, suite.dataset_id, perm=Perm.DATASETS_RUN)
+        await eval_suite_repo.lock(self.db, suite.id, organization_id=ctx.organization_id)
         guarded = await promotion_gate_repo.guarded_by(
             self.db, suite.id, organization_id=ctx.organization_id
         )
@@ -703,15 +729,6 @@ class EvalSuiteService:
                     "of its dataset already."
                 ),
                 details={"suite_id": suite.id},
-            )
-        from app.services.promotion_gate import PromotionGateService
-
-        if not PromotionGateService.may_override(ctx):
-            raise AuthorizationError(
-                message=(
-                    f"Moving what '{suite.name}' checks needs permission to override promotions."
-                ),
-                details={"suite_id": suite.id, "permission": Perm.PROMOTIONS_OVERRIDE.value},
             )
         was = _pin_record(suite)
         await pin_to_latest(self.db, suite)
