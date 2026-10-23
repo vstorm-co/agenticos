@@ -1,5 +1,5 @@
 ---
-source_sha: "58caa52f9b75"
+source_sha: "a3f93e8b9e08"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -228,12 +228,15 @@ pozwala organizacji.
 Anulowanie (`POST /api/v1/eval-runs/{id}/cancel`, przez osobę, która run
 uruchomiła, albo każdego, kto może edytować agenta) zatrzymuje to, co się nie
 zaczęło: przypadki, które już działają, kończą się i są zachowywane, a żaden
-inny się nie zaczyna.
+inny się nie zaczyna. Anulowanie zadania runu w **Admin** → **Background jobs**,
+zanim przejął je worker, anuluje run tak samo, w ciągu kilku sekund.
 
 Run, którego worker nie może dokończyć - bo na przykład w trakcie stracił bazę -
 od razu kończy się jako `failed`, tak jak run agenta: jego działające przypadki
 kończą się błędem, pozostałe są pomijane, a strona runu mówi, że zatrzymał się
-na błędzie i trzeba go uruchomić ponownie. Run nie jest wznawiany.
+na błędzie i trzeba go uruchomić ponownie. Run nie jest wznawiany. Tak samo od
+razu kończy się jako `failed` run, którego zadaniu skończył się czas albo którego
+worker został zamknięty w trakcie.
 
 Worker może też umrzeć bez słowa. Worker działającego runu co
 `EVAL_HEARTBEAT_SECONDS` daje znać, że żyje; run, którego worker milczy i którego
@@ -241,8 +244,15 @@ przypadki nie ruszyły się przez `EVAL_ABANDONED_AFTER_MINUTES`, kończy się b
 w sweepie, który worker uruchamia co minutę i który zwalnia też jego miejsca.
 Worker, któremu heartbeaty padają tak długo - na maszynie zbyt obciążonej, by
 sięgnąć bazy - kończy się tak samo, choć jeszcze pracuje, i run trzeba uruchomić
-ponownie. Run w kolejce nie ma jeszcze workera - czeka na wolnego workera - więc
-sweep rezygnuje z niego dopiero po `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
+ponownie.
+
+Run w kolejce nie ma jeszcze workera, który dawałby znać, że żyje. Może czekać na
+wolnego workera albo za wstrzymanym rodzajem zadań tak długo, jak jego zadanie
+jest w kolejce; sweep kończy go błędem dopiero, gdy nie zostało żadne zadanie,
+które by go uruchomiło. Przypadek, który martwy worker zostawił jako działający
+w runie już zakończonym, kończy się błędem po tym samym
+`EVAL_ABANDONED_AFTER_MINUTES`. Działający przypadek liczy się do
+`EVAL_ORG_CONCURRENCY`, dopóki się nie skończy, także po anulowaniu jego runu.
 
 Dopóki run czeka w kolejce albo działa, nie da się usunąć środowiska, które
 wskazuje, ani profilu modelu, na którym działa któraś z jego stron: pozostałe
@@ -467,7 +477,9 @@ nigdy zaliczony - chyba że coś wprost nie przeszło, i podaje przypadki, któr
 nikt nie ocenił. Ponowna publikacja sędziego zmienia sposób oceniania, więc
 następny wynik każdej suity, którą ocenia, będzie raz bez rozstrzygnięcia, a jej
 właściciel dostanie wiadomość. Odsetek zaliczonych poniżej minimum oblewa
-wynik niezależnie od porównania: minimum nie potrzebuje baseline'u.
+wynik niezależnie od porównania: minimum nie potrzebuje baseline'u. Wynik, którego
+eval run anulowano, też jest bez rozstrzygnięcia i mówi o tym; wynik runu, który
+skończył się błędem, jest błędem.
 
 Wynik **nie został uruchomiony**, gdy
 kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
@@ -520,7 +532,6 @@ włączył. Slack nie jest jeszcze kanałem powiadomień.
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Ile ostatnich runów uśrednia szacunek |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Jak często pracujący run daje znać, że żyje |
-| `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Jak długo run może czekać na workera, zanim sweep zakończy go błędem |
 | `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Jak długo suita czeka po zmianie skilla albo bazy wiedzy, żeby seria zmian była jednym runem |
 
 ## Dostęp { #access }

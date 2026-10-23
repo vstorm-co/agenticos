@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { reasonText, skipText } from "@/components/evals/suites/suite-format";
+import { resultReasons } from "@/components/evals/suites/suite-format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +60,8 @@ function GuardDetail({ guard }: { guard: PromotionGuard }) {
   const tSuites = useTranslations("evals.suites");
   const locale = useLocale();
   const result = guard.result;
+  const told =
+    result && guard.state === result.status ? resultReasons(result, tSuites, locale) : [];
   const lines =
     guard.state === "paused"
       ? [
@@ -67,11 +69,9 @@ function GuardDetail({ guard }: { guard: PromotionGuard }) {
             ? tSuites(`paused.${guard.paused_reason}`)
             : tSuites("paused.byPerson"),
         ]
-      : (guard.state === "failed" || guard.state === "inconclusive") && result?.summary
-        ? result.summary.reasons.map((reason) => reasonText(reason, tSuites, locale))
-        : (guard.state === "skipped" || guard.state === "error") && result
-          ? [skipText(result, tSuites)].filter((text): text is string => text !== null)
-          : [t(`hint.${guard.state}`)];
+      : told.length > 0
+        ? told
+        : [t(`hint.${guard.state}`)];
   return (
     <ul className="text-muted-foreground space-y-0.5 text-xs">
       {lines.map((line) => (

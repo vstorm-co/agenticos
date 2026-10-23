@@ -63,6 +63,14 @@ from app.db.models.authoring import (
     SpecProposalBatch,
     SpecProposalHunk,
 )
+from app.db.models.improvement import (
+    ImprovementIteration,
+    ImprovementRun,
+    ImprovementStage,
+    ImprovementStatus,
+    ImprovementVerdict,
+    StopReason,
+)
 from app.db.models.eval_run import (
     ArmRole,
     ArmSource,
@@ -220,6 +228,12 @@ __all__ = [
     "HunkStatus",
     "SpecProposalBatch",
     "SpecProposalHunk",
+    "ImprovementIteration",
+    "ImprovementRun",
+    "ImprovementStage",
+    "ImprovementStatus",
+    "ImprovementVerdict",
+    "StopReason",
     "EvalRun",
     "EvalRunArm",
     "EvalRunCase",

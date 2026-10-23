@@ -59,11 +59,15 @@ beforeEach(() => {
 
 describe("formatSeconds", () => {
   it("reads in the unit the figure is in", () => {
-    expect(formatSeconds(null)).toBe("—");
-    expect(formatSeconds(0.25)).toBe("250 ms");
-    expect(formatSeconds(12)).toBe("12 s");
-    expect(formatSeconds(150)).toBe("2.5 min");
-    expect(formatSeconds(5400)).toBe("1.5 h");
+    expect(formatSeconds(null, "en")).toBe("—");
+    expect(formatSeconds(0.25, "en")).toBe("250 ms");
+    expect(formatSeconds(12, "en")).toBe("12 s");
+    expect(formatSeconds(150, "en")).toBe("2.5 min");
+    expect(formatSeconds(5400, "en")).toBe("1.5 h");
+  });
+
+  it("writes the number in the app's language", () => {
+    expect(formatSeconds(150, "pl")).toBe("2,5 min");
   });
 });
 

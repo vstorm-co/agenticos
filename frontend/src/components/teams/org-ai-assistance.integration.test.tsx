@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import { AI_ASSISTANCE_ANCHOR } from "./enable-ai-assistance-link";
 import { OrgAiAssistance } from "./org-ai-assistance";
 import { apiClient } from "@/lib/api-client";
 import type { Organization } from "@/types";
@@ -73,6 +74,14 @@ describe("the AI assistance switch", () => {
     render(<OrgAiAssistance org={org()} />, { wrapper });
 
     expect(screen.getByRole("switch")).toBeChecked();
+  });
+
+  it("sits under the anchor the Enable AI assistance links land on", () => {
+    const { container } = render(<OrgAiAssistance org={org()} />, { wrapper });
+
+    const anchor = container.querySelector(`#${AI_ASSISTANCE_ANCHOR}`);
+    expect(anchor).toHaveAttribute("data-tour", AI_ASSISTANCE_ANCHOR);
+    expect(anchor).toContainElement(screen.getByRole("switch"));
   });
 
   it("saves turning it off and says so", async () => {
