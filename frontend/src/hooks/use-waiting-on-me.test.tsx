@@ -6,19 +6,23 @@ import { useWaitingOnMe } from "./use-waiting-on-me";
 
 const state = vi.hoisted(() => ({
   granted: new Set<string>(),
+  loaded: true,
   asked: {} as Record<string, unknown>,
-  review: 0,
+  review: [] as unknown[],
   suites: [] as unknown[],
   waiting: null as unknown,
   read: { isLoading: false, error: null as unknown },
 }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: (perm: Permission) => state.granted.has(perm) }),
+  usePermissions: () => ({
+    can: (perm: Permission) => state.granted.has(perm),
+    isLoaded: state.loaded,
+  }),
 }));
 vi.mock("@/hooks/use-scoring", () => ({
   useReviewQueue: (args: unknown) => {
     state.asked.review = args;
-    return { total: state.review, ...state.read };
+    return { datasets: state.review, ...state.read };
   },
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({
@@ -35,17 +39,22 @@ vi.mock("@/hooks/use-authoring", () => ({
 }));
 
 beforeEach(() => {
-  state.granted = new Set([Perm.datasetsEdit, Perm.runsView, Perm.agentsEdit]);
+  state.granted = new Set([Perm.datasetsView, Perm.runsView, Perm.agentsEdit]);
+  state.loaded = true;
   state.read = { isLoading: false, error: null };
   state.asked = {};
-  state.review = 0;
+  state.review = [];
   state.suites = [];
   state.waiting = null;
 });
 
 describe("useWaitingOnMe", () => {
   it("counts answers to review, active suites that failed last, and every suggestion", () => {
-    state.review = 9;
+    state.review = [
+      { can_edit: true, failed: 3, unscored: 4, passed: 2 },
+      // Seen, and not the reader's to decide.
+      { can_edit: false, failed: 5, unscored: 0, passed: 0 },
+    ];
     state.suites = [
       { is_active: true, last_result: { status: "failed", alerting: true } },
       { is_active: true, last_result: { status: "error", alerting: true } },
@@ -71,6 +80,12 @@ describe("useWaitingOnMe", () => {
     });
   });
 
+  it("is not settled before the reader's permissions are in", () => {
+    // Until then every list is disabled, and a disabled list reads as answered.
+    state.loaded = false;
+    expect(renderHook(() => useWaitingOnMe()).result.current.settled).toBe(false);
+  });
+
   it("is not settled while a list is loading or after it failed", () => {
     state.read = { isLoading: true, error: null };
     expect(renderHook(() => useWaitingOnMe()).result.current.settled).toBe(false);
@@ -80,7 +95,7 @@ describe("useWaitingOnMe", () => {
   });
 
   it("reads each list only for whoever may act on it, and counts nothing it did not read", () => {
-    state.granted = new Set([Perm.datasetsView]);
+    state.granted = new Set();
 
     expect(renderHook(() => useWaitingOnMe()).result.current).toEqual({
       review: 0,

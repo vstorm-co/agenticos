@@ -146,10 +146,12 @@ export function useEvalComparison(
     arm = null,
     baseline = null,
     live = false,
-  }: { arm?: string | null; baseline?: string | null; live?: boolean } = {},
+    enabled = true,
+  }: { arm?: string | null; baseline?: string | null; live?: boolean; enabled?: boolean } = {},
 ) {
   const query = useQuery({
     queryKey: qk.evalRuns.comparison(runId, { arm, baseline }),
+    enabled,
     queryFn: () => {
       const params = new URLSearchParams();
       if (arm) params.set("arm_id", arm);
@@ -339,11 +341,20 @@ export function useDatasetEvalRuns(
   };
 }
 
-/** The agent's runs of its draft as it stands now, newest first. */
-export function useDraftEvalRuns(agentId: string | null, { enabled = true } = {}) {
+/**
+ * The agent's runs of its draft, newest first: of the draft as it stands now
+ * (`current`), or of another draft since the latest version was published
+ * (`earlier`) - the test the draft has moved away from. A check of suggestions
+ * since accepted counts as a test of the draft it made.
+ */
+export function useDraftEvalRuns(
+  agentId: string | null,
+  { enabled = true, draft = "current" }: { enabled?: boolean; draft?: "current" | "earlier" } = {},
+) {
   const query = useQuery({
-    queryKey: qk.evalRuns.forDraft(agentId ?? ""),
-    queryFn: () => apiClient.get<EvalRunList>(`/agents/${agentId}/eval-runs?draft=current&limit=1`),
+    queryKey: qk.evalRuns.forDraft(agentId ?? "", draft),
+    queryFn: () =>
+      apiClient.get<EvalRunList>(`/agents/${agentId}/eval-runs?draft=${draft}&limit=1`),
     enabled: enabled && agentId !== null,
   });
   return {

@@ -86,6 +86,24 @@ describe("the eval runs page", () => {
     expect(screen.queryByText("No eval runs yet")).toBeNull();
   });
 
+  it("goes back to the last page when the runs no longer reach the one open", async () => {
+    // Another organization, or runs gone out of reach while a later page was open.
+    get.mockImplementation((url: string) =>
+      Promise.resolve(
+        url === "/eval-runs/recent?skip=20&limit=20"
+          ? { items: [], total: 5 }
+          : url.startsWith("/eval-runs/recent")
+            ? { items: [evalRun({ id: "run-1" })], total: 45 }
+            : { items: [{ id: "agent-1", name: "Refund desk" }], total: 1 },
+      ),
+    );
+    render(<EvalRunsPage />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: "Next page" }));
+
+    expect(await screen.findByRole("link", { name: /Refund desk/ })).toBeInTheDocument();
+    expect(get).toHaveBeenLastCalledWith("/eval-runs/recent?skip=0&limit=20");
+  });
+
   it("reads nothing for whoever may not view runs", () => {
     granted.perms = [Perm.agentsView];
     answer({ items: [], total: 0 });

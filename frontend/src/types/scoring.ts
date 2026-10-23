@@ -147,6 +147,8 @@ export interface PendingDataset {
   failed: number;
   unscored: number;
   passed: number;
+  /** Whether the reader may decide them, which takes `datasets:edit` on this dataset. */
+  can_edit: boolean;
 }
 
 /** A page of the review queue, oldest first, and every dataset holding any of it. */

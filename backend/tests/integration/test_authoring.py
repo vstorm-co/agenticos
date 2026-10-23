@@ -1182,6 +1182,11 @@ class TestWorkerTargets:
         cases = [
             ("improve", "app.services.authoring_worker.agent_repo.get", "The agent is gone."),
             ("verify", "app.services.authoring_worker.agent_repo.get", "no published version"),
+            (
+                "verify",
+                "app.services.authoring_worker.agent_repo.newest_version",
+                "no published version",
+            ),
         ]
         agent.draft_spec = {**agent.draft_spec, "instructions": "Edited."}
         await db.flush()
@@ -1191,14 +1196,6 @@ class TestWorkerTargets:
                 await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
             request = await db.get(AuthoringRequest, started.id)
             assert request is not None and request.error is not None and reason in request.error
-
-        started = await service.start_agent(ctx, agent.id, AuthoringStart(kind="verify"))
-        with patch(
-            "app.services.authoring_worker.agent_repo.get_version", new=AsyncMock(return_value=None)
-        ):
-            await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
-        request = await db.get(AuthoringRequest, started.id)
-        assert request is not None and request.error == "The agent's published version is gone."
 
     async def test_a_skill_gone_mid_request_fails_it(self, db):
         ctx, agent, run = await _setup(db)

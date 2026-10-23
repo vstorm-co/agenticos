@@ -522,6 +522,8 @@ class PendingDataset(BaseSchema):
     failed: int = 0
     unscored: int = 0
     passed: int = 0
+    can_edit: bool = False
+    """Whether the caller may decide them, which takes `datasets:edit` on this dataset."""
 
 
 class ReviewQueue(BaseSchema):
