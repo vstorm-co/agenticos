@@ -172,6 +172,28 @@ class TestDnsResolution:
         ):
             validate_webhook_url("https://empty.example.com/hook")
 
+    @pytest.mark.parametrize(
+        "url",
+        ["http://a..b/", "http://.a/", f"http://{'x' * 64}.com/"],
+        ids=["empty label", "leading dot", "label over 63"],
+    )
+    def test_a_host_the_idna_codec_refuses_is_refused_not_500(self, url: str):
+        """An empty or over-long label is a refusal in our words, not the codec's
+        `UnicodeEncodeError` that callers quoting refusals do not catch (#2352).
+
+        The real resolver, unpatched: the codec raises before any DNS query.
+        """
+        with pytest.raises(UrlRefusedError, match=r"^The URL's host name is not valid$"):
+            validate_webhook_url(url)
+        with pytest.raises(UrlRefusedError, match=r"^The URL's host name is not valid$"):
+            resolve_pinned_url(url)
+
+    def test_a_trusted_host_the_idna_codec_refuses_is_refused_too(self):
+        """A host on `MCP_ALLOWED_HOSTS` skips the address check, so a listed
+        `a..b` would otherwise be saved and fail every probe after."""
+        with pytest.raises(UrlRefusedError, match=r"^The URL's host name is not valid$"):
+            validate_webhook_url("http://a..b/", trusted_hosts=frozenset({"a..b"}))
+
 
 # validate_webhook_url - edge cases
 
