@@ -29,7 +29,7 @@ from typing import Any, NamedTuple
 from uuid import UUID
 
 from pydantic import TypeAdapter, ValidationError
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
+from pydantic_ai.messages import ModelMessage, UserContent
 from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +42,7 @@ from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
 from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
+from app.agents.ephemeral_media import dump_messages
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
@@ -606,7 +607,7 @@ class ChatAgentRunner:
             if prepared.built.context.summarized:
                 summarized = await offloaded_history(
                     prepared.built.capabilities,
-                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+                    dump_messages(result.all_messages()),
                 )
             status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
             finished_cleanly = True

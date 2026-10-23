@@ -1006,6 +1006,7 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
         "hand_off": {
             "sandbox",
             "browser_use",
+            "computer_use",
             "subagents",
             "background_tools",
             "coding_agent",

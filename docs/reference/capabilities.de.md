@@ -1,5 +1,5 @@
 ---
-source_sha: "75c53c320348"
+source_sha: "7b7a3c86350d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -74,6 +74,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
+| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
@@ -905,6 +906,118 @@ haben, laden als diese Capability; Freigabe und Umbenennung von `browse_page` ge
 `browse_web` über, die Einstellungen des Entscheidungsmodells und der TypeSafe-Schlüssel
 entfallen.
 
+## Computer-Bedienung { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
+Der Agent bedient einen ganzen Desktop und kann so jede Anwendung nutzen, nicht
+nur eine Webseite. Er sieht sich einen Screenshot an und sendet einige Maus- und
+Tastaturaktionen in den Pixeln dieses Screenshots. Jede Antwort von
+`computer_act` enthält einen frischen Screenshot. Größere Bildschirme werden auf
+`screen_width`x`screen_height` verkleinert, bevor das Modell sie sieht, und jeder
+Punkt wird in die Koordinaten des Desktops zurückgerechnet, auch in die Punkte
+eines Retina-Macs.
+
+**Freigabe gilt dem Handeln und muss eingeschaltet werden.** Wie bei jedem Tool
+wartet keines der beiden auf eine Freigabe, bis der Besitzer des Agenten sie
+verlangt. `computer_screenshot` ändert nichts. Mit `tool_approval:
+{computer_act: required}` wartet jeder Stapel von Aktionen auf eine Freigabe,
+gegen einen Screenshot, den Modell und Freigebender beide gesehen haben. Ein
+Punkt außerhalb dieses Screenshots wird verweigert, bevor irgendetwas läuft. Ein
+freigegebener Stapel läuft in einem eigenen Run, der den Bildschirm zuerst
+vermisst und nur handelt, wenn er noch dieselbe Form hat wie auf dem Screenshot,
+auf dem der Stapel gewählt wurde. Eine geänderte Auflösung oder ein geändertes
+Seitenverhältnis bewirkt nichts und zeigt dem Modell den neuen Bildschirm.
+`max_actions` gilt für den ganzen Run, wie oft er auch auf eine Freigabe wartet.
+Die Freigabe gilt den Aktionen, nicht den Pixeln darunter: Ein Fenster kann sich
+zwischen Screenshot und Klick ändern, während der Bildschirm seine Größe behält.
+Lehnen Sie daher einen Stapel ab, der auf ein Fenster zielt, dem Sie nicht
+zutrauen, unverändert zu bleiben.
+
+| `desktop` | Der Desktop | Braucht |
+|---|---|---|
+| `sandbox` | Ein Linux-Desktop (XFCE und Firefox) in der eigenen [Sandbox](#files-shell) des Agents, auf derselben Maschine, auf der seine Shell- und Datei-Tools arbeiten | Die Capability [Sandbox](#files-shell) auf einer Sandbox-Verbindung, mit der Runtime `desktop` |
+| `daemon` | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und das Token des Daemons als Secret der Bindung |
+
+Ein Sandbox-Desktop braucht nichts Eigenes: keine Adresse, kein Token und keinen
+Provider. Er lebt und wird geteilt genau wie die Sandbox, pro Gespräch oder pro
+Agent nach dem `session_scope` der Sandbox-Capability, und eine Datei, die der
+Agent mit seinen Datei-Tools schreibt, ist eine Datei, die er auf dem Bildschirm
+öffnen kann.
+
+Das Veröffentlichen verweigert einen `sandbox`-Desktop bei einem Agent ohne
+Sandbox-Verbindung und bei einem Inline-Spezialisten, der weder eine eigene hat
+noch eine, die sein Eltern-Agent mit ihm teilt. Es verweigert auch einen, dessen
+Sandbox nicht auf der Runtime `desktop` läuft, gelesen so, wie ein Lauf sie
+liest: die `runtime` der Sandbox-Capability, sonst die Standard-Runtime der
+Verbindung. Eine Sandbox, die keine von beiden nennt, wird ebenfalls verweigert,
+denn die mitgelieferte Standard-Runtime ist `workbench`, die keinen Bildschirm
+hat. Eine Daytona-Verbindung wird verweigert, weil sie ihr eigenes Image
+ausführt.
+
+Das Tool `execute` wird nicht gebraucht, und wer es weglässt, hält die Aktionen
+auf dem Desktop hinter `computer_act` und dessen Freigabe: Mit `execute` kann
+der Agent `xdotool` aus der Shell aufrufen.
+
+Ein Daemon ist ein Desktop: Jeder Run, der auf ihn zeigt, teilt sich die
+Maschine und alles, was darauf angemeldet ist. Geben Sie ihm eine eigene
+Maschine oder ein eigenes Konto, nicht die Arbeitssitzung eines Menschen. Der
+Agent kann alles lesen, was das Konto lesen kann, unter dem der Daemon läuft,
+sein Token eingeschlossen; deshalb führt der Container in `deploy/computer/` den
+Daemon unter einem eigenen Konto aus.
+
+**Das Token eines Daemons gehört der Organisation.** Das `COMPUTERD_TOKEN`, mit
+dem der Daemon gestartet wurde, liegt als API-Schlüssel im
+[Vault](../secrets.md) der Organisation und wird durch die `secret_id` der
+Bindung benannt; das Veröffentlichen verweigert einen Daemon ohne Token.
+`COMPUTER_DAEMON_ALLOWED_HOSTS` ist die Liste des Deployments, wohin ein Run
+dieses Token senden darf. Sie wird beim Veröffentlichen geprüft und erneut
+jedes Mal, wenn ein Run den Daemon öffnet, sodass ein von ihr gestrichener Host
+auch bereits veröffentlichte Agents stoppt. Jede Organisation kann einen
+erlaubten Host nennen, also hält das Token, nicht die Liste, eine Organisation
+vom Desktop einer anderen fern: Geben Sie jedem Desktop ein eigenes Token.
+`daemon_url` ist allein die Adresse des Daemons, und eine mit Query, Fragment
+oder Zugangsdaten wird verweigert.
+
+| Einstellung | Standard | Bereich |
+|---|---|---|
+| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host, ohne Query, Fragment oder Zugangsdaten |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, nicht über `max_actions` |
+| `max_actions` | 200 | 1–2000 pro Run |
+| `preview` | an | |
+
+Der Chat zeichnet den Desktop in einem Fenster unter der Nachricht, während der
+Agent arbeitet: ein Fenster pro Run, geöffnet vom ersten Screenshot, mit einem
+Bild nach jedem Aufruf und einer Zeile pro Aktion. Text, den
+das Modell tippt, ist dort so zu sehen, wie er getippt wurde.
+
+**Ein Screenshot, den der Nutzer behält.** `computer_screenshot` ist für das
+Modell, und nichts bewahrt ihn auf: Ein Run, der auf eine Freigabe wartet,
+sein Manifest und eine verdichtete Konversation speichern an seiner Stelle einen
+Satz. Will der Nutzer den Bildschirm sehen oder
+soll das Ergebnis eines Schritts als Nachweis bleiben, ruft der Agent
+`computer_save_screenshot` auf. Es speichert den Bildschirm in voller Auflösung
+für die Organisation und zeigt ihn im Chat, verlinkt auf die Datei in voller
+Größe. Hat der Agent einen Workspace, schreibt es die Datei auch nach `output/`,
+sodass eine Antwort im Kanal sie mitbringt und ein späterer Schritt sie in einen
+Bericht aufnehmen kann. Ohne Workspace bringt eine Antwort im Kanal keine Datei
+mit, wie bei der Bilderzeugung. Es ändert nichts auf dem Desktop, und die Freigabe hält
+es nur an, wenn der Besitzer das verlangt.
+
+!!! warning "Text auf dem Bildschirm ist nicht vertrauenswürdig"
+
+    Die Anweisungen sagen dem Modell, dass der Bildschirminhalt Daten sind, nie
+    Anweisungen, und dass es vor Passwörtern, Zahlungen und Entscheidungen des
+    Nutzers anhalten soll. Durchgesetzt wird das durch die Freigabe, und die ist
+    aus, bis der Besitzer des Agenten sie setzt: ohne sie lässt `computer_act` den
+    Agenten nach dem handeln, was ihm ein beliebiges Fenster sagt.
+
 ## Berechnungen { #run-python }
 
 `run_python` — *Führt ein kleines Python-Programm aus, um etwas zu berechnen.*
@@ -990,12 +1103,15 @@ Dateien dieser Unterhaltung“ zu nennen, und die Einstellung wird im Audit-Log
 festgehalten — denn wer eine Datei sieht, die er nicht angelegt hat, sollte
 herausfinden können, warum.
 
-**Das Backend oder die Verbindung zu wechseln, startet einen frischen Workspace,
-statt sich wieder an den alten zu hängen.** Ein gespeichertes Dokument, das Volume
-eines Containers und eine Daytona-Sandbox sind drei verschiedene Dinge, und zwei
-`sandboxd`-Installationen sind zwei verschiedene Dinge — also bekommt jede ihren
-eigenen Workspace, und der vorherige bleibt, wo er ist, weiterhin gelistet und
-weiterhin lesbar. Einen laufenden Agent umzuziehen, ist daher kein Weg, seine
+**Das Backend, die Verbindung oder die Runtime zu wechseln, startet einen
+frischen Workspace, statt sich wieder an den alten zu hängen.** Ein gespeichertes
+Dokument, das Volume eines Containers und eine Daytona-Sandbox sind drei
+verschiedene Dinge, und zwei `sandboxd`-Installationen sind zwei verschiedene
+Dinge — also bekommt jede ihren eigenen Workspace, und der vorherige bleibt, wo er
+ist, weiterhin gelistet und weiterhin lesbar. Die Runtime eines Containers wird
+gewählt, wenn er entsteht, also liefe ein auf eine andere Runtime umgezogener
+Workspace sonst weiter auf dem alten Image. Keine Runtime zu nennen und
+`workbench` zu nennen, die mitgelieferte Standard-Runtime, ist derselbe Workspace. Einen laufenden Agent umzuziehen, ist daher kein Weg, seine
 Dateien mitzunehmen; der Agent findet auf dem neuen Host einen leeren Workspace vor.
 Da `connection_id: null` „die Standardverbindung der Organisation“ bedeutet, hat es
 denselben Effekt, eine andere Verbindung als Standard zu markieren, ohne dass sich
@@ -2706,8 +2822,9 @@ geprüft wird, wenn der Agent zusammengebaut wird:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `computer:use` | `computer_use` |
 
-!!! note "Alle acht werden heute standardmäßig gewährt"
+!!! note "Alle neun werden heute standardmäßig gewährt"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`. Die Verwaltung
     von Scopes pro Organisation ist [Roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md)-Arbeit;

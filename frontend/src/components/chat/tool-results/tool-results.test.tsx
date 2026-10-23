@@ -16,6 +16,7 @@ import { WebSearchResults, parseWebSearch } from "./web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
 import { GeneratedSpeechResult, parseGeneratedSpeech } from "./generated-speech";
 import { GeneratedVideoResult, parseGeneratedVideo } from "./generated-video";
+import { DesktopScreenshotResult, parseDesktopScreenshot } from "./desktop-screenshot";
 import { ContextListResult, SkillListResult, parseContextList, parseSkillList } from "./catalogs";
 import { PlanToolResult } from "./plan";
 import type { ToolCall } from "@/types";
@@ -996,5 +997,63 @@ describe("the generated video", () => {
     render(<GeneratedVideoResult data={{ prompt: "x", url: null }} />);
 
     expect(screen.getByText("The video was made but not saved.")).toBeInTheDocument();
+  });
+});
+
+describe("a desktop screenshot the agent kept", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "desktop_screenshot",
+    filename: "abc123_image.png",
+    url: "/api/v1/generated/abc123_image.png",
+    caption: "The page after the click",
+    width: 2560,
+    height: 1600,
+    workspace_path: null,
+  });
+
+  it("is read through the same-origin proxy, captioned as the agent wrote it", () => {
+    expect(parseDesktopScreenshot(PAYLOAD)).toEqual({
+      caption: "The page after the click",
+      url: "/api/generated/abc123_image.png",
+    });
+  });
+
+  it("has no URL and no caption where none were given", () => {
+    const parsed = parseDesktopScreenshot(
+      JSON.stringify({ kind: "desktop_screenshot", filename: null }),
+    );
+
+    expect(parsed).toEqual({ caption: "", url: null });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseDesktopScreenshot("The desktop did not return a screenshot.")).toBeNull();
+    expect(parseDesktopScreenshot(JSON.stringify({ kind: "generated_image" }))).toBeNull();
+    expect(parseDesktopScreenshot("null")).toBeNull();
+  });
+
+  it("shows the screenshot, opening it at full size in a tab of its own", () => {
+    render(<DesktopScreenshotResult data={parseDesktopScreenshot(PAYLOAD)!} />);
+
+    const image = screen.getByRole("img", { name: "The page after the click" });
+    expect(image).toHaveAttribute("src", "/api/generated/abc123_image.png");
+    expect(image.closest("a")).toHaveAttribute("href", "/api/generated/abc123_image.png");
+    expect(image.closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("The page after the click")).toBeInTheDocument();
+  });
+
+  it("draws no caption it was not given", () => {
+    const { container } = render(
+      <DesktopScreenshotResult data={{ caption: "", url: "/api/generated/x.png" }} />,
+    );
+
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/generated/x.png");
+    expect(container.querySelector("figcaption")).toBeNull();
+  });
+
+  it("says so when there is nothing to show", () => {
+    render(<DesktopScreenshotResult data={{ caption: "", url: null }} />);
+
+    expect(screen.getByText("The screenshot was taken but not stored.")).toBeInTheDocument();
   });
 });

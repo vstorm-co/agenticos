@@ -1,5 +1,5 @@
 ---
-source_sha: "3a56d4c17513"
+source_sha: "f52fe0c3eb1a"
 ---
 
 # La sandbox { #the-sandbox }
@@ -123,7 +123,7 @@ Lo que separa un tenant de otro:
 
 ## Qué entornos puede pedir un agent { #which-environments-an-agent-may-ask-for }
 
-**Se distribuye un runtime, y está definido en este repositorio**:
+**Se distribuyen dos runtimes, y están definidos en este repositorio**:
 `backend/app/core/catalog/sandbox_runtimes.json`.
 
 | | `workbench` — 1,93 GB, construido en unos 65 s en un host caliente |
@@ -139,14 +139,27 @@ Lo que separa un tenant de otro:
 | Web | `httpx`, `requests`, `beautifulsoup4`, `lxml`, `markdownify` |
 | Otros | `pyyaml` |
 | Memoria | 2 GiB |
-| Red | sí — el único runtime que la tiene |
+| Red | sí |
 
-Uno en lugar de ocho, y la razón es `prewarm`: el servicio construye **todas** las
+| | `desktop` — para [computer use](reference/capabilities.md#computer-use) |
+|---|---|
+| Construido sobre | `python:3.12-slim` |
+| Escritorio | Xvfb en el display `:0`, XFCE, Firefox ESR; `xdotool` y `scrot`, que lo manejan y lo fotografían |
+| Herramientas | `git`, `curl`, `jq`, `procps`, `unzip` |
+| Memoria | 2 GiB |
+| Red | sí, para que el navegador que lleva pueda abrir una página |
+
+Dos en lugar de ocho, y la razón es `prewarm`: el servicio construye **todas** las
 entradas de su lista de permitidos al arrancar, así que ocho alias son ocho
 `pip install` en un arranque que nadie mira, ocho imágenes cacheadas en el host, y
 un agent al que se le pide leer un PDF recibiendo el alias que su spec resultara
 nombrar. `workbench` está construido para ser la respuesta a *escribe y ejecuta
-algo de código, lee lo que adjuntó el usuario, dibújalo, trae una página*.
+algo de código, lee lo que adjuntó el usuario, dibújalo, trae una página*, y es el
+primero, así que es lo que recibe un agent que no nombra ningún runtime.
+
+`desktop` es lo único que `workbench` no puede ser: una pantalla que un agent con
+`computer_use` mira y en la que hace clic. Su escritorio arranca con la primera
+captura del run, no con el contenedor.
 
 Hasta #1040 este catálogo era `BUILTIN_RUNTIMES`, de la librería de la sandbox:
 quince recetas, de las cuales un `sandboxd` arrancado por este proyecto permitía
@@ -451,8 +464,8 @@ instalara la última vez todavía instalado.
 Lo que se sostiene:
 
 - la sandbox no puede ver el socket de Docker; solo `sandboxd` puede;
-- ninguna red en absoluto salvo que el runtime la pida, y solo `workbench` lo
-  hace;
+- ninguna red en absoluto salvo que el runtime la pida, y los dos runtimes que
+  se distribuyen la piden;
 - 2 CPUs, 512 procesos y un `tmpfs` de 64 MiB en `/tmp` por sandbox, más
   `SANDBOXD_EXECUTE_TIMEOUT` (300 s) en cada comando y `SANDBOXD_MAX_READ_BYTES`
   (8 MiB) en cada lectura;
@@ -478,7 +491,7 @@ Lo que queda, dicho en lugar de dado por supuesto:
 !!! warning "Una salvedad de portátil, pero compruébala antes de copiar el archivo de compose local"
 
     `docker-compose.yml` publica Postgres y Redis con `postgres/postgres`, y
-    `workbench` es el único runtime con red. En un host compartido eso es
+    los dos runtimes que se distribuyen tienen red. En un host compartido eso es
     alcanzable desde dentro de una sandbox; `docker-compose-prod.yml` no publica
     ninguno.
 
@@ -620,8 +633,9 @@ registro de auditoría.
   una sandbox es su hermano en lugar de un contenedor dentro de él.
 - Una **clave de sesión** agrupa scope, organización, tipo de backend y host, que
   es precisamente lo que decide quién comparte un contenedor.
-- **Se distribuye un runtime**, `workbench`, y al modelo se le cuenta qué hay
-  dentro, compuesto a partir del mismo catálogo que lo construyó.
+- **Se distribuyen dos runtimes**, `workbench` y `desktop`, y al modelo se le cuenta
+  qué hay en aquel en el que corre, compuesto a partir del mismo catálogo que lo
+  construyó.
 - El registro de lo que hizo un agent vive en **la tabla de esta plataforma**,
   lleva una ruta y nunca una carga útil, y sobrevive al agent.
 - **Los archivos se conservan indefinidamente** salvo que fijes

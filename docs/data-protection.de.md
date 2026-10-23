@@ -1,5 +1,5 @@
 ---
-source_sha: "f04a97d799b3"
+source_sha: "91166b7e5793"
 ---
 
 # Datenschutz { #data-protection }
@@ -177,6 +177,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | Web-Fetch und der Webbrowser | Die URL; beim Browser, was er auf den geöffneten Seiten eintippt | Die Capability auf dem Spec; der Browser braucht zusätzlich einen CDP-Endpunkt auf `BROWSER_CDP_ALLOWED_HOSTS`, standardmäßig leer | Die abgerufene Seite; der Browser-Host und die Seiten, die er öffnet |
 | Proxy oder gehosteter Browser eines Agents | Alles, was der Browser lädt und sendet, wie es sonst der Browser im Deployment täte - Seiten, Formularinhalte, Cookies, Anmeldungen - samt der eigenen Aufzeichnung des Proxys oder Dienstes | `browser_use.connection` in der Spec (#2130); standardmäßig `built_in` | Der Proxy oder der gehostete Browser-Dienst (Browserbase, Steel oder ein anderer), unter dem eigenen Vertrag der Organisation |
 | Die Schritte des Webbrowsers | Jeder Schritt eines Durchlaufs geht an das eigene Modell des Agenten: die URL der Seite, ihr Titel, die Beschriftungen der sichtbaren Elemente und bis zu 4.000 Zeichen ihres sichtbaren Texts, mit `vision` auch ein Screenshot — was der Inhalt eines internen Systems sein kann. Was ein Feld enthält, wird nicht wiederholt: Die Elementtabelle sagt nur, dass ein Feld gefüllt ist | Die Capability `browser_use` auf dem Spec | Der Modellanbieter des Agenten, wie beim Gespräch |
+| Computer-Bedienung | Jeder Screenshot des Desktops geht an das eigene Modell des Agenten und kann alles zeigen, was darauf geöffnet ist; keiner wird mit dem Run gespeichert. Die Aktionen, auch der Text, den das Modell tippt, gehen an den Desktop | Die Capability `computer_use` auf dem Spec, mit einer Sandbox-Verbindung für einen Desktop in der Sandbox; ein Daemon-Desktop braucht seinen Host auf `COMPUTER_DAEMON_ALLOWED_HOSTS`, standardmäßig leer, und das Token der Organisation dafür im Vault | Der Modellanbieter des Agenten; die Sandbox-Verbindung des Agenten oder der `computerd`-Host, den der Betreiber betreibt |
 | Die Sandbox, ausgehend | **Alles im Workspace, an jeden beliebigen Host** — die Runtime `workbench` hat ein Netz, eine Shell und `curl` | Die Capability `sandbox` und eine Runtime mit `needs_network`; die Kommandofreigabe steuert, was läuft, nicht wohin es sich verbindet | Wohin das Kommando ging. Egress-Kontrolle ist die Firewall des Sandbox-Hosts, keine Einstellung hier |
 | Ein MCP-Server | Tool-Argumente und -Ergebnisse | `mcp_connections.url`, je Organisation oder je Person | Die des Serverbetreibers |
 | mem0 | Die für eine Person oder einen Chat geschriebenen Memories | Die `base_url` der Capability `memory_mem0`, die in `MEM0_ALLOWED_HOSTS` stehen muss | Die des mem0-Hosts, den Sie zulassen |

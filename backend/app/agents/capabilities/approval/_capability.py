@@ -30,6 +30,7 @@ from pydantic_ai import ApprovalRequired, RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
+from pydantic_core import to_jsonable_python
 
 from app.agents.approval import (
     ApprovalPending,
@@ -125,7 +126,11 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 capability_id=capability_id,
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
-                tool_args=args,
+                # As JSON, not as validated: a tool taking a model gets instances
+                # here, and the request is stored in a JSONB column and shown to a
+                # person. What runs after approval is that JSON, so a tool taking a
+                # model validates it again (`computer_act` does).
+                tool_args=to_jsonable_python(args),
                 # Only an MCP tool's, for the reason `marked` is: no capability
                 # tool can be given an account by metadata.
                 account=(tool_def.metadata or {}).get(ACCOUNT) if capability_id is None else None,

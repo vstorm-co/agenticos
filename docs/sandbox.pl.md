@@ -1,5 +1,5 @@
 ---
-source_sha: "3a56d4c17513"
+source_sha: "f52fe0c3eb1a"
 ---
 
 # Sandbox { #the-sandbox }
@@ -118,7 +118,7 @@ Co oddziela jednego tenanta od drugiego:
 
 ## O jakie środowiska agent może poprosić { #which-environments-an-agent-may-ask-for }
 
-**Dostarczany jest jeden runtime i jest on zdefiniowany w tym repozytorium** —
+**Dostarczane są dwa runtime'y i są one zdefiniowane w tym repozytorium** —
 `backend/app/core/catalog/sandbox_runtimes.json`:
 
 | | `workbench` — 1,93 GB, budowany w około 65 s na rozgrzanym hoście |
@@ -134,15 +134,28 @@ Co oddziela jednego tenanta od drugiego:
 | Web | `httpx`, `requests`, `beautifulsoup4`, `lxml`, `markdownify` |
 | Inne | `pyyaml` |
 | Pamięć | 2 GiB |
-| Sieć | tak — jedyny runtime, który ją ma |
+| Sieć | tak |
 
-Jeden zamiast ośmiu, a powodem jest `prewarm`: usługa buduje przy starcie
+| | `desktop` — do [obsługi komputera](reference/capabilities.md#computer-use) |
+|---|---|
+| Zbudowany na | `python:3.12-slim` |
+| Pulpit | Xvfb na ekranie `:0`, XFCE, Firefox ESR; `xdotool` i `scrot`, które nim sterują i go fotografują |
+| Narzędzia | `git`, `curl`, `jq`, `procps`, `unzip` |
+| Pamięć | 2 GiB |
+| Sieć | tak, żeby przeglądarka na nim mogła otworzyć stronę |
+
+Dwa zamiast ośmiu, a powodem jest `prewarm`: usługa buduje przy starcie
 **każdy** wpis swojej listy dozwolonych, więc osiem aliasów to osiem instalacji
 `pip` w starcie, któremu nikt się nie przygląda, osiem obrazów w cache hosta
 i agent poproszony o przeczytanie PDF-a dostający ten alias, który akurat wskazał
 jego spec. `workbench` jest zbudowany tak, by być odpowiedzią na *napisz
 i uruchom trochę kodu, przeczytaj to, co załączył użytkownik, narysuj wykres,
-pobierz stronę*.
+pobierz stronę*, i jest pierwszy, więc dostaje go agent, który nie wskazuje
+żadnego runtime'u.
+
+`desktop` jest jedynym, czym `workbench` być nie może: ekranem, na który agent
+z `computer_use` patrzy i w który klika. Jego pulpit startuje przy pierwszym
+zrzucie ekranu w runie, a nie razem z kontenerem.
 
 Do #1040 tym katalogiem było `BUILTIN_RUNTIMES` z biblioteki sandboksa:
 piętnaście receptur, z których `sandboxd` uruchomiony przez ten projekt
@@ -438,7 +451,7 @@ ostatnim razem, nadal zainstalowanym.
 Co się trzyma:
 
 - sandbox nie widzi gniazda Dockera; widzi je tylko `sandboxd`;
-- żadnej sieci, chyba że runtime o nią prosi, a robi to tylko `workbench`;
+- żadnej sieci, chyba że runtime o nią prosi, a robią to oba dostarczane runtime'y;
 - 2 CPU, 512 procesów i 64 MiB `tmpfs` pod `/tmp` na sandbox, plus
   `SANDBOXD_EXECUTE_TIMEOUT` (300 s) na każde polecenie oraz
   `SANDBOXD_MAX_READ_BYTES` (8 MiB) na każdy odczyt;
@@ -465,7 +478,7 @@ Co pozostaje, powiedziane wprost, a nie tylko zasugerowane:
 !!! warning "Zastrzeżenie dla laptopa, ale sprawdź je, zanim skopiujesz lokalny plik compose"
 
     `docker-compose.yml` publikuje Postgresa i Redisa z `postgres/postgres`,
-    a `workbench` jest jedynym runtimem z siecią. Na współdzielonym hoście jest to
+    a oba dostarczane runtime'y mają sieć. Na współdzielonym hoście jest to
     osiągalne z wnętrza sandboksa; `docker-compose-prod.yml` nie publikuje żadnego
     z nich.
 
@@ -602,8 +615,9 @@ zapomniane, a ich liczba trafi do logu audytu.
   jest jego rodzeństwem, a nie kontenerem w jego środku.
 - **Klucz sesji** zawiera w sobie zasięg, organizację, rodzaj backendu i host —
   czyli dokładnie to, co decyduje, kto dzieli kontener.
-- **Dostarczany jest jeden runtime**, `workbench`, a model jest informowany o tym,
-  co w nim jest, składanym z tego samego katalogu, który go zbudował.
+- **Dostarczane są dwa runtime'y**, `workbench` i `desktop`, a model jest
+  informowany o tym, co jest w tym, na którym działa, składanym z tego samego
+  katalogu, który go zbudował.
 - Zapis tego, co zrobił agent, żyje w **tabeli tej platformy**, trzyma ścieżkę,
   a nigdy zawartości, i przeżywa agenta.
 - **Pliki są trzymane bezterminowo**, chyba że ustawisz `SANDBOXD_WORKSPACE_TTL`.

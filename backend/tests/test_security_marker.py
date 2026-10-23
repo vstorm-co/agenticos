@@ -139,6 +139,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_vault.py::TestRotation::test_rewrap_preserves_the_secret": "rewrap preserves the secret across a version bump, rotation round-trip, no refusal",
     "tests/test_web_search.py::TestConfiguration::test_a_keyless_method_publishes_without_a_secret": "a keyless web-search method needs no secret, conditional requirement, no refusal",
     "tests/test_liteparse_office_timeout.py::test_the_conversion_and_parse_share_one_timeout_budget": "a conversion/parse time budget, not a spend budget, no refusal",
+    "tests/test_computer_use.py::TestTheTools::test_a_run_resumed_after_approval_acts_on_the_screen_it_was_shown": "an approved batch runs on the screen it was approved against, no refusal",
 }
 
 

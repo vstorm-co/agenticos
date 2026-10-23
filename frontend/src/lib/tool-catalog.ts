@@ -64,6 +64,7 @@ export type ToolRenderer =
   | "generated-image"
   | "generated-speech"
   | "generated-video"
+  | "desktop-screenshot"
   | "web-search"
   | "rag"
   | "run-python"
@@ -259,6 +260,31 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "goingBack",
     displayNameKey: "goBack",
+  },
+
+  // computer_use - a desktop worked through screenshots. Like `browse_web`, the live
+  // view is the browse panel, fed by frames rather than by these calls; what comes
+  // back to the model is a screenshot plus a line, so the generic renderer serves.
+  computer_screenshot: {
+    kind: "web",
+    render: "generic",
+    captionKey: "lookingAtScreen",
+    displayNameKey: "takeScreenshot",
+  },
+  computer_act: {
+    kind: "web",
+    render: "generic",
+    captionKey: "usingComputer",
+    displayNameKey: "useComputer",
+  },
+  // The screenshot kept for the user rather than looked at: the picture is the answer.
+  computer_save_screenshot: {
+    kind: "image",
+    render: "desktop-screenshot",
+    captionKey: "savingScreenshot",
+    displayNameKey: "savedScreenshot",
+    opensWhenDone: true,
+    opensOnSight: true,
   },
 
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these

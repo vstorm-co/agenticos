@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "8f67edc78560"
+source_sha: "d843b5decb0b"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -154,7 +154,7 @@ Ein Anruf führt den Agent aus, den sein veröffentlichter Spec beschreibt, geba
 von derselben Factory wie ein Text-Run. Die Unterschiede kommen von der
 Realtime-Sitzung: Ihre Tools stehen fest, sobald der Anruf verbunden ist, sie
 kann nicht für eine Freigabe pausieren, und sie trägt keinen Workspace, keinen
-Browser und keine Delegates. Diese übergibt der Anruf stattdessen dem eigenen
+Browser, keinen Desktop und keine Delegates. Diese übergibt der Anruf stattdessen dem eigenen
 Textmodell des Agenten.
 
 | Per Sprache | Capabilities |
@@ -164,7 +164,7 @@ Textmodell des Agenten.
 | Angepasst | skills: bei Bedarf als Anweisungen geladen, ohne die Tools, mit denen ein Text-Run sie liest |
 | Weggelassen | tool search: Die MCP-Tools, die sie zurückgestellt hätte, werden dem Anruf direkt übergeben |
 | Abgebildet | thinking: wird zur eigenen Reasoning-Einstellung des Realtime-Modells, wo das Modell eine hat |
-| Übergeben | sandbox, browser use, subagents, der Coding Agent, Videoerzeugung, Arbeiten während Tools laufen: erledigt das Textmodell des Agenten, siehe [Arbeit übergeben](#handing-work-off) |
+| Übergeben | sandbox, browser use, Computer-Bedienung, subagents, der Coding Agent, Videoerzeugung, Arbeiten während Tools laufen: erledigt das Textmodell des Agenten, siehe [Arbeit übergeben](#handing-work-off) |
 
 Die Karte Stimme im Builder listet die Capabilities auf, die dieser Agent in
 Anrufen übergibt.

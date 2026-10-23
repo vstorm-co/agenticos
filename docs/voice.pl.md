@@ -1,5 +1,5 @@
 ---
-source_sha: "8f67edc78560"
+source_sha: "d843b5decb0b"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -144,7 +144,7 @@ utrzymujący się zalew kończy rozmowę.
 Rozmowa uruchamia agenta opisanego przez jego opublikowany spec, zbudowanego
 przez tę samą fabrykę co run tekstowy. Różnice wynikają z sesji realtime: jej
 narzędzia są ustalane w chwili połączenia, nie może się wstrzymać na
-zatwierdzenie i nie udźwignie workspace'u, przeglądarki ani delegatów. Te
+zatwierdzenie i nie udźwignie workspace'u, przeglądarki, pulpitu ani delegatów. Te
 rozmowa przekazuje zamiast tego modelowi tekstowemu agenta.
 
 | Głosowo | Capabilities |
@@ -154,7 +154,7 @@ rozmowa przekazuje zamiast tego modelowi tekstowemu agenta.
 | Dostosowane | skille: ładowane na żądanie jako instrukcje, bez narzędzi, którymi run tekstowy je czyta |
 | Pominięte | wyszukiwanie narzędzi: narzędzia MCP, które by odroczyło, są przekazywane rozmowie bezpośrednio |
 | Zmapowane | thinking: staje się własnym ustawieniem rozumowania modelu realtime, o ile model je ma |
-| Przekazane | sandbox, browser use, subagenty, coding agent, generowanie wideo, praca w trakcie narzędzi: robi to model tekstowy agenta, zob. [Przekazywanie pracy](#handing-work-off) |
+| Przekazane | sandbox, browser use, obsługa komputera, subagenty, coding agent, generowanie wideo, praca w trakcie narzędzi: robi to model tekstowy agenta, zob. [Przekazywanie pracy](#handing-work-off) |
 
 Karta Głos w Builderze wymienia capabilities, które ten agent w rozmowach
 przekazuje.

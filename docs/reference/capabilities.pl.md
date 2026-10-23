@@ -1,5 +1,5 @@
 ---
-source_sha: "75c53c320348"
+source_sha: "7b7a3c86350d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -73,6 +73,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
@@ -853,6 +854,108 @@ Spece zapisane przed wersją 13, które wiązały przeglądarkę krok po kroku
 `browse_page` przechodzą na `browse_web`; ustawienia modelu decyzyjnego i klucz TypeSafe
 są usuwane.
 
+## Obsługa komputera { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
+Agent obsługuje cały pulpit, więc może używać dowolnej aplikacji, nie tylko
+strony WWW. Patrzy na zrzut ekranu i wysyła kilka akcji myszy i klawiatury w
+pikselach tego zrzutu. Każda odpowiedź `computer_act` zawiera świeży zrzut
+ekranu. Większe ekrany są pomniejszane do `screen_width`x`screen_height`, zanim
+zobaczy je model, a każdy punkt jest przeliczany z powrotem na współrzędne
+samego pulpitu, także na punkty Maca z ekranem Retina.
+
+**Akceptacja dotyczy działania i trzeba ją włączyć.** Jak każde narzędzie, żadne
+z nich nie czeka na akceptację, dopóki właściciel agenta o nią nie poprosi.
+`computer_screenshot` niczego nie zmienia. Po ustawieniu `tool_approval:
+{computer_act: required}` każda paczka akcji czeka na akceptację względem zrzutu
+ekranu, który widział i model, i akceptujący. Punkt spoza tego zrzutu jest
+odrzucany, zanim cokolwiek się wykona. Zaakceptowana paczka wykonuje się w
+osobnym runie, który najpierw mierzy ekran i działa tylko wtedy, gdy ma on wciąż
+ten sam kształt co na zrzucie, na podstawie którego wybrano paczkę. Zmieniona
+rozdzielczość albo proporcje nie robią nic i pokazują modelowi nowy ekran.
+`max_actions` dotyczy całego runa, niezależnie od tego, ile razy czeka on na
+akceptację. Akceptacja obejmuje akcje, a nie piksele pod nimi: okno może się
+zmienić między zrzutem a kliknięciem, choć ekran zachowa rozmiar, więc odrzuć
+partię wymierzoną w okno, któremu nie ufasz, że pozostanie bez zmian.
+
+| `desktop` | Pulpit | Wymaga |
+|---|---|---|
+| `sandbox` | Pulpit Linux (XFCE i Firefox) we własnym [sandboksie](#files-shell) agenta, na tej samej maszynie, na której działają jego powłoka i narzędzia plikowe | Capability [Sandbox](#files-shell) na połączeniu sandboksa, z runtime'em `desktop` |
+| `daemon` | `computerd` uruchomiony przez operatora: jego własny pulpit Linux (X11), własny ekran Maca (`uv run deploy/computer/computerd.py`) albo pulpit w kontenerze (`deploy/computer/Dockerfile`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz token daemona jako sekret bindingu |
+
+Pulpit w sandboksie nie potrzebuje niczego własnego: ani adresu, ani tokena, ani
+providera. Żyje i jest współdzielony dokładnie tak jak sandbox, na rozmowę albo
+na agenta, według `session_scope` capability Sandbox, a plik, który agent
+zapisze narzędziami plikowymi, jest plikiem, który może otworzyć na ekranie.
+
+Publikacja odrzuca pulpit `sandbox` u agenta bez połączenia sandboksa oraz u
+specjalisty inline bez własnego połączenia albo takiego, które udostępnia mu
+rodzic. Odrzuca też taki, którego sandbox nie działa na runtime'ie `desktop`,
+odczytanym tak, jak odczytuje go uruchomienie: `runtime` capability Sandbox, a w
+przeciwnym razie domyślny runtime połączenia. Sandbox, który nie wskazuje
+żadnego, też jest odrzucany, bo domyślny runtime dostarczany z platformą to
+`workbench`, który nie ma ekranu. Połączenie Daytony jest odrzucane, bo
+uruchamia własny obraz.
+
+Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
+pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomić
+`xdotool` z powłoki.
+
+Jeden daemon to jeden pulpit: każdy run skierowany na niego dzieli tę maszynę i
+wszystko, na co jest na niej zalogowany. Daj mu osobną maszynę albo konto, nie
+czyjąś sesję roboczą. Agent może odczytać wszystko, co może odczytać konto, na
+którym działa daemon, łącznie z jego tokenem; dlatego kontener z
+`deploy/computer/` uruchamia daemona na osobnym koncie.
+
+**Token daemona należy do organizacji.** `COMPUTERD_TOKEN`, z którym uruchomiono
+daemona, jest przechowywany w [vaulcie](../secrets.md) organizacji jako klucz API
+i wskazany przez `secret_id` bindingu, a publikacja odrzuca daemona bez niego.
+`COMPUTER_DAEMON_ALLOWED_HOSTS` to lista wdrożenia, dokąd run może wysłać ten
+token. Jest sprawdzana przy publikacji i ponownie za każdym razem, gdy run
+otwiera daemona, więc zdjęcie z niej hosta zatrzymuje agentów już opublikowanych.
+Każda organizacja może wskazać dozwolony host, więc to token, a nie lista,
+trzyma jedną organizację z dala od pulpitu innej: daj każdemu pulpitowi własny
+token. `daemon_url` to wyłącznie adres daemona, a adres z zapytaniem (query),
+fragmentem albo danymi logowania jest odrzucany.
+
+| Ustawienie | Domyślnie | Zakres |
+|---|---|---|
+| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host, bez query, fragmentu ani danych logowania |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, nie więcej niż `max_actions` |
+| `max_actions` | 200 | 1–2000 na run |
+| `preview` | włączone | |
+
+Czat rysuje pulpit w oknie pod wiadomością, gdy agent pracuje: jedno okno na
+run, otwarte przez pierwszy zrzut ekranu, z klatką po każdym wywołaniu i linią
+na akcję. Tekst wpisywany przez model
+jest tam widoczny tak, jak został wpisany.
+
+**Zrzut ekranu, który zostaje u użytkownika.** `computer_screenshot` jest dla
+modelu i nic go nie przechowuje: run czekający na akceptację, jego manifest i
+skompaktowana rozmowa zapisują w jego miejscu jedno zdanie. Gdy użytkownik chce zobaczyć ekran albo wynik
+kroku ma zostać zachowany jako dowód, agent wywołuje `computer_save_screenshot`.
+Zapisuje on ekran w pełnej rozdzielczości dla organizacji i pokazuje go w czacie
+z linkiem do pliku w pełnym rozmiarze. Gdy agent ma workspace, zapisuje też plik
+w `output/`, więc odpowiedź na kanale go zawiera, a kolejny krok może dołączyć go
+do raportu. Bez workspace'u odpowiedź na kanale nie zawiera pliku, tak jak przy
+generowaniu obrazów. Niczego na pulpicie nie zmienia i nie czeka na akceptację, chyba że
+właściciel o nią poprosi.
+
+!!! warning "Tekst na ekranie jest niezaufany"
+
+    Instrukcje mówią modelowi, że to, co jest na ekranie, to dane, nigdy
+    polecenia, i że ma się zatrzymać przed hasłami, płatnościami i decyzjami
+    należącymi do użytkownika. Egzekwuje to akceptacja, a jest wyłączona, dopóki
+    nie ustawi jej właściciel agenta: bez niej `computer_act` pozwala agentowi
+    działać według tego, co powie mu dowolne okno.
+
 ## Obliczenia { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
@@ -934,11 +1037,14 @@ przy tym polu, panel plików podpisuje, czyj to workspace, zamiast nazywać go
 użytkownik, który widzi plik, którego nie stworzył, powinien móc się dowiedzieć
 dlaczego.
 
-**Zmiana backendu albo połączenia zaczyna świeży workspace, a nie podłącza się
-ponownie do starego.** Zapisany dokument, wolumen kontenera i sandbox Daytony to
-trzy różne rzeczy, a dwie instalacje `sandboxd` to dwie różne rzeczy — więc każda
-dostaje własny workspace, a poprzedni zostaje tam, gdzie był, nadal wypisywany i
-nadal do odczytu. Przenoszenie żywego agenta nie jest więc sposobem na przeniesienie
+**Zmiana backendu, połączenia albo runtime'u zaczyna świeży workspace, a nie
+podłącza się ponownie do starego.** Zapisany dokument, wolumen kontenera i sandbox
+Daytony to trzy różne rzeczy, a dwie instalacje `sandboxd` to dwie różne rzeczy —
+więc każda dostaje własny workspace, a poprzedni zostaje tam, gdzie był, nadal
+wypisywany i nadal do odczytu. Runtime kontenera jest wybierany przy jego
+utworzeniu, więc w przeciwnym razie workspace przeniesiony na inny runtime nadal
+działałby na starym obrazie. Brak runtime'u i `workbench`, domyślny runtime dostarczany z
+platformą, to ten sam workspace. Przenoszenie żywego agenta nie jest więc sposobem na przeniesienie
 jego plików; agent zastaje na nowym hoście pusty workspace. Ponieważ
 `connection_id: null` oznacza „domyślne połączenie organizacji", oznaczenie innego
 połączenia jako domyślnego daje ten sam efekt bez zmiany jakiegokolwiek speca.
@@ -2518,8 +2624,9 @@ sprawdzane w chwili składania agenta:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `computer:use` | `computer_use` |
 
-!!! note "Wszystkie osiem jest dziś przyznanych domyślnie"
+!!! note "Wszystkie dziewięć jest dziś przyznanych domyślnie"
 
     `DEFAULT_GRANTED_SCOPES` w `app/services/agent_registry.py`. Zarządzanie
     zakresami per organizacja jest pracą z

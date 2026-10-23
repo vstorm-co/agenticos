@@ -171,6 +171,7 @@ from app.agents.connect_on_use import (
     PendingService,
 )
 from app.agents.deps import AgentDeps, CompactionSink
+from app.agents.ephemeral_media import dump_messages
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.hand_off import CallWorker, HandOffSpend
@@ -1552,7 +1553,7 @@ def _classify_output(
             call.tool_call_id for call in result.output.calls if call.tool_name == ASK_USER_TOOL
         ]
         paused = PausedRunState(
-            messages=ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+            messages=dump_messages(result.all_messages()),
             tool_call_ids=parked,
             questions=questions,
         )
@@ -5596,7 +5597,7 @@ class AgentRunnerService:
                 # nothing else (#55).
                 summarized = await offloaded_history(
                     prepared.built.capabilities,
-                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+                    dump_messages(result.all_messages()),
                 )
             new_messages = result.new_messages()
             called = [*tool_calls_in(new_messages), *_written_next_steps(prepared.built.deps)]

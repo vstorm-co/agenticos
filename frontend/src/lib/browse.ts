@@ -15,6 +15,13 @@ export interface BrowseStep {
   url: string | null;
 }
 
+/**
+ * The tools that drive a desktop rather than a browser. Each run that uses one
+ * draws the desktop in a window named after its first call - a screenshot, or
+ * an action approved in a run of its own - so any of them can carry a window.
+ */
+export const DESKTOP_TOOLS: ReadonlySet<string> = new Set(["computer_screenshot", "computer_act"]);
+
 /** One `browse_web` call, assembled from its frames. */
 export interface Browse {
   callId: string;

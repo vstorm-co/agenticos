@@ -21,6 +21,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **An agent can use a computer.** The `computer_use` capability gives an
+  agent a whole desktop rather than a web page: `computer_screenshot` looks
+  and `computer_act` clicks, types, scrolls and drags; an agent's owner can
+  hold the actions alone for approval with `tool_approval`. The desktop is
+  either inside the agent's own sandbox, on the new `desktop` runtime (XFCE
+  and Firefox), so the shell, the files and the screen are one machine and
+  computer use needs no address or key of its own; or a `computerd` daemon
+  the operator runs on their own Linux desktop, a Mac's own screen or a
+  container (`deploy/computer/`, where the daemon and its token run as an
+  account the desktop cannot read), on a host that
+  `COMPUTER_DAEMON_ALLOWED_HOSTS` allows, reached with the daemon's token
+  from the organization's vault. The allowlist is checked at publish and
+  again whenever a run opens the daemon. Publish refuses a sandbox desktop on
+  an agent, an inline specialist or a pinned delegate without a sandbox
+  connection to run it in, or whose sandbox is on any runtime but `desktop`
+  or on Daytona. An approved
+  batch runs only on a screen still the shape it was approved against, and
+  `max_actions` counts across approvals; each run, and each delegation
+  to the same delegate, starts a session of its own, and a batch is refused
+  after a screenshot fails until one succeeds. The model's screenshots are not
+  kept: a parked run, its manifest and a compacted conversation hold a
+  sentence in their place, and the file each is taken through is removed from
+  the sandbox or the daemon's host once read. The chat draws the desktop live in a window under
+  the message, and `computer_save_screenshot` keeps a full-resolution
+  screenshot in the chat and the workspace, for a user who wants to see the
+  screen or a test that needs evidence (#2094).
 - **The desktop app looks and behaves like an application** (#2305). On macOS
   the console's sidebar holds the traffic lights and drags the window, the
   window remembers its size and place, closing it keeps the app in the menu
@@ -183,11 +209,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Changing a sandbox's runtime opens a new workspace.** A container's image
+  is chosen when it is created, and the workspace's key did not include the
+  runtime, so an agent moved to another runtime kept attaching to its old
+  container. The key includes the runtime now. Naming no runtime and naming
+  `workbench`, the shipped default, keep the key they had. A workspace already
+  open on any other runtime starts empty once after the upgrade; the old one
+  stays listed and readable.
 - **The Android app shows the AgenticOS icon**, not Tauri's default: the
   generated launcher icons had never been copied into the Android project.
 - **The desktop app opens on the console, not on the sign-in form.** It
   opened the server's root, which sends everybody to the form, so a person
   with a perfectly good session was asked to sign in on every launch.
+- **A tool whose arguments are models can be held for approval.** The gate
+  stored the validated arguments as they were, so a call carrying a Pydantic
+  model failed to park with a serialization error instead of asking. They
+  are stored as JSON now.
+- **A tool call's stored result no longer holds a picture's bytes.** A tool
+  that answered with an image, such as `web_fetch` on a picture, was
+  recorded as the image's Python representation, bytes and all, in the run's
+  history and the chat's tool row. The row says which kind of picture it
+  was instead.
 
 ## [1.16.0] - 2026-10-23
 

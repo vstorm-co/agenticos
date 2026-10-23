@@ -1457,6 +1457,13 @@
       "availableContext": "Verfügbarer Kontext",
       "availableSteps": "Verfügbare Schritte",
       "browseWeb": "Im Web surfen",
+      "lookingAtScreen": "Sehe mir den Bildschirm an",
+      "takeScreenshot": "Bildschirmfoto aufnehmen",
+      "savingScreenshot": "Speichere ein Bildschirmfoto",
+      "savedScreenshot": "Bildschirmfoto",
+      "screenshotNotStored": "Das Bildschirmfoto wurde aufgenommen, aber nicht gespeichert.",
+      "usingComputer": "Bediene den Computer",
+      "useComputer": "Den Computer bedienen",
       "browsingWeb": "Surft im Web",
       "cancelTask": "Aufgabe abbrechen",
       "cancellingDelegate": "Bricht einen Delegaten ab",
@@ -1742,6 +1749,7 @@
     "browserHolding": "Sie steuern - klicken, tippen und scrollen Sie auf der Seite",
     "browserLineBrowsed": "War auf {host}",
     "browserLineBrowsedWeb": "War im Web",
+    "computerLineUsed": "Hat einen Computer bedient",
     "browserVisitSite": "Seite öffnen",
     "approvalAsk": "{action} erlauben?",
     "passageCount": "{count, plural, =1 {1 Abschnitt} other {# Abschnitte}}",
@@ -7619,6 +7627,14 @@
       "needs": "Nichts weiter.",
       "never": "Löscht nie das Gespräch: Man sieht es weiterhin vollständig."
     },
+    "computer_use": {
+      "name": "Computer-Bedienung",
+      "does": "Lässt den Agenten einen ganzen Desktop bedienen - jede Anwendung, nicht nur Webseiten - anhand von Screenshots, mit Maus und Tastatur. Sie sehen live im Chat zu.",
+      "example1": "Ein Formular in einer Desktop-Anwendung ausfüllen",
+      "example2": "Einen Bericht aus einem alten Werkzeug ohne API exportieren",
+      "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt, mit seinem Token im Tresor der Organisation. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
+      "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
+    },
     "context": {
       "name": "Kontext",
       "does": "Gibt dem Agenten bei jeder Antwort die festen Informationen Ihres Unternehmens - ein Glossar, eine Richtlinie, eine Markenstimme.",
@@ -8337,6 +8353,36 @@
       "model_profile_id": {
         "title": "Modell für nächste Schritte",
         "description": "Ein Modellprofil, das die nächsten Schritte schreibt, sobald die Antwort da ist, statt dass das Modell des Agents sie als Tool anbietet. Für drei kurze Schaltflächen reicht ein kleines, günstiges Modell, und der Agent verbraucht dafür keine Anfrage mehr. Leer lässt der Agent sie selbst anbieten."
+      }
+    },
+    "computer_use": {
+      "desktop": {
+        "title": "Desktop",
+        "description": "Die eigene Sandbox des Agenten mit einem Desktop darin, oder ein Computer, den Sie selbst betreiben. Die Sandbox braucht die Sandbox-Fähigkeit auf einer Sandbox-Verbindung."
+      },
+      "daemon_url": {
+        "title": "Daemon-URL",
+        "description": "Der computerd-Endpunkt Ihres Desktops. Sein Host muss in COMPUTER_DAEMON_ALLOWED_HOSTS stehen."
+      },
+      "screen_width": {
+        "title": "Screenshot-Breite",
+        "description": "Die größte Breite eines Screenshots, den das Modell sieht; größere Bildschirme werden passend verkleinert."
+      },
+      "screen_height": {
+        "title": "Screenshot-Höhe",
+        "description": "Die größte Höhe eines Screenshots, den das Modell sieht."
+      },
+      "max_actions_per_call": {
+        "title": "Aktionen pro Aufruf",
+        "description": "Wie viele Aktionen ein Aufruf senden darf."
+      },
+      "max_actions": {
+        "title": "Aktionen pro Lauf",
+        "description": "Wie viele Aktionen ein Lauf insgesamt ausführen darf."
+      },
+      "preview": {
+        "title": "Live-Vorschau",
+        "description": "Den Desktop live im Chat zeigen, während der Agent damit arbeitet."
       }
     }
   },

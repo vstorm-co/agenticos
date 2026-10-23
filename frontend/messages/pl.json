@@ -1457,6 +1457,13 @@
       "availableContext": "Dostępny kontekst",
       "availableSteps": "Dostępne kroki",
       "browseWeb": "Przeglądanie stron",
+      "lookingAtScreen": "Patrzę na ekran",
+      "takeScreenshot": "Zrób zrzut ekranu",
+      "savingScreenshot": "Zapisuję zrzut ekranu",
+      "savedScreenshot": "Zrzut ekranu",
+      "screenshotNotStored": "Zrzut ekranu został zrobiony, ale nie zapisany.",
+      "usingComputer": "Używam komputera",
+      "useComputer": "Użyj komputera",
       "browsingWeb": "Przegląda strony",
       "cancelTask": "Anuluj zadanie",
       "cancellingDelegate": "Anuluje delegata",
@@ -1742,6 +1749,7 @@
     "browserHolding": "Sterujesz - klikaj, pisz i przewijaj stronę",
     "browserLineBrowsed": "Przeglądał {host}",
     "browserLineBrowsedWeb": "Przeglądał internet",
+    "computerLineUsed": "Korzystał z komputera",
     "browserVisitSite": "Otwórz stronę",
     "approvalAsk": "Zezwolić: {action}?",
     "passageCount": "{count, plural, =1 {1 fragment} few {# fragmenty} many {# fragmentów} other {# fragmentu}}",
@@ -7515,6 +7523,14 @@
       "needs": "Nic dodatkowego.",
       "never": "Nigdy nie usuwa rozmowy: ludzie dalej widzą ją całą."
     },
+    "computer_use": {
+      "name": "Obsługa komputera",
+      "does": "Pozwala agentowi obsługiwać cały pulpit - dowolną aplikację, nie tylko strony WWW - patrząc na zrzuty ekranu i używając myszy i klawiatury. Oglądasz to na żywo w czacie.",
+      "example1": "Wypełnij formularz w aplikacji desktopowej",
+      "example2": "Wyeksportuj raport ze starego narzędzia bez API",
+      "needs": "Pulpit we własnym sandboxie agenta (możliwość Sandbox na środowisku 'desktop') albo pulpit uruchomiony przez administratora z computerd na Linuksie lub Macu, z tokenem w vaulcie organizacji. Każdy krok to jedno zapytanie do modelu ze zrzutem ekranu.",
+      "never": "Nie działa bez akceptacji, chyba że ją wyłączono, nie wykonuje poleceń widocznych na ekranie i zatrzymuje się przed hasłami lub płatnościami."
+    },
     "context": {
       "name": "Kontekst",
       "does": "Daje agentowi stałe informacje o firmie - słownik, zasady, styl marki - przy każdej odpowiedzi.",
@@ -8243,6 +8259,36 @@
       "model_profile_id": {
         "title": "Model do następnych kroków",
         "description": "Profil modelu, który pisze następne kroki, gdy odpowiedź jest gotowa, zamiast własnego modelu agenta proponującego je narzędziem. Na trzy krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie zapytania. Puste pole zostawia to agentowi."
+      }
+    },
+    "computer_use": {
+      "desktop": {
+        "title": "Pulpit",
+        "description": "Własny sandbox agenta z pulpitem albo komputer, który uruchamiasz sam. Sandbox wymaga możliwości Sandbox na połączeniu z sandboxem."
+      },
+      "daemon_url": {
+        "title": "Adres daemona",
+        "description": "Punkt końcowy computerd twojego pulpitu. Jego host musi być na liście COMPUTER_DAEMON_ALLOWED_HOSTS."
+      },
+      "screen_width": {
+        "title": "Szerokość zrzutu ekranu",
+        "description": "Największa szerokość zrzutu ekranu pokazywanego modelowi; większe ekrany są pomniejszane, by się zmieściły."
+      },
+      "screen_height": {
+        "title": "Wysokość zrzutu ekranu",
+        "description": "Największa wysokość zrzutu ekranu pokazywanego modelowi."
+      },
+      "max_actions_per_call": {
+        "title": "Akcje na wywołanie",
+        "description": "Ile akcji może wysłać jedno wywołanie."
+      },
+      "max_actions": {
+        "title": "Akcje na uruchomienie",
+        "description": "Ile akcji łącznie może wykonać jedno uruchomienie."
+      },
+      "preview": {
+        "title": "Podgląd na żywo",
+        "description": "Pokazuj pulpit na żywo w czacie, gdy agent na nim pracuje."
       }
     }
   },

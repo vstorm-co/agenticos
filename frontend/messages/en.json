@@ -1457,6 +1457,13 @@
       "availableContext": "Available Context",
       "availableSteps": "Available Steps",
       "browseWeb": "Browse the Web",
+      "lookingAtScreen": "Looking at the screen",
+      "takeScreenshot": "Take a Screenshot",
+      "savingScreenshot": "Saving a screenshot",
+      "savedScreenshot": "Screenshot",
+      "screenshotNotStored": "The screenshot was taken but not stored.",
+      "usingComputer": "Using the computer",
+      "useComputer": "Use the Computer",
       "browsingWeb": "Browsing the web",
       "cancelTask": "Cancel Task",
       "cancellingDelegate": "Cancelling a delegate",
@@ -1742,6 +1749,7 @@
     "browserHolding": "You're driving - click, type and scroll the page",
     "browserLineBrowsed": "Browsed {host}",
     "browserLineBrowsedWeb": "Browsed the web",
+    "computerLineUsed": "Used a computer",
     "browserVisitSite": "Visit site",
     "approvalAsk": "Allow {action}?",
     "passageCount": "{count, plural, =1 {1 passage} other {# passages}}",
@@ -7740,6 +7748,14 @@
       "needs": "Nothing extra.",
       "never": "Never deletes the conversation: people still see all of it."
     },
+    "computer_use": {
+      "name": "Computer use",
+      "does": "Lets the agent operate a whole desktop - any application, not only web pages - by looking at screenshots and using the mouse and keyboard. You watch it live in the chat.",
+      "example1": "Fill in a form in a desktop application",
+      "example2": "Export a report from a legacy tool with no API",
+      "needs": "A desktop in the agent's own sandbox (the Sandbox capability on its 'desktop' runtime), or one an administrator runs with computerd on a Linux desktop or a Mac, with its token in the organization's vault. Each step is one model request with a screenshot.",
+      "never": "Never acts without approval unless that is switched off, never follows instructions shown on the screen, and stops to ask before passwords or payments."
+    },
     "context": {
       "name": "Context",
       "does": "Gives the agent your company's standing information - a glossary, a policy, a brand voice - every time it answers.",
@@ -8458,6 +8474,36 @@
       "model_profile_id": {
         "title": "Model for next steps",
         "description": "A model profile that writes the next steps once the answer is in, instead of the agent's own model offering them as a tool. A small, cheap model is enough for three short buttons, and the agent no longer spends a request on them. Empty lets the agent offer them itself."
+      }
+    },
+    "computer_use": {
+      "desktop": {
+        "title": "Desktop",
+        "description": "The agent's own sandbox, with a desktop in it, or a computer you run. The sandbox needs the Sandbox capability on a sandbox connection."
+      },
+      "daemon_url": {
+        "title": "Daemon URL",
+        "description": "The computerd endpoint of your desktop. Its host must be on COMPUTER_DAEMON_ALLOWED_HOSTS."
+      },
+      "screen_width": {
+        "title": "Screenshot width",
+        "description": "The widest screenshot the model is shown; larger screens are scaled down to fit."
+      },
+      "screen_height": {
+        "title": "Screenshot height",
+        "description": "The tallest screenshot the model is shown."
+      },
+      "max_actions_per_call": {
+        "title": "Actions per call",
+        "description": "How many actions one call may send."
+      },
+      "max_actions": {
+        "title": "Actions per run",
+        "description": "How many actions one run may take in total."
+      },
+      "preview": {
+        "title": "Live preview",
+        "description": "Show the desktop live in the chat while the agent works it."
       }
     }
   },

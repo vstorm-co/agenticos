@@ -1,5 +1,5 @@
 ---
-source_sha: "8f67edc78560"
+source_sha: "d843b5decb0b"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -146,7 +146,7 @@ avalancha sostenida termina la llamada.
 Una llamada ejecuta el agent que describe su spec publicado, construido por la
 misma factory que un run de texto. Las diferencias vienen de la sesión realtime:
 sus herramientas quedan fijadas cuando se conecta la llamada, no puede pausarse
-para una aprobación y no puede llevar un workspace, un navegador ni delegados.
+para una aprobación y no puede llevar un workspace, un navegador, un escritorio ni delegados.
 Eso la llamada lo pasa al modelo de texto propio del agent.
 
 | Por voz | Capabilities |
@@ -156,7 +156,7 @@ Eso la llamada lo pasa al modelo de texto propio del agent.
 | Adaptada | skills: se cargan como instrucciones bajo demanda, sin las herramientas que usa un run de texto para leerlos |
 | Eliminada | búsqueda de herramientas: las herramientas MCP que habría diferido se pasan directamente a la llamada |
 | Traducida | razonamiento (thinking): se convierte en el ajuste de razonamiento propio del modelo realtime, cuando el modelo lo tiene |
-| Delegada | sandbox, automatización del navegador, subagents, el coding agent, generación de vídeo, trabajar mientras corren herramientas: lo hace el modelo de texto del agent, ver [Pasar trabajo](#handing-work-off) |
+| Delegada | sandbox, automatización del navegador, computer use, subagents, el coding agent, generación de vídeo, trabajar mientras corren herramientas: lo hace el modelo de texto del agent, ver [Pasar trabajo](#handing-work-off) |
 
 La tarjeta Voice del Builder enumera las capabilities que este agent pasa a su
 modelo de texto en las llamadas.

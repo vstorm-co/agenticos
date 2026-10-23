@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowUpRight, Globe, Maximize2 } from "lucide-react";
+import { ArrowUpRight, Globe, Maximize2, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { createContext, useContext } from "react";
 
 import { useLiveBrowse } from "@/hooks/use-live-browse";
-import { isRunning, type Browse } from "@/lib/browse";
+import { DESKTOP_TOOLS, isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { ToolCall } from "@/types";
@@ -17,6 +17,10 @@ const LiveBrowses = createContext<{
   browses: Browse[];
   onComment?: (comment: PageComment) => void;
 }>({ browses: [] });
+
+function isDesktop(call: ToolCall): boolean {
+  return DESKTOP_TOOLS.has(call.name);
+}
 
 /** Hands the chat's live browses to the turns that made them. */
 export const LiveBrowsesProvider = LiveBrowses.Provider;
@@ -38,7 +42,15 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
     const browse = live.find((entry) => entry.callId === call.id);
     return browse ? [browse] : [];
   });
-  const recorded = calls.filter((call) => !live.some((entry) => entry.callId === call.id));
+  // A desktop has one line however many runs used it, and none beside a window
+  // that is showing it: its calls are only candidates for the window a run opened.
+  const shown = calls.some((call) => isDesktop(call) && windows.some((w) => w.callId === call.id));
+  const firstDesktop = shown ? undefined : calls.find(isDesktop);
+  const recorded = calls.filter(
+    (call) =>
+      !live.some((entry) => entry.callId === call.id) &&
+      (!isDesktop(call) || call === firstDesktop),
+  );
   return (
     <div className="flex w-full min-w-0 flex-col gap-2 py-1">
       {windows.length > 0 && (
@@ -60,17 +72,24 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
 /** A browse from an earlier turn: where it went, and the way there. */
 function RecordedBrowse({ call }: { call: ToolCall }) {
   const t = useTranslations("chat");
-  // `browse_web` names where it started; `browser_open`, where it opened.
+  // `browse_web` names where it started; `browser_open`, where it opened. A
+  // desktop has no address, only the fact that one was used.
+  const desktop = isDesktop(call);
   const opened = call.args.start_url ?? call.args.url;
   const start = typeof opened === "string" ? opened : null;
   const host = hostOf(start);
+  const Icon = desktop ? Monitor : Globe;
   return (
     <div className="bg-foreground/[0.04] flex w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-2">
       <span className="ring-foreground/10 bg-background flex h-10 w-14 shrink-0 items-center justify-center rounded-lg ring-1">
-        <Globe className="text-muted-foreground size-4" aria-hidden />
+        <Icon className="text-muted-foreground size-4" aria-hidden />
       </span>
       <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
-        {host ? t("browserLineBrowsed", { host }) : t("browserLineBrowsedWeb")}
+        {desktop
+          ? t("computerLineUsed")
+          : host
+            ? t("browserLineBrowsed", { host })
+            : t("browserLineBrowsedWeb")}
       </span>
       {start && host && (
         <a
