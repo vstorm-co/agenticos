@@ -2616,7 +2616,7 @@
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
         },
-        "waiting": "{count, plural, =1 {1 zu prüfen} other {# zu prüfen}}",
+        "toAccept": "{count, plural, =1 {1 Entwurf anzunehmen} other {# Entwürfe anzunehmen}}",
         "stat": {
           "reference": "{count, plural, =1 {1 Referenz} other {# Referenzen}}",
           "counter": "{count, plural, =1 {1 Gegenbeispiel} other {# Gegenbeispiele}}",

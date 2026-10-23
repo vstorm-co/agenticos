@@ -34,18 +34,31 @@ function sum(datasets: PendingDataset[], outcome: (typeof OUTCOMES)[number]): nu
   return datasets.reduce((total, dataset) => total + dataset[outcome], 0);
 }
 
+function waiting(dataset: PendingDataset): number {
+  return OUTCOMES.reduce((total, outcome) => total + dataset[outcome], 0);
+}
+
+/** The Review tab holding the most of the queue, where "See all" goes; none while it is empty. */
+function busiestReview(datasets: PendingDataset[]): string | undefined {
+  const busiest = datasets.reduce<PendingDataset | undefined>(
+    (best, dataset) => (best === undefined || waiting(dataset) > waiting(best) ? dataset : best),
+    undefined,
+  );
+  return busiest && `${ROUTES.DATASET_DETAIL(busiest.dataset_id)}?tab=review`;
+}
+
 /**
  * Eval results waiting for a person's verdict, across the datasets the reader
  * may see: how many did not pass, could not be scored, or passed and were sent
  * anyway, and which datasets hold them - each opening on its Scores tab.
  */
-export function ReviewQueueWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
+export function ReviewQueueWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.review-queue");
   // The card reads the breakdown, not the scores; one row keeps the page small.
   const { datasets, total, isLoading, error, refetch } = useReviewQueue({ limit: 1 });
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+    <WidgetFrame title={title} hint={hint} seeAll={busiestReview(datasets)} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

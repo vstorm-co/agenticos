@@ -2616,7 +2616,7 @@
           "title": "No datasets yet",
           "description": "Test cases you collect for evals appear here."
         },
-        "waiting": "{count, plural, =1 {1 to review} other {# to review}}",
+        "toAccept": "{count, plural, =1 {1 draft to accept} other {# drafts to accept}}",
         "stat": {
           "reference": "{count, plural, =1 {1 reference} other {# references}}",
           "counter": "{count, plural, =1 {1 counter-example} other {# counter-examples}}",

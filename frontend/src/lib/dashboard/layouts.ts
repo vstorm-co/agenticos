@@ -343,8 +343,10 @@ const ME_SECTIONS: SectionDef[] = [
       // verdicts, beside the suites that run them on their own.
       { widget: "eval-runs", span: "s6", rows: "r3" },
       { widget: "eval-suites", span: "s6", rows: "r3" },
-      // What the authoring assistant suggested for the reader's agents, waiting on a decision.
-      { widget: "suggestions", span: "s12", rows: "r2" },
+      // What waits on the reader to improve an agent: the assistant's suggestions
+      // beside the questions its knowledge could not answer.
+      { widget: "suggestions", span: "s6", rows: "r3" },
+      { widget: "knowledge-gaps", span: "s6", rows: "r3" },
       // What agents drew for them lately, as pictures: the one card here that is
       // something to look at rather than a list to read. Four rows, so a
       // thumbnail is big enough to tell one drawing from another.

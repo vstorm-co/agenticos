@@ -2615,7 +2615,7 @@
           "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do evali."
         },
-        "waiting": "{count, plural, one {1 do przejrzenia} other {# do przejrzenia}}",
+        "toAccept": "{count, plural, one {1 szkic do akceptacji} few {# szkice do akceptacji} many {# szkiców do akceptacji} other {# szkicu do akceptacji}}",
         "stat": {
           "reference": "{count} z odpowiedzią wzorcową",
           "counter": "{count} z kontrprzykładem",

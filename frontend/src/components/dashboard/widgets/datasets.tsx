@@ -106,7 +106,7 @@ export function DatasetsWidget({ title, hint, seeAll, options }: DashboardWidget
                   <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-xs">
                     {dataset.pending_proposals > 0 && (
                       <Badge variant="secondary">
-                        {t("waiting", { count: dataset.pending_proposals })}
+                        {t("toAccept", { count: dataset.pending_proposals })}
                       </Badge>
                     )}
                     {t("cases", { count: dataset.case_count, version: dataset.latest_version })}
