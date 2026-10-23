@@ -1,9 +1,16 @@
 /** Small display formatters shared by the dashboard's widgets. */
 
-/** A serialised-Decimal (or number) as dollars. Display only - never arithmetic. */
-export function formatUsd(value: string | number | null | undefined, locale: string): string {
+/**
+ * A serialised-Decimal (or number) as dollars, to `digits` places - four for a
+ * single run's cost, which is often under a cent. Display only - never arithmetic.
+ */
+export function formatUsd(
+  value: string | number | null | undefined,
+  locale: string,
+  digits = 2,
+): string {
   const amount = Number(value ?? 0);
-  return `$${amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${amount.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 }
 
 /** Milliseconds as human latency: 850 ms below a second, seconds above. */

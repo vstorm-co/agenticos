@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+
+import { formatUsd } from "@/components/dashboard/format";
 import {
   Activity,
   ArrowLeft,
@@ -304,11 +306,7 @@ export function FocusedRun({
             {run.output_tokens.toLocaleString(locale)}
           </Fact>
           <Fact label={t("cost")}>
-            $
-            {Number(run.cost_usd).toLocaleString(locale, {
-              minimumFractionDigits: 4,
-              maximumFractionDigits: 4,
-            })}
+            {formatUsd(run.cost_usd, locale, 4)}
             {run.cost_is_partial && (
               <span className="text-muted-foreground" title={t("modelRunHadNo")}>
                 {" +"}
