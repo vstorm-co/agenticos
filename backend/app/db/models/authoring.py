@@ -164,6 +164,11 @@ class AuthoringRequest(Base):
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Answers the improver must not read as evidence: an improvement session found
+    # them missing knowledge, which a change to the agent cannot supply.
+    excluded_message_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
     evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     report: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(

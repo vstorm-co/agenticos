@@ -28,8 +28,9 @@ agent said it did not know, or a reader's thumbs-down comment says what was
 missing, the answer is recorded as a row here of that `signal`, holding the
 person's question as its query, and is grouped like any other miss.
 `knowledge_gap_classifications` remembers every answer read that way for each
-knowledge base, whatever the verdict, so none is paid for twice; it holds no
-text.
+knowledge base, whatever the verdict, so none is paid for twice, with the
+classifier's one-sentence reason - the only text it holds, which goes with the
+answer.
 """
 
 import uuid
@@ -305,6 +306,9 @@ class KnowledgeGapClassification(Base):
     # A `GapSignal` other than retrieval, `none`, or `refused` - a rightful refusal of a
     # request outside the agent's rules, whose run's misses are then no gap either.
     signal: Mapped[str] = mapped_column(String(16), nullable=False)
+    # The classifier's one sentence on why, read from the answer and the agent's own
+    # sources: user content, which goes with the answer like the rest of the row.
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_runs.id", ondelete="SET NULL"),

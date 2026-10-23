@@ -16,6 +16,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from app.db.models.authoring import AuthoringStatus
+from app.db.models.background_job import JobStatus
 from app.db.models.eval_run import EvalRunStatus
 from app.db.models.improvement import (
     ImprovementStage,
@@ -33,6 +34,8 @@ INCONCLUSIVE_RERUNS = 1
 STALL_MARGIN = timedelta(minutes=10)
 STEP_TIMEOUT: dict[ImprovementStage, timedelta] = {
     ImprovementStage.ANALYZING: timedelta(minutes=2),
+    ImprovementStage.CLASSIFYING: timedelta(minutes=10),
+    ImprovementStage.DRAFTING: timedelta(minutes=15),
     ImprovementStage.PROPOSING: timedelta(hours=1),
     ImprovementStage.FILTERING: timedelta(minutes=2),
     ImprovementStage.EVALUATING: timedelta(hours=12),
@@ -161,10 +164,50 @@ def checked(
 
 
 def after_analyzing(*, has_evidence: bool, gradable_cases: int) -> Transition:
-    """Propose once there is something to learn from and something to measure on."""
+    """Sort the bad answers once there is something to learn from and something to measure on."""
     if not has_evidence or gradable_cases < MIN_GRADABLE_CASES:
         return _stop(ImprovementStage.ANALYZING, StopReason.NO_DATA)
-    return _step(ImprovementStage.PROPOSING)
+    return _step(ImprovementStage.CLASSIFYING)
+
+
+def _ended(status: JobStatus | None) -> bool:
+    """Whether a step's job is over; `None` is one retention has removed, long over."""
+    return status not in ("queued", "running")
+
+
+def after_classifying(
+    status: JobStatus | None, *, agent_answers: int, missing_knowledge: int
+) -> Transition | None:
+    """Draft what is missing, or propose for what the agent got wrong; `None` while sorting.
+
+    The two branches are each optional: answers missing knowledge are drafted
+    first, then the agent's own faults are proposed for. An answer that was
+    not a problem goes to neither, and one whose cause stayed unknown is the
+    agent's to look at. A sort that failed leaves every answer to the agent.
+    """
+    if not _ended(status):
+        return None
+    if missing_knowledge:
+        return _step(ImprovementStage.DRAFTING)
+    if agent_answers:
+        return _step(ImprovementStage.PROPOSING)
+    return _stop(ImprovementStage.CLASSIFYING, StopReason.NO_PROPOSAL)
+
+
+def after_drafting(status: JobStatus | None, *, agent_answers: int) -> Transition | None:
+    """Propose for the agent's own faults after drafting; `None` while drafting.
+
+    Drafts are for a person to add, so a session with nothing else to change
+    ends there - and a drafting step that failed is that session's failure,
+    while one with the agent's faults left carries on to them.
+    """
+    if not _ended(status):
+        return None
+    if agent_answers:
+        return _step(ImprovementStage.PROPOSING)
+    if status in ("dead", "cancelled"):
+        return _fail(ImprovementStage.DRAFTING, StopReason.DRAFT)
+    return _stop(ImprovementStage.DRAFTING, StopReason.KNOWLEDGE_ONLY)
 
 
 def after_proposing(status: AuthoringStatus, *, hunks: int) -> Transition | None:

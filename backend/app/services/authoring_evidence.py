@@ -179,12 +179,23 @@ class EvidenceService:
         self.db = db
 
     async def for_agent(
-        self, ctx: AuthContext, agent_id: UUID, *, window_days: int
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        window_days: int,
+        excluded_message_ids: Sequence[UUID] = (),
     ) -> EvidencePack:
+        """The agent's runs worth reading, less those that gave `excluded_message_ids`.
+
+        An improvement session excludes the answers it found missing knowledge:
+        no change to the agent supplies what no source holds.
+        """
         rows = await authoring_repo.evidence_runs(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
+            excluded_message_ids=excluded_message_ids,
             since=self._since(window_days),
             limit=MAX_EVIDENCE_RUNS,
         )

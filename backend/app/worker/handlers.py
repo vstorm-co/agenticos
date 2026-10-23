@@ -70,6 +70,8 @@ def production() -> Handlers:
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.RUN_EVAL, eval_tasks.run_eval),
             Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
+            Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
+            Handler(jobs.DRAFT_GAPS, knowledge_gap_tasks.draft_knowledge_gaps),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),

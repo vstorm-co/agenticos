@@ -37,6 +37,7 @@ async def create_request(
     created_by_user_id: UUID | None,
     estimate_usd: Decimal,
     window_days: int,
+    excluded_message_ids: Sequence[UUID] = (),
 ) -> AuthoringRequest:
     request = AuthoringRequest(
         organization_id=organization_id,
@@ -49,6 +50,7 @@ async def create_request(
         status=AuthoringStatus.QUEUED.value,
         estimate_usd=estimate_usd,
         window_days=window_days,
+        excluded_message_ids=list(excluded_message_ids),
         evidence={},
     )
     db.add(request)
@@ -424,6 +426,7 @@ async def evidence_runs(
     agent_id: UUID | None = None,
     agent_ids: Sequence[UUID] | None = None,
     skill_name: str | None = None,
+    excluded_message_ids: Sequence[UUID] = (),
     since: datetime,
     limit: int,
 ) -> list[EvidenceRun]:
@@ -434,6 +437,7 @@ async def evidence_runs(
     that succeeded are not evidence of anything. `agent_id` narrows the runs to
     one agent's, `agent_ids` to several agents' - those binding a context file -
     and `skill_name` to those whose model opened that skill.
+    `excluded_message_ids` leaves out the runs that gave those answers.
 
     A skill reaches a run as a deferred capability the model loads with
     `load_capability`, a framework tool no binding can rename, so the call's
@@ -480,6 +484,9 @@ async def evidence_runs(
         statement = statement.where(AgentRun.agent_id == agent_id)
     if agent_ids is not None:
         statement = statement.where(AgentRun.agent_id.in_(list(agent_ids)))
+    if excluded_message_ids:
+        answered = select(Message.run_id).where(Message.id.in_(list(excluded_message_ids)))
+        statement = statement.where(AgentRun.id.not_in(answered))
     if skill_name is not None:
         loaded = (
             select(ToolCall.id)

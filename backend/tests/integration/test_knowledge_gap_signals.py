@@ -24,6 +24,7 @@ from app.core.exceptions import AiAssistanceDisabledError, AuthorizationError, N
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
+from app.db.models.background_job import BackgroundJob
 from app.db.models.conversation import Conversation, Message
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeSearch
@@ -139,7 +140,7 @@ async def _binding(db, ctx: AuthContext, agent: Agent, kb: KnowledgeBase) -> Age
         agent_id=agent.id,
         organization_id=ctx.organization_id,
         version=1,
-        spec={"collection_ids": [str(kb.id)]},
+        spec={"name": agent.name, "collection_ids": [str(kb.id)]},
     )
     db.add(version)
     await db.flush()
@@ -166,6 +167,11 @@ async def _check(db, ctx: AuthContext, kb: KnowledgeBase, run: AgentRun, **kwarg
     with _classifier(run, **kwargs) as run_it:
         read = await KnowledgeGapService(db).classify_batch(ctx, kb.id)
     return read, run_it
+
+
+async def _queued(db) -> list[BackgroundJob]:
+    rows = await db.execute(select(BackgroundJob).where(BackgroundJob.kind == "classify-gaps"))
+    return list(rows.scalars().all())
 
 
 async def _signals(db, kb: KnowledgeBase) -> dict[str, str]:
@@ -236,11 +242,11 @@ async def test_a_comment_naming_missing_information_is_a_miss_and_one_about_leng
 
     (read, misses), run_it = await _check(db, ctx, kb, classifier)
 
-    assert (read, misses) == (2, 1)
+    assert (read, misses) == (3, 1)
     assert await _signals(db, kb) == {"What does the plan cost?": "rating"}
     prompt = run_it.await_args.kwargs["prompt"]
     assert "This is missing the 2025 price list" in prompt
-    assert "Who runs the plan?" not in prompt
+    assert "Who runs the plan?" in prompt
 
 
 @pytest.mark.security
@@ -561,14 +567,18 @@ async def test_checking_answers_starts_after_the_commit_as_the_caller(db) -> Non
     ctx = await _owner(db)
     kb = await _knowledge_base(db, ctx)
 
-    with (
-        patch("app.services.knowledge_gaps.SystemAgentRunner.require_runnable", new=AsyncMock()),
-        patch("app.services.knowledge_gaps.spawn_after_commit") as spawn,
-    ):
+    with patch("app.services.knowledge_gaps.SystemAgentRunner.require_runnable", new=AsyncMock()):
+        await KnowledgeGapService(db).classify(ctx, kb.id)
         await KnowledgeGapService(db).classify(ctx, kb.id)
 
-    assert spawn.call_args.kwargs["name"] == f"classify-knowledge-gaps-{kb.id}"
-    spawn.call_args.args[1].close()
+    [job] = await _queued(db)
+    assert job.payload == {
+        "organization_id": str(ctx.organization_id),
+        "knowledge_base_ids": [str(kb.id)],
+        "user_id": str(ctx.user_id),
+        "message_ids": None,
+        "improvement_run_id": None,
+    }
 
 
 @pytest.mark.security
@@ -580,13 +590,10 @@ async def test_with_ai_assistance_off_no_check_starts(db) -> None:
     organization.ai_assistance_enabled = False
     await db.flush()
 
-    with (
-        patch("app.services.knowledge_gaps.spawn_after_commit") as spawn,
-        pytest.raises(AiAssistanceDisabledError),
-    ):
+    with pytest.raises(AiAssistanceDisabledError):
         await KnowledgeGapService(db).classify(ctx, kb.id)
 
-    spawn.assert_not_called()
+    assert await _queued(db) == []
 
 
 @pytest.mark.security
@@ -599,15 +606,14 @@ async def test_only_whoever_may_change_the_knowledge_base_and_reads_every_run_ma
     member = await _member(db, ctx, OrgRoleName.MEMBER)
     service = KnowledgeGapService(db)
 
-    with patch("app.services.knowledge_gaps.spawn_after_commit") as spawn:
-        with pytest.raises(NotFoundError):
-            await service.classify(operator, kb.id)
-        with pytest.raises(NotFoundError):
-            await service.classify_batch(operator, kb.id)
-        with pytest.raises(AuthorizationError):
-            await service.classify(member, kb.id)
+    with pytest.raises(NotFoundError):
+        await service.classify(operator, kb.id)
+    with pytest.raises(NotFoundError):
+        await service.classify_batch(operator, kb.id)
+    with pytest.raises(AuthorizationError):
+        await service.classify(member, kb.id)
 
-    spawn.assert_not_called()
+    assert await _queued(db) == []
 
 
 @pytest.mark.security
@@ -618,17 +624,16 @@ async def test_a_check_is_started_only_in_person(db) -> None:
     kb = await _knowledge_base(db, ctx)
     keyed = dataclasses.replace(ctx, api_key_id=uuid.uuid4())
 
-    with patch("app.services.knowledge_gaps.spawn_after_commit") as spawn:
+    with pytest.raises(AuthorizationError):
+        await KnowledgeGapService(db).classify(keyed, kb.id)
+    set_impersonator(uuid.uuid4())
+    try:
         with pytest.raises(AuthorizationError):
-            await KnowledgeGapService(db).classify(keyed, kb.id)
-        set_impersonator(uuid.uuid4())
-        try:
-            with pytest.raises(AuthorizationError):
-                await KnowledgeGapService(db).classify(ctx, kb.id)
-        finally:
-            set_impersonator(None)
+            await KnowledgeGapService(db).classify(ctx, kb.id)
+    finally:
+        set_impersonator(None)
 
-    spawn.assert_not_called()
+    assert await _queued(db) == []
 
 
 async def test_a_check_runs_as_its_asker_only_while_they_are_a_member(db) -> None:
