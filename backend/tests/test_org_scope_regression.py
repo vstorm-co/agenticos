@@ -209,6 +209,7 @@ CROSS_TENANT_BY_DESIGN = [
     (personal_data_repo, "case_proposals_from"),
     (personal_data_repo, "knowledge_searches_of"),
     (personal_data_repo, "purge_knowledge_searches_of"),
+    (personal_data_repo, "clear_gap_reasons_of"),
     (knowledge_gap_repo, "knowledge_bases_with_ungrouped_misses"),
     (knowledge_gap_repo, "delete_empty_topics"),
     (eval_run_repo, "fail_abandoned"),

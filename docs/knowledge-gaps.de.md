@@ -1,5 +1,5 @@
 ---
-source_sha: "00fbaee07b36"
+source_sha: "73b112e7bd77"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -321,10 +321,16 @@ gelöscht wird: Jemand hat geprüft und bestätigt, was es sagt.
 Eine aus einer Antwort gelesene Frage wird wie eine Suche aufbewahrt: Sie hält
 die Frage der Person und geht mit ihrem Run und ihrer Conversation. Das Prüfen
 von Antworten schickt Fragen, Antworten und Kommentare zu negativen Bewertungen
-an den Modellanbieter des Klassifizierers. Von jeder gelesenen Antwort bleiben
+an den Modellanbieter des Klassifizierers.
+
+Von jeder gelesenen Antwort bleiben
 ihr Urteil, der Run des Klassifizierers und seine Begründung in einem Satz, die
 mit der Antwort geht und gelöscht wird, wenn die fragende Person gelöscht wird.
-Die Begründung sieht nur, wer den antwortenden Agent ansehen darf.
+Die Begründung sieht nur, wer den antwortenden Agent ansehen darf. Sie kann die
+Anweisungen des Agents oder eine seiner Kontextdateien nennen - beim Namen, nie
+mit ihrem Inhalt - auch jemandem, der diese Datei nicht lesen darf. Eine Antwort,
+deren Run nicht mehr da ist, sagt nicht mehr, wer gefragt hat, also bleibt ihre
+Begründung, bis die Conversation der Antwort gelöscht wird.
 
 ## Was Lücken noch nicht erkennen { #limits }
 

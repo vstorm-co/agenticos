@@ -290,10 +290,15 @@ question shaped it is deleted: a person checked and confirmed what it says.
 A question read from an answer is kept the same way as a search: it holds the
 person's question and goes with its run and its conversation. Checking answers
 sends questions, answers and thumbs-down comments to the classifier's model
-provider. What is remembered of every answer read is its verdict, the
+provider.
+
+What is remembered of every answer read is its verdict, the
 classifier's run and its one-sentence reason, which goes with the answer and is
 cleared when the person who asked is erased. The reason is shown only to
-somebody who may view the agent that answered.
+somebody who may view the agent that answered. It may name the agent's
+instructions or one of its context files - by name, never what they say - to
+somebody who may not read that file. An answer whose run is gone no longer says
+who asked, so its reason stays until the answer's conversation goes.
 
 ## What gaps do not detect yet { #limits }
 

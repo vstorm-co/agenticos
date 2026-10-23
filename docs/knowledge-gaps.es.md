@@ -1,5 +1,5 @@
 ---
-source_sha: "00fbaee07b36"
+source_sha: "73b112e7bd77"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -319,10 +319,16 @@ que dice.
 Una pregunta leída de una respuesta se guarda igual que una búsqueda: contiene
 la pregunta de la persona y se va con su run y su conversación. Revisar
 respuestas envía preguntas, respuestas y comentarios de valoraciones negativas
-al proveedor del modelo del clasificador. De cada respuesta leída se recuerda
+al proveedor del modelo del clasificador.
+
+De cada respuesta leída se recuerda
 su veredicto, el run del clasificador y su motivo en una frase, que se va con la
 respuesta y se borra cuando se borra a la persona que preguntó. El motivo solo lo
-ve quien puede ver el agent que respondió.
+ve quien puede ver el agent que respondió. Puede nombrar las instrucciones del
+agent o uno de sus archivos de contexto - por su nombre, nunca por lo que dicen -
+incluso a quien no puede leer ese archivo. Una respuesta cuyo run ya no existe no
+dice quién preguntó, así que su motivo se queda hasta que se va la conversación de
+la respuesta.
 
 ## Lo que las lagunas aún no detectan { #limits }
 

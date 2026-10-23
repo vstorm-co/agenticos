@@ -1,5 +1,5 @@
 ---
-source_sha: "00fbaee07b36"
+source_sha: "73b112e7bd77"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -298,10 +298,16 @@ osoba, której pytanie go ukształtowało: ktoś sprawdził i potwierdził jego 
 Pytanie odczytane z odpowiedzi jest przechowywane tak samo jak wyszukiwanie:
 zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Sprawdzanie
 odpowiedzi wysyła pytania, odpowiedzi i komentarze do ocen łapką w dół do
-dostawcy modelu klasyfikatora. Z każdej przeczytanej odpowiedzi zapamiętywany
+dostawcy modelu klasyfikatora.
+
+Z każdej przeczytanej odpowiedzi zapamiętywany
 jest werdykt, run klasyfikatora i jego jednozdaniowe uzasadnienie, które znika
 razem z odpowiedzią i jest czyszczone, gdy osoba pytająca zostanie usunięta.
 Uzasadnienie widzi tylko ktoś, kto może oglądać agenta, który odpowiedział.
+Może ono wymienić instrukcje agenta albo jeden z jego plików kontekstowych - z
+nazwy, nigdy z treści - także komuś, kto nie może czytać tego pliku. Odpowiedź,
+której run już nie istnieje, nie mówi, kto pytał, więc jej uzasadnienie zostaje,
+dopóki nie zniknie rozmowa odpowiedzi.
 
 ## Czego luki jeszcze nie wykrywają { #limits }
 
