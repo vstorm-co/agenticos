@@ -1412,7 +1412,7 @@ function EventFields({
             id="trigger-secret"
             value={secret}
             onChange={(event) => onSecret(event.target.value)}
-            placeholder={t("secretPlaceholder")}
+            placeholder={issuedByProvider ? t("secretPlaceholderProvider") : t("secretPlaceholder")}
             className="flex-1 font-mono"
           />
           {!issuedByProvider && (

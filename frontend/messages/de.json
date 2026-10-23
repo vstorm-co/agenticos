@@ -6771,6 +6771,7 @@
     "secretHelp": "Der Webhook wird dagegen verifiziert. Fügen Sie es beim Provider ein oder erzeugen Sie eines.",
     "secretHelpProvider": "Vom Anbieter ausgestellt, nicht von uns: fügen Sie es genau so ein, wie der Anbieter es anzeigt.",
     "secretPlaceholder": "Ein starkes gemeinsames Secret",
+    "secretPlaceholderProvider": "Das Secret einfügen, das der Provider anzeigt",
     "generate": "Erzeugen",
     "subjectContains": "Betreff enthält",
     "senderContains": "Absender enthält",

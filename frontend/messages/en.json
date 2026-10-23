@@ -6888,6 +6888,7 @@
     "secretHelp": "The webhook is verified against this. Paste it into the provider, or generate one.",
     "secretHelpProvider": "Issued by the provider, not by us: paste it exactly as the provider shows it.",
     "secretPlaceholder": "A strong shared secret",
+    "secretPlaceholderProvider": "Paste the secret the provider shows",
     "generate": "Generate",
     "subjectContains": "Subject contains",
     "senderContains": "Sender contains",

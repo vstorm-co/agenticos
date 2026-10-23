@@ -6661,6 +6661,7 @@
     "secretHelp": "Webhook jest weryfikowany tym sekretem. Wklej go u dostawcy albo wygeneruj.",
     "secretHelpProvider": "Wydaje go dostawca, nie my: wklej go dokładnie tak, jak pokazuje go dostawca.",
     "secretPlaceholder": "Silny współdzielony sekret",
+    "secretPlaceholderProvider": "Wklej sekret, który pokazuje provider",
     "generate": "Generuj",
     "subjectContains": "Temat zawiera",
     "senderContains": "Nadawca zawiera",

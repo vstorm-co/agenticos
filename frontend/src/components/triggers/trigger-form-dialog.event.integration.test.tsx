@@ -194,6 +194,10 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(await screen.findByRole("option", { name: "A HubSpot webhook" }));
     expect(dialog.queryByRole("button", { name: "Generate" })).toBeNull();
     expect(dialog.getByText(/Issued by the provider/)).toBeInTheDocument();
+    expect(dialog.getByLabelText("Signing secret")).toHaveAttribute(
+      "placeholder",
+      "Paste the secret the provider shows",
+    );
     await user.type(dialog.getByLabelText("Signing secret"), "hubspot-app-client-secret");
     await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Continue" }));
