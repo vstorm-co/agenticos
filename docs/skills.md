@@ -189,7 +189,8 @@ with its rationale and the runs behind it. Its change records the skill version 
 was written against, and Apply refuses it once somebody has changed the skill since.
 
 Each change says, beside **Apply**, which agents' published versions read the
-skill and behind which eval suites, and **Check with evals** comes first.
+skill, which eval suites applying it queues and which guards check it only at
+the next promotion, and **Check with evals** comes first.
 Applying tells those agents' owners. A decision names the version of the change
 you read: a change rewritten since - by a later turn or a new request - is
 refused with "The proposal changed since you opened it", and of two decisions

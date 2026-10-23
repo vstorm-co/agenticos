@@ -1,5 +1,5 @@
 ---
-source_sha: "b0b77702d3e0"
+source_sha: "9b416555caa2"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -104,10 +104,11 @@ których się opiera, i agentami, do których plik jest podpięty.
 
 Zastosowanie jej to to samo co ręczna edycja pliku - działa od razu dla każdego
 agenta, którego opublikowana wersja czyta plik - więc najpierw jest
-**Sprawdź evalami**, na jednym z tych agentów. Obok **Zastosuj** zmiana mówi,
-gdzie zacznie działać: każdy agent, jego środowiska i suity evali, które ich
-strzegą. Plik, który ktoś edytował po zaproponowaniu zmiany, odrzuca ją; ta
-edycja nigdy nie zostaje nadpisana.
+**Sprawdź evalami**, na jednym z tych agentów. Obok **Zastosuj** zmiana mówi, co
+robi jej zastosowanie: dla jakich agentów i środowisk zacznie działać, które
+suity evali ustawi w kolejce i którzy strażnicy sprawdzą ją dopiero przy
+następnej promocji agenta. Plik, który ktoś edytował po zaproponowaniu zmiany,
+odrzuca ją; ta edycja nigdy nie zostaje nadpisana.
 
 Ponowna prośba do asystenta przepisuje czekającą zmianę, zamiast dodawać drugą.
 Decyzja wskazuje wersję zmiany, którą przeczytałeś, więc z dwóch podjętych
@@ -116,9 +117,10 @@ z komunikatem „The proposal changed since you opened it”, dopóki nie przejr
 nowej wersji. Zmiana, która mówi to, co plik już mówi, w ogóle nie jest
 proponowana.
 
-Każda edycja pliku - zastosowana albo zrobiona ręcznie - ustawia w kolejce
-suity evali uruchamiane po zmianie zależności, dla każdego agenta, który go
-czyta, a zastosowanie zmiany powiadamia właścicieli tych agentów.
+Każda edycja pliku - zastosowana albo zrobiona ręcznie - i jego usunięcie
+ustawiają w kolejce suity evali uruchamiane po zmianie zależności, dla każdego
+agenta, który go czyta, a zastosowanie zmiany powiadamia właścicieli tych
+agentów.
 
 ## Dostęp { #access }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "bf793e1a79b2"
+source_sha: "2980e260fcea"
 ---
 
 # Skills { #skills }
@@ -201,11 +201,12 @@ registra la versión del skill para la que se escribió, y Apply lo rechaza si
 alguien ha cambiado el skill desde entonces.
 
 Cada cambio dice, junto a **Apply**, qué versiones publicadas de agents leen el
-skill y qué suites de evals las guardan, y **Check with evals** va primero.
-Aplicarlo avisa a los propietarios de esos agents. Una decisión nombra la
-versión del cambio que leíste: un cambio reescrito desde entonces - por un turno
-posterior o una petición nueva - se rechaza con «The proposal changed since you
-opened it», y de dos decisiones tomadas a la vez solo cuenta una.
+skill, qué suites de evals pone en cola aplicarlo y qué guardianas lo comprueban
+solo en la siguiente promoción, y **Check with evals** va primero. Aplicarlo
+avisa a los propietarios de esos agents. Una decisión nombra la versión del
+cambio que leíste: un cambio reescrito desde entonces - por un turno posterior o
+una petición nueva - se rechaza con «The proposal changed since you opened it»,
+y de dos decisiones tomadas a la vez solo cuenta una.
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

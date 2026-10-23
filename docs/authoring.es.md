@@ -1,5 +1,5 @@
 ---
-source_sha: "ff9474c2e3e1"
+source_sha: "2925d517ca32"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -205,10 +205,11 @@ Aplicarlo tiene efecto inmediato, como con un skill: cada agent vinculado al
 archivo lee el cuerpo nuevo en su siguiente run. Por eso la primera acción es
 **Comprobar con evals**, en un agent que usa el archivo, con solo el cuerpo del
 archivo distinto, y **Aplicar** dice antes de pulsarlo para qué agents y
-entornos guardados entra en vigor el cambio. Aplicar pone en cola las suites de
-esos agents y avisa a sus propietarios. Un archivo editado después de proponerse
-el cambio no admite que se aplique: compara los dos y edita el archivo a mano, o
-vuelve a pedírselo al asistente.
+entornos entra en vigor el cambio, qué suites de evals pone en cola y qué
+guardianas lo comprueban solo en la siguiente promoción. Aplicar avisa a los
+propietarios de esos agents. Un archivo editado después de proponerse el cambio
+no admite que se aplique: compara los dos y edita el archivo a mano, o vuelve a
+pedírselo al asistente.
 
 El asistente nunca propone el cuerpo tal como está, y una petición nueva
 reescribe el cambio que ya espera. Aplicar y Descartar nombran la versión del

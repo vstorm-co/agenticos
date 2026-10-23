@@ -99,8 +99,9 @@ the agents bound to the file.
 
 Applying it is the same as editing the file by hand - live at once for every
 agent whose published version reads the file - so **Check with evals** comes
-first, on one of those agents. Beside **Apply** the change says where it goes
-live: each agent, its environments and the eval suites guarding them. A file
+first, on one of those agents. Beside **Apply** the change says what applying
+does: each agent and environment it goes live for, the eval suites it queues,
+and the guards that check it only at the agent's next promotion. A file
 somebody edited after the change was proposed refuses the change; the edit is
 never written over.
 
@@ -110,9 +111,9 @@ at once only one counts, and a page opened before the rewrite is refused with
 "The proposal changed since you opened it" until you review the new version. A
 change that says what the file already says is not proposed at all.
 
-Any edit to a file - applied or made by hand - queues the eval suites that run
-when a dependency changes, for every agent that reads it, and applying a change
-tells the owners of those agents.
+Any edit to a file - applied or made by hand - and deleting it queue the eval
+suites that run when a dependency changes, for every agent that reads it, and
+applying a change tells the owners of those agents.
 
 ## Access
 

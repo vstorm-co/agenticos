@@ -1,5 +1,5 @@
 ---
-source_sha: "ff9474c2e3e1"
+source_sha: "2925d517ca32"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -197,11 +197,12 @@ zmiana.
 Zastosowanie jej działa od razu, jak w przypadku skilla: każdy agent podpięty do
 pliku czyta nową treść przy swoim następnym runie. Dlatego pierwszą akcją jest
 **Sprawdź evalami**, na agencie, który używa pliku, gdzie różni się tylko treść
-pliku, a **Zastosuj** mówi, zanim go naciśniesz, dla których agentów i
-strzeżonych środowisk zmiana zacznie działać. Zastosowanie ustawia w kolejce
-suity tych agentów i powiadamia ich właścicieli. Zmiany nie da się zastosować do
-pliku edytowanego po tym, jak ją zaproponowano: porównaj obie wersje i edytuj
-plik ręcznie albo poproś asystenta ponownie.
+pliku, a **Zastosuj** mówi, zanim go naciśniesz, dla których agentów i środowisk
+zmiana zacznie działać, które suity evali ustawi w kolejce i którzy strażnicy
+sprawdzą ją dopiero przy następnej promocji. Zastosowanie powiadamia właścicieli
+tych agentów. Zmiany nie da się zastosować do pliku edytowanego po tym, jak ją
+zaproponowano: porównaj obie wersje i edytuj plik ręcznie albo poproś asystenta
+ponownie.
 
 Asystent nigdy nie proponuje treści w jej obecnym brzmieniu, a nowa prośba
 przepisuje zmianę, która już czeka. Zastosuj i Odrzuć wskazują wersję zmiany,

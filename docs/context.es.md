@@ -1,5 +1,5 @@
 ---
-source_sha: "b0b77702d3e0"
+source_sha: "9b416555caa2"
 ---
 
 # Archivos de contexto { #context-files }
@@ -107,9 +107,10 @@ runs en los que se apoya y los agents vinculados al archivo.
 Aplicarlo es lo mismo que editar el archivo a mano - con efecto inmediato para
 cada agent cuya versión publicada lee el archivo -, así que primero va
 **Comprobar con evals**, en uno de esos agents. Junto a **Aplicar** el cambio
-dice dónde entra en vigor: cada agent, sus entornos y las suites de evals que
-los guardan. Un archivo que alguien editó después de proponerse el cambio lo
-rechaza; esa edición nunca se sobrescribe.
+dice qué hace aplicarlo: cada agent y entorno para el que entra en vigor, las
+suites de evals que pone en cola y las guardianas que lo comprueban solo en la
+siguiente promoción del agent. Un archivo que alguien editó después de
+proponerse el cambio lo rechaza; esa edición nunca se sobrescribe.
 
 Volver a pedírselo al asistente reescribe el cambio que espera en lugar de
 añadir un segundo. Una decisión nombra la versión del cambio que leíste, así que
@@ -118,9 +119,10 @@ reescritura se rechaza con «The proposal changed since you opened it» hasta qu
 revises la versión nueva. Un cambio que dice lo que el archivo ya dice no se
 propone en absoluto.
 
-Cualquier edición de un archivo - aplicada o hecha a mano - pone en cola las
-suites de evals que se ejecutan cuando cambia una dependencia, para cada agent
-que lo lee, y aplicar un cambio avisa a los propietarios de esos agents.
+Cualquier edición de un archivo - aplicada o hecha a mano - y su borrado ponen
+en cola las suites de evals que se ejecutan cuando cambia una dependencia, para
+cada agent que lo lee, y aplicar un cambio avisa a los propietarios de esos
+agents.
 
 ## Acceso { #access }
 

@@ -192,8 +192,9 @@ waits for each file at a time.
 Applying it is live, as for a skill: every agent bound to the file reads the new
 body on its next run. So **Check with evals** is the first action, on an agent
 that uses the file, with only the file's body different, and **Apply** says
-before you press it which agents and guarded environments the change goes live
-for. Applying queues those agents' suites and tells their owners. A file edited
+before you press it which agents and environments the change goes live for,
+which eval suites it queues and which guards check it only at the next
+promotion. Applying tells those agents' owners. A file edited
 since the change was proposed cannot have the change applied: compare the two
 and edit the file by hand, or ask the assistant again.
 
