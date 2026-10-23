@@ -174,7 +174,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
         listed = await http.get(_url(f"{agent}?skip=20&limit=10"))
         drafts = await http.get(_url(f"{agent}?draft=current"))
         by_dataset = await http.get(_url(f"/datasets/{_RUN.dataset_id}/eval-runs?limit=5"))
-        recent = await http.get(_url("/eval-runs/recent?limit=5"))
+        recent = await http.get(_url("/eval-runs/recent?skip=20&limit=5"))
         read = await http.get(_url(run))
         cases = await http.get(_url(f"{run}/cases?outcome=failed&tag=refunds"))
         named = await http.get(_url(f"{run}/cases?case_id={_RUN.id}&case_id={_RUN.agent_id}"))
@@ -195,7 +195,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     assert service.list_for_agent.await_args.kwargs["draft"] is True
     assert service.list_for_dataset.await_args.kwargs == {"skip": 0, "limit": 5}
     assert service.cases.await_args.kwargs["case_ids"] == [_RUN.id, _RUN.agent_id]
-    assert service.recent.await_args.kwargs == {"limit": 5}
+    assert service.recent.await_args.kwargs == {"skip": 20, "limit": 5}
     assert recent.status_code == read.status_code == compared.status_code == 200
     assert cases.status_code == 200
     assert service.cases.await_args_list[0].kwargs["outcome"] == "failed"

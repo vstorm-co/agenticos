@@ -248,22 +248,26 @@ async def list_recent(
     organization_id: UUID,
     agent_ids: Sequence[UUID],
     dataset_ids: Sequence[UUID],
+    skip: int = 0,
     limit: int,
-) -> list[EvalRun]:
-    """The organization's latest runs over agents and datasets the reader may see."""
+) -> tuple[list[EvalRun], int]:
+    """The organization's latest runs over agents and datasets the reader may see, and how many."""
     if not agent_ids or not dataset_ids:
-        return []
+        return [], 0
+    conditions = [
+        EvalRun.organization_id == organization_id,
+        EvalRun.agent_id.in_(agent_ids),
+        EvalRun.dataset_id.in_(dataset_ids),
+    ]
+    total = await db.scalar(select(func.count()).select_from(EvalRun).where(*conditions))
     result = await db.execute(
         select(EvalRun)
-        .where(
-            EvalRun.organization_id == organization_id,
-            EvalRun.agent_id.in_(agent_ids),
-            EvalRun.dataset_id.in_(dataset_ids),
-        )
+        .where(*conditions)
         .order_by(EvalRun.created_at.desc(), EvalRun.id)
+        .offset(skip)
         .limit(limit)
     )
-    return list(result.scalars().all())
+    return list(result.scalars().all()), int(total or 0)
 
 
 async def list_cases(
