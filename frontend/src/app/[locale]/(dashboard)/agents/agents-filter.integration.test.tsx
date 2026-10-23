@@ -91,8 +91,12 @@ beforeEach(() => {
         tags: [],
       });
     }
+    if (path === "/stats/attention") {
+      return Promise.resolve({ from: "", to: "", items: attention.items });
+    }
     return Promise.resolve({ items: [], total: 0 });
   });
+  attention.items = [];
 });
 
 /** Tick one category in the facet menu - the choices are the server's, never typed. */
@@ -105,6 +109,24 @@ async function pickCategory(name: string) {
 function statusFilter() {
   return screen.getByRole("combobox", { name: "Filter by status" });
 }
+
+const attention = { items: [] as unknown[] };
+
+describe("the agents gallery's attention badge", () => {
+  it("flags an agent with answers rated down lately, and no other", async () => {
+    attention.items = [
+      { agent_id: "Live-id", name: "Live", rated_down: 2, failed_runs: 0, failing_suites: 0 },
+    ];
+    render(<AgentsPage />, { wrapper });
+
+    expect(await screen.findByText("Needs attention")).toHaveAttribute(
+      "title",
+      "2 answers rated down",
+    );
+    expect(screen.getAllByText("Needs attention")).toHaveLength(1);
+    expect(vi.mocked(apiClient.get)).toHaveBeenCalledWith("/stats/attention", expect.anything());
+  });
+});
 
 describe("the agents gallery filter", () => {
   it("shows every status on 'All'", async () => {

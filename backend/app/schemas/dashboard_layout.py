@@ -143,6 +143,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "artifacts",
         "datasets",
         "knowledge-gaps",
+        "needs-attention",
         "review-queue",
         "eval-runs",
         "eval-suites",

@@ -97,6 +97,33 @@ describe("AgentCard", () => {
     expect(container.querySelector("[data-beam]")).not.toBeNull();
   });
 
+  it("flags an agent that needs attention, saying why on hover", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refund desk" })}
+        canEdit={false}
+        attention={{
+          agent_id: "a1",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 1,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Needs attention")).toHaveAttribute(
+      "title",
+      "5 answers rated down · 1 failing suite",
+    );
+  });
+
+  it("flags nothing without a reason to", () => {
+    mount({ name: "Refund desk" });
+
+    expect(screen.queryByText("Needs attention")).toBeNull();
+  });
+
   it("marks the judge the platform seeded as the default one", () => {
     mount({ system_key: "eval_judge", name: "Eval judge", kind: "judge" });
 

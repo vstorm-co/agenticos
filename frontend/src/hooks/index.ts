@@ -106,6 +106,7 @@ export {
   useSpend,
 } from "./use-runs";
 export {
+  useAgentAttention,
   usePeopleUsage,
   useRatingsSummary,
   useUsageByHour,

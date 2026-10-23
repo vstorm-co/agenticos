@@ -2746,6 +2746,15 @@
         "skillChanges": "Skill · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
         "contextChanges": "Kontextdatei · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
         "newSkills": "{count, plural, =1 {1 neuer Skill vorgeschlagen} other {# neue Skills vorgeschlagen}}"
+      },
+      "needs-attention": {
+        "title": "Braucht Aufmerksamkeit",
+        "description": "Agents mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder einer durchgefallenen Eval-Suite im Zeitraum, jeder einen Klick vom Verbessern entfernt.",
+        "empty": {
+          "title": "Nichts braucht Aufmerksamkeit",
+          "description": "In diesem Zeitraum wurde keine Antwort negativ bewertet, kein Run ist fehlgeschlagen und jede Suite hat bestanden."
+        },
+        "improve": "Verbessern"
       }
     },
     "edit": {
@@ -9652,5 +9661,11 @@
     "someoneWhoLeft": "Jemand, der gegangen ist",
     "readFailed": "Die Evals, die diese Umgebung bewachen, konnten nicht gelesen werden.",
     "retry": "Erneut versuchen"
+  },
+  "attention": {
+    "badge": "Braucht Aufmerksamkeit",
+    "rated": "{count, plural, =1 {1 Antwort negativ bewertet} other {# Antworten negativ bewertet}}",
+    "failed": "{count, plural, =1 {1 fehlgeschlagener Run} other {# fehlgeschlagene Runs}}",
+    "suites": "{count, plural, =1 {1 durchgefallene Suite} other {# durchgefallene Suites}}"
   }
 }
