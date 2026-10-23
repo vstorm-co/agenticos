@@ -1,5 +1,5 @@
 ---
-source_sha: "01842b2510fe"
+source_sha: "0af4a81ea9bf"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -249,7 +249,9 @@ jeden dieser Begriffe auf eine Weise, und ein Satz, der einen Tab nennt, nennt i
 so, wie der Tab heißt. Die Kataloge der Konsole halten sie fest, und
 `frontend/messages/eval-terms.test.ts` lehnt in den Eval-Namespaces die gemischten
 Formen ab, die sie ersetzt haben. Eine Seite, die eine dieser Ansichten zitiert,
-verwendet dasselbe Wort.
+verwendet dasselbe Wort, und `scripts/check_docs_glossary.py` hält die polnischen
+und deutschen Seiten dazu in `make lint` daran fest, mit denselben Mustern aus
+`frontend/messages/eval-terms.json`.
 
 | English | Polish | German | Spanish |
 |---|---|---|---|

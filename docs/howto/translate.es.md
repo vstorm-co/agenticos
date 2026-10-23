@@ -1,5 +1,5 @@
 ---
-source_sha: "01842b2510fe"
+source_sha: "0af4a81ea9bf"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -243,7 +243,9 @@ cada uno de estos conceptos de una sola manera, y una frase que nombra una
 pestaña la nombra como lo hace la pestaña. Los catálogos de la consola los
 guardan, y `frontend/messages/eval-terms.test.ts` rechaza en los espacios de
 nombres de evals las formas mezcladas a las que sustituyeron. Una página que cita
-una de estas pantallas usa la misma palabra.
+una de estas pantallas usa la misma palabra, y `scripts/check_docs_glossary.py`
+lo exige en `make lint` a las páginas en polaco y alemán sobre ellas, con los
+mismos patrones de `frontend/messages/eval-terms.json`.
 
 | English | Polish | German | Spanish |
 |---|---|---|---|

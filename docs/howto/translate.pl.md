@@ -1,5 +1,5 @@
 ---
-source_sha: "01842b2510fe"
+source_sha: "0af4a81ea9bf"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -243,7 +243,9 @@ Zakładka Ewaluacje agenta, dataset i werdykt runu ewaluacji nazywają każde z
 tych pojęć w jeden sposób, a zdanie, które wymienia zakładkę, nazywa ją tak jak
 ona sama. Trzymają je katalogi konsoli, a `frontend/messages/eval-terms.test.ts`
 odrzuca w przestrzeniach ewaluacji mieszane formy, które zastąpiły. Strona, która
-cytuje jeden z tych ekranów, używa tego samego słowa.
+cytuje jeden z tych ekranów, używa tego samego słowa, a
+`scripts/check_docs_glossary.py` pilnuje tego na polskich i niemieckich stronach
+o nich w `make lint`, z tych samych wzorców w `frontend/messages/eval-terms.json`.
 
 | English | Polish | German | Spanish |
 |---|---|---|---|

@@ -232,7 +232,9 @@ An agent's Evals tab, a dataset and an eval run's verdict name each of these
 one way, and a sentence that names a tab names it as the tab does. The console's
 catalogs hold them, and `frontend/messages/eval-terms.test.ts` refuses the mixed
 forms they replaced in the eval namespaces. A page quoting one of these screens
-uses the same word.
+uses the same word, and `scripts/check_docs_glossary.py` holds the Polish and
+German pages about them to it in `make lint`, from the same patterns in
+`frontend/messages/eval-terms.json`.
 
 | English | Polish | German | Spanish |
 |---|---|---|---|

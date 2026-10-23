@@ -1,0 +1,180 @@
+{
+  "about": "One word per concept on the eval screens, in Polish and German: the glossary in docs/howto/translate.md. Each pattern is a form that reads as a second word for a glossary term. Matched case-insensitively. frontend/messages/eval-terms.test.ts applies it to the catalogs under `scope`; scripts/check_docs_glossary.py to the pages under `docs`.",
+  "scope": [
+    "evals.",
+    "authoring.",
+    "mcp.",
+    "pages.settings.",
+    "pages.backgroundJobs.",
+    "pages.channels.",
+    "agentTemplates.",
+    "steps.",
+    "chat.delegation.",
+    "context.",
+    "datasets.",
+    "promotionGate.",
+    "pages.runs.",
+    "pages.agents.",
+    "agents.",
+    "triggers.",
+    "knowledgeGaps.",
+    "dashboard.widgets.",
+    "onboarding."
+  ],
+  "mixed": {
+    "pl": [
+      {
+        "key": "case",
+        "pattern": "case'|\\bcase\\w*",
+        "use": "przypadek"
+      },
+      {
+        "key": "eval",
+        "pattern": "\\beval\\w*",
+        "use": "ewaluacja, zakładka Ewaluacje"
+      },
+      {
+        "key": "review",
+        "pattern": "\\breview\\w*",
+        "use": "przegląd"
+      },
+      {
+        "key": "draft",
+        "pattern": "\\bdraf(t\\w*|cie)\\b",
+        "use": "wersja robocza albo szkic"
+      },
+      {
+        "key": "szkic",
+        "pattern": "\\bszkic\\w*",
+        "use": "wersja robocza",
+        "within": [
+          "agents.",
+          "agentTemplates.",
+          "steps.agents-templates.",
+          "chat.delegation.",
+          "context.savingReachesEveryAgent",
+          "pages.agents.",
+          "evals.",
+          "authoring.",
+          "promotionGate.",
+          "datasets.scoring.",
+          "onboarding.offer.test-change.",
+          "onboarding.steps.agent-",
+          "onboarding.steps.agents-templates.",
+          "onboarding.steps.flow-agent-",
+          "onboarding.steps.flow-test-"
+        ],
+        "except": [
+          "agents.drafterKind"
+        ],
+        "docs": false,
+        "note": "Where \"szkic\" would name an unpublished version - an agent's spec, or a file that has none - which is \"wersja robocza\". A text written for somebody to accept - a knowledge gap's content, a generated case - stays \"szkic\", and German says \"Entwurf\" for both. A page cannot tell the two senses apart, so the docs check leaves it out."
+      },
+      {
+        "key": "judge",
+        "pattern": "\\bjudge\\w*",
+        "use": "sędzia"
+      },
+      {
+        "key": "build",
+        "pattern": "\\bbuild\\b",
+        "use": "Budowa",
+        "note": "The Builder is the page's name and a role's; the tab is Budowa."
+      },
+      {
+        "key": "activity",
+        "pattern": "\\bactivity\\b",
+        "use": "Aktywność"
+      },
+      {
+        "key": "publish",
+        "pattern": "\\bpublish\\b",
+        "use": "Opublikuj"
+      },
+      {
+        "key": "assistance",
+        "pattern": "asystent\\w* AI",
+        "use": "wsparcie AI"
+      }
+    ],
+    "de": [
+      {
+        "key": "case",
+        "pattern": "\\bcase",
+        "use": "Fall",
+        "note": "A prefix as well as a word, so a compound - \"Case-Generator\" - is caught too."
+      },
+      {
+        "key": "draft",
+        "pattern": "\\bdraft",
+        "use": "Entwurf"
+      },
+      {
+        "key": "environment",
+        "pattern": "\\benvironment",
+        "use": "Umgebung"
+      },
+      {
+        "key": "judge",
+        "pattern": "\\bjudge",
+        "use": "Bewerter"
+      },
+      {
+        "key": "review",
+        "pattern": "\\breview(?!er)",
+        "use": "Prüfung",
+        "note": "A run's Reviewer is a person who approves its tool calls, not the review queue."
+      },
+      {
+        "key": "build",
+        "pattern": "\\bbuild\\b(?!-Schritt)",
+        "use": "Bauen",
+        "note": "The Builder is the page's name and a role's, and a build step is a build step."
+      },
+      {
+        "key": "activity",
+        "pattern": "\\bactivity",
+        "use": "Aktivität"
+      },
+      {
+        "key": "kaputt",
+        "pattern": "kaputt",
+        "use": "verschlechtert",
+        "within": [
+          "evals.",
+          "onboarding.offer.test-change.",
+          "onboarding.steps.eval-",
+          "onboarding.steps.flow-test-"
+        ],
+        "docs": true,
+        "note": "What a verdict says of cases; a page that looks broken may still read \"kaputt\"."
+      }
+    ]
+  },
+  "docs": {
+    "pages": [
+      "evals",
+      "datasets",
+      "environments",
+      "authoring",
+      "knowledge-gaps"
+    ],
+    "activityPages": {
+      "pl": [
+        "architecture",
+        "concepts",
+        "governance",
+        "triggers",
+        "voice"
+      ]
+    },
+    "allow": {
+      "pl": [
+        "Eval judge"
+      ],
+      "de": [
+        "Eval judge"
+      ]
+    }
+  }
+}
