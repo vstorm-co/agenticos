@@ -29,11 +29,13 @@ async def get_pending_for_context(
 ) -> ContextProposal | None:
     """The waiting proposal a newer one replaces, so a file has one waiting at a time."""
     result = await db.execute(
-        select(ContextProposal).where(
+        select(ContextProposal)
+        .where(
             ContextProposal.organization_id == organization_id,
             ContextProposal.context_id == context_id,
             ContextProposal.status == ProposalStatus.PENDING.value,
         )
+        .order_by(ContextProposal.created_at.desc(), ContextProposal.id)
     )
     return result.scalars().first()
 
@@ -118,3 +120,23 @@ async def decide_if(
         .execution_options(populate_existing=True)
     )
     return result.scalars().first()
+
+
+async def replace_pending(
+    db: AsyncSession, *, organization_id: UUID, context_id: UUID, values: dict[str, Any]
+) -> ContextProposal | None:
+    """Rewrite the file's waiting proposal, or `None` when none is left to rewrite.
+
+    A decision or another run that changed the one read in between leaves it to
+    a second read, so two runs on one file still leave one proposal waiting.
+    """
+    for _ in range(2):
+        pending = await get_pending_for_context(
+            db, organization_id=organization_id, context_id=context_id
+        )
+        if pending is None:
+            return None
+        rewritten = await rewrite(db, proposal=pending, values=values)
+        if rewritten is not None:
+            return rewritten
+    return None

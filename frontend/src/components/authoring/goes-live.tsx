@@ -34,6 +34,7 @@ export function GoesLive({ reaches, hidden }: { reaches: ReachedAgent[]; hidden:
           {t("atPromotion", {
             suites: suites(atPromotion, atPromotionCount),
             count: atPromotionCount,
+            named: atPromotion.length === atPromotionCount ? "yes" : "no",
           })}
         </p>
       )}

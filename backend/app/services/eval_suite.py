@@ -929,6 +929,14 @@ class EvalSuiteService:
         self, *, organization_id: UUID, kind: DependencyKind, resource_id: UUID
     ) -> list[tuple[EvalSuite, AgentVersion]]:
         """The suites a change to this resource queues, each with the version it checks."""
+        return [
+            (suite, version)
+            for suite, version in await self.watchers(organization_id=organization_id)
+            if binds(AgentSpec.model_validate(version.spec), kind, resource_id)
+        ]
+
+    async def watchers(self, *, organization_id: UUID) -> list[tuple[EvalSuite, AgentVersion]]:
+        """Every suite set to run when a dependency changes, with the version it checks."""
         found: list[tuple[EvalSuite, AgentVersion]] = []
         for suite in await eval_suite_repo.list_watching(
             self.db, organization_id=organization_id, flag="on_dependency_change"
@@ -938,9 +946,7 @@ class EvalSuiteService:
             version = await self._served(
                 agent, suite.environment_id, organization_id=organization_id
             )
-            if version is not None and binds(
-                AgentSpec.model_validate(version.spec), kind, resource_id
-            ):
+            if version is not None:
                 found.append((suite, version))
         return found
 
