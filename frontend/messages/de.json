@@ -3649,7 +3649,7 @@
     "cardOrganizations": "{count, plural, =1 {Das Konto der Organisation} other {# Konten der Organisation}}",
     "cardYoursAndOrganizations": "Ihres und das der Organisation",
     "accountActions": "Mehr für {name}",
-    "watchForMe": "Für mich beobachten…"
+    "watch": "Beobachten"
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",

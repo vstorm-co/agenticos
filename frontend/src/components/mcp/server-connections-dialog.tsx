@@ -445,9 +445,19 @@ function Account({
               {t("authorize")}
             </Button>
           ) : (
-            <Button size="sm" variant="outline" disabled={busy} onClick={onTools}>
-              {t("tools")}
-            </Button>
+            <>
+              {/* Beside Tools rather than in the menu: a watch is something to
+                  offer, and nobody looked for it behind the dots (#2301). */}
+              {onWatch && state === "connected" && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={onWatch}>
+                  <Radar className="h-3.5 w-3.5" aria-hidden />
+                  {t("watch")}
+                </Button>
+              )}
+              <Button size="sm" variant="outline" disabled={busy} onClick={onTools}>
+                {t("tools")}
+              </Button>
+            </>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -482,12 +492,6 @@ function Account({
                 <DropdownMenuItem onSelect={onCalls}>
                   <History className="h-4 w-4" aria-hidden />
                   {t("callLog")}
-                </DropdownMenuItem>
-              )}
-              {onWatch && state === "connected" && (
-                <DropdownMenuItem onSelect={onWatch}>
-                  <Radar className="h-4 w-4" aria-hidden />
-                  {t("watchForMe")}
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />

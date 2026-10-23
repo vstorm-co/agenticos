@@ -3767,7 +3767,7 @@
     "cardOrganizations": "{count, plural, =1 {The organization's account} other {The organization's # accounts}}",
     "cardYoursAndOrganizations": "Yours and the organization's",
     "accountActions": "More for {name}",
-    "watchForMe": "Watch for me…"
+    "watch": "Watch"
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",

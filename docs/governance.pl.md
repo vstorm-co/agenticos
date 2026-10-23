@@ -1,5 +1,5 @@
 ---
-source_sha: "68203f63bdc3"
+source_sha: "7772e57485bb"
 ---
 
 # Governance { #governance }
@@ -529,11 +529,12 @@ wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co czyta
 osobno na tej samej karcie (`proactive_watches_enabled`), działają na tym samym
 modelu i w tym samym limicie. Osoba zakłada obserwację przyciskiem **Nowa
 obserwacja** w **Rutynach**, gdzie karta Obserwacje pokazuje każdą z tym, kiedy
-ostatnio sprawdzała i ile jej znalezisk czeka, albo z menu konta na stronie
-serwerów MCP. Wybiera jedno ze swoich połączeń MCP - dowolny serwer, który
-podłączyła - i mówi, czego szukać - gotowa obserwacja dla tego serwera albo jej
-własne słowa - i jak często, nigdy częściej, niż pozwala organizacja
-(`proactive_watch_min_minutes`, domyślnie co godzinę).
+ostatnio sprawdzała i ile jej znalezisk czeka, albo przyciskiem **Obserwuj**
+obok **Tools** konta na stronie serwerów MCP. Wybiera jedno ze swoich połączeń
+MCP - dowolny serwer, który podłączyła - i mówi, czego szukać - gotowa
+obserwacja dla tego serwera albo jej własne słowa - i jak często, nigdy
+częściej, niż pozwala organizacja (`proactive_watch_min_minutes`, domyślnie co
+godzinę).
 
 Każdy przegląd to jeden run z powierzchni **proactive**, który dostaje tylko
 narzędzia oznaczone przez serwer jako tylko do odczytu (`readOnlyHint`), więc

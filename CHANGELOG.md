@@ -156,8 +156,8 @@ Two things are versioned separately from this file and worth knowing about:
   with a link to open it; one the person asked to hear about at once and the
   model judged urgent is also sent as a notification. Set up with **New watch**
   under **Routines**, where a **Watches** card shows when each last looked and how
-  many of its findings wait, or from an account's menu on the MCP servers page
-  (`/me/watches`). Any server the person connected may be watched. Off until the
+  many of its findings wait, or with **Watch** beside an account's **Tools** on
+  the MCP servers page (`/me/watches`). Any server the person connected may be watched. Off until the
   organization turns watches on, on the **Proactivity** card, which also sets the
   most-often; they run on the proactive model and limit. Migration `0167_watches`.
 - **An inbox, and a morning briefing (#2301).** **Inbox**, under Chat in the

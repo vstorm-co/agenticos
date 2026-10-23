@@ -1,5 +1,5 @@
 ---
-source_sha: "68203f63bdc3"
+source_sha: "7772e57485bb"
 ---
 
 # Governance { #governance }
@@ -529,8 +529,8 @@ Las **vigilancias** apuntan el mismo trabajo a las conexiones propias de una
 persona. Se activan aparte en la misma tarjeta (`proactive_watches_enabled`),
 con el mismo modelo y dentro del mismo límite. Una persona crea una con **New
 watch** en **Rutinas**, donde una tarjeta de vigilancias muestra cada una con
-cuándo revisó por última vez y cuántos de sus hallazgos esperan, o desde el menú
-de la cuenta en la página de servidores MCP.
+cuándo revisó por última vez y cuántos de sus hallazgos esperan, o con **Watch**
+junto a **Tools** de la cuenta en la página de servidores MCP.
 
 Elige una de sus propias conexiones MCP - cualquier servidor que haya conectado
 - y dice qué buscar - una vigilancia hecha para ese servidor o sus propias

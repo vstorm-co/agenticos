@@ -90,25 +90,23 @@ async function menuOf(name: string) {
 }
 
 describe("watching one's own account (#2301)", () => {
-  it("offers a watch on a connected personal account where the organization allows it", async () => {
+  it("offers a watch beside Tools on a connected personal account", async () => {
     org.watches = true;
     open([connection({ id: "c1" })]);
 
-    await menuOf("ledger");
-    expect(screen.queryByRole("menuitem", { name: "Watch for me…" })).toBeNull();
-    await userEvent.keyboard("{Escape}");
-    await menuOf("mine");
-    await userEvent.click(screen.getByRole("menuitem", { name: "Watch for me…" }));
+    // One button: the organization's account offers none, the person's does.
+    const watch = screen.getAllByRole("button", { name: "Watch" });
+    expect(watch).toHaveLength(1);
+    await userEvent.click(watch[0]!);
     // Beside the open dialog, which hides the rest of the page from the accessibility tree.
     fireEvent.click(screen.getByText("watch p1"));
     expect(screen.queryByText("watch p1")).toBeNull();
   });
 
-  it("offers nothing where the organization has watches off", async () => {
+  it("offers nothing where the organization has watches off", () => {
     org.watches = false;
     open([]);
-    await menuOf("mine");
-    expect(screen.queryByRole("menuitem", { name: "Watch for me…" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Watch" })).toBeNull();
     org.watches = true;
   });
 });

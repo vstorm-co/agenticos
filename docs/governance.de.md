@@ -1,5 +1,5 @@
 ---
-source_sha: "68203f63bdc3"
+source_sha: "7772e57485bb"
 ---
 
 # Governance { #governance }
@@ -572,11 +572,11 @@ Person. Sie werden auf derselben Karte getrennt eingeschaltet
 (`proactive_watches_enabled`), laufen auf demselben Modell und im selben Limit.
 Eine Person legt eine mit **Neue Beobachtung** unter **Routinen** an, wo eine
 Karte Beobachtungen jede mit ihrer letzten Prüfung und der Zahl ihrer wartenden
-Funde zeigt, oder im Menü des Kontos auf der Seite der MCP-Server. Sie wählt eine
-ihrer eigenen MCP-Verbindungen - jeden Server, den sie verbunden hat - und sagt,
-wonach gesucht wird - eine fertige Beobachtung für diesen Server oder ihre eigenen
-Worte - und wie oft, nie häufiger, als die Organisation erlaubt
-(`proactive_watch_min_minutes`, standardmäßig stündlich).
+Funde zeigt, oder mit **Beobachten** neben **Tools** des Kontos auf der Seite
+der MCP-Server. Sie wählt eine ihrer eigenen MCP-Verbindungen - jeden Server,
+den sie verbunden hat - und sagt, wonach gesucht wird - eine fertige Beobachtung
+für diesen Server oder ihre eigenen Worte - und wie oft, nie häufiger, als die
+Organisation erlaubt (`proactive_watch_min_minutes`, standardmäßig stündlich).
 
 Jeder Blick ist ein Run der Oberfläche **proactive**, dem nur die Tools angeboten
 werden, die der Server als nur lesend markiert (`readOnlyHint`), sodass eine

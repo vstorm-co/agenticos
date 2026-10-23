@@ -3537,7 +3537,7 @@
     "cardOrganizations": "{count, plural, =1 {Konto organizacji} few {# konta organizacji} many {# kont organizacji} other {# kont organizacji}}",
     "cardYoursAndOrganizations": "Twoje i organizacji",
     "accountActions": "Więcej dla {name}",
-    "watchForMe": "Obserwuj dla mnie…"
+    "watch": "Obserwuj"
   },
   "members": {
     "emailPlaceholder": "kolega@example.com",
