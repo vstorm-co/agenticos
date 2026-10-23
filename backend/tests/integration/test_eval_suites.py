@@ -59,6 +59,7 @@ from app.schemas.eval_suite import (
     EvalSuiteThreshold,
     EvalSuiteUpdate,
 )
+from app.schemas.scoring import DatasetScoring
 from app.schemas.skill import SkillUpdate
 from app.services.access import resolve_access
 from app.services.agent_environment import AgentEnvironmentService
@@ -946,6 +947,35 @@ async def test_a_cancelled_eval_run_leaves_the_result_inconclusive_and_the_suite
     assert result.summary["message"] == "Its eval run was cancelled."
     again = await service.run_now(ctx, agent.id, suite.id)
     assert again.eval_run_id not in (None, started.eval_run_id)
+
+
+async def test_a_run_graded_under_other_scoring_than_the_suite_reads_is_no_baseline(db) -> None:
+    """A guard whose pin moved onto new scoring is held to its own numbers once, not
+    compared with a pass graded the old way - which would only come out inconclusive."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    created = await service.create(
+        ctx, agent.id, _suite_data(dataset, schedule=EvalSuiteSchedule(cron="0 6 * * *"))
+    )
+    suite = await db.get(EvalSuite, created.id)
+    assert suite is not None and suite.next_fire_at is not None
+    day = suite.next_fire_at
+
+    await _sweep(db, Model(db), now=day)
+    suite.pinned_dataset_version = dataset.latest_version
+    suite.pinned_scoring = DatasetScoring.model_validate(
+        {**dataset.scoring, "trajectory": {"enabled": False, "required": False}}
+    ).model_dump(mode="json")
+    await db.flush()
+    await _sweep(db, Model(db), now=day + timedelta(days=1))
+    await _sweep(db, Model(db), now=day + timedelta(days=2))
+
+    first, second, third = await _results(db, suite.id)
+    assert [r.status for r in (first, second, third)] == ["passed", "passed", "passed"]
+    assert second.baseline_eval_run_id is None
+    assert third.baseline_eval_run_id == second.eval_run_id
 
 
 async def test_an_eval_run_that_failed_ends_the_result_in_error(db) -> None:

@@ -1421,9 +1421,10 @@ class EvalSuiteService:
         yesterday's failure, a case still broken today would not have flipped, and
         a suite that had just gone red would read green again with the agent
         unchanged. None once a later result could not be compared with it - the
-        judge or the scoring changed since - so the next run is held to its own
-        numbers and, passing, becomes the state the ones after it are measured
-        against.
+        judge or the scoring changed since - or once it was graded under other
+        scoring than the suite reads now, a guard's pin having moved: the next run
+        is held to its own numbers and, passing, becomes the state the ones after
+        it are measured against.
         """
         passed = await eval_suite_repo.previous_settled(
             self.db,
@@ -1433,7 +1434,16 @@ class EvalSuiteService:
             organization_id=suite.organization_id,
             passed_on_dataset=suite.dataset_id,
         )
-        if passed is None or passed.settled_at is None:
+        if passed is None or passed.settled_at is None or passed.eval_run_id is None:
+            return None
+        run = await eval_run_repo.get(
+            self.db, passed.eval_run_id, organization_id=suite.organization_id
+        )
+        dataset = await dataset_repo.get(
+            self.db, suite.dataset_id, organization_id=suite.organization_id
+        )
+        assert dataset is not None, "a suite's dataset outlives it"
+        if run is None or run.scoring_hash != scoring_hash(reads_now(suite, dataset)[1]):
             return None
         if await eval_suite_repo.incomparable_since(
             self.db,
