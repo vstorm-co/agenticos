@@ -254,16 +254,16 @@ async def pending_counts(
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
-) -> list[tuple[UUID, str, bool | None, int]]:
+) -> list[tuple[Dataset, bool | None, int]]:
     """How many scores wait in each dataset one member may see, by what the scorers concluded."""
     where = _pending(organization_id, user_id=user_id, see_all=see_all, shared_ids=shared_ids)
     result = await db.execute(
-        select(Dataset.id, Dataset.name, CaseScore.passed, func.count())
+        select(Dataset, CaseScore.passed, func.count())
         .join(Dataset, Dataset.id == CaseScore.dataset_id)
         .where(*where)
-        .group_by(Dataset.id, Dataset.name, CaseScore.passed)
+        .group_by(Dataset.id, CaseScore.passed)
     )
-    return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+    return [(row[0], row[1], row[2]) for row in result.all()]
 
 
 async def decided_for_judge(
