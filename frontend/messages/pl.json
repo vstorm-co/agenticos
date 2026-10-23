@@ -2747,7 +2747,7 @@
         "newSkills": "{count, plural, one {1 zaproponowany nowy skill} few {# zaproponowane nowe skille} many {# zaproponowanych nowych skilli} other {# zaproponowanego nowego skilla}}"
       },
       "needs-attention": {
-        "title": "Wymaga uwagi",
+        "title": "Agenci wymagający uwagi",
         "description": "Agenci z odpowiedziami ocenionymi w dół, nieudanymi runami albo oblaną suitą ewaluacji w tym okresie, każdy o kliknięcie od ulepszenia.",
         "empty": {
           "title": "Nic nie wymaga uwagi",

@@ -2748,7 +2748,7 @@
         "newSkills": "{count, plural, =1 {1 neuer Skill vorgeschlagen} other {# neue Skills vorgeschlagen}}"
       },
       "needs-attention": {
-        "title": "Braucht Aufmerksamkeit",
+        "title": "Agents, die Aufmerksamkeit brauchen",
         "description": "Agents mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder einer durchgefallenen Eval-Suite im Zeitraum, jeder einen Klick vom Verbessern entfernt.",
         "empty": {
           "title": "Nichts braucht Aufmerksamkeit",

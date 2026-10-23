@@ -1,5 +1,5 @@
 ---
-source_sha: "8a94cf621165"
+source_sha: "7fcee09772c0"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje pięćdziesiąt kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje pięćdziesiąt jeden kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -29,10 +29,17 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 |---|---|
-| **Ja** | Powitanie i Twój okres w jednym zdaniu, z wszystkim, co na Ciebie czeka - wywołaniami, odpowiedziami do przeglądu, oblanymi suitami, sugestiami asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
+| **Ja** | Powitanie i Twój okres w jednym zdaniu, z wszystkim, co na Ciebie czeka - wywołaniami, odpowiedziami do przeglądu, oblanymi suitami, sugestiami asystenta; agenci wymagający uwagi; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
+
+Na widoku **Ja** karta **Agenci wymagający uwagi** wymienia agentów, których
+widzisz, z odpowiedziami ocenionymi w dół, nieudanymi runami albo oblaną suitą
+ewaluacji w tym okresie - same liczby, nigdy treść - z przyciskiem **Ulepsz**
+przy tych, które możesz edytować. Galeria agentów oznacza tych samych agentów z
+ostatnich trzydziestu dni znaczkiem **Wymaga uwagi**, który po najechaniu mówi
+dlaczego. Oba wymagają `runs:view`.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
@@ -593,7 +600,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **pięćdziesiąt widgetów**, które układasz sam, zapisywanych
+- Dashboard to **pięćdziesiąt jeden widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

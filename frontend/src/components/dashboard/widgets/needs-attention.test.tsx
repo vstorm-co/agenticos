@@ -33,7 +33,7 @@ const PERIOD: Period = { preset: "30d", from: "2026-09-23", to: "2026-10-22" };
 function widget() {
   return render(
     <TooltipProvider>
-      <NeedsAttentionWidget title="Needs attention" hint="" period={PERIOD} />
+      <NeedsAttentionWidget title="Agents that need attention" hint="" period={PERIOD} />
     </TooltipProvider>,
   );
 }

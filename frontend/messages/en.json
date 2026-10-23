@@ -2748,7 +2748,7 @@
         "newSkills": "{count, plural, =1 {1 new skill proposed} other {# new skills proposed}}"
       },
       "needs-attention": {
-        "title": "Needs attention",
+        "title": "Agents that need attention",
         "description": "Agents with answers rated down, failed runs or a failing eval suite in the period, each a click from improving it.",
         "empty": {
           "title": "Nothing needs attention",

@@ -1,5 +1,5 @@
 ---
-source_sha: "8a94cf621165"
+source_sha: "7fcee09772c0"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen cincuenta tarjetas. No las verás todas: **cada tarjeta está
+Existen cincuenta y una tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -29,10 +29,17 @@ puedes abrir. Todos empiezan en **Me**:
 
 | Vista | Responde a |
 |---|---|
-| **Me** | Un saludo y tu periodo en una frase, con todo lo que te espera - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
+| **Me** | Un saludo y tu periodo en una frase, con todo lo que te espera - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; los agents que necesitan atención; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
 | **Organization** | La página que se ordena, descrita abajo |
 | **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
+
+En **Me**, **Agents that need attention** lista los agents que puedes ver con
+respuestas valoradas negativamente, runs fallidos o una suite de evals que falla
+en el periodo - solo cifras, nunca lo que se dijo - con **Improve** en los que
+puedes editar. La galería de agents marca los mismos agents de los últimos
+treinta días con la insignia **Needs attention**, que al pasar el cursor dice
+por qué. Ambos requieren `runs:view`.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
@@ -606,7 +613,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **cincuenta widgets** que ordenas tú, guardados por
+- El dashboard son **cincuenta y un widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la
