@@ -692,7 +692,9 @@ class SandboxWorkspaceService:
                 visitor, a trigger that does not run as its creator), or none of
                 their computers connected while it waited.
         """
-        if ctx.user_id is None or ctx.api_key_id is not None:
+        # A trigger's fire carries the creator's id but speaks for nobody unless
+        # it acts as them - and then `subject_is_publisher_fallback` is off.
+        if ctx.user_id is None or ctx.api_key_id is not None or ctx.subject_is_publisher_fallback:
             raise BadRequestError(
                 message="Only your own chats can work on your computer",
                 details={"target": "local"},

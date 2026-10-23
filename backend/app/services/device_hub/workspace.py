@@ -11,10 +11,9 @@ server asked.
 
 import base64
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
 from pydantic_ai.workspaces import (
     CommandResult,
     FileEntry,
@@ -25,14 +24,13 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
 )
 
+from app.schemas.local_target import LocalTarget
 from app.services.device_hub import _hub
 from app.services.device_hub.exceptions import (
     DeviceCallFailed,
     DeviceCallTimedOut,
     DeviceUnavailable,
 )
-
-LocalMode = Literal["read_only", "workspace_write", "full_access"]
 
 PROVIDER = "agenticos-device"
 
@@ -48,19 +46,6 @@ SHELL_GRACE_SECONDS = 10.0
 
 DEFAULT_SHELL_SECONDS = 600.0
 """A command with no timeout of its own: long builds run, a hung one does not hold a run for ever."""
-
-
-class LocalTarget(BaseModel):
-    """Where a chat asked its run to work: a folder on one of the person's computers."""
-
-    folder: str = Field(min_length=1, max_length=1024)
-    """The folder the person picked in the app; the app refuses any it did not grant."""
-
-    mode: LocalMode = "workspace_write"
-    """How far the run may reach: read only, write in the folder, or full access."""
-
-    device_id: UUID | None = None
-    """Which computer, when the person has several; empty takes the one most recently connected."""
 
 
 class DeviceWorkspace:

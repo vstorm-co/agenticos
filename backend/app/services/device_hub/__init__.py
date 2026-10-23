@@ -4,6 +4,7 @@ External callers use what is re-exported here; the frames and the routing are
 package-internal.
 """
 
+from app.schemas.local_target import LocalMode, LocalTarget
 from app.services.device_hub._hub import (
     DESKTOP_PLATFORMS,
     Device,
@@ -20,7 +21,7 @@ from app.services.device_hub.exceptions import (
     DeviceCallTimedOut,
     DeviceUnavailable,
 )
-from app.services.device_hub.workspace import DeviceWorkspace, LocalMode, LocalTarget
+from app.services.device_hub.workspace import DeviceWorkspace
 
 __all__ = [
     "DESKTOP_PLATFORMS",

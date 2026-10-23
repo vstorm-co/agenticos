@@ -6963,7 +6963,15 @@
     "moreOptions": "Weitere Optionen",
     "summaryInterval": "Läuft {unit, select, minutes {{count, plural, =1 {jede Minute} other {alle # Minuten}}} hours {{count, plural, =1 {jede Stunde} other {alle # Stunden}}} other {{count, plural, =1 {jeden Tag} other {alle # Tage}}}}, ab dem Speichern.",
     "templatesMore": "{count, plural, =1 {1 weitere zeigen} other {# weitere zeigen}}",
-    "templatesFewer": "Weniger zeigen"
+    "templatesFewer": "Weniger zeigen",
+    "local": {
+      "label": "Arbeiten auf",
+      "hint": "Jeder Lauf arbeitet über die Desktop-App in einem Ordner auf Ihrem Computer oder in der Sandbox des Agenten. Ist die App geschlossen, wartet der Lauf auf sie.",
+      "elsewhereHint": "Jeder Lauf arbeitet in diesem Ordner auf Ihrem Computer. Ändern Sie ihn in der Desktop-App auf diesem Computer.",
+      "sandbox": "Die Sandbox des Agenten",
+      "pick": "Ordner wählen…",
+      "useSandbox": "Sandbox verwenden"
+    }
   },
   "portals": {
     "title": "Portale",

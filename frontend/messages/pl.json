@@ -6859,7 +6859,15 @@
     "moreOptions": "Więcej opcji",
     "summaryInterval": "Uruchamia się co {unit, select, minutes {{count, plural, one {minutę} few {# minuty} many {# minut} other {# minuty}}} hours {{count, plural, one {godzinę} few {# godziny} many {# godzin} other {# godziny}}} other {{count, plural, one {dzień} other {# dni}}}}, licząc od zapisania.",
     "templatesMore": "{count, plural, one {Pokaż jeszcze 1} few {Pokaż jeszcze #} many {Pokaż jeszcze #} other {Pokaż jeszcze #}}",
-    "templatesFewer": "Pokaż mniej"
+    "templatesFewer": "Pokaż mniej",
+    "local": {
+      "label": "Pracuj na",
+      "hint": "Każde uruchomienie pracuje w folderze na twoim komputerze przez aplikację desktopową albo w piaskownicy agenta. Gdy aplikacja jest zamknięta, uruchomienie na nią czeka.",
+      "elsewhereHint": "Każde uruchomienie pracuje w tym folderze na twoim komputerze. Zmienisz go w aplikacji desktopowej na tym komputerze.",
+      "sandbox": "Piaskownica agenta",
+      "pick": "Wybierz folder…",
+      "useSandbox": "Użyj piaskownicy"
+    }
   },
   "portals": {
     "title": "Portale",

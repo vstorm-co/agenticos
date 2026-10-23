@@ -3,13 +3,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import type { LocalMode } from "@/lib/desktop/commands";
+import type { LocalTarget } from "@/lib/desktop/commands";
 
-/** A folder on the person's own computer, and how far a run may reach in it. */
-export interface LocalTarget {
-  folder: string;
-  mode: LocalMode;
-}
+export type { LocalTarget };
 
 /**
  * Where each conversation's runs work: the agent's cloud sandbox, or a folder on

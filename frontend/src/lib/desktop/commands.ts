@@ -333,6 +333,12 @@ const LOCAL_MODES: readonly LocalMode[] = ["read_only", "workspace_write", "full
 const isLocalMode = (value: unknown): value is LocalMode =>
   LOCAL_MODES.includes(value as LocalMode);
 
+/** Where a run works on the person's own computer: a granted folder and a mode within it. */
+export interface LocalTarget {
+  folder: string;
+  mode: LocalMode;
+}
+
 /** A folder the person allowed their agents to work in, and the most they may do there. */
 export interface LocalGrant {
   path: string;

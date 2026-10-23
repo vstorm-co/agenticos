@@ -7084,7 +7084,15 @@
     "moreOptions": "More options",
     "summaryInterval": "Runs every {unit, select, minutes {{count, plural, =1 {minute} other {# minutes}}} hours {{count, plural, =1 {hour} other {# hours}}} other {{count, plural, =1 {day} other {# days}}}}, from when it is saved.",
     "templatesMore": "{count, plural, =1 {Show 1 more} other {Show # more}}",
-    "templatesFewer": "Show fewer"
+    "templatesFewer": "Show fewer",
+    "local": {
+      "label": "Work on",
+      "hint": "Each fire works in a folder on your computer through the desktop app, or in the agent's sandbox. A fire waits for the app if it is closed.",
+      "elsewhereHint": "Each fire works in this folder on your computer. Change it from the desktop app on that computer.",
+      "sandbox": "The agent's sandbox",
+      "pick": "Choose a folder…",
+      "useSandbox": "Use the sandbox"
+    }
   },
   "portals": {
     "title": "Portals",
