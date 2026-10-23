@@ -455,3 +455,26 @@ async def group_down_rated(
         (rated_at, comment, run_id, agent_id, agent_name)
         for rated_at, comment, run_id, agent_id, agent_name in result.all()
     ]
+
+
+async def down_rated_by_agent(
+    db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
+) -> dict[UUID, int]:
+    """How many answers of each agent somebody rated down in the window, by agent.
+
+    A count only: what was asked, answered and said about it stays with the run.
+    """
+    result = await db.execute(
+        select(AgentRun.agent_id, func.count())
+        .select_from(MessageRating)
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            MessageRating.rating < 0,
+            MessageRating.created_at >= start,
+            MessageRating.created_at < end,
+        )
+        .group_by(AgentRun.agent_id)
+    )
+    return {agent_id: int(count) for agent_id, count in result.all()}

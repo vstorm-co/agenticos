@@ -1453,6 +1453,30 @@ class TestStatsScopeIsDecidedInTheService:
 
         assert response.status_code == 200
 
+    async def test_who_needs_attention_is_refused_without_runs_view(
+        self,
+        synthetic_roles: None,
+        as_role: ClientFactory,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Counts over everybody's runs: the gate `scope=org` has, with no scope to ask."""
+        for target, value in (
+            ("message_rating_repo.down_rated_by_agent", {}),
+            ("agent_run_repo.failed_by_agent", {}),
+            ("eval_suite_repo.list_for_organization", []),
+            ("eval_suite_repo.latest_results", {}),
+            ("agent_repo.get_many", {}),
+            ("accessible_ids", set()),
+        ):
+            monkeypatch.setattr(f"app.services.stats.{target}", AsyncMock(return_value=value))
+        async with as_role(all_but(Perm.RUNS_VIEW), self._service()) as client:
+            refused = await client.get(_url("/stats/attention"))
+        async with as_role(only(Perm.RUNS_VIEW), self._service()) as client:
+            answered = await client.get(_url("/stats/attention"))
+
+        assert refused.status_code == 403
+        assert answered.status_code == 200 and answered.json()["items"] == []
+
     async def test_naming_the_organizations_people_is_refused_without_runs_view(
         self, synthetic_roles: None, stats_repos: None, as_role: ClientFactory
     ) -> None:

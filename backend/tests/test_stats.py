@@ -722,3 +722,73 @@ class TestTheTimeline:
         assert result.timeline.step_seconds == int(
             (buckets[1].start - buckets[0].start).total_seconds()
         )
+
+
+class TestWhoNeedsAttention:
+    @pytest.fixture
+    def signals(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+        """Three agents' signals, and a visibility rule the test can narrow."""
+        refunds, clerk, hidden = uuid4(), uuid4(), uuid4()
+        failing, passing, paused = (
+            MagicMock(id=uuid4(), agent_id=clerk, is_active=True),
+            MagicMock(id=uuid4(), agent_id=refunds, is_active=True),
+            MagicMock(id=uuid4(), agent_id=hidden, is_active=False),
+        )
+        agents = {
+            refunds: MagicMock(id=refunds),
+            clerk: MagicMock(id=clerk),
+            hidden: MagicMock(id=hidden),
+        }
+        for agent, name in ((refunds, "Refund desk"), (clerk, "Clerk"), (hidden, "Hidden")):
+            agents[agent].name = name
+        visible = {refunds, clerk}
+        monkeypatch.setattr(
+            "app.services.stats.message_rating_repo.down_rated_by_agent",
+            AsyncMock(return_value={refunds: 5, hidden: 9}),
+        )
+        monkeypatch.setattr(
+            "app.services.stats.agent_run_repo.failed_by_agent",
+            AsyncMock(return_value={clerk: 1}),
+        )
+        monkeypatch.setattr(
+            "app.services.stats.eval_suite_repo.list_for_organization",
+            AsyncMock(return_value=[failing, passing, paused]),
+        )
+        latest = AsyncMock(
+            return_value={
+                failing.id: MagicMock(status="failed"),
+                passing.id: MagicMock(status="passed"),
+            }
+        )
+        monkeypatch.setattr("app.services.stats.eval_suite_repo.latest_results", latest)
+        monkeypatch.setattr(
+            "app.services.stats.agent_repo.get_many", AsyncMock(return_value=agents)
+        )
+        monkeypatch.setattr(
+            "app.services.stats.accessible_ids", AsyncMock(side_effect=lambda *_a, **_k: visible)
+        )
+        return {"refunds": refunds, "clerk": clerk, "latest": latest}
+
+    async def test_it_counts_each_signal_by_agent_the_most_first(self, signals) -> None:
+        result = await StatsService(MagicMock()).attention(
+            _ctx(), from_date=date(2026, 9, 1), to_date=date(2026, 9, 30)
+        )
+
+        assert [
+            (item.name, item.rated_down, item.failed_runs, item.failing_suites)
+            for item in result.items
+        ] == [("Refund desk", 5, 0, 0), ("Clerk", 0, 1, 1)]
+        assert (result.from_date, result.to_date) == (date(2026, 9, 1), date(2026, 9, 30))
+
+    async def test_a_paused_suite_is_not_read_and_an_unseen_agent_is_left_out(
+        self, signals
+    ) -> None:
+        result = await StatsService(MagicMock()).attention(_ctx())
+
+        asked = signals["latest"].await_args.args[1]
+        assert len(asked) == 2
+        assert "Hidden" not in [item.name for item in result.items]
+
+    async def test_it_is_refused_without_runs_view(self, signals) -> None:
+        with pytest.raises(AuthorizationError):
+            await StatsService(MagicMock()).attention(_ctx(OrgRoleName.MEMBER.value))

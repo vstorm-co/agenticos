@@ -2489,3 +2489,30 @@ async def decide_approval(
     await db.flush()
     await db.refresh(approval)
     return approval
+
+
+_FAILED = (RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value, RunStatus.LOOP_STOPPED.value)
+
+
+async def failed_by_agent(
+    db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
+) -> dict[UUID, int]:
+    """How many of each agent's own runs failed in the window, by agent.
+
+    The runs that served somebody - not an eval's case, not a Builder test, and
+    not a delegate, whose failure is its parent run's.
+    """
+    result = await db.execute(
+        select(AgentRun.agent_id, func.count())
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.status.in_(_FAILED),
+            AgentRun.started_at >= start,
+            AgentRun.started_at < end,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.surface != RunSurface.EVAL.value,
+            AgentRun.is_test.is_(False),
+        )
+        .group_by(AgentRun.agent_id)
+    )
+    return {agent_id: int(count) for agent_id, count in result.all()}
