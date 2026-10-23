@@ -69,6 +69,7 @@ from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
+from app.services.run_reaper import RunReaperService
 from app.services.skills import SkillService
 
 pytestmark = pytest.mark.anyio
@@ -924,7 +925,7 @@ async def test_a_suite_already_running_is_not_run_again_by_hand(db) -> None:
     assert refused.value.details == {"suite_id": suite.id, "reason": "running"}
 
 
-async def test_an_eval_run_that_did_not_complete_ends_the_result_in_error(db) -> None:
+async def test_a_cancelled_eval_run_leaves_the_result_inconclusive_and_the_suite_free(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx)
@@ -932,12 +933,39 @@ async def test_an_eval_run_that_did_not_complete_ends_the_result_in_error(db) ->
     suite = await service.create(ctx, agent.id, _suite_data(dataset))
     started = await service.run_now(ctx, agent.id, suite.id)
     assert started.eval_run_id is not None
-    await service.evals.cancel(ctx, started.eval_run_id)
+    # Its job withdrawn from the queue before a worker took it.
+    await RunReaperService(db).settle_lost_eval(
+        started.eval_run_id, organization_id=ctx.organization_id, why="cancelled"
+    )
 
     await service.settle_finished(now=datetime.now(UTC))
 
     [result] = await _results(db, suite.id)
-    assert (result.status, result.reason) == ("error", "cancelled")
+    assert (result.status, result.reason) == ("inconclusive", "cancelled")
+    assert result.summary is not None
+    assert result.summary["message"] == "Its eval run was cancelled."
+    again = await service.run_now(ctx, agent.id, suite.id)
+    assert again.eval_run_id not in (None, started.eval_run_id)
+
+
+async def test_an_eval_run_that_failed_ends_the_result_in_error(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset))
+    started = await service.run_now(ctx, agent.id, suite.id)
+    assert started.eval_run_id is not None
+    await RunReaperService(db).settle_lost_eval(
+        started.eval_run_id, organization_id=ctx.organization_id, why="worker killed"
+    )
+
+    await service.settle_finished(now=datetime.now(UTC))
+
+    [result] = await _results(db, suite.id)
+    assert (result.status, result.reason) == ("error", "failed")
+    assert result.summary is not None
+    assert result.summary["message"] == "This eval's job ended before the run did. Run it again."
 
 
 async def test_the_estimate_prices_a_run_a_paired_run_and_a_month(db) -> None:
