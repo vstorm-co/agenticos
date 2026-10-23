@@ -1,5 +1,5 @@
 ---
-source_sha: "2980e260fcea"
+source_sha: "5de889685e53"
 ---
 
 # Skills { #skills }
@@ -169,7 +169,9 @@ agent, dentro de una conversación que nadie está revisando, y el siguiente
 lector no tendría forma de distinguir una mejora meditada de una alucinada.
 
 Así que una escritura se convierte en una **propuesta**, y aparece encima de la
-lista en la página Skills para cualquiera que tenga `skills:edit`:
+lista en la página Skills para quien pueda editar ese skill - su propietario o
+quien tenga un permiso de edición sobre él - y, para un skill que aún no existe,
+para cualquiera que pueda crear skills. Nadie más la ve:
 
 - **Apply** reescribe el skill y sube su versión, lo que alcanza a cada agent
   vinculado en su siguiente run.
