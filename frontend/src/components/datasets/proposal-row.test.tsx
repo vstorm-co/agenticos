@@ -135,7 +135,7 @@ describe("GenerationStatus", () => {
       />,
     );
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 case could not be read and was left out. 1 case did not keep to what the generator was shown and was left out.",
+      "1 case could not be read and was left out. 1 more case was left out: it did not keep to its source, went past what was asked for, or was asked by someone no longer here.",
     );
   });
 
@@ -167,7 +167,7 @@ describe("GenerationStatus", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      /^Nothing kept\s*3 cases did not keep to what the generator was shown and were left out\.$/,
+      /^Nothing kept\s*3 more cases were left out: they did not keep to their source, went past what was asked for, or were asked by someone no longer here\.$/,
     );
 
     rerender(<GenerationStatus generation={{ ...GENERATION, status: "failed" }} />);
