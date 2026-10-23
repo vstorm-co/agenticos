@@ -137,17 +137,13 @@ def _sessions(db):
 async def test_an_agent_with_rated_answers_gets_a_test_set_graded_on_another_model(
     db, monkeypatch
 ) -> None:
-    org, owner, colleague, agent, (answers_on, other) = await _world(db)
+    org, owner, colleague, agent, (_, other) = await _world(db)
     _generator(monkeypatch)
-    _, own_good, _ = await _rate(
-        db, org, agent, owner, "How long do refunds take?", rating=1, minutes=1
-    )
+    await _rate(db, org, agent, owner, "How long do refunds take?", rating=1, minutes=1)
     _, bad, _ = await _rate(
         db, org, agent, owner, "Can I return a used kettle?", rating=-1, minutes=2, comment="Wrong"
     )
-    _, theirs, _ = await _rate(
-        db, org, agent, colleague, "Do you ship to Canada?", rating=1, minutes=3
-    )
+    await _rate(db, org, agent, colleague, "Do you ship to Canada?", rating=1, minutes=3)
     await _rate(db, org, agent, owner, "A test?", rating=-1, minutes=4, surface="eval")
 
     built = await _service(db).bootstrap_for_agent(owner, agent.id)
@@ -192,9 +188,7 @@ async def test_an_agent_with_rated_answers_gets_a_test_set_graded_on_another_mod
     assert (built.gradable, built.too_few) == (3, False)
     job = (await db.execute(select(BackgroundJob))).scalar_one()
     assert job.payload["generation_id"] == str(built.generation_id)
-    del own_good, theirs, answers_on
 
-    # The generator's questions join the test set once written, and every one counts.
     await db.commit()
     row = await db.get(CaseGeneration, built.generation_id)
     assert row is not None and row.auto_accept
@@ -385,7 +379,6 @@ async def test_a_caller_who_may_not_edit_datasets_or_see_the_agent_is_refused(
         with pytest.raises(NotFoundError):
             await attempt(stranger, agent.id)
     assert (await db.execute(select(CaseGeneration))).first() is None
-    del owner
 
 
 async def test_the_estimate_prices_the_questions_to_write(db, monkeypatch) -> None:
@@ -396,7 +389,6 @@ async def test_the_estimate_prices_the_questions_to_write(db, monkeypatch) -> No
 
     assert (estimate.priced, estimate.generate) == (True, 10)
     assert estimate.cost_usd > 0
-    del org
 
 
 async def test_a_generator_model_with_no_price_is_said_to_be_unpriced(db, monkeypatch) -> None:
@@ -409,7 +401,6 @@ async def test_a_generator_model_with_no_price_is_said_to_be_unpriced(db, monkey
     estimate = await _service(db).estimate_bootstrap(owner, agent.id)
 
     assert estimate.model_dump() == {"cost_usd": Decimal(0), "priced": False, "generate": 5}
-    del org
 
 
 async def test_a_test_set_the_caller_may_not_edit_is_left_for_one_of_their_own(

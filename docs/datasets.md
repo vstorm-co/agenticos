@@ -254,6 +254,37 @@ Only members who may edit the dataset see its drafts. A draft taken from a
 conversation is text the dataset's other readers have not been shown; once it is
 accepted, it is a case like any other.
 
+**A generation is a background job.** It is queued with the request that starts
+it and survives a restart of the API or the worker. The worker drafts as the
+person who asked, with their access as it is then; a job whose worker died marks
+the generation failed, so nothing waits on it for ever.
+
+### An agent's test set { #agent-test-set }
+
+An improvement can only be measured on test questions. `POST
+/agents/{id}/test-set` builds them for an agent in one call, and the improvement
+wizard calls it when the agent has none:
+
+- the first call creates "<agent> - test questions", a dataset that names the
+  agent; later calls add the newest rated answers to it as a new version and keep
+  what it held (`since` takes only the answers rated since then);
+- an answer rated up becomes a question with that answer as the good answer,
+  and one rated down a question with it as the answer to avoid and the
+  thumbs-down comment as the note. Each question comes on its own, without the
+  conversation before it, and only from conversations the caller can open; the
+  result counts those from other people's conversations;
+- the case generator is asked for more questions until five can be graded, or
+  for `more` of them. They join the test set as a new version as soon as they
+  are written - this generation alone is accepted without a person - and the
+  result says how many were asked for, for somebody to review afterwards;
+- grading compares answers with the good answer and fails one that repeats the
+  answer to avoid, on a judge running on another model than the agent's. With
+  only one model set up, or with AI assistance off, the result says so in words.
+
+Fewer than three questions that can be graded is too few to measure a change,
+and the result says so. `POST /agents/{id}/test-set/estimate` prices the
+questions it would write. Both need `datasets:edit` and access to the agent.
+
 ## Credentials are redacted { #credentials }
 
 Case text is copied from conversations and from files people upload, and it is

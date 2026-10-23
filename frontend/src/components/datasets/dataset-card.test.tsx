@@ -12,6 +12,7 @@ const DATASET: Dataset = {
   description: "Questions about returns",
   visibility: "private",
   owner_user_id: null,
+  agent_id: null,
   latest_version: 3,
   case_count: 12,
   can_edit: true,

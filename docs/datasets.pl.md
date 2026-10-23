@@ -1,5 +1,5 @@
 ---
-source_sha: "2bbee36ec9e5"
+source_sha: "b06c6d375552"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -265,6 +265,41 @@ odrzucane z nazwy, a nie pomijane po cichu:
 Propozycje widzą tylko członkowie, którzy mogą edytować dataset. Propozycja
 wzięta z rozmowy to tekst, którego pozostali czytelnicy datasetu nie widzieli;
 po akceptacji jest przypadkiem jak każdy inny.
+
+**Generowanie jest zadaniem w tle.** Trafia do kolejki razem z żądaniem, które
+je uruchamia, i przetrwa restart API albo workera. Worker przygotowuje
+propozycje jako osoba, która o nie poprosiła, z jej dostępem z tej chwili;
+generowanie, którego worker padł, jest oznaczane jako nieudane, więc nic nie
+czeka na nie w nieskończoność.
+
+### Zestaw testowy agenta { #agent-test-set }
+
+Ulepszenie da się zmierzyć tylko na pytaniach testowych. `POST
+/agents/{id}/test-set` buduje je dla agenta jednym wywołaniem, a kreator
+ulepszania woła go, gdy agent żadnych nie ma:
+
+- pierwsze wywołanie tworzy "<agent> - test questions", dataset wskazujący
+  agenta; kolejne dodają do niego najnowsze ocenione odpowiedzi jako nową wersję
+  i zachowują to, co już zawierał (`since` bierze tylko odpowiedzi ocenione od
+  tej chwili);
+- odpowiedź oceniona łapką w górę staje się pytaniem z tą odpowiedzią jako
+  odpowiedzią wzorcową, a oceniona łapką w dół - pytaniem z nią jako
+  kontrprzykładem i komentarzem zostawionym z łapką w dół jako notatką. Każde
+  pytanie przychodzi samo, bez rozmowy, która je poprzedzała, i tylko z rozmów,
+  które wywołujący może otworzyć; wynik podaje, ile pochodzi z rozmów innych
+  osób;
+- generator przypadków jest proszony o kolejne pytania, aż pięć da się ocenić,
+  albo o `more` z nich. Dołączają do zestawu testowego jako nowa wersja, gdy
+  tylko zostaną napisane - tylko to generowanie jest akceptowane bez człowieka -
+  a wynik podaje, o ile poproszono, żeby ktoś mógł je potem przejrzeć;
+- ocenianie porównuje odpowiedzi z odpowiedzią wzorcową i oblewa tę, która
+  powtarza kontrprzykład, sędzią działającym na innym modelu niż model agenta.
+  Gdy skonfigurowany jest tylko jeden model albo wsparcie AI jest wyłączone,
+  wynik mówi o tym wprost.
+
+Mniej niż trzy pytania, które da się ocenić, to za mało, by zmierzyć zmianę, i
+wynik o tym mówi. `POST /agents/{id}/test-set/estimate` wycenia pytania, które
+zostałyby napisane. Oba wymagają `datasets:edit` i dostępu do agenta.
 
 ## Poświadczenia są redagowane { #credentials }
 

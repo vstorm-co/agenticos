@@ -1,5 +1,5 @@
 ---
-source_sha: "2bbee36ec9e5"
+source_sha: "b06c6d375552"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -269,6 +269,42 @@ rechaza por su nombre en lugar de omitirse en silencio:
 Solo los miembros que pueden editar el dataset ven sus borradores. Un borrador
 tomado de una conversación es texto que los demás lectores del dataset no han
 visto; una vez aceptado, es un caso como cualquier otro.
+
+**Una generación es un job en segundo plano.** Se pone en cola con la petición
+que la inicia y sobrevive a un reinicio de la API o del worker. El worker
+redacta como la persona que la pidió, con el acceso que tenga en ese momento;
+una generación cuyo worker murió se marca como fallida, así que nada se queda
+esperándola para siempre.
+
+### El conjunto de prueba de un agent { #agent-test-set }
+
+Una mejora solo se puede medir con preguntas de prueba. `POST
+/agents/{id}/test-set` las construye para un agent en una sola llamada, y el
+asistente de mejora lo llama cuando el agent no tiene ninguna:
+
+- la primera llamada crea "<agent> - test questions", un dataset que nombra al
+  agent; las llamadas siguientes le añaden las respuestas valoradas más
+  recientes como una versión nueva y conservan lo que ya tenía (`since` toma
+  solo las respuestas valoradas desde ese momento);
+- una respuesta con un pulgar arriba se convierte en una pregunta con esa
+  respuesta como respuesta de referencia, y una con un pulgar abajo en una
+  pregunta con ella como contraejemplo y el comentario del pulgar abajo como
+  nota. Cada pregunta llega sola, sin la conversación que la precedía, y solo de
+  conversaciones que quien llama puede abrir; el resultado cuenta las que vienen
+  de conversaciones de otras personas;
+- al generador de casos se le piden más preguntas hasta que cinco se puedan
+  calificar, o `more` de ellas. Se suman al conjunto de prueba como una versión
+  nueva en cuanto se escriben - solo esta generación se acepta sin una persona -
+  y el resultado dice cuántas se pidieron, para que alguien las revise después;
+- la calificación compara las respuestas con la respuesta de referencia y
+  suspende la que repite el contraejemplo, con un juez que funciona sobre un
+  modelo distinto del del agent. Con un solo modelo configurado, o con la
+  asistencia de IA desactivada, el resultado lo dice con palabras.
+
+Menos de tres preguntas que se puedan calificar son demasiado pocas para medir
+un cambio, y el resultado lo dice. `POST /agents/{id}/test-set/estimate` pone
+precio a las preguntas que escribiría. Ambas necesitan `datasets:edit` y acceso
+al agent.
 
 ## Las credenciales se ocultan { #credentials }
 
