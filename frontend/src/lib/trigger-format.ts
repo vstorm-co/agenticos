@@ -350,6 +350,10 @@ export function cadenceText(trigger: FiringShape, t: Translate): string {
           return t("event.outlook");
         case "webhook":
           return t("event.webhook");
+        case "hubspot":
+          return t("event.hubspot");
+        case "zendesk":
+          return t("event.zendesk");
       }
   }
 }

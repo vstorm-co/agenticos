@@ -25,12 +25,14 @@ and a branch in each of the three functions - nothing on the row and nothing in 
 service.
 """
 
+import base64
 import hashlib
 import hmac
 import json
 import logging
 import time
 from collections.abc import Mapping
+from datetime import datetime
 from email.utils import parseaddr
 from typing import Any
 
@@ -38,14 +40,17 @@ from app.db.models.agent_trigger import EventSource
 from app.schemas.agent_trigger import (
     GithubTriggerConfig,
     GmailTriggerConfig,
+    HubspotTriggerConfig,
     OutlookTriggerConfig,
+    ZendeskTriggerConfig,
 )
 from app.services.portals import outlook_place
 
 logger = logging.getLogger(__name__)
 
-# Where each source's HMAC-SHA256 signature of the raw body rides. GitHub's is its
-# own native header; the API source reuses the same scheme under a generic one.
+# Where each source's signature rides. GitHub's is its own native header and the
+# API source reuses that scheme under a generic one; HubSpot and Zendesk sign in
+# schemes of their own, verified by `_hubspot_verified` and `_zendesk_verified`.
 #
 # A source absent here has no inbound door and is refused at the webhook route
 # before a signature is looked for: `gmail` and `outlook` are *polled* from a
@@ -53,7 +58,9 @@ logger = logging.getLogger(__name__)
 # registered (#1068).
 _SIGNATURE_HEADER = {
     EventSource.GITHUB.value: "x-hub-signature-256",
+    EventSource.HUBSPOT.value: "x-hubspot-signature-v3",
     EventSource.WEBHOOK.value: "x-signature-256",
+    EventSource.ZENDESK.value: "x-zendesk-webhook-signature",
 }
 
 # The generic webhook's optional signed time, and how far it may be from ours.
@@ -76,15 +83,22 @@ _GITHUB_MEMBERS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 _GITHUB_AUTHORED = {"issues": "issue", "pull_request": "pull_request", "issue_comment": "comment"}
 
 # The provider's own id for one delivery, the key a duplicate is recognised by.
-# GitHub reuses `X-GitHub-Delivery` when it re-sends the same delivery; a relay may
-# set the generic header. A source that sends none simply is not deduplicated.
+# GitHub reuses `X-GitHub-Delivery` when it re-sends the same delivery, Zendesk
+# its invocation id; a relay may set the generic header. HubSpot sends none and is
+# keyed on its events instead (`_hubspot_delivery`). A source that sends none
+# simply is not deduplicated.
 _DELIVERY_ID_HEADER = {
     EventSource.GITHUB.value: "x-github-delivery",
     EventSource.WEBHOOK.value: "x-delivery-id",
+    EventSource.ZENDESK.value: "x-zendesk-webhook-invocation-id",
 }
 
+# How many of a HubSpot batch's events the run is told about; HubSpot sends up to
+# a hundred, and the agent can look the rest up.
+_HUBSPOT_EVENTS_SHOWN = 20
 
-def delivery_id(source: str, headers: Mapping[str, str]) -> str | None:
+
+def delivery_id(source: str, headers: Mapping[str, str], payload: Mapping[str, Any]) -> str | None:
     """The provider's id for this delivery, or `None` if it sent none.
 
     Stable across a provider's retries of one delivery - GitHub reuses the
@@ -92,8 +106,27 @@ def delivery_id(source: str, headers: Mapping[str, str]) -> str | None:
     source that sends no such header cannot be deduplicated and is fired every
     time; the claim degrades to firing rather than dropping a real event.
     """
+    if source == EventSource.HUBSPOT.value:
+        return _hubspot_delivery(payload)
     value = headers.get(_DELIVERY_ID_HEADER[source], "").strip()
     return value or None
+
+
+def _hubspot_delivery(payload: Mapping[str, Any]) -> str | None:
+    """A HubSpot batch's identity: its events, which a retry re-sends unchanged.
+
+    The body itself is not it - each retry bumps every event's `attemptNumber` -
+    and `eventId` alone is documented as not unique, so each event is named by its
+    subscription, id and time together.
+    """
+    events = [
+        [event.get("subscriptionId"), event.get("eventId"), event.get("occurredAt")]
+        for event in _hubspot_events(payload)
+    ]
+    if not events:
+        return None
+    digest = hashlib.sha256(json.dumps(events, default=str).encode()).hexdigest()
+    return f"hubspot:{digest[:40]}"
 
 
 def accepts_delivery(source: str) -> bool:
@@ -114,9 +147,14 @@ def verify_signature(
     secret: str,
     body: bytes,
     headers: Mapping[str, str],
+    url: str | None = None,
     now: float | None = None,
 ) -> bool:
     """Whether `body` was signed with `secret` for this source, in constant time.
+
+    `url` is the address the provider was given, which HubSpot's signature
+    covers; behind a proxy the request's own URL is not it, so the caller passes
+    the public one it handed out.
 
     **A generic webhook may also sign the time.** With `X-Signature-Timestamp`
     (Unix seconds) the signature covers `{timestamp}.{body}`, and a timestamp more
@@ -136,6 +174,11 @@ def verify_signature(
     500 with one high byte in the signature header. Encoding first makes a
     non-ASCII signature a plain non-match.
     """
+    moment = time.time() if now is None else now
+    if source == EventSource.HUBSPOT.value:
+        return _hubspot_verified(secret, body=body, headers=headers, url=url, now=moment)
+    if source == EventSource.ZENDESK.value:
+        return _zendesk_verified(secret, body=body, headers=headers, now=moment)
     signature = headers.get(_SIGNATURE_HEADER[source], "")
     if not signature.startswith("sha256="):
         return False
@@ -144,11 +187,64 @@ def verify_signature(
     if stamp:
         if not stamp.isdigit():
             return False
-        if abs((time.time() if now is None else now) - int(stamp)) > _TIMESTAMP_TOLERANCE_SECONDS:
+        if abs(moment - int(stamp)) > _TIMESTAMP_TOLERANCE_SECONDS:
             return False
         signed = stamp.encode() + b"." + body
     expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected.encode(), signature.encode("latin-1", "ignore"))
+    return _same(expected, signature)
+
+
+def _same(expected: str, received: str) -> bool:
+    """A constant-time comparison a non-ASCII header turns into a plain mismatch."""
+    return hmac.compare_digest(expected.encode(), received.encode("latin-1", "ignore"))
+
+
+def _hmac_b64(secret: str, signed: bytes) -> str:
+    return base64.b64encode(hmac.new(secret.encode(), signed, hashlib.sha256).digest()).decode()
+
+
+def _hubspot_verified(
+    secret: str, *, body: bytes, headers: Mapping[str, str], url: str | None, now: float
+) -> bool:
+    """HubSpot's v3 signature, or its v1 one where that is all it sends.
+
+    v3 is an HMAC over the method, the URL HubSpot called, the body and a
+    millisecond timestamp, which must be within five minutes. HubSpot still signs
+    CRM object subscriptions with v1 - a SHA-256 of the secret and the body, no
+    time - and refusing it would refuse the deliveries most apps get. A v1
+    delivery replayed later is caught by the claim on its events
+    (`_hubspot_delivery`), and its known weakness, appending to the hashed bytes,
+    cannot produce a body that still parses as JSON.
+    """
+    v3 = headers.get("x-hubspot-signature-v3", "").strip()
+    if v3:
+        stamp = headers.get("x-hubspot-request-timestamp", "").strip()
+        if url is None or not stamp.isdigit():
+            return False
+        if abs(now * 1000 - int(stamp)) > _TIMESTAMP_TOLERANCE_SECONDS * 1000:
+            return False
+        return _same(_hmac_b64(secret, b"POST" + url.encode() + body + stamp.encode()), v3)
+    if headers.get("x-hubspot-signature-version", "").strip().casefold() != "v1":
+        return False
+    expected = hashlib.sha256(secret.encode() + body).hexdigest()
+    return _same(expected, headers.get("x-hubspot-signature", "").strip())
+
+
+def _zendesk_verified(secret: str, *, body: bytes, headers: Mapping[str, str], now: float) -> bool:
+    """Zendesk's signature: an HMAC over its ISO timestamp and the body.
+
+    Zendesk sets no window of its own; five minutes is the one the generic
+    webhook keeps, and it is what makes the signed time worth having.
+    """
+    stamp = headers.get("x-zendesk-webhook-signature-timestamp", "").strip()
+    try:
+        signed_at = datetime.fromisoformat(stamp)
+    except ValueError:
+        return False
+    if signed_at.tzinfo is None or abs(now - signed_at.timestamp()) > _TIMESTAMP_TOLERANCE_SECONDS:
+        return False
+    signature = headers.get("x-zendesk-webhook-signature", "").strip()
+    return _same(_hmac_b64(secret, stamp.encode() + body), signature)
 
 
 def event_matches(
@@ -165,6 +261,11 @@ def event_matches(
         return _gmail_matches(payload, config)
     if source == EventSource.OUTLOOK.value:
         return _outlook_matches(payload, config)
+    if source == EventSource.HUBSPOT.value:
+        return _hubspot_matches(payload, config)
+    if source == EventSource.ZENDESK.value:
+        parsed = ZendeskTriggerConfig.model_validate(dict(config))
+        return parsed.event_types is None or payload.get("type") in parsed.event_types
     # The generic webhook: the sender chose to deliver, so a verified delivery
     # is a match by definition.
     return True
@@ -178,6 +279,10 @@ def render_context(source: str, *, payload: Mapping[str, Any]) -> str:
         return _gmail_context(payload)
     if source == EventSource.OUTLOOK.value:
         return _outlook_context(payload)
+    if source == EventSource.HUBSPOT.value:
+        return _hubspot_context(payload)
+    if source == EventSource.ZENDESK.value:
+        return _zendesk_context(payload)
     return _webhook_context(payload)
 
 
@@ -435,6 +540,47 @@ def _outlook_context(payload: Mapping[str, Any]) -> str:
     if attachments:
         lines.append(f"Attachments: {', '.join(name for name in attachments if name)}")
     return ("\n".join(lines) + f"\n\n{_clip(str(payload.get('text') or ''))}").strip()
+
+
+def _hubspot_events(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """The events of a HubSpot batch, which arrives as `{"events": [...]}`."""
+    return [event for event in payload.get("events") or [] if isinstance(event, Mapping)]
+
+
+def _hubspot_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+    parsed = HubspotTriggerConfig.model_validate(dict(config))
+    return any(
+        (
+            parsed.subscription_types is None
+            or event.get("subscriptionType") in parsed.subscription_types
+        )
+        and (parsed.property_names is None or event.get("propertyName") in parsed.property_names)
+        for event in _hubspot_events(payload)
+    )
+
+
+def _hubspot_context(payload: Mapping[str, Any]) -> str:
+    events = _hubspot_events(payload)
+    lines = [f"Events from HubSpot ({len(events)}):"]
+    for event in events[:_HUBSPOT_EVENTS_SHOWN]:
+        line = f"- {event.get('subscriptionType', 'event')} on object {event.get('objectId', '?')}"
+        if event.get("propertyName") is not None:
+            line += f": {event.get('propertyName')} = {_clip(str(event.get('propertyValue', '')))}"
+        lines.append(
+            f"{line} (portal {event.get('portalId', '?')}, at {event.get('occurredAt', '?')})"
+        )
+    if len(events) > _HUBSPOT_EVENTS_SHOWN:
+        lines.append(f"...and {len(events) - _HUBSPOT_EVENTS_SHOWN} more.")
+    return "\n".join(lines)
+
+
+def _zendesk_context(payload: Mapping[str, Any]) -> str:
+    # An event-subscribed webhook names its event; one a Zendesk rule calls is
+    # whatever JSON its admin wrote, so it is shown whole, like a generic webhook.
+    kind = payload.get("type")
+    title = f"A Zendesk event arrived: {kind}." if kind else "A Zendesk webhook arrived."
+    rendered = json.dumps(dict(payload), indent=2, ensure_ascii=False, default=str)
+    return f"{title}\n\n{_clip(rendered)}"
 
 
 def _webhook_context(payload: Mapping[str, Any]) -> str:

@@ -11,7 +11,7 @@ import type { EventSource } from "@/types/triggers";
  * beside them.
  */
 describe("EventSourceMark", () => {
-  it.each(["github", "email", "webhook"] as EventSource[])(
+  it.each(["github", "gmail", "outlook", "hubspot", "zendesk", "webhook"] as EventSource[])(
     "draws a decorative mark for %s",
     (source) => {
       const { container } = render(<EventSourceMark source={source} />);

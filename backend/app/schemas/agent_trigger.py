@@ -265,14 +265,58 @@ class WebhookTriggerConfig(BaseSchema):
     model_config = ConfigDict(extra="forbid")
 
 
+class HubspotTriggerConfig(BaseSchema):
+    """Which HubSpot webhook events fire the trigger.
+
+    HubSpot batches up to a hundred events into one delivery, so a delivery fires
+    when any event in it passes. `subscription_types` are HubSpot's own names -
+    `contact.creation`, `deal.propertyChange`, `ticket.creation` - matched exactly;
+    `property_names` narrows a property change to the properties named. Either
+    absent lets every value through: the app's subscriptions already chose what
+    HubSpot sends.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    subscription_types: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    property_names: list[str] | None = Field(default=None, min_length=1, max_length=50)
+
+
+class ZendeskTriggerConfig(BaseSchema):
+    """Which Zendesk events fire the trigger.
+
+    A webhook subscribed to Zendesk events carries its event's `type` -
+    `zen:event-type:ticket.created` and the like - and `event_types` matches it
+    exactly. A webhook a Zendesk trigger or automation calls carries whatever JSON
+    its admin wrote and no `type`, so it fires only a trigger that names none: the
+    Zendesk rule already decided when to call.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_types: list[str] | None = Field(default=None, min_length=1, max_length=50)
+
+
+def webhook_url(event_source: str, trigger_id: UUID) -> str:
+    """The public address an event trigger's provider posts to.
+
+    One builder for the URL handed out and the URL HubSpot's signature is checked
+    against: the two must be the same string, byte for byte.
+    """
+    base = settings.PUBLIC_BASE_URL.rstrip("/")
+    return f"{base}/api/v1/webhooks/triggers/{event_source}/{trigger_id}"
+
+
 # Read from a connected account rather than posted to - no webhook, no secret.
 _POLLED_SOURCES = frozenset({EventSource.GMAIL.value, EventSource.OUTLOOK.value})
 
 _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GITHUB.value: GithubTriggerConfig,
     EventSource.GMAIL.value: GmailTriggerConfig,
+    EventSource.HUBSPOT.value: HubspotTriggerConfig,
     EventSource.OUTLOOK.value: OutlookTriggerConfig,
     EventSource.WEBHOOK.value: WebhookTriggerConfig,
+    EventSource.ZENDESK.value: ZendeskTriggerConfig,
 }
 
 
@@ -280,13 +324,14 @@ class TriggerCreate(BaseSchema):
     """A new trigger for the agent named in the path - a schedule or an event.
 
     `trigger_type` defaults to `schedule`, which is one of two cadences:
-    `interval` ("every N seconds") or `cron` (a crontab evaluated in UTC), the
+    `interval` ("every N seconds") or `cron` (a crontab read in `time_zone`), the
     expression parsed here so an unschedulable one is a 422 naming the field, not
     a fire that never comes. An `event` trigger instead names an `event_source`
-    (`github`, `email`, or the catch-all `webhook`), an optional
+    (`github`, `hubspot`, `zendesk`, or the catch-all `webhook`), an optional
     per-source `event_config` filter, and the `event_secret` its inbound webhook
-    is signed with - the secret is sealed by the service and never stored or
-    returned in the clear.
+    is signed with - for HubSpot the app's client secret, for Zendesk the
+    webhook's signing secret. The secret is sealed by the service and never
+    stored or returned in the clear.
     """
 
     prompt: str = Field(min_length=1, max_length=10000)
@@ -342,7 +387,9 @@ class TriggerCreate(BaseSchema):
     )
 
     # Event fields.
-    event_source: Literal["github", "gmail", "outlook", "webhook"] | None = None
+    event_source: Literal["github", "gmail", "hubspot", "outlook", "webhook", "zendesk"] | None = (
+        None
+    )
     event_config: dict[str, Any] | None = None
     event_secret: str | None = Field(default=None, min_length=16, max_length=255)
 
@@ -569,7 +616,9 @@ class TriggerRead(BaseSchema, TimestampSchema):
     cron_expression: str | None = None
     time_zone: str | None = None
     overlap: TriggerOverlapName = "skip"
-    event_source: Literal["github", "gmail", "outlook", "webhook"] | None = None
+    event_source: Literal["github", "gmail", "hubspot", "outlook", "webhook", "zendesk"] | None = (
+        None
+    )
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str
     # Null on an event trigger, which has no scheduled next fire.
@@ -613,8 +662,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
             return None
         if self.delivery_mode == "polling":
             return None
-        base = settings.PUBLIC_BASE_URL.rstrip("/")
-        return f"{base}/api/v1/webhooks/triggers/{self.event_source}/{self.id}"
+        return webhook_url(self.event_source, self.id)
 
 
 class TriggerCreateRead(TriggerRead):

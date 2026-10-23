@@ -22,7 +22,7 @@ export type ScheduleKind = "interval" | "cron";
 export type TriggerOverlap = "skip" | "queue" | "allow";
 
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
-export type EventSource = "github" | "gmail" | "outlook" | "webhook";
+export type EventSource = "github" | "gmail" | "hubspot" | "outlook" | "webhook" | "zendesk";
 
 export interface Trigger {
   id: string;

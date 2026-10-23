@@ -9,7 +9,7 @@ import {
   unitToSeconds,
   weekdayKey,
 } from "./trigger-format";
-import type { Trigger } from "@/types/triggers";
+import type { EventSource, Trigger } from "@/types/triggers";
 
 function trigger(overrides: Partial<Trigger> = {}): Trigger {
   return {
@@ -254,13 +254,15 @@ describe("cadenceText", () => {
   });
 
   it("names each event source", () => {
-    const event = (source: "github" | "gmail" | "outlook" | "webhook") =>
+    const event = (source: EventSource) =>
       cadenceText(trigger({ trigger_type: "event", event_source: source }), t);
 
     expect(event("github")).toBe("event.github");
     expect(event("gmail")).toBe("event.gmail");
     expect(event("outlook")).toBe("event.outlook");
     expect(event("webhook")).toBe("event.webhook");
+    expect(event("hubspot")).toBe("event.hubspot");
+    expect(event("zendesk")).toBe("event.zendesk");
   });
 
   it("names a GitHub trigger by the webhook it fires on, bare or as a preset", () => {

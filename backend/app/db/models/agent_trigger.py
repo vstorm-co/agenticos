@@ -134,12 +134,19 @@ class EventSource(enum.StrEnum):
 
     `OUTLOOK` is the same delivery for a Microsoft 365 mailbox: polled through
     the organization's Microsoft grant, one folder at a time (#1984).
+
+    `HUBSPOT` and `ZENDESK` are signed webhooks like `GITHUB`, each verified by
+    its provider's own scheme against a secret the provider issues - HubSpot's
+    app client secret, Zendesk's per-webhook signing secret - pasted into the
+    trigger rather than minted by it.
     """
 
     GITHUB = "github"
     GMAIL = "gmail"
+    HUBSPOT = "hubspot"
     OUTLOOK = "outlook"
     WEBHOOK = "webhook"
+    ZENDESK = "zendesk"
 
 
 class AgentTrigger(Base, TimestampMixin):
@@ -328,7 +335,8 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint("schedule_kind IN ('interval', 'cron')", name="ck_trigger_schedule_kind"),
         CheckConstraint("overlap IN ('skip', 'queue', 'allow')", name="ck_trigger_overlap"),
         CheckConstraint(
-            "event_source IS NULL OR event_source IN ('github', 'gmail', 'outlook', 'webhook')",
+            "event_source IS NULL OR event_source IN "
+            "('github', 'gmail', 'hubspot', 'outlook', 'webhook', 'zendesk')",
             name="ck_trigger_event_source",
         ),
         # The discriminator across both concepts, in one constraint so a row can

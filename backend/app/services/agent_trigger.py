@@ -48,7 +48,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
 from app.core.background import spawn_after_rollback
-from app.core.config import settings
 from app.core.exceptions import (
     AppException,
     AuthorizationError,
@@ -90,6 +89,7 @@ from app.schemas.agent_trigger import (
     TriggerRead,
     TriggerUpdate,
     _cron_has_next,
+    webhook_url,
 )
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.services import portal_catalog, portals, rate_limit, trigger_dedupe, trigger_events
@@ -384,17 +384,21 @@ def _is_auto_webhook(trigger: AgentTrigger) -> bool:
     return bool(trigger.provider_webhook_id and trigger.connection_id and trigger.portal_key)
 
 
-def _parse_json(body: bytes) -> dict[str, Any]:
+def _parse_json(body: bytes, *, source: str) -> dict[str, Any]:
     """The delivery body as a JSON object, or a 400 the webhook route surfaces.
 
     A verified delivery whose body is not a JSON object cannot be matched or
     rendered, so it is refused here rather than reaching the match code with the
-    wrong type.
+    wrong type. HubSpot is the exception that proves it: it posts a JSON array of
+    events, carried on as `{"events": [...]}` so every source is matched as an
+    object.
     """
     try:
         payload = json.loads(body)
     except json.JSONDecodeError as exc:
         raise BadRequestError(message="Webhook body is not valid JSON") from exc
+    if source == EventSource.HUBSPOT.value and isinstance(payload, list):
+        return {"events": payload}
     if not isinstance(payload, dict):
         raise BadRequestError(message="Webhook body must be a JSON object")
     return payload
@@ -881,8 +885,7 @@ class AgentTriggerService:
         )
         if token is None:
             return
-        base = settings.PUBLIC_BASE_URL.rstrip("/")
-        webhook_url = f"{base}/api/v1/webhooks/triggers/{trigger.event_source}/{trigger.id}"
+        hook_url = webhook_url(portal.event_source, trigger.id)
         events: tuple[str, ...] = ()
         if trigger.event_source == EventSource.GITHUB.value:
             config = GithubTriggerConfig.model_validate(trigger.event_config)
@@ -898,7 +901,7 @@ class AgentTriggerService:
             registered = await adapter.register_webhook(
                 access_token=token,
                 target=target,
-                webhook_url=webhook_url,
+                webhook_url=hook_url,
                 secret=secret,
                 events=events,
             )
@@ -1387,12 +1390,14 @@ class AgentTriggerService:
         ):
             return None
         secret = self._unseal_event_secret(trigger)
-        if not trigger_events.verify_signature(source, secret=secret, body=body, headers=headers):
+        if not trigger_events.verify_signature(
+            source, secret=secret, body=body, headers=headers, url=webhook_url(source, trigger.id)
+        ):
             raise AuthorizationError(
                 message="Webhook signature did not verify",
                 details={"trigger_id": str(trigger_id)},
             )
-        payload = _parse_json(body)
+        payload = _parse_json(body, source=source)
         if not trigger_events.event_matches(
             source, headers=headers, payload=payload, config=trigger.event_config
         ):
@@ -1412,7 +1417,7 @@ class AgentTriggerService:
                 message="This trigger has fired too often this minute",
                 details={"retry_after_seconds": allowance.retry_after_seconds},
             )
-        delivery = trigger_events.delivery_id(source, headers)
+        delivery = trigger_events.delivery_id(source, headers, payload)
         if delivery is not None and not await self._claim(trigger.id, delivery):
             return None
         context = trigger_events.render_context(source, payload=payload)
@@ -1456,7 +1461,7 @@ class AgentTriggerService:
             AuthorizationError: The signature verified against no candidate grant.
             BadRequestError: The body is not a JSON object.
         """
-        payload = _parse_json(body)
+        payload = _parse_json(body, source=EventSource.GITHUB.value)
         installation = payload.get("installation")
         installation_id = str(installation.get("id")) if isinstance(installation, dict) else None
         if not installation_id:
@@ -1504,7 +1509,7 @@ class AgentTriggerService:
                     "trigger_delivery_rate_limited", extra={"trigger_id": str(trigger.id)}
                 )
                 continue
-            delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers)
+            delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers, payload)
             if delivery is not None and not await self._claim(trigger.id, delivery):
                 continue
             decisions.append(

@@ -1322,7 +1322,12 @@ const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = 
 const EVENT_SOURCES: readonly { value: EventSource; labelKey: string }[] = [
   { value: "github", labelKey: "sourceGithub" },
   { value: "webhook", labelKey: "sourceWebhook" },
+  { value: "hubspot", labelKey: "sourceHubspot" },
+  { value: "zendesk", labelKey: "sourceZendesk" },
 ];
+
+/** Sources whose signing secret the provider issues: nothing here can mint it. */
+const PROVIDER_SECRETS: ReadonlySet<EventSource> = new Set(["hubspot", "zendesk"]);
 
 /** Where each source's delivery comes from - a static key per source so the
  *  catalog check can see them, rather than one interpolated key it cannot. */
@@ -1336,6 +1341,10 @@ function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource):
       return t("sourceHelpOutlook");
     case "webhook":
       return t("sourceHelpWebhook");
+    case "hubspot":
+      return t("sourceHelpHubspot");
+    case "zendesk":
+      return t("sourceHelpZendesk");
   }
 }
 
@@ -1351,6 +1360,7 @@ function EventFields({
 }: EventFieldsProps) {
   const t = useTranslations("triggers");
   const filters = SOURCE_FILTERS[eventSource];
+  const issuedByProvider = PROVIDER_SECRETS.has(eventSource);
   return (
     <div className="space-y-3">
       <FormField
@@ -1398,11 +1408,15 @@ function EventFields({
             placeholder={t("secretPlaceholder")}
             className="flex-1 font-mono"
           />
-          <Button type="button" variant="outline" onClick={() => onSecret(generateSecret())}>
-            {t("generate")}
-          </Button>
+          {!issuedByProvider && (
+            <Button type="button" variant="outline" onClick={() => onSecret(generateSecret())}>
+              {t("generate")}
+            </Button>
+          )}
         </div>
-        <p className="text-muted-foreground text-xs">{t("secretHelp")}</p>
+        <p className="text-muted-foreground text-xs">
+          {issuedByProvider ? t("secretHelpProvider") : t("secretHelp")}
+        </p>
       </div>
       {filters && (
         <>

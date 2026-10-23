@@ -19,6 +19,8 @@ const BRAND_SOURCES: Partial<Record<EventSource, BrandName>> = {
   // The bundled sets carry no Outlook mark; Microsoft's is the one the portal
   // card draws too.
   outlook: "microsoft",
+  hubspot: "hubspot",
+  zendesk: "zendesk",
 };
 
 export function EventSourceMark({
