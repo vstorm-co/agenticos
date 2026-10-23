@@ -48,6 +48,7 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dataset import DatasetCase, DatasetVersion
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import (
+    GapSignal,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -1416,7 +1417,11 @@ async def test_a_knowledge_tool_its_binding_renamed_is_still_what_the_search_fou
     assert "Not this agent's tool" not in prompt
 
 
-async def test_searches_with_one_query_take_its_calls_in_order_only_when_they_match(db) -> None:
+async def test_searches_with_one_query_take_its_calls_only_when_no_result_could_be_another(
+    db,
+) -> None:
+    """Calls and searches of one turn are recorded in no order, so two searches with
+    one query take a result only when every call with it returned the same text."""
     ctx = await _owner(db)
     kb = await _knowledge_base(db, ctx)
     agent = await _agent(db, ctx)
@@ -1424,16 +1429,53 @@ async def test_searches_with_one_query_take_its_calls_in_order_only_when_they_ma
     await _searched(db, ctx, run, kb, query="visitor parking")
     await _called(db, answer, "search_documents", "visitor parking", "First result", at=1)
     await _called(db, answer, "search_documents", "visitor parking", "Second result", at=2)
+    again, twice = await _turn(db, ctx, agent, question="Visitor parking at the back?")
+    for _ in range(2):
+        await _searched(db, ctx, again, kb, query="back parking")
+        await _called(db, twice, "search_documents", "back parking", "Behind the depot")
     other, short = await _turn(db, ctx, agent, question="Is there parking at night?")
     await _searched(db, ctx, other, kb, query="night parking")
     await _searched(db, ctx, other, kb, query="night parking")
     await _called(db, short, "search_documents", "night parking", "One of two results")
+    late, cut = await _turn(db, ctx, agent, question="Parking on Sundays?")
+    await _searched(db, ctx, late, kb, query="sunday parking")
+    await _called(db, cut, "search_documents", "sunday parking", None)
     with _embedding():
         await _group(db, ctx, kb)
     [topic_id] = await _topics(db, kb)
 
     prompt = await _drafted_from(db, ctx, agent, topic_id)
 
-    assert prompt.count("Found: First result") == 1
-    assert prompt.count("Found: Second result") == 1
+    assert "First result" not in prompt and "Second result" not in prompt
+    assert prompt.count("Found: Behind the depot") == 2
     assert "One of two results" not in prompt
+
+
+async def test_a_question_read_from_an_answer_takes_what_its_query_found(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    run, answer = await _turn(db, ctx, agent, question="Where do visitors park?")
+    db.add(
+        KnowledgeSearch(
+            organization_id=ctx.organization_id,
+            run_id=run.id,
+            agent_id=agent.id,
+            conversation_id=run.conversation_id,
+            knowledge_base_ids=[kb.id],
+            query="Where do visitors park?",
+            result_count=3,
+            top_similarity=0.6,
+            signal=GapSignal.ANSWER.value,
+            message_id=answer.id,
+        )
+    )
+    await db.flush()
+    await _called(db, answer, "search_documents", "Where do visitors park?", "Staff car park")
+    with _embedding():
+        await _group(db, ctx, kb)
+    [topic_id] = await _topics(db, kb)
+
+    prompt = await _drafted_from(db, ctx, agent, topic_id)
+
+    assert "Found: Staff car park" in prompt

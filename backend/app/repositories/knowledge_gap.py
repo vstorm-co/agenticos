@@ -640,9 +640,13 @@ async def _found(
 
     Only the knowledge tool's own calls count: another tool taking a `query`
     argument - a web search, a CRM lookup - returned nothing from the knowledge
-    base. A run's searches with one query take its calls with that query in
-    order, and only when there are as many of each: a call that failed or was cut
-    short leaves those searches with nothing rather than with another's result.
+    base. Neither the calls nor the searches of one turn are recorded in an
+    order, so a search takes what the run's calls with its query returned only
+    when that cannot be another search's result: every one of those calls
+    returned the same text, and, for the searches the run itself recorded, there
+    are as many calls as searches. A call that failed or was cut short leaves
+    them with nothing. A question read from an answer takes it on the first
+    condition alone.
     """
     if not run_ids:
         return {}
@@ -662,7 +666,6 @@ async def _found(
         .join(Message, Message.id == ToolCall.message_id)
         .join(AgentRun, AgentRun.id == Message.run_id)
         .where(AgentRun.organization_id == organization_id, Message.run_id.in_(list(run_ids)))
-        .order_by(ToolCall.started_at, ToolCall.id)
     )
     results: dict[tuple[UUID, str], list[str | None]] = {}
     for run_id, tool_name, query, result in calls.tuples().all():
@@ -671,25 +674,30 @@ async def _found(
         if tool_name in names and query is not None:
             results.setdefault((run_id, query), []).append(result)
     searches = await db.execute(
-        select(KnowledgeSearch.id, KnowledgeSearch.run_id, KnowledgeSearch.query)
-        .where(
+        select(
+            KnowledgeSearch.id,
+            KnowledgeSearch.run_id,
+            KnowledgeSearch.query,
+            KnowledgeSearch.signal,
+        ).where(
             KnowledgeSearch.organization_id == organization_id,
             KnowledgeSearch.run_id.in_(list(run_ids)),
-            KnowledgeSearch.signal == GapSignal.RETRIEVAL.value,
         )
-        .order_by(KnowledgeSearch.created_at, KnowledgeSearch.id)
     )
-    searched: dict[tuple[UUID, str], list[UUID]] = {}
-    for search_id, run_id, query in searches.tuples().all():
-        searched.setdefault((run_id, query), []).append(search_id)
+    searched: dict[tuple[UUID, str], list[tuple[UUID, bool]]] = {}
+    for search_id, run_id, query, signal in searches.tuples().all():
+        searched.setdefault((run_id, query), []).append(
+            (search_id, signal == GapSignal.RETRIEVAL.value)
+        )
     found: dict[UUID, str] = {}
-    for key, search_ids in searched.items():
+    for key, rows in searched.items():
         returned = results.get(key, [])
-        if len(returned) != len(search_ids):
+        if not returned or len(set(returned)) != 1 or returned[0] is None:
             continue
-        for search_id, result in zip(search_ids, returned, strict=True):
-            if result is not None:
-                found[search_id] = result
+        retrievals = sum(1 for _, retrieval in rows if retrieval)
+        for search_id, retrieval in rows:
+            if not retrieval or retrievals == len(returned):
+                found[search_id] = returned[0]
     return found
 
 
