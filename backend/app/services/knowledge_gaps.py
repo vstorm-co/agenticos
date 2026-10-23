@@ -446,9 +446,7 @@ def _verdicts(candidates: list[CandidateRow], answers: list[ClassifiedAnswer]) -
     return verdicts
 
 
-def _covering(document: RAGDocument | None) -> KnowledgeGapDocument | None:
-    if document is None:
-        return None
+def _covering(document: RAGDocument) -> KnowledgeGapDocument:
     return KnowledgeGapDocument(id=document.id, filename=document.filename, status=document.status)
 
 
@@ -501,15 +499,15 @@ class KnowledgeGapService:
             self.db, sorted({row.topic.knowledge_base_id for row in rows})
         )
         writable = {kb_id for kb_id, kb in bases.items() if await writable_kb(self.db, ctx, kb)}
-        covering = await knowledge_gap_repo.documents_by_id(
-            self.db,
-            [
-                row.topic.covered_by_document_id
-                for row in rows
-                if row.status == TopicStatus.COVERED.value and row.topic.covered_by_document_id
-            ],
-            organization_id=ctx.organization_id,
+        covered = {
+            row.topic.id: document_id
+            for row in rows
+            if (document_id := row.topic.covered_by_document_id) is not None
+        }
+        documents = await knowledge_gap_repo.documents_by_id(
+            self.db, list(covered.values()), organization_id=ctx.organization_id
         )
+        covering = {topic_id: _covering(documents[doc]) for topic_id, doc in covered.items()}
         return [
             KnowledgeGapTopicRead(
                 id=row.topic.id,
@@ -526,9 +524,7 @@ class KnowledgeGapService:
                 covered_at=row.topic.covered_at
                 if row.status == TopicStatus.COVERED.value
                 else None,
-                covered_by=_covering(covering.get(row.topic.covered_by_document_id))
-                if row.status == TopicStatus.COVERED.value and row.topic.covered_by_document_id
-                else None,
+                covered_by=covering.get(row.topic.id),
                 has_draft=row.topic.draft_content is not None,
                 can_edit=row.topic.knowledge_base_id in writable,
             )
