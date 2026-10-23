@@ -3449,6 +3449,12 @@
       "savedCopy": "Brak sieci. Widzisz kopię zapisaną na tym urządzeniu o {time}.",
       "outboxWaiting": "{count, plural, =1 {1 wiadomość czeka na wysłanie} few {# wiadomości czekają na wysłanie} other {# wiadomości czeka na wysłanie}}",
       "unreachable": "Brak połączenia z serwerem. Widzisz kopię zapisaną na tym urządzeniu o {time}."
+    },
+    "install": {
+      "offer": "Zainstaluj AgenticOS jako aplikację: własne okno, powiadomienia i ikona na ekranie głównym.",
+      "iosHint": "Aby zainstalować AgenticOS, stuknij Udostępnij, a potem Do ekranu początkowego.",
+      "install": "Zainstaluj",
+      "dismiss": "Nie pokazuj ponownie"
     }
   },
   "legal": {

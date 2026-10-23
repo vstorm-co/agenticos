@@ -112,7 +112,7 @@ function Bridge({ shell }: { shell: ShellInfo }) {
         title: t("questionTitle", { agent: names.get(run.agent_id) ?? t("anAgent") }),
         body: t("questionBody"),
         path: run.conversation_id
-          ? `/chat?c=${encodeURIComponent(run.conversation_id)}`
+          ? `/chat?id=${encodeURIComponent(run.conversation_id)}`
           : `/runs?run=${encodeURIComponent(run.id)}`,
       }));
     const working = runs
@@ -136,7 +136,7 @@ function Bridge({ shell }: { shell: ShellInfo }) {
               title: t("callTitle", { agent: names.get(call.agentId) ?? t("anAgent") }),
               body: call.asking ? t("callAsking") : t("callBody"),
               path: call.conversationId
-                ? `/chat?c=${encodeURIComponent(call.conversationId)}`
+                ? `/chat?id=${encodeURIComponent(call.conversationId)}`
                 : "/chat",
               startedAt: call.startedAt,
             },

@@ -3448,6 +3448,12 @@
       "savedCopy": "You're offline. Showing what was saved on this device at {time}.",
       "outboxWaiting": "{count, plural, =1 {1 message waiting to send} other {# messages waiting to send}}",
       "unreachable": "Can't reach the server. Showing what was saved on this device at {time}."
+    },
+    "install": {
+      "offer": "Install AgenticOS as an app: its own window, notifications and a home-screen icon.",
+      "iosHint": "To install AgenticOS, tap Share, then Add to Home Screen.",
+      "install": "Install",
+      "dismiss": "Don't show again"
     }
   },
   "legal": {

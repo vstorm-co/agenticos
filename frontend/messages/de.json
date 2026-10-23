@@ -3448,6 +3448,12 @@
       "savedCopy": "Keine Verbindung. Angezeigt wird die auf diesem Gerät um {time} gespeicherte Kopie.",
       "outboxWaiting": "{count, plural, =1 {1 Nachricht wartet auf den Versand} other {# Nachrichten warten auf den Versand}}",
       "unreachable": "Der Server ist nicht erreichbar. Angezeigt wird die auf diesem Gerät um {time} gespeicherte Kopie."
+    },
+    "install": {
+      "offer": "Installieren Sie AgenticOS als App: eigenes Fenster, Benachrichtigungen und ein Symbol auf dem Startbildschirm.",
+      "iosHint": "Um AgenticOS zu installieren, tippen Sie auf Teilen und dann auf Zum Home-Bildschirm.",
+      "install": "Installieren",
+      "dismiss": "Nicht mehr anzeigen"
     }
   },
   "legal": {
