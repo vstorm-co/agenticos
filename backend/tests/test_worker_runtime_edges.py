@@ -90,6 +90,7 @@ _ANSWERS: dict[object, dict[str, object]] = {
         "extend_leases": None,
         "rescue_expired": [],
         "unsettled_ends": [],
+        "claim_settlement": True,
         "mark_settled": None,
     },
     runtime.kind_repo: {
@@ -413,6 +414,20 @@ async def test_a_settler_that_fails_leaves_the_end_owed(repos: MagicMock) -> Non
 
     await worker._ended(uuid4(), "ingest-document", {}, "dead")
 
+    repos.mark_settled.assert_not_awaited()
+
+
+async def test_an_end_another_caller_holds_or_already_settled_is_not_settled_again(
+    repos: MagicMock,
+) -> None:
+    """#2334: the worker that saw the death and a rescuer pass both reach the end."""
+    repos.claim_settlement.return_value = False
+    sessions, _opened = _sessions()
+    worker = _worker(sessions)
+
+    await worker._ended(uuid4(), "ingest-document", {}, "dead")
+
+    worker.on_ended.assert_not_awaited()  # ty: ignore[unresolved-attribute]
     repos.mark_settled.assert_not_awaited()
 
 
