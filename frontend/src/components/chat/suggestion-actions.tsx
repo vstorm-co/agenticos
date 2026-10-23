@@ -44,7 +44,10 @@ export function useSuggestionActions(agentId: string | null) {
   const tErrors = useTranslations("errors");
   const { accept, dismiss } = useSuggestions();
   const ask = useArchitectAskStore((state) => state.ask);
-  const [routine, setRoutine] = useState<TriggerTemplate | null>(null);
+  const [routine, setRoutine] = useState<{
+    suggestionId: string;
+    template: TriggerTemplate;
+  } | null>(null);
 
   const decide = async (work: () => Promise<unknown>) => {
     try {
@@ -57,16 +60,23 @@ export function useSuggestionActions(agentId: string | null) {
   const take = (suggestion: Suggestion) =>
     decide(async () => {
       if (suggestion.kind === "routine") {
+        // Taken once the routine exists (the dialog's `onCreated`): a dialog
+        // closed or refused leaves the card to try again.
         const cron = payloadText(suggestion.payload.cron);
         setRoutine({
-          key: `suggestion-${suggestion.id}`,
-          label: suggestion.title,
-          description: "",
-          prompt: payloadText(suggestion.payload.prompt),
-          trigger_type: "schedule",
-          suggested_cadence: cron ? { schedule_kind: "cron", cron_expression: cron } : WEEKLY,
+          suggestionId: suggestion.id,
+          template: {
+            key: `suggestion-${suggestion.id}`,
+            label: suggestion.title,
+            description: "",
+            prompt: payloadText(suggestion.payload.prompt),
+            trigger_type: "schedule",
+            suggested_cadence: cron ? { schedule_kind: "cron", cron_expression: cron } : WEEKLY,
+          },
         });
-      } else if (suggestion.kind === "agent") {
+        return;
+      }
+      if (suggestion.kind === "agent") {
         ask(t("agentAsk", { request: payloadText(suggestion.payload.request) }));
       }
       await accept(suggestion.id);
@@ -86,7 +96,8 @@ export function useSuggestionActions(agentId: string | null) {
       agentId={agentId}
       open
       onOpenChange={(open) => !open && setRoutine(null)}
-      initialTemplate={routine}
+      initialTemplate={routine.template}
+      onCreated={() => void decide(() => accept(routine.suggestionId))}
     />
   );
   return { take, notNow, dialog };

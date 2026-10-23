@@ -21,9 +21,15 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 vi.mock("@/components/triggers/trigger-form-dialog", () => ({
-  TriggerFormDialog: () => {
+  TriggerFormDialog: ({ onCreated }: { onCreated?: () => void }) => {
     state.dialogs += 1;
-    return <div role="dialog" />;
+    return (
+      <div role="dialog">
+        <button type="button" onClick={() => onCreated?.()}>
+          create
+        </button>
+      </div>
+    );
   },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -87,8 +93,10 @@ describe("SuggestionRows", () => {
 
     expect(screen.getByText("Why")).toHaveClass("line-clamp-1");
     await userEvent.click(screen.getByRole("button", { name: "Set it up" }));
-    expect(state.accept).toHaveBeenCalledWith("idea");
     expect(state.dialogs).toBeGreaterThan(0);
+    expect(state.accept).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "create" }));
+    expect(state.accept).toHaveBeenCalledWith("idea");
     await userEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(state.dismiss).toHaveBeenCalledWith("idea");
   });

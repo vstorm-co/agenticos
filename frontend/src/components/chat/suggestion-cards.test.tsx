@@ -40,13 +40,18 @@ vi.mock("@/components/triggers/trigger-form-dialog", () => ({
   TriggerFormDialog: ({
     initialTemplate,
     onOpenChange,
+    onCreated,
   }: {
     initialTemplate?: TriggerTemplate;
     onOpenChange: (open: boolean) => void;
+    onCreated?: () => void;
   }) => {
     state.dialogs.push(initialTemplate);
     return (
       <div role="dialog">
+        <button type="button" onClick={() => onCreated?.()}>
+          create
+        </button>
         <button type="button" onClick={() => onOpenChange(false)}>
           close
         </button>
@@ -129,10 +134,22 @@ describe("SuggestionCards", () => {
       prompt: "Summarise sales",
       suggested_cadence: { schedule_kind: "cron", cron_expression: "0 7 * * 1" },
     });
-    expect(state.accept).toHaveBeenCalledWith("s-routine");
+    // Codex on #2324: opening the dialog takes nothing - only a routine that exists does.
+    expect(state.accept).not.toHaveBeenCalled();
 
+    await userEvent.click(screen.getByRole("button", { name: "create" }));
+    await waitFor(() => expect(state.accept).toHaveBeenCalledWith("s-routine"));
+  });
+
+  it("leaves the routine suggestion open when its dialog is closed unsaved", async () => {
+    state.suggestions = [suggestion("routine", { prompt: "Summarise sales" })];
+    render(<SuggestionCards agentId="a-1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Set it up" }));
     await userEvent.click(screen.getByRole("button", { name: "close" }));
+
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(state.accept).not.toHaveBeenCalled();
   });
 
   it("gives a routine with no cadence a weekly one to change", async () => {

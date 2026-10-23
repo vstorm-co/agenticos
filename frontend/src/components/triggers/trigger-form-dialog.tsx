@@ -138,6 +138,8 @@ interface TriggerFormDialogProps {
   initialType?: TriggerType;
   /** A template the new trigger starts from - an idea picked on the Routines page. */
   initialTemplate?: TriggerTemplate | null;
+  /** Told once a new trigger exists - a suggestion is taken only then, not when the form opens. */
+  onCreated?: (trigger: Trigger) => void;
 }
 
 /**
@@ -161,6 +163,7 @@ export function TriggerFormDialog({
   trigger = null,
   initialType = "schedule",
   initialTemplate = null,
+  onCreated,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const editing = trigger !== null;
@@ -471,6 +474,7 @@ export function TriggerFormDialog({
         onOpenChange(false);
       } else {
         const result = await create.mutateAsync(buildCreate());
+        onCreated?.(result);
         // A new event trigger stays open on its webhook URL - the caller has to
         // paste it into the provider or nothing will ever fire it. A schedule
         // has nothing more to do, so it closes.
