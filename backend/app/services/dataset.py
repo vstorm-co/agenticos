@@ -232,21 +232,36 @@ def redacted_case(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
 
 
 def _realigned(current: DatasetCase, history: list[dict[str, Any]]) -> tuple[UUID | None, ...]:
-    """The authors of an edited history: a turn kept from the revision it edits keeps its
-    author, and one the curator wrote has none."""
+    """The authors of an edited history.
+
+    A turn kept from the revision it edits keeps its author, wherever it moved.
+    A turn that matches none keeps the author of an unmatched turn that stood in
+    its place with the same role - a curator touching up somebody's words leaves
+    them that person's - and is the curator's only where nothing stood.
+    """
     earlier = list(zip(current.history, current.history_author_ids, strict=True))
-    authors: list[UUID | None] = []
-    for turn in history:
-        found = next(
+    left = set(range(len(earlier)))
+    authors: list[UUID | None] = [None] * len(history)
+    unmatched: list[int] = []
+    for position, turn in enumerate(history):
+        same = next(
             (
                 index
-                for index, (kept, _) in enumerate(earlier)
-                if kept.get("role") == turn.get("role")
-                and kept.get("content") == turn.get("content")
+                for index in sorted(left)
+                if earlier[index][0].get("role") == turn.get("role")
+                and earlier[index][0].get("content") == turn.get("content")
             ),
             None,
         )
-        authors.append(None if found is None else earlier.pop(found)[1])
+        if same is None:
+            unmatched.append(position)
+        else:
+            left.discard(same)
+            authors[position] = earlier[same][1]
+    for position in unmatched:
+        if position in left and earlier[position][0].get("role") == history[position].get("role"):
+            left.discard(position)
+            authors[position] = earlier[position][1]
     return tuple(authors)
 
 

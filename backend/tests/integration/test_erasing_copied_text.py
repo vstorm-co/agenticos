@@ -33,10 +33,12 @@ from app.db.models.context_proposal import ContextProposal
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import DatasetCase, DatasetVersion
 from app.db.models.eval_run import ArmRole, ArmSource, EvalRun, EvalRunArm, EvalRunCase
+from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.run_manifest import RunManifest
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
 from app.repositories import case_score_repo, eval_run_repo, personal_data_repo, user_repo
@@ -592,7 +594,7 @@ class TestSharedThreads:
         assert case.anonymised_at is None
         assert case.history == [
             {"role": "user", "content": ANONYMISED_CASE_INPUT},
-            {"role": "assistant", "content": "Yes."},
+            {"role": "assistant", "content": ANONYMISED_CASE_INPUT},
         ]
 
     async def test_a_case_a_chat_account_of_theirs_asked_is_anonymised(self, db, world) -> None:
@@ -636,6 +638,25 @@ class TestTheirComments:
 
         await db.refresh(rated)
         assert rated.note is None
+
+    async def test_a_note_that_only_shares_letters_with_their_comment_stays(
+        self, db, world
+    ) -> None:
+        _, run, answer = await world._asked(world.colleague.id, "Can I park here?")
+        db.add(
+            MessageRating(message_id=answer.id, user_id=world.person.id, rating=-1, comment="bad")
+        )
+        await db.flush()
+        case_id = await world._sourced(
+            DatasetCaseCreate(input="Can I park here?", reference_answer="No", note="badly worded"),
+            source_run_id=run.id,
+        )
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        [case] = await world._revisions(case_id)
+        await db.refresh(case)
+        assert case.note == "badly worded"
 
     async def test_a_drafted_case_loses_their_comment_and_keeps_the_question(
         self, db, world
@@ -756,7 +777,7 @@ class TestWhenTheSourceIsGone:
         assert case.input == "Where is the parking?"
         assert case.history == [
             {"role": "user", "content": ANONYMISED_CASE_INPUT},
-            {"role": "assistant", "content": "Yes."},
+            {"role": "assistant", "content": ANONYMISED_CASE_INPUT},
         ]
         assert case.history_author_ids == [None, None]
 
@@ -863,6 +884,31 @@ class TestAuthorshipStaysInside:
         assert revision.history_author_ids == [None, world.person.id, None]
         assert revision.asked_by_user_id == world.colleague.id
 
+    async def test_a_turn_the_curator_touched_up_stays_its_writers(self, db, world) -> None:
+        thread, _ = await _channel_thread(world)
+        answer = (
+            await db.execute(
+                select(Message).where(Message.conversation_id == thread.id, Message.ordinal == 3)
+            )
+        ).scalar_one()
+        case = await _from_answer(world, answer.id)
+
+        edited = await world.datasets.update_case(
+            world.ctx,
+            world.dataset_id,
+            case.case_id,
+            DatasetCaseUpdate(
+                history=[
+                    {"role": "user", "content": f"Is {MARKER} on call today?"},
+                    {"role": "assistant", "content": "Yes."},
+                ]
+            ),
+        )
+
+        revision = await db.get(DatasetCase, edited.id)
+        assert revision is not None
+        assert revision.history_author_ids == [world.person.id, None]
+
 
 def _migration():
     path = (
@@ -950,6 +996,97 @@ class TestTheBackfill:
         assert case.history_author_ids == [None, None]
 
 
+class TestWhatAnEvalRunKept:
+    async def test_the_question_goes_from_the_manifests_and_held_calls_of_its_runs(
+        self, db, world
+    ) -> None:
+        """The agent's run was handed the case's question, and the judge's the answer too."""
+        org = world.ctx.organization_id
+        runs = []
+        for _ in range(2):
+            run = AgentRun(organization_id=org, agent_id=world.agent.id, status="completed")
+            db.add(run)
+            await db.flush()
+            db.add(
+                RunManifest(
+                    run_id=run.id,
+                    organization_id=org,
+                    payload={"instructions": "Be brief.", "messages": [{"content": MARKER}]},
+                )
+            )
+            runs.append(run)
+        answering, judging = runs
+        db.add(
+            InterceptedToolCall(
+                organization_id=org,
+                run_id=answering.id,
+                sequence=0,
+                tool_call_id="call-0",
+                tool_name="refund",
+                tool_id="tool:refund",
+                args={"account": MARKER},
+                outcome="blocked",
+                reason="writes",
+            )
+        )
+        [revision, *_] = await world._revisions(world.their_case)
+        attempt = (
+            await db.execute(select(EvalRunCase).where(EvalRunCase.case_revision_id == revision.id))
+        ).scalar_one()
+        attempt.agent_run_id = answering.id
+        score = (
+            await db.execute(select(CaseScore).where(CaseScore.case_revision_id == revision.id))
+        ).scalar_one()
+        score.results = [{**score.results[0], "judge_run_id": str(judging.id)}]
+        await db.flush()
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        kept = (
+            await db.execute(
+                select(RunManifest).where(RunManifest.run_id.in_([answering.id, judging.id]))
+            )
+        ).scalars()
+        for manifest in kept:
+            await db.refresh(manifest)
+            assert (manifest.payload, manifest.truncated) == ({"instructions": "Be brief."}, True)
+        held = (
+            await db.execute(
+                select(InterceptedToolCall).where(InterceptedToolCall.run_id == answering.id)
+            )
+        ).scalar_one()
+        await db.refresh(held)
+        assert held.args == {}
+        assert await db.get(AgentRun, answering.id) is not None
+
+
+class TestRunsOfALinkedChatAccount:
+    async def test_a_search_a_chat_account_of_theirs_asked_goes_with_them(self, db, world) -> None:
+        identity = ChannelIdentity(
+            platform="slack", platform_user_id=uuid4().hex[:10], user_id=world.person.id
+        )
+        db.add(identity)
+        await db.flush()
+        run = AgentRun(
+            organization_id=world.ctx.organization_id,
+            agent_id=world.agent.id,
+            user_id=world.ctx.user_id,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=identity.id,
+            status="completed",
+        )
+        db.add(run)
+        await db.flush()
+        kb = (await db.execute(select(KnowledgeBase))).scalars().first()
+        assert kb is not None
+        search = await world._searched(kb, run, f"{MARKER} parking")
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        assert await db.get(KnowledgeSearch, search.id) is None
+        assert await personal_data_repo.askers_of(db, [run.id]) == set()
+
+
 class TestPurgingTwice:
     async def test_the_second_purge_finds_nothing_left_to_do(self, db, world) -> None:
         first = await PersonalDataService(db).purge(world.person.id)
@@ -984,12 +1121,25 @@ class TestWritingWhileTheyAreErased:
         factory, person = await self._person(engine)
         erasing = factory()
         try:
+            await user_repo.get_by_id_for_update(erasing, person)
             await hold_subject(erasing, LockScope.PERSONAL_DATA_PER_USER, person)
             async with factory() as session:
                 assert await personal_data_repo.present_among(session, [person]) == set()
         finally:
             await erasing.rollback()
             await erasing.close()
+
+    async def test_somebody_a_note_is_being_written_about_may_still_be(self, engine) -> None:
+        """A memory write takes the same lock, and leaves the account's row alone."""
+        factory, person = await self._person(engine)
+        writing = factory()
+        try:
+            await hold_subject(writing, LockScope.PERSONAL_DATA_PER_USER, person)
+            async with factory() as session:
+                assert await personal_data_repo.present_among(session, [person]) == {person}
+        finally:
+            await writing.rollback()
+            await writing.close()
 
     async def test_somebody_whose_account_is_gone_may_not(self, engine) -> None:
         factory, person = await self._person(engine)

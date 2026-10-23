@@ -31,13 +31,15 @@ from sqlalchemy import (
     select,
     update,
 )
+from sqlalchemy import case as sa_case
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import JSONPATH
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.db.locks import LockScope, try_hold_subject
-from app.db.models.agent_run import AgentRun
+from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
 from app.db.models.authoring import AuthoringRequest, SpecProposalHunk
@@ -51,6 +53,7 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import EvalRunCase
+from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
@@ -58,6 +61,7 @@ from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.run_manifest import RunManifest
 from app.db.models.session import Session
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
@@ -258,7 +262,7 @@ def _proposals_drafted_from(user_id: UUID) -> ColumnElement[bool]:
                 Conversation.user_id == user_id, Conversation.project_id.is_(None)
             )
         ),
-        CaseProposal.source_run_id.in_(_runs_they_started(user_id)),
+        CaseProposal.source_run_id.in_(_runs_they_asked(user_id)),
     )
 
 
@@ -277,12 +281,12 @@ async def case_proposals_from(db: AsyncSession, user_id: UUID) -> list[CasePropo
 
 
 def _their_searches(user_id: UUID) -> ColumnElement[bool]:
-    """Searches of runs they started.
+    """Searches of runs that answered them, a chat account of theirs included.
 
     By the run, never the conversation: a project chat is continued by other
     members, whose questions are in it too.
     """
-    return KnowledgeSearch.run_id.in_(_runs_they_started(user_id))
+    return KnowledgeSearch.run_id.in_(_runs_they_asked(user_id))
 
 
 async def knowledge_searches_of(db: AsyncSession, user_id: UUID) -> list[KnowledgeSearch]:
@@ -540,12 +544,12 @@ async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
     )
     scores = list(result.scalars().all())
     for score in scores:
-        _forget_answer(score)
+        forget_answer(score)
     await db.flush()
     return len(scores)
 
 
-def _forget_answer(score: CaseScore) -> None:
+def forget_answer(score: CaseScore) -> None:
     """Drop the answer a score copied, and every part of its results that can repeat it."""
     score.answer = None
     score.results = [
@@ -655,14 +659,21 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     An agent asked an anonymised question answers about it, and its calls carry
     the question's details as arguments, so the answer and calls of every
     attempt go, and every score's copy of the answer with the parts of its
-    results that can repeat it. The outcome stays: whether the case passed is
-    the organization's.
+    results that can repeat it - and, through :func:`forget_runs`, what the
+    agent's and the judge's runs kept of the question. The outcome stays:
+    whether the case passed is the organization's.
 
     Returns:
         How many attempts and scores were cleared.
     """
     if not revision_ids:
         return 0
+    answered = await db.execute(
+        select(EvalRunCase.agent_run_id).where(
+            EvalRunCase.case_revision_id.in_(revision_ids), EvalRunCase.agent_run_id.is_not(None)
+        )
+    )
+    runs = {run_id for run_id in answered.scalars() if run_id is not None}
     attempts = await db.execute(
         update(EvalRunCase)
         .where(EvalRunCase.case_revision_id.in_(revision_ids))
@@ -671,18 +682,64 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     result = await db.execute(select(CaseScore).where(CaseScore.case_revision_id.in_(revision_ids)))
     scores = list(result.scalars().all())
     for score in scores:
-        _forget_answer(score)
+        runs |= judge_runs_of(score)
+        forget_answer(score)
+    await forget_runs(db, runs)
     await db.flush()
     return (attempts.rowcount or 0) + len(scores)  # ty: ignore[unresolved-attribute]
+
+
+_LOCK_NOT_AVAILABLE = "55P03"
+
+_SPEC_PARTS = frozenset({"instructions", "system_prompts", "tools", "settings", "requests"})
+"""What a manifest keeps after an erasure: what the spec decided and what each request
+cost, never the messages, reviews or code that carried what was asked."""
+
+
+def judge_runs_of(score: CaseScore) -> set[UUID]:
+    """The runs a judge made to grade one score."""
+    return {
+        UUID(str(result["judge_run_id"])) for result in score.results if result.get("judge_run_id")
+    }
+
+
+async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
+    """Drop what these runs kept of what they were asked, keeping the runs.
+
+    A run's manifest is the request its model was handed - for an eval attempt,
+    the case's question and history; for a judge, the answer too - and the
+    calls an isolated run held back, or one that waited for approval, keep their
+    arguments. The manifest keeps what the spec decided and what each request
+    cost, and is marked trimmed; the messages go. The run row stays: what it
+    cost is the organization's record.
+    """
+    wanted = list(set(run_ids))
+    if not wanted:
+        return
+    manifests = await db.execute(select(RunManifest).where(RunManifest.run_id.in_(wanted)))
+    for manifest in manifests.scalars():
+        manifest.payload = {
+            key: value for key, value in manifest.payload.items() if key in _SPEC_PARTS
+        }
+        manifest.truncated = True
+    await db.execute(
+        update(InterceptedToolCall).where(InterceptedToolCall.run_id.in_(wanted)).values(args={})
+    )
+    await db.execute(
+        update(ToolApproval).where(ToolApproval.run_id.in_(wanted)).values(tool_args={})
+    )
+    await db.flush()
 
 
 async def scrub_history_turns_of(db: AsyncSession, user_id: UUID, *, placeholder: str) -> int:
     """Replace their turns in the history of cases asked by somebody else.
 
     A case taken from a shared thread - a project chat, a channel - keeps the
-    turns before its question, whoever wrote them. Found by the author the case
-    recorded for each turn; a turn with none recorded is matched against what
-    they wrote in the thread the case came from, as long as that thread is there.
+    turns before its question, whoever wrote them. Their turn goes, and so do
+    the agent's turns answering it, up to the next person's: an answer repeats
+    what it was asked. Found by the author the case recorded for each turn; a
+    turn with none recorded is matched against what they wrote in the thread the
+    case came from, as long as that thread is there.
 
     Returns:
         How many case revisions lost a turn.
@@ -709,14 +766,15 @@ async def scrub_history_turns_of(db: AsyncSession, user_id: UUID, *, placeholder
         theirs = said.get(case.source_conversation_id) if case.source_conversation_id else None
         history: list[dict[str, Any]] = []
         authors: list[UUID | None] = []
+        answering = False
         for turn, author in zip(case.history, case.history_author_ids, strict=True):
-            matched = (
-                author is None
-                and theirs is not None
-                and turn.get("role") == "user"
-                and _normal(str(turn.get("content", ""))) in theirs
-            )
-            if author == user_id or matched:
+            if turn.get("role") == "user":
+                answering = author == user_id or (
+                    author is None
+                    and theirs is not None
+                    and _normal(str(turn.get("content", ""))) in theirs
+                )
+            if answering:
                 history.append({**turn, "content": placeholder})
                 authors.append(None)
             else:
@@ -760,8 +818,8 @@ async def clear_case_notes_of(
     """Clear the note of every case, or drafted case, that holds their comment.
 
     A case keeps a rated-down answer's comment as its note, and a draft from the
-    case generator does too. The note goes whole when it holds the comment
-    anywhere - a curator may have written around it - and the rest of the case
+    case generator does too. The note goes whole when it holds the comment's
+    words anywhere - a curator may have written around it - and the rest of the case
     stays: a question somebody else asked, and the answer they got, are not the
     commenter's to erase. Found by `noted_by_user_id`, which a case keeps after
     the rating is gone, and otherwise by the comments they still have:
@@ -785,8 +843,8 @@ async def clear_case_notes_of(
         )
         for row in result.scalars().all():
             assert row.source_run_id is not None and row.note is not None
-            note = _normal(row.note)
-            if any(_normal(comment) in note for comment in comments[row.source_run_id]):
+            note = row.note.split()
+            if any(_within(comment.split(), note) for comment in comments[row.source_run_id]):
                 row.note = None
                 cleared += 1
     await db.flush()
@@ -1048,27 +1106,57 @@ async def present_among(db: AsyncSession, people: Iterable[UUID]) -> set[UUID]:
     not being erased; held, the lock lasts to this transaction's commit and the
     erasure that follows finds what was written. Taken without waiting, as
     :meth:`AgentRunnerService._may_record_about` does: a writer may hold rows
-    the erasure is about to update.
+    the erasure is about to update. The lock is also taken by a note being
+    written about the person, so a busy one is checked against the account's
+    row, which only a deletion holds.
     """
     present: set[UUID] = set()
     for person in sorted(set(people)):
-        if not await try_hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person):
-            continue
-        if await db.scalar(select(User.id).where(User.id == person)) is not None:
+        held = await try_hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person)
+        if (held or await _not_being_deleted(db, person)) and await db.scalar(
+            select(User.id).where(User.id == person)
+        ) is not None:
             present.add(person)
     return present
 
 
+async def _not_being_deleted(db: AsyncSession, person: UUID) -> bool:
+    """Whether a busy lock is somebody writing about the person rather than erasing them.
+
+    Deleting an account locks its row before it purges, and a note being
+    written about them does not, so a share of the row taken without waiting
+    means no deletion is under way - and, held to this transaction's commit,
+    makes one that starts later wait for this write and then remove it.
+    """
+    try:
+        async with db.begin_nested():
+            await db.execute(
+                select(User.id)
+                .where(User.id == person)
+                .with_for_update(key_share=True, nowait=True)
+            )
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE:
+            raise
+        return False
+    return True
+
+
 async def askers_of(db: AsyncSession, run_ids: Iterable[UUID]) -> set[UUID]:
-    """Who these runs answered, by the account that started each, for :func:`present_among`."""
+    """Who these runs answered, for :func:`present_among`: the account that started each,
+    or the one its chat identity is linked to."""
     result = await db.execute(
-        select(AgentRun.user_id).where(
-            AgentRun.id.in_(list(run_ids)),
-            AgentRun.user_id.is_not(None),
-            AgentRun.initiated_by_publisher_fallback.is_(False),
+        select(
+            sa_case(
+                (AgentRun.initiated_by_publisher_fallback.is_(False), AgentRun.user_id),
+                else_=None,
+            ),
+            ChannelIdentity.user_id,
         )
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == AgentRun.channel_identity_id)
+        .where(AgentRun.id.in_(list(run_ids)))
     )
-    return {user_id for user_id in result.scalars() if user_id is not None}
+    return {person for row in result.tuples() for person in row if person is not None}
 
 
 async def linked_people(db: AsyncSession, identity_ids: Iterable[UUID]) -> dict[UUID, UUID]:

@@ -317,8 +317,7 @@ class PersonalDataService:
         # cannot interleave into a note that survives the account it is about.
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id)
         comments = _as_stored(await personal_data_repo.comments_of(self.db, user_id))
-        # Before the unlink below, which clears the links these are found by, and
-        # before their chat accounts are unlinked, which says which runs were theirs.
+        # Before the unlink below, which clears the links these are found by.
         anonymised = await personal_data_repo.anonymise_dataset_cases_of(
             self.db, user_id, placeholder=ANONYMISED_CASE_INPUT, at=datetime.now(UTC)
         )
@@ -336,13 +335,14 @@ class PersonalDataService:
         # Before the searches go, since a topic is found through its members.
         gap_drafts = await personal_data_repo.clear_gap_drafts_of(self.db, user_id)
         notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
-        identities = await personal_data_repo.purge_identities_of(self.db, user_id)
         workspaces = await personal_data_repo.purge_workspaces_of(
             self.db, person_owner_key(user_id)
         )
         searches = await personal_data_repo.purge_knowledge_searches_of(self.db, user_id)
         scored_answers = await personal_data_repo.purge_scored_answers_of(self.db, user_id)
         case_proposals = await personal_data_repo.delete_case_proposals_of(self.db, user_id)
+        # Last: which runs answered them through a chat account is read through the link.
+        identities = await personal_data_repo.purge_identities_of(self.db, user_id)
         purged = PersonalDataPurge(
             memory_notes=notes,
             channel_identities=identities,

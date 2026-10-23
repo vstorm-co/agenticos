@@ -41,6 +41,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.case_score import CaseScore
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import (
     ArmSource,
@@ -57,6 +58,7 @@ from app.repositories import (
     eval_run_repo,
     intercepted_tool_call_repo,
     member_repo,
+    personal_data_repo,
 )
 from app.schemas.scoring import DatasetScoring
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
@@ -357,17 +359,15 @@ class EvalRunWorker:
                 await self._fail(db, attempt, run_failure_summary(exc))
                 return False
             if agent_run.status == RunStatus.BUDGET_EXCEEDED.value:
+                await self._erased_meanwhile(db, revision.id, agent_run)
                 await self._fail(db, attempt, agent_run.error or "Budget exceeded", agent_run)
                 await self._stop_for_budget(db)
                 return True
             if agent_run.status != RunStatus.COMPLETED.value:
+                await self._erased_meanwhile(db, revision.id, agent_run)
                 await self._fail(
                     db, attempt, agent_run.error or f"The run ended {agent_run.status}", agent_run
                 )
-                return False
-            held = await dataset_repo.lock_revision(db, revision.id, organization_id=org)
-            if held is None or held.anonymised_at is not None:
-                await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
                 return False
             intercepted = await intercepted_tool_call_repo.list_for_run(
                 db, run_id=agent_run.id, organization_id=org
@@ -399,6 +399,9 @@ class EvalRunWorker:
                     enqueue_review=False,
                 )
             except NothingToScoreError as exc:
+                if await self._erased_meanwhile(db, revision.id, agent_run):
+                    await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
+                    return False
                 # Nothing the scorers check applies to this case: it was answered
                 # and stays undecided, which is not a malfunction.
                 await eval_run_repo.update_case(
@@ -416,9 +419,15 @@ class EvalRunWorker:
                 return False
             except Exception as exc:
                 logger.exception("Eval case %s failed to score", attempt_id)
+                if await self._erased_meanwhile(db, revision.id, agent_run):
+                    await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
+                    return False
                 await self._fail(
                     db, attempt, run_failure_summary(exc), agent_run, answer=output, calls=rows
                 )
+                return False
+            if await self._erased_meanwhile(db, revision.id, agent_run, score):
+                await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
                 return False
             await eval_run_repo.update_case(
                 db,
@@ -433,6 +442,34 @@ class EvalRunWorker:
                 },
             )
             return False
+
+    async def _erased_meanwhile(
+        self,
+        db: AsyncSession,
+        revision_id: UUID,
+        agent_run: AgentRun,
+        score: CaseScore | None = None,
+    ) -> bool:
+        """Whether the case was anonymised while it was answered, forgetting what was kept if so.
+
+        Checked just before the attempt is written: the judge's run commits, so a
+        lock taken earlier is gone by then. Held from here, the revision's lock
+        makes an erasure that starts later wait for this write and clear it, and
+        one that committed first is seen. The account's row is locked by an
+        erasure before the revision, and the score written above already holds
+        its share of that row, so the two queue rather than deadlock.
+        """
+        held = await dataset_repo.lock_revision(
+            db, revision_id, organization_id=self.organization_id
+        )
+        if held is not None and held.anonymised_at is None:
+            return False
+        runs = {agent_run.id}
+        if score is not None:
+            runs |= personal_data_repo.judge_runs_of(score)
+            personal_data_repo.forget_answer(score)
+        await personal_data_repo.forget_runs(db, runs)
+        return True
 
     @staticmethod
     def _spend(agent_run: AgentRun) -> dict[str, Any]:

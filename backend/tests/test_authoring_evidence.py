@@ -138,6 +138,7 @@ def _row(
         error=error,
         user_id=user_id,
         initiated_by_publisher_fallback=for_a_visitor,
+        channel_identity_id=None,
     )
     return EvidenceRun(run=run, rating=rating, comments=["Wrong"], commenters=list(commenters))  # type: ignore[arg-type]
 

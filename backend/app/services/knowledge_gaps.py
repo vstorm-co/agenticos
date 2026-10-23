@@ -579,8 +579,8 @@ class KnowledgeGapService:
             AiAssistanceDisabledError: The organization switched AI assistance off.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
-            BadRequestError: Somebody whose question the draft read was erased
-                while it was being written.
+            BadRequestError: Somebody whose question the draft read was erased,
+                or was busy being changed, while it was being written.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
             SystemAgentRunError: The run ended without an answer, as a budget
                 refusal does; it is recorded.
@@ -618,8 +618,9 @@ class KnowledgeGapService:
         if askers - await personal_data_repo.present_among(self.db, askers):
             raise BadRequestError(
                 message=(
-                    "Somebody whose question this draft was written from was erased while it "
-                    "was drafted, so it was not kept. Draft the topic again."
+                    "Somebody whose question this draft was written from is being erased, or "
+                    "their data is being changed right now, so it was not kept. Draft the "
+                    "topic again."
                 ),
                 details={"topic_id": topic.id},
             )

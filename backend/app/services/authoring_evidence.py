@@ -250,6 +250,9 @@ class EvidenceService:
 
     async def _pack(self, rows: Sequence[EvidenceRun]) -> EvidencePack:
         packed: list[PackedRun] = []
+        linked = await personal_data_repo.linked_people(
+            self.db, [row.run.channel_identity_id for row in rows if row.run.channel_identity_id]
+        )
         for row in rows:
             # Scoped by the run, which `evidence_runs` read inside the organization.
             messages = await conversation_repo.get_messages_by_run(
@@ -275,6 +278,12 @@ class EvidenceService:
                                 [row.run.user_id]
                                 if row.run.user_id is not None
                                 and not row.run.initiated_by_publisher_fallback
+                                else []
+                            ),
+                            *(
+                                [linked[identity]]
+                                if (identity := row.run.channel_identity_id) is not None
+                                and identity in linked
                                 else []
                             ),
                         ]

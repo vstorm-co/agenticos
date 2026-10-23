@@ -2402,6 +2402,31 @@ async def test_an_answer_to_a_case_anonymised_meanwhile_is_not_kept(db) -> None:
     assert "anonymised" in (attempt.error or "")
 
 
+async def test_an_answer_graded_while_its_case_was_anonymised_is_not_kept(db) -> None:
+    """The judge's run commits, so an erasure can land between the answer and its grade."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    grade = ScoringService.score_case
+
+    async def graded_during_an_erasure(service, *args, **kwargs):
+        score = await grade(service, *args, **kwargs)
+        await _anonymise(db, dataset, 1)
+        return score
+
+    with patch.object(ScoringService, "score_case", new=graded_during_an_erasure):
+        await _run_to_end(db, Model(db), started.id, ctx)
+
+    [attempt] = await eval_run_repo.list_cases(db, started.id, organization_id=ctx.organization_id)
+    assert attempt.status == "failed"
+    assert (attempt.answer, attempt.calls, attempt.case_score_id) == (None, [], None)
+    [score] = (
+        await db.execute(select(CaseScore).where(CaseScore.eval_run_id == started.id))
+    ).scalars()
+    assert score.answer is None
+
+
 async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:
     """A skill change is measured with the agent held still: the candidate serves the
     proposed body, the baseline the stored one."""
