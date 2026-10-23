@@ -56,6 +56,8 @@ export interface AuthoringRequest {
     /** The first of them, in the model's words without the quotes they cite. */
     rejected?: RejectedChange[];
     rejected_more?: number;
+    /** A context file or skill body it proposed that reads as the one already there. */
+    no_change?: boolean;
   } | null;
   created_at: string;
   started_at: string | null;
@@ -231,6 +233,12 @@ export interface ContextChange {
   authoring_request_id: string | null;
   /** The agents that read the file, as far as the reader may see them. */
   used_by: { id: string; name: string }[];
+  /** Raised each time a new run rewrites the pending proposal; a decision names it. */
+  revision: number;
+  /** The agents whose served version reads the file - where applying goes live at once. */
+  reaches: ReachedAgent[];
+  /** Agents it also reaches that the reader may not see. */
+  reaches_hidden: number;
   created_at: string;
   updated_at: string | null;
 }
@@ -238,4 +246,16 @@ export interface ContextChange {
 export interface ContextChangeList {
   items: ContextChange[];
   total: number;
+}
+
+/** An agent a change to a context file or skill reaches the moment it is applied. */
+export interface ReachedAgent {
+  id: string;
+  name: string;
+  environments: {
+    name: string;
+    /** The guarding eval suites by name; empty for a reader without runs:view. */
+    guarded_by: string[];
+    guards: number;
+  }[];
 }

@@ -44,6 +44,9 @@ function change(overrides: Partial<SkillChangeRecord> = {}): SkillChangeRecord {
     decided_at: null,
     created_at: "2026-08-03T00:00:00Z",
     updated_at: null,
+    revision: 1,
+    reaches: [],
+    reaches_hidden: 0,
     ...overrides,
   };
 }
@@ -193,9 +196,9 @@ describe("ProposedChanges", () => {
     render(<ProposedChanges canEdit />);
 
     await userEvent.click(screen.getByRole("button", { name: /Apply the change to refunds/ }));
-    expect(state.apply).toHaveBeenCalledWith("p-1");
+    expect(state.apply).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
 
     await userEvent.click(screen.getByRole("button", { name: /Discard the change to refunds/ }));
-    expect(state.discard).toHaveBeenCalledWith("p-1");
+    expect(state.discard).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
   });
 });

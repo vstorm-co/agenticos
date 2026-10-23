@@ -112,6 +112,9 @@ export function contextChange(overrides: Partial<ContextChange> = {}): ContextCh
     used_by: [{ id: "agent-1", name: "Clerk" }],
     created_at: "2026-10-21T10:00:00Z",
     updated_at: null,
+    revision: 1,
+    reaches: [],
+    reaches_hidden: 0,
     ...overrides,
   };
 }

@@ -176,7 +176,7 @@ describe("EvalSuitesCard", () => {
     expect(screen.getByText("Daily at 06:00 (Europe/Warsaw) · On publish")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Daily at 06:00 (Europe/Warsaw) · On publish · When a skill or knowledge base changes",
+        "Daily at 06:00 (Europe/Warsaw) · On publish · When a skill, knowledge base or context file changes",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Passed · 100%")).toBeInTheDocument();
@@ -365,7 +365,7 @@ describe("SuiteFormDialog", () => {
     for (const label of [
       "On every publish",
       "On promotion",
-      "When a skill or knowledge base changes",
+      "When a skill, knowledge base or context file changes",
     ]) {
       await userEvent.click(within(dialog).getByLabelText(label));
     }

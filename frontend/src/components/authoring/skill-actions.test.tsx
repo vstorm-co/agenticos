@@ -90,6 +90,19 @@ describe("ImproveSkillButton", () => {
     render(<ImproveSkillButton skillId="skill-1" />);
     expect(screen.getByRole("alert")).toHaveTextContent("No runs opened it");
   });
+
+  it("says when what it proposed is what the skill already says", () => {
+    state.latest = authoringRequest({
+      status: "completed",
+      report: { summary: "s", no_change: true },
+    });
+    render(<ImproveSkillButton skillId="skill-1" />);
+    expect(
+      screen.getByText(
+        "The assistant found nothing to change: what it proposed is what is there now.",
+      ),
+    ).toBeVisible();
+  });
 });
 
 describe("SkillCheckButton", () => {

@@ -69,7 +69,8 @@ function CheckButton({
   if (!usePermissions().can(Perm.runsView)) return null;
   return (
     <>
-      <Button variant="ghost" size="sm" onClick={() => setChecking(true)}>
+      {/* Checking comes first: applying the change goes live at once. */}
+      <Button size="sm" onClick={() => setChecking(true)}>
         {label}
       </Button>
       {checking && (

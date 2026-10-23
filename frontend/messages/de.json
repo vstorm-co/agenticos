@@ -4575,7 +4575,7 @@
       },
       "agent-eval-suites": {
         "title": "Suites",
-        "body": "Miss den Agent an einem Dataset, ohne daran denken zu müssen: jede Nacht, bei jeder Veröffentlichung oder Promotion, oder wenn sich ein Skill oder eine Wissensbasis ändert, die er liest. Du wirst benachrichtigt, wenn ein Fall bricht."
+        "body": "Miss den Agent an einem Dataset, ohne daran denken zu müssen: jede Nacht, bei jeder Veröffentlichung oder Promotion, oder wenn sich ein Skill, eine Wissensbasis oder eine Kontextdatei ändert, die er liest. Du wirst benachrichtigt, wenn ein Fall bricht."
       },
       "agent-assistant-strip": {
         "title": "Der Authoring-Assistent",
@@ -5737,7 +5737,9 @@
       "prefEvalSuiteFailed": "Eine Eval-Suite hat nicht bestanden",
       "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen.",
       "prefPromotionOverridden": "Eine Promotion ging an ihren Evals vorbei",
-      "prefPromotionOverriddenTrigger": "Eine Version kam in eine Umgebung, vorbei an einer Ihrer Eval-Suites, die auf ihr nicht bestanden hatte. Nennt die Suites und die Begründung."
+      "prefPromotionOverriddenTrigger": "Eine Version kam in eine Umgebung, vorbei an einer Ihrer Eval-Suites, die auf ihr nicht bestanden hatte. Nennt die Suites und die Begründung.",
+      "prefSharedChangeApplied": "Eine Änderung gilt jetzt für deinen Agent",
+      "prefSharedChangeAppliedTrigger": "Jemand hat eine Änderung an einer Kontextdatei oder einem Skill angewendet, die dein Agent liest, und seine Eval-Suites wurden eingereiht. Nennt die Datei oder den Skill, nie den Inhalt."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -9096,10 +9098,10 @@
       "title": "Diesen Eval-Run kannst du nicht öffnen",
       "body": "Eval-Runs zu lesen braucht die Berechtigung, Runs anzusehen, und Zugriff auf den Agent und das Dataset. Frag eine Admin-Person der Organisation."
     },
-    "startedBySuite": "Gestartet von der Suite {name} {trigger, select, schedule {nach ihrem Zeitplan} publish {nach der Veröffentlichung einer Version} promotion {nach der Promotion einer Version} dependency {nach einer Änderung an einem Skill oder einer Wissensbasis} other {von Hand}}.",
+    "startedBySuite": "Gestartet von der Suite {name} {trigger, select, schedule {nach ihrem Zeitplan} publish {nach der Veröffentlichung einer Version} promotion {nach der Promotion einer Version} dependency {nach einer Änderung an einem Skill, einer Wissensbasis oder einer Kontextdatei} other {von Hand}}.",
     "suites": {
       "title": "Suites",
-      "description": "Datasets, an denen dieser Agent gemessen wird, selbstständig ausgeführt: nach Zeitplan, wenn eine Version veröffentlicht oder promotet wird, oder wenn sich ein Skill oder eine Wissensbasis ändert, die er liest.",
+      "description": "Datasets, an denen dieser Agent gemessen wird, selbstständig ausgeführt: nach Zeitplan, wenn eine Version veröffentlicht oder promotet wird, oder wenn sich ein Skill, eine Wissensbasis oder eine Kontextdatei ändert, die er liest.",
       "new": "Neue Suite",
       "empty": {
         "title": "Noch keine Suites",
@@ -9117,7 +9119,7 @@
       "when": {
         "publish": "Bei Veröffentlichung",
         "promotion": "Bei Promotion",
-        "dependency": "Wenn sich ein Skill oder eine Wissensbasis ändert",
+        "dependency": "Wenn sich ein Skill, eine Wissensbasis oder eine Kontextdatei ändert",
         "manualOnly": "Nur von Hand"
       },
       "schedule": {
@@ -9207,8 +9209,8 @@
         "onPublishHint": "Jede neue Version läuft neben der vorherigen, damit eine Regression auffällt, bevor jemand sie promotet.",
         "onPromotion": "Bei Promotion",
         "onPromotionHint": "Wenn eine Version auf die Umgebung oben promotet wird, gemessen an der Version, die sie ersetzt.",
-        "onDependency": "Wenn sich ein Skill oder eine Wissensbasis ändert",
-        "onDependencyHint": "Skills und Dokumente ändern sich ohne Veröffentlichung. Eine Reihe von Änderungen ist ein Lauf, zehn Minuten nach der ersten.",
+        "onDependency": "Wenn sich ein Skill, eine Wissensbasis oder eine Kontextdatei ändert",
+        "onDependencyHint": "Skills, Dokumente und Kontextdateien ändern sich ohne Veröffentlichung. Eine Reihe von Änderungen ist ein Lauf, zehn Minuten nach der ersten.",
         "onSchedule": "Nach Zeitplan",
         "onScheduleHint": "Täglich auf der Produktionsversion, um zu bemerken, wenn sich das Modell beim Provider oder eine Wissensbasis darunter ändert.",
         "frequency": "Wiederholung",
@@ -9582,6 +9584,15 @@
         "superseded": "Eine später gestartete Anfrage hatte die Vorschläge schon ersetzt"
       },
       "about": "Betrifft: {line}"
+    },
+    "noChange": "Der Assistent fand nichts zu ändern: Was er vorschlug, steht schon da.",
+    "goesLive": {
+      "now": "Gilt sofort für {agents}.",
+      "agent": "{name} ({environments})",
+      "guardedBy": "{name}, geschützt durch {suites}",
+      "guards": "{name}, geschützt durch {count, plural, =1 {1 Eval-Suite} other {# Eval-Suites}}",
+      "hidden": "{count, plural, =1 {1 Agent, den du nicht sehen kannst} other {# Agents, die du nicht sehen kannst}}",
+      "nowhere": "Noch liest ihn kein veröffentlichter Agent, das Anwenden ändert heute also keine Antworten."
     }
   },
   "promotionGate": {

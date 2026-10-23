@@ -132,7 +132,10 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "A promotion went past its evals - Email" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(31);
+    expect(
+      screen.getByRole("switch", { name: "A change went live for your agent - Email" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(33);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

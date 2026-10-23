@@ -7,6 +7,7 @@ import {
   FileCheck2,
   FileText,
   FileX2,
+  GitPullRequest,
   Hand,
   KeyRound,
   ListChecks,
@@ -143,6 +144,12 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "promotion_overridden",
     words: "prefPromotionOverridden",
     icon: ShieldAlert,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "shared_change_applied",
+    words: "prefSharedChangeApplied",
+    icon: GitPullRequest,
     channels: ["in_app", "email"],
   },
   {

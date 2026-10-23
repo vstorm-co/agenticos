@@ -61,6 +61,7 @@ function ImproveButton({
   /** Why it waits for now, when it does. */
   held?: string | null;
 }) {
+  const t = useTranslations("authoring");
   const { enabled } = useAiAssistance();
   const [asking, setAsking] = useState(false);
   const working = assistant.latest?.status === "queued" || assistant.latest?.status === "running";
@@ -86,6 +87,9 @@ function ImproveButton({
         <p role="alert" className="text-destructive text-xs">
           {assistant.latest.error}
         </p>
+      )}
+      {assistant.latest?.status === "completed" && assistant.latest.report?.no_change && (
+        <p className="text-muted-foreground text-xs">{t("noChange")}</p>
       )}
       {asking && (
         <ImproveDialog

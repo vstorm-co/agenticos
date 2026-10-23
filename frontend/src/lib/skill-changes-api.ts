@@ -6,6 +6,7 @@
  * carried only a name would make the decision a coin flip with an audit trail.
  */
 
+import type { ReachedAgent } from "@/types/authoring";
 import { apiClient } from "./api-client";
 
 export type ProposalStatus = "pending" | "applied" | "discarded";
@@ -32,6 +33,11 @@ export interface SkillChangeRecord {
   evidence?: { run_id: string; quote: string | null }[];
   evidence_dropped?: number;
   expected_effect?: string;
+  /** Raised each time a new run rewrites the pending proposal; a decision names it. */
+  revision: number;
+  /** The agents whose served version reads the skill - where applying goes live at once. */
+  reaches: ReachedAgent[];
+  reaches_hidden: number;
   created_at: string;
   updated_at: string | null;
 }
@@ -50,11 +56,19 @@ export async function listSkillChanges(status?: ProposalStatus): Promise<SkillCh
 }
 
 /** Accept it. The skill is rewritten and every agent bound to it follows the new body. */
-export async function applySkillChange(id: string): Promise<SkillChangeRecord> {
-  return apiClient.post<SkillChangeRecord>(`${ROOT}/${id}/apply`);
+export async function applySkillChange(
+  change: Pick<SkillChangeRecord, "id" | "revision">,
+): Promise<SkillChangeRecord> {
+  return apiClient.post<SkillChangeRecord>(`${ROOT}/${change.id}/apply`, {
+    revision: change.revision,
+  });
 }
 
 /** Refuse it, keeping the record of what was proposed. */
-export async function discardSkillChange(id: string): Promise<SkillChangeRecord> {
-  return apiClient.post<SkillChangeRecord>(`${ROOT}/${id}/discard`);
+export async function discardSkillChange(
+  change: Pick<SkillChangeRecord, "id" | "revision">,
+): Promise<SkillChangeRecord> {
+  return apiClient.post<SkillChangeRecord>(`${ROOT}/${change.id}/discard`, {
+    revision: change.revision,
+  });
 }

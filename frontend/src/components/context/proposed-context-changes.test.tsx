@@ -109,11 +109,15 @@ describe("ProposedContextChanges", () => {
   it("applies and discards through their own actions", async () => {
     render(<ProposedContextChanges canEdit />);
     await userEvent.click(screen.getByRole("button", { name: "Apply the change to house-style" }));
-    expect(state.apply).toHaveBeenCalledWith("change-1");
+    expect(state.apply).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "change-1", revision: 1 }),
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Discard the change to house-style" }),
     );
-    expect(state.discard).toHaveBeenCalledWith("change-1");
+    expect(state.discard).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "change-1", revision: 1 }),
+    );
   });
 
   it("refuses to apply over a file edited since, and says what to do instead", async () => {

@@ -16,7 +16,8 @@ import type { ContextChange, ContextChangeList } from "@/types/authoring";
  * Both decisions invalidate the context files as well: applying rewrites a file
  * every bound agent reads on its next run, and a page left showing the old body
  * would show something no agent is reading any more. A refused decision reads
- * them again too - a file edited since turns its change stale.
+ * them again too - a file edited since turns its change stale, and a proposal
+ * a newer run rewrote comes back at its new revision.
  */
 export function useContextChanges(
   status: "pending" | "applied" | "discarded" = "pending",
@@ -41,7 +42,10 @@ export function useContextChanges(
   }, [queryClient]);
 
   const applied = useMutation({
-    mutationFn: (id: string) => apiClient.post<ContextChange>(`/context-changes/${id}/apply`),
+    mutationFn: (change: ContextChange) =>
+      apiClient.post<ContextChange>(`/context-changes/${change.id}/apply`, {
+        revision: change.revision,
+      }),
     onSuccess: async (change) => {
       await invalidate();
       toast.success(t("applied", { name: change.context_name }));
@@ -52,7 +56,10 @@ export function useContextChanges(
     },
   });
   const discarded = useMutation({
-    mutationFn: (id: string) => apiClient.post<ContextChange>(`/context-changes/${id}/discard`),
+    mutationFn: (change: ContextChange) =>
+      apiClient.post<ContextChange>(`/context-changes/${change.id}/discard`, {
+        revision: change.revision,
+      }),
     onSuccess: async (change) => {
       await invalidate();
       toast.success(t("discarded", { name: change.context_name }));
@@ -67,8 +74,8 @@ export function useContextChanges(
     changes: query.data?.items ?? [],
     isLoading: query.isLoading,
     error: query.error ? getErrorMessage(query.error, tErrors) : null,
-    apply: (id: string) => applied.mutate(id),
-    discard: (id: string) => discarded.mutate(id),
+    apply: (change: ContextChange) => applied.mutate(change),
+    discard: (change: ContextChange) => discarded.mutate(change),
     isDeciding: applied.isPending || discarded.isPending,
   };
 }
