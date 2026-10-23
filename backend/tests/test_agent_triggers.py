@@ -2736,6 +2736,59 @@ class TestCreatingFromAPortalPreset:
         assert adapter.register_webhook.await_args.kwargs["events"] == ("pull_request",)
         assert created.event_config["ignore_login"] == "octo-agent"
 
+    async def test_a_login_the_filter_already_names_is_not_asked_for_again(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.account_login = AsyncMock(return_value="someone-else")
+        adapter.register_webhook = AsyncMock(
+            return_value=RegisteredWebhook(provider_webhook_id="hook-1")
+        )
+        created = _event_trigger(
+            conversation_id=uuid.uuid4(),
+            delivery_mode="manual",
+            event_config={"event": "issues", "ignore_login": "octo-agent"},
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.create = AsyncMock(return_value=created)
+            await service.create(_ctx(), agent.id, _preset_create())
+
+        adapter.account_login.assert_not_awaited()
+        assert created.event_config["ignore_login"] == "octo-agent"
+
+    async def test_another_auto_registered_source_listens_for_the_adapters_default(self):
+        """Only a GitHub hook is told which events to send; any other adapter
+        registers with its own default and has no author to skip."""
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.account_login = AsyncMock(return_value="octo-agent")
+        adapter.register_webhook = AsyncMock(
+            return_value=RegisteredWebhook(provider_webhook_id="hook-1")
+        )
+        created = _event_trigger(
+            event_source="webhook",
+            conversation_id=uuid.uuid4(),
+            delivery_mode="manual",
+            event_config={},
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.create = AsyncMock(return_value=created)
+            await service.create(_ctx(), agent.id, _preset_create())
+
+        assert adapter.register_webhook.await_args.kwargs["events"] == ()
+        adapter.account_login.assert_not_awaited()
+
     async def test_an_app_trigger_remembers_the_repository_it_was_created_for(self):
         """An App portal registers nothing, and the row still has to hold a target.
 
