@@ -19,6 +19,7 @@ from app.services.device_hub.exceptions import (
     DeviceCallTimedOut,
     DeviceUnavailable,
 )
+from app.services.device_hub.workspace import DeviceWorkspace, LocalMode, LocalTarget
 
 __all__ = [
     "DESKTOP_PLATFORMS",
@@ -27,6 +28,9 @@ __all__ = [
     "DeviceCallFailed",
     "DeviceCallTimedOut",
     "DeviceUnavailable",
+    "DeviceWorkspace",
+    "LocalMode",
+    "LocalTarget",
     "admit",
     "call",
     "configure",

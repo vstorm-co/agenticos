@@ -271,6 +271,7 @@ from app.services.channels.base import OutgoingAttachment
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
+from app.services.device_hub import LocalTarget
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
 from app.services.mcp_connection import (
     AccountNote,
@@ -640,6 +641,13 @@ class AdmittedAs(BaseModel):
         migrated.setdefault("acts_for_sender", data["private_to_user"])
         return migrated
 
+    local: LocalTarget | None = Field(
+        default=None,
+        description=(
+            "Where on the person's own computer the chat asked this run to work "
+            "(#2305), so a run resumed after an approval keeps working there."
+        ),
+    )
     approval_mode: ApprovalMode = Field(
         default=ApprovalMode.FOLLOW_AGENT,
         description=(
@@ -2673,6 +2681,7 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        local: LocalTarget | None = None,
         on_compaction: CompactionSink | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         request_connection: ConnectionCallback | None = None,
@@ -2799,6 +2808,7 @@ class AgentRunnerService:
             version_id=version_id,
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
+            local=local,
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
@@ -2913,6 +2923,7 @@ class AgentRunnerService:
         already_spent: dict[str, DelegationSpend],
         already_started: dict[str, datetime | None],
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        local: LocalTarget | None = None,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
@@ -3294,6 +3305,7 @@ class AgentRunnerService:
                 else None
             ),
             on_wait=on_sandbox_wait,
+            local=local,
         )
         # What a call's realtime model is told: the briefings below describe a
         # workspace and skill files only its text twin can reach.
@@ -3543,6 +3555,7 @@ class AgentRunnerService:
             finished_plan_withheld=finished_plan_withheld,
             admitted_as=AdmittedAs(
                 approval_mode=approval_mode,
+                local=local,
                 acts_for_sender=acts_for_sender,
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
@@ -5155,6 +5168,7 @@ class AgentRunnerService:
             # path where somebody had said no (#1326), and read a direct message
             # as a channel (#1343).
             approval_mode=state.admitted_as.approval_mode,
+            local=state.admitted_as.local,
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it

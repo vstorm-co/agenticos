@@ -191,7 +191,8 @@ async def call(
             raise
     if not result.ok:
         raise DeviceCallFailed(
-            message=result.error or "Your computer refused the operation", details={"op": op}
+            message=result.error or "Your computer refused the operation",
+            details={"op": op, "kind": result.kind},
         )
     return result.value
 

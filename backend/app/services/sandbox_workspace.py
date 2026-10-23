@@ -77,6 +77,8 @@ from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
+from app.services import device_hub
+from app.services.device_hub import DeviceWorkspace, LocalTarget
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_runtimes import (
     CATALOG,
@@ -461,6 +463,13 @@ class OpenWorkspace:
     sandbox: SandboxdWorkspace | DaytonaWorkspace | None = None
     """What supplies a container-backed workspace, for removing a `run`-scoped one."""
 
+    local: bool = False
+    """On the person's own computer (#2305): nothing here stores it or tears it down.
+
+    The folder is the person's, on their disk; a run closing must not flush a
+    document over it or remove what it wrote.
+    """
+
     spills: list[str] = field(default_factory=list)
     """Every spill handle `tool_output_limits` wrote to this workspace this run.
 
@@ -631,8 +640,13 @@ class SandboxWorkspaceService:
         identity: WorkspaceIdentity,
         scope_override: SessionScope | None = None,
         on_wait: SandboxWaitSink | None = None,
+        local: LocalTarget | None = None,
     ) -> OpenWorkspace | None:
         """The workspace this run should use, or `None` when it has no sandbox.
+
+        `local` is the chat's "Work on: This computer" (#2305): the same sandbox
+        tools, carried out by the person's desktop app in the folder they picked.
+        Only for an agent with a sandbox, and only for the person themselves.
 
         `scope_override` is what the *exposure* said, when one did. An agent
         reached in web chat and on a Slack bot is the same agent in two
@@ -652,12 +666,62 @@ class SandboxWorkspaceService:
         config = sandbox_config(spec)
         if config is None:
             return None
+        if local is not None:
+            return await self._open_local(ctx, local)
         return await self._open_config(
             config,
             ctx=ctx,
             identity=identity,
             scope=scope_override or config.session_scope,
             on_wait=on_wait,
+        )
+
+    async def _open_local(self, ctx: AuthContext, local: LocalTarget) -> OpenWorkspace:
+        """A workspace on one of the caller's own computers, connected now.
+
+        Raises:
+            BadRequestError: The run is not a person's own (a key, a widget
+                visitor, a trigger that does not run as its creator), or none of
+                their computers is connected.
+        """
+        if ctx.user_id is None or ctx.api_key_id is not None:
+            raise BadRequestError(
+                message="Only your own chats can work on your computer",
+                details={"target": "local"},
+            )
+        devices = await device_hub.connected(ctx.user_id)
+        device = next(
+            (d for d in devices if local.device_id is None or d.session_id == local.device_id),
+            None,
+        )
+        if device is None:
+            raise BadRequestError(
+                message="Your computer is not connected: open the AgenticOS app on it",
+                details={"target": "local"},
+            )
+        return OpenWorkspace(
+            workspace=Workspace(DeviceWorkspace(device.session_id, local)),
+            kind="service",
+            scope="run",
+            scope_key=f"local:{device.session_id}:{local.folder}",
+            row_id=None,
+            local=True,
+            briefing=(
+                f"You are working on the person's own computer ({device.platform}), in the "
+                f"folder {local.folder}. "
+                + {
+                    "read_only": "You may read files there; nothing can be written or run.",
+                    "workspace_write": (
+                        "You may read and write inside that folder and run commands "
+                        "there; anything outside it is read only."
+                    ),
+                    "full_access": (
+                        "You have full access to the computer; every command is "
+                        "shown to the person for approval first."
+                    ),
+                }[local.mode]
+                + " Treat it as their real machine: never delete what you did not create."
+            ),
         )
 
     async def _open_config(
@@ -987,7 +1051,7 @@ class SandboxWorkspaceService:
                 `state` workspace of all of them; on a container they stay until
                 the session is reaped.
         """
-        if workspace is None:
+        if workspace is None or workspace.local:
             return
         try:
             if workspace.kind == "state":
