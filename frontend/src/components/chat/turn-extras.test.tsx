@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TurnExtras } from "./turn-extras";
+import { ApiError } from "@/lib/api-error";
 import type { ChatMessage, ToolCall } from "@/types/chat";
 
 /**
@@ -123,14 +124,37 @@ describe("TurnExtras", () => {
 
   it("offers somebody who cannot edit the agent the owner instead, with the agent's reason", async () => {
     state.editor = false;
+    enable.mockRejectedValue(new ApiError(403, "Not allowed"));
     askOwner.mockResolvedValue(undefined);
     render(<TurnExtras message={answer([request])} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Ask the agent's owner" }));
 
     expect(askOwner).toHaveBeenCalledWith("a-1", "web_search", "for the news");
-    expect(enable).not.toHaveBeenCalled();
     expect(await screen.findByRole("status")).toHaveTextContent("The owner has been asked.");
+  });
+
+  it("asks the owner when an organization-wide editor cannot edit this agent", async () => {
+    // Codex on #2324: a Member holds `agents:edit` for their own agents only.
+    enable.mockRejectedValue(new ApiError(403, "Not allowed"));
+    askOwner.mockResolvedValue(undefined);
+    render(<TurnExtras message={answer([request])} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Switch on Web search" }));
+
+    expect(askOwner).toHaveBeenCalledWith("a-1", "web_search", "for the news");
+    expect(await screen.findByRole("status")).toHaveTextContent("The owner has been asked.");
+  });
+
+  it("switches it on for somebody an edit grant on this agent lets in", async () => {
+    state.editor = false;
+    enable.mockResolvedValue({ published: true });
+    render(<TurnExtras message={answer([request])} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Ask the agent's owner" }));
+
+    expect(askOwner).not.toHaveBeenCalled();
+    expect(await screen.findByRole("status")).toHaveTextContent("Web search is on.");
   });
 
   it("puts the button back and says why when the switch is refused", async () => {

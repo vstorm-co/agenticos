@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks/use-permissions";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { askForCapability, enableCapability } from "@/lib/capability-requests-api";
 import { ROUTES } from "@/lib/constants";
 import { useRouter } from "@/lib/locale-navigation";
@@ -89,13 +89,21 @@ function CapabilityRequestCard({ card, agentName }: { card: CapabilityCard; agen
   const tErrors = useTranslations("errors");
   const { can } = usePermissions();
   const [state, setState] = useState<CardState>("idle");
+  // Only a hint for the label: a scoped `agents:edit` may not reach this agent,
+  // and an explicit grant may reach it without the permission. The server decides
+  // on the agent itself, so the switch is always tried and a refusal asks the owner.
   const editor = can(Perm.agentsEdit);
 
   async function act() {
     setState("busy");
     try {
-      if (editor) {
-        const done = await enableCapability(card.agentId, card.capabilityId);
+      const done = await enableCapability(card.agentId, card.capabilityId).catch(
+        (error: unknown) => {
+          if (error instanceof ApiError && error.status === 403) return null;
+          throw error;
+        },
+      );
+      if (done) {
         setState(done.published ? "enabled" : "drafted");
       } else {
         await askForCapability(card.agentId, card.capabilityId, card.reason);
