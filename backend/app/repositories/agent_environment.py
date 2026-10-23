@@ -8,6 +8,7 @@ from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import AgentVersion
 from app.db.models.agent_environment import AgentEnvironment, AgentEnvironmentConnection
 
 
@@ -187,3 +188,16 @@ async def replace_connections(
         connection.organization_id = organization_id
         db.add(connection)
     await db.flush()
+
+
+async def served(
+    db: AsyncSession, *, organization_id: UUID
+) -> list[tuple[AgentEnvironment, AgentVersion]]:
+    """Every environment of the organization's agents, with the version it serves."""
+    result = await db.execute(
+        select(AgentEnvironment, AgentVersion)
+        .join(AgentVersion, AgentVersion.id == AgentEnvironment.version_id)
+        .where(AgentEnvironment.organization_id == organization_id)
+        .order_by(AgentEnvironment.agent_id, AgentEnvironment.created_at)
+    )
+    return list(result.tuples().all())

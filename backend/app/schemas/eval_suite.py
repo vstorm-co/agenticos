@@ -15,7 +15,7 @@ from app.schemas.eval_run import EvalRunEstimate, OverallLiteral, VerdictLiteral
 from app.schemas.eval_threshold import EvalSuiteThreshold, ThresholdReason
 
 FailingKind = Literal["regression", "failed", "ungraded"]
-DependencyKind = Literal["skill", "knowledge_base"]
+DependencyKind = Literal["skill", "knowledge_base", "context"]
 
 
 class EvalSuiteSchedule(BaseSchema):

@@ -115,9 +115,10 @@ _TRIGGERED: dict[EvalSuiteTrigger, Literal["on_publish", "on_promotion"]] = {
     EvalSuiteTrigger.PUBLISH: "on_publish",
     EvalSuiteTrigger.PROMOTION: "on_promotion",
 }
-_BOUND_FIELD: dict[DependencyKind, Literal["skill_ids", "collection_ids"]] = {
+_BOUND_FIELD: dict[DependencyKind, Literal["skill_ids", "collection_ids", "context_ids"]] = {
     "skill": "skill_ids",
     "knowledge_base": "collection_ids",
+    "context": "context_ids",
 }
 # A refusal the eval run gave that means the suite cannot run as set up, rather
 # than that its owner lost access - the reason the console words for each.
@@ -132,7 +133,8 @@ class _OverCap(Exception):
 
 
 def binds(spec: AgentSpec, kind: DependencyKind, resource_id: UUID) -> bool:
-    """Whether a version reads this skill or knowledge base - itself, or a specialist it defines.
+    """Whether a version reads this skill, knowledge base or context file - itself, or a
+    specialist it defines.
 
     A specialist is part of the version that defines it, so its skills and
     collections change that version's answers as much as the parent's do. A

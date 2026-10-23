@@ -116,14 +116,14 @@ class TestListing:
 class TestDeciding:
     async def test_accepting_reports_the_new_state(self, client) -> None:
         async with client() as opened:
-            response = await opened.post(_url(f"/{_PROPOSAL_ID}/apply"))
+            response = await opened.post(_url(f"/{_PROPOSAL_ID}/apply"), json={"revision": 1})
 
         assert response.status_code == 200
         assert response.json()["status"] == "applied"
 
     async def test_refusing_reports_the_new_state_too(self, client) -> None:
         async with client() as opened:
-            response = await opened.post(_url(f"/{_PROPOSAL_ID}/discard"))
+            response = await opened.post(_url(f"/{_PROPOSAL_ID}/discard"), json={"revision": 1})
 
         assert response.status_code == 200
         assert response.json()["status"] == "discarded"
@@ -137,6 +137,6 @@ class TestDeciding:
         )
 
         async with client() as opened:
-            response = await opened.post(_url(f"/{_PROPOSAL_ID}/apply"))
+            response = await opened.post(_url(f"/{_PROPOSAL_ID}/apply"), json={"revision": 1})
 
         assert response.status_code == 409

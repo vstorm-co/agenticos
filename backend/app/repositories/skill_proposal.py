@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
@@ -104,22 +105,15 @@ async def replace_body(
     resources: dict[str, Any],
     conversation_id: UUID | None,
 ) -> SkillProposal:
-    """Update a pending proposal in place, so one edit session is one proposal."""
+    """Rewrite a pending proposal in place, so one edit session is one proposal.
+
+    Its revision moves, so a decision made on what it said before is refused.
+    """
     proposal.description = description
     proposal.content = content
     proposal.resources = resources
     proposal.conversation_id = conversation_id
-    await db.flush()
-    await db.refresh(proposal)
-    return proposal
-
-
-async def decide(
-    db: AsyncSession, *, proposal: SkillProposal, status: ProposalStatus, decided_by: UUID | None
-) -> SkillProposal:
-    proposal.status = status.value
-    proposal.decided_by_user_id = decided_by
-    proposal.decided_at = datetime.now(UTC)
+    proposal.revision += 1
     await db.flush()
     await db.refresh(proposal)
     return proposal
@@ -134,3 +128,32 @@ async def annotate(
     await db.flush()
     await db.refresh(proposal)
     return proposal
+
+
+async def decide_if(
+    db: AsyncSession,
+    *,
+    proposal_id: UUID,
+    organization_id: UUID,
+    revision: int,
+    status: ProposalStatus,
+    decided_by: UUID | None,
+) -> SkillProposal | None:
+    """Decide a proposal only while it is pending at `revision`, or `None` when it is not.
+
+    One conditional update, so of two decisions made at once exactly one changes
+    the row - and a decision on a revision a newer run replaced changes nothing.
+    """
+    result = await db.execute(
+        sql_update(SkillProposal)
+        .where(
+            SkillProposal.id == proposal_id,
+            SkillProposal.organization_id == organization_id,
+            SkillProposal.status == ProposalStatus.PENDING.value,
+            SkillProposal.revision == revision,
+        )
+        .values(status=status.value, decided_by_user_id=decided_by, decided_at=datetime.now(UTC))
+        .returning(SkillProposal)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalars().first()

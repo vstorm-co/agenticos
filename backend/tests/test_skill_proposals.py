@@ -26,10 +26,15 @@ from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFo
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.repositories import skill_proposal_repo, skill_repo
+from app.schemas.resource_usage import ProposalDecision
+from app.services import proposal_reach
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SkillChange
 
 pytestmark = pytest.mark.anyio
+
+_DECISION = ProposalDecision(revision=1)
+_ROWS: dict[uuid.UUID, MagicMock] = {}
 
 
 def _ctx() -> AuthContext:
@@ -45,10 +50,12 @@ def _proposal(**overrides: object) -> MagicMock:
         resources={},
         status=ProposalStatus.PENDING.value,
         base_version=None,
+        revision=1,
     )
     row.name = "refunds"
     for key, value in overrides.items():
         setattr(row, key, value)
+    _ROWS[row.id] = row
     return row
 
 
@@ -78,11 +85,24 @@ def _service(monkeypatch) -> SkillProposalService:
     service.skills.create = AsyncMock(return_value=skill)
     service.skills.update = AsyncMock(return_value=skill)
     service.skills.put_resources = AsyncMock(return_value=[])
-    monkeypatch.setattr(skill_proposal_repo, "decide", AsyncMock(side_effect=_decided))
+    monkeypatch.setattr(skill_proposal_repo, "decide_if", AsyncMock(side_effect=_decided))
+    monkeypatch.setattr(
+        proposal_reach,
+        "reach",
+        AsyncMock(
+            side_effect=lambda *_, resource_ids, **__: {
+                resource_id: [] for resource_id in resource_ids
+            }
+        ),
+    )
     return service
 
 
-async def _decided(db, *, proposal, status, decided_by):
+async def _decided(db, *, proposal_id, organization_id, revision, status, decided_by):
+    """The conditional update, as Postgres answers it for one session."""
+    proposal = _ROWS[proposal_id]
+    if proposal.status != ProposalStatus.PENDING.value or proposal.revision != revision:
+        return None
     proposal.status = status.value
     proposal.decided_by_user_id = decided_by
     return proposal
@@ -137,7 +157,7 @@ class TestApplying:
         proposal = _proposal()
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
 
-        decided = await service.apply(_ctx(), proposal.id)
+        decided = await service.apply(_ctx(), proposal.id, _DECISION)
 
         service.skills.update.assert_awaited_once()
         assert decided.status == ProposalStatus.APPLIED.value
@@ -147,7 +167,7 @@ class TestApplying:
         proposal = _proposal(skill_id=None)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
 
-        await service.apply(_ctx(), proposal.id)
+        await service.apply(_ctx(), proposal.id, _DECISION)
 
         service.skills.create.assert_awaited_once()
         service.skills.update.assert_not_called()
@@ -159,7 +179,7 @@ class TestApplying:
         service.skills.get = AsyncMock(return_value=MagicMock(version=3))
         monkeypatch.setattr(skill_repo, "lock", AsyncMock())
 
-        decided = await service.apply(_ctx(), proposal.id)
+        decided = await service.apply(_ctx(), proposal.id, _DECISION)
 
         assert decided.status == ProposalStatus.APPLIED.value
 
@@ -172,7 +192,7 @@ class TestApplying:
         monkeypatch.setattr(skill_repo, "lock", AsyncMock())
 
         with pytest.raises(ConcurrentChangeError, match="changed since"):
-            await service.apply(_ctx(), proposal.id)
+            await service.apply(_ctx(), proposal.id, _DECISION)
 
         service.skills.update.assert_not_called()
         assert proposal.status == ProposalStatus.PENDING.value
@@ -192,7 +212,7 @@ class TestApplying:
         monkeypatch.setattr(skill_repo, "lock", edited_meanwhile)
 
         with pytest.raises(ConcurrentChangeError, match="now v4"):
-            await service.apply(_ctx(), proposal.id)
+            await service.apply(_ctx(), proposal.id, _DECISION)
 
         service.skills.update.assert_not_called()
 
@@ -203,22 +223,22 @@ class TestApplying:
         proposal = _proposal(resources={"reconcile.py": "print(1)"})
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
 
-        await service.apply(_ctx(), proposal.id)
+        await service.apply(_ctx(), proposal.id, _DECISION)
 
         files = service.skills.put_resources.await_args.args[2]
         assert files == [("reconcile.py", b"print(1)")]
 
-    async def test_a_skill_write_that_fails_leaves_the_proposal_pending(self, monkeypatch):
-        """Rather than reading "applied" beside a skill that never moved."""
+    async def test_a_skill_write_that_fails_fails_the_decision_with_it(self, monkeypatch):
+        """The decision and the write are one transaction: a write that fails
+        raises through, and rolling it back leaves the proposal pending rather
+        than "applied" beside a skill that never moved."""
         service = _service(monkeypatch)
         proposal = _proposal()
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
         service.skills.update = AsyncMock(side_effect=RuntimeError("gone"))
 
         with pytest.raises(RuntimeError):
-            await service.apply(_ctx(), proposal.id)
-
-        assert proposal.status == ProposalStatus.PENDING.value
+            await service.apply(_ctx(), proposal.id, _DECISION)
 
     async def test_applying_twice_is_refused(self, monkeypatch):
         service = _service(monkeypatch)
@@ -226,7 +246,7 @@ class TestApplying:
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
 
         with pytest.raises(AlreadyExistsError) as refused:
-            await service.apply(_ctx(), proposal.id)
+            await service.apply(_ctx(), proposal.id, _DECISION)
 
         assert "already applied" in refused.value.message
 
@@ -236,7 +256,7 @@ class TestApplying:
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=None))
 
         with pytest.raises(NotFoundError):
-            await service.apply(_ctx(), uuid.uuid4())
+            await service.apply(_ctx(), uuid.uuid4(), _DECISION)
 
 
 class TestDiscarding:
@@ -247,7 +267,7 @@ class TestDiscarding:
         proposal = _proposal()
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
 
-        decided = await service.discard(_ctx(), proposal.id)
+        decided = await service.discard(_ctx(), proposal.id, _DECISION)
 
         assert decided.status == ProposalStatus.DISCARDED.value
         service.skills.update.assert_not_called()
@@ -258,7 +278,7 @@ class TestDiscarding:
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
 
         with pytest.raises(AlreadyExistsError):
-            await service.discard(_ctx(), proposal.id)
+            await service.discard(_ctx(), proposal.id, _DECISION)
 
     async def test_discarding_one_the_agent_invented_names_no_skill(self, monkeypatch):
         """There is no skill row to attribute it to yet, and the audit entry has
@@ -267,7 +287,7 @@ class TestDiscarding:
         proposal = _proposal(skill_id=None)
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
 
-        decided = await service.discard(_ctx(), proposal.id)
+        decided = await service.discard(_ctx(), proposal.id, _DECISION)
 
         assert decided.status == ProposalStatus.DISCARDED.value
 
@@ -306,6 +326,7 @@ class TestReading:
             content="c",
             resources={},
             status="pending",
+            revision=1,
             evidence=[{"run_id": "run-1", "quote": "Thirty days"}],
             evidence_dropped=0,
             rationale="",
@@ -330,3 +351,34 @@ class TestReading:
 
         assert hidden.evidence == [{"run_id": "run-1", "quote": None}]
         assert shown[0].evidence == [{"run_id": "run-1", "quote": "Thirty days"}]
+
+
+class TestRevision:
+    """A decision names the revision the reviewer read; a newer run, or a decision
+    made first, leaves nothing for it to decide."""
+
+    async def test_a_decision_on_an_older_revision_is_refused_before_anything_is_written(
+        self, monkeypatch
+    ):
+        service = _service(monkeypatch)
+        proposal = _proposal(revision=3)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+
+        for decide in (service.apply, service.discard):
+            with pytest.raises(ConcurrentChangeError, match="changed since you opened it"):
+                await decide(_ctx(), proposal.id, ProposalDecision(revision=2))
+
+        service.skills.update.assert_not_called()
+        assert proposal.status == ProposalStatus.PENDING.value
+
+    async def test_the_decision_that_loses_the_race_is_refused(self, monkeypatch):
+        service = _service(monkeypatch)
+        proposal = _proposal()
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(skill_proposal_repo, "decide_if", AsyncMock(return_value=None))
+
+        for decide in (service.apply, service.discard):
+            with pytest.raises(ConcurrentChangeError, match="Review the new version"):
+                await decide(_ctx(), proposal.id, _DECISION)
+
+        service.skills.update.assert_not_called()

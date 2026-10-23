@@ -810,6 +810,47 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def shared_change_applied(
+        self,
+        *,
+        agent: Agent,
+        kind: Literal["context", "skill"],
+        name: str,
+        occurrence: str,
+        actor_user_id: UUID | None,
+    ) -> None:
+        """A change to a context file or skill an agent reads went live for it.
+
+        The agent's owner hears it - unless they applied it themselves - and is
+        pointed at the agent's evals, where the suites it queued run. The file's
+        or skill's content is not in it: the name says what changed.
+        """
+        owners = [agent.owner_user_id] if agent.owner_user_id not in (None, actor_user_id) else []
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=agent.organization_id, user_ids=owners
+        )
+        if not recipients:
+            return
+        what = "context file" if kind == "context" else "skill"
+        path = f"/agents/{agent.id}?tab=evals"
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.SHARED_CHANGE_APPLIED,
+            occurrence_id=f"{occurrence}:{agent.id}",
+            summary=f"A change to the {what} {name} went live for {agent.name}",
+            context_url=self._link(path, agent.organization_id),
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "kind": kind,
+                "name": name,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(self._link(path, agent.organization_id)),
+            },
+            organization_id=agent.organization_id,
+            use_savepoint=True,
+        )
+
     async def _mcp_audience(self, connection: McpConnection, organization_id: UUID) -> set[UUID]:
         """Whoever manages the organization's servers, and whoever owns an agent bound to this one.
 

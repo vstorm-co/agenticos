@@ -51,6 +51,8 @@ class ContextProposal(Base, TimestampMixin):
 
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    """Raised each time a new run rewrites the pending proposal; a decision names it."""
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ProposalStatus.PENDING.value, index=True
     )

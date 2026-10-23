@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.context_proposal import ContextProposal
@@ -77,15 +78,30 @@ async def update(
     return proposal
 
 
-async def decide(
-    db: AsyncSession, *, proposal: ContextProposal, status: ProposalStatus, decided_by: UUID | None
-) -> ContextProposal:
-    return await update(
-        db,
-        proposal=proposal,
-        values={
-            "status": status.value,
-            "decided_by_user_id": decided_by,
-            "decided_at": datetime.now(UTC),
-        },
+async def decide_if(
+    db: AsyncSession,
+    *,
+    proposal_id: UUID,
+    organization_id: UUID,
+    revision: int,
+    status: ProposalStatus,
+    decided_by: UUID | None,
+) -> ContextProposal | None:
+    """Decide a proposal only while it is pending at `revision`, or `None` when it is not.
+
+    One conditional update, so of two decisions made at once exactly one changes
+    the row - and a decision on a revision a newer run replaced changes nothing.
+    """
+    result = await db.execute(
+        sql_update(ContextProposal)
+        .where(
+            ContextProposal.id == proposal_id,
+            ContextProposal.organization_id == organization_id,
+            ContextProposal.status == ProposalStatus.PENDING.value,
+            ContextProposal.revision == revision,
+        )
+        .values(status=status.value, decided_by_user_id=decided_by, decided_at=datetime.now(UTC))
+        .returning(ContextProposal)
+        .execution_options(populate_existing=True)
     )
+    return result.scalars().first()

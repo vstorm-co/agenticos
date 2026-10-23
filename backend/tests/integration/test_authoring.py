@@ -854,6 +854,8 @@ class TestSkills:
         )
         (proposal,) = proposals
         assert proposal.content == "Refunds take 30 days." and proposal.base_version == 3
+        # The second run rewrote the one proposal, and its revision says so.
+        assert proposal.revision == 2
         assert proposal.evidence == [{"run_id": str(run.id), "quote": COMMENT}]
         listed = await service.for_skill(ctx, skill.id)
         assert len(listed) == 2 and listed[0].status == "completed"
