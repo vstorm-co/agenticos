@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { EnableAiAssistanceLink } from "@/components/teams/enable-ai-assistance-link";
 import { Button } from "@/components/ui";
 import { useDraftKnowledgeGap } from "@/hooks/use-knowledge-gaps";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
-import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { KnowledgeGapTopicDetail } from "@/types/knowledge-gaps";
 import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
@@ -34,9 +33,7 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
         <p className="bg-muted rounded-md px-3 py-2 text-xs">
           {t("aiOff")}{" "}
           {can(Perm.orgSettings) ? (
-            <Link href={ROUTES.ORG_MEMBERS(activeOrg.id)} className="font-medium underline">
-              {t("enableAi")}
-            </Link>
+            <EnableAiAssistanceLink orgId={activeOrg.id}>{t("enableAi")}</EnableAiAssistanceLink>
           ) : (
             t("askAdmin")
           )}

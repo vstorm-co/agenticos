@@ -1363,7 +1363,12 @@ def _suite_summary(
         return f"{suite.name} did not run on {on}: {why.rstrip('.')}."
     failed = result.status == EvalSuiteResultStatus.FAILED.value
     reasons = summary.reasons if summary else []
-    said = "; ".join(_reason_text(reason) for reason in reasons) or "below its threshold"
+    if reasons:
+        said = "; ".join(_reason_text(reason) for reason in reasons)
+    elif summary and summary.message:
+        said = summary.message.rstrip(".")
+    else:
+        said = "below its threshold"
     line = f"{suite.name} {'failed' if failed else 'could not decide'} on {on}: {said}."
     cases = [
         case.input
