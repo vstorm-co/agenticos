@@ -119,7 +119,7 @@ def _allow_any_url(monkeypatch) -> None:
     """Skip SSRF validation for tests that are about something else (it resolves
     DNS, so it must not run against made-up hostnames)."""
 
-    async def _passthrough(url: str) -> str:
+    async def _passthrough(url: str, **_kwargs: object) -> str:
         return url
 
     monkeypatch.setattr(mcp_connection_service, "validate_mcp_url", _passthrough)
@@ -2508,6 +2508,51 @@ class TestMcpConnectionService:
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_a_url_checked_without_asking_ignores_the_list(self, monkeypatch):
+        """Only a connection's own address, when it is saved, is exempt. A
+        caller that does not ask - the OAuth entry points today, the next
+        caller tomorrow - fails closed."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["10.0.0.5"])
+
+        with pytest.raises(BadRequestError):
+            await mcp_connection_service._checked_url("http://10.0.0.5:8000/mcp")
+
+    @pytest.mark.anyio
+    async def test_create_accepts_a_host_the_operator_listed(self, service, repo, monkeypatch):
+        """`MCP_ALLOWED_HOSTS` is how a server on the deployment's own network
+        gets connected at all. The real validator runs here, and the name is
+        never resolved: the operator vouched for it."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["postgres-mcp"])
+        asked = TestOAuthRequestSafety._resolves(monkeypatch, "10.0.0.9")
+
+        await service.create(
+            user_id=uuid4(),
+            data=McpConnectionCreate(name="postgres", url="http://postgres-mcp:8000/mcp"),
+        )
+
+        assert repo.create.call_args.kwargs["url"] == "http://postgres-mcp:8000/mcp"
+        assert asked == []
+
+    @pytest.mark.anyio
+    async def test_moving_the_url_to_a_listed_host_is_accepted(self, service, repo, monkeypatch):
+        """Editing a connection's address is saving it too, so it honours the
+        list the way creating one does."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        repo.get_by_id.return_value = conn
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["postgres-mcp"])
+        asked = TestOAuthRequestSafety._resolves(monkeypatch, "10.0.0.9")
+
+        await service.update(
+            user_id=user_id,
+            connection_id=conn.id,
+            data=McpConnectionUpdate(url="http://postgres-mcp:8000/mcp"),
+        )
+
+        assert repo.update.call_args.kwargs["update_data"]["url"] == "http://postgres-mcp:8000/mcp"
+        assert asked == []
+
+    @pytest.mark.anyio
     async def test_create_seals_the_token_for_its_owner(self, service, repo, monkeypatch):
         _allow_any_url(monkeypatch)
         user_id = uuid4()
@@ -4176,6 +4221,24 @@ class TestOrganizationConnections:
         repo.create_org_scoped.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_creating_accepts_a_host_the_operator_listed(
+        self, service, ctx, repo, audit, monkeypatch
+    ):
+        """The same exemption as a personal connection's. The audit entry
+        carrying the URL is what records that an internal host was connected."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["postgres-mcp"])
+        asked = TestOAuthRequestSafety._resolves(monkeypatch, "10.0.0.9")
+        repo.create_org_scoped.return_value = self._org_connection(ctx)
+
+        await service.create_for_org(
+            ctx, OrgMcpConnectionCreate(name="postgres", url="http://postgres-mcp:8000/mcp")
+        )
+
+        assert repo.create_org_scoped.call_args.kwargs["url"] == "http://postgres-mcp:8000/mcp"
+        assert audit.call_args.kwargs["details"]["url"] == "http://postgres-mcp:8000/mcp"
+        assert asked == []
+
+    @pytest.mark.anyio
     async def test_a_name_already_taken_in_this_organization_is_refused(
         self, service, ctx, repo, audit, monkeypatch
     ):
@@ -4461,6 +4524,24 @@ class TestOrganizationConnections:
             "fields": [{"field": "url", "message": excinfo.value.message}]
         }
         repo.update.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_moving_the_url_to_a_listed_ipv6_host_is_accepted(
+        self, service, ctx, repo, monkeypatch
+    ):
+        """The edit path honours the list as the create path does, here for a
+        private IPv6 literal the guard would refuse."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["fd00::1"])
+
+        await service.update_for_org(
+            ctx,
+            connection_id=conn.id,
+            data=OrgMcpConnectionUpdate(url="http://[fd00::1]:8000/mcp"),
+        )
+
+        assert repo.update.call_args.kwargs["update_data"]["url"] == "http://[fd00::1]:8000/mcp"
 
     @pytest.mark.anyio
     async def test_moving_the_url_discards_the_previous_check_result(
