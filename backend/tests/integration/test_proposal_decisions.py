@@ -167,6 +167,22 @@ async def test_applying_goes_live_where_served_and_says_so_everywhere(db):
         version_id=bystander.current_version_id,
         is_default=True,
     )
+    # Suites watching for changes elsewhere - one of an agent that does not read the
+    # file, one of an agent with nothing published - neither run nor show.
+    unpublished = await _clerk(db, ctx)
+    unpublished.current_version_id = None
+    for watcher in (bystander, unpublished):
+        await eval_suite_repo.create(
+            db,
+            organization_id=ctx.organization_id,
+            suite=EvalSuite(
+                agent_id=watcher.id,
+                dataset_id=suite.dataset_id,
+                owner_user_id=ctx.user_id,
+                name=f"watching {watcher.id}",
+                on_dependency_change=True,
+            ),
+        )
     owner = await _member(db, ctx, OrgRoleName.MEMBER)
     agent.owner_user_id = owner.user_id
     await db.flush()
@@ -209,6 +225,9 @@ async def test_applying_goes_live_where_served_and_says_so_everywhere(db):
     assert [(result.trigger, result.trigger_detail) for result in queued] == [
         ("dependency", {"kind": "context", "id": str(file.id)})
     ]
+    assert (
+        await db.scalars(select(EvalSuiteResult).where(EvalSuiteResult.suite_id != suite.id))
+    ).all() == []
     told = (
         await db.scalars(
             select(Notification).where(Notification.event_type == "shared_change_applied")
