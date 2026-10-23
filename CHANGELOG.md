@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-10-23
+
 ### Added
 
 - **An agent can override its speech and video settings per clip.** The voice,
