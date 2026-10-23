@@ -89,6 +89,20 @@ async def delete_eval_suite(
     await service.delete(ctx, agent_id, suite_id)
 
 
+@router.post("/agents/{agent_id}/eval-suites/{suite_id}/pin", response_model=EvalSuiteRead)
+async def move_eval_suite_pin(
+    agent_id: UUID, suite_id: UUID, service: EvalSuiteSvc, ctx: Auth
+) -> Any:
+    """Move a guard onto its dataset's latest version and scoring.
+
+    A guard checks what it was set up with, so editing its dataset does not
+    loosen it; this moves it on. Needs permission to override promotions, and is
+    recorded as a change to each environment it guards. Refused with 400 on a
+    suite that guards nothing, which reads the latest already.
+    """
+    return await service.move_pin(ctx, agent_id, suite_id)
+
+
 @router.get("/agents/{agent_id}/eval-suites/{suite_id}/results", response_model=EvalSuiteResultList)
 async def list_eval_suite_results(
     agent_id: UUID,

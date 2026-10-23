@@ -88,6 +88,7 @@ from app.schemas.authoring import (
 )
 from app.schemas.eval_run import EvalRunEstimate, EvalRunRead, EvalRunRequest
 from app.schemas.eval_threshold import EvalSuiteCheck
+from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks
 from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService
@@ -178,10 +179,15 @@ def _refers_to(hunk: SpecProposalHunk, key: str) -> bool:
 
 
 class _CheckRun(NamedTuple):
-    """The eval run a check asks for, and the suite it runs on, read together."""
+    """The eval run a check asks for, and the suite it runs on, read together.
+
+    `scoring` is the scoring a guard suite is pinned to; None grades by the
+    dataset's own.
+    """
 
     request: EvalRunRequest
     suite: EvalSuiteCheck | None
+    scoring: DatasetScoring | None = None
 
 
 class AuthoringService:
@@ -945,17 +951,22 @@ class AuthoringService:
         """The run a check makes: on the dataset named, or on a suite's dataset and environment.
 
         A suite is read once, so its dataset, environment and threshold are the
-        ones of the same moment.
+        ones of the same moment. A guard is checked on the dataset version and
+        scoring it is pinned to, so the check foretells the guard's verdict.
         """
         if body.suite_id is not None:
-            suite = await EvalSuiteService(self.db).get(ctx, agent_id, body.suite_id)
+            suites = EvalSuiteService(self.db)
+            suite = await suites.get(ctx, agent_id, body.suite_id)
+            pin = await suites.pinned(ctx, agent_id, body.suite_id)
             return _CheckRun(
                 request=EvalRunRequest(
                     dataset_id=suite.dataset_id,
+                    dataset_version=None if pin is None else pin[0],
                     environment_id=suite.environment_id,
                     paired_baseline=True,
                 ),
                 suite=EvalSuiteCheck(suite_id=suite.id, name=suite.name, threshold=suite.threshold),
+                scoring=None if pin is None else pin[1],
             )
         assert body.dataset_id is not None, "ProposalCheck names a dataset or a suite"
         return _CheckRun(
@@ -973,10 +984,12 @@ class AuthoringService:
     ) -> EvalRunEstimate:
         """What checking the pending suggestions against a dataset would cost."""
         agent, batch, projected = await self._projection(ctx, agent_id)
+        checked = await self._check_request(ctx, agent.id, body)
         return await EvalRunService(self.db).estimate(
             ctx,
             agent.id,
-            (await self._check_request(ctx, agent.id, body)).request,
+            checked.request,
+            scoring=checked.scoring,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
@@ -1056,6 +1069,7 @@ class AuthoringService:
             ctx,
             agent.id,
             checked.request,
+            scoring=checked.scoring,
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
             exclude_conversations=evidence,
@@ -1075,6 +1089,7 @@ class AuthoringService:
             ctx,
             agent.id,
             checked.request,
+            scoring=checked.scoring,
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
             exclude_conversations=evidence,
@@ -1155,6 +1170,7 @@ class AuthoringService:
             ctx,
             agent.id,
             checked.request,
+            scoring=checked.scoring,
             purpose=EvalRunPurpose.GATE,
             candidate_contexts=bodies,
             exclude_conversations=evidence,
@@ -1173,6 +1189,7 @@ class AuthoringService:
             ctx,
             agent.id,
             checked.request,
+            scoring=checked.scoring,
             purpose=EvalRunPurpose.GATE,
             candidate_contexts=bodies,
             exclude_conversations=evidence,
@@ -1192,6 +1209,7 @@ class AuthoringService:
             ctx,
             agent.id,
             checked.request,
+            scoring=checked.scoring,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,

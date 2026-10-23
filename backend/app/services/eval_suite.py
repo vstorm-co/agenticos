@@ -57,6 +57,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.dataset import Dataset
 from app.db.models.eval_run import EvalRunStatus
 from app.db.models.eval_suite import (
     EvalSuite,
@@ -67,6 +68,7 @@ from app.db.models.eval_suite import (
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
+    dataset_repo,
     eval_run_repo,
     eval_suite_repo,
     member_repo,
@@ -85,6 +87,7 @@ from app.schemas.eval_suite import (
     EvalSuiteEstimate,
     EvalSuiteEstimateRequest,
     EvalSuiteList,
+    EvalSuitePin,
     EvalSuiteRead,
     EvalSuiteResultList,
     EvalSuiteResultRead,
@@ -94,11 +97,12 @@ from app.schemas.eval_suite import (
     EvalSuiteUpdate,
     FailingCase,
 )
+from app.schemas.scoring import DatasetScoring
 from app.services import change_feed
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import AgentRegistryService, delegation_binding
 from app.services.dataset import DatasetService
-from app.services.eval_run import EvalRunService
+from app.services.eval_run import EvalRunService, scoring_hash
 from app.services.eval_suite_threshold import judge
 
 logger = logging.getLogger(__name__)
@@ -176,6 +180,91 @@ def threshold_of(suite: EvalSuite) -> EvalSuiteThreshold:
     )
 
 
+def loosens(was: EvalSuiteThreshold, now: EvalSuiteThreshold) -> bool:
+    """Whether `now` lets through anything `was` stopped: a lower minimum, more
+    regressions allowed, a higher ceiling, or a bar taken away."""
+
+    def falls(before: float | None, after: float | None) -> bool:
+        return before is not None and (after is None or after < before)
+
+    def rises(before: float | None, after: float | None) -> bool:
+        return before is not None and (after is None or after > before)
+
+    return (
+        falls(was.min_pass_rate, now.min_pass_rate)
+        or now.max_confirmed_regressions > was.max_confirmed_regressions
+        or rises(was.max_cost_per_pass_rise, now.max_cost_per_pass_rise)
+        or rises(was.max_p95_rise, now.max_p95_rise)
+    )
+
+
+def pin_of(suite: EvalSuite) -> tuple[int, DatasetScoring] | None:
+    """The dataset version and scoring a guard holds; None on a suite that reads the latest."""
+    if suite.pinned_dataset_version is None or suite.pinned_scoring is None:
+        return None
+    return suite.pinned_dataset_version, DatasetScoring.model_validate(suite.pinned_scoring)
+
+
+def reads_now(suite: EvalSuite, dataset: Dataset) -> tuple[int, DatasetScoring]:
+    """The dataset version and scoring a run of the suite reads: its pin, else the latest."""
+    return pin_of(suite) or (
+        dataset.latest_version,
+        DatasetScoring.model_validate(dataset.scoring),
+    )
+
+
+def _pinned_scoring(suite: EvalSuite) -> DatasetScoring | None:
+    pin = pin_of(suite)
+    return None if pin is None else pin[1]
+
+
+def _pin_record(suite: EvalSuite) -> dict[str, Any] | None:
+    """A pin as an audit entry keeps it: the version, and the scoring by its hash."""
+    pin = pin_of(suite)
+    if pin is None:
+        return None
+    return {"dataset_version": pin[0], "scoring_hash": scoring_hash(pin[1])}
+
+
+def _pin_read(suite: EvalSuite, dataset: Dataset) -> EvalSuitePin | None:
+    pin = pin_of(suite)
+    if pin is None:
+        return None
+    return EvalSuitePin(
+        dataset_version=pin[0],
+        latest_dataset_version=dataset.latest_version,
+        scoring_current=(
+            scoring_hash(pin[1]) == scoring_hash(DatasetScoring.model_validate(dataset.scoring))
+        ),
+    )
+
+
+async def pin_to_latest(db: AsyncSession, suite: EvalSuite) -> None:
+    """Pin a suite to what its dataset holds now: its latest version and its scoring.
+
+    A dataset with no version yet leaves it unpinned, reading the latest, until
+    it has one.
+    """
+    dataset = await dataset_repo.get(db, suite.dataset_id, organization_id=suite.organization_id)
+    assert dataset is not None, "a suite's dataset outlives it"
+    holds = dataset.latest_version > 0
+    await eval_suite_repo.update(
+        db,
+        suite=suite,
+        values={
+            "pinned_dataset_version": dataset.latest_version if holds else None,
+            "pinned_scoring": dataset.scoring if holds else None,
+        },
+    )
+
+
+async def unpin(db: AsyncSession, suite: EvalSuite) -> None:
+    """Let a suite that no longer guards anything read the latest version and scoring again."""
+    await eval_suite_repo.update(
+        db, suite=suite, values={"pinned_dataset_version": None, "pinned_scoring": None}
+    )
+
+
 def _schedule(suite: EvalSuite) -> EvalSuiteSchedule | None:
     if suite.schedule_cron is None:
         return None
@@ -225,6 +314,13 @@ class EvalSuiteService:
         self._require_runs_view(ctx)
         suite = await self._suite(ctx, agent_id, suite_id)
         return (await self._reads(ctx, [suite]))[0]
+
+    async def pinned(
+        self, ctx: AuthContext, agent_id: UUID, suite_id: UUID
+    ) -> tuple[int, DatasetScoring] | None:
+        """The dataset version and scoring a guard is pinned to; None on a suite that reads the latest."""
+        self._require_runs_view(ctx)
+        return pin_of(await self._suite(ctx, agent_id, suite_id))
 
     async def results(
         self, ctx: AuthContext, agent_id: UUID, suite_id: UUID, *, skip: int = 0, limit: int = 20
@@ -318,6 +414,7 @@ class EvalSuiteService:
                     schedule=_schedule(suite),
                     next_fire_at=suite.next_fire_at,
                     max_run_usd=suite.max_run_usd,
+                    pin=_pin_read(suite, datasets[suite.dataset_id]),
                     last_result=(
                         self.result_read(last, cases_visible=last.dataset_id in readable)
                         if last
@@ -498,7 +595,7 @@ class EvalSuiteService:
         if "schedule" in fields or resuming:
             schedule = data.schedule if "schedule" in fields else _schedule(suite)
             values.update(self._schedule_columns(schedule, now=now))
-        await self._guarding_change(ctx, suite, data=data, values=values)
+        guards = await self._guarding_change(ctx, suite, data=data, values=values)
         if "dataset_id" in values or "environment_id" in values:
             # A waiting result was queued for the version and cases as they were set
             # up; run against the new ones it would record a check nobody asked for.
@@ -515,43 +612,54 @@ class EvalSuiteService:
                     self.db, suite.id, organization_id=ctx.organization_id
                 )
         suite = await eval_suite_repo.update(self.db, suite=suite, values=values)
+        if guards and "dataset_id" in values:
+            await pin_to_latest(self.db, suite)
         await self._audit(ctx, suite, action, {"fields": sorted(fields)})
         return (await self._reads(ctx, [suite]))[0]
 
     async def _guarding_change(
         self, ctx: AuthContext, suite: EvalSuite, *, data: EvalSuiteUpdate, values: dict[str, Any]
-    ) -> None:
-        """Refuse a change to what a guarding suite checks, unless the caller may override.
+    ) -> bool:
+        """Refuse a change that weakens a guarding suite, unless the caller may override.
 
         A lower bar, an easier dataset or another environment's connections is
-        a guard taken off by another road, so it needs what taking one off needs,
-        and is recorded the same way. Pausing is not: a paused guard holds a
-        promotion back.
+        a guard taken off by another road, so it needs what taking one off needs.
+        A stricter bar lets nothing through, so anybody who may edit the suite
+        sets one. Either is recorded as a change to the guard. Pausing is
+        neither: a paused guard holds a promotion back.
+
+        Returns:
+            Whether the suite guards an environment, when the change touches
+            what it checks; False otherwise.
         """
+        threshold = data.threshold is not None and data.threshold != threshold_of(suite)
         changed = sorted(
             field
             for field, moved in (
-                ("threshold", data.threshold is not None and data.threshold != threshold_of(suite)),
+                ("threshold", threshold),
                 ("dataset_id", "dataset_id" in values),
                 ("environment_id", "environment_id" in values),
             )
             if moved
         )
         if not changed:
-            return
+            return False
         guarded = await promotion_gate_repo.guarded_by(
             self.db, suite.id, organization_id=ctx.organization_id
         )
         if not guarded:
-            return
+            return False
         from app.services.promotion_gate import PromotionGateService
 
         names = ", ".join(environment.name for environment in guarded)
-        if not PromotionGateService.may_override(ctx):
+        weakens = changed != ["threshold"] or (
+            data.threshold is not None and loosens(threshold_of(suite), data.threshold)
+        )
+        if weakens and not PromotionGateService.may_override(ctx):
             raise AuthorizationError(
                 message=(
-                    f"'{suite.name}' guards {names}. Changing what it checks needs "
-                    "permission to override promotions."
+                    f"'{suite.name}' guards {names}. Loosening its threshold, or changing its "
+                    "dataset or environment, needs permission to override promotions."
                 ),
                 details={"suite_id": suite.id, "permission": Perm.PROMOTIONS_OVERRIDE.value},
             )
@@ -570,6 +678,64 @@ class EvalSuiteService:
                     "fields": changed,
                 },
             )
+        return True
+
+    async def move_pin(self, ctx: AuthContext, agent_id: UUID, suite_id: UUID) -> EvalSuiteRead:
+        """Move a guard onto its dataset's latest version and scoring.
+
+        A pin that is current already changes nothing and records nothing.
+
+        Raises:
+            NotFoundError: No such suite on the agent.
+            AuthorizationError: The caller may not edit the agent, or may not
+                override promotions.
+            BadRequestError: The suite guards no environment.
+        """
+        agent = await self._editable(ctx, agent_id)
+        suite = await self._suite(ctx, agent.id, suite_id)
+        guarded = await promotion_gate_repo.guarded_by(
+            self.db, suite.id, organization_id=ctx.organization_id
+        )
+        if not guarded:
+            raise BadRequestError(
+                message=(
+                    f"'{suite.name}' guards no environment, so it reads the latest version "
+                    "of its dataset already."
+                ),
+                details={"suite_id": suite.id},
+            )
+        from app.services.promotion_gate import PromotionGateService
+
+        if not PromotionGateService.may_override(ctx):
+            raise AuthorizationError(
+                message=(
+                    f"Moving what '{suite.name}' checks needs permission to override promotions."
+                ),
+                details={"suite_id": suite.id, "permission": Perm.PROMOTIONS_OVERRIDE.value},
+            )
+        was = _pin_record(suite)
+        await pin_to_latest(self.db, suite)
+        moved = _pin_record(suite)
+        if moved != was:
+            for environment in guarded:
+                await record_audit(
+                    self.db,
+                    actor_user_id=ctx.subject_id,
+                    organization_id=ctx.organization_id,
+                    action="agent.environment_guards_changed",
+                    target_type="agent",
+                    target_id=str(suite.agent_id),
+                    details={
+                        "environment_id": str(environment.id),
+                        "name": environment.name,
+                        "suite_id": str(suite.id),
+                        "fields": ["pin"],
+                        "from": was,
+                        "to": moved,
+                    },
+                )
+            self._announce(suite)
+        return (await self._reads(ctx, [suite]))[0]
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, suite_id: UUID) -> None:
         """Remove a suite and its results. The eval runs it started stay.
@@ -778,7 +944,7 @@ class EvalSuiteService:
                     "max_run_usd": str(over.cap),
                 },
             ) from None
-        run = await self.evals.start(ctx, agent.id, request)
+        run = await self.evals.start(ctx, agent.id, request, scoring=_pinned_scoring(suite))
         result = await eval_suite_repo.add_result(
             self.db,
             organization_id=ctx.organization_id,
@@ -800,7 +966,9 @@ class EvalSuiteService:
     ) -> None:
         if suite.max_run_usd is None:
             return
-        estimate = await self.evals.estimate(ctx, suite.agent_id, request)
+        estimate = await self.evals.estimate(
+            ctx, suite.agent_id, request, scoring=_pinned_scoring(suite)
+        )
         if estimate.total_usd > suite.max_run_usd:
             raise _OverCap(estimate.total_usd, suite.max_run_usd)
 
@@ -1123,7 +1291,9 @@ class EvalSuiteService:
         try:
             async with self.db.begin_nested():
                 await self._within_cap(owner, suite, request)
-                run = await self.evals.start(owner, suite.agent_id, request)
+                run = await self.evals.start(
+                    owner, suite.agent_id, request, scoring=_pinned_scoring(suite)
+                )
         except _OverCap as over:
             message = (
                 f"The run was estimated at ${over.estimate:.2f}, over this suite's "
@@ -1189,9 +1359,11 @@ class EvalSuiteService:
         baseline_run: UUID | None,
     ) -> EvalRunRequest:
         """A publish or a promotion runs its baseline beside it; any other run is measured
-        against the suite's last run of the same version, so it shows drift."""
+        against the suite's last run of the same version, so it shows drift. A guard
+        reads the dataset version it is pinned to."""
         return EvalRunRequest(
             dataset_id=suite.dataset_id,
+            dataset_version=suite.pinned_dataset_version,
             environment_id=suite.environment_id,
             version=version,
             paired_baseline=baseline_version is not None,

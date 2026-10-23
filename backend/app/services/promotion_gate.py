@@ -48,7 +48,6 @@ from app.schemas.promotion_gate import (
     PromotionGuardRecord,
     PromotionOverrideRead,
 )
-from app.schemas.scoring import DatasetScoring
 from app.services import change_feed
 
 if TYPE_CHECKING:
@@ -145,7 +144,7 @@ class PromotionGateService:
         the failing cases are left out, as nobody is reading them.
         """
         from app.services.eval_run import scoring_hash
-        from app.services.eval_suite import EvalSuiteService
+        from app.services.eval_suite import EvalSuiteService, reads_now
 
         org = agent.organization_id
         serving = await agent_repo.get_version(self.db, environment.version_id, organization_id=org)
@@ -167,21 +166,17 @@ class PromotionGateService:
         waiting = await eval_suite_repo.open_on_version(
             self.db, suite_ids, version.id, baseline_version=serving.version, organization_id=org
         )
-        states = [
-            (
+        states = []
+        for suite in suites:
+            dataset_version, scoring = reads_now(suite, datasets[suite.dataset_id])
+            state, result = guard_state(
                 suite,
-                *guard_state(
-                    suite,
-                    settled.get(suite.id),
-                    waiting.get(suite.id),
-                    dataset_version=datasets[suite.dataset_id].latest_version,
-                    scoring_hash=scoring_hash(
-                        DatasetScoring.model_validate(datasets[suite.dataset_id].scoring)
-                    ),
-                ),
+                settled.get(suite.id),
+                waiting.get(suite.id),
+                dataset_version=dataset_version,
+                scoring_hash=scoring_hash(scoring),
             )
-            for suite in suites
-        ]
+            states.append((suite, state, result))
         suites_service = EvalSuiteService(self.db)
         readable = (
             await suites_service.readable_datasets(
@@ -297,6 +292,11 @@ class PromotionGateService:
         await promotion_gate_repo.replace_guards(
             self.db, environment.id, wanted, organization_id=org
         )
+        await self._pin_guards(
+            added=set(wanted) - set(current),
+            removed=set(current) - set(wanted),
+            organization_id=org,
+        )
         if environment.tracks_latest:
             # The guard taken off may have been the last one holding it back.
             newest = await agent_repo.newest_version(
@@ -319,6 +319,26 @@ class PromotionGateService:
             },
         )
         return True
+
+    async def _pin_guards(
+        self, *, added: set[UUID], removed: set[UUID], organization_id: UUID
+    ) -> None:
+        """Pin a suite that has just become a guard, and unpin one that guards nothing now.
+
+        A guard checks what it was set up with until somebody who may override
+        promotions moves it; a suite guarding nothing reads the latest.
+        """
+        from app.services.eval_suite import pin_to_latest, unpin
+
+        for suite_id in sorted(added | removed):
+            suite = await eval_suite_repo.get(self.db, suite_id, organization_id=organization_id)
+            assert suite is not None, "a guard is one of the agent's suites"
+            if suite_id in added and suite.pinned_dataset_version is None:
+                await pin_to_latest(self.db, suite)
+            elif suite_id in removed and not await promotion_gate_repo.guarded_by(
+                self.db, suite_id, organization_id=organization_id
+            ):
+                await unpin(self.db, suite)
 
     async def run(
         self, ctx: AuthContext, agent_id: UUID, environment_id: UUID, data: PromotionGateRun

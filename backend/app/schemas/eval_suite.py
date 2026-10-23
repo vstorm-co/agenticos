@@ -178,6 +178,21 @@ class EvalSuiteResultList(BaseSchema):
     total: int
 
 
+class EvalSuitePin(BaseSchema):
+    """What a guard checks, beside what its dataset holds now.
+
+    A suite that guards an environment holds the dataset version and the
+    scoring it was set up with; only somebody who may override promotions
+    moves it onto newer ones.
+    """
+
+    dataset_version: int = Field(description="The dataset version the guard reads")
+    latest_dataset_version: int = Field(description="The dataset's version now")
+    scoring_current: bool = Field(
+        description="Whether the dataset is graded now as the guard grades it"
+    )
+
+
 class EvalSuiteRead(BaseSchema):
     """A suite, what it last came to, and what it is doing now."""
 
@@ -203,6 +218,9 @@ class EvalSuiteRead(BaseSchema):
     schedule: EvalSuiteSchedule | None
     next_fire_at: datetime | None
     max_run_usd: Decimal | None
+    pin: EvalSuitePin | None = Field(
+        default=None, description="Null on a suite that guards nothing, which reads the latest"
+    )
     last_result: EvalSuiteResultRead | None
     open_result: EvalSuiteResultRead | None = Field(
         description="The result running now, or waiting to start"

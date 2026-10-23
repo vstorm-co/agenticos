@@ -18,7 +18,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import EvalSuiteNotRunnableError
+from app.core.exceptions import AuthorizationError, EvalSuiteNotRunnableError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.eval_run import EvalRunEstimate
@@ -113,6 +113,7 @@ def service() -> MagicMock:
     stub.delete = AsyncMock(return_value=None)
     stub.results = AsyncMock(return_value=EvalSuiteResultList(items=[_RESULT], total=1))
     stub.run_now = AsyncMock(return_value=_RESULT)
+    stub.move_pin = AsyncMock(return_value=_SUITE)
     return stub
 
 
@@ -162,15 +163,31 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
             (await http.get(_url(one))).status_code,
             (await http.patch(_url(one), json={"is_active": False})).status_code,
             (await http.post(_url(f"{one}/run"))).status_code,
+            (await http.post(_url(f"{one}/pin"))).status_code,
         ]
         listed = await http.get(_url(f"{one}/results"), params={"skip": 20, "limit": 10})
         deleted = await http.delete(_url(one))
 
-    assert statuses == [200, 200, 200, 201, 200, 200, 201]
+    assert statuses == [200, 200, 200, 201, 200, 200, 201, 200]
+    assert service.move_pin.await_args.args[1:] == (_SUITE.agent_id, _SUITE.id)
     assert listed.status_code == 200
     assert deleted.status_code == 204
     assert service.results.await_args.kwargs == {"skip": 20, "limit": 10}
     assert listed.json()["items"][0]["status"] == "running"
+
+
+async def test_moving_a_pin_without_the_override_permission_is_forbidden(
+    client: OpenClient, service: MagicMock
+) -> None:
+    service.move_pin.side_effect = AuthorizationError(
+        message="Moving what 'Nightly' checks needs permission to override promotions.",
+        details={"suite_id": str(_SUITE.id), "permission": "promotions:override"},
+    )
+    async with client() as http:
+        response = await http.post(_url(f"/agents/{_SUITE.agent_id}/eval-suites/{_SUITE.id}/pin"))
+
+    assert response.status_code == 403
+    assert response.json()["error"]["details"]["permission"] == "promotions:override"
 
 
 async def test_a_suite_that_cannot_run_now_is_a_conflict(

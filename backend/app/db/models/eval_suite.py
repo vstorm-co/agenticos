@@ -144,9 +144,21 @@ class EvalSuite(Base, TimestampMixin):
     schedule_cron: Mapped[str | None] = mapped_column(String(120), nullable=True)
     schedule_timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="UTC")
     next_fire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A suite that guards an environment holds the dataset version and the
+    # scoring it was set up with, so editing the dataset does not move what the
+    # guard checks; only somebody who may override promotions moves them. Null
+    # on a suite that guards nothing, which reads the latest of both.
+    pinned_dataset_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pinned_scoring: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     __table_args__ = (
         UniqueConstraint("agent_id", "name", name="uq_eval_suites_agent_name"),
+        CheckConstraint(
+            "(pinned_dataset_version IS NULL) = (pinned_scoring IS NULL)",
+            name="ck_eval_suite_pin",
+        ),
         CheckConstraint(
             "(schedule_cron IS NULL) = (next_fire_at IS NULL)", name="ck_eval_suite_schedule"
         ),
