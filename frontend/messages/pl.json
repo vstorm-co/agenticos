@@ -8677,6 +8677,18 @@
         "descriptionTray": "Nowy czat z każdym z nich z menu ikony w zasobniku. Agenta przypinasz na jego stronie.",
         "empty": "Nie ma jeszcze przypiętych agentów. Otwórz agenta i wybierz Przypnij.",
         "unpin": "Odepnij"
+      },
+      "device": {
+        "title": "Ten komputer",
+        "description": "Pozwól swoim agentom pracować tutaj, gdy w czacie wybierzesz „Ten komputer” - w wybranym folderze i w trybie, który wybierzesz. Runy innych osób tu nie trafiają.",
+        "notLinked": "Niepołączony",
+        "connected": "Połączony - Twoje agenty mogą tu pracować",
+        "reconnecting": "Połączony - łączenie ponownie…",
+        "live": "Na żywo",
+        "link": "Pozwól agentom tu pracować",
+        "unlink": "Odłącz",
+        "linkFailed": "Nie udało się połączyć tego komputera.",
+        "unlinkFailed": "Nie udało się odłączyć tego komputera."
       }
     },
     "quickAsk": {

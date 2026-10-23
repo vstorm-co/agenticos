@@ -34,6 +34,9 @@ const COMMANDS: &[&str] = &[
     "use_local",
     "open_docker_download",
     "finish_onboarding",
+    "device_status",
+    "device_link",
+    "device_unlink",
 ];
 
 fn main() {

@@ -635,6 +635,8 @@ export const qk = {
     // window - read over IPC rather than HTTP, but the same kind of answer: a
     // page reads it, a change writes it back and invalidates it.
     state: () => ["desktop", "state"] as const,
+    /** This computer's own connection, which the shell reports and pushes. */
+    device: () => ["desktop", "device"] as const,
     /** The inbox's newest page as the desktop bridge reads it, once per unread count. */
     inbox: (unread: number) => ["desktop", "inbox", unread] as const,
   },

@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.clients.redis import RedisClient
 from app.core.exceptions import AuthorizationError
 from app.core.security import verify_token
+from app.db.session import get_db_context
 from app.repositories import session_repo
 from app.services.device_hub._protocol import (
     APP_FRAME,
@@ -57,6 +58,10 @@ HEARTBEAT_SECONDS = 30
 """How often the serving host renews a device's presence - well inside its lifetime."""
 
 _redis: RedisClient | None = None
+
+
+class _Disconnected(Exception):
+    """The computer's session ended while its socket was open; the socket is closed."""
 
 
 class Socket(Protocol):
@@ -234,9 +239,11 @@ async def serve(websocket: Socket, *, user_id: UUID, session_id: UUID, platform:
             anyio.create_task_group() as tasks,
         ):
             tasks.start_soon(_relay, inbox, websocket)
-            tasks.start_soon(_keep_listed, redis, device)
+            tasks.start_soon(_keep_listed, redis, device, websocket)
             await _read(websocket, redis, device)
             tasks.cancel_scope.cancel()
+    except* _Disconnected:
+        pass
     finally:
         with anyio.CancelScope(shield=True):
             await _withdraw(redis, device)
@@ -250,9 +257,21 @@ async def _announce(redis: RedisClient, device: Device) -> None:
     await redis.expire(_user_key(device.user_id), PRESENCE_TTL_SECONDS * 4)
 
 
-async def _keep_listed(redis: RedisClient, device: Device) -> None:
+async def _keep_listed(redis: RedisClient, device: Device, websocket: Socket) -> None:
+    """Renew the computer's presence while its session stays open.
+
+    The session is checked each time: "Disconnect" on the Devices screen, a
+    password change or a sign-out ends it, and the computer must stop taking
+    calls within a heartbeat rather than for as long as the socket happens to
+    stay up. 4403 tells the app not to reconnect.
+    """
     while True:
         await anyio.sleep(HEARTBEAT_SECONDS)
+        async with get_db_context() as db:
+            session = await session_repo.get_by_id(db, device.session_id)
+        if session is None or not session.is_active:
+            await websocket.close(code=4403, reason="This computer was disconnected")
+            raise _Disconnected
         await _announce(redis, device)
 
 

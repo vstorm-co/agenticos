@@ -293,3 +293,35 @@ export async function finishOnboarding(): Promise<void> {
 export async function hideQuickAsk(): Promise<void> {
   await invokeShell("hide_quick_ask");
 }
+
+/** This computer's own connection to the server, as the shell reports it (#2305). */
+export interface DeviceStatus {
+  /** The app holds a session of its own for this server. */
+  linked: boolean;
+  /** Its socket is open right now: the person's runs can reach this computer. */
+  connected: boolean;
+}
+
+/** What the shell emits whenever the connection opens, drops or is unlinked. */
+export const DEVICE_STATUS_EVENT = "device-status";
+
+export function parseDeviceStatus(value: unknown): DeviceStatus {
+  const fields = record(value, "a device status");
+  return {
+    linked: field(fields, "linked", isBoolean),
+    connected: field(fields, "connected", isBoolean),
+  };
+}
+
+export async function getDeviceStatus(): Promise<DeviceStatus> {
+  return parseDeviceStatus(await invokeShell("device_status"));
+}
+
+/** Link this computer with a pairing code; the shell asks the person to confirm. */
+export async function linkDevice(code: string): Promise<DeviceStatus> {
+  return parseDeviceStatus(await invokeShell("device_link", { code }));
+}
+
+export async function unlinkDevice(): Promise<DeviceStatus> {
+  return parseDeviceStatus(await invokeShell("device_unlink"));
+}

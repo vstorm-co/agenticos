@@ -17,6 +17,7 @@ mod appearance;
 mod blobby;
 mod console;
 mod context;
+mod device;
 mod dropped;
 mod local_stack;
 mod managed;
@@ -1137,6 +1138,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -1182,7 +1184,10 @@ pub fn run() {
             quick_ask::hide_quick_ask,
             context::take_context_files,
             context::open_accessibility_settings,
-            dropped::take_shared
+            dropped::take_shared,
+            device::device_status,
+            device::device_link,
+            device::device_unlink
         ])
         .manage(PendingSignIn::default())
         .manage(console::Granted::default())
@@ -1190,6 +1195,7 @@ pub fn run() {
         .manage(shortcuts::Bindings::default())
         .manage(context::CapturedFiles::default())
         .manage(dropped::Dropped::default())
+        .manage(device::Device::default())
         .setup(|app| {
             let handle = app.handle();
             let (mut settings, unreadable) = settings::load_or_quarantine(handle);
@@ -1230,6 +1236,9 @@ pub fn run() {
                 // shell for its state as it mounts must find the grant there.
                 start_companions(handle, server, &settings);
             }
+            // This computer's own connection, if the person linked it to this
+            // server: their runs can reach it whether or not a window is open.
+            device::start(handle);
             open_window(handle, start)?;
             shortcuts::register_all(handle, &settings.shortcuts);
             let actions = handle.clone();

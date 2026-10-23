@@ -6,7 +6,13 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
+  DEVICE_STATUS_EVENT,
   getDesktopState,
+  getDeviceStatus,
+  linkDevice,
+  parseDeviceStatus,
+  unlinkDevice,
+  type DeviceStatus,
   pinAgent,
   setBlobby,
   setShortcut,
@@ -19,6 +25,7 @@ import {
   type WindowPreferences,
 } from "@/lib/desktop/commands";
 import { listenShell, reportShellFailure } from "@/lib/desktop/shell";
+import { createPairingCode } from "@/lib/pairing-api";
 import { qk } from "@/lib/query-keys";
 import { useShell } from "@/hooks/use-shell";
 
@@ -116,4 +123,53 @@ export function useShellEvent(event: string, handler: (payload: unknown) => void
       unlisten?.();
     };
   }, [event, shell]);
+}
+
+/**
+ * Whether this computer is linked and connected (#2305), kept current by the
+ * shell's own events; disabled in a browser.
+ */
+export function useDeviceStatus() {
+  const shell = useShell();
+  const queryClient = useQueryClient();
+  const onStatus = useEffectEvent((payload: unknown) =>
+    queryClient.setQueryData(qk.desktop.device(), parseDeviceStatus(payload)),
+  );
+  useEffect(() => {
+    if (shell === null) return;
+    const unlisten = listenShell(DEVICE_STATUS_EVENT, (payload) => onStatus(payload));
+    return () => {
+      void unlisten.then((stop) => stop()).catch(() => undefined);
+    };
+  }, [shell]);
+  return useQuery({
+    queryKey: qk.desktop.device(),
+    queryFn: getDeviceStatus,
+    enabled: shell !== null,
+    staleTime: Infinity,
+  });
+}
+
+/** Link or unlink this computer; linking mints a pairing code the shell redeems. */
+export function useDeviceLink() {
+  const queryClient = useQueryClient();
+  const t = useTranslations("desktop.settings.device");
+  const settle = (status: DeviceStatus) => queryClient.setQueryData(qk.desktop.device(), status);
+  const link = useMutation({
+    mutationFn: async () => linkDevice((await createPairingCode()).code),
+    onSuccess: settle,
+    onError: (error) => {
+      reportShellFailure("linking this computer", error);
+      toast.error(t("linkFailed"));
+    },
+  });
+  const unlink = useMutation({
+    mutationFn: unlinkDevice,
+    onSuccess: settle,
+    onError: (error) => {
+      reportShellFailure("unlinking this computer", error);
+      toast.error(t("unlinkFailed"));
+    },
+  });
+  return { link, unlink };
 }

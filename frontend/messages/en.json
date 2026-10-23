@@ -8892,6 +8892,18 @@
         "descriptionTray": "A new chat with any of them from the tray icon's menu. Pin an agent from its page.",
         "empty": "No agents pinned yet. Open an agent and choose Pin.",
         "unpin": "Unpin"
+      },
+      "device": {
+        "title": "This computer",
+        "description": "Let your own agents work here when you choose \"This computer\" in a chat - in the folder you pick, as the mode you pick allows. Nobody else's runs reach it.",
+        "notLinked": "Not linked",
+        "connected": "Connected - your agents can work here",
+        "reconnecting": "Linked - reconnecting…",
+        "live": "Live",
+        "link": "Let agents work here",
+        "unlink": "Unlink",
+        "linkFailed": "This computer could not be linked.",
+        "unlinkFailed": "This computer could not be unlinked."
       }
     },
     "quickAsk": {

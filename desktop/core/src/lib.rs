@@ -5,6 +5,8 @@
 //! Pure: no window, no plugin, nothing of Tauri's. The shells own their windows;
 //! this owns the rules that make a sign-in theirs and nobody else's.
 
+pub mod device;
+
 use std::sync::Mutex;
 
 use url::Url;

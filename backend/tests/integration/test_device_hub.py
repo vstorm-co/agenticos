@@ -5,9 +5,12 @@ not be missed, a presence that lapses - so it is tested against the real thing,
 with a scripted socket standing in for the desktop app.
 """
 
+import contextlib
 import json
 from collections.abc import AsyncGenerator
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import anyio
@@ -220,12 +223,41 @@ async def test_a_listing_whose_presence_lapsed_is_dropped(redis: RedisClient) ->
     assert await redis.raw.smembers(f"devicehub:user:{user_id}") == set()
 
 
-async def test_the_heartbeat_keeps_a_device_listed(
+async def test_the_heartbeat_keeps_a_device_listed_while_its_session_is_open(
     redis: RedisClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(_hub, "HEARTBEAT_SECONDS", 0.05)
+    _session_is(monkeypatch, active=True)
     device = _hub.Device(session_id=uuid4(), user_id=uuid4(), platform="macos", connection="c")
     with anyio.move_on_after(0.2):
-        await _hub._keep_listed(redis, device)
+        await _hub._keep_listed(redis, device, _App())
     assert await redis.raw.ttl(f"devicehub:device:{device.session_id}") > 0
     await _hub._withdraw(redis, device)
+
+
+@pytest.mark.security
+async def test_a_computer_disconnected_from_devices_stops_taking_calls(
+    redis: RedisClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ "Disconnect" on the Devices screen ends the session; the open socket is
+    closed at the next heartbeat with 4403, which tells the app not to reconnect."""
+    monkeypatch.setattr(_hub, "HEARTBEAT_SECONDS", 0.05)
+    _session_is(monkeypatch, active=False)
+    user_id, session_id, app = uuid4(), uuid4(), _App()
+
+    with anyio.fail_after(5):
+        await device_hub.serve(app, user_id=user_id, session_id=session_id, platform="macos")
+
+    assert app.closed == (4403, "This computer was disconnected")
+    assert not await _connected(user_id, session_id)
+
+
+def _session_is(monkeypatch: pytest.MonkeyPatch, *, active: bool) -> None:
+    @contextlib.asynccontextmanager
+    async def no_db() -> AsyncGenerator[object]:
+        yield object()
+
+    monkeypatch.setattr(_hub, "get_db_context", no_db)
+    monkeypatch.setattr(
+        _hub.session_repo, "get_by_id", AsyncMock(return_value=SimpleNamespace(is_active=active))
+    )

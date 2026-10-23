@@ -8651,6 +8651,18 @@
         "descriptionTray": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Taskleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
         "empty": "Noch keine Agenten angeheftet. Öffne einen Agenten und wähle Anheften.",
         "unpin": "Lösen"
+      },
+      "device": {
+        "title": "Dieser Computer",
+        "description": "Lassen Sie Ihre eigenen Agents hier arbeiten, wenn Sie in einem Chat „Dieser Computer“ wählen - im gewählten Ordner, so weit der gewählte Modus es erlaubt. Runs anderer erreichen ihn nicht.",
+        "notLinked": "Nicht verbunden",
+        "connected": "Verbunden - Ihre Agents können hier arbeiten",
+        "reconnecting": "Verbunden - stellt Verbindung wieder her…",
+        "live": "Live",
+        "link": "Agents hier arbeiten lassen",
+        "unlink": "Trennen",
+        "linkFailed": "Dieser Computer konnte nicht verbunden werden.",
+        "unlinkFailed": "Dieser Computer konnte nicht getrennt werden."
       }
     }
   },
