@@ -439,7 +439,7 @@ class TeamsAdapter(ChannelAdapter):
                 },
             )
         except UrlRefusedError:
-            logger.warning("teams_upload_refused", extra={"pending": pending})
+            logger.warning("teams_upload_refused")
             return
         response.raise_for_status()
         await self._post_activity(
