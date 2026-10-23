@@ -62,7 +62,7 @@ export default function EvalRunsPage() {
     <div className="space-y-6">
       {header}
       <ListCard
-        data-tour="evals-all"
+        headerTour="evals-all"
         title={t("title")}
         counted={error || isLoading ? null : tEvals("runCount", { count: total })}
       >
@@ -73,7 +73,7 @@ export default function EvalRunsPage() {
             description={getErrorMessage(error, tErrors)}
             cta={{ label: tc("retry"), onClick: () => void refetch() }}
           />
-        ) : runs.length === 0 ? (
+        ) : total === 0 ? (
           <ListCardEmpty
             icon={FlaskConical}
             title={t("empty.title")}

@@ -32,9 +32,10 @@ export function partOfDay(hour: number): "morning" | "afternoon" | "evening" {
  *
  * "Dashboard" and a description of the page told a person nothing they did not
  * know; this line is the answer they opened it for, before any card. It reads
- * the same queries the cards below do, so it costs no request of its own. The
- * date and greeting are the browser's, not the server's: a greeting rendered
- * for the host's time zone says "good morning" at a reader's midnight.
+ * the same queries the cards below do, so beside them it costs no request of
+ * its own. The date and greeting are the browser's, not the server's: a
+ * greeting rendered for the host's time zone says "good morning" at a reader's
+ * midnight.
  */
 export function MeHeader({
   period,
@@ -92,12 +93,12 @@ export function MeHeader({
         usage ? (
           <>
             {t.rich("ran", { runs, b: bold })}{" "}
-            {waiting.length === 0
-              ? t("nothingWaiting")
-              : t.rich("waitingOn", {
+            {waiting.length > 0
+              ? t.rich("waitingOn", {
                   items: new Intl.ListFormat(locale, { type: "conjunction" }).format(waiting),
                   b: bold,
-                })}
+                })
+              : others.settled && t("nothingWaiting")}
           </>
         ) : (
           tPage("views.me.description")

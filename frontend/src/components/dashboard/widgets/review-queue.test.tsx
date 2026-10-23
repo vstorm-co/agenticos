@@ -57,6 +57,16 @@ describe("ReviewQueueWidget", () => {
     );
   });
 
+  it("sees all on the first by name between datasets holding as many", () => {
+    answer({ total: 4, datasets: [pending("b", 2, 0, 0), pending("a", 1, 1, 0)] });
+    widget();
+
+    expect(screen.getByRole("link", { name: "See all" })).toHaveAttribute(
+      "href",
+      "/datasets/a?tab=review",
+    );
+  });
+
   it("sees all on the Review tab of the dataset holding the most", () => {
     answer({ total: 9, datasets: [pending("a", 1, 0, 1), pending("b", 3, 2, 1)] });
     widget();
