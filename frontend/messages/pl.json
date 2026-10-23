@@ -2728,7 +2728,6 @@
         "row": "{suite} · {agent}",
         "count": {
           "failing": "{count} nie przechodzi",
-          "inconclusive": "{count} bez rozstrzygnięcia",
           "passing": "{count} przechodzi",
           "waiting": "{count} czeka na pierwszy run",
           "paused": "{count} wstrzymanych"

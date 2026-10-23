@@ -28,8 +28,12 @@ export function suiteSummary(overrides: Partial<EvalSuiteSummary> = {}): EvalSui
 }
 
 /** A scheduled result that passed on version 3. */
+/** What the server marks `alerting`: every settled status but a pass. */
+const ALERTING: EvalSuiteResult["status"][] = ["failed", "inconclusive", "skipped", "error"];
+
 export function suiteResult(overrides: Partial<EvalSuiteResult> = {}): EvalSuiteResult {
   return {
+    alerting: ALERTING.includes(overrides.status ?? "passed"),
     id: "result-1",
     suite_id: "suite-1",
     trigger: "schedule",

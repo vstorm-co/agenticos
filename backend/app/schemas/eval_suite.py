@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from app.agents.prompt_variables import is_time_zone
 from app.core.cron import cron_has_next
@@ -171,6 +171,14 @@ class EvalSuiteResultRead(BaseSchema):
     created_at: datetime
     started_at: datetime | None
     settled_at: datetime | None
+
+    @computed_field
+    @property
+    def alerting(self) -> bool:
+        """Whether this result tells the suite's owner - anything but a pass. The one
+        definition of a failing suite: notifications, the dashboard and the agents
+        that need attention all read it."""
+        return self.status.alerting
 
 
 class EvalSuiteResultList(BaseSchema):
