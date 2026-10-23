@@ -65,9 +65,7 @@ export function SuitePin({ suite }: { suite: EvalSuite }) {
     return (
       <div className="space-y-1.5 border-b px-5 py-3 text-xs">
         <p>{t("unpinned")}</p>
-        {latest !== null && latest > 0 && (
-          <PinAction suite={suite} label={t("pinTo", { latest })} />
-        )}
+        {latest !== null && latest > 0 && <PinAction suite={suite} label={t("move", { latest })} />}
       </div>
     );
   }

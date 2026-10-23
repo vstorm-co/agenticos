@@ -8483,7 +8483,6 @@
         "pinned": "Przypięta do datasetu v{pinned}.",
         "unpinnedBadge": "Nieprzypięta",
         "unpinned": "Nie jest jeszcze przypięta do wersji datasetu, więc wstrzymuje każdą promocję, dopóki nie zostanie przypięta.",
-        "pinTo": "Przypnij do v{latest}",
         "current": "Strzeże na datasecie v{pinned}, takim jak teraz.",
         "behind": "Przypięta do datasetu v{pinned}. Dataset jest teraz w v{latest}.",
         "scoringChanged": "Od tego czasu zmieniło się jego ocenianie.",
@@ -9527,7 +9526,7 @@
       "checking": "Run na tej wersji czeka albo trwa.",
       "stale": "Jej ostatni wynik dotyczył innych przypadków albo innego progu, niż suita ma teraz.",
       "unchecked": "Jeszcze nie działała na tej wersji.",
-      "unpinned": "Nie jest jeszcze przypięta do wersji datasetu. Zanim przejdzie, przypina ją z poziomu suity ktoś z uprawnieniem do pomijania bramki promocji."
+      "unpinned": "Ten strażnik nie ma przypiętej wersji datasetu. Zanim przejdzie, musi go przypiąć ktoś z uprawnieniem do pomijania bramki promocji."
     },
     "passing": "Każdy strażnik przeszedł na v{version}.",
     "overrideTitle": "Promuj mimo to",

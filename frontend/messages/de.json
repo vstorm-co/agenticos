@@ -9116,7 +9116,6 @@
         "pinned": "Festgelegt auf Dataset v{pinned}.",
         "unpinnedBadge": "Nicht festgelegt",
         "unpinned": "Noch auf keine Dataset-Version festgelegt, daher hält sie jede Promotion zurück, bis sie festgelegt ist.",
-        "pinTo": "Auf v{latest} festlegen",
         "current": "Wacht auf Dataset v{pinned}, wie es jetzt ist.",
         "behind": "Festgelegt auf Dataset v{pinned}. Das Dataset ist jetzt bei v{latest}.",
         "scoringChanged": "Seine Bewertung hat sich seitdem geändert.",
@@ -9627,7 +9626,7 @@
       "checking": "Ein Run auf dieser Version wartet oder läuft.",
       "stale": "Ihr letztes Ergebnis las andere Fälle oder eine andere Schwelle, als die Suite jetzt hat.",
       "unchecked": "Ist auf dieser Version noch nicht gelaufen.",
-      "unpinned": "Noch auf keine Dataset-Version festgelegt. Bevor sie bestehen kann, legt sie jemand mit der Berechtigung, Promotionen zu übergehen, in der Suite fest."
+      "unpinned": "Dieser Wächter hat keine festgelegte Dataset-Version. Bevor er bestehen kann, muss ihn jemand festlegen, der Promotionen übergehen darf."
     },
     "passing": "Jeder Wächter hat auf v{version} bestanden.",
     "overrideTitle": "Trotzdem promoten",

@@ -204,7 +204,7 @@ describe("promoting onto a guarded environment", () => {
     expect(within(dialog).getByText("Not pinned")).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        "Not pinned to a dataset version yet. Somebody who may override promotions pins it from the suite before it can pass.",
+        "This guard has no pinned dataset version. Someone who can override promotions must pin it before it can pass.",
       ),
     ).toBeInTheDocument();
     // Two badges, and the hand-paused one's own line.

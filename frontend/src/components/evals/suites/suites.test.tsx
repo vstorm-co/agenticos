@@ -320,7 +320,7 @@ describe("SuiteResultsSheet", () => {
         "Not pinned to a dataset version yet, so it holds every promotion back until it is pinned.",
       ),
     ).toBeInTheDocument();
-    await userEvent.click(within(sheet).getByRole("button", { name: "Pin to v2" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Move the pin to v2" }));
     expect((hooks.movePin as Mutation).mutate).toHaveBeenCalledWith("suite-1");
   });
 
@@ -333,7 +333,9 @@ describe("SuiteResultsSheet", () => {
       }),
     );
 
-    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: /Pin to/ })).toBeNull();
+    expect(
+      within(screen.getByRole("dialog")).queryByRole("button", { name: /Move the pin/ }),
+    ).toBeNull();
   });
 
   it("offers no move when the guard checks the dataset as it is", async () => {
