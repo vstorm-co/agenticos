@@ -130,7 +130,9 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "A capability asked for - In-app" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Urgent findings - In-app" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Findings from your watches - In-app" }),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("switch")).toHaveLength(33);
   });
 
