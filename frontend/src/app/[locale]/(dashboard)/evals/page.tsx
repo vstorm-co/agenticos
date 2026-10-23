@@ -37,6 +37,10 @@ export default function EvalRunsPage() {
     skip: page * PAGE,
     enabled: mayRead,
   });
+  // A page the total no longer reaches - another organization, runs gone out of
+  // reach - has no pager to leave it by, so the reader is taken to the last one.
+  const lastPage = Math.max(0, Math.ceil(total / PAGE) - 1);
+  if (!isLoading && !error && page > lastPage) setPage(lastPage);
   // Names need agents:view; without it a row starts at what was tested.
   const { agents } = useAgents({ enabled: can(Perm.agentsView) });
   const names = new Map(agents.map((agent) => [agent.id, agent.name]));
