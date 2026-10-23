@@ -15,7 +15,7 @@ every score that has an agent to read. The downgrade drops the column and the
 index. Scores taken out of the queue stay out.
 
 Revision ID: 0174_case_score_agent_key
-Revises: 0180_improvement_sessions
+Revises: 0178_eval_run_proposal_check
 Create Date: 2026-10-22
 """
 
@@ -28,7 +28,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from alembic import op
 
 revision: str = "0174_case_score_agent_key"
-down_revision: str | None = "0180_improvement_sessions"
+down_revision: str | None = "0178_eval_run_proposal_check"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
