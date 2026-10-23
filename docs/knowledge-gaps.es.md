@@ -1,5 +1,5 @@
 ---
-source_sha: "f929a969ec73"
+source_sha: "00fbaee07b36"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -321,7 +321,8 @@ la pregunta de la persona y se va con su run y su conversación. Revisar
 respuestas envía preguntas, respuestas y comentarios de valoraciones negativas
 al proveedor del modelo del clasificador. De cada respuesta leída se recuerda
 su veredicto, el run del clasificador y su motivo en una frase, que se va con la
-respuesta.
+respuesta y se borra cuando se borra a la persona que preguntó. El motivo solo lo
+ve quien puede ver el agent que respondió.
 
 ## Lo que las lagunas aún no detectan { #limits }
 
