@@ -1110,6 +1110,7 @@
     },
     "compacting": "Die bisherige Unterhaltung wird zusammengefasst, um im Limit des Modells zu bleiben …",
     "sandboxPreparing": "Die Sandbox wird vorbereitet. Der erste Lauf nach einem Update baut sie, das kann einige Minuten dauern …",
+    "waitingForComputer": "Warte auf Ihren Computer. Öffnen Sie dort die AgenticOS-App, dann läuft der Lauf weiter…",
     "compactingCount": "{count, plural, =1 {1 frühere Nachricht wird zusammengefasst} other {# frühere Nachrichten werden zusammengefasst}}, um die Unterhaltung im Limit des Modells zu halten …",
     "compactionImpossible": "Das Kontextmanagement kann nicht laufen: Die Instruktionen und Tools dieses Agents belegen {overhead, number} Token des ihm zugewiesenen Fensters von {window, number} Token, und das liegt bereits jenseits des Punktes, an dem verdichtet würde. Erhöhen Sie das Fenster oder den Anteil in der Toolbox.",
     "personalServices": {

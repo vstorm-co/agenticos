@@ -370,6 +370,9 @@ class FlatFileListing:
     truncated: bool
 
 
+LOCAL_PARK_SECONDS = 600.0
+"""How long a run that asked for the person's computer waits for its app to connect."""
+
 SandboxWaitSink = Callable[[bool], Awaitable[None]]
 """Told `True` when a run's sandbox is still being opened - usually its image
 being built - and `False` once that open is over, opened or failed.
@@ -667,7 +670,7 @@ class SandboxWorkspaceService:
         if config is None:
             return None
         if local is not None:
-            return await self._open_local(ctx, local)
+            return await self._open_local(ctx, local, on_wait=on_wait)
         return await self._open_config(
             config,
             ctx=ctx,
@@ -676,31 +679,42 @@ class SandboxWorkspaceService:
             on_wait=on_wait,
         )
 
-    async def _open_local(self, ctx: AuthContext, local: LocalTarget) -> OpenWorkspace:
-        """A workspace on one of the caller's own computers, connected now.
+    async def _open_local(
+        self, ctx: AuthContext, local: LocalTarget, *, on_wait: SandboxWaitSink | None = None
+    ) -> OpenWorkspace:
+        """A workspace on one of the caller's own computers.
+
+        A computer that is not connected yet is waited for, with the chat told the
+        run is waiting: the run parks until the app opens rather than failing.
 
         Raises:
             BadRequestError: The run is not a person's own (a key, a widget
                 visitor, a trigger that does not run as its creator), or none of
-                their computers is connected.
+                their computers connected while it waited.
         """
         if ctx.user_id is None or ctx.api_key_id is not None:
             raise BadRequestError(
                 message="Only your own chats can work on your computer",
                 details={"target": "local"},
             )
-        devices = await device_hub.connected(ctx.user_id)
-        device = next(
-            (d for d in devices if local.device_id is None or d.session_id == local.device_id),
-            None,
-        )
+        device = await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
+        if device is None:
+            if on_wait is not None:
+                await on_wait(True)
+            try:
+                device = await device_hub.wait_for(
+                    ctx.user_id, local.device_id, timeout=LOCAL_PARK_SECONDS
+                )
+            finally:
+                if on_wait is not None:
+                    await on_wait(False)
         if device is None:
             raise BadRequestError(
                 message="Your computer is not connected: open the AgenticOS app on it",
                 details={"target": "local"},
             )
         return OpenWorkspace(
-            workspace=Workspace(DeviceWorkspace(device.session_id, local)),
+            workspace=Workspace(DeviceWorkspace(device.session_id, ctx.user_id, local)),
             kind="service",
             scope="run",
             scope_key=f"local:{device.session_id}:{local.folder}",

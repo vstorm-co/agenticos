@@ -39,6 +39,10 @@ PROVIDER = "agenticos-device"
 FILE_TIMEOUT_SECONDS = 30.0
 """How long a file operation may take on the computer - a large read over Wi-Fi."""
 
+RECONNECT_SECONDS = 300.0
+"""How long an operation waits for a computer that dropped mid-run - a lid closed,
+Wi-Fi changed - before the tool is told it is gone."""
+
 SHELL_GRACE_SECONDS = 10.0
 """What a command gets beyond its own timeout, for the answer to travel back."""
 
@@ -62,8 +66,9 @@ class LocalTarget(BaseModel):
 class DeviceWorkspace:
     """The workspace backend for one folder on one computer."""
 
-    def __init__(self, session_id: UUID, target: LocalTarget) -> None:
+    def __init__(self, session_id: UUID, user_id: UUID, target: LocalTarget) -> None:
         self._session_id = session_id
+        self._user_id = user_id
         self._target = target
 
     @property
@@ -74,14 +79,22 @@ class DeviceWorkspace:
         return self._target.folder
 
     async def _call(self, op: str, args: dict[str, Any], *, timeout: float) -> dict[str, Any]:
-        """One operation in this folder and mode, with the hub's failures as the workspace's."""
+        """One operation in this folder and mode, with the hub's failures as the workspace's.
+
+        A computer that is gone when the operation is sent is waited for, and the
+        operation sent again once it is back: the run parks rather than fails.
+        """
+        payload = {"root": self._target.folder, "mode": self._target.mode, **args}
         try:
-            return await _hub.call(
-                self._session_id,
-                op,
-                {"root": self._target.folder, "mode": self._target.mode, **args},
-                timeout=timeout,
-            )
+            try:
+                return await _hub.call(self._session_id, op, payload, timeout=timeout)
+            except DeviceUnavailable:
+                back = await _hub.wait_for(
+                    self._user_id, self._session_id, timeout=RECONNECT_SECONDS
+                )
+                if back is None:
+                    raise
+                return await _hub.call(self._session_id, op, payload, timeout=timeout)
         except DeviceUnavailable as exc:
             raise WorkspaceUnavailableError(exc.message) from exc
         except DeviceCallTimedOut as exc:

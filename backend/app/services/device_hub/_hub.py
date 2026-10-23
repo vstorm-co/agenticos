@@ -151,6 +151,32 @@ async def connected(user_id: UUID) -> list[Device]:
     return found
 
 
+WAIT_POLL_SECONDS = 2.0
+"""How often a parked run looks for its computer again."""
+
+
+async def wait_for(user_id: UUID, device_id: UUID | None, *, timeout: float) -> Device | None:
+    """The computer once it is connected, waiting up to `timeout` for it to come back.
+
+    A laptop that slept, or an app that was closed for a moment, reconnects with
+    the same session, so a run parked on it carries on in the same folder.
+    `device_id` of `None` takes whichever of the person's computers connects.
+    """
+
+    async def find() -> Device | None:
+        devices = await connected(user_id)
+        return next((d for d in devices if device_id is None or d.session_id == device_id), None)
+
+    found = await find()
+    if found is not None or timeout <= 0:
+        return found
+    with anyio.move_on_after(timeout):
+        while found is None:
+            await anyio.sleep(WAIT_POLL_SECONDS)
+            found = await find()
+    return found
+
+
 async def call(
     session_id: UUID, op: str, args: dict[str, Any], *, timeout: float
 ) -> dict[str, Any]:

@@ -12,6 +12,7 @@ from app.services.device_hub._hub import (
     configure,
     connected,
     serve,
+    wait_for,
 )
 from app.services.device_hub._protocol import Capabilities
 from app.services.device_hub.exceptions import (
@@ -36,4 +37,5 @@ __all__ = [
     "configure",
     "connected",
     "serve",
+    "wait_for",
 ]
