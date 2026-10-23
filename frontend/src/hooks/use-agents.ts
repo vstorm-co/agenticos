@@ -17,6 +17,7 @@ import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
+import { specFixes, type SpecFix } from "@/lib/spec-fixes";
 import { SYSTEM_AGENT_KINDS } from "@/lib/system-agents";
 import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
@@ -292,6 +293,8 @@ export function useAgents({
 export type SpecRefusal = {
   readonly problems: string[];
   readonly fields: FieldProblem[];
+  /** The one-click fixes the server offered that this console can apply. */
+  readonly fixes: SpecFix[];
 };
 
 /** One agent, with the spec currently being edited. */
@@ -349,7 +352,7 @@ export function useAgent(agentId: string | null) {
   const validate = useCallback(async (): Promise<SpecRefusal> => {
     try {
       await apiClient.post<void>(`/agents/${agentId}/validate`, {});
-      return { problems: [], fields: [] };
+      return { problems: [], fields: [], fixes: [] };
     } catch (error) {
       // This read used to be `error.details`, a property `ApiError` has never
       // had, so the list the backend goes out of its way to report in full was
@@ -357,8 +360,9 @@ export function useAgent(agentId: string | null) {
       // envelope; the fallback is for the failures that are not a verdict on
       // the spec at all - a refused permission, a dropped connection.
       const problems = problemList(error);
-      if (problems === null) return { problems: [getErrorMessage(error, tErrors)], fields: [] };
-      return { problems, fields: fieldProblems(error) };
+      if (problems === null)
+        return { problems: [getErrorMessage(error, tErrors)], fields: [], fixes: [] };
+      return { problems, fields: fieldProblems(error), fixes: specFixes(error) };
     }
   }, [agentId, tErrors]);
 

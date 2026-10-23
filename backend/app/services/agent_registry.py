@@ -1511,8 +1511,9 @@ class AgentRegistryService:
                 clear some of them, each a code:
                 `use_state_workspace` turns the workspace into the files-only one,
                 which needs no sandbox connection; `stop_sharing_unbound` removes
-                from `share_with_delegates` what this agent no longer binds. A
-                client ignores a code it does not know.
+                from `share_with_delegates` what this agent cannot share - an id
+                it does not hold, and delegation itself. A client ignores a code
+                it does not know.
         """
         problems = _SpecProblems()
 

@@ -251,7 +251,7 @@ describe("useAgent validation", () => {
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(await result.current.validate()).toEqual({ problems: [], fields: [] });
+    expect(await result.current.validate()).toEqual({ problems: [], fields: [], fixes: [] });
   });
 
   it("returns every problem rather than throwing", async () => {
@@ -280,7 +280,29 @@ describe("useAgent validation", () => {
     expect(await result.current.validate()).toEqual({
       problems: ["Unknown capability: typo", "No model selected"],
       fields: [],
+      fixes: [],
     });
+  });
+
+  it("carries the fixes the refusal offered", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "This agent cannot be published yet", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "This agent cannot be published yet",
+          details: {
+            problems: ["This organization has registered no sandbox connection."],
+            fixes: ["use_state_workspace"],
+          },
+        },
+      }),
+    );
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect((await result.current.validate()).fixes).toEqual(["use_state_workspace"]);
   });
 
   it("carries the inputs a refused capability configuration named", async () => {
@@ -331,6 +353,7 @@ describe("useAgent validation", () => {
     expect(await result.current.validate()).toEqual({
       problems: ["Service unavailable"],
       fields: [],
+      fixes: [],
     });
   });
 
@@ -355,6 +378,7 @@ describe("useAgent validation", () => {
     expect(await result.current.validate()).toEqual({
       problems: ["You cannot edit this agent"],
       fields: [],
+      fixes: [],
     });
   });
 
