@@ -122,7 +122,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {change.skill_id !== null && change.base_version != null && (
+          {change.skill_id !== null && change.authoring_request_id != null && (
             <SkillCheckButton skillId={change.skill_id} proposalId={change.id} />
           )}
           <Button
@@ -166,7 +166,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
               <span className="font-medium">{t("expectedEffect")}</span> {change.expected_effect}
             </p>
           )}
-          {change.base_version != null && (
+          {change.authoring_request_id != null && (
             <EvidenceList items={change.evidence ?? []} dropped={change.evidence_dropped ?? 0} />
           )}
           <pre className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">

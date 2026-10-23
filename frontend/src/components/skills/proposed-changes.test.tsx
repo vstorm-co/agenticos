@@ -163,6 +163,7 @@ describe("ProposedChanges", () => {
     state.changes = [
       change({
         base_version: 3,
+        authoring_request_id: "request-1",
         rationale: "Readers corrected the window.",
         expected_effect: "Answers say 30 days.",
         evidence: [{ run_id: "run-12345678", quote: "It is 30 days" }],
@@ -178,14 +179,14 @@ describe("ProposedChanges", () => {
   });
 
   it("says an assistant's change cited nothing it could check", async () => {
-    state.changes = [change({ base_version: 2 })];
+    state.changes = [change({ base_version: 2, authoring_request_id: "request-1" })];
     render(<ProposedChanges canEdit />);
     await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
     expect(screen.getByText("No evidence that could be checked.")).toBeInTheDocument();
   });
 
   it("offers no check and no evidence for a change an agent's workspace wrote", async () => {
-    state.changes = [change({ base_version: null })];
+    state.changes = [change({ base_version: 4, authoring_request_id: null })];
     render(<ProposedChanges canEdit />);
     expect(screen.queryByRole("button", { name: /check/ })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));

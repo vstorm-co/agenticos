@@ -38,7 +38,15 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
         default=None,
         description=(
             "The skill version the body was written against; Apply refuses once the "
-            "skill has moved past it. Null for a change an agent's workspace wrote"
+            "skill has moved past it. Null for a new skill, and for a change an agent's "
+            "workspace wrote before proposals recorded it"
+        ),
+    )
+    authoring_request_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The authoring assistant's request that proposed it; null for a change an "
+            "agent's workspace wrote"
         ),
     )
     rationale: str = ""
