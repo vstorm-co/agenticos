@@ -5,6 +5,8 @@ import WidgetKit
 struct GlanceArgs: Decodable {
   let approvals: Int
   let running: Int
+  /// Percent of the organization's monthly cap left; absent with no cap to read.
+  let budget_left: Int?
 }
 
 /// The home-screen and lock-screen widgets' counts (#2097): the iOS half of
@@ -19,6 +21,7 @@ class WidgetPlugin: Plugin {
     }
     defaults.set(args.approvals, forKey: AppGroup.Glance.approvals)
     defaults.set(args.running, forKey: AppGroup.Glance.running)
+    defaults.set(args.budget_left ?? -1, forKey: AppGroup.Glance.budgetLeft)
     defaults.set(Date().timeIntervalSince1970, forKey: AppGroup.Glance.countedAt)
     WidgetCenter.shared.reloadAllTimelines()
     invoke.resolve()

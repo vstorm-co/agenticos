@@ -52,4 +52,8 @@
         <item quantity="other">Dodaj %d zdjęcia</item>
     </plurals>
     <string name="push_channel">Powiadomienia</string>
+    <string name="widget_budget_left">budżetu zostało</string>
+    <string name="widget_pinned_name">Przypięci agenci</string>
+    <string name="widget_pinned_description">Zacznij rozmowę z przypiętym agentem</string>
+    <string name="widget_pinned_empty">Przypnij agenta w AgenticOS, aby był tutaj</string>
 </resources>

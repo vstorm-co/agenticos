@@ -54,4 +54,8 @@
         <item quantity="other">Add %d photos</item>
     </plurals>
     <string name="push_channel">Notifications</string>
+    <string name="widget_budget_left">budget left</string>
+    <string name="widget_pinned_name">Pinned agents</string>
+    <string name="widget_pinned_description">Start a chat with an agent you pinned</string>
+    <string name="widget_pinned_empty">Pin an agent in AgenticOS to see it here</string>
 </resources>

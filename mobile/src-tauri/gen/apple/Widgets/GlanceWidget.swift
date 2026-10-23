@@ -9,21 +9,26 @@ struct GlanceEntry: TimelineEntry {
   let date: Date
   let approvals: Int
   let running: Int
+  /// Percent of this month's cap left; absent with no cap.
+  let budgetLeft: Int?
   /// Absent until the console first counted.
   let countedAt: Date?
 
   static func read() -> GlanceEntry {
     let defaults = AppGroup.defaults
     let counted = defaults?.double(forKey: AppGroup.Glance.countedAt) ?? 0
+    let budget = defaults?.object(forKey: AppGroup.Glance.budgetLeft) as? Int ?? -1
     return GlanceEntry(
       date: Date(),
       approvals: defaults?.integer(forKey: AppGroup.Glance.approvals) ?? 0,
       running: defaults?.integer(forKey: AppGroup.Glance.running) ?? 0,
+      budgetLeft: budget >= 0 ? budget : nil,
       countedAt: counted > 0 ? Date(timeIntervalSince1970: counted) : nil
     )
   }
 
-  static let preview = GlanceEntry(date: Date(), approvals: 2, running: 1, countedAt: Date())
+  static let preview = GlanceEntry(
+    date: Date(), approvals: 2, running: 1, budgetLeft: 64, countedAt: Date())
 }
 
 struct GlanceProvider: TimelineProvider {
@@ -104,6 +109,11 @@ struct GlanceView: View {
           Link(destination: ActivityLink.runs) {
             tile(entry.running, label: "glance.running", tint: false)
           }
+          if let left = entry.budgetLeft {
+            Link(destination: ActivityLink.dashboard) {
+              budgetTile(left)
+            }
+          }
         }
       }
       .widgetURL(ActivityLink.dashboard)
@@ -144,6 +154,19 @@ struct GlanceView: View {
         .foregroundStyle(tint ? Color.orange : Color.primary)
       Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
     }
+  }
+
+  private func budgetTile(_ left: Int) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text("\(left)%")
+        .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+        .monospacedDigit()
+        .foregroundStyle(left <= 10 ? Color.orange : Color.primary)
+      Text("glance.budgetLeft").font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(12)
+    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
   }
 
   private func tile(_ value: Int, label: LocalizedStringKey, tint: Bool) -> some View {

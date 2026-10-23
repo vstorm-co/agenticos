@@ -24,6 +24,7 @@ public enum AppGroup {
   public enum Glance {
     public static let approvals = "glance.approvals"
     public static let running = "glance.running"
+    public static let budgetLeft = "glance.budgetLeft"
     /// Seconds since 1970; absent until the console first counted.
     public static let countedAt = "glance.countedAt"
   }

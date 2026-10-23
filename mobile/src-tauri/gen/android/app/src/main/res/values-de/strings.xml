@@ -46,4 +46,8 @@
         <item quantity="other">%d Fotos hinzufügen</item>
     </plurals>
     <string name="push_channel">Benachrichtigungen</string>
+    <string name="widget_budget_left">Budget übrig</string>
+    <string name="widget_pinned_name">Angeheftete Agenten</string>
+    <string name="widget_pinned_description">Einen Chat mit einem angehefteten Agenten beginnen</string>
+    <string name="widget_pinned_empty">Hefte in AgenticOS einen Agenten an, um ihn hier zu sehen</string>
 </resources>

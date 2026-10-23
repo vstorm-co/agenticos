@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 import { useShellEvent } from "@/hooks/use-desktop";
 import { useAgents } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
-import { useApprovals, useRuns } from "@/hooks/use-runs";
+import { useApprovals, useRuns, useSpend } from "@/hooks/use-runs";
+import { useOrganizationList } from "@/hooks/use-organizations";
 import { useOpenShared } from "@/hooks/use-open-shared";
 import { useShell } from "@/hooks/use-shell";
 import { argumentsPreview } from "@/lib/desktop/notices";
@@ -28,7 +29,7 @@ import { updateWidget } from "@/lib/mobile/widget";
 import { iphonePush, syncIphonePush } from "@/lib/mobile/apns";
 import { phonePushStatus, syncPhonePush } from "@/lib/mobile/push";
 import { recordSessionApp } from "@/lib/session-app";
-import { useAuthStore, useComposerIntentStore } from "@/stores";
+import { useAuthStore, useComposerIntentStore, useOrgStore } from "@/stores";
 import { useLiveCallStore } from "@/stores/live-call-store";
 import { Perm } from "@/types/permissions";
 
@@ -72,7 +73,6 @@ function Bridge({ shell }: { shell: ShellInfo }) {
   } = useApprovals({ enabled: canDecide });
   const {
     runs,
-    total: running,
     isLoading: runsLoading,
     error: runsError,
   } = useRuns(undefined, {
@@ -83,6 +83,7 @@ function Bridge({ shell }: { shell: ShellInfo }) {
   });
   const { agents } = useAgents({ enabled: can(Perm.agentsView) });
   const call = useLiveCallStore((state) => state.call);
+  const budgetLeft = useBudgetLeft(can(Perm.runsView));
   const requestIntent = useComposerIntentStore((state) => state.request);
   const openShared = useOpenShared();
 
@@ -182,12 +183,15 @@ function Bridge({ shell }: { shell: ShellInfo }) {
   // or in place of a failed one, would be kept on the home screen as a fact.
   // The widget keeps its last good counts, with the time they were counted.
   const counted = !approvalsLoading && !runsLoading && !approvalsError && !runsError;
+  // The list holds questions too since they became live activities; the widget
+  // counts what is actually running.
+  const inFlight = runs.filter((run) => run.status === "running").length;
   useEffect(() => {
     if (!counted) return;
-    updateWidget({ approvals: waiting, running }).catch((error: unknown) =>
-      reportShellFailure("could not update the widget", error),
+    updateWidget({ approvals: waiting, running: inFlight, budget_left: budgetLeft }).catch(
+      (error: unknown) => reportShellFailure("could not update the widget", error),
     );
-  }, [counted, waiting, running]);
+  }, [counted, waiting, inFlight, budgetLeft]);
 
   // Signed out, or the console gone: nothing it showed is live any more.
   useEffect(() => {
@@ -233,4 +237,21 @@ function Bridge({ shell }: { shell: ShellInfo }) {
   useShellEvent(SHELL_EVENTS.activity, act);
 
   return null;
+}
+
+/**
+ * The share of the organization's monthly cap left, for the widget (#2305):
+ * the figures the dashboard's budget card reads. `null` with no cap, or none
+ * the person may read.
+ */
+function useBudgetLeft(enabled: boolean): number | null {
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const organizations = useOrganizationList();
+  const { spend } = useSpend(30, { enabled });
+  const organization = organizations.data?.find((candidate) => candidate.id === activeOrgId);
+  const cap =
+    organization?.monthly_budget_usd != null ? Number(organization.monthly_budget_usd) : null;
+  if (!enabled || cap === null || cap <= 0 || spend === undefined) return null;
+  const used = Number(spend.month_to_date_usd ?? 0);
+  return Math.max(0, Math.min(100, Math.round(((cap - used) / cap) * 100)));
 }

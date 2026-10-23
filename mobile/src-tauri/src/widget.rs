@@ -15,6 +15,9 @@ use tauri::{AppHandle, Runtime};
 pub struct Glance {
     pub approvals: u32,
     pub running: u32,
+    /// Percent of the organization's monthly cap left; absent with no cap.
+    #[serde(default)]
+    pub budget_left: Option<u8>,
 }
 
 #[cfg(mobile)]

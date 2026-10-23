@@ -72,6 +72,18 @@
                 android:resource="@xml/widget_glance_info" />
         </receiver>
 
+        <receiver
+            android:name=".PinnedAgentsWidget"
+            android:exported="false"
+            android:label="@string/widget_pinned_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_pinned_info" />
+        </receiver>
+
         <!-- What a UnifiedPush distributor (ntfy) delivers while the app is closed. -->
         <service
             android:name=".PushMessagingService"

@@ -102,5 +102,34 @@
                 android:textColor="@color/widget_muted"
                 android:textSize="13sp" />
         </LinearLayout>
+
+        <!-- Shown only when the organization has a monthly cap the console could read. -->
+        <LinearLayout
+            android:id="@+id/widget_budget"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_tile"
+            android:gravity="center_vertical"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/widget_budget_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/widget_text"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_budget_left"
+                android:textColor="@color/widget_muted"
+                android:textSize="13sp" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

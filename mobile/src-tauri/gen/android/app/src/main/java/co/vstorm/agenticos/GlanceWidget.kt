@@ -75,6 +75,11 @@ class GlanceWidget : AppWidgetProvider() {
                 if (counted == 0L) context.getString(R.string.widget_never)
                 else DateFormat.getTimeFormat(context).format(Date(counted)),
             )
+            // The share of this month's cap left, or nothing where there is no cap.
+            val budgetLeft = store.getInt("budgetLeft", -1)
+            views.setViewVisibility(R.id.widget_budget, if (budgetLeft < 0) android.view.View.GONE else android.view.View.VISIBLE)
+            views.setTextViewText(R.id.widget_budget_count, "$budgetLeft%")
+            views.setOnClickPendingIntent(R.id.widget_budget, link(context, "/dashboard", 4))
             views.setOnClickPendingIntent(R.id.widget_root, link(context, "/dashboard", 1))
             views.setOnClickPendingIntent(R.id.widget_approvals, link(context, "/runs?tab=approvals", 2))
             views.setOnClickPendingIntent(R.id.widget_running, link(context, "/runs", 3))
@@ -87,6 +92,9 @@ class GlanceWidget : AppWidgetProvider() {
 class GlanceArgs {
     var approvals: Int = 0
     var running: Int = 0
+
+    /** Percent of the organization's monthly cap left; null with no cap to read. */
+    var budget_left: Int? = null
 }
 
 /** The console's half: the counts it just read, kept for the widget. */
@@ -98,6 +106,7 @@ class WidgetPlugin(private val activity: Activity) : Plugin(activity) {
         activity.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
             .putInt("approvals", args.approvals)
             .putInt("running", args.running)
+            .putInt("budgetLeft", args.budget_left ?: -1)
             .putLong("updatedAt", System.currentTimeMillis())
             .apply()
         GlanceWidget.refresh(activity)

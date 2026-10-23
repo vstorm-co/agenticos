@@ -11,6 +11,8 @@ export interface Glance {
   approvals: number;
   /** This person's own runs in flight. */
   running: number;
+  /** Percent of the organization's monthly cap left; null with no cap to read. */
+  budget_left: number | null;
 }
 
 export async function updateWidget(glance: Glance): Promise<void> {

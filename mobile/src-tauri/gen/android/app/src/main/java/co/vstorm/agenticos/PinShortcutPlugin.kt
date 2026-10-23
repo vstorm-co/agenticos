@@ -57,6 +57,7 @@ class PinShortcutPlugin(private val activity: Activity) : Plugin(activity) {
                 .setIntent(Intent(Intent.ACTION_VIEW, link, activity, MainActivity::class.java))
                 .build()
         ShortcutManagerCompat.pushDynamicShortcut(activity, shortcut)
+        PinnedAgentsWidget.remember(activity, args.id, args.name, bytes)
         val pinnable = ShortcutManagerCompat.isRequestPinShortcutSupported(activity)
         if (pinnable) ShortcutManagerCompat.requestPinShortcut(activity, shortcut, null)
         invoke.resolve(JSObject().put("pinned", pinnable))

@@ -204,6 +204,35 @@
         }
       }
     },
+    "glance.budgetLeft": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "budget left"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "budżetu zostało"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Budget übrig"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "presupuesto restante"
+          }
+        }
+      }
+    },
     "glance.description": {
       "extractionState": "manual",
       "localizations": {

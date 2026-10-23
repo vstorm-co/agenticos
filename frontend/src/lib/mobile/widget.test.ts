@@ -10,7 +10,9 @@ describe("updateWidget", () => {
   it("hands the app the counts", async () => {
     const invoke = vi.fn(async () => null);
     window.__TAURI__ = { core: { invoke }, event: { listen: vi.fn() } };
-    await updateWidget({ approvals: 2, running: 1 });
-    expect(invoke).toHaveBeenCalledWith("update_widget", { glance: { approvals: 2, running: 1 } });
+    await updateWidget({ approvals: 2, running: 1, budget_left: 64 });
+    expect(invoke).toHaveBeenCalledWith("update_widget", {
+      glance: { approvals: 2, running: 1, budget_left: 64 },
+    });
   });
 });
