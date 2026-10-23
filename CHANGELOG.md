@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-10-23
+
 ### Added
 
 - **The agents people meet first guide them (#2301).** The general-purpose
