@@ -18,10 +18,14 @@ vi.mock("@/hooks", () => ({
   }),
   useAgents: () => ({ agents: env.agents }),
 }));
-// Kept per organization, read from their own route (Codex on #2324). Answers
-// whatever the cache holds even when disabled, as a real query would.
+// Kept per organization, read from their own route (Codex on #2324), and read
+// only for the starter agent: `asked` counts who mounted the query.
+const asked = vi.hoisted(() => ({ count: 0 }));
 vi.mock("@/hooks/use-suggestions", () => ({
-  usePersonalStarters: () => env.personal ?? [],
+  usePersonalStarters: () => {
+    asked.count += 1;
+    return env.personal ?? [];
+  },
 }));
 vi.mock("@/hooks/use-mentionables", () => ({
   useMentionables: (agentId: string | null) => ({ items: agentId === "a1" ? env.items : [] }),
@@ -46,6 +50,7 @@ describe("ChatEmptyState", () => {
     env.agents = [{ ...AGENT, starters: [] }];
     env.items = [];
     env.personal = null;
+    asked.count = 0;
   });
 
   it("opens the starter agent's chat on the person's own first messages and suggestions", async () => {
@@ -67,6 +72,8 @@ describe("ChatEmptyState", () => {
 
     expect(screen.queryByText("Show my pipeline")).toBeNull();
     expect(screen.queryByTestId("suggestions")).toBeNull();
+    // Nor asked for: another agent's empty chat may render with no query client.
+    expect(asked.count).toBe(0);
   });
 
   it("offers the chat's own to the starter agent before its first night", () => {

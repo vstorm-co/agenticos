@@ -55,14 +55,12 @@ describe("useSuggestionHistory", () => {
 });
 
 describe("usePersonalStarters", () => {
-  it("reads them only where they are offered", async () => {
+  it("offers none until they are read, then the ones written for the person", async () => {
     api.listPersonalStarters.mockResolvedValue(["Plan my week"]);
 
-    const off = renderHook(() => usePersonalStarters(false), { wrapper });
-    expect(off.result.current).toEqual([]);
-    expect(api.listPersonalStarters).not.toHaveBeenCalled();
+    const { result } = renderHook(() => usePersonalStarters(), { wrapper });
 
-    const { result } = renderHook(() => usePersonalStarters(true), { wrapper });
+    expect(result.current).toEqual([]);
     await waitFor(() => expect(result.current).toEqual(["Plan my week"]));
   });
 });

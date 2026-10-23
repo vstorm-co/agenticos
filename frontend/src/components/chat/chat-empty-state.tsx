@@ -21,6 +21,7 @@ import { useMentionables } from "@/hooks/use-mentionables";
 import { usePersonalStarters } from "@/hooks/use-suggestions";
 import { VISUALS_ID } from "@/lib/agent-spec";
 import { useAgentSelectionStore } from "@/stores";
+import type { Agent } from "@/types/agents";
 
 import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
 import { SuggestionCards } from "./suggestion-cards";
@@ -57,29 +58,43 @@ interface ChatEmptyStateProps {
 }
 
 export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
-  const t = useTranslations("chat.empty");
-  const { user } = useAuth();
-  const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
   // Whoever will answer, so the page opens on them rather than on a generic
   // sparkle and a line about streaming and tool calls. The list is the one the
   // picker already holds.
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const { agents } = useAgents({ includeArchived: true });
   const agent = agents.find((candidate) => candidate.id === selectedAgentId);
+  // The agent's own first messages, as its published version names them, in
+  // the words its author wrote. The starter agent has none and offers the
+  // person's own instead, written for them overnight in this organization
+  // (#2301) - read only here, so no other agent's empty chat asks for them.
+  const own = agent?.starters ?? [];
+  if (agent?.slug === STARTER_SLUG && !own.length) {
+    return <PersonalWelcome agent={agent} onPick={onPick} />;
+  }
+  return <Welcome agent={agent} starters={own} onPick={onPick} />;
+}
+
+function PersonalWelcome({ agent, onPick }: { agent: Agent; onPick: (prompt: string) => void }) {
+  return <Welcome agent={agent} starters={usePersonalStarters()} onPick={onPick} />;
+}
+
+interface WelcomeProps extends ChatEmptyStateProps {
+  agent: Agent | undefined;
+  /** First messages to offer, as written - the card is the message, so nothing under it. */
+  starters: string[];
+}
+
+function Welcome({ agent, starters, onPick }: WelcomeProps) {
+  const t = useTranslations("chat.empty");
+  const { user } = useAuth();
+  const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
   const description = agent?.description?.trim();
   // The list the composer reads for `@`, so it is usually in hand already.
   const { items } = useMentionables(agent ? agent.id : null);
   const draws = items.some((item) => item.kind === "capability" && item.id === VISUALS_ID);
-  // The agent's own first messages, as its published version names them, in
-  // the words its author wrote - the card is the message, so nothing under it.
-  // The starter agent has none and offers the person's own instead, written for
-  // them overnight (#2301). Without either, an agent that draws opens on what it
-  // can draw (#2302).
   const isStarter = agent?.slug === STARTER_SLUG;
-  const own = agent?.starters ?? [];
-  const written = usePersonalStarters(isStarter);
-  const personal = isStarter ? written : [];
-  const starters = own.length ? own : personal;
+  // Without first messages, an agent that draws opens on what it can draw (#2302).
   const suggestions: WelcomeSuggestion[] = starters.length
     ? starters.map((starter, index) => ({
         key: `starter-${index}`,
