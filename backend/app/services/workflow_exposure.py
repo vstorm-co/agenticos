@@ -35,6 +35,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     NotFoundError,
+    RateLimitError,
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
@@ -63,7 +64,7 @@ from app.schemas.workflow_exposure import (
     WorkflowFormSubmitted,
     delivery_url,
 )
-from app.services import portal_catalog, portals, trigger_events
+from app.services import portal_catalog, portals, rate_limit, trigger_events
 from app.services.access import WORKFLOW, resolve_access
 from app.services.agent_trigger import _next_fire
 from app.services.channels.base import IncomingMessage, split_thread
@@ -907,6 +908,7 @@ class WorkflowExposureService:
         )
         if seen is not None:
             return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
+        await self._spend_delivery_allowance(exposure)
         delivery = GithubTriggerOutput(
             event=event,
             action=named_action,
@@ -1003,6 +1005,7 @@ class WorkflowExposureService:
         )
         if seen is not None:
             return await self._replay(seen.workflow_run_id)
+        await self._spend_delivery_allowance(exposure)
 
         fire = await self._fire_context(exposure)
         if fire is None:
@@ -1038,6 +1041,23 @@ class WorkflowExposureService:
             if answer is not None:
                 return answer
         return WebhookAdmitted(run_id=run.id, duplicate=False)
+
+    async def _spend_delivery_allowance(self, exposure: WorkflowExposure) -> None:
+        """Count one run against the exposure's per-minute allowance.
+
+        Called once the signature has verified and the delivery would start a run,
+        so neither a stranger's request nor a delivery the trigger skips or has
+        already answered spends it.
+
+        Raises:
+            RateLimitError: The exposure has started as many runs this minute as it may.
+        """
+        decision = await rate_limit.workflow_webhook_allowed(str(exposure.id))
+        if not decision.allowed:
+            raise RateLimitError(
+                message="This webhook is taking too many deliveries. Try again shortly.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )
 
     async def _replay(self, run_id: UUID) -> WebhookAdmitted | WebhookAnswer:
         """What a retried delivery gets: the answer its first run gave, if it gave one."""

@@ -38,6 +38,7 @@ from app.db.models.workflow_run import WorkflowRunTrigger
 from app.db.session import get_db_context
 from app.repositories import workflow as workflow_repo
 from app.schemas.workflow_run import WorkflowRunRead
+from app.services import rate_limit
 from app.services.access import WORKFLOW, acting_member, resolve_access
 from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows.triggers import BY_HAND, DECLARES_FIELDS, WORKFLOW_CALL
@@ -233,6 +234,18 @@ def build_workflows_toolset(
             if _live_version(workflow) is None:
                 raise _Refused(
                     "That workflow is not published to start by hand, by the API or by a call."
+                )
+            # The allowance the API and the console spend, under the same key: an
+            # agent turn is one more door to the same start.
+            decision = await rate_limit.consume(
+                surface="workflow_run",
+                caller=f"user:{auth.subject_id}",
+                limit=rate_limit.run_limit(),
+            )
+            if not decision.allowed:
+                raise _Refused(
+                    "Too many workflow runs started in the last minute. "
+                    f"Wait {decision.retry_after_seconds} seconds and try again."
                 )
             return await WorkflowExecutionService(db).start(
                 auth,

@@ -18,7 +18,7 @@ under the trigger's secret is its credential, as the webhook door's is.
 `form_router` is a form's public page: its link is its only credential, so it
 carries no auth dependency either, and each submission that fits starts one run
 as the form's publisher. Both of its routes are counted per form before anything
-is read.
+is read, and so are the webhook and GitHub doors, per exposure.
 """
 
 from typing import Any
@@ -33,6 +33,7 @@ from app.api.deps import (
     WorkflowWebhookTestSvc,
     limit_form_page,
     limit_form_submission,
+    limit_workflow_webhook,
 )
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
@@ -130,7 +131,10 @@ async def receive_workflow_webhook_test(
 
 
 @webhook_router.post(
-    "/{exposure_id}", response_model=WebhookAdmitted, status_code=status.HTTP_202_ACCEPTED
+    "/{exposure_id}",
+    response_model=WebhookAdmitted,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(limit_workflow_webhook)],
 )
 async def receive_workflow_webhook(
     exposure_id: UUID, request: Request, service: WorkflowExposureSvc
@@ -159,6 +163,7 @@ async def receive_workflow_webhook(
     "/{exposure_id}",
     response_model=WebhookAdmitted | WebhookSkipped,
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(limit_workflow_webhook)],
 )
 async def receive_workflow_github(
     exposure_id: UUID, request: Request, service: WorkflowExposureSvc

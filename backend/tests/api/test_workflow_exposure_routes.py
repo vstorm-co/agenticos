@@ -138,6 +138,28 @@ class TestExposureRoutes:
         assert answered.json() == {"lead": 1}
 
 
+class TestWebhookDeliveriesAreCounted:
+    @pytest.mark.security
+    @pytest.mark.parametrize("door", ["workflow-webhooks", "workflow-github"])
+    async def test_an_address_over_its_allowance_is_refused_before_the_service(self, wired, door):
+        from app.services import rate_limit
+
+        client, service = wired
+        exposure_id = uuid.uuid4()
+        over = rate_limit.Decision(allowed=False, retry_after_seconds=9)
+        with patch.object(rate_limit, "consume", AsyncMock(return_value=over)) as consume:
+            answered = await client.post(
+                f"{settings.API_V1_STR}/{door}/{exposure_id}", content=b"{}"
+            )
+
+        assert answered.status_code == 429
+        assert answered.headers["retry-after"] == "9"
+        assert consume.await_args.kwargs["surface"] == "workflow_webhook_ip"
+        assert consume.await_args.kwargs["caller"].startswith("ip:")
+        service.receive_webhook.assert_not_called()
+        service.receive_github.assert_not_called()
+
+
 class TestTheSocketRoute:
     async def test_frames_reach_the_session_and_the_stream_stops_on_disconnect(self):
         """The handler called directly: a real handshake would start the app's

@@ -54,6 +54,26 @@ class WorkflowAdmissionQuotaError(AppException):
         )
 
 
+class WorkflowFileQuotaError(AppException):
+    """A step's file would take a run or an organization past its stored-bytes ceiling (413).
+
+    `scope` is `run` or `organization`. Not retried: the same bytes would pass the
+    same ceiling again, so the step fails with `FILE_QUOTA_EXCEEDED`.
+    """
+
+    message = (
+        "Storing this file would pass the workflow file storage limit. "
+        "Delete old runs, or set a run retention on the workflows that make files, to free space."
+    )
+    code = "FILE_QUOTA_EXCEEDED"
+    status_code = 413
+
+    def __init__(self, *, scope: str, limit: int, stored: int, requested: int) -> None:
+        super().__init__(
+            details={"scope": scope, "limit": limit, "stored": stored, "requested": requested}
+        )
+
+
 class WorkflowBudgetReachedError(AppException):
     """The workflow's runs have spent its monthly budget, so no run starts (402).
 

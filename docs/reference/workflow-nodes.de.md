@@ -1,5 +1,5 @@
 ---
-source_sha: "0e318662a0c3"
+source_sha: "a04367cfdf6b"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -546,6 +546,7 @@ beim erneuten Versuch.
 | Der Server bietet das Tool nicht an | `MCP_TOOL_NOT_FOUND` |
 | Der Server war nicht erreichbar oder brach ab | `MCP_CALL_FAILED` |
 | Das Tool antwortete mit einem Fehler | `MCP_TOOL_ERROR` oder die Antwort als Ausgabe |
+| Die strukturierte Antwort ist größer als 1 MiB | `MCP_RESULT_TOO_LARGE` |
 
 ::: app.workflows.nodes.mcp_call._handler.McpCallConfig
 
@@ -613,6 +614,7 @@ auf einer Uhr geparkt, deren Dispatch-Zeile dann fällig wird, sodass das Warten
 Worker-Neustart übersteht und keinen Worker belegt; andere Zweige laufen derweil
 weiter. Ein bereits vergangener Zeitpunkt geht sofort weiter, und die Frist des Laufs
 gilt weiterhin.
+Ein gebundenes `until`, das mehr als dreißig Tage nach Erreichen des Schritts liegt, lässt den Schritt mit `WAIT_TOO_LONG` scheitern.
 
 Mit **Wait for a call to the run's resume link** wartet der Schritt stattdessen, bis
 die Adresse aufgerufen wird, die ein **Resume link**-Schritt gab, höchstens `seconds`
@@ -826,6 +828,7 @@ Zuschnittsbereich und eine angeforderte Größe werden jeweils gegen
 `CHAT_IMAGE_MAX_PIXELS` geprüft, und das Ergebnis trägt keine Metadaten der Quelle.
 Jeder Schritt, der eine Datei speichert, speichert bei jedem Versuch eine neue, also
 ist er `at_least_once`.
+Die Dateien eines Runs dürfen zusammen `WORKFLOW_RUN_MAX_FILE_BYTES` belegen, die einer Organisation `WORKFLOW_ORG_MAX_FILE_BYTES`. Ein Schritt, dessen Datei eines davon überschreiten würde, scheitert mit `FILE_QUOTA_EXCEEDED` und speichert nichts. Um Platz zu schaffen, lösche alte Runs oder lege bei den Workflows, die Dateien erzeugen, eine Aufbewahrungsdauer für Runs fest.
 
 ::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
 

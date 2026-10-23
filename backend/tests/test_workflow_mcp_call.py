@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from mcp.types import (
     CallToolResult,
+    ImageContent,
     ListToolsResult,
     TextContent,
     Tool,
@@ -298,6 +299,7 @@ async def test_only_text_parts_make_the_text_and_only_an_object_is_structured(se
     server.result = CallToolResult(
         content=[
             TextContent(type="text", text="one"),
+            ImageContent(type="image", data="aGk=", mimeType="image/png"),
             TextContent(type="text", text="two"),
         ],
         structured_content=None,
@@ -307,6 +309,31 @@ async def test_only_text_parts_make_the_text_and_only_an_object_is_structured(se
 
     assert isinstance(result, Completed)
     assert result.output.text == "one\n\ntwo" and result.output.structured is None
+
+
+async def test_parts_past_the_cap_are_never_read_or_joined(server):
+    # A part built without its text raises if anything reads it: the old code joined
+    # every part before slicing, and so did.
+    unread = TextContent.model_construct(type="text")
+    server.result = CallToolResult(
+        content=[TextContent(type="text", text="x" * (node.MAX_TEXT * 3)), unread, unread],
+        structured_content=None,
+    )
+
+    result = await _run(_config())
+
+    assert isinstance(result, Completed) and len(result.output.text) == node.MAX_TEXT
+
+
+async def test_a_structured_answer_over_the_cap_fails_instead_of_being_stored(server, monkeypatch):
+    monkeypatch.setattr(node, "MAX_STRUCTURED_BYTES", 20)
+    server.result = CallToolResult(
+        content=[TextContent(type="text", text="ok")], structured_content={"rows": "y" * 100}
+    )
+
+    result = await _run(_config())
+
+    assert isinstance(result, Failed) and result.error.code == "MCP_RESULT_TOO_LARGE"
 
 
 async def test_a_step_with_no_config_fails():

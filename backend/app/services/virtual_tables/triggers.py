@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
 from app.db.models.virtual_table import (
     VirtualTable,
     VirtualTableOutbox,
@@ -565,15 +566,24 @@ class TableTriggerConsumer:
             await record(AdmissionStatus.FAILED, AdmissionReason.PERMISSION_DENIED)
             return None
         ctx, workflow, version = fire
-        if (
-            causing is not None
-            and await workflow_run_repo.count_runs_in_chain(
-                self.db, root_run_id=causing.root_run_id
+        if causing is not None:
+            # Counted under the chain's lock, held to the end of this transaction:
+            # a second pass over another event of the chain waits here, then counts
+            # this pass's run, so the two cannot both pass at the limit. The
+            # admission locks come first, as `admit_pinned` takes them, so no two
+            # passes take the same pair in opposite orders.
+            await workflow_run_repo.lock_admission(
+                self.db, organization_id=ctx.organization_id, principal_user_id=ctx.subject_id
             )
-            >= MAX_RUNS_PER_ROOT
-        ):
-            await record(AdmissionStatus.BLOCKED, AdmissionReason.QUOTA)
-            return None
+            await hold_subject(self.db, LockScope.WORKFLOW_RUN_CHAIN, causing.root_run_id)
+            if (
+                await workflow_run_repo.count_runs_in_chain(
+                    self.db, root_run_id=causing.root_run_id
+                )
+                >= MAX_RUNS_PER_ROOT
+            ):
+                await record(AdmissionStatus.BLOCKED, AdmissionReason.QUOTA)
+                return None
         payload = TableRecordTriggerOutput(
             table_id=table.id,
             record_id=event.record_id,

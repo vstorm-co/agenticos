@@ -22,6 +22,10 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from uuid import uuid4
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow_file import WorkflowFile
 from app.db.session import get_worker_db_context
 from app.repositories import workflow_file as workflow_file_repo
@@ -31,7 +35,9 @@ from app.services.file_storage import (
     sniff_container,
     sniff_image_header,
 )
+from app.services.file_upload import zip_has_too_many_members
 from app.services.workflow_execution import context
+from app.services.workflow_execution.exceptions import WorkflowFileQuotaError
 from app.workflows.contracts.io import FileRef
 from app.workflows.contracts.results import Failed, WorkflowError
 
@@ -95,7 +101,13 @@ def sniff(data: bytes) -> str:
 
 
 def _is_docx(data: bytes) -> bool:
-    """Whether a ZIP holds a Word document - its central directory names one."""
+    """Whether a ZIP holds a Word document - its central directory names one.
+
+    A ZIP declaring more members than `CHAT_ARCHIVE_MAX_MEMBERS` is not opened:
+    it is no Word document, and listing it would cost more than the answer is worth.
+    """
+    if zip_has_too_many_members(data):
+        return False
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             return "word/document.xml" in archive.namelist()
@@ -159,6 +171,11 @@ async def save(data: bytes, *, content_type: str, filename: str | None) -> FileR
 
     Every call mints a new file, so a step that saves is `at_least_once`: a retry
     after a lost answer stores a second copy rather than finding the first.
+
+    Raises:
+        WorkflowFileQuotaError: The run, or its organization, would hold more
+            stored bytes than `WORKFLOW_RUN_MAX_FILE_BYTES` /
+            `WORKFLOW_ORG_MAX_FILE_BYTES`. The stored object is removed first.
     """
     current = context.current()
     file_id = uuid4()
@@ -166,6 +183,7 @@ async def save(data: bytes, *, content_type: str, filename: str | None) -> FileR
     await get_file_storage().save_at(storage_path, data)
     try:
         async with get_worker_db_context() as db:
+            await _enforce_quota(db, len(data))
             await workflow_file_repo.create(
                 db,
                 file_id=file_id,
@@ -181,3 +199,23 @@ async def save(data: bytes, *, content_type: str, filename: str | None) -> FileR
         await delete_files_best_effort([storage_path])
         raise
     return FileRef(file_id=file_id, content_type=content_type, byte_size=len(data))
+
+
+async def _enforce_quota(db: AsyncSession, size: int) -> None:
+    """Refuse a file that would pass the run's or the organization's stored-bytes ceiling.
+
+    Sums under the organization's lock, held until the row is inserted, so two
+    steps saving at once cannot both pass at the ceiling.
+    """
+    current = context.current()
+    await hold_subject(db, LockScope.WORKFLOW_FILE_BYTES, current.organization_id)
+    ceilings = (
+        ("run", settings.WORKFLOW_RUN_MAX_FILE_BYTES, current.workflow_run_id),
+        ("organization", settings.WORKFLOW_ORG_MAX_FILE_BYTES, None),
+    )
+    for scope, limit, run_id in ceilings:
+        stored = await workflow_file_repo.sum_bytes(
+            db, organization_id=current.organization_id, workflow_run_id=run_id
+        )
+        if stored + size > limit:
+            raise WorkflowFileQuotaError(scope=scope, limit=limit, stored=stored, requested=size)

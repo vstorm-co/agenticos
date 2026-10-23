@@ -451,6 +451,32 @@ async def form_submission_allowed(token: str) -> Decision:
     )
 
 
+async def workflow_webhook_allowed(exposure_id: str) -> Decision:
+    """Whether a workflow's webhook may start another run right now.
+
+    Per exposure, and spent only once a delivery's signature has verified and it
+    would start a run: a stranger who knows the address must not be able to use
+    up the real sender's allowance.
+    """
+    return await consume(
+        surface="workflow_webhook",
+        caller=f"exposure:{exposure_id}",
+        limit=Limit(attempts=settings.RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE),
+    )
+
+
+async def workflow_webhook_ip_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may send the webhook doors another request right now.
+
+    Counted before the exposure is looked up, so probing for live ids is not free.
+    """
+    return await consume(
+        surface="workflow_webhook_ip",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE),
+    )
+
+
 ARTIFACT_CONTENT_LOADS_PER_MINUTE = 10
 """How often one signed artifact address may be loaded in a minute.
 

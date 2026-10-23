@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
@@ -31,6 +32,7 @@ from app.db.models.workflow_run import WorkflowRun
 from app.db.updates import writable
 from app.repositories import resource_grant_repo
 from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import (
     NodeCatalog,
@@ -53,6 +55,7 @@ from app.schemas.workflow import (
     WorkflowVersionRestore,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
+from app.services.file_storage import delete_files_best_effort
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 from app.services.workflow_execution.exceptions import WorkflowArchivedError
 from app.services.workflow_triggers import WorkflowTriggerSync
@@ -676,6 +679,12 @@ class WorkflowRegistryService:
             resource_type=WORKFLOW.key,
             resource_id=workflow.id,
         )
+        # Read before the cascade removes the rows that name them: the stored
+        # bytes outlive the rows unless they are unlinked, and would no longer
+        # count against the organization's file quota.
+        stored = await workflow_file_repo.storage_paths_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
         try:
             async with self.db.begin_nested():
                 await workflow_repo.delete(self.db, workflow)
@@ -684,6 +693,8 @@ class WorkflowRegistryService:
                 message="Runs of another workflow were started by this one's. Archive it instead.",
                 details={"workflow_id": str(workflow_id)},
             ) from None
+        if stored:
+            spawn_after_commit(self.db, delete_files_best_effort(stored), name="workflow-files")
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

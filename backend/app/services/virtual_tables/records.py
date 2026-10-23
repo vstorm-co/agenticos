@@ -338,7 +338,7 @@ def _csv_line(cells: list[str]) -> str:
 def _export_cell(column: ColumnDef, record: RecordRead) -> str:
     """One cell of an export: a link by the names of its records, anything else as read."""
     if column.type == "link" and str(column.id) in record.links:
-        return "; ".join(linked.label for linked in record.links[str(column.id)])
+        return _neutralized("; ".join(linked.label for linked in record.links[str(column.id)]))
     return _cell_text(column, record.values.get(str(column.id)))
 
 
@@ -356,6 +356,11 @@ def _cell_text(column: ColumnDef, value: CellValue) -> str:
         text = "; ".join(labels.get(str(item), str(item)) for item in value)
     else:
         text = labels.get(value, value)
+    return _neutralized(text)
+
+
+def _neutralized(text: str) -> str:
+    """`text` as a CSV cell: one a spreadsheet would run as a formula gets a leading quote."""
     return f"'{text}" if _FORMULA.match(text) else text
 
 
@@ -853,7 +858,7 @@ class RecordOperations(Operations):
 
         async def lines() -> AsyncIterator[str]:
             # A byte-order mark, so a spreadsheet reads the file as UTF-8.
-            yield "\ufeff" + _csv_line([column.label for column in chosen])
+            yield "\ufeff" + _csv_line([_neutralized(column.label) for column in chosen])
             skip = 0
             while True:
                 rows = await virtual_table_repo.list_records(

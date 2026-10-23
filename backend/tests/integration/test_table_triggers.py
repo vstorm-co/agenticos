@@ -65,6 +65,7 @@ from app.schemas.virtual_table import (
 )
 from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.workflow import WorkflowPublish
+from app.services.virtual_tables import triggers
 from app.services.virtual_tables.exceptions import SchemaDependencyError
 from app.services.virtual_tables.facade import VirtualTableService
 from app.services.virtual_tables.triggers import (
@@ -764,6 +765,43 @@ async def test_a_chain_too_deep_or_too_long_is_blocked(world: _World):
         await db.commit()
     # The chain's root is its one run so far, the quota of this patched one.
     assert ("blocked", "quota") in _statuses(await world.admissions(trigger_id))
+
+
+async def test_a_chains_run_count_is_read_under_the_chains_lock(world: _World):
+    contacts = await world.table("Contacts")
+    graph = _on_new_record(world.leads, into=contacts)
+    await world.publish(await world.workflow(), graph)
+    await world.trigger(table=contacts)
+    await world.add({"Email": "start@x"})
+    ((root, _entry),) = await world.consume()
+    await world.drive(root, graph)
+
+    calls: list[str] = []
+    real_hold, real_count = triggers.hold_subject, triggers.workflow_run_repo.count_runs_in_chain
+    real_admission = triggers.workflow_run_repo.lock_admission
+
+    async def hold(db, scope, subject):
+        calls.append(f"lock:{scope.name}:{subject == root}")
+        await real_hold(db, scope, subject)
+
+    async def admission(db, **kwargs):
+        calls.append("lock:ADMISSION")
+        await real_admission(db, **kwargs)
+
+    async def count(db, **kwargs):
+        calls.append("count")
+        return await real_count(db, **kwargs)
+
+    with (
+        patch.object(triggers, "hold_subject", hold),
+        patch.object(triggers.workflow_run_repo, "count_runs_in_chain", count),
+        patch.object(triggers.workflow_run_repo, "lock_admission", admission),
+    ):
+        await world.consume()
+
+    # The organization's admission lock, then the chain's, then the count: the order
+    # `admit_pinned` takes the first in, so two passes cannot hold them crosswise.
+    assert calls[:3] == ["lock:ADMISSION", "lock:WORKFLOW_RUN_CHAIN:True", "count"]
 
 
 async def test_a_record_whose_creation_is_gone_fails_as_unavailable(world: _World):

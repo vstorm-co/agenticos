@@ -76,7 +76,7 @@ async def _publish(db, ctx, workflow, graph):
     )
 
 
-async def _unfinished_run(db, ctx, workflow) -> None:
+async def _unfinished_run(db, ctx, workflow) -> WorkflowRun:
     graph = _graph("core.input")
     run = await workflow_run_repo.create_run(
         db,
@@ -100,6 +100,7 @@ async def _unfinished_run(db, ctx, workflow) -> None:
     await workflow_run_repo.update_run(
         db, run=run, update_data={"status": WorkflowRunStatus.WAITING_APPROVAL.value}
     )
+    return run
 
 
 async def test_an_organization_with_no_workflows_lists_none(db):
@@ -293,6 +294,40 @@ class TestDeleting:
             select(ResourceGrant).where(ResourceGrant.resource_id == workflow.id)
         )
         assert grants.all() == []
+
+    @pytest.mark.security
+    async def test_deleting_removes_the_stored_files_of_its_runs(self, db, tenant, tmp_path):
+        from app.core.background import drain, start_deferred
+        from app.repositories import workflow_file as workflow_file_repo
+        from app.services.file_storage import LocalFileStorage
+
+        ctx, workflow = tenant
+        run = await _unfinished_run(db, ctx, workflow)
+        await workflow_run_repo.update_run(
+            db, run=run, update_data={"status": WorkflowRunStatus.SUCCEEDED.value}
+        )
+        storage = LocalFileStorage(tmp_path)
+        path = f"workflow-files/{ctx.organization_id}/{run.id}/{uuid.uuid4()}"
+        await storage.save_at(path, b"bytes")
+        await workflow_file_repo.create(
+            db,
+            file_id=uuid.uuid4(),
+            organization_id=ctx.organization_id,
+            workflow_run_id=run.id,
+            producing_node_run_id=None,
+            storage_path=path,
+            content_type="text/plain",
+            byte_size=5,
+            filename=None,
+        )
+
+        with patch("app.services.file_storage.get_file_storage", return_value=storage):
+            await WorkflowRegistryService(db).delete(ctx, workflow.id)
+            assert await storage.exists(path)  # nothing is unlinked before the commit
+            start_deferred(db)
+            await drain()
+
+        assert not await storage.exists(path)
 
     async def test_a_workflow_with_a_run_still_going_is_not_deleted(self, db, tenant):
         ctx, workflow = tenant

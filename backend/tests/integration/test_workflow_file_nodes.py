@@ -786,3 +786,70 @@ class TestSniffing:
 
     def test_a_zip_that_is_not_one_is_just_a_zip(self):
         assert files._is_docx(b"PK\x03\x04 not a real archive") is False
+
+    def test_a_zip_of_countless_members_is_refused_before_it_is_listed(self, monkeypatch):
+        monkeypatch.setattr(settings, "CHAT_ARCHIVE_MAX_MEMBERS", 50)
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w") as archive:
+            archive.writestr("word/document.xml", "<x/>")
+            for number in range(200):
+                archive.writestr(f"m{number}", "")
+        data = out.getvalue()
+        with patch.object(files.zipfile, "ZipFile", side_effect=AssertionError("listed")):
+            assert files._is_docx(data) is False
+
+    def test_a_zip_that_forges_its_member_count_is_still_bounded_by_its_directory(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "CHAT_ARCHIVE_MAX_MEMBERS", 50)
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w") as archive:
+            for number in range(200):
+                archive.writestr(f"m{number}", "")
+        forged = bytearray(out.getvalue())
+        end = forged.rfind(b"PK\x05\x06")
+        forged[end + 10 : end + 12] = (1).to_bytes(2, "little")
+        forged[end + 12 : end + 16] = (50 * 512 + 1).to_bytes(4, "little")
+        with patch.object(files.zipfile, "ZipFile", side_effect=AssertionError("listed")):
+            assert files._is_docx(bytes(forged)) is False
+
+
+class TestStoredBytesQuota:
+    @pytest.mark.security
+    async def test_a_run_past_its_byte_ceiling_stores_nothing_more(
+        self, engine, storage, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_FILE_BYTES", 8)
+        first, second = _node("file.write"), _node("file.write")
+        graph = _chain(
+            first,
+            second,
+            bindings=[_literal(first, "text", "12345"), _literal(second, "text", "67890")],
+        )
+        seeded = await seed_run(engine, graph)
+        await drive(seeded)
+        error = await _error(seeded)
+        assert error["code"] == "FILE_QUOTA_EXCEEDED"
+        assert error["retryable"] is False
+        assert error["details"]["scope"] == "run"
+        async with seeded.factory() as db:
+            rows = (await db.execute(select(WorkflowFile))).scalars().all()
+        assert [row.byte_size for row in rows] == [5]
+        assert len([path for path in Path(storage.base_dir).rglob("*") if path.is_file()]) == 1
+
+    @pytest.mark.security
+    async def test_an_organization_past_its_byte_ceiling_stores_nothing_more(
+        self, engine, storage, monkeypatch
+    ):
+        member = await _member(engine)
+        earlier = await seed_run(engine, _chain(_node("debug.echo"), bindings=[]), member=member)
+        await _stored(engine, storage, earlier.run, b"123456", content_type="text/plain")
+        monkeypatch.setattr(settings, "WORKFLOW_ORG_MAX_FILE_BYTES", 8)
+        write = _node("file.write")
+        seeded = await seed_run(
+            engine, _chain(write, bindings=[_literal(write, "text", "abcd")]), member=member
+        )
+        await drive(seeded)
+        error = await _error(seeded)
+        assert error["code"] == "FILE_QUOTA_EXCEEDED"
+        assert error["details"]["scope"] == "organization"

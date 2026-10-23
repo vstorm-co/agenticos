@@ -46,6 +46,10 @@ from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiti
 MAX_TEXT = 100_000
 """The most of a tool's text answer a step keeps - a page, not a dump."""
 
+MAX_STRUCTURED_BYTES = 1_048_576
+"""The most a tool's structured answer may take as JSON. The answer is stored with the
+step's attempt, so a larger one fails the step instead of being kept."""
+
 
 class McpCallConfig(BaseModel):
     """Which server, which tool, and when a person approves the call first."""
@@ -157,14 +161,34 @@ def _failed(code: str, message: str, **details: str) -> Failed:
     return Failed(error=WorkflowError(code=code, message=message, details=dict(details)))
 
 
-def _answer(result: Any) -> McpCallOutput:
-    """A `CallToolResult` as the step's output: its text parts, its data, its error flag."""
+def _answer(result: Any) -> McpCallOutput | Failed:
+    """A `CallToolResult` as the step's output: its text parts, its data, its error flag.
+
+    Text is joined only up to `MAX_TEXT`, so a server's gigabyte of parts costs no more
+    than the page kept. Data past `MAX_STRUCTURED_BYTES` fails the step with
+    `MCP_RESULT_TOO_LARGE`.
+    """
     from mcp.types import TextContent
 
-    text = "\n\n".join(part.text for part in result.content if isinstance(part, TextContent))
+    pieces: list[str] = []
+    size = 0
+    for part in result.content:
+        if size >= MAX_TEXT:
+            break
+        if isinstance(part, TextContent):
+            pieces.append(part.text[:MAX_TEXT])
+            size += len(pieces[-1]) + 2
     structured = result.structured_content
+    if isinstance(structured, dict) and (
+        len(json.dumps(structured, default=str)) > MAX_STRUCTURED_BYTES
+    ):
+        return _failed(
+            "MCP_RESULT_TOO_LARGE",
+            f"The tool's structured answer is larger than {MAX_STRUCTURED_BYTES} bytes",
+            limit_bytes=str(MAX_STRUCTURED_BYTES),
+        )
     return McpCallOutput(
-        text=text[:MAX_TEXT],
+        text="\n\n".join(pieces)[:MAX_TEXT],
         structured=structured if isinstance(structured, dict) else None,
         is_error=bool(result.is_error),
     )

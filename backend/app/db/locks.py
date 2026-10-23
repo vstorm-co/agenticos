@@ -66,6 +66,13 @@ class LockScope(IntEnum):
     #: a changed spec publishes a version, each read-then-write: two runs of the step
     #: at once would otherwise create it twice or publish the same spec twice.
     WORKFLOW_STEP_AGENT = 10
+    #: The stored file bytes of one organization. A quota sums what is stored and
+    #: then inserts, which two steps can do at once and both pass at the ceiling.
+    WORKFLOW_FILE_BYTES = 11
+    #: The runs of one workflow chain, from its root run. A table trigger counts the
+    #: chain's runs and then admits one; two passes over events of one chain read the
+    #: same count and both admit past the limit, so the count is taken under this.
+    WORKFLOW_RUN_CHAIN = 12
 
 
 def _key(subject: UUID) -> int:

@@ -20,13 +20,37 @@ function wrapper({ children }: { children: ReactNode }) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("useWorkflowTables", () => {
-  it("asks for one large page and returns its items", async () => {
+  it("asks for a page of a hundred and returns its items", async () => {
     vi.mocked(api.listTables).mockResolvedValue({ items: [{ id: "t1" }] as never, total: 1 });
     const { result } = renderHook(() => useWorkflowTables(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(api.listTables).toHaveBeenCalledWith({ limit: 100 });
+    expect(api.listTables).toHaveBeenCalledWith({ skip: 0, limit: 100 });
     expect(result.current.tables).toEqual([{ id: "t1" }]);
     expect(result.current.total).toBe(1);
+  });
+
+  it("walks every page so a table past the first hundred can be picked", async () => {
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, index) => ({ id: `t${from + index}` }));
+    vi.mocked(api.listTables)
+      .mockResolvedValueOnce({ items: page(0, 100) as never, total: 130 })
+      .mockResolvedValueOnce({ items: page(100, 30) as never, total: 130 });
+    const { result } = renderHook(() => useWorkflowTables(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(api.listTables).toHaveBeenNthCalledWith(1, { skip: 0, limit: 100 });
+    expect(api.listTables).toHaveBeenNthCalledWith(2, { skip: 100, limit: 100 });
+    expect(result.current.tables).toHaveLength(130);
+    expect(result.current.total).toBe(130);
+  });
+
+  it("stops walking when a page comes back empty", async () => {
+    vi.mocked(api.listTables)
+      .mockResolvedValueOnce({ items: [{ id: "t0" }] as never, total: 5 })
+      .mockResolvedValueOnce({ items: [], total: 5 });
+    const { result } = renderHook(() => useWorkflowTables(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(api.listTables).toHaveBeenCalledTimes(2);
+    expect(result.current.tables).toEqual([{ id: "t0" }]);
   });
 
   it("stays out of the network when disabled, reporting empty", async () => {

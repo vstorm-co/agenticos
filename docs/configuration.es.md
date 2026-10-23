@@ -1,5 +1,5 @@
 ---
-source_sha: "d937fafb5543"
+source_sha: "9ddfa0edc7b8"
 ---
 
 # Configuración { #configuration }
@@ -498,6 +498,8 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
 | `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | La carga más grande con la que se puede iniciar un run, como JSON compacto. Se guarda en el run para su nodo `core.input`, así que una mayor se rechaza con `413` antes de admitir el run |
+| `WORKFLOW_RUN_MAX_FILE_BYTES` | `1073741824` | Los bytes de archivos que puede guardar un run, todos sus pasos de archivo juntos. Un paso cuyo archivo lo superaría falla con `FILE_QUOTA_EXCEEDED` y no guarda nada |
+| `WORKFLOW_ORG_MAX_FILE_BYTES` | `21474836480` | Lo mismo para una organización, entre todos los runs que aún conservan sus archivos |
 | `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | Cuánto espera su respuesta una entrega de webhook cuyo grafo tiene un paso Respond to webhook antes de recibir `202` mientras el run sigue. Un proxy delante con un tiempo de lectura más corto corta antes la espera |
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Cuánto dura el claim de un worker sobre un nodo de workflow antes de darlo por abandonado. El worker lo renueva cada tercio de ese tiempo mientras el nodo se ejecuta, así que acota cuánto tarda en notarse un worker muerto, no cuánto puede durar un nodo |
 | `WORKFLOW_RETRY_CEILING` | `3` | El máximo de intentos fallidos o interrumpidos de un nodo: los que fallaron y los que cortó la muerte de un worker. Un intento que espera - una aprobación, o un backoff que pidió el nodo - no cuenta, así que solo el plazo, el budget o una cancelación del run limitan cuántas veces espera un nodo |
@@ -1164,6 +1166,8 @@ API debería llevar un techo es una decisión aparte, no esta.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Por dirección, y **dos contadores separados de este tamaño**: uno para `widget.js`, otro para la admisión — el `/config` del widget más el handshake del socket de cualquiera de las dos superficies. Ver más abajo |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. El [formulario](workflows.md#from-a-form) de un workflow se lee en un contador de este tamaño por formulario. Ver más abajo |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Las respuestas que admite un [formulario](workflows.md#from-a-form) de un workflow, **por formulario**: cada una es una ejecución que paga quien lo publicó, y el servidor de la consola las reenvía todas, así que una dirección no contaría a nadie |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Entregas que admite un [webhook](workflows.md) de un workflow o un disparador de GitHub, **por webhook**, contadas cuando la firma se verifica y la entrega iniciaría un run, así que desconocidos y entregas omitidas no gastan nada: cada una es una ejecución |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Peticiones que una dirección puede enviar a las direcciones de webhook y de disparador de GitHub de los workflows en un minuto, sea cual sea su contenido, contadas antes de leer nada. Amplio, porque remitentes como GitHub entregan para muchos hooks desde pocas direcciones |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
 | `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Veces que se pueden leer de sus tablas los datos de una página para los visitantes de su enlace público o de sus embeds, **por página entre todos los visitantes**. Una carga que tiene que leer de las tablas cuenta una vez, y una servida desde la [caché](artifacts.md#the-cache-and-the-cap) de 30 segundos no; pasado el límite, la página se carga con esos datos no disponibles |

@@ -598,6 +598,16 @@ class Settings(BaseSettings):
     # so every visitor arrives as the same caller. Each one is a run, so this is
     # what bounds a stranger's spend on the form's publisher.
     RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE: int = 20
+    # How many deliveries one workflow webhook (or GitHub trigger) may start runs
+    # from in a minute, counted per exposure once the signature has verified and
+    # the delivery would start one: a sender holding the secret starts a run per
+    # delivery, each one spending the workflow's budget. Anybody else, and the
+    # deliveries a trigger skips, spend nothing of it.
+    RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE: int = Field(default=60, gt=0)
+    # How many requests one address may send the webhook doors in a minute,
+    # whatever they carry, counted before anything is read. Wide: senders such as
+    # GitHub deliver for many hooks from a few addresses.
+    RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE: int = Field(default=600, gt=0)
     # How many auth attempts one caller gets per minute - login, register, token
     # refresh, and the reset/magic-link request and verify routes. Counted per IP
     # and, where the body carries one, per submitted address, both in the shared
@@ -759,6 +769,13 @@ class Settings(BaseSettings):
     # that supply it are open to API keys and webhooks (#1792), so an unbounded one
     # is a row anyone who may start a run can grow without limit.
     WORKFLOW_RUN_MAX_INPUT_BYTES: int = Field(default=262_144, gt=0)
+    # What the files workflow steps write may add up to: per run, and per
+    # organization across every run that still holds its files. `http.download`
+    # bounds one file only, and a run keeps its files for as long as the run is
+    # kept, so without a total a loop of downloads fills the storage. A step that
+    # would pass either ceiling fails with `FILE_QUOTA_EXCEEDED` and stores nothing.
+    WORKFLOW_RUN_MAX_FILE_BYTES: int = Field(default=1_073_741_824, gt=0)
+    WORKFLOW_ORG_MAX_FILE_BYTES: int = Field(default=21_474_836_480, gt=0)
     # How long a webhook delivery whose graph answers it (`webhook.respond`) holds
     # its request open for that answer. Past it the sender gets the `202` a
     # delivery without one gets, and the run goes on; a proxy in front with a

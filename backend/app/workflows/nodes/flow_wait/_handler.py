@@ -84,12 +84,20 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         return Completed[FlowWaitOutput](
             output=FlowWaitOutput(waited_until=now, called=True, body=node_run.resume_payload)
         )
+    reached = node_run.created_at if node_run is not None else now
     if until is None:
-        reached = node_run.created_at if node_run is not None else now
         # Waiting for a call with no time of its own waits the longest a wait may.
         seconds = settings.seconds if settings.seconds is not None else MAX_WAIT_SECONDS
         until = reached + timedelta(seconds=seconds)
     until = until if until.tzinfo is not None else until.replace(tzinfo=UTC)
+    if until > reached + timedelta(seconds=MAX_WAIT_SECONDS):
+        return Failed(
+            error=WorkflowError(
+                code="WAIT_TOO_LONG",
+                message="A wait lasts at most thirty days",
+                details={"max_seconds": MAX_WAIT_SECONDS},
+            )
+        )
     if now >= until:
         return Completed[FlowWaitOutput](output=FlowWaitOutput(waited_until=until))
     return Waiting(reason="timer", resume_token=str(current.node_run_id), resume_at=until)

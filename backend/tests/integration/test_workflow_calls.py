@@ -512,3 +512,75 @@ class TestAdmittingACall:
         assert called.parent_node_run_id == entry.id
         assert called.triggered_by == "workflow_call"
         dispatched.assert_called_once()
+
+
+class TestOneCallPerStep:
+    @pytest.mark.security
+    async def test_a_step_that_loses_the_race_to_admit_its_call_adopts_the_winners(
+        self, engine: AsyncEngine
+    ):
+        from app.services.workflow_execution import WorkflowExecutionService
+        from app.services.workflow_execution.facade import Causation
+        from app.workflows.nodes.workflow_run import _handler
+
+        ctx, callee, member = await _published_callee(engine, _callee())
+        graph, step = _caller(callee.id)
+        seeded = await seed_run(engine, graph, member=member)
+        real = _handler.workflow_run_repo.get_run_called_by
+        calls: list[uuid.UUID] = []
+
+        async def rival_first(db, *, node_run_id):
+            """The first look finds no child; a rival attempt then admits one."""
+            calls.append(node_run_id)
+            if len(calls) > 1:
+                return await real(db, node_run_id=node_run_id)
+            async with seeded.factory() as other:
+                workflow = await other.get(Workflow, callee.id)
+                assert workflow is not None
+                version = await other.get(WorkflowVersion, workflow.current_version_id)
+                assert version is not None
+                with patch("app.worker.tasks.workflow_tasks.trigger_dispatch"):
+                    await WorkflowExecutionService(other).admit_call(
+                        ctx,
+                        workflow,
+                        version,
+                        run_input={"name": "Ada"},
+                        causation=Causation(
+                            root_run_id=seeded.run.id,
+                            causation_run_id=seeded.run.id,
+                            visited_trigger_ids=[],
+                            depth=1,
+                        ),
+                        parent_node_run_id=node_run_id,
+                    )
+                await other.commit()
+            return None
+
+        with patch.object(_handler.workflow_run_repo, "get_run_called_by", rival_first):
+            parked = await drive(seeded)
+
+        assert parked.status == "running"
+        async with seeded.factory() as db:
+            children = (
+                (await db.execute(select(WorkflowRun).where(WorkflowRun.depth == 1)))
+                .scalars()
+                .all()
+            )
+        assert len(children) == 1
+
+    async def test_an_integrity_error_that_is_not_the_link_is_not_swallowed(
+        self, engine: AsyncEngine
+    ):
+        from sqlalchemy.exc import IntegrityError
+
+        _ctx, callee, member = await _published_callee(engine, _callee())
+        graph, _step = _caller(callee.id)
+        seeded = await seed_run(engine, graph, member=member)
+        broken = IntegrityError("insert", {}, Exception("boom"))
+        with patch(
+            "app.services.workflow_execution.facade.WorkflowExecutionService.admit_call",
+            new=AsyncMock(side_effect=broken),
+        ):
+            run = await drive(seeded)
+
+        assert run.status == "waiting_retry"

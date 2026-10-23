@@ -1114,6 +1114,18 @@ async def limit_form_submission(token: str) -> None:
     )
 
 
+async def limit_workflow_webhook(request: Request) -> None:
+    """Refuse an address sending the workflow webhook doors too much. Before any read.
+
+    The per-webhook allowance is spent later, inside the service, once a delivery's
+    signature has verified.
+    """
+    _refuse_if_over(
+        await rate_limit.workflow_webhook_ip_allowed(request),
+        "Too many requests. Try again shortly.",
+    )
+
+
 async def limit_artifact_content(token: str) -> None:
     """Refuse a signed artifact address loaded too often. Per address, before any read."""
     _refuse_if_over(

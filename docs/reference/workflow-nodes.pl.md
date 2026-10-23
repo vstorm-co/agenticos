@@ -1,5 +1,5 @@
 ---
-source_sha: "0e318662a0c3"
+source_sha: "a04367cfdf6b"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -521,6 +521,7 @@ idempotencji, więc awaria po wywołaniu powtarza je przy ponowieniu.
 | Serwer nie oferuje narzędzia | `MCP_TOOL_NOT_FOUND` |
 | Nie udało się połączyć z serwerem albo połączenie zerwało się | `MCP_CALL_FAILED` |
 | Narzędzie odpowiedziało błędem | `MCP_TOOL_ERROR` albo odpowiedź jako wyjście |
+| Ustrukturyzowana odpowiedź ma ponad 1 MiB | `MCP_RESULT_TOO_LARGE` |
 
 ::: app.workflows.nodes.mcp_call._handler.McpCallConfig
 
@@ -586,6 +587,7 @@ zaparkowany na zegarze, którego wiersz dyspozycji przypada na ten moment, więc
 oczekiwanie przetrwa restart workera i nie zajmuje go, a inne gałęzie w tym czasie
 działają. Moment, który już minął, przechodzi od razu, a termin przebiegu nadal
 obowiązuje.
+Powiązany `until` późniejszy niż trzydzieści dni od dojścia do kroku kończy krok błędem `WAIT_TOO_LONG`.
 
 Z **Wait for a call to the run's resume link** krok czeka zamiast tego, aż zostanie
 wywołany adres, który dał krok **Resume link**, najwyżej `seconds` (trzydzieści dni bez
@@ -787,6 +789,7 @@ Obraz jest mierzony, zanim zostanie zdekodowany. Jego szerokość razy wysokoś�
 przycięcia i żądany rozmiar są każdy sprawdzane wobec `CHAT_IMAGE_MAX_PIXELS`, a
 wynik nie niesie żadnych metadanych źródła. Każdy krok, który zapisuje plik, zapisuje
 nowy przy każdej próbie, więc jest `at_least_once`.
+Pliki runa mogą łącznie zająć `WORKFLOW_RUN_MAX_FILE_BYTES`, a pliki organizacji `WORKFLOW_ORG_MAX_FILE_BYTES`. Krok, którego plik przekroczyłby któryś z tych limitów, kończy się błędem `FILE_QUOTA_EXCEEDED` i niczego nie zapisuje. Aby zwolnić miejsce, usuń stare runy albo ustaw retencję runów w workflow, które tworzą pliki.
 
 ::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
 

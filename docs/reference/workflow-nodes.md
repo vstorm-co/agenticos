@@ -507,6 +507,7 @@ key, so a crash after the call repeats it on the retry.
 | The server does not offer the tool | `MCP_TOOL_NOT_FOUND` |
 | The server could not be reached, or broke off | `MCP_CALL_FAILED` |
 | The tool answered with an error | `MCP_TOOL_ERROR`, or the answer as output |
+| The structured answer is over 1 MiB | `MCP_RESULT_TOO_LARGE` |
 
 ::: app.workflows.nodes.mcp_call._handler.McpCallConfig
 
@@ -569,6 +570,7 @@ bound `until`, then goes on; at most thirty days. The step is parked on a timer
 whose dispatch row comes due then, so the wait survives a worker restart and holds
 no worker, and other branches go on meanwhile. A moment already past goes on at
 once, and the run's deadline still applies.
+A bound `until` more than thirty days after the step is reached fails the step with `WAIT_TOO_LONG`.
 
 With **Wait for a call to the run's resume link**, the step waits instead until the
 address a **Resume link** step gave is called, at most `seconds` (thirty days when
@@ -762,6 +764,7 @@ An image is measured before it is decoded. Its width times height, a crop box an
 a requested size are each checked against `CHAT_IMAGE_MAX_PIXELS`, and the result
 carries none of the source's metadata. Every step that stores a file stores a new
 one on each attempt, so it is `at_least_once`.
+A run's files may add up to `WORKFLOW_RUN_MAX_FILE_BYTES`, and an organization's to `WORKFLOW_ORG_MAX_FILE_BYTES`. A step whose file would pass either fails with `FILE_QUOTA_EXCEEDED` and stores nothing. To free space, delete old runs or set a run retention on the workflows that make files.
 
 ::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
 

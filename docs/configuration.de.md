@@ -1,5 +1,5 @@
 ---
-source_sha: "d937fafb5543"
+source_sha: "9ddfa0edc7b8"
 ---
 
 # Konfiguration { #configuration }
@@ -510,6 +510,8 @@ legitimen Run und nicht knapper. Siehe
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | Die größte Nutzlast, mit der ein Run gestartet werden kann, als kompaktes JSON. Sie wird für den `core.input`-Knoten am Run gespeichert, daher wird eine größere mit `413` abgelehnt, bevor der Run angenommen wird |
+| `WORKFLOW_RUN_MAX_FILE_BYTES` | `1073741824` | Die meisten Dateibytes, die ein Run speichern darf, alle seine Dateischritte zusammen. Ein Schritt, dessen Datei es überschreiten würde, scheitert mit `FILE_QUOTA_EXCEEDED` und speichert nichts |
+| `WORKFLOW_ORG_MAX_FILE_BYTES` | `21474836480` | Dasselbe für eine Organisation, über alle Runs, die ihre Dateien noch halten |
 | `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | Wie lange eine Webhook-Zustellung, deren Graph einen Schritt Respond to webhook hat, auf ihre Antwort wartet, bevor sie mit `202` beantwortet wird und der Run weiterläuft. Ein vorgeschalteter Proxy mit kürzerem Lese-Timeout bricht das Warten zuerst ab |
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Wie lange der Claim eines Workers auf einen Workflow-Knoten hält, bevor er als aufgegeben gilt. Der Worker erneuert ihn jedes Drittel dieser Zeit, solange der Knoten läuft; der Wert begrenzt also, wie lange ein toter Worker unbemerkt bleibt, nicht wie lange ein Knoten dauern darf |
 | `WORKFLOW_RETRY_CEILING` | `3` | Die Höchstzahl an fehlgeschlagenen oder unterbrochenen Versuchen, die ein Knoten bekommt: Versuche, die fehlgeschlagen sind, und Versuche, die der Tod eines Workers abgebrochen hat. Ein Versuch, der wartet - auf eine Freigabe oder auf einen Backoff, den der Knoten verlangt hat -, zählt nicht; wie oft ein Knoten wartet, begrenzen also nur Deadline, Budget oder ein Abbruch des Runs |
@@ -1224,6 +1226,8 @@ diese.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Je Adresse, und **zwei getrennte Zähler dieser Größe**: einer für `widget.js`, einer für die Zulassung — das `/config` des Widgets plus den Socket-Handshake beider Oberflächen. Siehe unten |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Das [Formular](workflows.md#from-a-form) eines Workflows wird auf einem Zähler dieser Größe je Formular gelesen. Siehe unten |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Antworten, die ein [Formular](workflows.md#from-a-form) eines Workflows annimmt, **je Formular**: jede ist ein Lauf, den sein Veröffentlicher bezahlt, und der Server der Konsole leitet sie alle weiter, sodass eine Adresse niemanden zählen würde |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Zustellungen, die ein [Webhook](workflows.md) eines Workflows oder ein GitHub-Trigger annimmt, **je Webhook**, gezählt, sobald die Signatur stimmt und die Zustellung einen Lauf starten würde, sodass Fremde und übersprungene Zustellungen nichts davon verbrauchen: jede ist ein Lauf |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen, die eine Adresse in einer Minute an die Webhook- und GitHub-Trigger-Adressen von Workflows senden darf, egal was sie enthalten, gezählt, bevor irgendetwas gelesen wird. Weit gefasst, weil Absender wie GitHub für viele Hooks von wenigen Adressen aus zustellen |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
 | `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Wie oft die Daten einer Seite für Besucher ihres öffentlichen Links oder ihrer Embeds aus ihren Tabellen gelesen werden dürfen, **je Seite über alle Besucher**. Ein Laden, das aus den Tabellen lesen muss, zählt einmal, eines aus dem 30-Sekunden-[Cache](artifacts.md#the-cache-and-the-cap) nicht; darüber hinaus lädt die Seite ohne diese Daten |

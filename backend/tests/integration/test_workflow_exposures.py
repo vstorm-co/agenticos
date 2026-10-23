@@ -530,6 +530,35 @@ class TestWebhookDeliveries:
         stored = await db.get(WorkflowExposure, exposure_id)
         assert stored is not None and stored.last_run_id == run.id
 
+    @pytest.mark.security
+    async def test_only_a_verified_delivery_that_starts_a_run_spends_the_allowance(
+        self, db, tenant
+    ):
+        from app.core.exceptions import RateLimitError
+        from app.services import rate_limit
+
+        owner, org, workflow = tenant
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
+        body = b"{}"
+        service = WorkflowExposureService(db)
+        spent = AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0))
+        with patch("app.services.workflow_exposure.rate_limit.workflow_webhook_allowed", spent):
+            with pytest.raises(AuthorizationError):
+                await service.receive_webhook(
+                    exposure_id, body=body, headers=_signed("not-the-secret", body)
+                )
+            spent.assert_not_awaited()
+            await service.receive_webhook(exposure_id, body=body, headers=_signed(secret, body))
+            await service.receive_webhook(exposure_id, body=body, headers=_signed(secret, body))
+            spent.assert_awaited_once_with(str(exposure_id))
+            spent.return_value = rate_limit.Decision(allowed=False, retry_after_seconds=12)
+            fresh = _signed(secret, body) | {"x-delivery-id": "d-2"}
+            fresh["x-signature-256"] = _signed(secret, body)["x-signature-256"]
+            with pytest.raises(RateLimitError) as refused:
+                await service.receive_webhook(exposure_id, body=body, headers=fresh)
+        assert refused.value.details == {"retry_after_seconds": 12}
+        assert len(await _runs(db)) == 1
+
     async def test_githubs_own_headers_are_accepted(self, db, tenant):
         owner, org, workflow = tenant
         exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
@@ -1740,6 +1769,35 @@ class TestGithub:
         )
 
         assert isinstance(skipped, WebhookSkipped) and await _runs(db) == []
+
+    @pytest.mark.security
+    async def test_a_delivery_the_trigger_skips_spends_no_allowance(self, db, tenant):
+        from app.core.exceptions import RateLimitError
+        from app.services import rate_limit
+
+        owner, org, workflow = tenant
+        published = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.github", {**GITHUB, "register_with_account": False}),
+        )
+        service = WorkflowExposureService(db)
+        spent = AsyncMock(return_value=rate_limit.Decision(allowed=False, retry_after_seconds=3))
+        with patch("app.services.workflow_exposure.rate_limit.workflow_webhook_allowed", spent):
+            ping, ping_headers = _github_delivery(published.webhook_secret, event="ping")
+            assert isinstance(
+                await service.receive_github(
+                    published.exposure.id, body=ping, headers=ping_headers
+                ),
+                WebhookSkipped,
+            )
+            spent.assert_not_awaited()
+            body, headers = _github_delivery(published.webhook_secret)
+            with pytest.raises(RateLimitError):
+                await service.receive_github(published.exposure.id, body=body, headers=headers)
+            spent.assert_awaited_once_with(str(published.exposure.id))
+        assert await _runs(db) == []
 
     @pytest.mark.security
     async def test_a_delivery_it_cannot_trust_or_name_is_refused(self, db, tenant):

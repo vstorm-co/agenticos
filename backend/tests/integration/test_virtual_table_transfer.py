@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -10,13 +11,17 @@ from sqlalchemy import func, select
 from app.core.exceptions import ExportTooLargeError, NotFoundError
 from app.db.models.virtual_table import VirtualTableOutbox
 from app.schemas.virtual_table import (
+    ColumnDef,
+    LinkedRecord,
     OptionInput,
     RecordBatchCreate,
     RecordCreate,
     RecordExportQuery,
     RecordFilter,
+    RecordRead,
     RecordSort,
     SchemaUpdate,
+    TableCreate,
     TableUpdate,
 )
 from app.services.virtual_tables import VirtualTableService
@@ -203,6 +208,34 @@ async def test_an_export_writes_what_a_person_reads_in_the_querys_order(db):
         "'=HYPERLINK(1),1,,false,,,,",
         '"Acme, Ltd",2,10.5,true,,,Shipped,Rush; Gift',
     ]
+
+
+@pytest.mark.security
+async def test_an_export_writes_a_column_label_and_a_linked_name_a_spreadsheet_would_run_as_text(
+    db,
+):
+    owner = await make_user(db)
+    service = VirtualTableService(db)
+    ctx = ctx_for(owner, await make_org(db, owner=owner))
+    table = await service.create_table(
+        ctx, TableCreate(name="Risky", columns=[column('=HYPERLINK("http://x","y")', "text")])
+    )
+
+    written = await _csv(service, ctx, table)
+
+    assert written.splitlines()[0] == '\ufeff"\'=HYPERLINK(""http://x"",""y"")"'
+
+    link = ColumnDef(id=uuid.uuid4(), label="Parent", type="link")
+    record = RecordRead(
+        id=uuid.uuid4(),
+        table_id=table.id,
+        schema_version=1,
+        values={},
+        revision=1,
+        created_at=datetime.now(UTC),
+        links={str(link.id): [LinkedRecord(id=uuid.uuid4(), label="=1+1")]},
+    )
+    assert records_module._export_cell(link, record) == "'=1+1"
 
 
 async def test_an_export_narrows_by_filter_and_search_and_writes_the_chosen_columns(

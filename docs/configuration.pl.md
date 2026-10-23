@@ -1,5 +1,5 @@
 ---
-source_sha: "d937fafb5543"
+source_sha: "9ddfa0edc7b8"
 ---
 
 # Konfiguracja { #configuration }
@@ -486,6 +486,8 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | Największy ładunek, z jakim można uruchomić run, jako zwarty JSON. Jest przechowywany w runie dla jego węzła `core.input`, więc większy zostaje odrzucony z `413`, zanim run zostanie przyjęty |
+| `WORKFLOW_RUN_MAX_FILE_BYTES` | `1073741824` | Najwięcej bajtów plików, jakie może zapisać jeden run, wszystkie jego kroki plikowe razem. Krok, którego plik by go przekroczył, kończy się błędem `FILE_QUOTA_EXCEEDED` i niczego nie zapisuje |
+| `WORKFLOW_ORG_MAX_FILE_BYTES` | `21474836480` | To samo dla jednej organizacji, we wszystkich runach, które nadal przechowują swoje pliki |
 | `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | Jak długo dostarczenie webhooka, którego graf ma krok Respond to webhook, czeka na odpowiedź, zanim dostanie `202`, a run toczy się dalej. Proxy przed nim z krótszym limitem odczytu przerywa czekanie wcześniej |
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Jak długo trzyma się claim, który worker bierze na węzeł workflowu, zanim zostanie uznany za porzucony. Worker odnawia go co jedną trzecią tego czasu, dopóki węzeł działa, więc ta wartość ogranicza, jak długo martwy worker pozostaje niezauważony, a nie jak długo może działać węzeł |
 | `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba nieudanych lub przerwanych prób węzła: prób zakończonych błędem i prób przerwanych śmiercią workera. Próba, która czeka - na zatwierdzenie albo na backoff, o który poprosił węzeł - się nie liczy, więc to, jak często węzeł czeka, ogranicza tylko termin runa, jego budżet albo anulowanie |
@@ -1147,6 +1149,8 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. [Formularz](workflows.md#from-a-form) workflow jest odczytywany na liczniku tej wielkości, na formularz. Zobacz niżej |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Dostarczenia, które przyjmuje jeden [webhook](workflows.md) workflow albo wyzwalacz GitHub, **na webhook**, liczone, gdy podpis się zgadza, a dostarczenie uruchomiłoby run, więc obcy i pominięte dostarczenia nic z niego nie zużywają: każde to run |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Żądania, które jeden adres może wysłać pod adresy webhooków workflow i wyzwalaczy GitHub w ciągu minuty, niezależnie od treści, liczone zanim cokolwiek zostanie odczytane. Szeroki, bo nadawcy tacy jak GitHub dostarczają dla wielu hooków z kilku adresów |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
 | `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Ile razy dane jednej strony mogą być czytane z jej tabel dla odwiedzających jej publiczny link albo embedy, **per strona dla wszystkich odwiedzających łącznie**. Ładowanie, które musi czytać z tabel, liczy się raz, a to obsłużone z 30-sekundowego [cache](artifacts.md#the-cache-and-the-cap) nie; po przekroczeniu limitu strona ładuje się bez tych danych |

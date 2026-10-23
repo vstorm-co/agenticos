@@ -361,6 +361,25 @@ async def test_a_workflow_that_starts_some_other_way_is_not_started(world: _Worl
 
 
 @pytest.mark.security
+async def test_a_start_spends_the_workflow_run_allowance_and_is_refused_over_it(world: _World):
+    from app.services import rate_limit
+
+    follow_up = await world.workflow("Follow up", _graph("trigger.manual", {"fields": FIELDS}))
+    tools = _tools(follow_up)
+    over = rate_limit.Decision(allowed=False, retry_after_seconds=17)
+
+    with patch.object(_toolset.rate_limit, "consume", AsyncMock(return_value=over)) as consume:
+        answer = await tools["run_workflow"](
+            world.run_ctx(), follow_up.id, fields={"email": "ada@example.com"}, wait=False
+        )
+
+    assert "Too many workflow runs" in answer and "17 seconds" in answer
+    assert await _runs(world) == []
+    assert consume.await_args.kwargs["surface"] == "workflow_run"
+    assert consume.await_args.kwargs["caller"] == f"user:{world.owner.id}"
+
+
+@pytest.mark.security
 async def test_an_agent_running_as_a_workflow_step_starts_no_workflow(world: _World):
     follow_up = await world.workflow("Follow up", _graph("trigger.manual", {}))
     async with world.factory() as db:

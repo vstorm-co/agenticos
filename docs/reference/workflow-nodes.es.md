@@ -1,5 +1,5 @@
 ---
-source_sha: "0e318662a0c3"
+source_sha: "a04367cfdf6b"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -530,6 +530,7 @@ llamada la repite en el reintento.
 | El servidor no ofrece la herramienta | `MCP_TOOL_NOT_FOUND` |
 | No se pudo llegar al servidor, o cortó | `MCP_CALL_FAILED` |
 | La herramienta respondió con un error | `MCP_TOOL_ERROR`, o la respuesta como salida |
+| La respuesta estructurada supera 1 MiB | `MCP_RESULT_TOO_LARGE` |
 
 ::: app.workflows.nodes.mcp_call._handler.McpCallConfig
 
@@ -596,6 +597,7 @@ aparcado en un reloj cuya fila de despacho vence entonces, así que la espera
 sobrevive a un reinicio del worker y no ocupa ninguno, y las demás ramas siguen
 mientras tanto. Un momento ya pasado sigue enseguida, y el plazo de la ejecución
 sigue vigente.
+Un `until` vinculado a más de treinta días desde que se llega al paso hace fallar el paso con `WAIT_TOO_LONG`.
 
 Con **Wait for a call to the run's resume link**, el paso espera en cambio hasta que
 se llama la dirección que dio un paso **Resume link**, como mucho `seconds` (treinta
@@ -799,6 +801,7 @@ Una imagen se mide antes de decodificarse. Su ancho por alto, una zona de recort
 tamaño solicitado se comprueban cada uno contra `CHAT_IMAGE_MAX_PIXELS`, y el
 resultado no lleva ningún metadato del origen. Todo paso que guarda un archivo guarda
 uno nuevo en cada intento, así que es `at_least_once`.
+Los archivos de un run pueden sumar como máximo `WORKFLOW_RUN_MAX_FILE_BYTES`, y los de una organización `WORKFLOW_ORG_MAX_FILE_BYTES`. Un paso cuyo archivo superaría alguno de los dos falla con `FILE_QUOTA_EXCEEDED` y no guarda nada. Para liberar espacio, borra runs antiguos o fija una retención de runs en los workflows que crean archivos.
 
 ::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
 

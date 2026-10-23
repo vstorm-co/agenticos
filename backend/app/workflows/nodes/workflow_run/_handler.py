@@ -19,6 +19,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
@@ -187,25 +188,34 @@ async def _admit(
 
     current = context.current()
     try:
-        return await WorkflowExecutionService(db).admit_call(
-            current.auth,
-            workflow,
-            version,
-            run_input=run_input,
-            causation=Causation(
-                root_run_id=caller.root_run_id,
-                causation_run_id=caller.id,
-                visited_trigger_ids=[
-                    *caller.visited_trigger_ids,
-                    f"workflow:{caller.workflow_id}",
-                    visited,
-                ],
-                depth=caller.depth + 1,
-                public_origin=causes_public(caller),
-                impersonated=caller.impersonated,
-            ),
-            parent_node_run_id=current.node_run_id,
-        )
+        # A savepoint of its own: a step re-dispatched while its first attempt was
+        # still admitting loses the unique link to its called run here, and what is
+        # left of this attempt's admission goes with the savepoint.
+        async with db.begin_nested():
+            return await WorkflowExecutionService(db).admit_call(
+                current.auth,
+                workflow,
+                version,
+                run_input=run_input,
+                causation=Causation(
+                    root_run_id=caller.root_run_id,
+                    causation_run_id=caller.id,
+                    visited_trigger_ids=[
+                        *caller.visited_trigger_ids,
+                        f"workflow:{caller.workflow_id}",
+                        visited,
+                    ],
+                    depth=caller.depth + 1,
+                    public_origin=causes_public(caller),
+                    impersonated=caller.impersonated,
+                ),
+                parent_node_run_id=current.node_run_id,
+            )
+    except IntegrityError:
+        existing = await workflow_run_repo.get_run_called_by(db, node_run_id=current.node_run_id)
+        if existing is None:
+            raise
+        return existing
     except WorkflowAdmissionQuotaError as refusal:
         # Too much work in flight: the next try may find room.
         return Failed(

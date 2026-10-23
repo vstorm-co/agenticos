@@ -117,6 +117,16 @@ class TestWait:
         assert finished.status == "succeeded"
         assert finished.output["structured"]["waited_until"].startswith(past[:16])
 
+    async def test_a_bound_time_past_thirty_days_is_refused(self, engine: AsyncEngine):
+        far = (datetime.now(UTC) + timedelta(days=31)).isoformat()
+        graph, wait = _waiting({}, until=far)
+        seeded = await seed_run(engine, graph)
+
+        finished = await drive(seeded)
+
+        assert finished.error["code"] == "WAIT_TOO_LONG"
+        assert (await node_statuses(seeded))[wait.id] == NodeRunStatus.FAILED.value
+
     async def test_a_wait_for_nothing_is_refused(self, engine: AsyncEngine):
         graph, _wait = _waiting({})
 

@@ -69,13 +69,6 @@ def _day(value: object) -> date:
     return date.fromisoformat(value[:10])
 
 
-def _if(*args: Value) -> Value:
-    if len(args) != 3:
-        raise ArithmeticError("IF takes a condition and two values")
-    condition, then, otherwise = args
-    return then if condition else otherwise
-
-
 def _round(*args: Value) -> Value:
     places = int(_number(args[1])) if len(args) > 1 else 0
     return round(_number(args[0]), max(0, min(places, 10)))
@@ -95,7 +88,9 @@ def _days(*args: Value) -> Value:
 
 
 FUNCTIONS: dict[str, Callable[..., Value]] = {
-    "IF": _if,
+    # Named here so the formula checker knows it; `_evaluate` works it out itself, so
+    # that only the chosen branch is evaluated.
+    "IF": lambda *_: None,
     "ROUND": _round,
     "ABS": lambda value: abs(_number(value)),
     "MIN": lambda *values: min(_number(value) for value in values),
@@ -285,8 +280,12 @@ def _evaluate(node: ast.AST, values: Sequence[Value]) -> Value:
             return not operand
         return -_number(operand) if isinstance(node.op, ast.USub) else _number(operand)
     if isinstance(node, ast.BoolOp):
-        results = [bool(_evaluate(value, values)) for value in node.values]
-        return all(results) if isinstance(node.op, ast.And) else any(results)
+        # Short-circuits, so `AND({D} <> 0, 10 / {D} > 1)` never divides by zero.
+        stops_on = not isinstance(node.op, ast.And)
+        for value in node.values:
+            if bool(_evaluate(value, values)) is stops_on:
+                return stops_on
+        return not stops_on
     if isinstance(node, ast.Compare):
         left = _evaluate(node.left, values)
         for op, comparator in zip(node.ops, node.comparators, strict=True):
@@ -296,6 +295,12 @@ def _evaluate(node: ast.AST, values: Sequence[Value]) -> Value:
             left = right
         return True
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id.upper() == "IF":
+            # Only the chosen branch is worked out, so `IF({D} = 0, 0, 10 / {D})` is 0.
+            if len(node.args) != 3:
+                raise ArithmeticError("IF takes a condition and two values")
+            condition, then, otherwise = node.args
+            return _evaluate(then if _evaluate(condition, values) else otherwise, values)
         args = [_evaluate(arg, values) for arg in node.args]
         return FUNCTIONS[node.func.id.upper()](*args)
     raise ArithmeticError("unreachable for a checked formula")

@@ -336,7 +336,6 @@ class WorkflowRun(Base, TimestampMixin):
         # exist, so creating and dropping the schema has an order to follow.
         ForeignKey("node_runs.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
-        index=True,
     )
     # Where a chat-started run answers: the conversation the member typed in,
     # frozen at admission from their own session and never read from a payload.
@@ -387,6 +386,14 @@ class WorkflowRun(Base, TimestampMixin):
         CheckConstraint("spent_cost >= 0", name="ck_workflow_run_spent_cost"),
         CheckConstraint("depth >= 0", name="ck_workflow_run_depth"),
         Index("ix_workflow_run_org_status", "organization_id", "status"),
+        # One call per `workflow.run` step: a step re-dispatched while its first
+        # attempt was still admitting the call cannot start a second child run.
+        Index(
+            "uq_workflow_run_parent_node_run",
+            "parent_node_run_id",
+            unique=True,
+            postgresql_where=text("parent_node_run_id IS NOT NULL"),
+        ),
     )
 
     def __repr__(self) -> str:

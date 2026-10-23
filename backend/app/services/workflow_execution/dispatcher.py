@@ -86,6 +86,7 @@ from app.services.workflow_execution.exceptions import (
     NodeHandlerMissingError,
     PrincipalRevokedError,
     WorkflowDispatchRefusedError,
+    WorkflowFileQuotaError,
     WorkflowGraphUnresolvableError,
 )
 from app.workflows import _registry
@@ -906,6 +907,12 @@ async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
                 result = await begun.handler(begun.handler_config, begun.handler_input)
     except TimeoutError:
         result = _timed_out(begun)
+    except WorkflowFileQuotaError as exc:
+        result = Failed(
+            error=WorkflowError(
+                code=exc.code, message=exc.message, details=exc.details or {}, retryable=False
+            )
+        )
     except Exception:
         # A handler is meant to return `Failed`, never raise; one that raises
         # anyway settles as a failure here rather than crashing the flow and

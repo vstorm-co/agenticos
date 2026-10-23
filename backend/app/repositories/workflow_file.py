@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.workflow_file import WorkflowFile
-from app.db.models.workflow_run import ResourceRef, ResourceRefKind
+from app.db.models.workflow_run import ResourceRef, ResourceRefKind, WorkflowRun
 
 
 async def create(
@@ -84,5 +84,32 @@ async def list_for_run(
             WorkflowFile.organization_id == organization_id,
         )
         .order_by(WorkflowFile.created_at, WorkflowFile.id)
+    )
+    return list(result.scalars().all())
+
+
+async def sum_bytes(
+    db: AsyncSession, *, organization_id: UUID, workflow_run_id: UUID | None = None
+) -> int:
+    """The bytes stored for one organization, or for one of its runs."""
+    query = select(func.coalesce(func.sum(WorkflowFile.byte_size), 0)).where(
+        WorkflowFile.organization_id == organization_id
+    )
+    if workflow_run_id is not None:
+        query = query.where(WorkflowFile.workflow_run_id == workflow_run_id)
+    return int((await db.execute(query)).scalar_one())
+
+
+async def storage_paths_for_workflow(
+    db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
+) -> list[str]:
+    """Where storage keeps every file the runs of one workflow made."""
+    result = await db.execute(
+        select(WorkflowFile.storage_path)
+        .join(WorkflowRun, WorkflowRun.id == WorkflowFile.workflow_run_id)
+        .where(
+            WorkflowRun.workflow_id == workflow_id,
+            WorkflowFile.organization_id == organization_id,
+        )
     )
     return list(result.scalars().all())

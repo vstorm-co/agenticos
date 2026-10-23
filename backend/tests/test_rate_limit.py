@@ -543,6 +543,30 @@ class TestAFormIsCountedPerForm:
         assert (await rate_limit.form_submission_allowed("tok")).allowed is False
 
 
+class TestAWebhookIsCountedPerExposureAndPerAddress:
+    async def test_a_run_spends_its_exposures_allowance(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE", 2)
+        client = _redis([1, 3])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.workflow_webhook_allowed("wh")).allowed is True
+        assert (await rate_limit.workflow_webhook_allowed("wh")).allowed is False
+        assert client.count_in_window.await_args.args[0] == (
+            "ratelimit:workflow_webhook:exposure:wh"
+        )
+
+    async def test_a_request_spends_its_addresss_allowance(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE", 2)
+        client = _redis([1, 3])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.workflow_webhook_ip_allowed(_connection())).allowed is True
+        assert (await rate_limit.workflow_webhook_ip_allowed(_connection())).allowed is False
+        assert client.count_in_window.await_args.args[0].startswith(
+            "ratelimit:workflow_webhook_ip:ip:"
+        )
+
+
 def _claims() -> tuple[MagicMock, dict[str, str]]:
     """A client whose `SET NX` and compare-and-delete act on a dict, as Redis would."""
     store: dict[str, str] = {}
