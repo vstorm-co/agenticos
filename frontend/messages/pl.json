@@ -1161,7 +1161,28 @@
       "modelTitle": "Model: {model}",
       "savedForChat": "Zapisane dla tego czatu",
       "savesOnSend": "Zapisuje się przy wysłaniu",
-      "whichModelRunsHere": "Na którym modelu działa ta rozmowa. Wszystko inne w agencie zostaje bez zmian."
+      "whichModelRunsHere": "Na którym modelu działa ta rozmowa. Wszystko inne w agencie zostaje bez zmian.",
+      "workOn": {
+        "title": "Pracuj na",
+        "cloud": "Chmura",
+        "computer": "Ten komputer",
+        "notLinked": "Połącz ten komputer w Ustawienia → Desktop, aby agenci mogli tu pracować.",
+        "offline": "Ten komputer nie jest teraz połączony; uruchomienie poczeka, aż wróci.",
+        "folders": "Foldery",
+        "pick": "Wybierz folder…",
+        "pickFailed": "Nie udało się dodać tego folderu.",
+        "revoke": "Zabroń agentom pracy w {folder}",
+        "mode": {
+          "read_only": "Tylko odczyt",
+          "workspace_write": "Zapis w folderze",
+          "full_access": "Pełny dostęp"
+        },
+        "modeHint": {
+          "read_only": "Agenci czytają tu pliki; nic nie jest zapisywane i żadne polecenie się nie uruchamia.",
+          "workspace_write": "Agenci zapisują w tym folderze; polecenia działają w piaskownicy i nie mogą zapisywać gdzie indziej.",
+          "full_access": "Polecenia działają jako ty i każde najpierw pyta o zgodę."
+        }
+      }
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",

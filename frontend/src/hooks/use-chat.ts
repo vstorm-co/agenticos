@@ -55,6 +55,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { setUrlParam } from "@/lib/utils";
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { useConversationStore, useWorkingStore } from "@/stores";
 /** A correction sent to the running turn, shown until it reaches the model. */
 export interface SteerDraft {
@@ -1295,6 +1296,11 @@ export function useChat(options: UseChatOptions = {}) {
       if (approvalModeRef.current !== "follow_agent") {
         payload.approval_mode = approvalModeRef.current;
       }
+      // "Work on: This computer" (#2305): the folder and mode, read at send
+      // time like the agent. The desktop app checks both against what the person
+      // granted on that computer, whatever this frame says.
+      const local = useWorkOnStore.getState().targetFor(conversationId || null);
+      if (local) payload.local = { folder: local.folder, mode: local.mode };
       const test = testingRef.current;
       if (test) {
         payload.test = true;

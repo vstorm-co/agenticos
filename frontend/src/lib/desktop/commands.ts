@@ -325,3 +325,48 @@ export async function linkDevice(code: string): Promise<DeviceStatus> {
 export async function unlinkDevice(): Promise<DeviceStatus> {
   return parseDeviceStatus(await invokeShell("device_unlink"));
 }
+
+/** How far a run may reach in a folder on this computer, server-side names. */
+export type LocalMode = "read_only" | "workspace_write" | "full_access";
+
+const LOCAL_MODES: readonly LocalMode[] = ["read_only", "workspace_write", "full_access"];
+const isLocalMode = (value: unknown): value is LocalMode =>
+  LOCAL_MODES.includes(value as LocalMode);
+
+/** A folder the person allowed their agents to work in, and the most they may do there. */
+export interface LocalGrant {
+  path: string;
+  mode: LocalMode;
+}
+
+/** The granted folders, and the modes this computer's sandbox can offer for a new one. */
+export interface LocalState {
+  grants: LocalGrant[];
+  modes: LocalMode[];
+}
+
+function parseLocalGrant(value: unknown): LocalGrant {
+  const fields = record(value, "a folder grant");
+  return { path: field(fields, "path", isString), mode: field(fields, "mode", isLocalMode) };
+}
+
+export function parseLocalState(value: unknown): LocalState {
+  const fields = record(value, "the granted folders");
+  const grants = Array.isArray(fields.grants) ? fields.grants : [];
+  const modes = Array.isArray(fields.modes) ? fields.modes : [];
+  return { grants: grants.map(parseLocalGrant), modes: modes.filter(isLocalMode) };
+}
+
+export async function getLocalState(): Promise<LocalState> {
+  return parseLocalState(await invokeShell("local_grants"));
+}
+
+/** The native folder picker; null when the person closed it without choosing. */
+export async function pickLocalFolder(mode: LocalMode): Promise<LocalGrant | null> {
+  const picked = await invokeShell("local_pick_folder", { mode });
+  return picked === null ? null : parseLocalGrant(picked);
+}
+
+export async function revokeLocalFolder(path: string): Promise<LocalState> {
+  return parseLocalState(await invokeShell("local_revoke", { path }));
+}

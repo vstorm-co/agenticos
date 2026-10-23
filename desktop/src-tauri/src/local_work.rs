@@ -53,7 +53,10 @@ pub struct Refusal {
 
 impl Refusal {
     fn new(kind: &'static str, message: impl Into<String>) -> Self {
-        Self { kind, message: message.into() }
+        Self {
+            kind,
+            message: message.into(),
+        }
     }
 }
 
@@ -78,13 +81,25 @@ pub fn modes() -> Vec<&'static str> {
 
 fn which(program: &str) -> Option<PathBuf> {
     std::env::var_os("PATH").and_then(|paths| {
-        std::env::split_paths(&paths).map(|dir| dir.join(program)).find(|candidate| candidate.is_file())
+        std::env::split_paths(&paths)
+            .map(|dir| dir.join(program))
+            .find(|candidate| candidate.is_file())
     })
 }
 
+/// The granted folders, and the modes this computer can offer for a new one.
+#[derive(Serialize)]
+pub struct LocalState {
+    grants: Vec<Grant>,
+    modes: Vec<&'static str>,
+}
+
 #[tauri::command]
-pub fn local_grants(app: AppHandle) -> Vec<Grant> {
-    settings::current(&app).local_grants
+pub fn local_grants(app: AppHandle) -> LocalState {
+    LocalState {
+        grants: settings::current(&app).local_grants,
+        modes: modes(),
+    }
 }
 
 /// Pick a folder in the native picker and allow agents to work there, up to `mode`.
@@ -102,7 +117,10 @@ pub async fn local_pick_folder(app: AppHandle, mode: Mode) -> Result<Option<Gran
     };
     let path = folder.into_path().map_err(|e| e.to_string())?;
     let canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
-    let grant = Grant { path: canonical.to_string_lossy().into_owned(), mode };
+    let grant = Grant {
+        path: canonical.to_string_lossy().into_owned(),
+        mode,
+    };
     let stored = grant.clone();
     settings::update(&app, move |settings| {
         settings.local_grants.retain(|existing| existing.path != stored.path);
@@ -112,11 +130,14 @@ pub async fn local_pick_folder(app: AppHandle, mode: Mode) -> Result<Option<Gran
 }
 
 #[tauri::command]
-pub fn local_revoke(app: AppHandle, path: String) -> Result<Vec<Grant>, String> {
+pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> {
     let (settings, ()) = settings::update(&app, |settings| {
         settings.local_grants.retain(|existing| existing.path != path);
     })?;
-    Ok(settings.local_grants)
+    Ok(LocalState {
+        grants: settings.local_grants,
+        modes: modes(),
+    })
 }
 
 /// Run one `fs.*` or `shell.run` operation, inside a folder the person granted.
@@ -128,7 +149,12 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
         .local_grants
         .into_iter()
         .find(|grant| grant.path == root)
-        .ok_or_else(|| Refusal::new("denied", format!("{root} is not a folder you allowed agents to work in.")))?;
+        .ok_or_else(|| {
+            Refusal::new(
+                "denied",
+                format!("{root} is not a folder you allowed agents to work in."),
+            )
+        })?;
     if asked > grant.mode {
         return Err(Refusal::new("denied", format!("You allowed less than that in {root}.")));
     }
@@ -151,7 +177,11 @@ fn text(args: &Map<String, Value>, key: &str) -> Result<String, Refusal> {
 /// The parent of a path that does not exist yet is resolved instead, so a link
 /// inside the folder cannot carry a write outside it.
 fn inside(root: &Path, path: &str) -> Result<PathBuf, Refusal> {
-    let joined = if Path::new(path).is_absolute() { PathBuf::from(path) } else { root.join(path) };
+    let joined = if Path::new(path).is_absolute() {
+        PathBuf::from(path)
+    } else {
+        root.join(path)
+    };
     let mut normal = PathBuf::new();
     for component in joined.components() {
         match component {
@@ -165,14 +195,19 @@ fn inside(root: &Path, path: &str) -> Result<PathBuf, Refusal> {
     let resolved = match std::fs::canonicalize(&normal) {
         Ok(real) => real,
         Err(_) => match (normal.parent(), normal.file_name()) {
-            (Some(parent), Some(name)) => std::fs::canonicalize(parent).map(|p| p.join(name)).unwrap_or(normal.clone()),
+            (Some(parent), Some(name)) => std::fs::canonicalize(parent)
+                .map(|p| p.join(name))
+                .unwrap_or(normal.clone()),
             _ => normal.clone(),
         },
     };
     if resolved.starts_with(root) {
         Ok(resolved)
     } else {
-        Err(Refusal::new("denied", format!("{path} is outside the folder you allowed.")))
+        Err(Refusal::new(
+            "denied",
+            format!("{path} is outside the folder you allowed."),
+        ))
     }
 }
 
@@ -210,7 +245,9 @@ async fn files(op: &str, root: &Path, mode: Mode, args: &Map<String, Value>) -> 
                 return Err(Refusal::new("is_dir", format!("{asked} is a folder")));
             }
             let data = tokio::fs::read(&path).await.map_err(failed)?;
-            Ok(object(serde_json::json!({ "data": base64::engine::general_purpose::STANDARD.encode(data) })))
+            Ok(object(
+                serde_json::json!({ "data": base64::engine::general_purpose::STANDARD.encode(data) }),
+            ))
         }
         "fs.write" => {
             writable(mode)?;
@@ -257,11 +294,19 @@ async fn files(op: &str, root: &Path, mode: Mode, args: &Map<String, Value>) -> 
         }
         "fs.exists" => Ok(object(serde_json::json!({ "exists": path.exists() }))),
         "fs.realpath" => Ok(object(serde_json::json!({ "path": path.to_string_lossy() }))),
-        other => Err(Refusal::new("denied", format!("This app does not do {other} yet. Update AgenticOS."))),
+        other => Err(Refusal::new(
+            "denied",
+            format!("This app does not do {other} yet. Update AgenticOS."),
+        )),
     }
 }
 
-async fn shell(app: &AppHandle, root: &Path, mode: Mode, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
+async fn shell(
+    app: &AppHandle,
+    root: &Path,
+    mode: Mode,
+    args: &Map<String, Value>,
+) -> Result<Map<String, Value>, Refusal> {
     if mode == Mode::ReadOnly {
         return Err(Refusal::new("read_only", "Commands do not run in a read-only folder."));
     }
@@ -280,7 +325,12 @@ async fn shell(app: &AppHandle, root: &Path, mode: Mode, args: &Map<String, Valu
     }
     let timeout = args.get("timeout").and_then(Value::as_f64).unwrap_or(600.0);
     let mut command = sandboxed(root, mode, &line)?;
-    command.current_dir(root).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+    command
+        .current_dir(root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
     if let Some(Value::Object(env)) = args.get("env") {
         for (key, value) in env {
             if let Some(value) = value.as_str() {
@@ -288,7 +338,9 @@ async fn shell(app: &AppHandle, root: &Path, mode: Mode, args: &Map<String, Valu
             }
         }
     }
-    let mut child = command.spawn().map_err(|e| Refusal::new("io", format!("The command could not start: {e}")))?;
+    let mut child = command
+        .spawn()
+        .map_err(|e| Refusal::new("io", format!("The command could not start: {e}")))?;
     let mut stdout = child.stdout.take().expect("piped");
     let mut stderr = child.stderr.take().expect("piped");
     let collect = async {
@@ -305,7 +357,10 @@ async fn shell(app: &AppHandle, root: &Path, mode: Mode, args: &Map<String, Valu
                 "stderr": String::from_utf8_lossy(&err),
             })))
         }
-        Err(_) => Err(Refusal::new("timeout", format!("The command ran past {timeout:.0} seconds and was stopped."))),
+        Err(_) => Err(Refusal::new(
+            "timeout",
+            format!("The command ran past {timeout:.0} seconds and was stopped."),
+        )),
     }
 }
 
@@ -346,14 +401,33 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
     }
     if cfg!(target_os = "linux") {
         let bwrap = which("bwrap").ok_or_else(|| {
-            Refusal::new("denied", "Writing in a folder needs bubblewrap on Linux; install it, or use full access.")
+            Refusal::new(
+                "denied",
+                "Writing in a folder needs bubblewrap on Linux; install it, or use full access.",
+            )
         })?;
         let mut command = tokio::process::Command::new(bwrap);
-        command.args(["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp", "--die-with-parent"]);
-        command.args(["--bind", &root_text, &root_text, "--chdir", &root_text, "--", "/bin/sh", "-c", line]);
+        command.args([
+            "--ro-bind",
+            "/",
+            "/",
+            "--dev",
+            "/dev",
+            "--proc",
+            "/proc",
+            "--tmpfs",
+            "/tmp",
+            "--die-with-parent",
+        ]);
+        command.args([
+            "--bind", &root_text, &root_text, "--chdir", &root_text, "--", "/bin/sh", "-c", line,
+        ]);
         return Ok(command);
     }
-    Err(Refusal::new("denied", "This computer has no sandbox for writing in a folder; use full access."))
+    Err(Refusal::new(
+        "denied",
+        "This computer has no sandbox for writing in a folder; use full access.",
+    ))
 }
 
 fn plain_shell(line: &str) -> tokio::process::Command {
@@ -369,7 +443,11 @@ fn plain_shell(line: &str) -> tokio::process::Command {
 }
 
 fn shell_quote(part: &str) -> String {
-    if !part.is_empty() && part.chars().all(|c| c.is_ascii_alphanumeric() || "-_./=:,@%+".contains(c)) {
+    if !part.is_empty()
+        && part
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_./=:,@%+".contains(c))
+    {
         part.to_owned()
     } else {
         format!("'{}'", part.replace('\'', "'\\''"))

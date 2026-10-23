@@ -9,7 +9,11 @@ import {
   DEVICE_STATUS_EVENT,
   getDesktopState,
   getDeviceStatus,
+  getLocalState,
   linkDevice,
+  pickLocalFolder,
+  revokeLocalFolder,
+  type LocalMode,
   parseDeviceStatus,
   unlinkDevice,
   type DeviceStatus,
@@ -172,4 +176,30 @@ export function useDeviceLink() {
     },
   });
   return { link, unlink };
+}
+
+/** The folders agents may work in on this computer, and picking or revoking one (#2305). */
+export function useLocalFolders() {
+  const shell = useShell();
+  const queryClient = useQueryClient();
+  const t = useTranslations("chat.controls.workOn");
+  const state = useQuery({
+    queryKey: qk.desktop.local(),
+    queryFn: getLocalState,
+    enabled: shell !== null,
+  });
+  const pick = useMutation({
+    mutationFn: (mode: LocalMode) => pickLocalFolder(mode),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.desktop.local() }),
+    onError: (error) => {
+      reportShellFailure("picking a folder", error);
+      toast.error(t("pickFailed"));
+    },
+  });
+  const revoke = useMutation({
+    mutationFn: revokeLocalFolder,
+    onSuccess: (next) => queryClient.setQueryData(qk.desktop.local(), next),
+    onError: (error) => reportShellFailure("revoking a folder", error),
+  });
+  return { state, pick, revoke };
 }

@@ -1161,7 +1161,28 @@
       "modelTitle": "Model: {model}",
       "savedForChat": "Saved for this chat",
       "savesOnSend": "Saves on send",
-      "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is."
+      "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is.",
+      "workOn": {
+        "title": "Work on",
+        "cloud": "Cloud",
+        "computer": "This computer",
+        "notLinked": "Link this computer in Settings → Desktop to let agents work here.",
+        "offline": "This computer is not connected right now; a run waits for it to come back.",
+        "folders": "Folders",
+        "pick": "Choose a folder…",
+        "pickFailed": "That folder could not be added.",
+        "revoke": "Stop letting agents work in {folder}",
+        "mode": {
+          "read_only": "Read only",
+          "workspace_write": "Write in the folder",
+          "full_access": "Full access"
+        },
+        "modeHint": {
+          "read_only": "Agents read files here; nothing is written and no command runs.",
+          "workspace_write": "Agents write inside this folder; commands run sandboxed and cannot write elsewhere.",
+          "full_access": "Commands run as you, and each one asks you first."
+        }
+      }
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",

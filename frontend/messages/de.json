@@ -1161,7 +1161,28 @@
       "modelTitle": "Modell: {model}",
       "savedForChat": "Für diesen Chat gespeichert",
       "savesOnSend": "Wird beim Senden gespeichert",
-      "whichModelRunsHere": "Auf welchem Modell diese Unterhaltung läuft. Alles andere am Agent bleibt, wie es ist."
+      "whichModelRunsHere": "Auf welchem Modell diese Unterhaltung läuft. Alles andere am Agent bleibt, wie es ist.",
+      "workOn": {
+        "title": "Arbeiten auf",
+        "cloud": "Cloud",
+        "computer": "Diesem Computer",
+        "notLinked": "Verknüpfen Sie diesen Computer unter Einstellungen → Desktop, damit Agenten hier arbeiten können.",
+        "offline": "Dieser Computer ist gerade nicht verbunden; ein Lauf wartet, bis er zurück ist.",
+        "folders": "Ordner",
+        "pick": "Ordner wählen…",
+        "pickFailed": "Dieser Ordner konnte nicht hinzugefügt werden.",
+        "revoke": "Agenten nicht mehr in {folder} arbeiten lassen",
+        "mode": {
+          "read_only": "Nur lesen",
+          "workspace_write": "Im Ordner schreiben",
+          "full_access": "Vollzugriff"
+        },
+        "modeHint": {
+          "read_only": "Agenten lesen hier Dateien; nichts wird geschrieben und kein Befehl läuft.",
+          "workspace_write": "Agenten schreiben in diesem Ordner; Befehle laufen in einer Sandbox und können nirgendwo anders schreiben.",
+          "full_access": "Befehle laufen als Sie, und jeder fragt Sie vorher."
+        }
+      }
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",
