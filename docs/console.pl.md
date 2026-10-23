@@ -1,5 +1,5 @@
 ---
-source_sha: "dc38cd692704"
+source_sha: "6eec37027f9c"
 ---
 
 # Konsola { #the-console }
@@ -84,6 +84,21 @@ migawkę, którą chciałeś zachować.
     Zapisany układ może zmieniać kolejność i ukrywać, ale nie może odsłaniać.
     Filtrowanie po uprawnieniach dzieje się po rozwiązaniu układu — niezależnie
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
+
+## Inbox { #the-inbox }
+
+**Inbox**, pod Czatem w pasku bocznym, to to, co platforma przyniosła ci z
+własnej inicjatywy: co twoje [obserwacje](governance.md#proactive-work) znalazły
+na twoich połączeniach i co zaproponował nocny przegląd. Liczba obok mówi, ile
+czeka. Pilne są pierwsze; filtruj po źródle albo otwórz **Załatwione**, żeby
+zobaczyć, co już przyjąłeś lub odrzuciłeś, i przywrócić odrzucone. Te same karty
+otwierają twój dashboard jako **Briefing** i pusty czat z agentem startowym.
+
+To, co obserwacja znajdzie, a co nie musi trafić do ciebie od razu, czeka na
+twój poranek: o godzinie, którą trzyma proaktywność organizacji, jedno
+powiadomienie i jedna wiadomość prywatna od każdego jej bota w Slacku, Teams i
+Mattermost, który cię zna, wymieniają to, co nowe. Każde znalezisko trafia tylko
+do jednego briefingu.
 
 ## Dzwonek { #the-bell }
 

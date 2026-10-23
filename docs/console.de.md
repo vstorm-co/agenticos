@@ -1,5 +1,5 @@
 ---
-source_sha: "dc38cd692704"
+source_sha: "6eec37027f9c"
 ---
 
 # Die Konsole { #the-console }
@@ -90,6 +90,23 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     nichts sichtbar machen. Die Berechtigungsprüfung läuft, nachdem das Layout
     aufgelöst wurde, ganz gleich ob es aus der Voreinstellung oder aus Ihrer
     eigenen gespeicherten Anordnung stammt.
+
+## Der Posteingang { #the-inbox }
+
+Der **Posteingang**, unter dem Chat in der Seitenleiste, ist, was die Plattform
+Ihnen aus eigener Initiative gebracht hat: was Ihre
+[Beobachtungen](governance.md#proactive-work) in Ihren Verbindungen gefunden und
+was der nächtliche Blick vorgeschlagen hat. Die Zahl daneben sagt, wie viel
+wartet. Dringendes kommt zuerst; filtern Sie nach Herkunft, oder öffnen Sie
+**Erledigt** für das, was Sie schon angenommen oder abgelehnt haben, und holen
+Sie Abgelehntes zurück. Dieselben Karten stehen oben auf Ihrem Dashboard als
+**Briefing** und im leeren Chat mit dem Start-Agent.
+
+Was eine Beobachtung findet und nicht sofort gemeldet werden muss, wartet auf
+Ihren Morgen: zu der Stunde, die die Proaktivität der Organisation hält, nennen
+eine Benachrichtigung und eine Direktnachricht von jedem ihrer Slack-, Teams-
+und Mattermost-Bots, der Sie kennt, was neu ist. Jeder Fund steht nur in einem
+Briefing.
 
 ## Die Glocke { #the-bell }
 

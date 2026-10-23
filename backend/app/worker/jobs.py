@@ -259,6 +259,16 @@ LOOK_THROUGH_WATCH = Task(
     timeout=timedelta(minutes=10),
     priority=Priority.BULK,
 )
+# One attempt, like the welcome: a direct message sent twice is worse than one
+# the next morning's briefing catches up on.
+BRIEF_PERSON = Task(
+    kind="brief-person",
+    payload_type=ThinkForPerson,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
 # Three: creating a routine is idempotent per pack (a routine already made from
 # the same template is not made twice), and the person clicked and is waiting.
 INSTALL_ROLE_PACK = Task(
@@ -323,6 +333,7 @@ TASKS: dict[str, TaskKind] = {
         RUN_AGENT,
         THINK_FOR_PERSON,
         LOOK_THROUGH_WATCH,
+        BRIEF_PERSON,
         INSTALL_ROLE_PACK,
         WELCOME_MEMBER,
         CLEANUP_EXTERNAL_STATE,

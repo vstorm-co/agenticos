@@ -545,14 +545,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "workspace",
   },
-  // What the nightly look proposed to the person (#2301) - their own, so anybody
-  // who may talk to an agent may see it.
+  // The person's briefing (#2301): what their watches found and the nightly look
+  // proposed - their own, so anybody who may talk to an agent may see it.
   suggestions: {
     id: "suggestions",
     gate: holds(Perm.agentsRun),
     defaultSpan: "s12",
     defaultRows: "r3",
     category: "workspace",
+    seeAll: ROUTES.INBOX,
   },
   "my-summary": {
     id: "my-summary",

@@ -1945,7 +1945,7 @@ class TestAnUrgentFinding:
         assert call["event_type"] is NotificationEventType.FINDING
         assert call["occurrence_id"] == str(finding)
         assert call["summary"] == "Invoice from OVH is overdue"
-        assert "/dashboard" in call["context_url"]
+        assert "/inbox" in call["context_url"]
 
     @pytest.mark.anyio
     async def test_somebody_who_left_hears_nothing(self, written):
@@ -1955,6 +1955,37 @@ class TestAnUrgentFinding:
                 user_id=uuid.uuid4(),
                 finding_id=uuid.uuid4(),
                 title="x",
+            )
+
+        assert written.calls == []
+
+
+class TestTheMorningBriefing:
+    """#2301: what the watches found, announced once a morning under the same switch."""
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(("count", "summary"), [(1, "1 new thing"), (4, "4 new things")])
+    async def test_one_row_a_day_pointing_at_the_inbox(self, written, count, summary):
+        person = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)):
+            await NotificationService(MagicMock()).briefing(
+                organization_id=uuid.uuid4(),
+                user_id=person,
+                count=count,
+                now=datetime(2026, 10, 23, 6, tzinfo=UTC),
+            )
+
+        (call,) = written.calls
+        assert call["event_type"] is NotificationEventType.FINDING
+        assert call["occurrence_id"] == f"briefing:{person}:2026-10-23"
+        assert summary in call["summary"]
+        assert "/inbox" in call["context_url"]
+
+    @pytest.mark.anyio
+    async def test_somebody_who_left_hears_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).briefing(
+                organization_id=uuid.uuid4(), user_id=uuid.uuid4(), count=2, now=datetime.now(UTC)
             )
 
         assert written.calls == []

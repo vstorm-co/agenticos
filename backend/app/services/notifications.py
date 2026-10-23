@@ -522,13 +522,40 @@ class NotificationService:
         )
         if not recipients:
             return
-        path = self._link("/dashboard", organization_id)
+        path = self._link("/inbox", organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.FINDING,
             occurrence_id=str(finding_id),
             summary=title,
             context_url=path,
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def briefing(
+        self, *, organization_id: UUID, user_id: UUID, count: int, now: datetime
+    ) -> None:
+        """A person's morning briefing of what their watches found (#2301).
+
+        The same event as an urgent finding - one switch for everything watches
+        say - and one row a day: the occurrence is the person and the date.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.FINDING,
+            occurrence_id=f"briefing:{user_id}:{now.date().isoformat()}",
+            summary=(
+                "Your watches found 1 new thing."
+                if count == 1
+                else f"Your watches found {count} new things."
+            ),
+            context_url=self._link("/inbox", organization_id),
             organization_id=organization_id,
             use_savepoint=True,
         )

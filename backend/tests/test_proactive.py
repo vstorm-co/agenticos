@@ -36,7 +36,7 @@ from app.services.proactive._nightly import (
 from app.services.proactive._thinker import ProactiveThinker
 from app.services.proactive.facade import _STARTER_SLUG, ProactiveService, _its_time
 from app.services.role_packs import PACKS, pack, routines_of
-from app.worker.jobs import INSTALL_ROLE_PACK, THINK_FOR_PERSON, WELCOME_MEMBER
+from app.worker.jobs import BRIEF_PERSON, INSTALL_ROLE_PACK, THINK_FOR_PERSON, WELCOME_MEMBER
 
 pytestmark = pytest.mark.anyio
 
@@ -603,16 +603,27 @@ class TestTheSweep:
         async def due(_self, _org, user_id, *, now):
             return user_id != rested
 
+        # The briefing keeps the same hour, and owes nothing to the night's look
+        # having run: somebody looked at yesterday still has findings to hear.
+        briefed = [
+            candidate(rested, "Europe/Warsaw"),
+            candidate(weekend, "Europe/Warsaw", days=(6,)),
+        ]
         with (
             patch(f"{FACADE}.member_repo.sweep_candidates", new=AsyncMock(return_value=candidates)),
+            patch(f"{FACADE}.member_repo.briefing_candidates", new=AsyncMock(return_value=briefed)),
             patch.object(NightlyLook, "due", new=due),
             patch(f"{FACADE}.enqueue", new=enqueue),
         ):
             queued = await ProactiveService(MagicMock()).sweep(now=now)
 
-        assert queued == 2
-        assert {call.args[1] for call in enqueue.await_args_list} == {THINK_FOR_PERSON}
-        assert {call.args[2].user_id for call in enqueue.await_args_list} == {warsaw, early}
+        assert queued == 3
+        queued_as = {(call.args[1].kind, call.args[2].user_id) for call in enqueue.await_args_list}
+        assert queued_as == {
+            (THINK_FOR_PERSON.kind, warsaw),
+            (THINK_FOR_PERSON.kind, early),
+            (BRIEF_PERSON.kind, rested),
+        }
 
     async def test_a_role_pack_and_a_welcome_are_queued_not_done_in_the_request(self):
         enqueue = AsyncMock()

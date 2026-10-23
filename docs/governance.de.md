@@ -1,5 +1,5 @@
 ---
-source_sha: "ca8a0c59346e"
+source_sha: "f5710e265fa6"
 ---
 
 # Governance { #governance }
@@ -584,8 +584,8 @@ Beobachtung im Konto nie etwas ändert. Was sie findet, gehört nur der Person:
 ein Vorschlag der Art `finding`, nach der eigenen ID des Elements verschlüsselt,
 sodass er einmal gemeldet wird, mit einem Link zum Öffnen. Ein Fund einer
 Beobachtung, die Dringendes sofort melden soll, und den auch das Modell für
-dringend hält, geht sofort als Benachrichtigung hinaus; der Rest wartet auf die
-Person. Anders als eine Routine schweigt eine Beobachtung, wenn nichts neu ist.
+dringend hält, geht sofort als Benachrichtigung hinaus; der Rest wartet auf ihr
+Morgen-[Briefing](console.md#the-inbox). Anders als eine Routine schweigt eine Beobachtung, wenn nichts neu ist.
 
 Auf derselben Karte liegt die **Willkommensnachricht**, standardmäßig aus und
 an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und

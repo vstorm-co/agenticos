@@ -13,7 +13,7 @@ would greet them twice on every platform that had already succeeded.
 
 import contextlib
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from uuid import UUID
 
 import httpx
@@ -102,6 +102,25 @@ async def welcome(db: AsyncSession, organization_id: UUID, user_id: UUID) -> int
     # removed in between is not welcomed to an organization they have left.
     if await member_repo.get_active(db, organization_id=organization_id, user_id=user_id) is None:
         return 0
+    template = organization.welcome_dm_text or GREETING.get(user.locale or "", GREETING["en"])
+    return await direct_message(
+        db,
+        organization_id,
+        user.email,
+        lambda bot: _fill(
+            template, organization=organization.name, bot=bot.name, url=settings.FRONTEND_URL
+        ),
+    )
+
+
+async def direct_message(
+    db: AsyncSession, organization_id: UUID, email: str, text_for: Callable[[ChannelBot], str]
+) -> int:
+    """Write to one person from every active chat-app bot that knows them. Returns how many did.
+
+    `text_for` words it for each bot, which may name itself. Best-effort: a
+    platform that cannot find them or is down is logged, and the next still tries.
+    """
     bots = [
         bot
         for platform in PLATFORMS
@@ -112,17 +131,13 @@ async def welcome(db: AsyncSession, organization_id: UUID, user_id: UUID) -> int
     ]
     if not bots:
         return 0
-    template = organization.welcome_dm_text or GREETING.get(user.locale or "", GREETING["en"])
     shared = await teams_conversation_repo.list_shared(db, organization_id=organization_id)
-    greeted = 0
+    sent = 0
     for bot in bots:
-        text = _fill(
-            template, organization=organization.name, bot=bot.name, url=settings.FRONTEND_URL
-        )
         places = [row.key for row in shared if row.bot_id == bot.id]
-        if await _greet(bot, user.email, text, places):
-            greeted += 1
-    return greeted
+        if await _greet(bot, email, text_for(bot), places):
+            sent += 1
+    return sent
 
 
 def _fill(template: str, **values: str) -> str:

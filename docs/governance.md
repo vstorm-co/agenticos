@@ -502,7 +502,8 @@ server marks read-only (`readOnlyHint`), so a watch never changes anything in th
 account. What it finds is the person's alone: a suggestion of kind `finding`,
 keyed on the item's own id so it is reported once, with a link to open it. A
 finding on a watch set to say urgent things at once, which the model also judged
-urgent, is sent straight away as a notification; the rest waits for the person.
+urgent, is sent straight away as a notification; the rest waits for their morning
+[briefing](console.md#the-inbox).
 Unlike a routine, a watch says nothing when nothing is new.
 
 The same card holds the **welcome message**, off by default and gated on

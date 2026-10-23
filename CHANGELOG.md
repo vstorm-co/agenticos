@@ -157,6 +157,14 @@ Two things are versioned separately from this file and worth knowing about:
   (`/me/watches`). Off until the organization turns watches on, on the
   **Proactivity** card, which also sets the most-often and which servers may be
   watched; they run on the proactive model and limit. Migration `0167_watches`.
+- **An inbox, and a morning briefing (#2301).** **Inbox**, under Chat in the
+  sidebar with a count of what waits, holds what watches found and what the
+  nightly look proposed - urgent first, filtered by where it came from, and a
+  **Done** view to bring a declined one back. The dashboard's suggestions card
+  is now **Briefing**, at the top of the personal view. What a watch finds that
+  need not be heard at once goes out once, at the organization's proactive hour:
+  one notification and one direct message from each Slack, Teams and Mattermost
+  bot that knows the person. Migration `0168_finding_briefed`.
 
 ### Changed
 

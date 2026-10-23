@@ -67,6 +67,7 @@ def production() -> Handlers:
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
             Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
+            Handler(jobs.BRIEF_PERSON, proactive_tasks.brief_person),
             Handler(jobs.INSTALL_ROLE_PACK, proactive_tasks.install_role_pack),
             Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),

@@ -31,6 +31,11 @@ vi.mock("@/hooks/use-suggestions", () => ({
   }),
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
+vi.mock("@/hooks", () => ({
+  useMcpCatalog: () => ({
+    servers: [{ key: "github", name: "GitHub", icon: "github", url: null }],
+  }),
+}));
 vi.mock("@/components/triggers/trigger-form-dialog", () => ({
   TriggerFormDialog: ({
     initialTemplate,
@@ -88,6 +93,24 @@ describe("SuggestionCards", () => {
     await userEvent.click(screen.getAllByRole("button", { name: "Done" })[0]!);
     await waitFor(() => expect(state.accept).toHaveBeenCalledWith("s-finding"));
     expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("shows the items it is handed, urgent first, with the server's mark on a finding", () => {
+    const routine = suggestion("routine", { prompt: "p" });
+    const urgent = {
+      ...suggestion("finding", { server: "github", account: null, url: null }),
+      urgent: true,
+    };
+    state.suggestions = [suggestion("agent", { request: "r" })];
+    render(<SuggestionCards agentId={null} items={[routine, urgent]} className="max-w-none" />);
+
+    const cards = screen.getAllByRole("group");
+    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
+      "Title finding",
+      "Title routine",
+    ]);
+    expect(cards[0]).toHaveTextContent("Urgent");
+    expect(screen.queryByRole("group", { name: "Title agent" })).toBeNull();
   });
 
   it("draws nothing when nothing was proposed", () => {

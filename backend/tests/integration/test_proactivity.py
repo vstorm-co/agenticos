@@ -594,3 +594,73 @@ class TestWatches:
         await db.flush()
         db.expunge(survivor)
         assert await watch_repo.get_by_id(db, survivor.id) is None
+
+
+class TestTheMorningBriefing:
+    async def test_only_open_findings_not_sent_at_once_and_in_no_briefing_wait(self, db) -> None:
+        from app.repositories import organization_repo
+
+        person = await _person(db)
+        org = await _organization(db, person)
+        await organization_repo.set_watch_policy(
+            db, org, enabled=True, servers=None, min_minutes=60
+        )
+        connection = await _own_connection(db, person)
+        watch = await _watch(db, org, person, connection)
+        made = {}
+        for key, urgent in (
+            ("waits", False),
+            ("urgent", True),
+            ("briefed", False),
+            ("done", False),
+        ):
+            made[key] = await suggestion_repo.propose(
+                db,
+                organization_id=org.id,
+                user_id=person.id,
+                kind="finding",
+                title=key,
+                detail=None,
+                payload={},
+                dedupe_key=f"finding:{key}",
+                watch_id=watch.id,
+                urgent=urgent,
+            )
+        await suggestion_repo.mark_briefed(db, suggestion_ids=[made["briefed"].id], at=_NOW)
+        await suggestion_repo.decide(db, suggestion=made["done"], status=SuggestionStatus.ACCEPTED)
+        waits_id = made["waits"].id
+
+        waiting = await suggestion_repo.unbriefed_findings(
+            db, organization_id=org.id, user_id=person.id
+        )
+        assert [finding.title for finding in waiting] == ["waits"]
+        (reached,) = [
+            candidate
+            for candidate in await member_repo.briefing_candidates(db)
+            if candidate.user_id == person.id
+        ]
+        assert reached.organization_id == org.id
+
+        await suggestion_repo.mark_briefed(db, suggestion_ids=[waits_id], at=_NOW)
+        assert all(
+            candidate.user_id != person.id
+            for candidate in await member_repo.briefing_candidates(db)
+        )
+
+    async def test_an_organization_with_watches_off_briefs_nobody(self, db) -> None:
+        person = await _person(db)
+        org = await _organization(db, person)
+        await suggestion_repo.propose(
+            db,
+            organization_id=org.id,
+            user_id=person.id,
+            kind="finding",
+            title="x",
+            detail=None,
+            payload={},
+            dedupe_key="finding:off",
+        )
+        assert all(
+            candidate.user_id != person.id
+            for candidate in await member_repo.briefing_candidates(db)
+        )

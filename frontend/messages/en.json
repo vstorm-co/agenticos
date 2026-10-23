@@ -1997,7 +1997,8 @@
         "role_pack": "Add these routines",
         "finding": "Done"
       },
-      "open": "Open"
+      "open": "Open",
+      "urgent": "Urgent"
     },
     "turnLost": "The agent stopped before it answered - the server running it went away.",
     "turnLostAskAgain": "Ask again"
@@ -2708,13 +2709,14 @@
         }
       },
       "suggestions": {
-        "title": "Suggestions for you",
-        "description": "What the nightly look at your week proposed: a routine, an agent, your profile.",
+        "title": "Briefing",
+        "description": "What your watches found and the nightly look proposed - what cannot wait first.",
         "empty": {
           "title": "Nothing proposed yet",
-          "description": "Suggestions appear here after the nightly look at your week.",
-          "descriptionOff": "Your organization has nightly suggestions off."
-        }
+          "description": "Findings from your watches and the nightly suggestions appear here.",
+          "descriptionOff": "Your organization has proactivity off."
+        },
+        "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
       }
     },
     "edit": {
@@ -3866,7 +3868,9 @@
     "projects": "Projects",
     "allProjects": "All projects",
     "backgroundJobs": "Background jobs",
-    "loadingPage": "Opening the page"
+    "loadingPage": "Opening the page",
+    "inbox": "Inbox",
+    "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4513,6 +4517,10 @@
       "agent-starters": {
         "title": "First messages",
         "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
+      },
+      "inbox-filters": {
+        "title": "What came to you on its own",
+        "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
       }
     },
     "chooseLanguage": "Language",
@@ -5687,8 +5695,8 @@
       "prefSuggestionTrigger": "AgenticOS noticed something worth setting up - a request you keep repeating, a role pack, your profile. At most once a day, to you.",
       "prefCapabilityRequested": "A capability asked for",
       "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability.",
-      "prefFinding": "Urgent findings",
-      "prefFindingTrigger": "A watch over one of your connections found something you asked to hear about at once."
+      "prefFinding": "Findings from your watches",
+      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -8591,5 +8599,22 @@
       }
     },
     "signInAgain": "Sign in to it again"
+  },
+  "inbox": {
+    "title": "Inbox",
+    "description": "What the platform brought you on its own: what your watches found and what the nightly look proposed.",
+    "filterLabel": "Show",
+    "filter": {
+      "all": "{count, plural, =0 {All} other {All (#)}}",
+      "urgent": "Urgent",
+      "watches": "From watches",
+      "suggestions": "Suggestions",
+      "done": "Done"
+    },
+    "empty": {
+      "title": "Nothing waits here",
+      "description": "Findings from your watches and the nightly suggestions arrive here. Set up a watch under Settings → Assistant."
+    },
+    "doneEmpty": "Nothing answered yet"
   }
 }

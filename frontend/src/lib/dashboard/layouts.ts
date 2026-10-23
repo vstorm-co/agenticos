@@ -321,11 +321,12 @@ const ME_SECTIONS: SectionDef[] = [
       // The four figures first: what ran, what finished, what waits on you and
       // what it cost, each in its own colour - the answer the rest is detail of.
       // It replaced the activity chart, which drew the same runs a second time.
-      // What to try next, first: a person new here sees the way in before the
+      // The briefing first: what the person's watches found and what the night
+      // proposed, what cannot wait at its top (#2301).
+      { widget: "suggestions", span: "s12", rows: "r3" },
+      // Then what to try next: a person new here sees the way in before the
       // figures of work they have not done yet (#2301).
       { widget: "getting-started", span: "s12", rows: "r2" },
-      // What the nightly look proposed, beside the way in (#2301).
-      { widget: "suggestions", span: "s12", rows: "r3" },
       { widget: "my-summary", span: "s12", rows: "r2" },
       // Then what a person acts on: the calls waiting on them beside the
       // conversations they left open. The queue sat at the foot of the page,

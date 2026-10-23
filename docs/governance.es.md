@@ -1,5 +1,5 @@
 ---
-source_sha: "ca8a0c59346e"
+source_sha: "f5710e265fa6"
 ---
 
 # Governance { #governance }
@@ -541,8 +541,8 @@ que una vigilancia nunca cambia nada en la cuenta. Lo que encuentra es solo de l
 persona: una sugerencia de tipo `finding`, con la clave del id propio del
 elemento para que se avise una vez, con un enlace para abrirlo. Un hallazgo de
 una vigilancia configurada para avisar lo urgente al momento, que el modelo
-también juzgó urgente, se envía enseguida como notificación; el resto espera a la
-persona. A diferencia de una rutina, una vigilancia calla cuando no hay nada nuevo.
+también juzgó urgente, se envía enseguida como notificación; el resto espera a su
+[briefing](console.md#the-inbox) de la mañana. A diferencia de una rutina, una vigilancia calla cuando no hay nada nuevo.
 
 La misma tarjeta tiene el **mensaje de bienvenida**, desactivado por defecto y
 sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y

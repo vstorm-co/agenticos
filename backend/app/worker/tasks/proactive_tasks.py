@@ -44,6 +44,11 @@ async def look_through_watch(payload: LookThroughWatch) -> int:
         return await ProactiveService(db).look_through(payload.watch_id)
 
 
+async def brief_person(payload: ThinkForPerson) -> int:
+    async with get_db_context() as db:
+        return await ProactiveService(db).brief(payload.organization_id, payload.user_id)
+
+
 async def install_role_pack(payload: InstallRolePack) -> int:
     async with get_db_context() as db:
         return await ProactiveService(db).install_role_pack(

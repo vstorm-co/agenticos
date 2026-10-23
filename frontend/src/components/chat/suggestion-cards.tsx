@@ -5,11 +5,14 @@ import { Bot, CalendarClock, ExternalLink, Package, Radar, UserRound, X } from "
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { Button } from "@/components/ui";
+import { useMcpCatalog } from "@/hooks";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Suggestion, SuggestionKind } from "@/lib/suggestions-api";
+import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
 import type { TriggerTemplate } from "@/types/trigger-templates";
@@ -35,10 +38,24 @@ const text = (value: unknown): string => (typeof value === "string" ? value : ""
  * update and a role pack are saved by the server. A watch's finding opens where
  * it lives and is marked done. "Not now" declines it for good.
  */
-export function SuggestionCards({ agentId }: { agentId: string | null }) {
+export function SuggestionCards({
+  agentId,
+  items,
+  className,
+}: {
+  agentId: string | null;
+  /** Which of the person's open ones to show; all of them when left out. */
+  items?: Suggestion[];
+  className?: string;
+}) {
   const t = useTranslations("chat.suggestions");
   const tErrors = useTranslations("errors");
-  const { suggestions, accept, dismiss } = useSuggestions();
+  const { suggestions: open, accept, dismiss } = useSuggestions();
+  const { servers } = useMcpCatalog();
+  // What cannot wait leads, whatever order it arrived in.
+  const suggestions = [...(items ?? open)].sort(
+    (a, b) => Number(b.urgent === true) - Number(a.urgent === true),
+  );
   const ask = useArchitectAskStore((state) => state.ask);
   const [routine, setRoutine] = useState<TriggerTemplate | null>(null);
 
@@ -78,9 +95,16 @@ export function SuggestionCards({ agentId }: { agentId: string | null }) {
     });
 
   return (
-    <section aria-label={t("label")} className="mx-auto w-full max-w-2xl space-y-2">
+    <section
+      aria-label={t("label")}
+      className={cn("mx-auto w-full max-w-2xl space-y-2", className)}
+    >
       {suggestions.map((suggestion) => {
         const Icon = ICONS[suggestion.kind];
+        const server =
+          suggestion.kind === "finding"
+            ? servers.find((entry) => entry.key === text(suggestion.payload.server))
+            : undefined;
         return (
           <div
             key={suggestion.id}
@@ -89,10 +113,22 @@ export function SuggestionCards({ agentId }: { agentId: string | null }) {
             className="bg-muted/60 flex items-start gap-3 rounded-2xl p-3"
           >
             <span className="bg-card text-foreground shadow-card flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
-              <Icon className="h-4 w-4" aria-hidden />
+              {server ? (
+                <McpServerIcon
+                  icon={server.icon}
+                  name={server.name}
+                  url={server.url}
+                  className="h-4 w-4"
+                />
+              ) : (
+                <Icon className="h-4 w-4" aria-hidden />
+              )}
             </span>
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-sm">
+                {suggestion.urgent && (
+                  <span className="text-destructive mr-1.5 text-xs font-medium">{t("urgent")}</span>
+                )}
                 {suggestion.title}
                 {suggestion.detail && (
                   <span className="text-muted-foreground block text-xs">{suggestion.detail}</span>

@@ -1,5 +1,5 @@
 ---
-source_sha: "dc38cd692704"
+source_sha: "6eec37027f9c"
 ---
 
 # La consola { #the-console }
@@ -87,6 +87,22 @@ instantánea que querías conservar.
     Una disposición guardada puede reordenar y ocultar, pero no puede revelar. El
     filtrado por permisos corre después de resolver la disposición, venga esta de
     la de serie o de una que tú guardaste.
+
+## La bandeja { #the-inbox }
+
+La **bandeja** (Inbox), bajo Chat en la barra lateral, es lo que la plataforma
+te trajo por iniciativa propia: lo que tus
+[vigilancias](governance.md#proactive-work) encontraron en tus conexiones y lo
+que propuso la revisión nocturna. El número a su lado dice cuánto espera. Lo
+urgente va primero; filtra por su origen, o abre **Hecho** para ver lo que ya
+aceptaste o descartaste y recuperar algo descartado. Las mismas tarjetas
+encabezan tu dashboard como **Briefing**, y el chat vacío con el agente inicial.
+
+Lo que una vigilancia encuentra y no hace falta avisar al momento espera a tu
+mañana: a la hora que mantiene la proactividad de la organización, una
+notificación y un mensaje directo de cada uno de sus bots de Slack, Teams y
+Mattermost que te conoce enumeran lo nuevo. Cada hallazgo entra en un solo
+briefing.
 
 ## La campana { #the-bell }
 

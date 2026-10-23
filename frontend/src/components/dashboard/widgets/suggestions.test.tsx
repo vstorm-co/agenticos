@@ -4,25 +4,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SuggestionsWidget } from "./suggestions";
 
 /**
- * What the nightly look proposed, on the dashboard (#2301): the chat's own
- * cards when there are some, and why there are none when there are not.
+ * The briefing on the dashboard (#2301): what cannot wait first, a few cards and
+ * the rest a link away in the inbox, and why there are none when there are not.
  */
 
 const state = vi.hoisted(() => ({
-  suggestions: [] as { id: string }[],
-  orgOn: false,
+  suggestions: [] as { id: string; urgent?: boolean }[],
+  org: {} as { proactive_enabled?: boolean; proactive_watches_enabled?: boolean },
+  shown: [] as { id: string }[],
 }));
 
-vi.mock("@/hooks", () => ({
-  useOrganizations: () => ({ activeOrg: { proactive_enabled: state.orgOn } }),
-}));
+vi.mock("@/hooks", () => ({ useOrganizations: () => ({ activeOrg: state.org }) }));
 vi.mock("@/hooks/use-suggestions", () => ({
   useSuggestions: () => ({ suggestions: state.suggestions }),
 }));
 vi.mock("@/components/chat/suggestion-cards", () => ({
-  SuggestionCards: ({ agentId }: { agentId: string | null }) => (
-    <div data-testid="cards" data-agent={agentId ?? ""} />
-  ),
+  SuggestionCards: ({ agentId, items }: { agentId: string | null; items: { id: string }[] }) => {
+    state.shown = items;
+    return <div data-testid="cards" data-agent={agentId ?? ""} />;
+  },
 }));
 vi.mock("../widget-frame", () => ({
   WidgetFrame: ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -31,14 +31,15 @@ vi.mock("../widget-frame", () => ({
 }));
 
 const props = {
-  title: "Suggestions for you",
+  title: "Briefing",
   hint: "",
   period: "30d",
 } as unknown as Parameters<typeof SuggestionsWidget>[0];
 
 beforeEach(() => {
   state.suggestions = [];
-  state.orgOn = false;
+  state.org = {};
+  state.shown = [];
 });
 
 describe("SuggestionsWidget", () => {
@@ -47,18 +48,40 @@ describe("SuggestionsWidget", () => {
     render(<SuggestionsWidget {...props} />);
 
     expect(screen.getByTestId("cards")).toHaveAttribute("data-agent", "");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("leads with what cannot wait and leaves the rest to the inbox", () => {
+    state.suggestions = [
+      { id: "a" },
+      { id: "b" },
+      { id: "c" },
+      { id: "d" },
+      { id: "e", urgent: true },
+      { id: "f" },
+    ];
+    render(<SuggestionsWidget {...props} />);
+
+    expect(state.shown.map((item) => item.id)).toEqual(["e", "a", "b", "c"]);
+    expect(screen.getByRole("link", { name: "2 more in your inbox" })).toHaveAttribute(
+      "href",
+      "/inbox",
+    );
   });
 
   it("says the organization has it off, when it does", () => {
     render(<SuggestionsWidget {...props} />);
-    expect(screen.getByText("Your organization has nightly suggestions off.")).toBeInTheDocument();
+    expect(screen.getByText("Your organization has proactivity off.")).toBeInTheDocument();
   });
 
-  it("says when to expect some, where the organization has it on", () => {
-    state.orgOn = true;
-    render(<SuggestionsWidget {...props} />);
-    expect(
-      screen.getByText("Suggestions appear here after the nightly look at your week."),
-    ).toBeInTheDocument();
-  });
+  it.each([{ proactive_enabled: true }, { proactive_watches_enabled: true }])(
+    "says what will arrive, where either kind is on (%o)",
+    (org) => {
+      state.org = org;
+      render(<SuggestionsWidget {...props} />);
+      expect(
+        screen.getByText("Findings from your watches and the nightly suggestions appear here."),
+      ).toBeInTheDocument();
+    },
+  );
 });

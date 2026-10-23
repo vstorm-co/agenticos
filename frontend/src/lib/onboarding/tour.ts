@@ -739,6 +739,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
 
+  // What the platform brought the reader on its own (#2301). "?"-only, like the
+  // routines stop: the launch walk does not take a first login here.
+  { id: "inbox-filters", page: ROUTES.INBOX, target: "inbox-filters" },
+
   { id: "workspaces-browser", page: ROUTES.DOCUMENTS, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in
   // place: the reader is already on one of their own workspaces, so the walk

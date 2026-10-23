@@ -5,7 +5,7 @@ nightly look at each person's week, installing a role pack they accepted, and
 greeting a new member in the chat apps. A request only ever queues one of these.
 """
 
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -16,6 +16,7 @@ from app.repositories.member import SweepCandidate
 from app.schemas.user import WorkingHours
 from app.services.background_jobs import enqueue
 from app.worker.jobs import (
+    BRIEF_PERSON,
     INSTALL_ROLE_PACK,
     LOOK_THROUGH_WATCH,
     THINK_FOR_PERSON,
@@ -76,8 +77,9 @@ class ProactiveService:
     async def sweep(self, *, now: datetime) -> int:
         """Queue the nightly look for everybody whose hour it is and who is due.
 
-        Returns how many were queued. The look itself decides whether there is
-        anything to read; this only decides whose turn it is.
+        And the morning briefing, at the same hour, for whoever has findings
+        waiting. Returns how many of both were queued. Each job decides whether
+        there is anything to read or to say; this only decides whose turn it is.
         """
         from app.services.proactive._nightly import NightlyLook
 
@@ -91,6 +93,18 @@ class ProactiveService:
             await enqueue(
                 self.db,
                 THINK_FOR_PERSON,
+                ThinkForPerson(
+                    organization_id=candidate.organization_id, user_id=candidate.user_id
+                ),
+                organization_id=candidate.organization_id,
+            )
+            queued += 1
+        for candidate in await member_repo.briefing_candidates(self.db):
+            if not _its_time(candidate, now):
+                continue
+            await enqueue(
+                self.db,
+                BRIEF_PERSON,
                 ThinkForPerson(
                     organization_id=candidate.organization_id, user_id=candidate.user_id
                 ),
@@ -124,6 +138,12 @@ class ProactiveService:
         from app.services.proactive._watch import WatchLook
 
         return await WatchLook(self.db).look(watch_id)
+
+    async def brief(self, organization_id: UUID, user_id: UUID) -> int:
+        """One person's morning briefing. Returns how many findings it listed."""
+        from app.services.proactive import _briefing
+
+        return await _briefing.brief(self.db, organization_id, user_id, now=datetime.now(UTC))
 
     async def queue_role_pack(self, organization_id: UUID, user_id: UUID, pack_id: str) -> None:
         """Install a role pack the person accepted, in the background."""

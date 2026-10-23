@@ -14,6 +14,7 @@ from app.db.models.organization import (
     OrgRole,
     ProactiveTiming,
 )
+from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
 from app.db.models.user import User
 
 
@@ -128,6 +129,45 @@ async def sweep_candidates(db: AsyncSession, *, agent_slug: str) -> list[SweepCa
             User.proactive_opt_out.is_(False),
             Organization.proactive_enabled.is_(True),
             Organization.proactive_model_profile_id.is_not(None),
+        )
+    )
+    return [SweepCandidate(*row) for row in result.all()]
+
+
+async def briefing_candidates(db: AsyncSession) -> list[SweepCandidate]:
+    """Active members of organizations with watches on who have findings no briefing listed yet.
+
+    Only the ones a briefing would say something to: a finding that is still
+    open, was not sent at once, and is in no earlier briefing (#2301).
+    """
+    waiting = (
+        select(Suggestion.id)
+        .where(
+            Suggestion.organization_id == OrganizationMember.organization_id,
+            Suggestion.user_id == OrganizationMember.user_id,
+            Suggestion.kind == SuggestionKind.FINDING.value,
+            Suggestion.status == SuggestionStatus.OPEN.value,
+            Suggestion.urgent.is_(False),
+            Suggestion.briefed_at.is_(None),
+        )
+        .exists()
+    )
+    result = await db.execute(
+        select(
+            OrganizationMember.organization_id,
+            OrganizationMember.user_id,
+            User.time_zone,
+            User.working_hours,
+            Organization.proactive_days,
+            Organization.proactive_hour,
+            Organization.proactive_timing,
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .where(
+            User.is_active.is_(True),
+            Organization.proactive_watches_enabled.is_(True),
+            waiting,
         )
     )
     return [SweepCandidate(*row) for row in result.all()]

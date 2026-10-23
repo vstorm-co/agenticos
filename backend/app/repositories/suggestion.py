@@ -5,11 +5,11 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.suggestion import Suggestion, SuggestionStatus
+from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
 
 
 async def propose(
@@ -134,3 +134,29 @@ async def titles_for_watch(db: AsyncSession, *, watch_id: UUID, limit: int) -> l
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def unbriefed_findings(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> list[Suggestion]:
+    """Open findings that were not sent at once and are in no briefing yet, newest first."""
+    result = await db.execute(
+        select(Suggestion)
+        .where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.kind == SuggestionKind.FINDING.value,
+            Suggestion.status == SuggestionStatus.OPEN.value,
+            Suggestion.urgent.is_(False),
+            Suggestion.briefed_at.is_(None),
+        )
+        .order_by(Suggestion.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def mark_briefed(db: AsyncSession, *, suggestion_ids: list[UUID], at: datetime) -> None:
+    """Record the briefing these findings went out in, so the next one does not repeat them."""
+    await db.execute(
+        update(Suggestion).where(Suggestion.id.in_(suggestion_ids)).values(briefed_at=at)
+    )

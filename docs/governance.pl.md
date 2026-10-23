@@ -1,5 +1,5 @@
 ---
-source_sha: "ca8a0c59346e"
+source_sha: "f5710e265fa6"
 ---
 
 # Governance { #governance }
@@ -540,7 +540,7 @@ obserwacja niczego na koncie nie zmienia. To, co znajdzie, należy tylko do tej
 osoby: sugestia rodzaju `finding`, z kluczem z identyfikatora samej rzeczy, więc
 każda jest zgłaszana raz, z linkiem, żeby ją otworzyć. Znalezisko z obserwacji
 ustawionej na pilne od razu, które model też uznał za pilne, idzie od razu jako
-powiadomienie; reszta czeka na osobę. W odróżnieniu od rutyny obserwacja milczy,
+powiadomienie; reszta czeka na jej poranny [briefing](console.md#the-inbox). W odróżnieniu od rutyny obserwacja milczy,
 gdy nie ma nic nowego.
 
 Na tej samej karcie jest **wiadomość powitalna**, domyślnie wyłączona i

@@ -1997,7 +1997,8 @@
         "role_pack": "Diese Routinen hinzufügen",
         "finding": "Erledigt"
       },
-      "open": "Öffnen"
+      "open": "Öffnen",
+      "urgent": "Dringend"
     },
     "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
     "turnLostAskAgain": "Erneut fragen"
@@ -2708,13 +2709,14 @@
         }
       },
       "suggestions": {
-        "title": "Vorschläge für Sie",
-        "description": "Was der nächtliche Blick auf Ihre Woche vorgeschlagen hat: eine Routine, einen Agent, Ihr Profil.",
+        "title": "Briefing",
+        "description": "Funde Ihrer Beobachtungen und Vorschläge des nächtlichen Blicks - zuerst, was nicht warten kann.",
         "empty": {
           "title": "Noch nichts vorgeschlagen",
-          "description": "Vorschläge erscheinen hier nach dem nächtlichen Blick auf Ihre Woche.",
-          "descriptionOff": "Ihre Organisation hat nächtliche Vorschläge ausgeschaltet."
-        }
+          "description": "Hier erscheinen Funde Ihrer Beobachtungen und die nächtlichen Vorschläge.",
+          "descriptionOff": "Ihre Organisation hat die Proaktivität ausgeschaltet."
+        },
+        "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
       }
     },
     "edit": {
@@ -3748,7 +3750,9 @@
     "projects": "Projekte",
     "allProjects": "Alle Projekte",
     "backgroundJobs": "Hintergrund-Jobs",
-    "loadingPage": "Seite wird geöffnet"
+    "loadingPage": "Seite wird geöffnet",
+    "inbox": "Posteingang",
+    "inboxCount": "{count, plural, =1 {1 wartet} other {# warten}}"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4395,6 +4399,10 @@
       "agent-starters": {
         "title": "Erste Nachrichten",
         "body": "Was der Chat jemandem anbietet, der diesen Agent öffnet, bevor etwas gesagt wurde. Wer neu ist, erfährt daraus mehr darüber, wofür der Agent da ist, als aus seiner Beschreibung - machen Sie also jede zu einer echten Frage, die er gut beantwortet."
+      },
+      "inbox-filters": {
+        "title": "Was von selbst zu Ihnen kam",
+        "body": "Funde Ihrer Beobachtungen und die nächtlichen Vorschläge, Dringendes zuerst. Nach Herkunft filtern oder unter Erledigt einen abgelehnten zurückholen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5569,8 +5577,8 @@
       "prefSuggestionTrigger": "AgenticOS hat etwas bemerkt, das sich einzurichten lohnt - eine Anfrage, die Sie wiederholen, ein Paket für Ihre Rolle, Ihr Profil. Höchstens einmal am Tag, an Sie.",
       "prefCapabilityRequested": "Eine Capability angefragt",
       "prefCapabilityRequestedTrigger": "Jemand hat eine Capability angefragt, die einem Ihrer Agents fehlt. An den Besitzer des Agents, einmal pro Person und Capability.",
-      "prefFinding": "Dringende Funde",
-      "prefFindingTrigger": "Eine Beobachtung einer Ihrer Verbindungen hat etwas gefunden, das Sie sofort erfahren wollten."
+      "prefFinding": "Funde Ihrer Beobachtungen",
+      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -8474,5 +8482,22 @@
       }
     },
     "signInAgain": "Erneut anmelden"
+  },
+  "inbox": {
+    "title": "Posteingang",
+    "description": "Was die Plattform Ihnen aus eigener Initiative gebracht hat: Funde Ihrer Beobachtungen und Vorschläge des nächtlichen Blicks.",
+    "filterLabel": "Anzeigen",
+    "filter": {
+      "all": "{count, plural, =0 {Alle} other {Alle (#)}}",
+      "urgent": "Dringend",
+      "watches": "Aus Beobachtungen",
+      "suggestions": "Vorschläge",
+      "done": "Erledigt"
+    },
+    "empty": {
+      "title": "Hier wartet nichts",
+      "description": "Funde Ihrer Beobachtungen und die nächtlichen Vorschläge kommen hierher. Eine Beobachtung richten Sie unter Einstellungen → Assistent ein."
+    },
+    "doneEmpty": "Noch nichts beantwortet"
   }
 }

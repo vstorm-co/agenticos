@@ -79,6 +79,21 @@ snapshot you meant to keep.
     filtering runs after the layout is resolved, whether the layout came from
     the default or from your own saved one.
 
+## The inbox { #the-inbox }
+
+**Inbox**, under Chat in the sidebar, is what the platform brought you on its
+own: what your [watches](governance.md#proactive-work) found in your connections
+and what the nightly look proposed. The number beside it is how many wait.
+Urgent ones come first; filter by where they came from, or open **Done** for
+what you already took or declined, and bring a declined one back. The same
+cards head your dashboard as **Briefing**, and the empty chat with the starter
+agent.
+
+What a watch finds that need not be heard at once waits for your morning: at
+the hour your organization's proactivity keeps, one notification and one direct
+message from each of its Slack, Teams and Mattermost bots that knows you list
+what is new. Each finding is in one briefing only.
+
 ## The bell
 
 Next to search, in the sidebar: a running count of what you have not read yet,

@@ -90,6 +90,8 @@ class Suggestion(Base, TimestampMixin):
     watch_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("watches.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    # When a finding went out in a morning briefing; each is in one briefing only.
+    briefed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # A finding sent at once rather than kept for the morning briefing.
     urgent: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")

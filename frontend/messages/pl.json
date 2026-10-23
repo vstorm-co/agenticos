@@ -1997,7 +1997,8 @@
         "role_pack": "Dodaj te rutyny",
         "finding": "Załatwione"
       },
-      "open": "Otwórz"
+      "open": "Otwórz",
+      "urgent": "Pilne"
     },
     "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
     "turnLostAskAgain": "Zapytaj ponownie"
@@ -2708,13 +2709,14 @@
         }
       },
       "suggestions": {
-        "title": "Propozycje dla Ciebie",
-        "description": "Co zaproponował nocny przegląd Twojego tygodnia: rutynę, agenta, Twój profil.",
+        "title": "Briefing",
+        "description": "Znaleziska twoich obserwacji i propozycje nocnego przeglądu - najpierw to, co nie może czekać.",
         "empty": {
           "title": "Na razie nic nie zaproponowano",
-          "description": "Propozycje pojawią się tu po nocnym przeglądzie Twojego tygodnia.",
-          "descriptionOff": "Twoja organizacja ma nocne propozycje wyłączone."
-        }
+          "description": "Tu pojawiają się znaleziska twoich obserwacji i nocne sugestie.",
+          "descriptionOff": "Twoja organizacja ma proaktywność wyłączoną."
+        },
+        "more": "{count, plural, =1 {Jeszcze 1 w inboksie} few {Jeszcze # w inboksie} many {Jeszcze # w inboksie} other {Jeszcze # w inboksie}}"
       }
     },
     "edit": {
@@ -3636,7 +3638,9 @@
     "projects": "Projekty",
     "allProjects": "Wszystkie projekty",
     "backgroundJobs": "Zadania w tle",
-    "loadingPage": "Otwieranie strony"
+    "loadingPage": "Otwieranie strony",
+    "inbox": "Inbox",
+    "inboxCount": "{count, plural, =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -4283,6 +4287,10 @@
       "agent-starters": {
         "title": "Pierwsze wiadomości",
         "body": "To, co czat proponuje komuś, kto otwiera tego agenta, zanim cokolwiek napisze. Nowa osoba dowiaduje się z nich, do czego jest agent, bardziej niż z opisu, więc niech każda będzie prawdziwym pytaniem, na które agent dobrze odpowiada."
+      },
+      "inbox-filters": {
+        "title": "Co przyszło do ciebie samo",
+        "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
       }
     },
     "chooseLanguage": "Język",
@@ -5458,8 +5466,8 @@
       "prefSuggestionTrigger": "AgenticOS zauważył coś, co warto ustawić - prośbę, którą powtarzasz, pakiet dla twojej roli, twój profil. Najwyżej raz dziennie, do ciebie.",
       "prefCapabilityRequested": "Prośba o capability",
       "prefCapabilityRequestedTrigger": "Ktoś poprosił o capability, której brakuje jednemu z twoich agentów. Do właściciela agenta, raz na osobę i capability.",
-      "prefFinding": "Pilne znaleziska",
-      "prefFindingTrigger": "Obserwacja jednego z twoich połączeń znalazła coś, o czym chcesz wiedzieć od razu."
+      "prefFinding": "Znaleziska twoich obserwacji",
+      "prefFindingTrigger": "Coś, o czym obserwacja miała dać znać od razu, i poranny briefing reszty."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -8376,5 +8384,22 @@
       }
     },
     "signInAgain": "Zaloguj się ponownie"
+  },
+  "inbox": {
+    "title": "Inbox",
+    "description": "To, co platforma przyniosła ci z własnej inicjatywy: znaleziska twoich obserwacji i propozycje nocnego przeglądu.",
+    "filterLabel": "Pokaż",
+    "filter": {
+      "all": "{count, plural, =0 {Wszystko} other {Wszystko (#)}}",
+      "urgent": "Pilne",
+      "watches": "Z obserwacji",
+      "suggestions": "Sugestie",
+      "done": "Załatwione"
+    },
+    "empty": {
+      "title": "Nic tu nie czeka",
+      "description": "Tu trafiają znaleziska twoich obserwacji i nocne sugestie. Obserwację ustawisz w Ustawienia → Asystent."
+    },
+    "doneEmpty": "Na nic jeszcze nie odpowiedziałeś"
   }
 }
