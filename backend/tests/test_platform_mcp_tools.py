@@ -553,6 +553,7 @@ class TestWhatNeverWaitsForApproval:
         assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
         assert tools["set_my_language"].writes
 
+    @pytest.mark.security
     def test_saving_the_profile_every_agent_is_told_waits_for_approval(self) -> None:
         """Codex on #2324: what it saves is appended to every agent's instructions,
         so a page that injected the call would otherwise persist into later runs."""

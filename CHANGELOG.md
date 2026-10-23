@@ -106,8 +106,9 @@ Two things are versioned separately from this file and worth knowing about:
 - **AgenticOS gets to know you (#2301).** While your account says nothing about
   your role, a greeting starts a three-question interview - what you do, what
   fills your week, which tools you use - saved to your profile through the new
-  `set_my_profile` platform tool (`PATCH /users/me/agent-context` over the API,
-  never held for approval) and ended with up to three setup cards from the new
+  `set_my_profile` platform tool (`PATCH /users/me/agent-context` over the API;
+  held for your approval like every write, since every agent is told what it
+  saves) and ended with up to three setup cards from the new
   `propose_setup` tool: a routine, a service to connect or an agent of your own,
   each one click. It offers the **Morning briefing** routine once, links to the
   console with `?highlight=` so the page opens pointing at the control, and saves
@@ -122,8 +123,10 @@ Two things are versioned separately from this file and worth knowing about:
   happened. Each call is a run from the new `proactive` surface, capped per
   person per month by the organization's `proactive_limit_usd` ($1 by default, 0
   switches it off, set beside the spending limit). **Working hours** in
-  Settings → Profile are told to every agent. Migration `0163_proactivity` adds
-  `suggestions`, `users.working_hours`, `users.personal_starters` and the limit.
+  Settings → Profile are told to every agent. The first messages are kept per
+  organization, since they are drawn from one organization's week. Migrations
+  `0163_proactivity` and `0169_starters_per_membership` add `suggestions`,
+  `users.working_hours`, `organization_members.personal_starters` and the limit.
 - **A welcome in the chat apps.** A new member - invited, joining the default
   organization or synced from the directory - gets one direct message from each
   of the organization's Slack, Mattermost and Teams bots that finds them by email.
