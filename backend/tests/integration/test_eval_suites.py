@@ -346,6 +346,23 @@ async def test_a_daily_suite_runs_once_a_day_and_records_its_result(db) -> None:
     assert (run.suite.id, run.suite.trigger) == (suite.id, "schedule")
 
 
+@pytest.mark.security
+async def test_running_a_suite_now_needs_runs_view(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    created = await service.create(ctx, agent.id, _suite_data(dataset))
+    held = AuthContext.has
+
+    def has(caller: AuthContext, perm: Perm) -> bool:
+        return perm != Perm.RUNS_VIEW and held(caller, perm)
+
+    with patch.object(AuthContext, "has", has), pytest.raises(AuthorizationError) as refused:
+        await service.run_now(ctx, agent.id, created.id)
+    assert refused.value.details == {"permission": "runs:view"}
+
+
 async def test_a_paused_suite_does_not_run(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)

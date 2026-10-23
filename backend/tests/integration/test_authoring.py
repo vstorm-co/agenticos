@@ -38,7 +38,7 @@ from app.core.exceptions import (
     NotFoundError,
     PaymentRequiredError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
@@ -632,7 +632,37 @@ class TestVerify:
         assert (await AuthoringService(db).for_agent(ctx, agent.id)).batch is None
 
 
+def _without_runs_view():
+    """The caller's role, less `runs:view` - so only the check on it can refuse."""
+    held = AuthContext.has
+
+    def has(ctx: AuthContext, perm: Perm) -> bool:
+        return perm != Perm.RUNS_VIEW and held(ctx, perm)
+
+    return patch.object(AuthContext, "has", has)
+
+
 class TestCheck:
+    @pytest.mark.security
+    async def test_a_check_with_evals_needs_runs_view_to_start(self, db):
+        """A check is an eval run: whoever could not read it may not start it."""
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        datasets = DatasetService(db)
+        dataset = await datasets.create(ctx, DatasetCreate(name="refunds"))
+        await datasets.add_case(
+            ctx,
+            dataset.id,
+            DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "30 days"}]),
+        )
+        service = AuthoringService(db)
+        body = ProposalCheck(dataset_id=dataset.id)
+
+        for start in (service.estimate_check, service.check):
+            with _without_runs_view(), pytest.raises(AuthorizationError) as refused:
+                await start(ctx, agent.id, body)
+            assert refused.value.details == {"permission": "runs:view"}
+
     async def test_the_projection_runs_without_the_evidence_and_the_draft_stays(self, db):
         ctx, agent, run = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))

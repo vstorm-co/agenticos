@@ -31,6 +31,7 @@ from app.schemas.eval_run import (
     EvalRunList,
     EvalRunRead,
 )
+from app.services.eval_run import EvalRunService
 
 pytestmark = pytest.mark.anyio
 
@@ -233,6 +234,28 @@ async def test_a_run_past_the_budget_answers_402(client: OpenClient, service: Ma
 
     assert refused.status_code == 402
     assert refused.json()["error"]["details"] == {"estimate_usd": "1.00"}
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("path", ["/estimate", ""])
+async def test_starting_or_pricing_an_eval_without_runs_view_answers_403_naming_it(
+    client: OpenClient, path: str
+) -> None:
+    """The service itself refuses, before it reads anything: a Member's grants on the
+    agent and the dataset do not stand in for reading the run they would start."""
+    member = AuthContext(
+        user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER
+    )
+    app.dependency_overrides[deps.get_auth_context] = lambda: member
+    app.dependency_overrides[deps.get_eval_run_service] = lambda: EvalRunService(AsyncMock())
+    async with client() as http:
+        refused = await http.post(
+            _url(f"/agents/{_RUN.agent_id}/eval-runs{path}"),
+            json={"dataset_id": str(_RUN.dataset_id)},
+        )
+
+    assert refused.status_code == 403
+    assert refused.json()["error"]["details"] == {"permission": "runs:view"}
 
 
 async def test_a_comparison_can_name_its_arm_and_baseline(
