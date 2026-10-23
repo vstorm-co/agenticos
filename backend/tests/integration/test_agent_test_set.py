@@ -42,6 +42,7 @@ from app.db.models.background_job import BackgroundJob
 from app.db.models.case_generation import CaseGeneration
 from app.db.models.conversation import Message
 from app.db.models.credential import ModelProfile
+from app.db.models.dataset import Dataset
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -115,17 +116,13 @@ async def _rate(
 
 
 def _generator(monkeypatch, *, ready: bool = True) -> None:
-    monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock())
-    if not ready:
-        monkeypatch.setattr(
-            SystemAgentRunner,
-            "require_runnable",
-            AsyncMock(
-                side_effect=SystemAgentUnavailableError(
-                    "Not published", key="case_generator", reason="unpublished"
-                )
-            ),
-        )
+    """Every system agent runnable, but the case generator when `ready` is false."""
+
+    async def runnable(self, ctx, *, key: str, agent_id=None, model_profile_id=None):
+        if key == "case_generator" and not ready:
+            raise SystemAgentUnavailableError("Not published", key=key, reason="unpublished")
+
+    monkeypatch.setattr(SystemAgentRunner, "require_runnable", runnable)
 
 
 def _sessions(db):
@@ -289,6 +286,7 @@ async def test_with_one_model_the_default_judge_grades_and_the_reason_is_given(
         "independent": False,
         "reason": REASONS["one_model"],
         "reason_code": "one_model",
+        "kept": False,
     }
     scoring = DatasetScoring.model_validate(
         (await DatasetService(db).read(owner, built.dataset_id)).scoring
@@ -362,8 +360,7 @@ async def test_a_question_the_caller_cannot_open_is_left_out(db, monkeypatch) ->
 
     built = await _service(db).bootstrap_for_agent(colleague, agent.id)
 
-    # The owner's conversation is not one the colleague may open: it is never read.
-    assert (built.counts.rated_good, built.counts.rated_bad, built.counts.skipped) == (1, 0, 0)
+    assert (built.counts.rated_good, built.counts.rated_bad, built.counts.skipped) == (1, 0, 1)
     assert built.counts.from_others == 0
 
 
@@ -426,6 +423,7 @@ async def test_a_test_set_the_caller_may_not_edit_is_left_for_one_of_their_own(
         "independent": False,
         "reason": REASONS["cannot_publish"],
         "reason_code": "cannot_publish",
+        "kept": False,
     }
     scoring = DatasetScoring.model_validate(named.scoring)
     assert scoring.judge.enabled and scoring.judge.agent_id is None
@@ -458,6 +456,7 @@ async def test_grading_somebody_set_up_is_left_as_it_is_and_its_model_reported(
         "independent": False,
         "reason": REASONS["shares_model"],
         "reason_code": "shares_model",
+        "kept": True,
     }
     kept = DatasetScoring.model_validate((await service.read(owner, first.dataset_id)).scoring)
     assert (kept.judge.agent_id, kept.reference.enabled) == (first.judge.agent_id, False)
@@ -479,11 +478,13 @@ async def test_a_grader_takes_the_next_free_name_and_gives_up_after_a_few(db, mo
 
     judge = await agent_repo.get(db, second.judge.agent_id, organization_id=org.id)
     assert judge is not None and judge.name == "Clerk - grader (2)"
-    third = await namesake()
-    await DatasetService(db).create(owner, DatasetCreate(name="Third clerk"), agent_id=third.id)
+    # The test set's own name freed, so only the grader's name is left taken.
+    for row in (await db.execute(select(Dataset).where(Dataset.agent_id.is_not(None)))).scalars():
+        row.name = f"Renamed {row.id}"
+    await db.flush()
     monkeypatch.setattr(agent_test_set, "_NAME_TRIES", 1)
     with pytest.raises(BadRequestError, match="Every name for this agent's grader is taken"):
-        await _service(db).bootstrap_for_agent(owner, third.id, more=1)
+        await _service(db).bootstrap_for_agent(owner, (await namesake()).id, more=1)
 
 
 async def test_rated_answers_already_held_or_not_the_caller_s_never_crowd_out_the_rest(
@@ -558,3 +559,54 @@ async def test_a_rated_answer_with_no_question_before_it_adds_nothing(db, monkey
     built = await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
 
     assert (built.version, built.counts.skipped, built.counts.rated_good) == (0, 1, 0)
+
+
+async def test_an_admin_gets_a_published_judge_on_another_model(db, monkeypatch) -> None:
+    org, _, _, agent, (_, other) = await _world(db)
+    _generator(monkeypatch)
+    admin = await world.member(db, org, OrgRoleName.ADMIN)
+
+    built = await _service(db).bootstrap_for_agent(admin, agent.id, more=1)
+
+    assert (built.judge.independent, built.judge.kept, built.visibility) == (True, False, "private")
+    judge = await agent_repo.get(db, built.judge.agent_id, organization_id=org.id)
+    assert judge is not None and judge.current_version_id is not None
+    version = await agent_repo.get_version(db, judge.current_version_id, organization_id=org.id)
+    assert version is not None and version.spec["model_profile_id"] == str(other.id)
+
+
+async def test_a_judge_that_would_not_run_grades_nothing(db, monkeypatch) -> None:
+    org, owner, _, agent, _ = await _world(db)
+
+    async def runnable(self, ctx, *, key: str, agent_id=None, model_profile_id=None):
+        if key == "eval_judge":
+            raise SystemAgentUnavailableError("Not published", key=key, reason="unpublished")
+
+    monkeypatch.setattr(SystemAgentRunner, "require_runnable", runnable)
+    await _rate(db, org, agent, owner, "How long do refunds take?", rating=1, minutes=1)
+
+    built = await _service(db).bootstrap_for_agent(owner, agent.id)
+
+    assert (built.gradable, built.too_few) == (0, True)
+    assert built.counts.rated_good == 1
+
+
+async def test_a_test_set_made_by_hand_keeps_its_grading_as_it_was(db, monkeypatch) -> None:
+    org, owner, _, agent, _ = await _world(db)
+    _generator(monkeypatch)
+    made = await DatasetService(db).create(owner, DatasetCreate(name="Mine"), agent_id=agent.id)
+    await _rate(db, org, agent, owner, "How long do refunds take?", rating=1, minutes=1)
+
+    built = await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
+
+    assert (built.dataset_id, built.created, built.visibility) == (made.id, False, "org")
+    assert built.judge.model_dump() == {
+        "agent_id": None,
+        "independent": False,
+        "reason": REASONS["judge_off"],
+        "reason_code": "judge_off",
+        "kept": True,
+    }
+    scoring = DatasetScoring.model_validate((await DatasetService(db).read(owner, made.id)).scoring)
+    assert not scoring.judge.enabled and not scoring.reference.enabled
+    assert (await db.execute(select(Agent).where(Agent.kind == "judge"))).first() is None

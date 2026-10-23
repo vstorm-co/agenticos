@@ -33,7 +33,7 @@ from app.core.exceptions import (
     BadRequestError,
     SystemAgentUnavailableError,
 )
-from app.core.permissions import AuthContext, Perm, Scope
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
@@ -48,6 +48,7 @@ from app.schemas.agent_test_set import (
 )
 from app.schemas.case_generation import MAX_GENERATED, CaseGenerationRequest, CaseOriginLiteral
 from app.schemas.dataset import AnswerAs, DatasetCreate
+from app.schemas.resource_grant import as_visibility
 from app.schemas.scoring import DatasetScoring, JudgeCreate
 from app.services.access import DATASET, resolve_access
 from app.services.agent_registry import AgentRegistryService
@@ -56,27 +57,34 @@ from app.services.case_generation import CaseGenerationService
 from app.services.dataset import DatasetService
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.scoring import STARTING_CRITERION, ScoringService
+from app.services.system_agent_runner import SystemAgentRunner
 
 TOO_FEW = 3
 """Below this many gradable questions, a change cannot be measured."""
 TARGET = 5
 """How many gradable questions the generator is asked to bring the test set up to."""
 RATED_LIMIT = 50
+"""At most this many rated answers are added in one build."""
+CANDIDATES = 500
+"""How many rated answers a build reads through to find them."""
 _NAME_TRIES = 10
 
 REASONS: dict[JudgeReason, str] = {
     "cannot_publish": (
-        "Your role cannot publish agents, so the standard grader is used, and it may run "
-        "on the same model as the agent. Ask an Owner or an Admin to build the test set "
-        "for a grader on another model."
+        "An admin needs to publish an independent judge. Until then answers are graded "
+        "by the default judge."
+    ),
+    "judge_off": (
+        "The test set's judge is switched off, so answers are graded only by its checks "
+        "and expected tool calls. It was left as it is; switch the judge on in its Grading tab."
     ),
     "unknown_model": (
         "This agent has no model set yet, so the standard grader is used and nothing "
         "shows whether it runs on another model."
     ),
     "shares_model": (
-        "The test set's grader runs on the same model as the agent, or on one that cannot "
-        "be told apart. Its grading was left as it is; pick another judge on its Grading tab."
+        "The test set's judge runs on the same model as the agent, or on one that cannot "
+        "be told apart. Its grading was left as it is; pick another judge in its Grading tab."
     ),
     "one_model": (
         "Only one model is set up, so the grader runs on the same model as the agent. "
@@ -100,13 +108,10 @@ def is_gradable(case: DatasetCase, scoring: DatasetScoring) -> bool:
     return judge or reference or checks or trajectory
 
 
-def _set_up(scoring: DatasetScoring) -> bool:
-    """Whether somebody already chose how the dataset grades with a judge."""
-    return scoring.judge.enabled or scoring.judge.agent_id is not None or scoring.reference.enabled
-
-
-def _not_independent(reason: JudgeReason) -> AgentTestSetJudge:
-    return AgentTestSetJudge(independent=False, reason=REASONS[reason], reason_code=reason)
+def _not_independent(reason: JudgeReason, *, kept: bool = False) -> AgentTestSetJudge:
+    return AgentTestSetJudge(
+        independent=False, reason=REASONS[reason], reason_code=reason, kept=kept
+    )
 
 
 def _same_model(one: ModelProfile | None, other: ModelProfile | None) -> bool:
@@ -169,6 +174,7 @@ class AgentTestSetService:
         version = (await self.datasets.read(ctx, dataset.id)).latest_version
         return AgentTestSetBootstrap(
             dataset_id=dataset.id,
+            visibility=as_visibility(dataset.visibility),
             version=version,
             created=created,
             counts=counts,
@@ -188,7 +194,8 @@ class AgentTestSetService:
     ) -> int:
         """Questions of the newest version that can measure a change.
 
-        Those some scorer the dataset has on can grade, and that do not come
+        Those some scorer the dataset has on can grade - the judge only when it
+        would run now, so a draft or archived one grades nothing - and that do not come
         from the evidence conversations - a question the improver learned from
         cannot measure it. Every rule of what does not count is here, so a later
         one - a held-out split - is added in one place.
@@ -203,6 +210,8 @@ class AgentTestSetService:
         if version is None:
             return 0
         scoring = DatasetScoring.model_validate(dataset.scoring)
+        if not await self._judge_grades(ctx, scoring):
+            scoring.judge.enabled = scoring.reference.enabled = False
         evidence = set(evidence_conversation_ids)
         cases = await dataset_repo.list_cases(
             self.db, version.id, organization_id=ctx.organization_id, limit=None
@@ -212,6 +221,18 @@ class AgentTestSetService:
             for case in cases
             if case.source_conversation_id not in evidence and is_gradable(case, scoring)
         )
+
+    async def _judge_grades(self, ctx: AuthContext, scoring: DatasetScoring) -> bool:
+        """Whether the judge the dataset grades with would run now - published, on a model."""
+        if not (scoring.judge.enabled or scoring.reference.enabled):
+            return False
+        try:
+            await SystemAgentRunner(self.db).require_runnable(
+                ctx, key=JUDGE.key, agent_id=scoring.judge.agent_id
+            )
+        except AiAssistanceDisabledError, SystemAgentUnavailableError:
+            return False
+        return True
 
     async def estimate_bootstrap(
         self, ctx: AuthContext, agent_id: UUID, *, more: int | None = None
@@ -275,23 +296,19 @@ class AgentTestSetService:
         )
         if version is None:
             return set()
-        cases = await dataset_repo.list_cases(
-            self.db, version.id, organization_id=ctx.organization_id, limit=None
+        return await dataset_repo.held_message_ids(
+            self.db, version.id, organization_id=ctx.organization_id
         )
-        return {case.source_message_id for case in cases if case.source_message_id is not None}
 
     async def _add_rated(
         self, ctx: AuthContext, dataset: Dataset, agent_id: UUID, since: datetime | None
     ) -> AgentTestSetCounts:
-        # Filtered before the limit: answers the caller cannot open, or the test
-        # set holds already, would otherwise crowd out the ones still to add.
         rated = await agent_run_repo.rated_answers(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
             since=since,
-            limit=RATED_LIMIT,
-            owner_id=None if ctx.scope_for(Perm.RUNS_VIEW) >= Scope.ALL else ctx.subject_id,
+            limit=CANDIDATES,
             excluding=await self._held_answers(ctx, dataset),
         )
         counts = AgentTestSetCounts(
@@ -303,8 +320,10 @@ class AgentTestSetService:
             answer.message_id: "counter_example" if answer.rated_down else "reference_answer"
             for answer in rated
         }
+        # Read until RATED_LIMIT cases are built: an answer in a conversation the
+        # caller cannot open is passed over without taking a place.
         version, counts.skipped = await self.datasets.add_from_messages(
-            ctx, dataset.id, list(kept), answer_as=kept, with_history=False
+            ctx, dataset.id, list(kept), answer_as=kept, with_history=False, limit=RATED_LIMIT
         )
         if version is None:
             return counts
@@ -342,16 +361,17 @@ class AgentTestSetService:
     ) -> AgentTestSetJudge:
         """Compare with the good answers, avoid the bad ones, on a judge of another model.
 
-        Grading somebody already set up on the dataset is left as it is - only
-        said to share the agent's model when it does - so building the test set
-        again never replaces a judge or a rubric a person chose.
+        Only a test set created by this build is set up. One that existed is
+        graded as it was - its judge, its rubric, its reference switch - and only
+        said to share the agent's model when it does.
         """
         if not await AiAssistanceService(self.db).is_enabled(organization_id=ctx.organization_id):
-            return _not_independent("ai_off")
+            return _not_independent("ai_off", kept=not created)
         answers_on = await self._profile(ctx, agent)
-        scoring = DatasetScoring.model_validate(dataset.scoring)
-        if not created and _set_up(scoring):
-            return await self._report(ctx, scoring, answers_on)
+        if not created:
+            return await self._report(
+                ctx, DatasetScoring.model_validate(dataset.scoring), answers_on
+            )
         if answers_on is None:
             await self._switch_on(ctx, dataset, None)
             return _not_independent("unknown_model")
@@ -376,6 +396,8 @@ class AgentTestSetService:
         self, ctx: AuthContext, scoring: DatasetScoring, answers_on: ModelProfile | None
     ) -> AgentTestSetJudge:
         """Whether grading as the dataset has it runs on another model than the agent's."""
+        if not (scoring.judge.enabled or scoring.reference.enabled):
+            return _not_independent("judge_off", kept=True)
         judge = (
             await agent_repo.get(
                 self.db, scoring.judge.agent_id, organization_id=ctx.organization_id
@@ -392,8 +414,9 @@ class AgentTestSetService:
                 independent=False,
                 reason=REASONS["shares_model"],
                 reason_code="shares_model",
+                kept=True,
             )
-        return AgentTestSetJudge(agent_id=scoring.judge.agent_id, independent=True)
+        return AgentTestSetJudge(agent_id=scoring.judge.agent_id, independent=True, kept=True)
 
     async def _create_judge(
         self, ctx: AuthContext, dataset: Dataset, agent: Agent, profile: ModelProfile

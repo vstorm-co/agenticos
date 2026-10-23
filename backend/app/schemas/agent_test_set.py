@@ -9,11 +9,14 @@ from pydantic import Field
 
 from app.schemas.base import BaseSchema
 from app.schemas.case_generation import MAX_GENERATED
+from app.schemas.resource_grant import VisibilityLiteral
 
-JudgeReason = Literal["one_model", "ai_off", "cannot_publish", "unknown_model", "shares_model"]
+JudgeReason = Literal[
+    "one_model", "ai_off", "cannot_publish", "unknown_model", "shares_model", "judge_off"
+]
 """Why the grader is not on a model of its own: only one model is set up, AI
 assistance is off, the caller may not publish a grader, the agent has no model,
-or the grading somebody set up already shares the agent's model."""
+the grading a test set already had shares the agent's model, or its judge is off."""
 
 GenerationSkipped = Literal["enough", "ai_off", "unavailable", "nothing_to_draft"]
 
@@ -52,10 +55,20 @@ class AgentTestSetJudge(BaseSchema):
         default=None, description="Why it is not independent, in words for the person"
     )
     reason_code: JudgeReason | None = None
+    kept: bool = Field(
+        default=False,
+        description="Whether this is the grading the test set already had, left as it was",
+    )
 
 
 class AgentTestSetBootstrap(BaseSchema):
     dataset_id: UUID
+    visibility: VisibilityLiteral = Field(
+        description=(
+            "Who may read the test set. A new one is private, because it copies other "
+            "people's questions; its Share action gives it to more readers"
+        )
+    )
     version: int = Field(description="The dataset's newest version once the rated answers are in")
     created: bool = Field(description="Whether the test set was created by this call")
     counts: AgentTestSetCounts

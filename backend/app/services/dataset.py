@@ -1191,6 +1191,7 @@ class DatasetService:
         *,
         answer_as: AnswerAs | Mapping[UUID, AnswerAs] = "counter_example",
         with_history: bool = True,
+        limit: int | None = None,
     ) -> tuple[DatasetVersionRead | None, int]:
         """Add several agents' answers as cases, in one new version.
 
@@ -1198,7 +1199,9 @@ class DatasetService:
         good answer kept as the reference beside a bad one kept as the
         counter-example, still in one version; an id it does not name is kept
         as a counter-example. `with_history` false leaves out the turns before
-        each question.
+        each question. `limit` stops once that many cases are built, so answers
+        the caller may not read never take a place; the ones not reached are
+        neither added nor counted as skipped.
 
         Each answer is built and checked as :meth:`add_from_message` builds and
         checks one. An answer the caller may not read - absent, in another
@@ -1219,7 +1222,11 @@ class DatasetService:
         current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         built: list[tuple[DatasetCaseContent, dict[str, UUID | None]]] = []
         replies: set[UUID | None] = set()
+        examined = 0
         for message_id in message_ids:
+            if limit is not None and len(built) >= limit:
+                break
+            examined += 1
             kept_as = (
                 answer_as.get(message_id, "counter_example")
                 if isinstance(answer_as, Mapping)
@@ -1235,7 +1242,7 @@ class DatasetService:
                 continue
             replies.add(case[1]["source_message_id"])
             built.append(case)
-        skipped = len(message_ids) - len(built)
+        skipped = examined - len(built)
         if not built:
             return None, skipped
         _refuse_past_ceiling(current.case_count, len(built))

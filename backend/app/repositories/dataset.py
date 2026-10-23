@@ -336,6 +336,21 @@ async def list_cases(
     return list(result.scalars().all())
 
 
+async def held_message_ids(
+    db: AsyncSession, version_id: UUID, *, organization_id: UUID
+) -> set[UUID]:
+    """The answers a version's cases were made from, by message id."""
+    result = await db.execute(
+        select(DatasetCase.source_message_id)
+        .join(DatasetVersion, _held(version_id))
+        .where(
+            DatasetCase.organization_id == organization_id,
+            DatasetCase.source_message_id.is_not(None),
+        )
+    )
+    return {message_id for (message_id,) in result.all() if message_id is not None}
+
+
 TOP_TAGS = 3
 
 
