@@ -1,5 +1,5 @@
 ---
-source_sha: "87bb6cfdfb2f"
+source_sha: "ce04b4e9501a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -864,7 +864,7 @@ odrzucić.
 | `desktop` | Pulpit | Wymaga |
 |---|---|---|
 | `sandbox` | Pulpit Linux (XFCE i Firefox) we własnym [sandboksie](#files-shell) agenta, na tej samej maszynie, na której działają jego powłoka i narzędzia plikowe | Capability [Sandbox](#files-shell) na połączeniu sandboksa, z runtime'em `desktop` |
-| `daemon` | `computerd` uruchomiony przez operatora: jego własny pulpit Linux (X11 albo KDE Plasma na Waylandzie), własny ekran Maca (`uv run deploy/computer/computerd.py`) albo pulpit w kontenerze (`deploy/computer/Dockerfile`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz `COMPUTER_DAEMON_TOKEN` |
+| `daemon` | `computerd` uruchomiony przez operatora: jego własny pulpit Linux (X11), własny ekran Maca (`uv run deploy/computer/computerd.py`) albo pulpit w kontenerze (`deploy/computer/Dockerfile`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz `COMPUTER_DAEMON_TOKEN` |
 
 Pulpit w sandboksie nie potrzebuje niczego własnego: ani adresu, ani tokena, ani
 providera. Żyje i jest współdzielony dokładnie tak jak sandbox, na rozmowę albo

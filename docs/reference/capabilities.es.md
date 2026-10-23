@@ -1,5 +1,5 @@
 ---
-source_sha: "87bb6cfdfb2f"
+source_sha: "ce04b4e9501a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -877,7 +877,7 @@ propio, que vuelve a medir la pantalla antes de actuar en lugar de rechazarlo.
 | `desktop` | El escritorio | Necesita |
 |---|---|---|
 | `sandbox` | Un escritorio Linux (XFCE y Firefox) dentro de la propia [sandbox](#files-shell) del agent, la misma máquina en la que trabajan su shell y sus tools de archivos | La capability [Sandbox](#files-shell) sobre una conexión de sandbox, con el runtime `desktop` |
-| `daemon` | Un `computerd` que ejecuta el operador: su propio escritorio Linux (X11, o KDE Plasma en Wayland), la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) o un escritorio en un contenedor (`deploy/computer/Dockerfile`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y `COMPUTER_DAEMON_TOKEN` |
+| `daemon` | Un `computerd` que ejecuta el operador: su propio escritorio Linux (X11), la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) o un escritorio en un contenedor (`deploy/computer/Dockerfile`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y `COMPUTER_DAEMON_TOKEN` |
 
 Un escritorio en la sandbox no necesita nada propio: ni dirección, ni token, ni
 proveedor. Vive y se comparte exactamente como la sandbox, por conversación o

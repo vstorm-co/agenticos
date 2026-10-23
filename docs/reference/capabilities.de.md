@@ -1,5 +1,5 @@
 ---
-source_sha: "87bb6cfdfb2f"
+source_sha: "ce04b4e9501a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -916,7 +916,7 @@ Handeln neu vermisst, statt ihn zu verweigern.
 | `desktop` | Der Desktop | Braucht |
 |---|---|---|
 | `sandbox` | Ein Linux-Desktop (XFCE und Firefox) in der eigenen [Sandbox](#files-shell) des Agents, auf derselben Maschine, auf der seine Shell- und Datei-Tools arbeiten | Die Capability [Sandbox](#files-shell) auf einer Sandbox-Verbindung, mit der Runtime `desktop` |
-| `daemon` | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11 oder KDE Plasma unter Wayland), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und `COMPUTER_DAEMON_TOKEN` |
+| `daemon` | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und `COMPUTER_DAEMON_TOKEN` |
 
 Ein Sandbox-Desktop braucht nichts Eigenes: keine Adresse, kein Token und keinen
 Provider. Er lebt und wird geteilt genau wie die Sandbox, pro Gespräch oder pro

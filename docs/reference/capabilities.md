@@ -818,7 +818,7 @@ rather than refuse it.
 | `desktop` | The desktop | Needs |
 |---|---|---|
 | `sandbox` | A Linux desktop (XFCE and Firefox) inside the agent's own [sandbox](#files-shell), the same machine its shell and file tools work on | The [Sandbox](#files-shell) capability on a sandbox connection, running the `desktop` runtime |
-| `daemon` | A `computerd` the operator runs: their own Linux desktop (X11, or KDE Plasma on Wayland), a Mac's own screen (`uv run deploy/computer/computerd.py`) or a desktop in a container (`deploy/computer/Dockerfile`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and `COMPUTER_DAEMON_TOKEN` |
+| `daemon` | A `computerd` the operator runs: their own Linux desktop (X11), a Mac's own screen (`uv run deploy/computer/computerd.py`) or a desktop in a container (`deploy/computer/Dockerfile`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and `COMPUTER_DAEMON_TOKEN` |
 
 A sandbox desktop needs nothing of its own: no address, no token and no
 provider. It lives and is shared exactly as the sandbox is, per conversation or

@@ -36,20 +36,6 @@ and clicks do nothing. The daemon listens on `127.0.0.1` unless `COMPUTERD_HOST`
 says otherwise. A deployment running in Docker on the same Mac reaches it at
 `host.docker.internal`.
 
-## Your own Linux desktop
-
-```bash
-COMPUTERD_TOKEN="$COMPUTER_DAEMON_TOKEN" python3 deploy/computer/computerd.py
-```
-
-On X11 it needs `scrot` and `xdotool`. In a KDE Plasma session on Wayland, which
-it picks when `WAYLAND_DISPLAY` is set, those reach only XWayland windows, so it
-uses `spectacle` for screenshots and `dotool` for input instead. `dotool` writes
-to `/dev/uinput`, so the user running it needs write access there (on NixOS,
-`hardware.uinput.enable` and the `uinput` group), and `DOTOOL_XKB_LAYOUT` set to
-the keyboard layout for typed text to come out right. Other Wayland desktops are
-not supported.
-
 ## Pointing a deployment at it
 
 | Where | Setting |

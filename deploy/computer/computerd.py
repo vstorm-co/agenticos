@@ -16,9 +16,7 @@ Two endpoints behind a bearer token:
 
 and `GET /health`, unauthenticated, for a container's health check.
 
-Standard library only on Linux. It shells out to `scrot` and `xdotool` on X11,
-and to `spectacle` and `dotool` in a KDE Plasma session on Wayland (chosen when
-`WAYLAND_DISPLAY` is set; `dotool` needs write access to `/dev/uinput`). On macOS
+Standard library only on Linux (it shells out to `scrot` and `xdotool`); on macOS
 it needs Quartz, which the inline script metadata above declares, so
 
     COMPUTERD_TOKEN=... uv run deploy/computer/computerd.py
@@ -146,97 +144,6 @@ class X11Driver:
 
     def key(self, chord: str) -> None:
         self._xdotool("key", "--", "+".join(self._KEYS.get(part, part) for part in split_chord(chord)))
-
-
-class KdeWaylandDriver:
-    """A KDE Plasma session on Wayland, through `spectacle` and `dotool`.
-
-    Wayland hands no client the screen or the pointer, so `scrot` and `xdotool`
-    reach nothing but XWayland windows. Spectacle is a client KWin lets capture
-    the whole screen. `dotool` writes to `/dev/uinput`, a virtual keyboard and
-    mouse below the compositor, and its `mouseto` places the pointer as a
-    fraction of the screen through an absolute device, so pointer acceleration
-    cannot bend a click.
-
-    One `dotool` process lives as long as the daemon: a new one is a new virtual
-    device, and the compositor drops what it is sent before it has noticed one.
-    """
-
-    name = "Linux"
-
-    _KEYS = {
-        "return": "enter", "escape": "esc", "del": "delete", "page_up": "pageup", "page_down": "pagedown",
-        "control": "ctrl", "option": "alt", "cmd": "super", "command": "super", "meta": "super", "win": "super",
-    }
-    _WHEEL = {"up": ("wheel", 1), "down": ("wheel", -1), "left": ("hwheel", -1), "right": ("hwheel", 1)}
-    _SETTLE = 0.05
-    """Seconds between actions: `dotool` does not say when the compositor has one."""
-
-    def __init__(self) -> None:
-        for tool in ("spectacle", "dotool"):
-            if shutil.which(tool) is None:
-                sys.exit(f"computerd: {tool} is not installed")
-        self._shot = Path(tempfile.gettempdir()) / f"computerd-{os.getpid()}.png"
-        self._size: tuple[int, int] | None = None
-        self._dotool: subprocess.Popen[str] | None = None
-
-    def _send(self, *lines: str) -> None:
-        if self._dotool is None or self._dotool.poll() is not None:
-            self._dotool = subprocess.Popen(["dotool"], stdin=subprocess.PIPE, text=True)
-            time.sleep(1.0)
-        assert self._dotool.stdin is not None
-        try:
-            for line in lines:
-                self._dotool.stdin.write(line + "\n")
-                self._dotool.stdin.flush()
-                time.sleep(self._SETTLE)
-        except BrokenPipeError as exc:
-            raise Refused("dotool stopped; check that this user may write to /dev/uinput") from exc
-
-    def _to(self, x: int, y: int) -> str:
-        if self._size is None:
-            self.screenshot()
-        assert self._size is not None
-        width, height = self._size
-        return f"mouseto {min((x + 0.5) / width, 1.0):.6f} {min((y + 0.5) / height, 1.0):.6f}"
-
-    def screenshot(self) -> tuple[bytes, int, int]:
-        subprocess.run(
-            ["spectacle", "--background", "--nonotify", "--fullscreen", "--pointer", "--output", str(self._shot)],
-            check=True,
-            timeout=30,
-            capture_output=True,
-        )
-        data = self._shot.read_bytes()
-        width, height = png_size(data)
-        self._size = (width, height)
-        return data, width, height
-
-    def click(self, x: int, y: int, button: str, count: int) -> None:
-        self._send(self._to(x, y), *[f"click {button}"] * count)
-
-    def move(self, x: int, y: int) -> None:
-        self._send(self._to(x, y))
-
-    def drag(self, x: int, y: int, to_x: int, to_y: int) -> None:
-        self._send(self._to(x, y), "buttondown left", self._to(to_x, to_y), "buttonup left")
-
-    def scroll(self, x: int, y: int, direction: str, amount: int) -> None:
-        axis, sign = self._WHEEL[direction]
-        self._send(self._to(x, y), f"{axis} {sign * amount}")
-
-    def type_text(self, text: str) -> None:
-        # `dotool` reads one command a line, so a newline in the text is a key press.
-        commands: list[str] = []
-        for index, line in enumerate(text.split("\n")):
-            if index:
-                commands.append("key enter")
-            if line:
-                commands.append(f"type {line}")
-        self._send(*commands)
-
-    def key(self, chord: str) -> None:
-        self._send("key " + "+".join(self._KEYS.get(part, part) for part in split_chord(chord)))
 
 
 class MacDriver:
@@ -488,13 +395,7 @@ def main() -> None:
         sys.exit("computerd: set COMPUTERD_TOKEN to at least 16 characters (AgenticOS's COMPUTER_DAEMON_TOKEN)")
     host = os.environ.get("COMPUTERD_HOST", "127.0.0.1")
     port = int(os.environ.get("COMPUTERD_PORT", "8765"))
-    driver: Driver
-    if platform.system() == "Darwin":
-        driver = MacDriver()
-    elif os.environ.get("WAYLAND_DISPLAY"):
-        driver = KdeWaylandDriver()
-    else:
-        driver = X11Driver()
+    driver: Driver = MacDriver() if platform.system() == "Darwin" else X11Driver()
     server = ThreadingHTTPServer((host, port), make_handler(driver, token))
     print(f"computerd: {driver.name} desktop on http://{host}:{port}", file=sys.stderr)
     server.serve_forever()
