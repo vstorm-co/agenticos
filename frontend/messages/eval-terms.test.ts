@@ -13,10 +13,22 @@ import pl from "./pl.json";
  * own nouns - agent, dataset, run, skill - stay English and are not matched.
  */
 
-/** The namespaces an eval screen reads, the authoring assistant's card among them. */
+/**
+ * The namespaces an eval screen reads, the authoring assistant's card among them,
+ * and the ones naming the same things elsewhere: settings, the job pools, MCP
+ * trust, templates, delegation, context files and channels.
+ */
 const SCOPE = [
   "evals.",
   "authoring.",
+  "mcp.",
+  "pages.settings.",
+  "pages.backgroundJobs.",
+  "pages.channels.",
+  "agentTemplates.",
+  "steps.",
+  "chat.delegation.",
+  "context.",
   "datasets.",
   "promotionGate.",
   "pages.runs.",
@@ -38,12 +50,17 @@ interface Mixed {
 }
 
 /**
- * Where Polish "szkic" would name the agent's unpublished spec, which is "wersja
- * robocza". A text written for somebody to accept - a knowledge gap's content, a
- * generated case - stays "szkic", and German says "Entwurf" for both.
+ * Where Polish "szkic" would name an unpublished version - an agent's spec, or a
+ * file that has none - which is "wersja robocza". A text written for somebody to
+ * accept - a knowledge gap's content, a generated case - stays "szkic", and
+ * German says "Entwurf" for both.
  */
 const AGENT_DRAFTS = [
   "agents.",
+  "agentTemplates.",
+  "steps.agents-templates.",
+  "chat.delegation.",
+  "context.savingReachesEveryAgent",
   "pages.agents.",
   "evals.",
   "authoring.",
