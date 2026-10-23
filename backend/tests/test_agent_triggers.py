@@ -1854,6 +1854,52 @@ class TestPreparingAnEventFire:
             with pytest.raises(AuthorizationError):
                 await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
 
+    @pytest.mark.security
+    async def test_a_verified_delivery_past_the_triggers_allowance_is_a_429_unclaimed(self):
+        """A leaked secret or a relay in a loop fires runs until the budget is gone;
+        the allowance stops it. Refused before the claim, so a later retry fires."""
+        from app.core.exceptions import RateLimitError
+        from app.services.rate_limit import Decision
+
+        service = _service()
+        trigger = _event_trigger()
+        claim = AsyncMock(return_value=True)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch(
+                "app.services.agent_trigger.rate_limit.trigger_delivery_allowed",
+                AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=17)),
+            ),
+            patch.object(type(service), "_claim", claim),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=True)
+            with pytest.raises(RateLimitError) as refused:
+                await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
+        assert refused.value.details == {"retry_after_seconds": 17}
+        claim.assert_not_awaited()
+
+    async def test_a_forged_delivery_spends_none_of_the_allowance(self):
+        """Counted only after the signature holds: nobody without the secret can
+        starve the real integration."""
+        service = _service()
+        trigger = _event_trigger()
+        allowed = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.rate_limit.trigger_delivery_allowed", allowed),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=False)
+            with pytest.raises(AuthorizationError):
+                await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
+        allowed.assert_not_awaited()
+
     async def test_a_payload_the_filter_rejects_is_ignored(self):
         service = _service()
         trigger = _event_trigger()

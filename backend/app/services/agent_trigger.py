@@ -53,6 +53,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     NotFoundError,
+    RateLimitError,
     ValidationError,
 )
 from app.core.field_errors import field_details, refused_field
@@ -88,7 +89,7 @@ from app.schemas.agent_trigger import (
     _cron_has_next,
 )
 from app.schemas.portal import PortalPresetRead, PortalRead
-from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
+from app.services import portal_catalog, portals, rate_limit, trigger_dedupe, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.background_jobs import enqueue
@@ -1344,6 +1345,15 @@ class AgentTriggerService:
         # open and fires, and a duplicate answers the same nothing-to-do `None` an
         # unmatched delivery does, so it stays unprobeable. A transaction that
         # then rolls back queued nothing and gives the claim back (`_claim`).
+        # Counted only once the signature holds - nobody without the secret can
+        # spend it - and before the claim, so a provider's later retry can still
+        # fire the delivery refused here.
+        allowance = await rate_limit.trigger_delivery_allowed(trigger.id)
+        if not allowance.allowed:
+            raise RateLimitError(
+                message="This trigger has fired too often this minute",
+                details={"retry_after_seconds": allowance.retry_after_seconds},
+            )
         delivery = trigger_events.delivery_id(source, headers)
         if delivery is not None and not await self._claim(trigger.id, delivery):
             return None
@@ -1428,6 +1438,13 @@ class AgentTriggerService:
                 payload=payload,
                 config=trigger.event_config,
             ):
+                continue
+            # One App delivery may fire several triggers: one past its allowance is
+            # left out, logged, rather than refusing the delivery for the others.
+            if not (await rate_limit.trigger_delivery_allowed(trigger.id)).allowed:
+                logger.warning(
+                    "trigger_delivery_rate_limited", extra={"trigger_id": str(trigger.id)}
+                )
                 continue
             delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers)
             if delivery is not None and not await self._claim(trigger.id, delivery):

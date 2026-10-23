@@ -182,6 +182,27 @@ def _wired(*, grants=(), triggers=(), secret=None, claims=True):
     return stack
 
 
+class TestATriggerPastItsAllowance:
+    async def test_it_is_left_out_while_the_others_fire(self) -> None:
+        """One App delivery can fire several triggers; the one that has fired too
+        often this minute is skipped, not the delivery for everybody."""
+        from app.services.rate_limit import Decision
+
+        body = _body()
+        busy, calm = _trigger(), _trigger()
+
+        async def allowance(trigger_id: uuid.UUID) -> Decision:
+            return Decision(allowed=trigger_id != busy.id, retry_after_seconds=30)
+
+        with (
+            _wired(grants=[_grant()], triggers=[busy, calm]),
+            patch(f"{SERVICE}.rate_limit.trigger_delivery_allowed", new=allowance),
+        ):
+            decisions = await _service().prepare_app_fires(body=body, headers=_headers(body))
+
+        assert [decision.trigger_id for decision in decisions] == [calm.id]
+
+
 class TestWhoseDeliveryItIs:
     async def test_the_signature_settles_it_not_the_installation_id(self) -> None:
         """The installation id selects candidates and authorises nothing; two
