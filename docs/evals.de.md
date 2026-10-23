@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "2e02221984a4"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -26,8 +26,11 @@ Der Tab **Evals** eines Agents öffnet mit einem Liniendiagramm seiner
 Bestehensquote Run für Run, der älteste links, eine Linie pro Dataset, jede mit
 eigener Strichart. Ein Punkt ist rot, wo der Run Fälle kaputt gemacht hat, grün,
 wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Draft; der
-Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run. Das
-Diagramm öffnet mit den letzten 12 Runs; zieh die Griffe des Bereichs darunter
+Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run.
+
+Die Achse benennt jeden Punkt danach, was lief und wann - mit der Uhrzeit für
+einen Run von heute, mit dem Datum für frühere. Ab mehr als 12 Runs erscheint
+unter dem Diagramm ein Bereich, der mit den letzten 12 öffnet; zieh seine Griffe
 oder verschieb sie mit den Pfeiltasten, um mehr oder weniger zu sehen.
 
 Darunter stehen seine Runs, nach Dataset gruppiert, jeder mit dem, was gegen was
@@ -232,13 +235,16 @@ jede Anfrage belegen kann, die ein Provider der Organisation erlaubt.
 Abbrechen (`POST /api/v1/eval-runs/{id}/cancel`, durch die Person, die ihn
 gestartet hat, oder jeden, der den Agent bearbeiten darf) stoppt, was noch nicht
 begonnen hat: Bereits laufende Fälle laufen zu Ende und werden behalten, und
-kein weiterer Fall startet.
+kein weiterer Fall startet. Wer den Job eines Runs unter **Admin** →
+**Background jobs** abbricht, bevor ein Worker ihn übernommen hat, bricht den
+Run ebenso ab, binnen Sekunden.
 
 Ein Run, den sein Worker nicht beenden kann - etwa weil ihm mitten im Run die
 Datenbank wegbricht -, endet sofort als `failed`, wie ein Agent-Run: Seine
 laufenden Fälle schlagen fehl, die übrigen werden übersprungen, und seine Seite
 sagt, dass er an einem Fehler angehalten hat und neu gestartet werden sollte. Er
-wird nicht fortgesetzt.
+wird nicht fortgesetzt. Ebenso sofort als `failed` endet ein Run, dessen Job die
+Zeit ausgegangen ist oder dessen Worker währenddessen heruntergefahren wurde.
 
 Ein Worker kann auch kommentarlos sterben. Der Worker eines laufenden Runs meldet
 alle `EVAL_HEARTBEAT_SECONDS`, dass er lebt; ein Run, dessen Worker schweigt und
@@ -247,9 +253,16 @@ von einem Sweep, den der Worker jede Minute ausführt, als fehlgeschlagen beende
 der auch seine Plätze freigibt. Ein Worker, dessen Heartbeats so lange
 fehlschlagen - auf einem Host, der zu ausgelastet ist, um seine Datenbank zu
 erreichen -, wird ebenso beendet, obwohl er noch arbeitet, und sein Run muss neu
-gestartet werden. Ein Run in der Warteschlange hat noch keinen
-Worker - er wartet auf einen freien Worker - daher gibt der Sweep ihn erst nach
-`EVAL_QUEUED_ABANDONED_AFTER_HOURS` auf.
+gestartet werden.
+
+Ein Run in der Warteschlange hat noch keinen Worker, der melden könnte, dass er
+lebt. Er darf auf einen freien Worker oder hinter einer pausierten Job-Art warten,
+solange sein Job in der Warteschlange steht; der Sweep beendet ihn erst als
+fehlgeschlagen, wenn kein Job mehr übrig ist, der ihn ausführen würde. Ein Fall,
+den ein toter Worker in einem bereits beendeten Run laufend zurückgelassen hat,
+schlägt nach denselben `EVAL_ABANDONED_AFTER_MINUTES` fehl. Ein laufender Fall
+zählt auf `EVAL_ORG_CONCURRENCY`, bis er endet, auch nachdem sein Run
+abgebrochen wurde.
 
 Solange ein Run wartet oder läuft, lassen sich die Umgebung, die er nennt, und
 das Modellprofil, auf dem eine seiner Seiten läuft, nicht entfernen: Seine
@@ -415,10 +428,11 @@ verglichen.
 Eine **Suite** ist ein Eval-Run, an dessen Start niemand denken muss. Sie nennt
 den Agent, das Dataset, die Umgebung, deren Version sie prüft, und eine
 Schwelle, die jedes Ergebnis erfüllen muss, und läuft dann selbstständig. Die
-Karte **Suites** steht oben im Evals-Tab eines Agents: das Dataset jeder Suite,
-wann sie läuft und wie sie zuletzt abschnitt. Geöffnet listet eine Suite jedes
-Ergebnis, warum es nicht bestand, die gebrochenen Fälle und einen Link zum
-Eval-Run dahinter; die Seite dieses Runs nennt die Suite, die ihn gestartet hat.
+Karte **Suites** steht im Evals-Tab eines Agents unter den Runs: das Dataset
+jeder Suite, wann sie läuft, ihre Schwelle und wie sie zuletzt abschnitt.
+Geöffnet listet eine Suite jedes Ergebnis, warum es nicht bestand, die
+gebrochenen Fälle und einen Link zum Eval-Run dahinter; die Seite dieses Runs
+nennt die Suite, die ihn gestartet hat.
 
 ### Wann eine Suite läuft { #when-a-suite-runs }
 
@@ -477,7 +491,9 @@ die niemand bewertet hat. Den Judge neu zu veröffentlichen ändert, wie Antwort
 bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
 einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt. Eine
 Bestehensquote unter dem Minimum lässt ein Ergebnis unabhängig vom Vergleich
-durchfallen: Das Minimum braucht keine Baseline.
+durchfallen: Das Minimum braucht keine Baseline. Ein Ergebnis, dessen Eval-Run
+abgebrochen wurde, ist ebenfalls ohne Ergebnis und sagt das; eines, dessen Run
+fehlgeschlagen ist, ist ein Fehler.
 
 Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
 kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
@@ -530,7 +546,6 @@ eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Wie viele letzte Runs die Schätzung mittelt |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Wie lange ein laufender Run bei schweigendem Worker stillstehen darf, bevor der Sweep ihn beendet |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Wie oft ein arbeitender Run meldet, dass er lebt |
-| `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Wie lange ein Run auf einen Worker warten darf, bevor der Sweep ihn beendet |
 | `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Wie lange eine Suite nach einer Änderung an einem Skill oder einer Wissensbasis wartet, damit eine Reihe von Änderungen ein Lauf ist |
 
 ## Zugriff { #access }

@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { EnableAiAssistanceLink } from "@/components/teams/enable-ai-assistance-link";
 import { Button } from "@/components/ui";
 import { useClassifyKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
-import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 
 interface CheckProps {
@@ -60,9 +59,7 @@ export function CheckAnswersAiOff({ unchecked }: Pick<CheckProps, "unchecked">) 
     <p className="border-border bg-muted/40 text-muted-foreground border-b px-4 py-2 text-xs sm:px-5">
       {t("uncheckedAiOff", { count: unchecked })}{" "}
       {can(Perm.orgSettings) ? (
-        <Link href={ROUTES.ORG_MEMBERS(activeOrg.id)} className="font-medium underline">
-          {t("enableAi")}
-        </Link>
+        <EnableAiAssistanceLink orgId={activeOrg.id}>{t("enableAi")}</EnableAiAssistanceLink>
       ) : (
         t("askAdmin")
       )}

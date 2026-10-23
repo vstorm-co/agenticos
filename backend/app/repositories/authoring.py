@@ -100,6 +100,40 @@ async def update_request(
     return request
 
 
+async def fail_unfinished(
+    db: AsyncSession, request_id: UUID, *, organization_id: UUID, error: str, now: datetime
+) -> bool:
+    """Fail a request still queued or running. `False` when it had already ended, which keeps its outcome.
+
+    Raises:
+        DBAPIError: Another transaction holds the request - a worker still at
+            it keeps its row locked for the whole request. Refused at once
+            rather than waited on, so the caller can try again later instead
+            of stalling behind a run that may last an hour.
+    """
+    await db.execute(
+        select(AuthoringRequest.id)
+        .where(
+            AuthoringRequest.id == request_id,
+            AuthoringRequest.organization_id == organization_id,
+        )
+        .with_for_update(nowait=True)
+    )
+    result = await db.execute(
+        update(AuthoringRequest)
+        .where(
+            AuthoringRequest.id == request_id,
+            AuthoringRequest.organization_id == organization_id,
+            AuthoringRequest.status.in_(
+                (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value)
+            ),
+        )
+        .values(status=AuthoringStatus.FAILED.value, error=error, finished_at=now)
+        .returning(AuthoringRequest.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def get_batch(
     db: AsyncSession, batch_id: UUID, *, organization_id: UUID, lock: bool = False
 ) -> SpecProposalBatch | None:
@@ -136,11 +170,17 @@ async def get_open_batch(
 async def latest_batch(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID
 ) -> SpecProposalBatch | None:
+    """The agent's newest batch a person has been shown.
+
+    An improvement session's candidate stays out until the session makes it the
+    open batch: until then its hunks are still being checked.
+    """
     result = await db.execute(
         select(SpecProposalBatch)
         .where(
             SpecProposalBatch.organization_id == organization_id,
             SpecProposalBatch.agent_id == agent_id,
+            SpecProposalBatch.status != BatchStatus.CANDIDATE.value,
         )
         .order_by(SpecProposalBatch.created_at.desc())
         .limit(1)
