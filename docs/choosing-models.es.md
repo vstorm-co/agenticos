@@ -1,5 +1,5 @@
 ---
-source_sha: "1986f3e8ba0a"
+source_sha: "1b24107e2e10"
 ---
 
 # Elegir un modelo { #choosing-a-model }
@@ -47,7 +47,7 @@ evapore.
 
 ## Modelos cerrados o pesos abiertos { #closed-models-or-open-weights }
 
-Los dos son de primera clase aquí. Los 27 providers incluyen los laboratorios de
+Los dos son de primera clase aquí. Los 28 providers incluyen los laboratorios de
 frontera cerrados, los hosts de pesos abiertos y dos entradas sin clave —
 [Ollama](models.md) y un proxy LiteLLM — para modelos que corren en hardware
 tuyo.
@@ -76,9 +76,20 @@ barata.
     empequeñezca de verdad al hardware — no para ahorrar dinero en cuarenta
     conversaciones al día.
 
+**Las llamadas a herramientas rotas se reparan y se cuentan.** Los modelos de
+pesos abiertos envían una llamada con JSON mal formado - una coma al final,
+comillas simples, un objeto cortado - mucho más a menudo que los de la
+vanguardia. Cada agente repara la sintaxis antes de validar los argumentos, así
+que una llamada rota llega a su herramienta al primer intento en vez de costar un
+reintento; un campo que falta o un tipo equivocado siguen sin pasar la
+validación, y una llamada reparada sigue pasando por la aprobación y los
+guardrails. Cada run cuenta sus reparaciones, que se ven en el run y por modelo
+en la tarjeta de modelos del panel - un modelo que necesita muchas es uno que
+conviene reconsiderar.
+
 ## Poner una pasarela delante { #putting-a-gateway-in-front }
 
-Tres de los 27 no son fabricantes de modelos sino enrutadores: **OpenRouter**,
+Tres de los 28 no son fabricantes de modelos sino enrutadores: **OpenRouter**,
 **Vercel AI Gateway** y un **proxy LiteLLM** que ejecutas tú. Cada uno te da una
 clave y un endpoint delante de muchos modelos.
 

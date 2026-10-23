@@ -20,7 +20,8 @@ export type SecretKind =
   | "google_oauth_app"
   | "git_token"
   | "entra_app"
-  | "microsoft_oauth_app";
+  | "microsoft_oauth_app"
+  | "openai_codex";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no
@@ -40,6 +41,11 @@ export type StorableSecretKind = Exclude<SecretKind, "none">;
  */
 export interface SecretRequirement {
   kind: StorableSecretKind;
+  /**
+   * Further kinds that satisfy it besides `kind` - the coding agent takes an API
+   * key or a ChatGPT sign-in. Optional here, always on the wire.
+   */
+  also_accepts?: StorableSecretKind[];
   /** What the capability's author said it is for, shown beside the picker. */
   description: string;
   /**
@@ -84,6 +90,13 @@ export function secretIsRequired(
   const condition = requirement.required_when;
   if (!condition) return true;
   return condition.equals.includes(String(config[condition.field]));
+}
+
+/** Whether a secret of `kind` satisfies the requirement, as the server checks at publish. */
+export function acceptsKind(requirement: SecretRequirement, kind: string): boolean {
+  return (
+    kind === requirement.kind || (requirement.also_accepts ?? []).some((also) => also === kind)
+  );
 }
 
 /** Whether the picker belongs on the form: the key is needed, or merely usable. */

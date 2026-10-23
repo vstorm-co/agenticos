@@ -23,7 +23,9 @@ import {
   InviteMemberDialog,
   OrgApprovalWaiver,
   OrgAssistant,
+  OrgProactivity,
   OrgSpendingLimit,
+  OrgVoiceSettings,
 } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ForgetMemberMemory } from "@/components/memory/forget-member-memory";
@@ -459,12 +461,16 @@ export default function OrgMembersPage({ params }: PageProps) {
       {/* The workspace's own spending ceiling sits with its other settings. It
           hides itself from anyone who may not change them. */}
       {org && <OrgSpendingLimit org={org} />}
+      {org && <OrgProactivity org={org} />}
 
       {/* And whether a chat session here may waive them. Governance, like the
           ceiling above it, and hidden from anybody who may not decide an
           approval in the first place. */}
       {org && <OrgApprovalWaiver org={org} />}
 
+      {/* How people here talk to agents: dictation now, voice conversations next.
+          Hidden from anybody who may not change organization settings. */}
+      {org && <OrgVoiceSettings org={org} />}
       {/* Whether the organization has its AI Architect, and how it greets people.
           The agent itself is edited in the Builder, which the card links to. */}
       <OrgAssistant orgId={id} />

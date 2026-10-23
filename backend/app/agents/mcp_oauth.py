@@ -23,12 +23,17 @@ Every URL reached from here - discovery candidates, the token endpoint, and
 each redirect hop - is SSRF-checked *and connected to at the address that
 check approved* (see :func:`_client`), because discovery means the remote
 server, not the user, picks most of the addresses we call.
+
+A flow for a connection whose own host is on `MCP_ALLOWED_HOSTS` may reach the
+listed hosts too, and only those (:func:`app.agents.mcp.trusted_hosts_for`):
+a server on the deployment's network often signs people in itself, so its
+metadata, registration and token endpoints sit on that same host.
 """
 
-from __future__ import annotations
-
+import asyncio
 import logging
 from dataclasses import dataclass
+from functools import partial
 
 import httpx2
 from mcp.client.auth import PKCEParameters
@@ -39,18 +44,25 @@ from mcp.client.auth.oauth2 import (
     create_client_registration_request,
     create_oauth_metadata_request,
     extract_resource_metadata_from_www_auth,
+    extract_scope_from_www_auth,
+    get_client_metadata_scopes,
     handle_auth_metadata_response,
     handle_protected_resource_response,
     handle_registration_response,
     resource_url_from_server_url,
 )
-from mcp.shared.auth import OAuthClientMetadata, OAuthMetadata, OAuthToken
+from mcp.shared.auth import (
+    OAuthClientMetadata,
+    OAuthMetadata,
+    OAuthToken,
+    ProtectedResourceMetadata,
+)
 from pydantic import AnyUrl, BaseModel, ValidationError
 
-from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
+from app.agents.mcp import CONNECT_TIMEOUT_SECS, trusted_hosts_for
 from app.core.config import settings
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError
+from app.core.sanitize import UrlRefusedError, resolve_pinned_url
 from app.core.secret_kinds import SealedStr
 
 logger = logging.getLogger(__name__)
@@ -58,6 +70,7 @@ logger = logging.getLogger(__name__)
 TOKEN_EXPIRY_SKEW_SECS = 60.0
 FLOW_TTL_SECS = 600.0
 _MAX_REDIRECTS = 5
+_GRANT_TYPES = ("authorization_code", "refresh_token")
 _USER_AGENT = f"{settings.PROJECT_NAME} MCP client"
 
 _HTTP_TIMEOUT = httpx2.Timeout(CONNECT_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
@@ -152,7 +165,11 @@ def _validation_detail(exc: ValueError) -> str:
     )
 
 
-def _client(transport: httpx2.AsyncBaseTransport | None = None) -> PinnedAsyncClient:
+def _client(
+    transport: httpx2.AsyncBaseTransport | None = None,
+    *,
+    trusted_hosts: frozenset[str] = frozenset(),
+) -> PinnedAsyncClient:
     """The only client this flow talks through.
 
     `PinnedAsyncClient` checks each request's URL and then dials the address
@@ -162,9 +179,14 @@ def _client(transport: httpx2.AsyncBaseTransport | None = None) -> PinnedAsyncCl
     it again, so a hostile server can answer public to the check and private to
     the request between them (#860).
 
+    `trusted_hosts` is :func:`app.agents.mcp.trusted_hosts_for` of the
+    connection's own URL, and of no URL a server named.
+
     `transport` is for a test that needs to see what would go on the wire.
     """
-    return PinnedAsyncClient(timeout=_HTTP_TIMEOUT, transport=transport)
+    return PinnedAsyncClient(
+        timeout=_HTTP_TIMEOUT, transport=transport, trusted_hosts=trusted_hosts
+    )
 
 
 async def _send(client: PinnedAsyncClient, request: httpx2.Request) -> httpx2.Response:
@@ -251,6 +273,8 @@ class DiscoveredServer:
     resource: str
     scope: str | None
     metadata: OAuthMetadata
+    trusted_hosts: frozenset[str] = frozenset()
+    """The listed hosts this flow may reach - see :func:`app.agents.mcp.trusted_hosts_for`."""
 
 
 def client_metadata(redirect_uri: str, scope: str | None) -> OAuthClientMetadata:
@@ -258,7 +282,7 @@ def client_metadata(redirect_uri: str, scope: str | None) -> OAuthClientMetadata
     return OAuthClientMetadata(
         client_name=f"{settings.PROJECT_NAME} assistant",
         redirect_uris=[AnyUrl(redirect_uri)],
-        grant_types=["authorization_code", "refresh_token"],
+        grant_types=list(_GRANT_TYPES),
         response_types=["code"],
         token_endpoint_auth_method="client_secret_post",
         scope=scope,
@@ -277,9 +301,11 @@ async def discover(server_url: str) -> DiscoveredServer:
     404: the `WWW-Authenticate` hint is the first of three, and the well-known
     URIs after it are derived from the URL an operator typed (#889).
     """
-    async with _client() as client:
+    trusted = trusted_hosts_for(server_url)
+    async with _client(trusted_hosts=trusted) as client:
         # 1. Probe the server unauthenticated to surface the WWW-Authenticate hint.
         www_auth_url: str | None = None
+        www_auth_scope: str | None = None
         try:
             probe = await _send(
                 client,
@@ -300,13 +326,14 @@ async def discover(server_url: str) -> DiscoveredServer:
                 ),
             )
             www_auth_url = extract_resource_metadata_from_www_auth(probe)
+            www_auth_scope = extract_scope_from_www_auth(probe)
         except _DISCOVERY_FAILURES:
             # Probe failed or was blocked - fall back to well-known discovery below.
             pass
 
         # 2. Protected-resource metadata → the authorization server URL.
         auth_server_url: str | None = None
-        prm_scopes: list[str] | None = None
+        resource_metadata: ProtectedResourceMetadata | None = None
         for url in build_protected_resource_metadata_discovery_urls(www_auth_url, server_url):
             try:
                 prm = await handle_protected_resource_response(
@@ -316,7 +343,7 @@ async def discover(server_url: str) -> DiscoveredServer:
                 continue
             if prm and prm.authorization_servers:
                 auth_server_url = str(prm.authorization_servers[0])
-                prm_scopes = prm.scopes_supported
+                resource_metadata = prm
                 break
 
         # 3. Authorization-server metadata (endpoints, PKCE support). Both the
@@ -346,16 +373,28 @@ async def discover(server_url: str) -> DiscoveredServer:
 
         # The consent URL is handed to the user's browser rather than fetched
         # here, so it never passes through the pinned client - and cannot: the
-        # browser resolves it itself. A point-in-time check is all there is.
+        # browser resolves it itself. A point-in-time check is all there is, made
+        # by the hops' own policy: a listed host is resolved too, and refused if
+        # it answers loopback, link-local or metadata.
         try:
-            await validate_mcp_url(str(asm.authorization_endpoint))
+            await asyncio.to_thread(
+                partial(resolve_pinned_url, str(asm.authorization_endpoint), trusted_hosts=trusted)
+            )
         except UrlRefusedError as exc:
             logger.warning(
                 "Blocked MCP OAuth authorization endpoint %s: %s", asm.authorization_endpoint, exc
             )
             raise OAuthError("This server pointed the OAuth flow at a blocked address.") from exc
 
-        scope = asm.scopes_supported or prm_scopes
+        # The spec's order: the 401's `scope`, then the protected-resource
+        # metadata, and the issuer's list only when the server names none. An
+        # issuer's list describes the issuer: Entra's is Graph's OpenID scopes,
+        # which its token endpoint refuses beside a `resource` naming Work IQ.
+        # `offline_access` is appended when the issuer offers it, or Entra
+        # issues no refresh token.
+        scope = get_client_metadata_scopes(
+            www_auth_scope, resource_metadata, asm, list(_GRANT_TYPES)
+        )
         return DiscoveredServer(
             authorization_endpoint=str(asm.authorization_endpoint),
             token_endpoint=str(asm.token_endpoint),
@@ -363,8 +402,9 @@ async def discover(server_url: str) -> DiscoveredServer:
                 str(asm.registration_endpoint) if asm.registration_endpoint else None
             ),
             resource=resource_url_from_server_url(server_url),
-            scope=" ".join(scope) if scope else None,
+            scope=scope,
             metadata=asm,
+            trusted_hosts=trusted,
         )
 
 
@@ -381,7 +421,7 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
         )
     except httpx2.InvalidURL as exc:
         raise _unusable_url(exc, "a registration endpoint") from exc
-    async with _client() as client:
+    async with _client(trusted_hosts=server.trusted_hosts) as client:
         try:
             info = await handle_registration_response(await _send(client, request))
         except httpx2.HTTPError as exc:
@@ -423,6 +463,10 @@ def authorization_url(
     }
     if server.scope:
         params["scope"] = server.scope
+        # OIDC Core 11: a provider may grant offline_access, and so a refresh
+        # token, only after an explicit consent prompt.
+        if "offline_access" in server.scope.split():
+            params["prompt"] = "consent"
     query = httpx2.QueryParams(params)
     sep = "&" if "?" in server.authorization_endpoint else "?"
     return f"{server.authorization_endpoint}{sep}{query}"
@@ -442,8 +486,13 @@ async def exchange_code(
     code_verifier: str,
     redirect_uri: str,
     resource: str,
+    server_url: str,
 ) -> OAuthToken:
-    """Exchange an authorization code for tokens (called from the callback)."""
+    """Exchange an authorization code for tokens (called from the callback).
+
+    `server_url` is the connection's own address, which decides the listed
+    hosts the request may reach; the token endpoint is the server's choice.
+    """
     data = {
         "grant_type": "authorization_code",
         "code": code,
@@ -454,7 +503,7 @@ async def exchange_code(
     }
     if client_secret:
         data["client_secret"] = client_secret
-    return await _token_request(token_endpoint, data)
+    return await _token_request(token_endpoint, data, trusted_hosts=trusted_hosts_for(server_url))
 
 
 async def refresh_tokens(
@@ -465,12 +514,15 @@ async def refresh_tokens(
     refresh_token: str,
     resource: str | None,
     scope: str | None,
+    server_url: str,
 ) -> OAuthToken:
     """Refresh an expired access token using the stored refresh token.
 
     `resource` is RFC 8707's, which an MCP server's authorization server expects;
     `None` leaves it out for a provider that refuses it - Microsoft's v2.0
-    endpoint answers a request carrying one with an error.
+    endpoint answers a request carrying one with an error. `server_url` as in
+    :func:`exchange_code`. Read at every refresh, so a host taken off the list
+    stops being reached here too.
 
     Raises:
         OAuthGrantRevoked: The provider answered `invalid_grant`.
@@ -487,7 +539,7 @@ async def refresh_tokens(
         data["client_secret"] = client_secret
     if scope:
         data["scope"] = scope
-    return await _token_request(token_endpoint, data)
+    return await _token_request(token_endpoint, data, trusted_hosts=trusted_hosts_for(server_url))
 
 
 def _error_code(response: httpx2.Response) -> str | None:
@@ -500,8 +552,10 @@ def _error_code(response: httpx2.Response) -> str | None:
     return code if isinstance(code, str) else None
 
 
-async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToken:
-    async with _client() as client:
+async def _token_request(
+    token_endpoint: str, data: dict[str, str], *, trusted_hosts: frozenset[str] = frozenset()
+) -> OAuthToken:
+    async with _client(trusted_hosts=trusted_hosts) as client:
         try:
             request = client.build_request(
                 "POST",

@@ -6,8 +6,6 @@ schedule, an event source for an event - and the label and description to draw
 it.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from app.schemas.base import BaseSchema

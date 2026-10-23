@@ -7,8 +7,6 @@ refusals and outages are queued per path, which is how a test decides what
 Graph answers next.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import parse_qs, unquote

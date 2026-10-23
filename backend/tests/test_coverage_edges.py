@@ -300,7 +300,7 @@ class TestRunNotifications:
     @pytest.mark.anyio
     async def test_a_completed_run_off_web_notifies_its_initiator(self):
         agent = MagicMock()
-        run = MagicMock(surface=RunSurface.SCHEDULE.value)
+        run = MagicMock(surface=RunSurface.SLACK.value)
         with patch(
             "app.services.agent_runner.NotificationService", new=_notifier()
         ) as notifications:
@@ -315,6 +315,46 @@ class TestRunNotifications:
             )
 
         notifications.return_value.run_completed.assert_awaited_once_with(run, agent=agent)
+
+    @pytest.mark.anyio
+    async def test_a_completed_routine_leaves_telling_its_creator_to_the_routine(self):
+        """The routine says it with its name and the start of the answer (#2301);
+        a second, emptier notification beside it would be noise."""
+        run = MagicMock(surface=RunSurface.SCHEDULE.value)
+        with patch(
+            "app.services.agent_runner.NotificationService", new=_notifier()
+        ) as notifications:
+            await AgentRunnerService(MagicMock())._notify(
+                run,
+                agent=MagicMock(),
+                spec=AgentSpec(name="Support"),
+                status=RunStatus.COMPLETED,
+                error=None,
+                budget_scope=None,
+            )
+
+        notifications.return_value.run_completed.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_run_stopped_for_looping_off_web_is_reported_as_failed_with_why(self):
+        agent = MagicMock()
+        run = MagicMock(surface=RunSurface.SCHEDULE.value)
+        with patch(
+            "app.services.agent_runner.NotificationService", new=_notifier()
+        ) as notifications:
+            notifications.return_value.run_failed = AsyncMock()
+            await AgentRunnerService(MagicMock())._notify(
+                run,
+                agent=agent,
+                spec=AgentSpec(name="Support"),
+                status=RunStatus.LOOP_STOPPED,
+                error="Stopped: the agent called `search` 4 times in a row.",
+                budget_scope=None,
+            )
+
+        notifications.return_value.run_failed.assert_awaited_once_with(
+            run, agent=agent, error="Stopped: the agent called `search` 4 times in a row."
+        )
 
     @pytest.mark.anyio
     async def test_a_failed_run_off_web_carries_its_error(self):

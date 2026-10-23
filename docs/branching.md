@@ -309,6 +309,14 @@ understood:
   read-only token when Dependabot triggered it, whatever its `permissions` block
   says, so it cannot push the result back.
 
+**Dependabot cannot read the backend while it requires Python 3.15.** Its uv
+job stops at the `requires-python` line, so it opens no backend pull requests -
+`make deps-upgrade` moves the lock by hand - and its alerts would keep matching
+the versions locked before. `.github/workflows/dependency-graph.yml` therefore
+submits the graph itself: on every push to `main` that moves `backend/uv.lock`,
+`scripts/dependency_snapshot.py` lists each locked version, and alerts open and
+close against those.
+
 ## Reviews
 
 The [automated reviewer](code-review.md) runs on every pull request. It is never

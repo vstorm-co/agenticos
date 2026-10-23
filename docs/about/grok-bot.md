@@ -10,7 +10,7 @@ Grok Bot, from xAI with Cursor, lets you create named AI teammates. Each has a j
 
 If you want to try a team of AI colleagues on xAI's models this week, Grok Bot is quick to start. If you need to show who did what, keep each person's logins separate and choose the model, AgenticOS is built for that.
 
-Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v0.0.535. Grok Bot scope: the public beta announced 11 August 2026, as described by press and independent reviews, not a tested account. One review comes from a competing vendor and is marked as such below.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Grok Bot scope: the public beta announced 11 August 2026, as described by press and independent reviews, not a tested account. One review comes from a competing vendor and is marked as such below.
 
 ## At a glance
 
@@ -19,10 +19,10 @@ Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS bas
 | What you get | Named teammates, each with a cloud computer | Any number of agents, each a versioned spec |
 | Where it runs | xAI's cloud | Your infrastructure, with Docker Compose |
 | Source | Proprietary | Apache-2.0 |
-| Models | Grok only, no choice | 27 providers, including local models |
-| Computer | A persistent VM shared by all of an account's bots | A sandbox per conversation; a browser whose sign-ins are kept per person |
+| Models | Grok only, no choice | 28 providers, including local models |
+| Computer | A persistent VM shared by all of an account's bots | A sandbox per conversation, or one that a [project](../projects.md)'s chats share; a browser whose sign-ins are kept per person |
 | Learning a task | Record your screen for up to ten minutes; a draft skill comes back | Skills written or installed from a gallery, bound to each agent |
-| Teamwork | Group chats of two to six bots that hand work on | [Delegation](../reference/capabilities.md#delegation) to other published agents, pinned to a version |
+| Teamwork | Group chats of two to six bots that hand work on | [Subagents](../reference/capabilities.md#delegation): other published agents, pinned to a version; project chats where several people and agents work together |
 | Approvals | Described in prose; optional model review | Checked by the platform before a tool runs |
 | Audit | Announced as coming | A tamper-evident audit log and a record of every run |
 | Pricing | Paid plans from $120 a seat to $200 a month | No licence fee; you pay model providers and infrastructure |
@@ -43,7 +43,7 @@ Grok Bot's approvals are written as instructions and can be reviewed by a model.
 
 ### Any model, on your servers
 
-Grok Bot runs Grok in xAI's cloud. An AgenticOS agent picks from [27 providers](../models.md#providers), including models on your own hardware, and stores its data in [your own Postgres](../data-protection.md#where-personal-data-lives).
+Grok Bot runs Grok in xAI's cloud. An AgenticOS agent picks from [28 providers](../models.md#providers), including models on your own hardware, and stores its data in [your own Postgres](../data-protection.md#where-personal-data-lives).
 
 ## When Grok Bot is enough
 

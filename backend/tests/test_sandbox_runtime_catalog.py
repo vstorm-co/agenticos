@@ -5,8 +5,6 @@ the service accepts runtimes on, and a compose file cannot call a command - so t
 whole question is whether the copy can drift. These are what says it cannot.
 """
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 from typing import Any
@@ -362,7 +360,7 @@ class TestWhatTheModelIsTold:
     Composed from the definition rather than written beside it, so a package
     added to the catalogue reaches the prompt in the same edit that reaches the
     image - which is the whole reason this is not a paragraph in
-    `DEFAULT_INSTRUCTIONS`.
+    the starter agent's instructions.
     """
 
     def test_it_names_every_package_the_image_already_carries(self) -> None:

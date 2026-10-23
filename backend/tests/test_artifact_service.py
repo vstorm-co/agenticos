@@ -7,8 +7,6 @@ exactly one version and nothing past its expiry, and the content is served as a
 document - HTML as written, Markdown rendered with its raw HTML escaped.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -320,6 +318,25 @@ class TestListing:
         assert result.total == 0
         assert listing.await_args.kwargs["see_all"] is True
 
+    async def test_a_project_s_apps_are_asked_for_only_once_the_project_is_seen(self) -> None:
+        """A project the caller cannot see answers 404, as opening it does, rather
+        than an empty list that says it exists and holds nothing."""
+        ctx = _ctx()
+        project_id = uuid.uuid4()
+        seen = AsyncMock()
+        with (
+            patch(f"{PATH}.ProjectService") as projects,
+            patch(f"{PATH}.visible_resource_ids", new=AsyncMock(return_value=None)),
+            patch(
+                f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([], 0))
+            ) as listing,
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+        ):
+            projects.return_value.get = seen
+            await _service().list_readable(ctx, project_id=project_id)
+        seen.assert_awaited_once_with(ctx, project_id)
+        assert listing.await_args.kwargs["project_id"] == project_id
+
     async def test_shared_with_me_asks_for_grants_even_when_the_role_reaches_everything(
         self,
     ) -> None:
@@ -515,7 +532,7 @@ class TestContent:
             patch(f"{PATH}.get_file_storage", return_value=storage),
         ):
             served = await _service().content(token)
-        assert served.document == artifacts.PLATFORM_SCRIPT.encode() + b"<h1>hi</h1>"
+        assert served.document == artifacts.platform_script().encode() + b"<h1>hi</h1>"
         assert served.embed_origins == []
         assert lookup.await_args.args[1] == version.id
 
@@ -575,7 +592,7 @@ class TestRender:
         page = b"<script>draw()</script>"
         assert (
             artifacts.render(_version(artifact), page, title="t")
-            == artifacts.PLATFORM_SCRIPT.encode() + page
+            == artifacts.platform_script().encode() + page
         )
 
     def test_markdown_is_rendered_into_a_page_with_its_raw_html_escaped(self) -> None:
@@ -620,6 +637,18 @@ class TestThePolicy:
             # The deployment's own library set, by its path, and nothing else.
             assert remote in ([], [library])
         assert directives["img-src"] == ["data:", "blob:"]
+
+    @pytest.mark.security
+    def test_map_tiles_come_from_the_deployment_s_own_tile_path_and_no_remote_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES", "openstreetmap")
+        policy = artifacts.content_security_policy()
+        directives = {part.split()[0]: part.split()[1:] for part in policy.split("; ")}
+        tiles = f"{artifacts.settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/artifact-content/tiles/"
+        assert directives["img-src"] == ["data:", "blob:", tiles]
+        assert "openstreetmap" not in policy
+        assert directives["connect-src"] == ["'none'"]
 
     @pytest.mark.security
     def test_an_embeddable_page_may_be_framed_by_its_sites_and_the_embed_document(self) -> None:

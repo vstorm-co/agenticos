@@ -53,6 +53,27 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting and
     pasting a `localhost` URL is the ordinary case, not the exotic one.
 
+    An operator can let a connection reach a server on the deployment's own
+    network, such as a compose service or a server on a VPN or tailnet. To do
+    this, list its host in
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). A listed host
+    skips only the address check. The URL still needs `http` or `https`.
+
+    People can sign in to a listed server with OAuth too. Such a server often
+    runs its own sign-in, so its discovery, client registration and token
+    requests may reach the listed hosts, and no other private address. Each
+    request is still pinned to the address it was checked at, and a listed name
+    that answers a loopback, link-local or cloud metadata address is refused. A
+    public server's sign-in never reaches a listed host, even when its metadata
+    names one.
+
+    Every account on the deployment can then reach every port on that host. So
+    list only a server that checks a token, and never `localhost` or a service
+    of this stack, such as `app`, `db` or `redis`. The list is read when a
+    connection is saved and at every sign-in and token refresh. Removing a host
+    does not disconnect a saved connection, but an OAuth connection to it stops
+    renewing its token.
+
 ### Personal or organization-wide
 
 Two kinds, and the difference is the point. The connect dialog asks it as one
@@ -162,7 +183,9 @@ server is honest — choose `all` for a server you do not control.
 The Architect's own template asks `writes` of the platform's server, so it drafts nothing without
 the person it acts for. Any agent's binding to that server is held to at least
 `writes`, `none` included: its tools act with the authority of whoever is asking,
-an Admin's too.
+an Admin's too. One read waits like a write: `read_conversation`, which hands a
+whole past conversation to the model - a page the agent read could otherwise
+have it fetch one and send it on.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
@@ -359,7 +382,10 @@ Two edges remain, both narrow and both deliberate:
 - The **consent URL** is checked and then handed to somebody's browser, which
   resolves it itself. There is no pinning to do.
 - The **connection's own URL** is checked at save and resolved again when an agent
-  runs — operator-typed, so rebinding it means being the operator.
+  runs — operator-typed, so rebinding it means being the operator. A host on
+  `MCP_ALLOWED_HOSTS` skips the address check, and the OAuth requests of a
+  connection whose own host is listed may reach the listed hosts, pinned like
+  every other hop.
 
 Nothing a *model* chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.
@@ -450,8 +476,10 @@ bearer token keeps working until the new consent lands.
 
 ## What happens on a turn
 
-Each server is probed with a short `tools/list` round-trip — 3 seconds — before the
-turn starts, and the probes run concurrently. A server that answered its probe in
+Each server is probed with a short `tools/list` handshake before the turn starts,
+and the probes run concurrently. A server gets 3 seconds to accept the connection
+and 10 seconds for the whole handshake, because one that checks every request's
+token at its identity provider is slow without being down. A server that answered its probe in
 the last two minutes, with the same credential, is not probed again: a
 conversation's next turn attaches it straight away. If it has gone down in the
 meantime, that turn goes on without its tools and the next one probes it again.
@@ -468,8 +496,12 @@ two long names stay two tools. The server is still called by its real name.
     otherwise abort the whole turn: one expired token on one connection would take
     down every agent that names it, including the ones that never needed it.
 
-    The model then answers **without** those tools — right for a chat turn, wrong
-    if you assumed a tool was always there.
+    The model then answers **without** those tools, and is told so: the turn's
+    instructions name the server, say it did not answer or refused the
+    connection, and ask the model to say it could not be reached rather than
+    report an empty result. That holds for a server that answered a moment ago and
+    fails when the turn connects. It is right for a chat turn, wrong if you
+    assumed a tool was always there.
 
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.
@@ -936,25 +968,68 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | Tool | Needs |
 |---|---|
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
-| `create_agent_draft` | `agents:edit` |
+| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `publish_agent` | `agents:publish` on that agent |
 | `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
-| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_routines` | `agents:view` |
+| `create_routine`, `run_routine_now` | `agents:run` on the agent |
+| `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
+| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
+| `create_skill` | `skills:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
+| `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
 
-Deliberately absent: publishing an agent, touching a credential, and deleting
-anything but an agent draft its caller created and never published - the undo
-for a draft made by mistake. A draft created here is published by a person in
-the console.
+An agent can be built end to end here: drafted, edited, tried as the unpublished
+draft with `test_agent_draft` - a test run, budgeted and recorded, refused with the
+reason when the draft would not publish - and published with `publish_agent`,
+which runs the checks the console's **Publish** button runs. A routine's
+`cron_expression` is evaluated in UTC. `set_my_language` switches the console's
+language for the caller (`en`, `pl` or `de`) on every device they sign in on, and
+`set_my_profile` saves their role and what they work on, which every agent is
+told from then on. `create_skill` saves a procedure that worked as a
+[skill](skills.md), for "make a skill of this".
+
+Deliberately absent: touching a credential, and deleting anything but an agent
+draft its caller created and never published - the undo for a draft made by
+mistake - or a routine.
 Connected applications are listed under **Settings → MCP clients**, where
 disconnecting one ends its access and every token it holds. Calls that change
 something wait for approval, as [below](#which-calls-wait-for-a-person) explains.
+
+### Giving it to an agent { #giving-it-to-an-agent }
+
+The same server is also an MCP binding any agent can have, so an agent can answer
+"what failed yesterday" or "which agents use this knowledge base" from the
+platform's own records. In the Builder it is the first card under **MCP servers**,
+named after this deployment; switching it on binds it as
+`mcp_servers: [{account: platform, approval: writes}]`.
+
+- **It acts as whoever the agent runs for.** A run mints a short-lived credential
+  holding that person's permissions, so a Viewer's agent can read what the Viewer
+  can read and create nothing. Nothing new is granted, and where nobody is behind
+  the run - a public widget, a schedule acting for nobody - the binding is absent.
+- **Changes wait for approval.** `writes`, the default, holds every tool that
+  changes something (`create_agent_draft`, `publish_agent`, `create_routine`,
+  `run_agent`, `invite_member` and the rest) for the person to approve; `all` holds
+  reading too. `none` is not offered: these tools act with a person's authority.
+  The one write that never waits is `set_my_language`: it changes the asker's
+  own console language, on their word, and an approval card for "switch to
+  English" would be the whole conversation. `set_my_profile` waits like the
+  rest, because what it saves is told to every agent the person runs, and a page
+  an agent read must not be able to write it unseen.
+- **The tools can be narrowed** in the card's settings, which list every tool and
+  mark the ones that change something.
+
+The **AgenticOS** template binds it this way, and so does every agent created from
+scratch, so an agent can look the platform up - and set up a routine, or switch the
+console's language when asked - out of the box.
 
 ## What MCP does not get you
 

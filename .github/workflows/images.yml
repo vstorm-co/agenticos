@@ -1,6 +1,6 @@
 # Publish the three images the compose files pull.
 #
-#   ghcr.io/vstorm-co/agenticos-backend    the API, the Prefect runner, the migrations
+#   ghcr.io/vstorm-co/agenticos-backend    the API, the background worker, the migrations
 #   ghcr.io/vstorm-co/agenticos-frontend   the console
 #   ghcr.io/vstorm-co/agenticos-browser    the browser `browser_use` drives (`browser` profile)
 #
@@ -256,6 +256,16 @@ jobs:
       fail-fast: false
       matrix:
         image: [backend, frontend, browser]
+        # The package page on GHCR reads its description from the manifest
+        # list, not from the per-architecture images' labels, so without this
+        # it says "No description provided".
+        include:
+          - image: backend
+            description: "AgenticOS API, background worker and migrations. AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/ · Website: https://vstorm-co.github.io/vstormos-landing/"
+          - image: frontend
+            description: "AgenticOS console, the web app members use. AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/ · Website: https://vstorm-co.github.io/vstormos-landing/"
+          - image: browser
+            description: "The Chromium that AgenticOS agents drive with browser_use (compose's browser profile). AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/"
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         if: needs.build.result == 'success'
@@ -287,6 +297,7 @@ jobs:
           TAGS: ${{ needs.resolve.outputs.tags }}
           EDGE: ${{ needs.resolve.outputs.edge }}
           BUILT: ${{ needs.build.result == 'success' }}
+          DESCRIPTION: ${{ matrix.description }}
         run: |
           set -euo pipefail
           tags=()
@@ -305,7 +316,9 @@ jobs:
           else
             refs+=("$IMAGE:sha-$SHORT")
           fi
-          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+          docker buildx imagetools create "${tags[@]}" \
+            --annotation "index:org.opencontainers.image.description=$DESCRIPTION" \
+            "${refs[@]}"
 
       - name: Show what was published
         env:

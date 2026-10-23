@@ -1,7 +1,5 @@
 """Channel bot, identity, and session schemas."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -10,7 +8,7 @@ from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
-from app.services.channels.webhooks import inbound_command_url
+from app.services.channels.webhooks import inbound_command_url, inbound_webhook_url
 from app.services.speech_to_text import is_offered
 
 
@@ -66,6 +64,10 @@ StepDisplay = Literal["timeline", "plan"]
 """How a streamed answer shows its tool calls: one row each, or one plan."""
 
 
+TEAMS_ID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+"""An Entra app id or tenant id: a GUID."""
+
+
 class ChannelBotCreate(BaseSchema):
     """Schema for creating a channel bot."""
 
@@ -119,6 +121,19 @@ class ChannelBotCreate(BaseSchema):
             "request from it carries. Mattermost bots only; sealed, never returned."
         ),
     )
+    teams_app_id: str | None = Field(
+        default=None,
+        pattern=TEAMS_ID_PATTERN,
+        description=(
+            "The Microsoft App ID of the Teams bot's Azure Bot registration. Teams "
+            "bots only; the token is that app's client secret."
+        ),
+    )
+    teams_tenant_id: str | None = Field(
+        default=None,
+        pattern=TEAMS_ID_PATTERN,
+        description="The Entra tenant the single-tenant Azure Bot is registered in. Teams only.",
+    )
     stream_answers: bool = Field(
         default=True,
         description=(
@@ -141,18 +156,34 @@ class ChannelBotCreate(BaseSchema):
             "platform's name for it (`eyes`). Slack and Mattermost; null for none."
         ),
     )
+    transcribe_voice_notes: bool = Field(
+        default=True,
+        description=(
+            "Whether voice notes are transcribed at all. On by default, with the "
+            "pair below or - with none - the agent's or organization's engine; "
+            "off never transcribes, and a pair sent with it is refused."
+        ),
+    )
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
         description=(
             "Which provider transcribes voice notes, from the speech-to-text "
-            "catalog. Null for a bot that does not transcribe."
+            "catalog. Null inherits the agent's or the organization's."
         ),
     )
     speech_to_text_model: str | None = Field(
         default=None,
         max_length=255,
         description="Which of that provider's transcription models to use.",
+    )
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the bot's own pair is sent with: an organization-visible "
+            "API key whose purpose is the provider. Required with a pair, refused "
+            "without one."
+        ),
     )
 
     @model_validator(mode="after")
@@ -179,6 +210,28 @@ class ChannelBotCreate(BaseSchema):
             raise ValueError(
                 f"'{model}' is not a transcription model this deployment offers for {provider}"
             )
+        if provider is None and self.speech_to_text_secret_id is not None:
+            raise ValueError(
+                "A transcription key goes with the bot's own provider and model - "
+                "an inheriting bot uses the key of the level it inherits from"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _a_teams_bot_carries_its_registration(self) -> ChannelBotCreate:
+        """A Teams bot is saved with its app and tenant, and nothing else is (#1985).
+
+        Without both it can neither sign in to answer nor recognise a token meant
+        for it. And it is always a webhook bot: Teams posts every activity to the
+        bot's endpoint, and there is nothing to poll.
+        """
+        teams = self.platform == "teams"
+        if teams and (self.teams_app_id is None or self.teams_tenant_id is None):
+            raise ValueError("A Teams bot needs its Azure Bot's app ID and tenant ID")
+        if not teams and (self.teams_app_id is not None or self.teams_tenant_id is not None):
+            raise ValueError(f"An app and tenant ID are for a Teams bot, not a {self.platform} bot")
+        if teams:
+            self.webhook_mode = True
         return self
 
     @model_validator(mode="after")
@@ -215,7 +268,9 @@ class ChannelBotUpdate(BaseSchema):
     """Schema for updating a channel bot (all fields optional).
 
     The Slack credentials distinguish omission from an explicit null: omitted
-    leaves the stored value, null clears it.
+    leaves the stored value, null clears it. So does the transcription pair -
+    null clears it, which since #1797 means "inherit", not "off". Off is
+    `transcribe_voice_notes: false`, which refuses an explicit null.
     """
 
     name: str | None = Field(default=None, max_length=255)
@@ -228,6 +283,7 @@ class ChannelBotUpdate(BaseSchema):
     is_active: bool | None = None
     slack_signing_secret: str | None = Field(default=None, min_length=8, max_length=255)
     slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
+    transcribe_voice_notes: bool | None = None
     command_token: str | None = Field(default=None, min_length=8, max_length=255)
     ack_reaction: str | None = Field(default=None, pattern=ACK_REACTION_PATTERN)
     stream_answers: bool | None = None
@@ -235,6 +291,7 @@ class ChannelBotUpdate(BaseSchema):
     rate_answers: bool | None = None
     speech_to_text_provider: str | None = Field(default=None, max_length=32)
     speech_to_text_model: str | None = Field(default=None, max_length=255)
+    speech_to_text_secret_id: UUID | None = None
 
     @model_validator(mode="after")
     def _a_named_transcription_model_is_one_that_exists(self) -> ChannelBotUpdate:
@@ -260,6 +317,26 @@ class BotAgent(BaseSchema):
     name: str
     slug: str
     has_avatar: bool
+
+
+class InheritedSpeechToTextRead(BaseSchema):
+    """What a bot's voice notes go to when it inherits rather than names a pair.
+
+    For the hint beside "Inherit" in the bot's form: which provider and model,
+    and whether the bot's agent or its organization chose them. The key is
+    the inherited level's own and is not named - only whether one is usable,
+    so the form can say the level still needs one.
+    """
+
+    provider: str
+    model: str
+    has_key: bool = False
+    """Whether the inherited level names a key that is still usable for it."""
+    language: str | None = None
+    pair_source: Literal["agent", "organization"]
+    language_source: Literal["agent", "organization"] | None = None
+    agent_name: str | None = None
+    """The agent this bot serves, through whose spec the pair may have come."""
 
 
 class ChannelConnectionRead(BaseSchema):
@@ -295,7 +372,12 @@ class ChannelBotRead(BaseSchema):
     has_webhook_secret: bool = False
     has_slack_signing_secret: bool = False
     has_slack_app_token: bool = False
+    transcribe_voice_notes: bool = True
+    """Whether voice notes are transcribed here at all; off wins over every pair."""
     has_command_token: bool = False
+    # Identifiers, not secrets: the console builds the Teams app package from them.
+    teams_app_id: str | None = None
+    teams_tenant_id: str | None = None
     ack_reaction: str | None = None
     stream_answers: bool = True
     step_display: StepDisplay = "timeline"
@@ -307,13 +389,31 @@ class ChannelBotRead(BaseSchema):
         """The request URL for a Mattermost bot's `/agent` slash command, to paste there."""
         return inbound_command_url(str(self.id)) if self.platform == "mattermost" else None
 
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def messaging_endpoint(self) -> str | None:
+        """A Teams bot's messaging endpoint, to paste into its Azure Bot resource (#1985)."""
+        return inbound_webhook_url("teams", self.id) if self.platform == "teams" else None
+
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
-    """Which model transcribes voice notes here, or null for none.
+    """Which model transcribes voice notes here, or null to inherit one.
 
     Read back plainly: a provider id and a model id are choices somebody made,
-    not credentials. The key they run on is the organization's own model profile
-    and is never named here.
+    not credentials.
+    """
+    speech_to_text_secret_id: UUID | None = None
+    """The vault key the bot's own pair is sent with, by id - never its value.
+    Null with a pair means the key was deleted, and voice notes wait for another."""
+
+    inherited_speech_to_text: InheritedSpeechToTextRead | None = None
+    """What "inherit" resolves to for this bot, on the single-bot read only.
+
+    Answered whatever the bot is set to now, because the form asks it before
+    somebody switches to inherit. Null on the listing - resolving it reads each
+    bot's agent version, which a page of bots should not pay for - and null
+    where nothing resolves: no agent or organization provider, or no agent
+    bound to the bot at all.
     """
 
     connection: ChannelConnectionRead | None = None
@@ -442,3 +542,17 @@ class ChannelSessionList(BaseSchema):
 
     items: list[ChannelSessionRead]
     total: int
+
+
+class TeamsConversationRead(BaseSchema):
+    """A Teams channel or group chat a bot is in - somewhere a trigger can post (#1985)."""
+
+    id: UUID
+    bot_id: UUID
+    name: str | None = None
+    conversation_type: Literal["channel", "groupChat"]
+    last_activity_at: datetime
+
+
+class TeamsConversationList(BaseSchema):
+    items: list[TeamsConversationRead]

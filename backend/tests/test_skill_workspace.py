@@ -19,8 +19,6 @@ below are a stored document, which is what a `state` agent works in; the
 failures a container shows are wrappers around one.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from uuid import uuid4
 

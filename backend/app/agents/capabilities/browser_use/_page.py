@@ -13,8 +13,6 @@ deployment that never installed the extra fails that one tool with an install
 line, rather than failing to start.
 """
 
-from __future__ import annotations
-
 import asyncio
 import ipaddress
 import json
@@ -947,7 +945,7 @@ class CdpPage:
     @asynccontextmanager
     async def stream(  # pragma: no cover - needs a live browser
         self, deliver: Callable[[str], Awaitable[None]]
-    ) -> AsyncGenerator[None, None]:
+    ) -> AsyncGenerator[None]:
         """Hand every paint of the page to `deliver`, as a JPEG `data:` URL, until the block ends.
 
         A screencast rather than a screenshot per step: the browser sends a frame
@@ -1149,7 +1147,9 @@ async def _resolve(cdp_url: str) -> str | None:  # pragma: no cover - needs a re
     except ValueError:
         try:
             found = await asyncio.get_running_loop().getaddrinfo(host, None)
-        except OSError:
+        except OSError, UnicodeError:
+            # `UnicodeError`: the IDNA codec refuses an empty or over-long
+            # label before any query is made (#2352).
             return None
         return str(found[0][4][0]) if found else None
     return None
@@ -1226,7 +1226,7 @@ async def open_page(  # pragma: no cover - needs a live browser
     policy: PagePolicy,
     sign_ins: Sequence[SignIn] = (),
     route: BrowserRoute | None = None,
-) -> AsyncGenerator[CdpPage, None]:
+) -> AsyncGenerator[CdpPage]:
     """Attach to a browser, open one tab on `start_url`, and close it again.
 
     The tab is created and closed by this context manager, so a browse leaves the

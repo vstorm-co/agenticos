@@ -24,6 +24,7 @@ export type WidgetId =
   | "summary"
   | "platform"
   | "health"
+  | "background-jobs"
   | "top-orgs"
   | "platform-ratings"
   | "runs"
@@ -60,7 +61,11 @@ export type WidgetId =
   | "activity-rhythm"
   | "routines"
   | "notifications"
-  | "artifacts";
+  | "artifacts"
+  | "voice-minutes"
+  | "projects"
+  | "recent-visuals"
+  | "suggestions";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -291,6 +296,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     // these same figures a second time and now redirects here anyway (#922).
     seeAll: ROUTES.ADMIN_USERS,
   },
+  "background-jobs": {
+    id: "background-jobs",
+    gate: adminOnly,
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "platform",
+    seeAll: ROUTES.ADMIN_BACKGROUND_JOBS,
+  },
   health: {
     id: "health",
     gate: adminOnly,
@@ -396,6 +409,17 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "usage",
     options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
+  },
+  // Call minutes by agent, and the month against the organization's limit (#54).
+  // What `GET /voice/usage` asks, and nothing more.
+  "voice-minutes": {
+    id: "voice-minutes",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s4",
+    defaultRows: "r3",
+    category: "usage",
+    options: { period: true },
+    seeAll: runsHref({ filters: { modality: "voice" } }),
   },
   "model-mix": {
     id: "model-mix",
@@ -511,6 +535,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "workspace",
     seeAll: ROUTES.CHAT,
   },
+  // The person's briefing (#2301): what their watches found and the nightly look
+  // proposed - their own, so anybody who may talk to an agent may see it.
+  suggestions: {
+    id: "suggestions",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "workspace",
+    seeAll: ROUTES.INBOX,
+  },
   "my-summary": {
     id: "my-summary",
     gate: holds(Perm.agentsRun),
@@ -552,6 +586,25 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r4",
     category: "workspace",
     seeAll: ROUTES.ARTIFACTS,
+  },
+  // The reader's projects, most recently changed first - what `GET /projects`
+  // itself asks, and nothing more.
+  projects: {
+    id: "projects",
+    gate: holds(Perm.projectsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "workspace",
+    seeAll: ROUTES.PROJECTS,
+  },
+  // The drawings agents made for the caller (#2171). Gated on running agents, the
+  // one thing that makes a drawing: `GET /visuals` lists only the caller's own.
+  "recent-visuals": {
+    id: "recent-visuals",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "workspace",
   },
   "shared-with-you": {
     id: "shared-with-you",

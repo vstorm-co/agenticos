@@ -23,8 +23,6 @@ shared with guardrails through `app/core/phone.py`, using the default regions
 and running after the library's patterns so cards and SSNs take precedence.
 """
 
-from __future__ import annotations
-
 import secrets
 import string
 from collections.abc import Sequence

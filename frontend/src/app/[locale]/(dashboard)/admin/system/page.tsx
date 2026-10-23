@@ -9,6 +9,7 @@ import {
   Cpu,
   Database,
   HardDrive,
+  MapPinned,
   RefreshCw,
   Zap,
 } from "lucide-react";
@@ -32,6 +33,7 @@ const META: Record<string, { words: string; icon: LucideIcon }> = {
   vector_store: { words: "serviceVectorStore", icon: HardDrive },
   model_access: { words: "serviceModelAccess", icon: Cpu },
   scheduler: { words: "serviceScheduler", icon: CalendarClock },
+  map_tiles: { words: "serviceMapTiles", icon: MapPinned },
 };
 
 const STATUS_DOT: Record<CheckStatus, string> = {

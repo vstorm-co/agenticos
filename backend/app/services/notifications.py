@@ -42,8 +42,6 @@ an agent's author cannot raise it - so its alert goes to the people who can, and
 no spec can redirect it.
 """
 
-from __future__ import annotations
-
 import hashlib
 from collections.abc import Sequence
 from datetime import datetime, timedelta
@@ -105,6 +103,21 @@ _SECURITY_EVENT_SUMMARY: dict[str, str] = {
 }
 
 
+def agent_face(agent: Agent) -> dict[str, str | bool | int | None]:
+    """Which agent a notification is about, kept so the inbox can draw its face.
+
+    In `render_context` beside the name the email reads: the row is the one
+    record of the event, and an id there is what lets the bell show the agent
+    rather than a dot.
+    """
+    return {
+        "agent_id": str(agent.id),
+        "agent_slug": agent.slug,
+        "agent_has_avatar": agent.has_avatar,
+        "agent_avatar_color": agent.avatar_color,
+    }
+
+
 def _security_event_summary(entry: AppAdminAuditLog) -> str:
     return _SECURITY_EVENT_SUMMARY.get(
         entry.action, f"A privileged action was recorded: {entry.action}"
@@ -117,6 +130,9 @@ _PERIOD_DAYS: dict[ReportPeriod, int] = {"weekly": 7, "monthly": 30}
 
 BUDGET_WARNING_SHARE = Decimal("0.8")
 """How much of a department's month is spent before its lead hears about it."""
+
+ROUTINE_EXCERPT_CHARS = 200
+"""How much of a routine's answer its notification carries - enough to decide to open it."""
 
 
 class NotificationService:
@@ -177,6 +193,7 @@ class NotificationService:
         run_path = self._link(f"/agents/{agent.id}", run.organization_id)
         render_context = {
             "agent_name": agent.name,
+            **agent_face(agent),
             "org_name": organization_name,
             "reason": reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
@@ -293,6 +310,7 @@ class NotificationService:
         ]
         render_context = {
             "agent_name": agent.name,
+            **agent_face(agent),
             "tools": ", ".join(tools) if tools else "a tool call",
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
@@ -357,10 +375,188 @@ class NotificationService:
             context_url=run_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(run_path),
             },
             organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def routine_finished(
+        self,
+        run: AgentRun,
+        *,
+        agent: Agent,
+        routine_name: str | None,
+        creator_id: UUID | None,
+        answer: str,
+    ) -> None:
+        """A routine finished, told to whoever set it up with the start of what it said (#2301).
+
+        `run_completed` names the agent and nothing else, which for a routine is
+        the one fact the person already knew: they asked for it every Monday. The
+        first lines of the answer are what makes the notification worth opening,
+        and the creator is told whether or not the routine fires as them - a
+        routine that runs as nobody still belongs to the person who made it.
+        """
+        if creator_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=run.organization_id, user_ids=[creator_id]
+        )
+        if not recipients:
+            return
+        name = routine_name or agent.name
+        excerpt = " ".join(answer.split())
+        if len(excerpt) > ROUTINE_EXCERPT_CHARS:
+            excerpt = excerpt[: ROUTINE_EXCERPT_CHARS - 1].rstrip() + "…"
+        path = self._link("/routines", run.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id=str(run.id),
+            summary=f"{name}: {excerpt}" if excerpt else f"{name} finished.",
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                "routine_name": name,
+                "excerpt": excerpt,
+                **agent_face(agent),
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def capability_requested(
+        self,
+        *,
+        agent: Agent,
+        capability_name: str,
+        capability_id: str,
+        reason: str,
+        requester_id: UUID,
+        requester_name: str,
+    ) -> None:
+        """Somebody asked for a capability one of the owner's agents lacks (#2301).
+
+        To the agent's owner, who decides; one occurrence per agent, capability
+        and asker, so asking twice tells the owner once. The link opens the
+        agent's Toolbox, where switching it on is one click.
+        """
+        if agent.owner_user_id is None or agent.owner_user_id == requester_id:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=agent.organization_id, user_ids=[agent.owner_user_id]
+        )
+        if not recipients:
+            return
+        path = self._link(f"/agents/{agent.id}?highlight=agent-capabilities", agent.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.CAPABILITY_REQUESTED,
+            occurrence_id=f"{agent.id}:{capability_id}:{requester_id}",
+            summary=f"{requester_name} asked for {capability_name} in {agent.name}: {reason}",
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "capability_name": capability_name,
+                "reason": reason,
+                "requester_name": requester_name,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=agent.organization_id,
+            actor_user_id=requester_id,
+            use_savepoint=True,
+        )
+
+    async def suggestions_ready(
+        self, *, organization_id: UUID, user_id: UUID, count: int, now: datetime
+    ) -> None:
+        """The night's look at somebody's week found things worth proposing (#2301).
+
+        One row however many there are, and one a day at most: the occurrence is
+        the person and the date, so a second sweep the same morning adds nothing.
+        The link opens the starter agent's empty chat, where the cards wait.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        path = self._link("/chat?agent=agenticos", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.SUGGESTION,
+            occurrence_id=f"{user_id}:{now.date().isoformat()}",
+            summary=(
+                "AgenticOS has a new suggestion for you."
+                if count == 1
+                else f"AgenticOS has {count} new suggestions for you."
+            ),
+            context_url=path,
+            render_context={
+                "count": count,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def finding(
+        self, *, organization_id: UUID, user_id: UUID, finding_id: UUID, title: str
+    ) -> None:
+        """A watch found something its person asked to hear about at once (#2301).
+
+        One row per finding - the finding's own id is the occurrence - so a
+        second look that finds it again, already recorded, sends nothing. The
+        rest of what a watch finds waits for the morning briefing.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        path = self._link("/inbox", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.FINDING,
+            occurrence_id=str(finding_id),
+            summary=title,
+            context_url=path,
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def briefing(
+        self, *, organization_id: UUID, user_id: UUID, count: int, now: datetime
+    ) -> None:
+        """A person's morning briefing of what their watches found (#2301).
+
+        The same event as an urgent finding - one switch for everything watches
+        say - and one row a day: the occurrence is the person and the date.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.FINDING,
+            occurrence_id=f"briefing:{user_id}:{now.date().isoformat()}",
+            summary=(
+                "Your watches found 1 new thing."
+                if count == 1
+                else f"Your watches found {count} new things."
+            ),
+            context_url=self._link("/inbox", organization_id),
+            organization_id=organization_id,
             use_savepoint=True,
         )
 
@@ -395,6 +591,7 @@ class NotificationService:
             context_url=run_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(run_path),
             },
@@ -442,6 +639,7 @@ class NotificationService:
             context_url=chat_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(chat_path),
             },
@@ -813,6 +1011,42 @@ class NotificationService:
             # alone gives every impersonated target its own fresh budget and
             # never actually bounds the administrator doing the impersonating.
             actor_user_id=entry.impersonator_user_id or entry.actor_user_id,
+            use_savepoint=True,
+        )
+
+    async def background_task_paused(
+        self, kind: str, *, organization_name: str | None, reason: str, paused_at: datetime
+    ) -> None:
+        """A kind of background job kept killing its workers and is paused (#2219).
+
+        To the deployment's owners - the app admins - in the app and by email,
+        whatever their preferences: work of that kind is piling up from now on
+        and nothing restarts it but one of them, from the Background jobs page.
+        Once per pause: the occurrence is the kind and the moment it paused.
+        Paused for one organization, it says which - the rest still run (#2248).
+        """
+        recipients = sorted(await member_repo.list_app_admin_ids(self.db))
+        if not recipients:
+            return
+        link_path = "/admin/background-jobs"
+        await self._center.write(
+            recipients=recipients,
+            event_type=NotificationEventType.BACKGROUND_TASK_PAUSED,
+            occurrence_id=f"{kind}:{organization_name or ''}:{paused_at.isoformat()}",
+            summary=(
+                f"Background jobs of the kind {kind} are paused"
+                + ("" if organization_name is None else f" for {organization_name}")
+                + f": {reason}. Resume them on the Background jobs page once the cause is fixed."
+            ),
+            context_url=link_path,
+            render_context={
+                "kind": kind,
+                "organization_name": organization_name,
+                "reason": reason,
+                "app_name": settings.PROJECT_NAME,
+                "url": absolute_context_url(link_path),
+            },
+            organization_id=None,
             use_savepoint=True,
         )
 

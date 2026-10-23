@@ -10,13 +10,11 @@ Integration rather than unit because the whole point is what the database does
 to neighbouring rows when one is deleted, which a mock cannot show.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import select, text
@@ -27,14 +25,17 @@ from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
 from app.core.exceptions import BadRequestError
 from app.db.locks import LockScope, hold_name
+from app.db.models.conversation import Conversation
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
 from app.repositories import (
+    conversation_repo,
     knowledge_base_repo,
     member_repo,
+    project_repo,
     user_repo,
 )
 from app.services.file_storage import get_file_storage
@@ -48,28 +49,41 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
-def _route_purge_dispatch_to_impl(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Run the org-purge cleanup in-process instead of submitting it to Prefect.
+def _run_queued_cleanups_after_the_commit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the queued cleanup jobs the moment the transaction that queued them commits.
 
-    `OrganizationService.purge` hands its external cleanup to a durable Prefect
-    deployment run (#1274); with no runner behind the test, `run_deployment`
-    would fail on an unregistered deployment. Routing that submission straight to
-    the cleanup it would have run keeps these tests exercising the real drop and
-    unlink through the commit/rollback gate that defers them - the submission
-    fires only after a committed teardown, so a rolled-back one still runs
-    nothing.
-
-    The parameter is an intent id, so this reads the row the purge committed and
-    deletes it afterwards - which is what the flow does, and what makes these
-    tests exercise the outbox rather than route around it (#1269).
+    `OrganizationService.purge` and the KB delete paths queue their external
+    cleanup as a job in their own transaction (#2219). With no worker behind the
+    test, the queueing is left as it is - the job is really written - and the
+    jobs are then claimed and run straight after the commit, the way a worker
+    would: so these tests exercise the real drop and unlink, and a rolled-back
+    teardown, whose job rolled back with it, still runs nothing.
     """
+    from datetime import timedelta
+
+    from app.core.background import spawn_after_commit
+    from app.db.session import get_worker_db_context
+    from app.repositories import background_job as job_repo
+    from app.worker.jobs import CLEANUP_EXTERNAL_STATE
     from app.worker.tasks import teardown_tasks
 
-    async def _run(*, name: str, parameters: dict[str, Any], timeout: float) -> None:
-        del name, timeout
-        await teardown_tasks.cleanup_external_state(**parameters)
+    queue = teardown_tasks.queue_external_state_cleanup
 
-    monkeypatch.setattr(teardown_tasks, "run_deployment", AsyncMock(side_effect=_run))
+    async def run_queued() -> None:
+        async with get_worker_db_context() as db:
+            while job := await job_repo.claim(
+                db, pool="system", worker_id="test", lease=timedelta(minutes=5)
+            ):
+                await teardown_tasks.run_external_state_cleanup(
+                    CLEANUP_EXTERNAL_STATE.load(job.payload)
+                )
+                await job_repo.complete(db, job.id, fence=job.attempts)
+
+    async def queue_then_run(db, *args, **kwargs) -> None:
+        await queue(db, *args, **kwargs)
+        spawn_after_commit(db, run_queued(), name="test-run-queued-cleanups")
+
+    monkeypatch.setattr(teardown_tasks, "queue_external_state_cleanup", queue_then_run)
 
 
 def _user(email: str | None = None) -> User:
@@ -194,6 +208,42 @@ class TestDeletingAUser:
         await db.refresh(secret)
         assert secret.owner_user_id is None
         assert secret.visibility == "org"
+
+    async def test_a_project_chat_the_user_started_stays_with_the_team(self, db):
+        """Teammates read and continue a project's chat; the `users` cascade
+        would have taken it with its starter. Their own chats still go."""
+        creator = _user()
+        db.add(creator)
+        await db.flush()
+        org = await _org(db, creator)
+        leaver = _user()
+        db.add(leaver)
+        await db.flush()
+        await _member(db, org.id, leaver.id, "member")
+        project = await project_repo.create(
+            db,
+            organization_id=org.id,
+            owner_user_id=creator.id,
+            name="Launch",
+            description=None,
+            instructions="",
+            default_agent_id=None,
+            backend="state",
+        )
+        shared = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=leaver.id, title="Plan", project_id=project.id
+        )
+        own = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=leaver.id, title="Mine"
+        )
+        shared_id, own_id, project_id = shared.id, own.id, project.id
+
+        await UserService(db).delete(leaver.id)
+
+        db.expire_all()
+        kept = await db.get(Conversation, shared_id)
+        assert kept is not None and kept.user_id is None and kept.project_id == project_id
+        assert await db.get(Conversation, own_id) is None
 
     async def test_deleting_a_user_removes_an_org_scoped_collection_they_owned(self, db):
         """The personal-org teardown runs the same collection cleanup as an org

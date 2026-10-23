@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "42b85883e8d7"
 ---
 
 # La consola { #the-console }
@@ -10,7 +10,9 @@ como es debido.
 
 Si buscas una pantalla concreta, el camino más rápido es el **"?"** de la
 cabecera de cada página — reproduce el recorrido guiado de esa página, y una
-página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
+página cuya cabecera no lleva "?" no tiene recorrido que reproducir. El chat no
+tiene cabecera: sus consejos están en los ajustes del chat, los deslizadores junto
+al micrófono.
 
 ## El dashboard { #the-dashboard }
 
@@ -43,13 +45,18 @@ clic bajo **Customize**:
 |---|---|
 | *(sin título, arriba del todo)* | El resumen, los runs en el tiempo y cómo terminaron |
 | **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
-| **Usage & cost** | Qué agents se usan, gasto, cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
+| **Usage & cost** | Qué agents se usan, gasto, [minutos de voz](#voice-calls), cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
 
-Quien construye agents ve además **Get started** encima de las bandas hasta
-completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,
-añadir departamentos, invitar a alguien del equipo y - quien pueda - poner un agent
-en una app de chat. Cada paso se marca a partir de lo que existe, se haya hecho
-donde se haya hecho; cerrar la tarjeta la oculta en ese navegador.
+El dashboard se abre con **Get started** hasta completar cada paso: contarles a
+los agents sobre ti, empezar una conversación, conectar un servicio con tu
+propia cuenta, configurar una rutina y crear un agent - este último es una
+pregunta al Architect, que lo crea contigo.
+
+Quien construye agents tiene después los pasos de la organización: publicar un
+agent, darle una base de conocimiento, añadir departamentos, invitar a alguien
+del equipo y - quien pueda - poner un agent en una app de chat. Cada paso se
+marca a partir de lo que existe, se haya hecho donde se haya hecho, no de un
+clic en la tarjeta; cerrar la tarjeta la oculta en ese navegador.
 
 Tu propia vista muestra además **Discover AgenticOS**: una tarjeta por cada cosa
 fácil de pasar por alto - el servidor MCP propio de este despliegue para Claude
@@ -80,6 +87,27 @@ instantánea que querías conservar.
     filtrado por permisos corre después de resolver la disposición, venga esta de
     la de serie o de una que tú guardaste.
 
+## La bandeja { #the-inbox }
+
+La **bandeja** (Inbox), bajo Chat en la barra lateral, es lo que la plataforma
+te trajo por iniciativa propia: lo que tus
+[vigilancias](governance.md#proactive-work) encontraron en tus conexiones y lo
+que propuso la revisión nocturna. El número a su lado dice cuánto espera. Se lee
+como un buzón: una fila por elemento, lo urgente primero, de dónde vino y
+cuándo, y las respuestas en la fila.
+
+Filtra por su origen, o abre **Hecho** para ver lo que ya aceptaste o
+descartaste y recuperar algo descartado. **What they found** en la tarjeta de
+vigilancias de Rutinas la abre filtrada a las vigilancias. Filas más cortas
+encabezan tu dashboard como **Briefing**, y el chat vacío con el agente inicial
+muestra el primero como tarjeta, con un enlace al resto.
+
+Lo que una vigilancia encuentra y no hace falta avisar al momento espera a tu
+mañana: a la hora que mantiene la proactividad de la organización, una
+notificación y un mensaje directo de cada uno de sus bots de Slack, Teams y
+Mattermost que te conoce enumeran lo nuevo. Cada hallazgo entra en un solo
+briefing.
+
 ## La campana { #the-bell }
 
 Junto al buscador, en la barra lateral: un contador en marcha de lo que aún no
@@ -88,6 +116,11 @@ abrirla trae la página completa que estás mirando, no una vista previa de
 cinco tarjetas — **Load more** sigue paginando hacia atrás por la organización
 en la que estás ahora, más lo dirigido al deployment entero, hasta llegar a lo
 que ya ha caducado.
+
+Cada fila empieza por aquello de lo que trata: la cara del agente, con una
+insignia de cómo fue su run, o un icono del tipo de evento — verde para un run
+terminado o un servidor MCP que vuelve a funcionar, rojo para un fallo o un
+budget agotado, ámbar para una aprobación o un aviso de budget.
 
 Cambia de organización y la campana es la de esa: una
 notificación de la organización que dejaste no ha desaparecido, está detrás del
@@ -144,12 +177,17 @@ ejecutar agents (`agents:run`). Está vinculado al
 Pregúntale qué agents responden dudas de reembolsos, por qué falló el run de anoche
 o qué hay en una base de conocimiento.
 
-Pídele que esboce un agent o invite a un
-compañero, y primero te mostrará lo que apruebas: el borrador
-de un agent como el propio borrador - dónde se crea, su nombre, qué puede hacer y
-sus instrucciones - y todo lo demás como la llamada exacta. Actúa con
-tus permisos, así que encuentra y hace lo que tú podrías, y nada más. Su coste
-cuenta como el de cualquier agent.
+Dile qué debe hacer un agent y lo construye contigo, una pregunta cada vez, cada
+una con respuestas propuestas: elige las capabilities, la base de conocimiento y el
+modelo, dice por qué en una línea, esboza el agent, lo prueba con tus propias
+preguntas como borrador sin publicar, corrige lo que estaba mal y lo publica cuando
+lo apruebas. Una rutina la configura igual.
+
+Antes de que cambie nada, te muestra lo que apruebas: el borrador de un agent
+como el propio borrador - dónde se crea, su nombre, qué puede hacer y sus
+instrucciones - y todo lo demás como la llamada exacta. Actúa con tus permisos,
+así que encuentra y hace lo que tú podrías, y nada más. Su coste cuenta como el
+de cualquier agent.
 
 Un bocadillo sobre él habla de lo que te espera — aprobaciones, una organización
 sin ningún agent — o de la página en la que estás, y de vez en cuando ofrece un
@@ -175,8 +213,9 @@ navegador pregunta qué pestaña compartir y una imagen se adjunta a tu próximo
 mensaje.
 
 Planifica los trabajos largos como una lista que puedes seguir, guarda
-notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y puede
-deshacer un borrador de agent que creó por error — nada más. Además de las
+notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y solo
+borra un borrador de agent que creó por error y una rutina que le pidas quitar.
+Además de las
 aprobaciones y de una organización vacía, su bocadillo avisa cuando un run tuyo
 acaba de fallar y cuando un formulario lleva un minuto abierto sin terminar.
 
@@ -258,6 +297,71 @@ de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
 
+**`@` señala al agent qué usar.** Escribe `@` y un menú ofrece lo que el agent
+puede usar, en este orden: sus servidores MCP, los agents a los que pasa trabajo
+(con la capability de delegación activada), sus capabilities - **Sandbox**, **Web
+research** -, sus skills y después sus bases de conocimiento y archivos de
+contexto. Lo elegido se queda en tu texto como `@Nombre`, marcado con su logo, y
+al agent se le indica que lo use - las herramientas de un servidor o de una
+capability, la búsqueda de una base de conocimiento, un skill - sin pegar su
+contenido. Nombrar un agent le pasa el trabajo; nunca cambia quién responde.
+Borra el `@Nombre` y lo elegido desaparece. Un enlace pegado muestra el icono de
+su sitio encima del cuadro y en el mensaje enviado. Una mención nunca amplía lo
+que el agent puede alcanzar: el servidor comprueba cada una de nuevo como tú,
+frente a lo que el agent ya tiene. En el panel de pruebas del Builder el menú lee
+el borrador que estás probando. Mientras una conversación está vacía, el cuadro muestra uno
+tras otro ejemplos hechos con lo que el agent puede usar - su servidor, una
+capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en él.
+Encima, las tarjetas son los **primeros mensajes** propios del agent, definidos en
+el Builder bajo sus instrucciones; un agent sin ellos ofrece los cuatro del chat,
+entre ellos uno para preguntar qué puede hacer y otro para configurar una rutina.
+
+**Debajo de una respuesta.** Un agent con
+[Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta
+más reciente hasta tres pasos siguientes como botones, y un clic envía uno. Una
+línea dice qué anotó sobre ti, u olvidó, con **Manage** para
+[las notas mismas](reference/capabilities.md#memory-files) - pídele que olvide
+algo y lo hará. Cuando una petición necesita una capability que el agent no
+tiene, una tarjeta propone activarla o pedírselo a su propietario
+([cómo](reference/capabilities.md)).
+
+**Guardar una petición que funcionó.** Pasa el cursor por tu propio mensaje: el
+calendario lo convierte en una rutina - el mismo prompt, semanal por defecto, en
+el agent que respondió - y el robot le pide al Architect que cree un agent que lo
+haga. Pasa el cursor por la respuesta y el marcador le pide al Architect que haga
+un [skill](skills.md) de cómo se hizo, para que cualquier agent lo haga igual la
+próxima vez; recibe tu petición y la respuesta, y se ofrece a quien puede escribir
+skills.
+
+**Enlaces que señalan.** Un enlace de la consola que un agent escribe en su
+respuesta - «aquí está el botón que conecta tu Gmail» - abre esa página sin
+recargar la consola, y un `?highlight=` en él señala el control que nombra, como
+hacen los enlaces del Architect.
+
+**El agent AgenticOS te conoce.** Mientras tu cuenta no dice nada de tu rol ni de
+tu trabajo, un saludo empieza una entrevista corta: a qué te dedicas, qué llena tu
+semana, con qué herramientas trabajas - una pregunta cada vez, cada una con
+respuestas para elegir. Lo que dices se guarda en tu perfil, así que desde
+entonces lo sabe cada agent, y la entrevista termina con hasta tres tarjetas que
+configurar - una rutina, un servicio que conectar, un agent propio - cada una con
+un clic. Sáltate una pregunta, o pide algo real, y hará el trabajo en su lugar.
+
+**Lo que notó durante la noche.** Donde tu organización lo activó, una vez al
+día, temprano en tu mañana, la plataforma lee tus conversaciones recientes en una
+tarea en segundo plano: una
+petición que repites se convierte en una rutina propuesta, lo que un agent supo
+de tu rol en un perfil propuesto, y tu chat vacío de AgenticOS recibe primeros
+mensajes escritos para tu trabajo. Las propuestas esperan como tarjetas en ese
+chat vacío, en tu dashboard y en la campana, y **Ajustes → Asistente** las lista
+todas - ahí recuperas una descartada o te excluyes; acepta una y queda configurada, descártala y la misma
+propuesta no se vuelve a hacer. Nada se ejecuta cuando no pasó nada nuevo, y lo
+que esto puede gastar tiene un [límite por persona](governance.md#proactive-work).
+Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.
+
+**El horario laboral** en **Settings → Profile** dice a los agents cuándo
+trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera
+por él: es conocimiento para el agent, no un calendario.
+
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina
 el run. Arrastra un mensaje de la cola, o usa sus flechas, para cambiar el orden.
@@ -274,12 +378,26 @@ terminan o fallan - te avisa de que está ahí, con un enlace a ella. Un turno q
 sigue en marcha tras una hora sin nadie mirando se detiene, y se te avisa de eso
 ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Uno
 que espera una aprobación o tu respuesta a una pregunta te avisa por esa vía.
+Si vuelves mientras aún responde - a la conversación, desde otra pestaña, tras
+recargar -, el chat retoma la respuesta donde está, con todo lo que el agente ha
+hecho hasta entonces, y la sigue dibujando a medida que llega.
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras
 se abre, Enter empieza una
 línea nueva, y adjuntar un archivo o dictar están detrás de un único **+**. Los
 campos nunca son tan pequeños como para que iOS haga zoom en ellos.
+
+**Dibujos.** Un agente con [Visuals](reference/capabilities.md#visuals) dibuja bajo
+su mensaje - un diagrama, una explicación con controles deslizantes, una escena 3D - y
+usted lo ve aparecer mientras se escribe; sus scripts arrancan cuando está completo. El
+panel muestra el dibujo entero, ajustado a la conversación, con botones para abrirlo a
+pantalla completa, mostrar su código, descargarlo, copiar un SVG como imagen, ampliarlo
+y guardarlo como [aplicación](artifacts.md#visuals) con un enlace para
+compartir. Cuando un dibujo informa de un error, el agente ya lo sabe; **Corregir**
+vuelve a pedírselo. En un teléfono, un toque lo abre a pantalla completa.
+La tarjeta **Recent visuals** del panel muestra los últimos dibujados para usted, y
+cada uno abre la conversación en la que se dibujó.
 
 **Ver un recorrido.** Cuando un agent con el
 [navegador web](reference/capabilities.md#browser-automation) empieza en una página, su
@@ -319,12 +437,190 @@ sesión, devuélvelo con la casilla marcada y la sesión se guarda igual. Necesi
 navegador de inicio de sesión del despliegue
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
 
+### Dictado { #dictation }
+
+El micrófono está junto a Enviar en cada agent, y en el menú `+`. Convierte la
+voz en texto dentro del cuadro y nunca lo envía: lo que dijiste aparece donde
+estaba el cursor cuando pulsaste el micrófono, listo para editar, y no va a
+ninguna parte hasta que pulses Enviar. Cómo se transcribe lo decide el agent, en
+la pestaña Dictado de [su tarjeta Voice](#an-agents-voice-card):
+
+- **Transcribe with a provider** encendido — el navegador graba y este
+  despliegue envía la grabación al provider del agent o al predeterminado de la
+  organización. Funciona en cualquier navegador que pueda grabar. El endpoint,
+  sus límites y lo que se registra están en
+  [Dictado en el chat](ml-services.md#dictation-in-chat).
+- Apagado, o sin clave con la que enviarla — el reconocimiento de voz del propio
+  navegador, así que el audio va al fabricante del navegador (Google, Apple) y no
+  cuesta nada. Firefox no tiene: su micrófono lo dice al pulsarlo. Mientras
+  escucha, una nota sobre el compositor dice que el Dictado del agent está
+  apagado, y enlaza a su pestaña Dictado para quien puede editar el agent.
+
+Con un provider, al pulsar el micrófono flota sobre el compositor, que no
+cambia, una **píldora de grabación**: Cancel, el nivel, un temporizador y Stop.
+**Enter** detiene y transcribe, **Escape** cancela, y nada de lo que se escriba
+o pulse mientras una grabación está en curso o transcribiéndose se envía. La
+grabación se detiene sola en el dictado más largo de la organización y se
+transcribe, y un micrófono desconectado a mitad la termina igual, en vez de
+descartarla. Si la subida tarda más de un segundo, la píldora muestra cuánto se
+ha subido; después dice **Transcribing** hasta que llega el texto. El
+reconocimiento del navegador tiene su propia píldora, con **Done dictating**.
+
+Todo lo que el dictado tiene que decir aparece en una franja sobre el
+compositor, junto a la píldora: la petición de permiso, un micrófono bloqueado o
+ausente, los últimos 30 segundos, cinco segundos sin sonido, una grabación de
+menos de un segundo (no se envía), una grabación detenida en el límite y cada
+fallo. Cuántas palabras se insertaron se anuncia al lector de pantalla en lugar
+de mostrarse, porque las palabras están en el cuadro. Una grabación que no se
+pudo transcribir se guarda hasta que pulses **Retry** o **Discard**.
+
+El brillo alrededor del cuadro de una página alojada mientras hablas sigue a **Voice glow** en
+**Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
+**Subtle** (por defecto) u **Off**. Se recuerda por navegador. **Motion** decide
+cuánto se mueve toda la consola: **System** (por defecto) sigue el ajuste de
+movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
+él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
+movimiento está reducido no hay brillo alguno, la franja aparece sin deslizarse
+y el nivel es un indicador de cinco pasos.
+
+### La tarjeta Voice { #the-voice-card }
+
+En la página **Members** de la organización, para alguien con `org:settings`.
+Contiene el speech-to-text **predeterminado** que heredan los agents y los bots
+de canal, y cuánto puede durar un dictado; si un agent dicta con un provider, o
+atiende llamadas, se activa en la propia tarjeta Voice de ese agent. **Max
+recording length** va de 10 segundos a 10 minutos. **Default provider** es el
+provider y el modelo del catálogo de speech-to-text y un idioma (detección
+automática, o un idioma fijo, que es más preciso). También es a donde los
+[bots de canal](channels.md#what-every-channel-shares) configurados para heredar
+envían sus mensajes de voz; **None** lo borra.
+
+**Key**, junto al provider, es la clave del vault con la que se envía el
+predeterminado. Lista las claves de API cuyo propósito es ese provider y que
+toda la organización puede ver - la plataforma gasta esta clave en el dictado de
+cada miembro y en cada bot que hereda, así que la clave privada de un miembro no
+se ofrece y se rechaza si se envía. Con exactamente una clave así, se elige por
+ti, y en cualquier caso se guarda por nombre; nada elige una clave en tiempo de
+ejecución. Un provider sin clave aparece marcado como **no key for this
+provider** y el selector enlaza al vault para añadir una. Cuando el
+predeterminado no puede funcionar - el modelo se retiró del catálogo, o la clave
+se borró o se hizo privada - la tarjeta lo dice, y pide **choose a key** cuando
+es eso lo que falta.
+
+Para alguien que además tiene `runs:view`, la tarjeta empieza con una línea
+sobre lo que la organización transcribió en los últimos 30 días — "42 min · 118
+recordings (30 without a length)" — entre dictado, mensajes de voz de canales y
+la API. **Show breakdown** lo desglosa por agent y por bot de canal. Los minutos
+solo cuentan las grabaciones cuya duración se informó, así que la línea dice
+cuántas no; está oculta mientras no se ha transcrito nada. Las cifras vienen de
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
+
+### La tarjeta Voice de un agent { #an-agents-voice-card }
+
+La pestaña **Build** de un agent tiene una tarjeta **Voice** después de los
+ajustes del modelo, con dos pestañas: **Voice calls** y **Dictation**.
+
+**Dictation** contiene **Transcribe with a provider**. Encendido, el micrófono
+del chat envía la grabación a un provider: **This agent's own** (el
+predeterminado) elige un par del catálogo y la clave con la que enviarlo - una
+clave de API de ese provider que puedas ver, porque publicar se la presta a todo
+el que pueda ejecutar el agent - y, hasta que elijas una, se usa el
+predeterminado de la organización, nombrado. **Organization's** mantiene el
+provider, el modelo y la clave de la organización. Apagado, o sin clave con la
+que enviarla, transcribe el navegador, lo que no cuesta nada.
+
+El idioma se elige aparte: heredar el de la organización o fijar uno - así un
+agent en polaco puede conservar el provider y la clave de la organización. La
+tarjeta forma parte de la spec, se guarda con el borrador y está activa en cuanto
+se publica el agent, y se aplica al [dictado](#dictation) hacia este agent y a
+los mensajes de voz que heredan sus bots de canal.
+[El orden](ml-services.md#which-engine-a-recording-reaches) cuenta el resto.
+
+### Llamadas de voz { #voice-calls }
+
+Una [llamada de voz](voice.md) es una conversación hablada con un agent
+publicado: hablas, responde en voz alta y puedes interrumpirlo. Las llamadas se
+activan en el agent; la organización no tiene ajustes de llamadas.
+
+- **La tarjeta Voice del agent**, en su pestaña **Voice calls**: el provider y
+  el modelo de la llamada (para Azure, el nombre del deployment y su modelo
+  base), la clave, la voz con un botón de **reproducir** para oírla, el idioma
+  hablado (o **Follow the caller**), la **Longest call** (10 minutos si no se
+  fija, 50 como máximo) y las **Instructions for calls**. La tarjeta lista lo que
+  el agent [pasa a su modelo de texto](voice.md#handing-work-off) en las
+  llamadas, dice que los guardrails no pueden filtrar las palabras habladas antes
+  de que se oigan y que las llamadas se registran como texto sin guardar audio.
+  Entra en vigor cuando se publica el agent.
+- **El interruptor Voice calls de un embed**, en los formularios del widget y de
+  la página alojada - mira [Canales](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Antes de ofrecer una llamada, la consola pregunta si este agent puede atenderla
+(`GET /agents/{id}/voice`), para que nadie conceda el micrófono solo para ser
+rechazado. La respuesta dice qué falta: ninguna voz configurada en el agent, el
+modelo ya no se ofrece, o no hay clave.
+
+El **botón de llamada** ocupa en el compositor del chat el lugar de Enviar
+mientras el cuadro está vacío - al escribir algo vuelve Enviar -, en cada agent. Cuando este agent no puede atender una llamada aparece tachado, y al
+pasar por encima, enfocarlo o pulsarlo dice por qué. Quien puede editar el agent
+recibe **Open in the Agent Builder**, que abre su tarjeta Voice en la pestaña de
+llamadas; a cualquier otra persona se le dice que pregunte a quien pueda.
+
+Durante una llamada flota una **píldora** sobre el compositor, que se queda como
+estaba, borrador y adjuntos incluidos: lo que hace la llamada, su tiempo, una
+forma de onda de ambas voces, pulsar para hablar, silenciar y **End call**. Solo
+End call termina una llamada; abrir otra conversación o un chat nuevo la cuelga.
+Por defecto se habla sin manos; **pulsar para hablar** (mantener el botón o la
+barra espaciadora) es una elección que recuerda tu navegador. Con movimiento
+reducido, un medidor de nivel escalonado sustituye a la forma de onda.
+
+Una llamada pasa por estados que la píldora nombra: conectando, escuchando,
+hablas tú, pensando, habla el agent, interrumpido, trabajando con una
+herramienta, esperando tu aprobación, una aprobación que no puedes dar, casi sin
+tiempo y terminada - por ti, por un límite, una conexión caída o un fallo.
+
+La llamada ocurre en la conversación: cada turno se dibuja como el mensaje en
+que se convertirá, creciendo palabra a palabra mientras se habla, un lector de
+pantalla oye cada línea cuando es definitiva, y el mensaje guardado ocupa su
+lugar sin que nada se mueva, así que la llamada queda en tu historial y puedes
+seguir escribiendo. Mientras el agent piensa o ejecuta una herramienta, la
+conversación lo dice donde aparecerá su respuesta.
+
+Las **aprobaciones** se deciden en la llamada: una tarjeta en la conversación
+muestra la herramienta, sus argumentos exactos y lo que se te oyó decir, con una
+cuenta atrás de 60 segundos. Solo sus botones deciden; decir "sí" no aprueba
+nada. Sin `approvals:decide`, la tarjeta dice que la herramienta necesita una
+aprobación que no puedes dar por voz y ofrece terminar la llamada y seguir por
+texto.
+
+Las **preguntas** que hace el agent aparecen como la tarjeta de pregunta
+del chat, también leídas en voz alta: toca una respuesta o simplemente dila. El
+trabajo que el agent [pasa a su modelo de texto](voice.md#handing-work-off)
+muestra cada paso mientras se ejecuta, y los pasos quedan después en el turno.
+Los **límites** se dicen en voz alta: un minuto antes de que acabe la llamada más
+larga se te avisa, y cuando se agota el tiempo o el budget el agent dice una
+frase y la llamada termina.
+
+Una **franja sobre el compositor** señala lo que te necesita: la petición del
+micrófono, una aprobación pendiente (con **Show card**), el último minuto, un
+límite que termina la llamada, una reconexión o cómo funciona pulsar para
+hablar. Cuando la llamada termina, una tarjeta en la conversación dice cuánto
+duró y cuántos turnos se guardaron, o qué límite la terminó, con **Call again**.
+Una llamada que no llegó a empezar dice por qué sobre el compositor, con **Try
+again**.
+
+En **Activity**, una llamada es una fila con una insignia de micrófono, y el
+filtro de tipo (**Text** o **Voice calls**) se limita a las llamadas; una llamada
+que se reconectó sigue siendo una fila, con el tiempo y el coste de todas sus
+conexiones sumados. La tarjeta de panel **Voice minutes**, en la banda de Uso
+para quien tenga `runs:view`, muestra los minutos de llamada y las llamadas del
+periodo y los tres agents principales.
+
 ## Para qué sirve cada área { #what-each-area-is-for }
 
 La barra lateral los agrupa. **Build** reúne Agents, Routines, Apps y Activity;
 **Knowledge** reúne Knowledge bases, Documents, Skills y Context. Dos grupos se
 pliegan a su título hasta que los abres, porque se configuran una vez y se visitan
-poco: **Connections** (MCP servers, Channels, Vault, Sandboxes) y
+poco: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) y
 **Organization** (Organizations, Groups). Un grupo plegado se abre solo en
 cualquier página que le pertenezca, y se queda como lo dejaste.
 
@@ -340,11 +636,12 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
 | **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
-| **Channels** | Bots de Slack, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
+| **Channels** | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
+| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
 | **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
 | **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |
-| **Admin** | El despliegue en sí: usuarios, inquilinos, sistema, ajustes del despliegue | [El despliegue](deployment.md) |
+| **Admin** | El despliegue en sí: usuarios, inquilinos, sistema, jobs en segundo plano, ajustes del despliegue | [El despliegue](deployment.md) |
 
 El catálogo de **Agents** se puede filtrar por **category** y **tag** — las
 etiquetas editables y locales a la organización que se muestran en la tarjeta de
@@ -357,10 +654,21 @@ momento, sin publicar una nueva versión.
 
 La consola habla inglés, polaco y alemán, en su totalidad salvo las páginas
 legales, que siguen en inglés. La primera tarjeta del recorrido ofrece los tres, y
-el menú de la cuenta cambia el idioma en cualquier momento; la elección se recuerda
-en el navegador. Las palabras del producto - agent, skill, run, budget, MCP y el
+el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
+en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
+inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la
+página cambia mientras responde, sin recargar. Todos los agents responden en él
+salvo que escribas en otro idioma.
+
+Las palabras del producto - agent, skill, run, budget, MCP y el
 resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
 los idiomas.
+
+La misma tarjeta pregunta a qué te dedicas, y **Settings → Profile** guarda el
+resto de lo que los agents saben de ti: tu rol, en qué trabajas y tu zona horaria.
+Cada agent los lee al empezar un run, así que nunca los repites en un chat; «cada
+lunes a las 9» son tus 9. La zona horaria se toma de tu navegador la primera vez
+que inicias sesión, hasta que eliges una.
 
 ## El siguiente paso { #the-next-step }
 
@@ -381,7 +689,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y seis widgets** que ordenas tú, guardados por
+- El dashboard son **treinta y ocho widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

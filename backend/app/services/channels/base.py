@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -29,7 +29,7 @@ ROOM_HANDLES = frozenset({"channel", "all", "here", "everyone"})
 
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
-ChannelType = Literal["web", "slack", "telegram", "mattermost"]
+ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams"]
 
 # Default access policy applied to new channel bots.  Imported by models and
 # repositories so the literal is defined in exactly one place.
@@ -182,6 +182,14 @@ class IncomingAttachment:
 
     handle: str
     """Opaque to everything but the adapter that made it."""
+
+    duration_seconds: float | None = None
+    """How long a recording is, where the platform says (Slack's `duration_ms`,
+    Telegram's `duration`; Mattermost states none).
+
+    Metadata, not a measurement, and absent on most files. Read so that a
+    voice note's length can be recorded with its transcription without
+    decoding the audio, which nothing in the image can do."""
 
 
 @dataclass(frozen=True)
@@ -544,6 +552,34 @@ class ChannelAdapter(ABC):
         the same stub for a feature only some platforms have.
         """
 
+    async def vouched_email(self, bot_token: str, incoming: IncomingMessage) -> str | None:
+        """The sender's address, where this deployment signs people in through the same directory.
+
+        `None` by default, which leaves linking to the link flow. A platform whose
+        roster comes from the identity provider the deployment's own sign-in uses -
+        Teams in the deployment's Entra tenant - can answer, and an unlinked sender
+        is then linked to the member who signed in with that address (#1985).
+        """
+        return None
+
+    async def welcome(
+        self,
+        bot_token: str,
+        email: str,
+        text: str,
+        *,
+        api_base_url: str | None,
+        places: Sequence[str] = (),
+    ) -> bool:
+        """Greet one person directly, found by their address (#2301).
+
+        `False` by default, and wherever they are not in this workspace or the
+        platform cannot start a chat with them. `places` are conversations this
+        bot is in, for a platform with no directory to search: Teams finds people
+        in their rosters.
+        """
+        return False
+
     async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
         """Fetch what somebody sent, using this platform's own second request.
 
@@ -557,6 +593,20 @@ class ChannelAdapter(ABC):
                 an attachment looks like a bot that read it.
         """
         raise NotImplementedError(f"{self.platform} attachments cannot be downloaded yet")
+
+    async def describe_attachments(
+        self, bot_token: str, attachments: list[IncomingAttachment]
+    ) -> list[IncomingAttachment]:
+        """The attachments with what the parser could not know filled in.
+
+        Called by the router before it decides which attachments are voice
+        notes, since that decision reads the type. Most platforms put the name,
+        size and type on the event, so the default returns the list unchanged.
+        An adapter whose payload can carry a bare id - a Mattermost outgoing
+        webhook - looks the rest up here, where an HTTP call is allowed and a
+        synchronous parser's is not.
+        """
+        return attachments
 
     #
     # The implementation half of `app.agents.capabilities.channel_tools`: the

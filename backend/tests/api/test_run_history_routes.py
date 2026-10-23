@@ -12,8 +12,6 @@ columns, so an unvalidated `?status=complete` would return an empty page - and a
 empty page is what "nothing went wrong this week" looks like.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -52,6 +50,7 @@ async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
 def _service() -> MagicMock:
     service = MagicMock()
     service.list_runs = AsyncMock(return_value=([], 0))
+    service.voice_chains = AsyncMock(return_value={})
     return service
 
 
@@ -208,8 +207,12 @@ class TestTheDownRatedMarkerReachesTheRow:
             status="completed",
             input_tokens=10,
             output_tokens=5,
+            tool_args_repaired=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            modality="text",
             is_test=False,
             provider="openrouter",
             conversation_id=_CONVERSATION_ID,
@@ -263,8 +266,12 @@ class TestTheDetailReadCarriesItsNeighbours:
             status="completed",
             input_tokens=10,
             output_tokens=5,
+            tool_args_repaired=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            modality="text",
             is_test=False,
         )
         prev_id, next_id = uuid4(), uuid4()

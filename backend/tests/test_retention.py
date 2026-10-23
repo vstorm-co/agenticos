@@ -12,8 +12,6 @@ month's bill is a sum over exactly the rows being removed. And the refusals: a
 period below the audit floor, and a member without `org:settings`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -440,6 +438,29 @@ class TestTheSweep:
         await service.sweep(now=NOW)
 
         storage.delete.assert_awaited_with("chat/a.pdf")
+
+    async def test_generated_media_unlinked_with_a_conversation_stops_counting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A generated file's row outlives its thread (`SET NULL`), so once the
+        bytes are gone the row goes too - or the quota keeps counting a clip that
+        no longer exists (#2310)."""
+        service = _service()
+        organization_id = self._one_organization(monkeypatch, {"conversations": 30})
+        monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
+        repo = self._repo(monkeypatch, conversations=1)
+        generated = f"generated_{organization_id}/abc_video.mp4"
+        repo["stored_paths_for_expiring_conversations"].return_value = ["chat/a.pdf", generated]
+        self._storage(monkeypatch)
+        monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
+        forgotten = AsyncMock(return_value=1)
+        monkeypatch.setattr(f"{MODULE}.generated_media_repo.delete_by_storage_paths", forgotten)
+
+        await service.sweep(now=NOW)
+
+        forgotten.assert_awaited_once_with(
+            service.db, organization_id=organization_id, storage_paths=["chat/a.pdf", generated]
+        )
 
     async def test_a_file_that_could_not_be_unlinked_keeps_its_rows(
         self, monkeypatch: pytest.MonkeyPatch

@@ -14,8 +14,6 @@ cannot take it, and closing the first releases it - is Postgres's behaviour and
 nothing a mock can show.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from datetime import UTC, datetime

@@ -4,10 +4,10 @@ import codecs
 import io
 import logging
 import re
-import zipfile
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 from xml.dom import Node
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,9 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.repositories import chat_file as chat_file_repo
+from app.repositories import conversation as conversation_repo
+from app.repositories import member_repo
+from app.services.conversation import ConversationService
 from app.services.file_storage import (
     ALLOWED_EXTENSIONS,
     ALLOWED_MIME_TYPES,
@@ -35,6 +38,7 @@ from app.services.file_storage import (
 # The web-safe raster images: no ZIP/OLE/TIFF container, but each has a cheap
 # magic-number signature the byte phase can still check (#1654 review).
 _WEB_SAFE_IMAGE_MIMES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
+from app.services.office_archive import safe_unzip
 from app.services.office_convert import libreoffice_convert
 
 logger = logging.getLogger(__name__)
@@ -50,8 +54,6 @@ reader: the file itself is one click away in the preview panel.
 PREVIEW_CHARS = 240
 """A second bound, for a file whose three lines are one long line each."""
 
-_ARCHIVE_CHUNK = 1024 * 1024
-"""How much of a ZIP member is read at a time when measuring its real size."""
 
 _ODS_MAX_CELLS = 1_000_000
 """How many cells one OpenDocument spreadsheet may expand to across all sheets.
@@ -186,7 +188,7 @@ def _decode_declared(data: bytes) -> str | None:
     if match:
         try:
             return data.decode(match.group(1).decode("ascii"))
-        except (LookupError, UnicodeDecodeError):
+        except LookupError, UnicodeDecodeError:
             return None
     return None
 
@@ -206,34 +208,6 @@ def _charset_param(content_type: str | None) -> str | None:
         if key.strip().lower() == "charset":
             return value.strip().strip('"').lower() or None
     return None
-
-
-def safe_unzip(data: bytes) -> io.BytesIO:
-    """Validate a ZIP-backed office file's decompression, then hand back a stream.
-
-    ODF and OOXML are ZIP+XML, and a small upload can decompress to a huge amount of
-    memory. Every member is read through a bounded stream — never trusting the
-    forgeable `ZipInfo.file_size` in the central directory — and the member count and
-    running total are capped. Returns a fresh stream over the *validated* bytes for
-    the parser to open; raises `ValueError` when a bound is exceeded, which each
-    parser turns into a caught `None`.
-    """
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        names = archive.namelist()
-        if len(names) > settings.CHAT_ARCHIVE_MAX_MEMBERS:
-            raise ValueError("archive has too many members")
-        total = 0
-        for name in names:
-            member_total = 0
-            with archive.open(name) as member:
-                while chunk := member.read(_ARCHIVE_CHUNK):
-                    member_total += len(chunk)
-                    if member_total > settings.CHAT_ARCHIVE_MEMBER_MAX_BYTES:
-                        raise ValueError("archive member too large")
-                    total += len(chunk)
-                    if total > settings.CHAT_ARCHIVE_TOTAL_MAX_BYTES:
-                        raise ValueError("archive too large")
-    return io.BytesIO(data)
 
 
 def _clamp_odf_space_runs(node: Any, budget: int) -> int:
@@ -552,7 +526,7 @@ class DocumentText:
             if charset:
                 try:
                     return data.decode(charset)
-                except (LookupError, UnicodeDecodeError):
+                except LookupError, UnicodeDecodeError:
                     return None
             return None
 
@@ -1093,15 +1067,55 @@ class FileUploadService(DocumentText):
         await get_file_storage().delete(chat_file.storage_path)
         await chat_file_repo.delete(self.db, db_file=chat_file)
 
-    async def get_user_file(self, file_id: Any, user_id: Any) -> ChatFile:
-        """Get a file by ID, verifying ownership.
+    async def get_readable_file(self, file_id: Any, *, user_id: UUID) -> ChatFile:
+        """A file this person may open: their own upload, or one attached to a chat they read.
+
+        An attachment is part of the conversation it was sent in, so whoever may
+        read the conversation - a teammate in a project chat, somebody it was
+        shared with - opens it too; the transcript would otherwise show cards
+        that answer every click with a 404. A file not attached to anything yet
+        is still its uploader's alone.
+
+        Asked in the conversation's own organization rather than an active one:
+        an `<img>` sends no organization header, and the reader's membership
+        there is what their access to its chats is decided by anyway.
 
         Raises:
-            NotFoundError: If file does not exist or user has no access.
+            NotFoundError: If there is no such file, or it is not theirs to open.
         """
         chat_file = await chat_file_repo.get_by_id(self.db, file_id)
-        if not chat_file or str(chat_file.user_id) != str(user_id):
+        if chat_file is None:
             raise NotFoundError(message="File not found")
+        if str(chat_file.user_id) == str(user_id):
+            return chat_file
+        message = (
+            await conversation_repo.get_message_by_id(self.db, chat_file.message_id)
+            if chat_file.message_id is not None
+            else None
+        )
+        conversation = (
+            await conversation_repo.get_conversation_by_id(self.db, message.conversation_id)
+            if message is not None
+            else None
+        )
+        if conversation is None or conversation.organization_id is None:
+            raise NotFoundError(message="File not found")
+        # Still a member of that organization: a conversation share can outlive
+        # the person's membership, and the file must not.
+        if (
+            await member_repo.get(
+                self.db, organization_id=conversation.organization_id, user_id=user_id
+            )
+            is None
+        ):
+            raise NotFoundError(message="File not found")
+        # The conversation's own refusal, which names nothing about the file.
+        await ConversationService(self.db).get_conversation(
+            conversation.id,
+            organization_id=conversation.organization_id,
+            user_id=user_id,
+            include_favourite=False,
+        )
         return chat_file
 
     async def create_chat_file(

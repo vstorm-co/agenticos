@@ -1,4 +1,5 @@
-import { CalendarClock, Code2, Globe, MessageSquare, Zap } from "lucide-react";
+import { CalendarClock, Code2, Globe, MessageSquare, Mic, Network, Zap } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,9 @@ const MARKS = {
   slack: brandMark("slack"),
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
+  // Another system's agent, which A2A names by no brand of its own.
+  a2a: Network,
+  teams: brandMark("microsoftteams"),
   // Nobody sat at a keyboard for these two: a clock for the run a schedule was
   // due to make, a bolt for the one an event fired. They are in this table and
   // not yet in `SURFACES` on the filter bar, because the filter's vocabulary is
@@ -42,6 +46,8 @@ const LABEL_KEYS = {
   slack: "surfaceSlack",
   telegram: "surfaceTelegram",
   mattermost: "surfaceMattermost",
+  a2a: "surfaceA2a",
+  teams: "surfaceTeams",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
 } as const;
@@ -80,4 +86,16 @@ export function SurfaceIcon({ surface, className }: { surface: string; className
  */
 export function surfaceIconComponent(surface: string) {
   return MARKS[surface as keyof typeof MARKS];
+}
+
+/** A microphone for a voice call (#54); nothing for text, which is every other run. */
+export function ModalityBadge({ modality }: { modality: "text" | "voice" }) {
+  const t = useTranslations("pages.runs");
+  if (modality !== "voice") return null;
+  return (
+    <span className="inline-flex items-center" title={t("modalityVoice")}>
+      <Mic className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="sr-only">{t("modalityVoice")}</span>
+    </span>
+  );
 }

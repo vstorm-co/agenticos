@@ -23,21 +23,31 @@ import {
   MoreOptions,
 } from "@/components/ui";
 import {
+  INHERIT,
   TranscriptionFields,
   type TranscriptionChoice,
 } from "@/components/channels/transcription-fields";
+import { useOrganizationList } from "@/hooks";
+import { useOrgStore } from "@/stores";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
-import type { AnswerStyle, ChannelBotCreate, ChannelPlatform } from "@/types/channels";
+import type {
+  AnswerStyle,
+  ChannelBotCreate,
+  ChannelPlatform,
+  InheritedSpeechToText,
+} from "@/types/channels";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
-const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "telegram"];
+const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "teams", "telegram"];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  teams: "Microsoft Teams",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -45,7 +55,11 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   telegram: "botTokenHintTelegram",
   slack: "botTokenHintSlack",
   mattermost: "botTokenHintMattermost",
+  teams: "botTokenHintTeams",
 };
+
+/** An Entra app or tenant id - what the backend accepts for either. */
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 255;
@@ -94,21 +108,46 @@ export function AddChannelDialog({
   const [signingSecret, setSigningSecret] = useState("");
   const [appToken, setAppToken] = useState("");
   const [slackWebhook, setSlackWebhook] = useState(true);
+  const [teamsAppId, setTeamsAppId] = useState("");
+  const [teamsTenantId, setTeamsTenantId] = useState("");
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
-  const [transcription, setTranscription] = useState<TranscriptionChoice>({
-    provider: null,
-    model: null,
-  });
+  const [transcription, setTranscription] = useState<TranscriptionChoice>(INHERIT);
+  // A bot not yet registered serves no agent, so what it would inherit today is
+  // the organization's pair; binding an agent with its own may change that.
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { data: orgs } = useOrganizationList();
+  const org = orgs?.find((candidate) => candidate.id === activeOrgId);
+  const inherited: InheritedSpeechToText | null | undefined =
+    org === undefined
+      ? undefined
+      : org.speech_to_text_provider && org.speech_to_text_model
+        ? {
+            provider: org.speech_to_text_provider,
+            model: org.speech_to_text_model,
+            language: org.speech_to_text_language,
+            pair_source: "organization",
+            language_source: org.speech_to_text_language ? "organization" : null,
+            agent_name: null,
+            has_key: org.speech_to_text_secret_id !== null,
+          }
+        : null;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Mattermost is self-hosted: without its server's address a bot cannot reply,
   // cannot open its event stream and cannot fetch an attachment, so the backend
   // refuses to save one. Said here rather than after the round trip.
   const missingServerUrl = platform === "mattermost" && serverUrl.trim() === "";
+  // A Teams bot cannot sign in, nor recognise a token meant for it, without both.
+  const missingTeamsIds =
+    platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
   const badReaction =
     answerStyle.ack_reaction !== null && !REACTION_PATTERN.test(answerStyle.ack_reaction);
   const complete =
-    name.trim().length > 0 && token.trim().length >= MIN_TOKEN && !missingServerUrl && !badReaction;
+    name.trim().length > 0 &&
+    token.trim().length >= MIN_TOKEN &&
+    !missingServerUrl &&
+    !missingTeamsIds &&
+    !badReaction;
 
   function reset() {
     setPlatform(initialPlatform);
@@ -119,8 +158,10 @@ export function AddChannelDialog({
     setSigningSecret("");
     setAppToken("");
     setSlackWebhook(true);
+    setTeamsAppId("");
+    setTeamsTenantId("");
     setAnswerStyle(DEFAULT_ANSWER_STYLE);
-    setTranscription({ provider: null, model: null });
+    setTranscription(INHERIT);
     setErrors({});
   }
 
@@ -131,6 +172,8 @@ export function AddChannelDialog({
     setWebhookSecret("");
     setSigningSecret("");
     setAppToken("");
+    setTeamsAppId("");
+    setTeamsTenantId("");
     setErrors({});
   }
 
@@ -157,13 +200,19 @@ export function AddChannelDialog({
         ...(platform === "slack" && !slackWebhook && appToken.trim()
           ? { slack_app_token: appToken.trim() }
           : {}),
+        ...(platform === "teams"
+          ? { teams_app_id: teamsAppId.trim(), teams_tenant_id: teamsTenantId.trim() }
+          : {}),
         ...answerStyle,
-        // Both halves or neither - the schema refuses one alone as a setting
-        // that cannot run - and absent entirely for a bot that does not listen.
-        ...(transcription.provider && transcription.model
+        // Inherit is the server's default, so it sends nothing; off is the
+        // switch; choose is both halves and the key - the schema refuses one
+        // half alone as a setting that cannot run, and a pair with no key.
+        ...(transcription.mode === "off" ? { transcribe_voice_notes: false } : {}),
+        ...(transcription.mode === "choose" && transcription.provider && transcription.model
           ? {
               speech_to_text_provider: transcription.provider,
               speech_to_text_model: transcription.model,
+              speech_to_text_secret_id: transcription.secretId,
             }
           : {}),
       });
@@ -173,7 +222,15 @@ export function AddChannelDialog({
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "token", "api_base_url", "webhook_secret"],
+          fields: [
+            "name",
+            "token",
+            "api_base_url",
+            "webhook_secret",
+            "speech_to_text_secret_id",
+            "teams_app_id",
+            "teams_tenant_id",
+          ],
           identifiedBy: "name",
         },
         tErrors,
@@ -206,7 +263,11 @@ export function AddChannelDialog({
             <p id="channel-platform" className="text-sm leading-none font-medium">
               {t("platform")}
             </p>
-            <div role="group" aria-labelledby="channel-platform" className="grid grid-cols-3 gap-2">
+            <div
+              role="group"
+              aria-labelledby="channel-platform"
+              className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+            >
               {PLATFORMS.map((option) => (
                 <button
                   key={option}
@@ -297,6 +358,41 @@ export function AddChannelDialog({
             </div>
           )}
 
+          {platform === "teams" && (
+            <div className="space-y-5">
+              <FormField
+                label={t("teamsAppId")}
+                htmlFor="channel-teams-app-id"
+                error={errors.teams_app_id}
+                description={t("teamsAppIdHint")}
+                required
+              >
+                <Input
+                  id="channel-teams-app-id"
+                  value={teamsAppId}
+                  onChange={(event) => setTeamsAppId(event.target.value)}
+                  placeholder="00000000-0000-0000-0000-000000000000"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t("teamsTenantId")}
+                htmlFor="channel-teams-tenant-id"
+                error={errors.teams_tenant_id}
+                description={t("teamsTenantIdHint")}
+                required
+              >
+                <Input
+                  id="channel-teams-tenant-id"
+                  value={teamsTenantId}
+                  onChange={(event) => setTeamsTenantId(event.target.value)}
+                  placeholder="00000000-0000-0000-0000-000000000000"
+                  autoComplete="off"
+                />
+              </FormField>
+            </div>
+          )}
+
           {platform === "slack" && (
             <>
               <SlackTransport webhookMode={slackWebhook} onChange={setSlackWebhook} />
@@ -341,8 +437,11 @@ export function AddChannelDialog({
             />
             <TranscriptionFields
               idPrefix="channel"
+              platform={platform}
+              inherited={inherited}
               value={transcription}
               onChange={setTranscription}
+              keyError={errors.speech_to_text_secret_id}
             />
           </MoreOptions>
         </div>

@@ -9,8 +9,6 @@ must be absent from the set, not merely unranked. The router-level test stubs th
 repository; this one runs the query.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

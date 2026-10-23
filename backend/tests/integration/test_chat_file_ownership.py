@@ -12,8 +12,6 @@ unit tests prove what the service refuses, and only reading the columns back
 proves the victim's row survived the attempt.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

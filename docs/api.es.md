@@ -1,5 +1,5 @@
 ---
-source_sha: "8122fd41c206"
+source_sha: "d77cb23fa679"
 ---
 
 # La API HTTP { #the-http-api }
@@ -66,7 +66,7 @@ Conviene conocer dos rechazos:
 
 - **`403` "API keys are not accepted on this endpoint"**: las claves solo se
   aceptan en la API pública: agents, runs y aprobaciones, bases de conocimiento y
-  RAG, skills, archivos de contexto, aplicaciones, los servicios de ML,
+  RAG, skills, archivos de contexto, proyectos, aplicaciones, los servicios de ML,
   `/me/permissions` y los miembros, invitaciones, grupos y ajustes de una
   organización. Las rutas propias de la consola, tu cuenta, abandonar o traspasar
   una organización y la gestión de claves en sí siguen siendo solo de sesión, para
@@ -145,10 +145,15 @@ organización; nombrar otra responde `400` con
 **Un token de sesión toma el inquilino de `X-Organization-Id`.** Quien pertenece
 a tres organizaciones es un principal distinto en cada una, con otro rol y otros
 permisos concedidos, así que envía la cabecera en cada petición. Si falta, la
-petición vuelve a la **organización personal** del llamante: un script que la
-olvide actúa allí, con los agents, permisos y budget de esa organización, y no
-recibe ningún error. Envía la equivocada y obtendrás un rechazo idéntico al de un
-recurso inexistente, a propósito, para que los ids no se puedan sondear.
+petición vuelve a la **organización por defecto** del despliegue si el llamante
+pertenece a ella, luego a su **organización personal**, luego a la única que
+tenga: un script que olvide la cabecera actúa allí, con los agents, permisos y
+budget de esa organización, y no recibe ningún error. Quien pertenece a varias y
+no tiene ninguna de ellas recibe un `400` con
+`details.header = "X-Organization-Id"` en vez de una suposición
+([dónde empieza una cuenta nueva](deployment.md#where-a-new-account-starts)).
+Envía la equivocada y obtendrás un rechazo idéntico al de un recurso inexistente,
+a propósito, para que los ids no se puedan sondear.
 
 ## Ejecutar un agent { #running-an-agent }
 
@@ -161,6 +166,26 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 La respuesta trae el id del run, la salida, el estado, los tokens y el coste.
 `environment_id` en el cuerpo elige [qué entorno](environments.md) responde.
+`"draft": true` ejecuta en su lugar el borrador sin publicar, como el panel de
+pruebas del Builder: un run de prueba, para una clave cuyo emisor puede editar el
+agent, rechazado con el motivo cuando el borrador no se publicaría, y nunca con
+`Prefer: respond-async`.
+
+Una clave también llega a las rutinas de un agent - `GET /api/v1/triggers` y
+`GET`, `POST`, `PATCH` y `DELETE` bajo `/api/v1/agents/{agent_id}/triggers`, más
+`POST .../{trigger_id}/run` para lanzar una ahora - y a los modelos de la
+organización en `GET /api/v1/providers/model-profiles`. Tres rutas actúan sobre
+el propio emisor: `GET /api/v1/me/mcp-connections` lista los servicios que conectó
+con su propia cuenta, `PUT /api/v1/users/me/locale` le fija el idioma de la consola
+en cada dispositivo, y `PATCH /api/v1/users/me/agent-context` guarda su rol
+(`job_title`) y en qué trabaja (`about`), lo que se le dice a cada agent. Cada una
+necesita una clave emitida para `agents:run`.
+
+`POST /api/v1/agents` crea un agent a partir del spec del cuerpo y deja vacío un
+campo vacío. Con `"from_starter": true` rellena lo que el spec omite - las
+instrucciones, los skills, las herramientas propias de la plataforma y el
+presupuesto - desde el agent inicial AgenticOS, como hace **New agent** en la
+consola.
 
 **Un run continúa una conversación.** Una llamada sin `conversation_id` abre una
 conversación nueva para quien emitió la clave y devuelve su id como
@@ -188,6 +213,40 @@ lo que costó, para una clave con `runs:view`.
     Ese es el sentido de tener un único runner, y por eso no existe una "vía
     rápida" que se lo salte.
 
+### Sin mantener la conexión { #without-holding-the-connection }
+
+Un run de minutos - una navegación, una cadena larga de herramientas - mantiene
+la petición abierta todo el tiempo, y el tiempo límite de lectura de un proxy
+puede cortarla mientras el run sigue. Envía `Prefer: respond-async` y la llamada
+responde `202` al instante, con una petición de run que consultar:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: ticket-4711" \
+  -d '{"prompt": "Summarise this quarter for the board"}'
+# 202, Location: /api/v1/run-requests/{id}, Preference-Applied: respond-async
+
+curl "$BASE/api/v1/run-requests/$REQUEST_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+La petición pasa por `queued`, `running` y después `completed` con `result` -
+el mismo cuerpo con el que responde la llamada síncrona - o `failed` con
+`error`. Su `conversation_id` se conoce desde la primera respuesta, así que se
+puede enviar un mensaje de seguimiento antes de que termine el run. Lo ejecuta
+un worker, con el mismo runner, budget y aprobaciones que cualquier otra
+superficie.
+
+Lo que se puede comprobar al momento se comprueba al momento: una conversación
+o un adjunto desconocidos son un `404` en el `POST`, no un fallo que haya que
+esperar. Los permisos de la clave se vuelven a comprobar cuando el run arranca,
+así que una clave revocada mientras su run esperaba no lo ejecuta. Solo quien lo
+pidió, o una clave suya, puede leer una petición de run; la de otro responde
+`404`. Un run asíncrono tiene un intento: un run que falla queda registrado con
+lo que gastó y no se reintenta para no gastarlo dos veces.
+
 La ruta lleva un **límite de frecuencia en lugar de una puerta de permisos**. El
 permiso se decide dentro del servicio, contra los grants de ese agent concreto —
 una puerta de rol en una ruta por recurso [no puede verlos](permissions.md).
@@ -213,6 +272,33 @@ La respuesta también trae `categories` y
 `tags`: cada etiqueta distinta en los agents que podrías listar, sea cual sea el
 filtro y la página — las opciones que ofrece un menú de filtro. Un agent privado que
 no puedes ver no aporta ninguna.
+## Agents por A2A { #agents-over-a2a }
+
+Un agent que su organización sirve por A2A responde JSON-RPC en
+`POST /api/v1/a2a/{agent_id}`, con las mismas claves que `/run`; su agent card está
+en `GET /api/v1/a2a/{agent_id}/.well-known/agent-card.json` y no necesita ninguna.
+`PUT /api/v1/agents/{id}/a2a` con `{"enabled": true}` lo activa, para quien tenga
+`agents:publish` sobre ese agent.
+
+```bash
+curl -X POST "$BASE/api/v1/a2a/$AGENT_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "message/send",
+       "params": {"message": {"role": "user", "messageId": "m1",
+                              "parts": [{"kind": "text", "text": "Review clause 7"}]}}}'
+```
+
+La respuesta es una `Task` cuyo id es el del run y cuyo `contextId` continúa la
+conversación. `tasks/get` vuelve a leer una. Los [canales](channels.md#a2a) tienen
+el resto.
+
+Los agents remotos en los que delega esta organización se registran en
+`/api/v1/external-agents`: `GET` los lista (`agents:view`); `POST` con una
+`card_url`, un `slug` opcional y un `secret_id` opcional de una clave API lee la card
+y lo registra, y `POST /{id}/refresh` la vuelve a leer; `DELETE /{id}` elimina uno
+(`agents:edit` para los tres).
+
 ## Los servicios de ML { #the-ml-services }
 
 Cuatro servicios de la plataforma responden por su cuenta, sin conversación y sin
@@ -330,6 +416,107 @@ por cada escritura correcta a través de la API pública en esa organización �
 (`console`, `api_key`, `mcp` o `assistant`) y quién la hizo — y solo sobre filas
 que quien llama puede leer.
 
+## Llamadas de voz { #voice-calls }
+
+Una [llamada de voz](voice.md) tiene un socket propio, porque una llamada no es
+un bucle de turnos: **`/api/v1/ws/voice`** para un miembro, y
+**`/api/v1/embed/{public_key}/voice/ws`** para un visitante en un widget o una
+página alojada ([admisión](channels.md#the-call-socket)). Los dos hablan los
+mismos frames, definidos en `backend/app/schemas/voice.py`.
+
+El socket de la consola se autentica igual que `/ws/agent`: el token como una
+entrada `access_token.<JWT>` de `Sec-WebSocket-Protocol` (o la cookie del mismo
+origen), nunca en la query string, y la organización como `?organization_id=`.
+Se cierra con `4001` sin una sesión válida y con `4003` cuando quien llama no es
+miembro o se autentica con una clave API de la organización: una llamada es una
+persona ante el micrófono, como un turno de chat es una persona ante el teclado.
+
+El socket del embed se cierra con `4029` al pasar un rate limit y con
+`4003` ante cualquier rechazo relativo al embed. Cada latido vuelve a comprobar
+la sesión, así que una llamada no sobrevive a un cierre de sesión.
+
+**El cliente envía** frames JSON, y a través del relay también audio binario:
+
+| Frame | Campos | Cuándo |
+|---|---|---|
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` y `resume_token` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho |
+| `approval` | `id`, `decision` (`approve` o `deny`) | Al decidir una aprobación que la llamada está esperando |
+| `mute` | `muted` | El relay: el micrófono silenciado |
+| `played` | `bytes` | El relay: cuánto audio del agent se ha reproducido |
+| `end` | - | Colgar |
+| *binario* | PCM de 16 bits a la frecuencia de entrada del modelo | El relay: el audio de quien llama |
+
+**El servidor envía:**
+
+| Frame | Campos | Significa |
+|---|---|---|
+| `answer` | `sdp` | WebRTC: la respuesta del provider para la conexión peer del navegador |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent |
+| `caption` | `role`, `turn_id`, `part`, y uno de `delta` (añadir), `text` (sustituir por el texto revisado hasta ese momento) o `final` | Un subtítulo en vivo |
+| `turn_saved` | `message` | Un turno terminado, como el mensaje con el que se guardó; sustituye a los subtítulos que llevan su `turn_id` |
+| `tool` | `name`, `status` (`running` o `done`) | Una herramienta que está ejecutando el agent |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Una aprobación para la persona de la llamada: los argumentos exactos y lo que se le oyó decir |
+| `approval_unavailable` | `tool`, `args` | Una llamada a herramienta que quien llama no puede aprobar por voz |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` o `expired`) | Cómo terminó una aprobación |
+| `notice` | `kind`, `message` (opcional) | Algo que decir con palabras: un guardrail que salta, un límite que se alcanza |
+| `limit` | `seconds_left` | El tiempo de la llamada casi se ha agotado |
+| `clear_playback` | - | El relay: descartar el audio del agent en cola |
+| `ended` | `reason`, `message` | La llamada ha terminado |
+| *binario* | PCM de 16 bits a la frecuencia de salida del modelo | El relay: el audio del agent |
+
+**A un visitante de un widget o de una página alojada se le dice menos.** Su
+`ready` no incluye `run_id`; `cap_seconds` es el límite de la llamada - la
+llamada más larga del agent o lo que queda de una llamada que se reanuda. Los
+frames de herramientas siguen los interruptores
+`show_tool_steps` y `show_tool_results` del embed, como los de una respuesta
+escrita. Sin pasos de herramientas no se envía ningún frame `tool` y
+`tool_running` llega como `thinking`. Sin resultados de herramientas,
+`approval_unavailable` llega con `args` vacíos. El `turn_saved` de un
+visitante lleva solo el `id`, `role`, `content`, `interrupted` y `turn_id` del
+mensaje, sean cuales sean los interruptores: nunca los ids de su run, de su
+agent o de su versión, ni su coste ni sus llamadas a herramientas.
+
+**Una reconexión demuestra que la llamada es suya.** Un `start` con `resume_of`
+debe llevar también el `resume_token` del `ready` de esa conexión. Sin él, o
+con uno incorrecto, la reconexión se rechaza como `resume_refused` y la llamada
+que nombra no se toca. El servidor guarda solo un hash del token. Una llamada
+que ya consta de 20 conexiones no se reanuda más: su siguiente reconexión
+también se rechaza como `resume_refused`.
+
+Un socket que no envía `start` en 10 segundos recibe `ended` con `no_start`.
+Una llamada que no va a empezar responde con `ended` y un `reason` estable:
+`no_agent`, `forbidden`, `not_configured`, `bad_offer`, `data_channel`,
+`resume_refused`, `call_limit`, `not_priced`, `budget`, `busy` o `line_busy`,
+con un `message` que se puede mostrar. `busy` solo llega después de que una
+llamada que la misma persona acaba de colgar haya tenido hasta cuatro segundos
+para terminar. Un inicio que falla por cualquier otro motivo responde con `ended` y
+`error`.
+
+Un visitante rechazado como `not_configured`, `not_priced` o `budget`, o cuya
+llamada termina como `budget`, recibe en su lugar `unavailable` con el mensaje "Calls are not available right
+now.": el código y el mensaje completo son cosa del operador del agent. Una llamada a una conversación archivada se rechaza como
+`forbidden`, igual que un mensaje escrito en ella.
+
+Una llamada que se llegó a mantener termina con `user`, `time_limit`, `budget`,
+`disconnected`, `revoked`, `guardrail`, `shutdown` o `error`; con `time_limit`
+cuando alcanzó la llamada más larga del agent. La llamada de un visitante termina con
+`revoked` cuando su embed se pausa, se le desactivan las llamadas o se apunta a
+otro agent. Ningún frame lleva nunca una credencial del provider.
+
+La acompañan cinco rutas HTTP:
+
+| Ruta | Control | Responde |
+|---|---|---|
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario | Si una llamada empezaría, por qué no (`no_voice`, `not_offered` o `no_key`), el transporte y la llamada más larga |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` sobre ese agent, grant incluido; `404` en caso contrario | La voz del borrador de la sección Voice diciendo una frase fija, como `audio/wav`. En caché por voz e idioma; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` por persona |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | El catálogo en tiempo real del que elige la sección Voice |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Segundos de llamada y llamadas de las llamadas iniciadas en `start` o después y antes de `end`, por agent (las llamadas de un agent eliminado como una sola fila sin id ni nombre). Un `end` que no sea posterior a `start` se rechaza con `422` |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Solo llamadas (`text` para solo runs escritos); una llamada que se reconectó es una fila que lleva `voice_chain`, con todas las conexiones sumadas |
+
+Una aprobación que pertenece a una llamada en curso se decide en la llamada:
+`POST /api/v1/approvals/{id}` la rechaza con `400`.
+
 ## Errores { #errors }
 
 Un único sobre, en todas partes:
@@ -367,8 +554,9 @@ run nuevo.
 
 ## Reintentos, idempotencia y revisiones { #retries-idempotency-and-revisions }
 
-v1 no tiene cabecera `Idempotency-Key` ni precondiciones de revisión: ni `ETag`
-ni `If-Match`. Una escritura se aplica cuando llega, y gana la última.
+v1 no tiene precondiciones de revisión: ni `ETag` ni `If-Match`. Una escritura
+se aplica cuando llega, y gana la última. `Idempotency-Key` se respeta en una
+ruta, el run asíncrono.
 
 - **`GET`, `PUT` y `DELETE` se pueden repetir sin riesgo.** Leer dos veces lee
   dos veces; borrar lo que ya no está responde `404`, que un reintento puede dar
@@ -381,6 +569,13 @@ ni `If-Match`. Una escritura se aplica cuando llega, y gana la última.
   `GET /api/v1/runs?agent_id=…&surface=api` lista los runs del más reciente al
   más antiguo, y una lectura de la lista encuentra la fila que el primer intento
   sí creó.
+- **Un run asíncrono sí lo es, con un `Idempotency-Key`.** Envía
+  `Prefer: respond-async` y una clave que elijas, de 255 caracteres como mucho,
+  y un reintento con la misma clave y el mismo cuerpo responde la misma petición
+  de run, esté en el estado que esté. La misma clave con otro cuerpo es un `409`,
+  nunca un segundo run. Las claves son por organización. Una llamada síncrona con
+  esa cabecera se rechaza con un `400` en vez de dejar creer que reintentar es
+  seguro.
 - **`429` es el único rechazo que se reintenta**, tras el `Retry-After` que
   lleva. Cualquier otro `4xx` es definitivo para esa petición.
 
@@ -440,13 +635,15 @@ solo avanza.
 - Una clave lleva la autoridad de su emisor **limitada a sus permisos y al rol
   actual del emisor**, se muestra una vez y solo funciona en la API pública.
 - **Una clave actúa en su propia organización; una sesión lee
-  `X-Organization-Id`** y sin ella vuelve a la organización personal. La
-  equivocada parece un recurso inexistente.
+  `X-Organization-Id`** y sin ella vuelve a la organización por defecto, la
+  personal o la única. La equivocada parece un recurso inexistente.
 - Ejecutar un agent por HTTP usa el **mismo runner** — budget, aprobación y
   auditoría se aplican igual.
 - Un script consigue su propia clave **sin navegador** — iniciar sesión, emitir,
   revocar — y `examples/public-api.sh` hace todo ese recorrido.
 - **Solo vale la pena reintentar un `429`**; un `POST` no es idempotente, así que
-  mira antes de repetirlo.
+  mira antes de repetirlo, salvo un run asíncrono enviado con `Idempotency-Key`.
+- **`Prefer: respond-async`** convierte un run en un `202` y una petición de run
+  que consultar, así que un run largo no mantiene una conexión abierta.
 - **La API pública está en `/api/v1/public/openapi.json`** y dentro de v1 solo
   cambia de forma aditiva, con 90 días de deprecación; todavía no hay SDK.

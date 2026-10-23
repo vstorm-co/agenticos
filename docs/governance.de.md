@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "7772e57485bb"
 ---
 
 # Governance { #governance }
@@ -518,6 +518,81 @@ Zeile addiert und von der seines Parents entfernt werden. Ein Schlüssel
 funktioniert genauso, und er zählt mehr: Ein Schlüssel ist das, was jemand
 rotiert, wenn eine Rechnung falsch aussieht.
 
+### Das Budget eines Sprachanrufs { #a-voice-calls-budget }
+
+Ein [Sprachanruf](voice.md) ist ein Run, und seine Ausgaben zählen gegen die
+Budgets des Agents und der Organisation wie jede andere. Drei Dinge sind anders,
+weil sich ein Anruf nicht vor jeder Anfrage prüfen lässt, wie es bei einem
+Text-Run geschieht:
+
+- **Bevor er beginnt**, wird die längstmögliche Dauer des Anrufs mal der
+  Worst-Case-Minutenpreis des Modells gegen das verbleibende Budget geprüft. Ein
+  Anruf, der sich nicht bezahlen ließe, wird abgelehnt, statt begonnen und
+  abgeschnitten zu werden.
+- **Während er läuft**, wird jede Antwort beim Abschluss auf den Run gebucht,
+  und die Ausgaben des Monats werden alle 15 Sekunden neu gelesen, sodass
+  andere Runs, die inzwischen ausgeben, gesehen werden. Ein Budget, das mitten
+  im Anruf ausgeht, bekommt einen gesprochenen Satz und beendet den Anruf,
+  festgehalten als `budget_exceeded`.
+- **Seine Länge ist die des Agents.** Ein Anruf dauert höchstens so lange wie
+  der längste Anruf des Agents, standardmäßig 10 Minuten und höchstens 50; ein
+  eigenes Kontingent an Anrufminuten gibt es nicht, die Budgets sind also die
+  einzige Grenze dessen, was Anrufe ausgeben.
+
+Einen Anruf, dessen Prozess gestorben ist, schließt der Voice-Sweep zu den
+Kosten, die sein letzter Heartbeat festgehalten hat — anders als einen Text-Run,
+dessen Ausgaben mit seinem Prozess sterben.
+
+### Arbeit aus eigener Initiative { #proactive-work }
+
+Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
+bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer
+Mitgliederseite (`budgets:manage`). Eingeschaltet liest ein Hintergrundjob die
+letzten Anfragen jeder Person an den Tagen und zu der Stunde, die die
+Organisation gewählt hat - in der Zeitzone jeder Person oder eine Stunde vor der
+Arbeitszeit, die ihr Profil angibt - und schlägt eine Routine für eine Anfrage
+vor, die sie immer wiederholt, ein Profil oder die ersten Nachrichten, die ihr
+leerer Chat anbietet ([Konsole](console.md#chat)).
+
+Jeder ist ein Modellaufruf,
+auf dem Modell, das die Organisation beim Einschalten gewählt hat (es gibt keinen
+Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
+der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
+Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
+Assistent** ausnehmen.
+
+Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
+Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,
+auf derselben Karte eingestellt (`proactive_limit_usd`). Eine Person, bei der
+nichts Neues passiert ist, kostet nichts: Der Job ruft das Modell nur, wenn es
+etwas zu lesen gibt.
+
+**Beobachtungen** richten dieselbe Arbeit auf die eigenen Verbindungen einer
+Person. Sie werden auf derselben Karte getrennt eingeschaltet
+(`proactive_watches_enabled`), laufen auf demselben Modell und im selben Limit.
+Eine Person legt eine mit **Neue Beobachtung** unter **Routinen** an, wo eine
+Karte Beobachtungen jede mit ihrer letzten Prüfung und der Zahl ihrer wartenden
+Funde zeigt, oder mit **Beobachten** neben **Tools** des Kontos auf der Seite
+der MCP-Server. Sie wählt eine ihrer eigenen MCP-Verbindungen - jeden Server,
+den sie verbunden hat - und sagt, wonach gesucht wird - eine fertige Beobachtung
+für diesen Server oder ihre eigenen Worte - und wie oft, nie häufiger, als die
+Organisation erlaubt (`proactive_watch_min_minutes`, standardmäßig stündlich).
+
+Jeder Blick ist ein Run der Oberfläche **proactive**, dem nur die Tools angeboten
+werden, die der Server als nur lesend markiert (`readOnlyHint`), sodass eine
+Beobachtung im Konto nie etwas ändert. Was sie findet, gehört nur der Person:
+ein Vorschlag der Art `finding`, nach der eigenen ID des Elements verschlüsselt,
+sodass er einmal gemeldet wird, mit einem Link zum Öffnen. Ein Fund einer
+Beobachtung, die Dringendes sofort melden soll, und den auch das Modell für
+dringend hält, geht sofort als Benachrichtigung hinaus; der Rest wartet auf ihr
+Morgen-[Briefing](console.md#the-inbox). Anders als eine Routine schweigt eine Beobachtung, wenn nichts neu ist.
+
+Auf derselben Karte liegt die **Willkommensnachricht**, standardmäßig aus und
+an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
+Mattermost-Bots der Organisation an ein neues Mitglied, in den eigenen Worten der
+Organisation, wenn sie welche geschrieben hat (`{organization}`, `{bot}` und
+`{url}` werden ausgefüllt), sonst die eingebaute Begrüßung in seiner Sprache.
+
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 
 **`GET /runs` listet nur Runs der obersten Ebene, und sein `total` zählt diese.**
@@ -983,12 +1058,93 @@ Die andere Art von Ausreißer ist eine Tool-Schleife: billig je Aufruf, und sie
 wird nie fertig. Ein Budget rechnet dafür nur ab. `max_steps` deckelt, wie viele
 Modellanfragen ein Run stellen darf, und ist das, was sie tatsächlich stoppt.
 
+Der Schleifenwächter stoppt die meisten Schleifen früher und sagt, warum. Jeder
+Agent hat ihn, standardmäßig eingeschaltet. Ruft ein Run ein Tool viermal in
+Folge mit denselben Argumenten auf oder durchläuft er einen Zyklus aus zwei oder
+drei Aufrufen dreimal, wird dem Modell gesagt, dass es in einer Schleife steckt
+und anders vorgehen soll. Laufen die Aufrufe nach dieser Warnung wieder in eine
+Schleife, endet der Run als `loop_stopped`, mit einer Begründung, die die Tools
+nennt - nie ihre Argumente. Aufrufe mit anderen Argumenten sind nie eine
+Schleife, und nur die Aufrufe des Runs selbst zählen. Der Builder setzt beide
+Schwellen oder schaltet den Wächter aus, neben `max_steps` (`loop_guard` im
+Spec).
+
+### Run-Reviewer { #run-reviewers }
+
+Ein langer Run driftet: Anweisungen verblassen, Behauptungen ohne Quelle häufen
+sich, der Agent entfernt sich von der Anfrage. Ein Agent kann bis zu fünf
+Reviewer haben (`reviewers` im Spec, *Run-Reviewer* im Builder neben den
+Limits), jeder ein zweites, meist günstigeres Modell mit einem Anliegen. Alle
+`every` Modell-Requests liest ein Reviewer die letzten `window` Tokens des Runs
+und lässt ihn entweder laufen oder schickt eine kurze Korrektur, die das Modell
+des Runs beim nächsten Request mit dem Namen des Reviewers erhält. Die
+Run-Ansicht listet jede Korrektur und wer sie geschickt hat.
+
+Die Aufrufe eines Reviewers werden vor dem Absenden gegen das Budget des Agents
+und der Organisation geprüft und auf dem Run gebucht, bepreist als das Modell des
+Reviewers. Ein wegen des Budgets abgelehnter Aufruf wird übersprungen, und ein
+Reviewer, der scheitert, wird geloggt; keines von beiden lässt den Run scheitern.
+Ein Agent ohne Reviewer macht keine zusätzlichen Modellaufrufe.
+
+### Code-Modus { #code-mode }
+
+Ein Agent, der Datensätze abarbeitet - zehn Zeilen aktualisieren, dann
+zusammenfassen -, zahlt für jeden abhängigen Aufruf einen Modell-Turn, und jeder
+Turn schickt den ganzen Kontext erneut. Mit eingeschaltetem *Code-Modus*
+(`code_mode` im Spec, neben den Limits im Builder) werden die Tools des Agents in
+ein einziges `run_code`-Tool gefaltet: Das Modell schreibt ein kurzes
+Python-Skript, das in der Monty-Sandbox läuft und die Tools in Schleifen und
+parallel aufruft, bis zu `max_tool_calls` pro Skript.
+
+Höchstens vier Aufrufe eines Skripts laufen gleichzeitig, der Rest wartet, sodass
+ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
+öffnet.
+
+Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
+und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
+Freigabe braucht, wird nie hineingefaltet: Es bleibt ein normaler Aufruf, und der
+Run hält wie immer für die Person an. Die Run-Ansicht listet jedes Skript und
+jeden Aufruf, den es gemacht hat.
+
 ### Berichte { #reporting }
 
 Ein Run, der sich nicht bepreisen ließ — ein Modell, das `genai-prices` nicht
 kennt —, wird mit einer Warnung bei null festgehalten, und die Summe wird als
 **Untergrenze** gekennzeichnet, statt geraten zu werden. Die UI zeigt das als ein
 `+` neben der Zahl.
+
+**Cache-Lese- und Schreibvorgänge werden getrennt geführt.** Die Eingabetokens
+eines Runs enthalten die, die der Anbieter aus seinem Prompt-Cache bedient hat,
+und die, die er hineingeschrieben hat, und alle drei werden getrennt bepreist -
+bei Claude Sonnet 5.5 kostet ein Cache-Lesevorgang 5 % des Eingabepreises und ein
+Schreibvorgang 125 %. Jeder Run und jede Antwort speichert `cache_read_tokens` und
+`cache_write_tokens` neben der Summe, die Kosten werden aus dieser Aufteilung
+berechnet, und die Run-Ansicht und die Kosten unter jeder Antwort zeigen sie -
+damit lässt sich ein Run mit der Konsole des Anbieters abgleichen.
+
+**Die Kosten eines Runs enthalten seine Delegationen.** Der Run, den jemand
+gestartet hat, trägt das ganze Ledger, Delegates eingeschlossen; die eigene Zeile
+einer Delegation teilt dasselbe Geld nach Agent auf, und die Run-Ansicht sagt,
+dass ihre Delegationen schon in der Zahl darüber stecken. Beide zu addieren zählt
+die Delegationen doppelt.
+
+**Ein Prompt-Cache, der nicht mehr trifft, wird markiert.** Caching lohnt sich
+nur, solange der Anfang jedes Requests gleich bleibt; eine umgestellte Tool-Liste
+oder ein Zeitstempel in den Anweisungen lässt den Anbieter den vollen Preis für
+Tokens berechnen, die er im Cache hatte. Jeder Agent liest bei jeder Antwort die
+Cache-Zahlen des Anbieters, und ein Request, dessen gecachter Präfix
+eingebrochen ist, wird im Request-Wasserfall des Runs markiert - *Cache
+gebrochen*, solange der Anbieter ihn noch hätte halten sollen, *Cache
+abgelaufen*, wenn die Aufbewahrung vorbei war - mit der Zahl der gecachten
+Tokens, die er nicht zurückgelesen hat, und mit Agent und Modell geloggt. Der erste Request eines
+Turns wird mit dem verglichen, was der vorige Turn gecacht hat, wenn derselbe
+API-Worker beide bedient.
+
+Die Zahlen werden an jedem Run gespeichert, daher summiert **Runs → Spend**, wo
+der Cache nicht gehalten hat: eine Karte *Prompt-Cache*, eine Zeile pro Agent
+und Modell, mit Busts, Abläufen und den gecachten Tokens, die nicht zurückgelesen
+wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes, da
+auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
 
 ## Freigaben { #approvals }
 
@@ -1177,6 +1333,30 @@ MCP-Tools verfügbar sind; was sie für eine Person zurückhält, ist die eigene
 **Follow the agent** wie die einer Capability anwendet (siehe
 [welche Aufrufe auf eine Person warten](mcp.md#which-calls-wait-for-a-person)).
 
+### Eine Freigabe innerhalb eines Sprachanrufs { #an-approval-inside-a-voice-call }
+
+Ein [Sprachanruf](voice.md#approvals-in-a-call) kann nicht pausieren und auf die
+Queue warten, also werden seine Freigaben im Anruf entschieden, von der Person
+im Anruf:
+
+- Die Anfrage wird sofort in die Queue geschrieben, und der Anruf zeigt das
+  Tool, die exakten Argumente, mit denen es laufen wird, und was vom Anrufer
+  verstanden wurde. Freigeben führt diese Argumente aus, einmal.
+- Entschieden wird sie **nur über den Anruf**, und nur von einem Anrufer, der
+  `approvals:decide` hält. `POST /approvals/{id}` weist eine Anfrage ab, die zu
+  einem laufenden Anruf gehört, und der Sweep für liegengebliebene Freigaben
+  unten überspringt Voice-Runs.
+- **60 Sekunden** ohne Entscheidung lassen sie ablaufen, ohne entscheidende
+  Person - dasselbe null, das der Sweep schreibt. Ein Anruf, der aus
+  irgendeinem Grund endet, lässt alles ablaufen, worauf er noch gewartet hat.
+- Ein Mitglied ohne `approvals:decide` bekommt das klar gesagt, und das Tool
+  wird abgelehnt. Ein Besucher auf einem Widget oder einer gehosteten Seite sieht
+  nie ein Tool, das eine Freigabe braucht: Es wird aus seinem Anruf
+  weggelassen.
+
+`approval_mode` folgt dem Spec des Agents, wie im Text-Chat, und jede
+Entscheidung erreicht den Audit-Trail wie jede andere.
+
 ### Eine Entscheidung, die niemand trifft { #a-decision-nobody-makes }
 
 Eine Freigabe wartet auf eine Person, und manche warten ewig: Die prüfende Person
@@ -1226,9 +1406,13 @@ ein Deploy, der nicht drainiert —, eine dauerhafte Zeile hinterlässt, die nic
 mehr zu Ende bringt: für immer in Activity, und sie blockiert jeden Zeitplan, für
 dessen Trigger sie der verknüpfte Run war.
 
-Ein stündlicher Sweep beendet alles, was jenseits von
-`STALE_RUN_REAPED_AFTER_HOURS` noch `running` ist — sechs Stunden voreingestellt,
-null schaltet es ab — als **`failed`**. Niemand hat diesen Run gestoppt, die
+Während sein Modell arbeitet, stempelt der Prozess, der einen Run ausführt, ihn
+alle `RUN_HEARTBEAT_SECONDS` als lebendig. Ein minütlicher Sweep beendet alles,
+was `STALE_RUN_REAPED_AFTER_SECONDS` lang ohne Lebenszeichen noch `running` ist —
+zwei Minuten voreingestellt, null schaltet es ab — als **`failed`** und sagt es
+den offenen Konsolen, sodass ein Chat nicht mehr "Working" über einem Zug zeigt,
+den niemand beantwortet, und anbietet, erneut zu fragen. Den Run eines
+Sprachanrufs überlässt er dem Reaper der Anrufe, der den Anruf auflegt. Niemand hat diesen Run gestoppt, die
 Infrastruktur hat es getan, und ein Betreiber, der die Run-Historie nach
 Problemen filtert, ist genau der, der das sehen sollte.
 
@@ -1347,9 +1531,15 @@ ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
 
 Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
-Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
+Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt.
+
+Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
-unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
+unbeaufsichtigt fertig wird oder scheitert - das Ende einer Routine nach ihr
+benannt und mit dem Anfang ihrer Antwort, für die Person, die sie eingerichtet
+hat -, die Bitte, eine Capability einzuschalten, für den Besitzer des Agents, Vorschläge,
+die die [Arbeit aus eigener Initiative](#proactive-work) für eine Person gemacht
+hat, die Ingestion eines Dokuments, die
 **scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
 Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
 Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und
@@ -1711,7 +1901,7 @@ Ort für die Fristen je Tenant.
 |---|---|---|
 | Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes **vor** den Zeilen, sodass eine Datei, die sich nicht entfernen ließ, ihre Zeile für den nächsten Durchlauf behält, statt sie unauffindbar zu überleben | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
 | Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
-| Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab | Der letzten Nutzung |
+| Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab. Die eines Projekts bleiben, solange das Projekt besteht | Der letzten Nutzung |
 | Apps | Eine [veröffentlichte Seite](artifacts.md) mit jeder Version, ihren gespeicherten Bytes (**vor** den Zeilen, wie bei Gesprächen), ihren Grants und ihrem öffentlichen Link | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
 | Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
 | Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |

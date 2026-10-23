@@ -21,8 +21,6 @@ reached through `app.services.memory`, which opens its own session so a mid-run
 read or write never rides the session the run is on.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -67,7 +65,9 @@ def _preamble(*, allow_personal: bool) -> str:
         "When you learn something durable - a preference, a decision, a fact you were "
         f"told - save it with `write_memory` and add a line for it to `{INDEX_NAME}` so "
         "a later conversation can find it. Do not save secrets, or anything the person "
-        "would not expect you to keep."
+        "would not expect you to keep. When they ask you to forget something, remove the "
+        "note with `delete_memory` and its line from the index, rather than only "
+        "promising not to use it."
     )
     if allow_personal:
         stores = (

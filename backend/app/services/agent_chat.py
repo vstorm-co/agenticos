@@ -20,8 +20,6 @@ its cost, its budget check, its approval gate and its capabilities - stamped
 the run and forwards events, because only the caller knows what a frame is.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -30,6 +28,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
+from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
 from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
@@ -44,8 +43,10 @@ from app.agents.capabilities.media import offloaded_history
 from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.failures import run_failure_summary
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
+from app.agents.visual_reports import VisualReports
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -53,6 +54,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation_repo, member_repo
+from app.schemas.mention import MentionRef
 from app.services import change_feed
 from app.services.agent_runner import (
     AgentRunnerService,
@@ -65,6 +67,9 @@ from app.services.agent_runner import (
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
+from app.services.mentions import MentionService, ResolvedMentions
+from app.services.run_heartbeat import run_heartbeat
+from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
 logger = logging.getLogger(__name__)
@@ -159,6 +164,40 @@ def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
             message="That is not an approval mode",
             details={"approval_mode": str(raw)},
         ) from exc
+
+
+MAX_MENTIONS = 10
+"""More than a person points at in one message; a frame past it is malformed."""
+
+_MENTIONS = TypeAdapter(list[MentionRef])
+
+
+def requested_mentions(frame: Mapping[str, Any]) -> list[MentionRef]:
+    """What the person pointed the agent at with `@`, as the frame names it (#2189).
+
+    Only the shape is checked here; whether each one could have been picked is
+    `MentionService.resolve`'s question, asked against what the person may use.
+
+    Raises:
+        BadRequestError: If `mentions` is not a list of mentions. Dropping it would
+            run the turn without what the person said to use and not tell them.
+    """
+    raw = frame.get("mentions")
+    if raw is None:
+        return []
+    try:
+        mentions = _MENTIONS.validate_python(raw)
+    except ValidationError as exc:
+        raise BadRequestError(
+            message="Those mentions could not be read",
+            details={"mentions": exc.errors(include_url=False, include_input=False)},
+        ) from exc
+    if len(mentions) > MAX_MENTIONS:
+        raise BadRequestError(
+            message=f"A message can point at {MAX_MENTIONS} things at most",
+            details={"mentions": len(mentions)},
+        )
+    return mentions
 
 
 def requested_time_zone(frame: Mapping[str, Any]) -> str | None:
@@ -359,6 +398,7 @@ class ChatAgentRunner:
         subagent_events: SubagentEventSink | None = None,
         on_compaction: CompactionSink | None = None,
         browser_events: BrowserEventSink | None = None,
+        on_sandbox_wait: SandboxWaitSink | None = None,
         on_personal_gaps: PersonalGapSink | None = None,
         request_connection: ConnectionCallback | None = None,
         model_profile_id: UUID | None = None,
@@ -367,6 +407,7 @@ class ChatAgentRunner:
         person_time_zone: str | None = None,
         testing: Testing = Testing(test=False, draft=False),
         steering: SteeringInbox | None = None,
+        visual_reports: VisualReports | None = None,
     ) -> ChatTurn:
         """Run the named agent for this turn and record what it consumed.
 
@@ -411,12 +452,17 @@ class ChatAgentRunner:
                 confidences and, when the agent asked for them, the viewport. A
                 `browse_web` call is the longest tool call this platform makes;
                 without this it is a tool call that goes quiet for a minute.
+            on_sandbox_wait: Told when the run's sandbox is still opening a few
+                seconds in - after an update the host builds the runtime's image
+                first, which is minutes of nothing streaming (#2222).
             request_connection: How to ask the person to connect one of their
                 own services while the run waits. Given, a personal service they
                 have not connected is asked for when the agent reaches for it,
                 and `on_personal_gaps` hears only the gaps nobody here can fix.
             steering: Where what the person sends mid-run lands, read by the
                 model at its next request (#2087).
+            visual_reports: Where the console reports how each drawing rendered,
+                so `draw` can tell the model what broke (#2171).
 
         Returns:
             The answer to show and persist, and the model that produced it. A
@@ -455,6 +501,10 @@ class ChatAgentRunner:
             # run believing it has consent it was never given (#925).
             approval_mode=approval_mode,
             request_connection=request_connection,
+            # A sandbox whose image is still being built is minutes in which no
+            # token and no tool step arrives. Passed in rather than set on the
+            # prepared run: preparing already opens the session.
+            on_sandbox_wait=on_sandbox_wait,
             person_time_zone=person_time_zone,
             draft=testing.draft,
             test=testing.test,
@@ -477,6 +527,7 @@ class ChatAgentRunner:
         # And what the person adds while it works: the surface fills it, the next
         # model request reads it.
         prepared.deps.steering = steering
+        prepared.deps.visual_reports = visual_reports
         if steering is not None:
             steering.screen = input_screen_for(prepared.spec)
         # Before the model answers, not after: the model is about to say it cannot
@@ -540,10 +591,12 @@ class ChatAgentRunner:
         await self.db.commit()
         await change_feed.publish_run(prepared.run, "created")
         try:
-            async with prepared.iterate(
-                user_input,
-                message_history=message_history,
-            ) as agent_run:
+            # Stamped alive while the model works, as `AgentRunnerService._run`
+            # does: a restart under this turn ends it in minutes, not hours.
+            async with (
+                run_heartbeat(prepared.run.id),
+                prepared.iterate(user_input, message_history=message_history) as agent_run,
+            ):
                 await stream(agent_run)
 
             result = _outcome(agent_run)
@@ -581,6 +634,13 @@ class ChatAgentRunner:
             error = str(exc)
             logger.info("Chat run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
             raise
+        except ToolLoopStopped as exc:
+            # Raised on, like a guardrail block: the person is owed the reason
+            # the answer stopped, and it names tools, never what they returned.
+            status = RunStatus.LOOP_STOPPED
+            error = str(exc)
+            logger.info("Chat run %s stopped for looping: %s", prepared.run.id, exc)
+            raise
         except Exception as exc:
             error = run_failure_summary(exc)
             logger.exception("Chat run %s failed", prepared.run.id)
@@ -604,6 +664,7 @@ class ChatAgentRunner:
                     paused_state=paused,
                     budget_scope=budget_scope,
                 )
+                await self.runner.keep_plan(prepared, status=status)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
             except Exception:
@@ -665,6 +726,19 @@ class ChatAgentRunner:
     @staticmethod
     def _as_decimal(value: float | None) -> Decimal | None:
         return None if value is None else Decimal(str(value))
+
+    async def mentions(
+        self,
+        *,
+        user: User,
+        organization_id: UUID,
+        agent_id: UUID,
+        refs: list[MentionRef],
+        draft: bool = False,
+    ) -> ResolvedMentions:
+        """A turn's `@`-mentions, checked as the person typing - see `MentionService.resolve`."""
+        ctx = await self._context(user, organization_id)
+        return await MentionService(self.db).resolve(ctx, agent_id, refs, draft=draft)
 
     async def _budget(self, ctx: AuthContext) -> Decimal | None:
         organization = await self.db.get(Organization, ctx.organization_id)

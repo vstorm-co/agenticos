@@ -41,10 +41,15 @@ import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
+import { StartersPanel } from "@/components/agents/starters-panel";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
+import { LoopGuardFields } from "@/components/agents/loop-guard-fields";
+import { ReviewersCard } from "@/components/agents/reviewers-card";
+import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
+import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
@@ -65,6 +70,7 @@ import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { MetadataEditor } from "@/components/agents/metadata-editor";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
+import { VoiceCard } from "@/components/agents/voice-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
@@ -137,6 +143,8 @@ import {
   withCapability,
   withContextFiles,
   withSkills,
+  withVisuals,
+  VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
 import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
@@ -752,6 +760,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const toggleCapability = (capabilityId: string) => {
     const on = spec.capabilities.some((binding) => binding.id === capabilityId);
+    if (capabilityId === VISUALS_ID && !on) {
+      update(withVisuals(spec, skills));
+      return;
+    }
     update({ capabilities: withCapability(spec.capabilities, capabilityId, !on) });
   };
 
@@ -1167,6 +1179,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               account: "organization",
               connection_id: connection.id,
               allowed_tools: null,
+              approval: "none",
             };
             update({ mcp_servers: [...spec.mcp_servers, ref] });
             setToolBinding(bindingKey(ref));
@@ -1346,6 +1359,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
+            <StartersPanel
+              starters={spec.starters ?? []}
+              disabled={!canEdit}
+              onChange={(starters) => update({ starters })}
+            />
+
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
             <Card data-tour="agent-model">
@@ -1392,6 +1411,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 />
               </CardContent>
             </Card>
+
+            <VoiceCard
+              value={spec.speech_to_text}
+              onChange={(speech_to_text) => update({ speech_to_text })}
+              conversation={{
+                agentId: id,
+                value: spec.voice,
+                onChange: (voice) => update({ voice }),
+                hasGuardrails: spec.capabilities.some(
+                  (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                ),
+              }}
+              disabled={!canEdit}
+            />
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
               avatar, so it hangs off the same role-level `canEdit` every other
@@ -1473,6 +1506,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // is handed that slice as well as the binding.
                   subagents={spec.subagents ?? []}
                   onSubagentsChange={(subagents) => update({ subagents })}
+                  externalAgents={spec.external_agents ?? []}
+                  onExternalAgentsChange={(external_agents) => update({ external_agents })}
                   // What the agent is *given*, picked in the panel of the
                   // capability that reads it. Each setter switches that capability
                   // on with the first pick, because bound without it the resources
@@ -1664,12 +1699,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     {t("howManyModelRequests")}
                   </p>
                 </div>
+                <LoopGuardFields
+                  value={spec.loop_guard}
+                  onChange={(loop_guard) => update({ loop_guard })}
+                  disabled={!canEdit}
+                />
+                <CodeModeField
+                  value={spec.code_mode}
+                  onChange={(code_mode) => update({ code_mode })}
+                  disabled={!canEdit}
+                />
               </CardContent>
             </Card>
             {/* Beside the budget rather than in a settings page of its own: the two
               questions are "how much may this agent spend" and "who is told when
               it stops", and answering the first without the second is how a run
               stops quietly. */}
+            <ReviewersCard
+              value={spec.reviewers}
+              onChange={(reviewers) => update({ reviewers })}
+              disabled={!canEdit}
+            />
             <AlertsPanel
               value={spec.notifications}
               onChange={(notifications) => update({ notifications })}
@@ -1697,6 +1747,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
               )}
             />
+            <A2aPanel agent={agent} canManage={canPublish} />
             {/* Managing a trigger is the same floor as running the agent, not
               publishing it - the server resolves `agents:run` per row. */}
             <TriggersPanel

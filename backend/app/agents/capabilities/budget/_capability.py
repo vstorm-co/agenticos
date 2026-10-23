@@ -27,8 +27,6 @@ recorded at zero with a warning and flags the run's total as a floor, rather
 than being guessed at.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Generator
@@ -180,6 +178,10 @@ class SpendEntry:
     output_tokens: int
     cost_usd: Decimal
     priced: bool
+    cache_read_tokens: int = 0
+    """Of `input_tokens`, those served from the provider's cache - priced lower."""
+    cache_write_tokens: int = 0
+    """Of `input_tokens`, those written to the provider's cache - priced higher."""
 
     delegation: str | None = None
     """The delegation whose agent issued this request, or `None` for the run's own.
@@ -240,6 +242,8 @@ class SpendShare:
     cost_usd: Decimal = Decimal(0)
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     has_unpriced_models: bool = False
     """Whether any request in this share went unpriced - the cost is then a floor.
 
@@ -275,6 +279,16 @@ class SpendLedger:
     @property
     def output_tokens(self) -> int:
         return sum(entry.output_tokens for entry in self.entries)
+
+    @property
+    def cache_read_tokens(self) -> int:
+        """Of :attr:`input_tokens`, those read from the provider's cache (#2170)."""
+        return sum(entry.cache_read_tokens for entry in self.entries)
+
+    @property
+    def cache_write_tokens(self) -> int:
+        """Of :attr:`input_tokens`, those written to the provider's cache (#2170)."""
+        return sum(entry.cache_write_tokens for entry in self.entries)
 
     @property
     def has_unpriced_models(self) -> bool:
@@ -334,6 +348,8 @@ class SpendLedger:
             cost_usd=sum((entry.cost_usd for entry in mine), Decimal(0)),
             input_tokens=sum(entry.input_tokens for entry in mine),
             output_tokens=sum(entry.output_tokens for entry in mine),
+            cache_read_tokens=sum(entry.cache_read_tokens for entry in mine),
+            cache_write_tokens=sum(entry.cache_write_tokens for entry in mine),
             has_unpriced_models=any(not entry.priced for entry in mine),
         )
 
@@ -371,6 +387,31 @@ class SpendLedger:
                 output_tokens=usage.output_tokens or 0,
                 cost_usd=cost if cost is not None else Decimal(0),
                 priced=cost is not None,
+                # The split the price was computed from, kept so a run can be
+                # reconciled with a provider's console (#2170).
+                cache_read_tokens=usage.cache_read_tokens or 0,
+                cache_write_tokens=usage.cache_write_tokens or 0,
+            )
+        )
+
+    def record_cost(self, model_name: str, cost_usd: Decimal | None) -> SpendEntry:
+        """Book a call priced by the unit rather than by the token.
+
+        Speech is sold per character and video per second (#2259, #2260), and
+        `genai-prices` lists neither, so the caller prices the call from its own
+        catalog and books the amount here. No tokens are recorded because none
+        were billed. `None` is a call the catalog could not price: it is booked at
+        zero and flags the run's total as a floor, as an unpriced model is.
+        """
+        if cost_usd is None:
+            logger.warning("No price for %s - run cost will be under-reported", model_name)
+        return self.book(
+            SpendEntry(
+                model_name=model_name,
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=cost_usd if cost_usd is not None else Decimal(0),
+                priced=cost_usd is not None,
             )
         )
 
@@ -398,7 +439,7 @@ panel (agenticos#228). `None` is the run's own agent, whose row is the whole led
 
 
 @contextmanager
-def booked_to(delegation: str, *, has_own_row: bool) -> Generator[None, None, None]:
+def booked_to(delegation: str, *, has_own_row: bool) -> Generator[None]:
     """Attribute what is metered inside this block to one delegation.
 
     Opened around the tool call that starts a delegation, which is what makes it
@@ -434,7 +475,7 @@ _active_ledger: ContextVar[SpendLedger | None] = ContextVar("active_spend_ledger
 
 
 @contextmanager
-def metered_by(ledger: SpendLedger) -> Generator[None, None, None]:
+def metered_by(ledger: SpendLedger) -> Generator[None]:
     """Attribute ambient model usage inside this block to `ledger`.
 
     Exists for spend the request wrapper cannot see. Embedding calls go through
@@ -466,7 +507,7 @@ library it borrows.
 
 
 @contextmanager
-def guarded_by(guard: BudgetGuard) -> Generator[None, None, None]:
+def guarded_by(guard: BudgetGuard) -> Generator[None]:
     """Let code outside the request wrapper ask whether the budget is spent.
 
     The sibling of :func:`metered_by`, and it exists for the same gap read from
@@ -515,7 +556,19 @@ def record_ambient_usage(
         ledger.record(model_name, usage, provider)
 
 
-async def can_afford_ambient_call() -> bool:
+def record_ambient_cost(model_name: str, cost_usd: Decimal | None) -> None:
+    """Book a unit-priced call to whichever ledger is active, if any is.
+
+    The counterpart of :func:`record_ambient_usage` for a call the caller priced
+    itself - see :meth:`SpendLedger.record_cost`. A no-op where nothing is
+    metering, for the same reason.
+    """
+    ledger = _active_ledger.get()
+    if ledger is not None:
+        ledger.record_cost(model_name, cost_usd)
+
+
+async def can_afford_ambient_call(cost_usd: Decimal = Decimal(0)) -> bool:
     """Whether an auxiliary model call may be made under the active guard.
 
     `True` when no guard is active - a preview, the CLI, an ingestion warmup -
@@ -524,11 +577,17 @@ async def can_afford_ambient_call() -> bool:
     so an ambient call is refused before it spends past a cap the way a real
     request would be (agenticos#1808). The caller degrades to its own model-free
     fallback rather than raising the run.
+
+    Args:
+        cost_usd: What the call is known to cost before it is made - a clip of
+            speech or video priced from its length. Zero, the default, is the
+            token-billed call nobody can price in advance, which is refused only
+            once a cap is already reached.
     """
     guard = _active_guard.get()
     if guard is None:
         return True
-    return await guard.can_afford_next_request()
+    return await guard.can_afford_next_request(cost_usd)
 
 
 def reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
@@ -546,7 +605,7 @@ def reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
 
 
 @contextmanager
-def metered_nested_run(usage: RunUsage, model_name: str) -> Generator[RunUsage, None, None]:
+def metered_nested_run(usage: RunUsage, model_name: str | None) -> Generator[RunUsage]:
     """A private usage for a nested ambient run, booked concurrency-safely.
 
     Yields a *copy* of `usage` for the nested `Agent.run` to spend into, and folds
@@ -561,7 +620,8 @@ def metered_nested_run(usage: RunUsage, model_name: str) -> Generator[RunUsage, 
     request, token and cost caps still meter the nested run against where the run
     already is rather than from zero. On exit the own-spend is added to the shared
     `usage` and booked once through :func:`record_ambient_usage`; a run that spent
-    nothing books nothing.
+    nothing books nothing. With `model_name` `None` the caller books each response
+    itself - a model behind fallbacks has no one name a price is found under.
     """
     private = copy(usage)
     start = copy(private)
@@ -571,7 +631,8 @@ def metered_nested_run(usage: RunUsage, model_name: str) -> Generator[RunUsage, 
         own = private - start
         if own != RunUsage():
             usage.incr(own)
-            record_ambient_usage(model_name, own)
+            if model_name is not None:
+                record_ambient_usage(model_name, own)
 
 
 def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
@@ -754,8 +815,8 @@ class BudgetGuard(AbstractCapability[Any]):
             self.run_state.baselines[limit.key] = await limit.period_spend()
         return self.run_state.baselines[limit.key]
 
-    async def _first_exceeded(self) -> SpendLimit | None:
-        """The first ceiling the run has already reached, or `None` if it is clear.
+    async def _first_exceeded(self, cost_usd: Decimal = Decimal(0)) -> SpendLimit | None:
+        """The first ceiling the run has reached, or would pass by spending `cost_usd`.
 
         The non-raising core of the budget check: the under-lock baseline+total
         loop, so both the refusing form (:meth:`assert_within_budget`) and the
@@ -770,7 +831,7 @@ class BudgetGuard(AbstractCapability[Any]):
             run_total = self.ledger.total_usd
             for limit in self.limits:
                 spent = await self._baseline_for(limit) + run_total
-                if spent >= limit.limit_usd:
+                if spent >= limit.limit_usd or spent + cost_usd > limit.limit_usd:
                     return limit
         return None
 
@@ -794,16 +855,45 @@ class BudgetGuard(AbstractCapability[Any]):
                 subject=limit.subject_name,
             )
 
-    async def can_afford_next_request(self) -> bool:
+    async def can_afford_next_request(self, cost_usd: Decimal = Decimal(0)) -> bool:
         """Whether the run may issue another model request under every cap.
 
         The non-raising form of the check :meth:`wrap_model_request` makes before a
         request. An ambient call that constructs its own `Agent` - a system
         reminder, a compaction summary - asks this before it spends, because it
         does not pass through the wrapper that would otherwise refuse it
-        (agenticos#1808).
+        (agenticos#1808). `cost_usd` is the request's price where it is known in
+        advance, which refuses a call that would carry the run past a cap rather
+        than only one made after the cap is reached. Nothing is reserved by asking:
+        two calls priced at once can each fit and together pass the cap, which is
+        the overshoot :class:`RunSpendState` already accepts for concurrent work.
         """
-        return await self._first_exceeded() is None
+        return await self._first_exceeded(cost_usd) is None
+
+    async def headroom(self) -> Decimal | None:
+        """How much this run may still spend before the tightest cap binds, or `None` uncapped.
+
+        What a voice call passes as its `cost_limit` and checks its worst case
+        against at setup (#54). Each cap meters its own spend, so this is the
+        smallest of the per-cap remainders, never a `min()` of the caps
+        themselves. Never negative: a cap already passed has no room.
+        """
+        async with self.run_state.check:
+            remaining: Decimal | None = None
+            for limit in self.limits:
+                left = limit.limit_usd - (await self._baseline_for(limit) + self.ledger.total_usd)
+                remaining = left if remaining is None else min(remaining, left)
+        return None if remaining is None else max(remaining, Decimal(0))
+
+    def refresh_baselines(self) -> None:
+        """Forget what other runs had booked, so the next check reads it again (#54).
+
+        A voice call can last fifty minutes while the month moves underneath it.
+        The lookups open short sessions of their own (`agent_period_spend`,
+        `org_period_spend` in the runner), never the run's shared one, so a
+        heartbeat may call this and then `can_afford_next_request`.
+        """
+        self.run_state.baselines.clear()
 
     async def wrap_model_request(
         self,

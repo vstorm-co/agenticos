@@ -11,8 +11,6 @@ Deliberately idempotent. Running it twice is what people do when they are not
 sure it worked the first time, and it should not punish them for that.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 
@@ -39,6 +37,7 @@ from app.services.agent_registry import AgentRegistryService, slugify
 from app.services.assistant import AssistantService
 from app.services.mcp_registry import seed_entries
 from app.services.model_profile import ModelProfileService
+from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.user import UserService
@@ -126,9 +125,7 @@ async def _bootstrap(
     if api_key is None:
         warning("  No API key given - add one under Settings → AI providers to run the agents.")
     else:
-        click.echo(
-            "  Open Chat and ask Claude Code like something, or the Architect in the corner."
-        )
+        click.echo("  Open Chat and ask AgenticOS something, or the Architect in the corner.")
 
 
 async def _resolve_mcp_mirror(db) -> None:
@@ -163,13 +160,20 @@ async def _resolve_mcp_mirror(db) -> None:
 async def _resolve_organization(db, owner_id: uuid.UUID, name: str):
     """The owner's organization, created if this is a fresh install.
 
-    Registration already creates a personal organization; reusing it keeps the
-    demo in the place a new operator will actually land after signing in.
+    Whichever one a session without an organization named lands in - the
+    deployment's default, the owner's personal one, or their only one - so the
+    demo is where a new operator will actually land after signing in, provided
+    the account owns it. Otherwise, and on a deployment with personal
+    organizations off, it gets one of its own.
     """
-    personal = await organization_repo.get_personal_for_user(db, owner_id)
-    if personal is not None:
-        info(f"Using organization {personal.name}")
-        return personal
+    landing = await OrganizationService(db).fallback_for(owner_id)
+    if landing is not None:
+        membership = await member_repo.get(db, organization_id=landing.id, user_id=owner_id)
+        # Bootstrap acts as an owner. A default organization the account joined
+        # as a member is not one it may fill with credentials and agents.
+        if membership is not None and membership.role == OrgRoleName.OWNER.value:
+            info(f"Using organization {landing.name}")
+            return landing
 
     org = await organization_repo.create(
         db,
@@ -245,11 +249,11 @@ async def _resolve_model(
 
 
 async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | None) -> None:
-    """The two agents a new organization opens with: the Architect and Claude Code like.
+    """The two agents a new organization opens with: the Architect and AgenticOS.
 
     The Architect is the organization's assistant, installed the way a member's
-    first look installs it and published on the first model there is. Claude
-    Code like comes from its template, visible to the whole organization, and is
+    first look installs it and published on the first model there is. AgenticOS
+    comes from its template, visible to the whole organization, and is
     published on the bootstrapped model when its spec allows - a deployment with
     no sandbox to give it leaves it a draft and says why, rather than stopping.
     Idempotent: a second run finds both.

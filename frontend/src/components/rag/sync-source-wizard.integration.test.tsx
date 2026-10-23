@@ -8,7 +8,12 @@ import { toast } from "sonner";
 import { SyncSourceWizard } from "./sync-source-wizard";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
-import type { ConnectorInfo, SyncSourceCreate } from "@/lib/rag-api";
+import type {
+  ConnectorInfo,
+  SyncSourceCreate,
+  SyncSourceRead,
+  SyncSourceUpdate,
+} from "@/lib/rag-api";
 import type { KBScope } from "@/types/knowledge-base";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -611,5 +616,132 @@ describe("the credential step", () => {
     expect(await screen.findByText(/vault could not be read/)).toBeVisible();
     expect(screen.queryByText(/holds no credential/)).toBeNull();
     expect(screen.getByRole("button", { name: /Continue/ })).toBeDisabled();
+  });
+});
+
+describe("editing a source that exists", () => {
+  const EXISTING: SyncSourceRead = {
+    id: "s-1",
+    organization_id: "org-1",
+    name: "Engineering docs",
+    connector_type: "gdrive",
+    collection_name: "handbook",
+    config: { folder_id: "1AbC" },
+    secret_id: "secret-1",
+    secret_hint: "a1b2",
+    organizational_unit: null,
+    sync_mode: "full",
+    schedule_minutes: null,
+    is_active: true,
+    last_sync_at: null,
+    last_sync_status: null,
+    last_error: null,
+    created_at: null,
+  };
+  const S3: ConnectorInfo = { ...CONNECTOR, type: "s3", name: "Amazon S3" };
+
+  function editor(
+    onUpdate: (sourceId: string, data: SyncSourceUpdate) => Promise<void>,
+    { connectors = [GDRIVE, S3], onSubmit = vi.fn(), orgIntegrationsFailed = false } = {},
+  ) {
+    return withQuery(
+      <SyncSourceWizard
+        open
+        onOpenChange={vi.fn()}
+        connectors={connectors}
+        collections={[{ name: "handbook", scope: "org" }]}
+        defaultCollection="handbook"
+        orgIntegrations={[{ ...EXISTING, id: "s-org", name: "Shared Drive" }]}
+        orgIntegrationsFailed={orgIntegrationsFailed}
+        editing={EXISTING}
+        onSubmit={onSubmit}
+        onUpdate={onUpdate}
+      />,
+    );
+  }
+
+  /** Continue through the three steps after the first, to the one that saves. */
+  async function toScheduleStep() {
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await screen.findByText("Sync mode");
+  }
+
+  it("opens filled in from the source, its connector fixed", async () => {
+    editor(vi.fn());
+
+    expect(screen.getByText("Edit sync source")).toBeVisible();
+    expect(screen.getByLabelText("Source name")).toHaveValue("Engineering docs");
+    // The connector cannot be changed - choosing another would wipe the config -
+    // so the others are not offered, and neither is cloning something else in.
+    expect(screen.getByRole("button", { name: /Google Drive/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Amazon S3/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Use existing/ })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    expect(screen.getByLabelText(/Google Drive Folder ID/)).toHaveValue("1AbC");
+  });
+
+  it("says nothing about the integrations it does not offer", async () => {
+    // Cloning is not on offer while editing, so a failure to list what could be
+    // cloned is not something this reader is missing.
+    editor(vi.fn(), { orgIntegrationsFailed: true });
+
+    expect(screen.queryByText(/integrations could not be loaded/i)).toBeNull();
+  });
+
+  it("keeps offering a connector disabled since the source was made", async () => {
+    editor(vi.fn(), { connectors: [{ ...GDRIVE, enabled: false }] });
+
+    expect(screen.getByRole("button", { name: /Google Drive/ })).toBeVisible();
+  });
+
+  it("has nothing to save until something changes", async () => {
+    editor(vi.fn());
+    await toScheduleStep();
+
+    expect(screen.getByRole("button", { name: /Save changes/ })).toBeDisabled();
+  });
+
+  it("sends only what changed, and never the credential it already had", async () => {
+    // A credential sent is checked again as the editor's own choice, so one
+    // private to whoever set the source up would refuse a rename.
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const onSubmit = vi.fn();
+    editor(onUpdate, { onSubmit });
+
+    await userEvent.clear(screen.getByLabelText("Source name"));
+    await userEvent.type(screen.getByLabelText("Source name"), "Engineering wiki");
+    await toScheduleStep();
+    await userEvent.click(screen.getByRole("button", { name: /Every hour/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+
+    expect(onUpdate).toHaveBeenCalledWith("s-1", {
+      name: "Engineering wiki",
+      schedule_minutes: 60,
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("marks the input a refused edit names, on the step that holds it", async () => {
+    const onUpdate = vi.fn().mockRejectedValue(
+      refusal({
+        connector_type: "gdrive",
+        fields: [{ field: "config.folder_id", message: FOLDER_ID_REFUSED }],
+      }),
+    );
+    editor(onUpdate);
+
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "x' in parents");
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await screen.findByText("Sync mode");
+    await userEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+
+    const folderId = await screen.findByLabelText(/Google Drive Folder ID/);
+    expect(folderId).toHaveAttribute("aria-invalid", "true");
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

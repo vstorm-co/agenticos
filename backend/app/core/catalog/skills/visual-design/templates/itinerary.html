@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Five days in Japan</title>
+  <link rel="stylesheet" href="lib/agenticos-2.css">
+  <link rel="stylesheet" href="lib/leaflet-1.9.4/leaflet.css">
+  <script src="lib/leaflet-1.9.4/leaflet.js"></script>
+  <script src="lib/agenticos-map-2.js"></script>
+  <style>
+    html, body { margin: 0; background: transparent; }
+    .wrap { padding: 4px 0 8px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div id="trip"></div>
+  </main>
+
+  <script>
+    // Coordinates from memory are approximate; the cards say what each day is for.
+    AOMap.itinerary("#trip", {
+      height: 320,
+      stops: [
+        { name: "Tokyo", lat: 35.6812, lng: 139.7671, day: "Days 1-2", note: "Asakusa, Shibuya, a day in Yanaka" },
+        { name: "Hakone", lat: 35.2324, lng: 139.1069, day: "Day 3", note: "Onsen, Lake Ashi, Fuji if it is clear" },
+        { name: "Kyoto", lat: 35.0116, lng: 135.7681, day: "Day 4", note: "Fushimi Inari early, Gion at dusk" },
+        { name: "Nara", lat: 34.6851, lng: 135.8048, day: "Day 5", note: "Todai-ji and the deer park" },
+      ],
+      followUp: {
+        label: "Plan this stop",
+        text: (stop) => `Plan ${stop.day} in ${stop.name} hour by hour.`,
+      },
+    });
+  </script>
+</body>
+</html>

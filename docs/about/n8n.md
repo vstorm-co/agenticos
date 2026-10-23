@@ -10,7 +10,7 @@ n8n is a workflow automation tool. You connect triggers, integrations and code s
 
 They fit together well. n8n moves data between systems on a schedule. AgenticOS runs the agents that need an owner, an approver and a spending limit.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. n8n scope: its pricing page, documentation and licence at n8n@2.40.7, not a tested cloud plan or self-hosted Enterprise licence.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. n8n scope: its pricing page, documentation and licence at n8n@2.44.5, not a tested cloud plan or self-hosted Enterprise licence.
 
 ## At a glance
 
@@ -24,7 +24,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Environments and version control | Business and above | Environments and YAML export in every deployment |
 | Spend control | Execution quotas per plan | A budget per agent and per organization, checked before each model request |
 | Audit | Log streaming on Enterprise | Tamper-evident audit log in every deployment |
-| Human approval | Per tool, through nine review channels | Per capability and per tool for capability tools, through a shared queue; MCP tools are not gated per tool |
+| Human approval | Per tool, through nine review channels | Per capability and per tool, and an approval policy per MCP connection (none, writes or all), through a shared queue |
 | Pricing | Community free; Cloud from €20 a month for 2,500 executions, billed annually; Business €667 a month, self-hosted | No licence fee; model usage and infrastructure |
 
 ## Where AgenticOS goes further

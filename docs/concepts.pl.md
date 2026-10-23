@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "ea4e850dac4a"
 ---
 
 # Koncepcje { #concepts }
@@ -194,9 +194,9 @@ skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
   notatka zapisana na jej podstawie byłaby czytana w każdym kolejnym czacie jako
   własna notatka twórcy.
 - **Poprzednie rozmowy pozostają zamknięte** w obu przypadkach.
-- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska albo filtra
-  triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt nie przepisze
-  tego, co działa jako ty. Administrator działający jako ty przez impersonację
+- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska, filtra albo
+  kanału Teams triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt
+  nie przepisze tego, co działa jako ty, ani nie wyśle odpowiedzi gdzie indziej. Administrator działający jako ty przez impersonację
   ani skrypt z twoim kluczem API nie mogą go włączyć.
 - **Tak samo nowa wersja opublikowana nie przez ciebie osobiście.** Publikacja, promocja
   albo cofnięcie przez kogokolwiek innego to wyłącza - także zrobione twoim
@@ -227,6 +227,8 @@ używany* potrafi odróżnić run bez nadzoru od runa człowieka. Każde odpalen
 osobny run w Activity, a jego odpowiedzi zbierają się w jednej rozmowie będącej
 dziennikiem runów, którą trigger otwiera raz — zawczasu, w momencie utworzenia
 triggera, więc jest klikalną pozycją, zanim jeszcze kiedykolwiek się odpali.
+Trigger może też publikować każdą odpowiedź na kanale albo w czacie grupowym Teams,
+w którym jest bot jego organizacji ([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Dwa sposoby odpalania { #two-ways-to-fire }
 
@@ -311,6 +313,7 @@ działającą platformę:
 | `failed` | zepsuł się |
 | `budget_exceeded` | dobił do limitu — limit wydatków robiący swoje |
 | `guardrail_blocked` | został odrzucony przez [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | powtarzał te same wywołania narzędzi po ostrzeżeniu i został [zatrzymany](governance.md#step-limits) |
 | `cancelled` | został zatrzymany: przyciskiem stop w kompozytorze, przez zerwany socket, przez delegację anulowaną z góry. Na każdej powierzchni, nie tylko na strumieniowej |
 | `awaiting_approval` | zaparkował na zatwierdzeniu i jest **wznawialny** — jego historia wiadomości jest zapisana, więc decyzja dotyczy rozmowy, do której należy |
 
@@ -520,6 +523,12 @@ czyimś specu.
 Używaj więc specjalisty do pracy, która nie powinna wymagać publikowania agenta —
 „streść to w trzech punktach” — a delegata do zdolności, którą organizacja
 posiada i wykorzystuje wielokrotnie.
+
+Trzeci rodzaj stoi obok nich: **zdalny agent**, agent innego dostawcy osiągalny
+przez A2A i zarejestrowany w organizacji po jego agent card. Wywołuje się go tak samo
+i rozlicza z tego samego budżetu, ale nie jest tu wersjonowany — jego właściciel
+zmienia go po swojej stronie — więc odwołanie wskazuje rejestrację, a nie wersję.
+Zobacz [Zdalni agenci przez A2A](reference/capabilities.md#remote-agents).
 
 #### Specjaliści dynamiczni i droga wyjścia { #dynamic-specialists-and-the-way-out }
 

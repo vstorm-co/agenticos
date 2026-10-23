@@ -1,5 +1,5 @@
 ---
-source_sha: "a4ea427a6641"
+source_sha: "9993496881e6"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: alternativa autoalojada"
 description: "Compara Google Gemini Enterprise con AgenticOS: cualquier modelo en cada agent, sin cuota por puesto ni cuotas de creación, ocho superficies, en tus servidores."
@@ -9,7 +9,7 @@ description: "Compara Google Gemini Enterprise con AgenticOS: cualquier modelo e
 
 Google Gemini Enterprise, antes Agentspace, da a los empleados un asistente, búsqueda empresarial en Google Workspace, Microsoft 365 y muchas herramientas SaaS, agents creados por Google como Deep Research y un Workflow Builder sin código, todo en Google Cloud. AgenticOS da a tu organización agents que son suyos. Se ejecutan en tu infraestructura con cualquier modelo, y responden a clientes y sistemas además de a empleados.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2026. Versión de referencia de AgenticOS: v0.0.504. Alcance de Gemini Enterprise: la página de producto, la documentación y las notas de versión de Google, no un proyecto probado.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Gemini Enterprise: la página de producto, la documentación y las notas de versión de Google, no un proyecto probado.
 
 ## De un vistazo { #at-a-glance }
 
@@ -17,19 +17,19 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | --- | --- | --- |
 | Dónde se ejecuta | Google Cloud, en `global`, `us`, `eu` y algunas regiones nacionales | Tu infraestructura |
 | Código | Propietario | Apache-2.0 |
-| Modelos | Gemini en la app y en Workflow Builder; otros modelos solo en agents personalizados sobre Agent Platform | 27 providers en todos los agents, incluidos locales |
+| Modelos | Gemini en la app y en Workflow Builder; otros modelos solo en agents personalizados sobre Agent Platform | 28 providers en todos los agents, incluidos locales |
 | Quién lo usa | Empleados con puesto | Empleados, clientes y sistemas, en ocho superficies |
 | Superficies | App web, app móvil, Slack | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
 | Construcción | Workflow Builder; agents personalizados y de partners en Standard y Plus | El Builder, para todos los agents |
 | Límites | Cuotas diarias compartidas, como un agent nuevo al día en Standard | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Control del gasto | Límites de gasto mensuales en la cuenta de facturación | Budgets por agent, con alertas a las personas que elijas |
-| Precio | Business desde $21, Standard y Plus desde $30 por puesto al mes | Sin cuota de licencia; uso del modelo e infraestructura |
+| Precio | Por puesto, según la edición (Business, Standard, Plus, Frontline) o de pago por uso; las páginas de Google ya no publican precios, y Plus tiene una prueba de 30 días | Sin cuota de licencia; uso del modelo e infraestructura |
 
 ## Dónde AgenticOS va más allá { #where-agenticos-goes-further }
 
 ### Cualquier modelo, en cualquier agent { #every-model-in-every-agent }
 
-En Gemini Enterprise, la app y Workflow Builder usan modelos Gemini. Claude, Mistral y los modelos de pesos abiertos solo están disponibles para agents personalizados construidos sobre Agent Platform de Google. En AgenticOS cualquier agent puede usar cualquiera de los [27 providers](../models.md#providers), Gemini y Vertex incluidos, y cambiar con un solo [perfil de modelo](../models.md#a-model-profile).
+En Gemini Enterprise, la app y Workflow Builder usan modelos Gemini. Claude, Mistral y los modelos de pesos abiertos solo están disponibles para agents personalizados construidos sobre Agent Platform de Google. En AgenticOS cualquier agent puede usar cualquiera de los [28 providers](../models.md#providers), Gemini y Vertex incluidos, y cambiar con un solo [perfil de modelo](../models.md#a-model-profile).
 
 ### Agents más allá del puesto del empleado { #agents-beyond-the-employees-seat }
 
@@ -65,7 +65,7 @@ Para los agents que tu organización posee y publica, sí. AgenticOS se ejecuta 
 
 ### ¿AgenticOS puede usar modelos Gemini? { #can-agenticos-use-gemini-models }
 
-Sí, a través de perfiles de modelo de Google Gemini o Vertex AI, dos de los 27 providers que admite AgenticOS.
+Sí, a través de perfiles de modelo de Google Gemini o Vertex AI, dos de los 28 providers que admite AgenticOS.
 
 ### ¿AgenticOS limita cuántos agents puedes crear? { #does-agenticos-limit-how-many-agents-you-can-create }
 
@@ -81,8 +81,8 @@ En almacenes que operas tú, allí donde lo despliegues: las conversaciones, los
 
 ## Fuentes { #sources }
 
-- [Gemini Enterprise](https://cloud.google.com/gemini-enterprise): ediciones, precios y el reparto de funciones.
-- [Ediciones](https://docs.cloud.google.com/gemini/enterprise/docs/editions) y [cuotas](https://docs.cloud.google.com/gemini/enterprise/docs/quotas-and-overages): puestos, almacenamiento y cuotas diarias.
+- [Gemini Enterprise](https://cloud.google.com/gemini-enterprise): el producto y la prueba de 30 días de Plus; sin precios.
+- [Ediciones](https://docs.cloud.google.com/gemini/enterprise/docs/editions) y [cuotas](https://docs.cloud.google.com/gemini/enterprise/docs/quotas-and-overages): ediciones, puestos, almacenamiento y cuotas diarias.
 - [Visión general de los agents](https://docs.cloud.google.com/gemini/enterprise/docs/agents-overview): tipos de agents y ediciones.
 - [Workflow Builder](https://docs.cloud.google.com/gemini/enterprise/docs/agent-designer): el constructor sin código y los pasos con intervención humana.
 - [Conectores](https://cloud.google.com/gemini-enterprise/connectors): conectores por edición.

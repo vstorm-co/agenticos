@@ -16,8 +16,6 @@ from, which is the one arrangement in which a status predicate cannot end up
 applied to one and not the other.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock

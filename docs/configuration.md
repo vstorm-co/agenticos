@@ -55,7 +55,9 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a self-hosted mem0 memory service may point at. A `base_url` comes from an agent spec, so without an allowlist a Builder who can bind (but not read) a shared mem0 key could aim it at their own server and capture the key from the request header. Empty refuses self-hosted mem0 and allows only the managed cloud; add a trusted hostname to enable a self-hosted deployment. See [secrets](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a browsing agent may drive a Chromium at. A `cdp_url` comes from an agent spec, which anyone holding `edit` on that agent writes, so the address is tenant-controlled and the request is this deployment's - the same shape `MEM0_ALLOWED_HOSTS` exists for, and the reason this is an allowlist rather than the SSRF guard every other tenant-supplied URL goes through. That guard admits only *public* addresses, so it refuses the isolated browser service on the deployment's own network that [the capability](reference/capabilities.md#browser-automation) tells you to run, and accepts a CDP debugger exposed to the internet, which is worse. Matching is exact and case-folded, with no globs. Empty refuses browser automation outright |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | The browser a person signs in to a site with from **Settings → Sign-ins**, where no agent names one - the compose `browser` service is `http://browser:9222`. Its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The site has to be a public address, and only the person who opened it may watch it. Empty hides the option |
+| `VISUAL_RENDER_CDP_URL` | `""` (empty) | The browser a [visual](reference/capabilities.md#visuals) is drawn to a picture with where no frame can run it - a reply in Slack, Telegram or Mattermost, and the dashboard thumbnail of a page. The compose `browser` service is `http://browser:9222`; its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The drawing reaches nothing from there: every request it makes is answered by the deployment or refused. Empty sends a chat app the answer without the picture |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose sets `http://browser-egress:3128` | The proxy the deployment's own browser reaches every site through. The compose `browser-egress` service is `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): it resolves each host itself, refuses private, loopback, link-local and metadata addresses and connects to the address it checked, so neither a redirect nor DNS rebinding takes a page inside the network. Used by every browse without an organization proxy and not on a hosted browser. An internal tool an agent should browse needs an exception in `docker/browser-egress/squid.conf`. Empty sends the browser straight out: set `BROWSER_EGRESS_PROXY=` in the root `.env` only for a browser outside compose that cannot reach the proxy. Without a proxy each site is checked on its first request in a tab and the browser resolves its name itself afterwards, so a name that rebinds to a private address later in the same tab is not caught |
+| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts that an MCP connection's URL can name although they resolve to a private or loopback address, for example a compose service: `["postgres-mcp"]`. The match is exact and ignores case. A listed host skips only the address check: the URL still needs `http` or `https`. People can sign in to a listed server with OAuth: its discovery, registration and token requests may reach the listed hosts, pinned, and a public server's sign-in reaches none. Every account on the deployment can reach every port on a listed host, so list only a server that checks a token. A cloud metadata, link-local or loopback entry, such as `169.254.169.254` or `localhost`, is refused at startup. Empty refuses every internal address. See [a connection](mcp.md#a-connection) |
 | `FILE_IO_MAX_WORKERS` | `8` | Size of the dedicated thread pool that runs blocking file work — parsing an upload and reading or writing its bytes. Kept off `asyncio`'s shared default executor, which also runs `bcrypt` and pinned-host DNS, so a burst of uploads cannot leave sign-in and outbound requests queued behind them ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Raise it on a host that parses many uploads at once. Must be a positive integer — a `0` or negative value is refused at startup |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | How long a single DOC → text LibreOffice conversion may run before it is killed. Far below the knowledge base's 600s because this is an interactive upload |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | How many LibreOffice conversions may run at once. The subprocess bypasses `FILE_IO_MAX_WORKERS`, so this bounds it separately |
@@ -292,7 +294,7 @@ with `KERBEROS_DISPLAY_NAME` (default `Kerberos`).
 | `POSTGRES_SSLMODE` | (empty) | Encrypt the connection: `require`, `verify-ca` or `verify-full`. Empty is plaintext. See [Encrypted connections](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Connection pool size |
 | `DB_MAX_OVERFLOW` | `10` | Max overflow connections |
-| `DB_POOL_TIMEOUT` | `30` | Pool timeout in seconds |
+| `DB_POOL_TIMEOUT` | `5` | Seconds a request waits for a free connection before it is answered `503` with `Retry-After`. Short on purpose: a request that waited 30 s was lost anyway, and the queue of waiters kept the pool full after a burst had passed |
 
 Computed properties:
 - `DATABASE_URL` -- async connection string (`postgresql+asyncpg://...`)
@@ -352,7 +354,7 @@ the URL itself, rather than leaving both to redis-py's defaults.
 
 !!! note "Every service that opens a store connection needs the change"
 
-    `app`, `migrate` and `prefect-runner` each connect to Postgres and Redis, and
+    `app`, `migrate` and `worker` each connect to Postgres and Redis, and
     the shipped compose files pin `POSTGRES_HOST=db` and `REDIS_HOST=redis` in
     each one's `environment`, which wins over an env file. So a managed store is
     an override file that reaches all three, not a line in `.env`.
@@ -374,7 +376,7 @@ x-managed: &managed
 services:
   app: *managed
   migrate: *managed
-  prefect-runner: *managed
+  worker: *managed
 ```
 
 The bundled `db` and `redis` services keep starting, unused; `agenticos cmd
@@ -417,36 +419,63 @@ them announcing itself:
     needs `SMTP_TLS_MODE=implicit`, because `auto` would offer it a plaintext
     handshake and every send would fail. `starttls` is the mirror case.
 
-## Background work (Prefect)
+## Background work
+
+Jobs queue in PostgreSQL and run in a worker, `python -m app.worker`, from the
+same image as the API. There is no server to point it at and no key: the worker
+reaches the database the API does. Every setting below is per worker process.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PREFECT_API_URL` | `http://localhost:4200/api` | The self-hosted server, or a Prefect Cloud workspace URL |
-| `PREFECT_API_KEY` | (none) | Prefect Cloud only |
-| `PREFECT_RUNNER_LIMIT` | `5` | How many flow runs execute at once; the rest queue |
-| `PREFECT_RUNNER_SERVER_HOST` | `127.0.0.1` in compose | Interface the runner serves its own health endpoint on |
-| `PREFECT_RUNNER_SERVER_PORT` | `8080` | Port for the same |
+| `WORKER_POOLS` | `agent,ingest,system` | The pools this process serves. Run a second worker with `ingest` to put parsing on a host of its own |
+| `WORKER_AGENT_CONCURRENCY` | `10` | Agent runs and trigger fires at once |
+| `WORKER_SYSTEM_CONCURRENCY` | `4` | Sweeps, cleanups and reports at once |
+| `WORKER_INGEST_CHILDREN` | `2` (`1` in the shipped compose files) | Child processes for parsing and embedding, one job each at a time |
+| `WORKER_INGEST_MEMORY_MB` | `1536` | What one child may hold, with whatever it started, before the watchdog stops it |
+| `WORKER_INGEST_MAX_JOBS` | `100` | Jobs a child runs before it is replaced |
+| `WORKER_LEASE_SECONDS` | `60` | How long a claimed job is held without a heartbeat |
+| `WORKER_BREAKER_DEATHS` | `5` | Worker deaths in a row, across one kind's jobs, that pause the kind |
+| `WORKER_HEALTH_FILE` | `/tmp/agenticos-worker-alive` | The file the container probe reads |
+| `WORKER_MEMORY_LIMIT` | `4g`, `2560M` in production compose | The container's own memory limit - a compose variable, not a setting |
+| `BACKGROUND_JOB_RETENTION_DAYS` | `14` | Finished jobs kept for the Background jobs page |
 
-`PREFECT_RUNNER_LIMIT` is a memory ceiling, not a throughput dial. Each run is a
-separate process that imports the whole application — roughly 120 MB — and the
-number that matters is not the steady state but the restart: the runner comes up,
-finds every run that was scheduled while it was down, and starts as many as the
-limit allows. Uncapped, three days of downtime was 71 processes and 6 GiB. Raise
-it if ingestion queues behind syncs on a machine with memory to spare; lower it on
-a small host.
+**Size memory from the children, not from the job count.** A worker holds
+about 450 MB for its imported application, and each ingest child as much again
+plus the document it is parsing. `WORKER_INGEST_MEMORY_MB` sits below the
+container's limit on purpose: the watchdog stops a child that outgrows it and
+writes why on the job, where the kernel's out-of-memory killer would only leave
+a dead process. Raise `WORKER_INGEST_CHILDREN` on a host with memory to spare,
+and the container limit with it.
 
-The two `PREFECT_RUNNER_SERVER_*` variables are Prefect's, and the compose files
-pin them so the runner's container has a health status that means something. The
-runner starts Prefect's runner webserver, whose `GET /health` answers 503 once it
-has missed two polls of the Prefect API — so a process that is alive but no longer
-picking up work reads `unhealthy` rather than fine. It is bound to the loopback
-because the same webserver also exposes `POST /shutdown`; the probe runs inside
-the container, and nothing outside it can reach either. Moving the port means
-moving the probe in the compose files with it.
+**A job that kills its process cannot loop.** Its attempt is counted when it is
+claimed, so a child the kernel kills mid-parse has spent one, and after
+`max_attempts` the job is dead. A kind whose jobs kill their worker
+`WORKER_BREAKER_DEATHS` times in a row is paused, and every owner of the
+deployment is told; nothing claims it until one of them resumes it on the
+Background jobs page. The count is kept per organization: one tenant whose jobs
+keep killing their worker pauses the kind for itself alone, and jobs that belong
+to no organization share one count for the whole deployment.
 
-There is no `HEALTHCHECK` in `backend/Dockerfile`. The image is started as two
-different processes — the API and this runner — and a probe for one is a
-permanent false alarm on the other, so each service definition carries its own.
+**What a job leaves behind is closed even when that fails once.** A job that
+ends for good can leave a document `processing` or a sync log `running`. The
+worker closes them as the job ends, and the rescuer retries a close that failed -
+the database down at the time - for a day.
+
+A worker that dies gives its jobs back within `WORKER_LEASE_SECONDS`: another
+worker's rescue takes the expired lease and writes the job down as a worker
+death. A deploy does not cost a job an attempt - the worker stops claiming,
+lets running jobs finish for 30 seconds, and gives the rest back. The compose
+files allow 45 seconds before they kill it.
+
+The container's health check reads `WORKER_HEALTH_FILE`, which the heartbeat
+touches after every beat that reached the database, so a worker that is alive
+but cut off from Postgres reads `unhealthy`. It is a file rather than an HTTP
+endpoint because the worker serves nothing.
+
+There is no `HEALTHCHECK` in `backend/Dockerfile`. The image is started as
+different processes - the API, the worker and the migrations - and a probe for
+one is a permanent false alarm on another, so each service definition carries
+its own.
 
 ### Approval expiry
 
@@ -467,7 +496,8 @@ it deliberately leaves alone.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | How long a run may sit `running` before the hourly sweep decides its process died and ends it as `failed`. Zero or below switches the sweep off |
+| `RUN_HEARTBEAT_SECONDS` | `15` | How often the process executing a run stamps it alive while its model works |
+| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | How long a `running` run may go without a sign of life before the per-minute sweep decides its process died and ends it as `failed`. At least three `RUN_HEARTBEAT_SECONDS`, which startup checks; zero or below switches the sweep off |
 
 A run's row is committed before its model is called, so a worker killed mid-run
 leaves it `running` with nothing left to finish it. The ceiling does not have to
@@ -513,10 +543,10 @@ Three things can point runs at a project, and they stack:
 
 - `LOGFIRE_TOKEN` here instruments Pydantic AI globally, so every run exports
   into the deployment's own project. Two processes configure it: the API at
-  startup (`app/main.py`), and a fired run in the Prefect worker, which sets
-  itself up because each flow run gets a subprocess of its own. The worker's
-  spans carry `<service name>-worker`, so one project can tell a slow scheduled
-  run from a slow chat turn.
+  startup (`app/main.py`), and the worker, once on start
+  (`app/worker/__main__.py`), since it never runs the API's lifespan. The
+  worker's spans carry `<service name>-worker`, so one project can tell a slow
+  scheduled run from a slow chat turn.
 - An [environment](environments.md#tracing-per-environment) can carry its own
   write token, sealed in the vault, which redirects the runs bound to it.
 - An agent's [`observability`](reference/spec.md#observability) block names a
@@ -531,6 +561,17 @@ and a specialist the agent delegates to — written inline or invented mid-run b
 the model — inherits the mode. One limit
 before relying on it: attaching that instrumentation is best-effort, and a
 failure is logged while the run continues.
+
+With `ENVIRONMENT=production` no span is printed to the console. Logfire's console
+exporter writes one line per SQL and Redis call, about forty per request, into a
+container log nobody can query. So in production a span exists only where the
+token sends it, and with no token a slow request leaves no trace at all.
+`agenticos cmd doctor` reports that as its `tracing` line. Elsewhere the console
+keeps printing spans for whoever is watching the server.
+
+Give each deployment its own `LOGFIRE_ENVIRONMENT`, such as `local` on a laptop
+and `production` on the server. One project can then hold both and still keep
+them apart.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -661,6 +702,22 @@ A bucket the deployment writes to needs `s3:PutObject`, `s3:GetObject`,
 For a local MinIO, `make docker-minio` starts one on `:9000` with
 `minioadmin` / `minioadmin`.
 
+### Generated media
+
+Images, speech and video agents generate are kept in the same store, under
+`generated_<org>/`, and each is recorded against its organization and the
+conversation it was made in. What an organization keeps is bounded twice. See
+[Data protection](data-protection.md#generated-media) for what is deleted when.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Generated media one organization may keep, in MiB. Every file counts, including one made with no conversation - a preview or a test run, a channel `/btw` aside, an API run that names no conversation; the sweep deletes those after 7 days. Checked before each paid generation call: past it, the tool answers that the organization has used its storage and spends nothing. An admitted call holds an estimate of its file against the quota until the file is stored - 16 MiB for an image, 8 KiB per character of speech, 2 MiB per second of video - so a call whose estimate would carry the organization past it is refused, and concurrent runs or parallel calls in one response cannot all pass on the same figure. A file larger than its estimate counts at its real size. `0` is no quota |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Age at which the daily `sweep-generated-media` job deletes a generated file and its record, whether or not its conversation is still there. `0` keeps them until their conversation or organization is deleted. A file with no conversation goes after 7 days either way |
+
+A file is served by streaming only the byte range a player asks for, from disk
+or by a ranged `GetObject`, so a long clip is never held whole in the API or the
+console's server.
+
 ### S3/MinIO sync
 
 | Variable | Default | Description |
@@ -692,6 +749,17 @@ file storage above; these bound them and say where they are served from. See
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per app. The oldest is removed when a newer one lands, unless the public link is pinned to it |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
+| `VISUAL_MAP_TILES` | (empty) | The one tile server a [visual](artifacts.md#visuals) or an app may draw a map on: `openstreetmap`, `usgs-topo`, or a `https://` URL template with `{z}`, `{x}` and `{y}` once each. The deployment fetches each tile and serves it to pages from its own tile path; no page talks to the server. Empty draws a map as an outline of its stops. A value that cannot be served is refused at startup |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | The credit shown under a map on a tile server of your own, e.g. `© OpenStreetMap contributors`. Required with a URL template; a preset brings its own |
+
+**Map tiles are fetched by the deployment, not by the reader's browser.** A page
+asks `/api/v1/artifact-content/tiles/{z}/{x}/{y}`; the API checks the numbers,
+fetches the tile from the server, keeps the last 2,048 in memory and answers, so
+a key in the template never leaves the server. The route takes no session -
+every page loads it - so it is limited per address
+(`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Mind the provider's terms: OpenStreetMap's
+public tiles are for light use, and a busy deployment should run its own server
+or pay a provider. *Admin → System* shows whether the server answers.
 
 **`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
 content addresses on it, and the frontend adds it to the console's `frame-src`.
@@ -707,7 +775,7 @@ are only for a container-backed one.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Per **stored** workspace. Past it a write is refused with a message the model reads |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Per **stored** workspace. Past it a write is refused with a message the model reads |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Above this an attached image is written to the workspace and not also sent inline |
 
 **The percentage in the chat is two different ceilings, and it says which.** A
@@ -878,7 +946,8 @@ the "who is holding a copy of that CSV" question the per-workspace page cannot
 answer.
 
 **Clicking a file opens it in a viewer, and it is the same viewer in the chat panel.**
-An image is a picture, a PDF is the browser's own PDF view, markdown offers *Preview*
+An image is a picture, a PDF is the browser's own PDF view, audio and video play in
+the browser's own player, markdown offers *Preview*
 and *Source* — both are the file, and a `#` that silently became large type is how
 somebody fails to notice their agent is writing markdown into something nothing reads
 as markdown — and anything else is its text. Download is always there, including for
@@ -893,9 +962,11 @@ conversation route is reached by fetching the conversation, so somebody a chat w
 *shared with* keeps access — and one module deciding what may be displayed, so the
 answer cannot differ by surface.
 
-Almost everything is served as an attachment. **Raster images and PDFs** are served
-for display: a raster because it cannot execute, a PDF because the browser renders it
-in its own viewer, which never gets the page's DOM.
+Almost everything is served as an attachment. **Raster images, PDFs, audio and video**
+(MP3, WAV, Ogg, Opus, M4A, MP4, WebM) are served for display: a raster because it
+cannot execute, a PDF because the browser renders it in its own viewer, which never
+gets the page's DOM, and audio and video because the browser hands them to its media
+pipeline, which plays them and runs nothing in the page.
 
 !!! danger "SVG and HTML are downloadable and never displayable"
 
@@ -1056,6 +1127,26 @@ any flag (`ALLOW_INTERNAL_MODEL_ENDPOINTS` was removed), and the `run_python`
 sandbox limits are per-agent capability configuration
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` were removed).
 
+## Voice calls
+
+[Voice calls](voice.md) are switched on in each agent, and bounded by its longest
+call and by the budgets. Two ceilings are the deployment's:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Calls one person may hold at once. A second tab's call is almost always a mistake, and each is billed; a second start is refused as `busy` |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Calls one widget or hosted page may hold at once, from every visitor together; the next is refused as `line_busy`. Visitors have no account to count against, so this is what stops a leaked link from spending the organization's budget in parallel |
+
+Both count calls whose heartbeat is fresh, so a call whose process died stops
+counting within 45 seconds. Starting calls on an embed is also rate-limited
+(`RATE_LIMIT_EMBED_VOICE_*`, [below](#rate-limiting)). An embed's own
+`rate_limit_per_minute`, set in the Builder, counts a visitor's **messages**, not
+call starts, so it does not bound calls.
+
+The rest is fixed in code rather than configured: a call is never longer than
+50 minutes, heartbeats run every 15 seconds, and the voice sweep runs every
+minute, as the worker's `reap-voice-calls` schedule.
+
 ## CORS
 
 | Variable | Default | Description |
@@ -1072,7 +1163,7 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 
 Applied to the surfaces a stranger can reach, and only those: the public run API,
 the widget's script, its config, either surface's socket handshake, a hosted
-page's config and logo, and a visitor's upload. The console's own routes are
+page's config and logo, and a visitor's upload, dictation and voice call. The console's own routes are
 behind a session and are not metered — whether the whole API should carry a
 ceiling is a separate decision, not this one.
 
@@ -1082,8 +1173,15 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Every `auth.py` route — login, register, refresh, the reset/magic-link request and verify routes. Counted **per IP and, where the body carries one, per submitted address**. See below |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Per address, and **two separate counters of this size**: one for `widget.js`, one for admission — the widget's `/config` plus either surface's socket handshake. See below |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Map tiles one address may fetch through the deployment's [tile path](artifacts.md#visuals), **per address**. A map is a few dozen tiles and panning adds more; the bound keeps the deployment from being anybody's free proxy to its tile server |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictation in chat](ml-services.md#dictation-in-chat), per person, on its own counter so dictating and an integration calling the ML services do not spend each other's allowance. Each one is a call to the organization's paid provider |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Hearing a voice](voice.md#turn-it-on) in the Builder, per person. Each uncached preview is a short paid session on the agent's realtime provider, outside every model budget; a voice heard once is cached for a week |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dictation on a widget or a hosted page](channels.md#dictation-on-a-widget-or-a-hosted-page), per address, and per visitor on a `jwt` widget. Each one is a call to the organization's paid provider, outside every model budget |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | The same, per page or widget, from every visitor together - the ceiling on what a leaked link costs: this many recordings a minute, each up to the organization's longest dictation. Spent only once a visitor is admitted |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Voice calls](channels.md#voice-calls-on-a-widget-or-a-hosted-page) started on a widget or a hosted page, per address, and per visitor's token subject on a `jwt` widget. The address is counted before the key is looked up; each call is a paid realtime session |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | The same, per page or widget, from every visitor together, spent only once a visitor is admitted. With `VOICE_MAX_CALLS_PER_EMBED` above, the ceiling on what a leaked link costs |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with
@@ -1204,6 +1302,7 @@ stays safe but shared.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Seconds the event loop may stop turning before the worker is killed and replaced. `0` or below switches the check off |
+| `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Seconds uvicorn's supervisor waits for a worker to answer its ping before replacing it, wherever `--workers` is above 1. Read by the compose files, not by the application |
 
 A worker that is *alive but not answering* — deadlocked on a lock, spinning in a
 synchronous call, blocked on a socket that never answers — has no exit code, so
@@ -1248,6 +1347,18 @@ It cannot see a process that is not running at all — `kill -STOP`, a frozen
 cgroup — because a watchdog inside a stopped process is stopped too. That case
 is the one the supervisors already cover: the reload supervisor's beat goes
 stale and production's pipe ping goes unanswered.
+
+That ping waits `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` seconds, 60 by default.
+Uvicorn's own default is 5, and a host short of CPU — steal on a shared VPS, an
+image build, a backlog of flow runs — misses 5 seconds with workers that are
+alive and serving.
+
+The supervisor then kills them and kills their replacements
+before they finish importing the application, and every restart adds an import's
+worth of CPU to the pressure that caused it. The log shows it as
+`Child process [N] died` with no watchdog line above it. Since a blocked loop
+is the watchdog's to judge, the ping only has to notice a stopped process, and a
+minute is soon enough for that.
 
 ## Docker / production
 

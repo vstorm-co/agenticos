@@ -12,9 +12,8 @@ decision, and a blanket middleware quietly metering the dashboard would be a
 different one.
 """
 
-from __future__ import annotations
-
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -22,9 +21,11 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.api.routes.v1.embed import embed_socket
+from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.services import rate_limit
+from app.services.embed_generated_media import media_token
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -114,6 +115,47 @@ class TestThePublicRunApi:
         client_mock.count_in_window.assert_not_awaited()
 
 
+class TestComposerDictation:
+    """Every dictation is a paid call to a provider, so a person has a bucket of
+    their own - separate from the ML surface's, so neither spends the other's."""
+
+    async def test_a_person_over_their_dictation_allowance_is_refused_with_429(self, signed_in):
+        client_mock = _redis(used=settings.RATE_LIMIT_DICTATION_PER_MINUTE + 1)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"/api/v1/agents/{uuid4()}/dictation",
+                files={"file": ("blob", b"audio", "audio/webm")},
+            )
+
+        assert response.status_code == 429
+        assert response.json()["error"]["details"]["retry_after_seconds"] == 60
+        assert client_mock.count_in_window.await_args.args[0] == (
+            f"ratelimit:dictation:user:{_CALLER}"
+        )
+
+
+class TestVoicePreview:
+    """Each uncached preview is a paid realtime session, so a person has a bucket of
+    their own for listening to voices in the Builder."""
+
+    async def test_a_person_over_their_preview_allowance_is_refused_with_429(self, signed_in):
+        client_mock = _redis(used=settings.RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE + 1)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"/api/v1/agents/{uuid4()}/voice/preview",
+                json={"voice": {}, "locale": "en"},
+            )
+
+        assert response.status_code == 429
+        assert client_mock.count_in_window.await_args.args[0] == (
+            f"ratelimit:voice_preview:user:{_CALLER}"
+        )
+
+
 class TestTheWidgetsAdmission:
     async def test_a_config_request_over_the_allowance_is_refused(self, mock_redis: MagicMock):
         app.dependency_overrides[deps.get_redis] = lambda: mock_redis
@@ -192,6 +234,72 @@ class TestTheWidgetsAdmission:
             "ratelimit:hosted_logo:key:some-key"
         )
 
+    async def test_a_generated_media_link_is_counted_per_link(self, mock_redis: MagicMock):
+        """The visitor's player fetches through the hosted page's proxy, so the
+        address here is the frontend's: the bucket is the signed link, by its
+        digest, and a link fetched past it is refused before any read (#2395)."""
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        client_mock = _redis(used=rate_limit.EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE + 1)
+        rate_limit.configure(client_mock)
+        token = media_token("some-key", "abc_video.mp4", now=datetime.now(UTC))
+
+        with patch(
+            "app.services.embed_generated_media.EmbedGeneratedMediaService.open", AsyncMock()
+        ) as opened:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    f"/api/v1/embed/some-key/generated/abc_video.mp4?token={token}"
+                )
+
+        assert response.status_code == 429
+        assert response.headers["Retry-After"] == "60"
+        key = client_mock.count_in_window.await_args.args[0]
+        assert key.startswith("ratelimit:embed_generated_media:token:")
+        assert token not in key
+        opened.assert_not_awaited()
+
+    async def test_a_generated_media_request_with_no_link_is_not_counted(
+        self, mock_redis: MagicMock
+    ):
+        """Refused before any query or read, so it has nothing to spend."""
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        client_mock = _redis(used=999)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/embed/some-key/generated/abc_video.mp4")
+
+        assert response.status_code == 404
+        client_mock.count_in_window.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "token",
+        [
+            f"{int(datetime.now(UTC).timestamp()) + 3600}.{'ab' * 32}",
+            f"0{media_token('some-key', 'abc_video.mp4', now=datetime.now(UTC))}",
+            media_token("some-key", "another_video.mp4", now=datetime.now(UTC)),
+        ],
+        ids=["forged", "zero-padded", "another-file"],
+    )
+    async def test_a_generated_media_link_that_does_not_open_is_not_counted(
+        self, mock_redis: MagicMock, token: str
+    ):
+        """Only a real link spends a counter: anything else is the route's 404, so a
+        caller sending garbage creates no Redis key and learns nothing (#2395)."""
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        client_mock = _redis(used=999)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                f"/api/v1/embed/some-key/generated/abc_video.mp4?token={token}"
+            )
+
+        assert response.status_code == 404
+        client_mock.count_in_window.assert_not_awaited()
+
     async def test_the_widget_script_is_gated_too(self, mock_redis: MagicMock):
         """ "Static script" is what it looks like from outside. From in here it is
         a row read per request, and a five-minute cache is a browser's courtesy
@@ -207,7 +315,14 @@ class TestTheWidgetsAdmission:
         assert response.status_code == 429
 
     @pytest.mark.parametrize(
-        "path", ["some-key/config", "some-key/hosted", "some-key/logo", "some-key/widget.js"]
+        "path",
+        [
+            "some-key/config",
+            "some-key/hosted",
+            "some-key/logo",
+            "some-key/widget.js",
+            "some-key/voice.js",
+        ],
     )
     async def test_every_refusal_here_is_the_envelope_the_rest_of_the_api_answers(
         self, mock_redis: MagicMock, path: str

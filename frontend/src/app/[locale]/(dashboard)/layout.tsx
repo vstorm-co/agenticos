@@ -1,8 +1,12 @@
+import { Suspense } from "react";
+
 import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
 import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
+import { AccountLocale } from "@/components/layout/account-locale";
+import { AccountTimeZone } from "@/components/layout/account-time-zone";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
 import { OnScreenKeyboard } from "@/components/layout/on-screen-keyboard";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -10,6 +14,7 @@ import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
+import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
@@ -21,8 +26,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           empties every permission-gated destination at once, so the recovery
           lives beside the navigation it would otherwise silently strip. */}
       <ActiveOrgGuard />
+      {/* The language the account chose, here or on another device or by asking an agent. */}
+      <AccountLocale />
+      <AccountTimeZone />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
+      {/* It reads the search params, which a prerendered page only has in the browser. */}
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
       {/* Which custom brand marks the deployment ships - fetched once here so
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>

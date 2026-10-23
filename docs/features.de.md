@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1db9e6554c"
+source_sha: "fc38ba431992"
 ---
 
 # Funktionen { #features }
@@ -96,7 +96,7 @@ sagen.
 | **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe und was auch immer an diese Unterhaltung angehängt wurde | Knowledge search · Skills · Context |
 | **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory · Memory (mem0) · Past conversations |
 | **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Read web pages · Web browser |
-| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen | Calculations · Sandbox · Charts · Image generation |
+| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen, einen Text vorlesen oder einen kurzen Clip machen | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Long conversations |
 | **Innerhalb der Linien bleiben** — schwärzen oder blockieren, was nicht durch darf, begrenzen, was ein Tool zurückgeben darf, wissen, welches Datum heute ist | Guardrails · Tool output limits · Date and time |
 
@@ -107,7 +107,7 @@ Plattform.
 
 [Jede Capability, ihre Tools und ihre Konfiguration →](reference/capabilities.md)
 
-## Jedes Modell, von 27 Providern { #any-model-from-27-providers }
+## Jedes Modell, von 28 Providern { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, ein Ollama auf Ihrer
 eigenen Hardware, ein LiteLLM-Proxy vor allem zusammen.
@@ -181,7 +181,19 @@ Einmal veröffentlichen. Derselbe Runner antwortet auf all diesen:
 - **Slack**, **Telegram** und **Mattermost**, wo eine `@mention` als die Person
   läuft, die sie geschickt hat — nicht als der Bot
 
-[Oberflächen →](channels.md)
+Spracherkennung läuft auch hier über den eigenen Provider der Organisation:
+Diktieren im Web-Chat, auf einer gehosteten Seite und im Widget sowie
+transkribierte Sprachnachrichten in Slack, Telegram und Mattermost.
+
+**Sprachanrufe** lassen eine Person mit einem veröffentlichten Agent sprechen und
+ihn unterbrechen, im Web-Chat, auf einer gehosteten Seite oder im Widget. Der
+Agent behält seine Tools, sein Wissen, seine Freigaben und Budgets, jede Runde
+wird als Text in der Unterhaltung gespeichert, und kein Audio wird gespeichert.
+Anrufe sind aus, bis eine Organisation sie einschaltet, und haben eigene Limits
+für Dauer und monatliche Minuten. Die Realtime-Modelle von OpenAI sind live
+getestet; Azure OpenAI, Gemini Live und xAI sind noch nicht live verifiziert.
+
+[Oberflächen →](channels.md) · [Sprachgespräche →](voice.md)
 
 ## Budgets, die einen Run wirklich stoppen { #budgets-that-actually-stop-a-run }
 

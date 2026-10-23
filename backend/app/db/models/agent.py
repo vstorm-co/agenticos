@@ -16,6 +16,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     ForeignKey,
     Index,
@@ -122,6 +123,17 @@ class Agent(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+    a2a_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    """Whether other systems may reach this agent over the A2A protocol (#2092).
+
+    Off until somebody who may publish it turns it on: the agent card is served
+    without a session, so turning it on is what makes its name and description
+    discoverable. A caller still needs an organization key or OAuth grant
+    allowed to run it - every task is an ordinary run.
+    """
 
     # Declared here as well as in the migration: a schema built from the models
     # - which is what the integration tests and some dev setups do - would

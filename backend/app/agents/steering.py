@@ -12,8 +12,6 @@ It stays unapplied, and the surface sends it as an ordinary message once the tur
 is over rather than losing it.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING

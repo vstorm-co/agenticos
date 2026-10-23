@@ -13,10 +13,8 @@ the sender, and then the one that mattered is filtered too.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
-from prefect import flow
-from prefect.context import FlowRunContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -24,11 +22,12 @@ from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import organization as organization_repo
 from app.services.notifications import NotificationService, ReportPeriod
+from app.worker.jobs import Tick
 
 logger = logging.getLogger(__name__)
 
 
-async def _run_reports(period: ReportPeriod) -> dict[str, int]:
+async def _run_reports(period: ReportPeriod, scheduled_for: datetime) -> dict[str, int]:
     """Send one period's reports: one per organization, plus any per agent.
 
     Two levels because they answer different questions. An owner wants the
@@ -41,32 +40,17 @@ async def _run_reports(period: ReportPeriod) -> dict[str, int]:
     `window_start` is captured once, here, rather than read fresh inside each
     `NotificationService` call: the occurrence id a retried report is
     deduplicated on is `(subject, period, window_start)` (Decision 1), so a
-    flow restarted after a partial failure must compute the *same* window on
+    report retried after a partial failure must compute the *same* window on
     its second attempt or the dedup constraint has nothing to catch - every
-    organization already notified once would be notified again. Rounded to
-    midnight UTC for exactly that reason: a plain `datetime.now(UTC)` differs
-    by however many seconds a retry took to fire, which is enough to change
-    the occurrence id and defeat the dedup it exists for. A weekly or monthly
-    digest loses nothing readers would notice from being dated to the day
-    rather than the second.
+    organization already notified once would be notified again.
 
-    Rounding alone still misses one case: a retry that itself straddles
-    midnight (the first attempt at 23:59:58, the retry at 00:00:02) rounds to
-    two different days on wall-clock time alone. `FlowRunContext.flow_run
-    .expected_start_time` is Prefect's own scheduled time for this run, fixed
-    when the run was scheduled and identical across every attempt of it -
-    reading it instead closes that gap. Outside a real flow run (every test
-    here, which calls this directly) `FlowRunContext.get()` is `None`, and
-    wall-clock time is the only answer there is.
+    So it comes from `scheduled_for`, the occurrence the schedule fired the job
+    for, which the job carries and every attempt of it reads the same - never
+    from the clock, which a retry that straddles midnight would read as the
+    next day. Rounded to midnight UTC: a weekly or monthly digest loses nothing
+    readers would notice from being dated to the day rather than the second.
     """
-    flow_run_context = FlowRunContext.get()
-    expected_start_time = (
-        flow_run_context.flow_run.expected_start_time
-        if flow_run_context is not None and flow_run_context.flow_run is not None
-        else None
-    )
-    base_time = expected_start_time if expected_start_time is not None else datetime.now(UTC)
-    window_start = base_time.replace(hour=0, minute=0, second=0, microsecond=0)
+    window_start = scheduled_for.replace(hour=0, minute=0, second=0, microsecond=0)
     async with get_db_context() as db:
         organizations = await organization_repo.list_all(db)
         notifications = NotificationService(db)
@@ -131,13 +115,11 @@ async def _run_agent_reports(
     return reported
 
 
-@flow(name="weekly-usage-report")
-async def weekly_usage_report_flow() -> dict[str, int]:
+async def weekly_usage_report(tick: Tick) -> dict[str, int]:
     """The last seven days, per organization."""
-    return await _run_reports("weekly")
+    return await _run_reports("weekly", tick.scheduled_for)
 
 
-@flow(name="monthly-usage-report")
-async def monthly_usage_report_flow() -> dict[str, int]:
+async def monthly_usage_report(tick: Tick) -> dict[str, int]:
     """The last thirty days, per organization."""
-    return await _run_reports("monthly")
+    return await _run_reports("monthly", tick.scheduled_for)

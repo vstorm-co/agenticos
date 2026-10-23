@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parsePlan, planProgress, progressOf } from "./plan-state";
+import { dockedPlan, parsePlan, planProgress, progressOf } from "./plan-state";
 import type { ChatMessage, ToolCall } from "@/types";
 
 /**
@@ -300,5 +300,30 @@ describe("the plan a conversation now stands at", () => {
 describe("what a checklist adds up to", () => {
   it("has nothing to divide by for an empty one", () => {
     expect(progressOf([])).toMatchObject({ percent: 0, finished: false, active: null });
+  });
+});
+
+describe("the plan on the dock", () => {
+  // From the conversation that found it (#2301): written and finished in one
+  // turn, then "Every step is done" over every message after it.
+  const done = call({ result: "1. [x] Read the diff\n2. [x] Push it\n(2/2 completed)" });
+  const open = call({ result: "1. [x] Read the diff\n2. [ ] Push it\n(1/2 completed)" });
+
+  it("stays while the turn that finished it is still being written", () => {
+    expect(dockedPlan([{ ...turn(done), isStreaming: true }])?.finished).toBe(true);
+  });
+
+  it("goes once that turn has ended", () => {
+    expect(dockedPlan([turn(done)])).toBeNull();
+    const later = { ...turn(), id: "m2", isStreaming: true };
+    expect(dockedPlan([turn(done), later])).toBeNull();
+  });
+
+  it("keeps a plan with steps still to do from turn to turn", () => {
+    expect(dockedPlan([turn(open), { ...turn(), id: "m2" }])?.finished).toBe(false);
+  });
+
+  it("is nothing without a plan", () => {
+    expect(dockedPlan([turn()])).toBeNull();
   });
 });

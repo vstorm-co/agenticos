@@ -1,12 +1,14 @@
 import type { SVGProps } from "react";
+import { Globe, Plug } from "lucide-react";
 
 import { GlyphIcon } from "@/components/icons/glyph";
 import { BRAND_GLYPHS, type BrandName } from "@/lib/brand-glyphs.generated";
 
 /** Brand glyphs from the maintained icon sets, checked in by
  *  `scripts/gen-brand-icons.ts` - never hand-authored SVG paths, so the marks
- *  stay correct and recognizable. Monochrome (currentColor) so they inherit the
- *  surrounding text color. A mark this set lacks is added to the generator's
+ *  stay correct and recognizable. In the brand's own colours, with any black
+ *  part in the text colour so it shows on both themes; `mono` draws the whole
+ *  mark in the text colour. A mark this set lacks is added to the generator's
  *  table and fetched, not written out here. */
 
 export type { BrandName };
@@ -55,9 +57,10 @@ const CONNECTOR_BRANDS: Record<string, BrandName> = {
   gdrive: "gdrive",
   drive: "gdrive",
   github: "github",
-  // A repository on any host - GitHub is the mark most of them will be.
-  git: "github",
-  sharepoint: "microsoft",
+  // A repository on any host, so Git's own mark rather than one host's.
+  git: "git",
+  sharepoint: "sharepoint",
+  onedrive: "onedrive",
   notion: "notion",
   slack: "slack",
   dropbox: "dropbox",
@@ -68,6 +71,26 @@ const CONNECTOR_BRANDS: Record<string, BrandName> = {
 /** The brand mark for a connector type, or `undefined` when it has none. */
 export function connectorBrand(connectorType: string): BrandName | undefined {
   return CONNECTOR_BRANDS[connectorType];
+}
+
+/**
+ * A sync source's mark: its product's where it has one, a globe for a website,
+ * a plug for anything else. One component, because the four places that list
+ * connectors had three different fallbacks between them - a website showed as a
+ * database in one and a plug in another.
+ */
+export function ConnectorIcon({
+  type,
+  className,
+}: {
+  /** The connector type, as the backend spells it. */
+  type: string;
+  className?: string;
+}) {
+  const brand = connectorBrand(type);
+  if (brand !== undefined) return <BrandIcon name={brand} className={className} />;
+  const Fallback = type === "web" ? Globe : Plug;
+  return <Fallback className={className} aria-hidden />;
 }
 
 /** Whether a catalog's icon name is one this set actually draws. */

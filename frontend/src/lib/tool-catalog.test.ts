@@ -40,9 +40,20 @@ describe("the tool catalog", () => {
       "create_chart",
       "edit_file",
       "generate_image",
+      "generate_speech",
+      "generate_video",
+      "run_coding_agent",
       "run_python",
       "write_file",
     ]);
+  });
+
+  it("names the step a call hands to the agent's text model", () => {
+    // No capability registers `hand_off`; a call adds it (#54).
+    expect(toolEntry("hand_off")).toMatchObject({
+      captionKey: "workingInText",
+      displayNameKey: "workedInText",
+    });
   });
 
   it("answers for a tool it has never heard of rather than throwing", () => {

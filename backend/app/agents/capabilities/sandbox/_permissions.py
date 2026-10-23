@@ -34,8 +34,6 @@ is set anyway, as the backstop for an `"ask"` arriving from somewhere this
 module did not put it.
 """
 
-from __future__ import annotations
-
 from pydantic_ai_backends.permissions import (
     SECRETS_PATTERNS,
     SYSTEM_PATTERNS,

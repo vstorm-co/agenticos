@@ -1,5 +1,5 @@
 ---
-source_sha: "3409285bde3b"
+source_sha: "9025a904cc03"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -58,6 +58,29 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
     la plataforma se rompe y no como una dirección que corregir
     ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — auto-alojar y
     pegar una URL de `localhost` es el caso ordinario, no el exótico.
+
+    Un operador puede dejar que una conexión alcance un servidor de la propia
+    red del despliegue, como un servicio de compose o un servidor en una VPN o
+    una tailnet. Para ello, lista su host en
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Un host de la
+    lista solo se salta la comprobación de dirección. La URL sigue necesitando
+    `http` o `https`.
+
+    También se puede iniciar sesión con OAuth en un servidor de la lista. Un
+    servidor así suele llevar su propio inicio de sesión, así que su
+    descubrimiento, el registro del cliente y las peticiones de token pueden
+    alcanzar los hosts de la lista, y ninguna otra dirección privada. Cada
+    petición sigue fijada a la dirección que se comprobó, y un nombre de la
+    lista que responda con una dirección de loopback, link-local o de metadatos
+    de la nube se rechaza. El inicio de sesión de un servidor público nunca
+    alcanza un host de la lista, aunque sus metadatos lo nombren.
+
+    Toda cuenta del despliegue puede entonces alcanzar cualquier puerto de ese
+    host. Así que lista solo un servidor que compruebe un token, y nunca
+    `localhost` ni un servicio de este stack, como `app`, `db` o `redis`. La
+    lista se lee al guardar una conexión y en cada inicio de sesión y
+    renovación de token. Quitar un host no desconecta una conexión guardada,
+    pero una conexión OAuth a él deja de renovar su token.
 
 ### Personal o de toda la organización { #personal-or-organization-wide }
 
@@ -177,7 +200,9 @@ La propia plantilla del Architect pide `writes` para el servidor
 de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa. La
 vinculación de cualquier agent a ese servidor queda en al menos `writes`, también
 con `none`: sus herramientas actúan con la autoridad de quien pregunta, la de un
-Admin incluida.
+Admin incluida. Una lectura espera como un cambio: `read_conversation`, que entrega
+al modelo una conversación pasada entera - una página que el agent leyó podría si
+no hacer que la pida y la envíe fuera.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
@@ -386,7 +411,10 @@ Quedan dos bordes, ambos estrechos y ambos deliberados:
   alguien, que la resuelve por su cuenta. No hay nada que fijar.
 - La **URL propia de la conexión** se comprueba al guardar y se resuelve otra vez
   cuando un agent se ejecuta — la escribe un operador, así que volver a apuntarla
-  significa ser el operador.
+  significa ser el operador. Un host de `MCP_ALLOWED_HOSTS` se salta la
+  comprobación de dirección, y las peticiones OAuth de una conexión cuyo propio
+  host está en la lista pueden alcanzar los hosts de la lista, fijadas como
+  cualquier otro paso.
 
 Nada que elija un *modelo* llega a esta comprobación, y nada debería: una URL
 elegida por un agent quiere el `safe_download` de Pydantic AI.
@@ -485,8 +513,11 @@ bearer token sigue funcionando hasta que llega el nuevo consentimiento.
 
 ## Qué pasa en un turno { #what-happens-on-a-turn }
 
-Cada servidor se sondea con una ida y vuelta corta de `tools/list` — 3 segundos —
-antes de que empiece el turno, y los sondeos corren a la vez. Un servidor que
+Cada servidor se sondea con un intercambio corto de `tools/list` antes de que
+empiece el turno, y los sondeos corren a la vez. Un servidor tiene 3 segundos para
+aceptar la conexión y 10 segundos para todo el intercambio, porque uno que
+comprueba el token de cada petición en su proveedor de identidad es lento sin
+estar caído. Un servidor que
 respondió a su sondeo en los últimos dos minutos, con la misma credencial, no se
 vuelve a sondear: el siguiente turno de la conversación lo conecta directamente. Si
 ha caído entretanto, ese turno sigue sin sus herramientas y el siguiente lo sondea
@@ -506,9 +537,13 @@ siendo dos herramientas. Al servidor se le sigue llamando por su nombre real.
     conexión tumbaría todos los agents que la nombran, incluidos los que nunca la
     necesitaron.
 
-    El modelo responde entonces **sin** esas herramientas — lo correcto para un
-    turno de chat, lo incorrecto si dabas por hecho que una herramienta siempre
-    estaba ahí.
+    El modelo responde entonces **sin** esas herramientas, y lo sabe: las
+    instrucciones del turno nombran el servidor, dicen que no respondió o rechazó
+    la conexión, y piden al modelo que diga que no se pudo contactar en vez de
+    informar de un resultado vacío. Vale también para un servidor que respondió
+    hace un momento y falla cuando el turno se conecta. Lo correcto para un turno
+    de chat, lo incorrecto si dabas por hecho que una herramienta siempre estaba
+    ahí.
 
 Es un intercambio deliberado. El endpoint `/test` y `last_status` son cómo te
 enteras, y el [rastro de auditoría](governance.md#audit) registra lo que se
@@ -998,24 +1033,73 @@ permiso que faltaba.
 | Herramienta | Necesita |
 |---|---|
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
-| `create_agent_draft` | `agents:edit` |
+| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `publish_agent` | `agents:publish` sobre ese agent |
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
-| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_routines` | `agents:view` |
+| `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
+| `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
+| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
+| `create_skill` | `skills:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
+| `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
 
-A propósito no hay: publicar un agent, tocar credenciales ni borrar nada salvo
-un borrador de agent que quien llama creó y nunca publicó: deshacer un borrador
-creado por error. Un borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
+Aquí se puede construir un agent de principio a fin: esbozarlo, editarlo, probarlo
+como borrador sin publicar con `test_agent_draft` - un run de prueba, con
+presupuesto y registrado, rechazado con el motivo cuando el borrador no se
+publicaría - y publicarlo con `publish_agent`, que hace las mismas comprobaciones
+que el botón **Publish** de la consola. El `cron_expression` de una rutina se
+evalúa en UTC. `set_my_language` cambia el idioma de la consola de quien llama
+(`en`, `pl` o `de`) en cada dispositivo en el que inicia sesión, y
+`set_my_profile` guarda su rol y en qué trabaja, lo que desde entonces se le dice
+a cada agent.
+
+`create_skill` guarda como [skill](skills.md) un procedimiento que funcionó,
+para «haz un skill de esto».
+
+A propósito no hay: tocar credenciales ni borrar nada salvo un borrador de agent
+que quien llama creó y nunca publicó - deshacer un borrador creado por error - o
+una rutina. Las aplicaciones conectadas
 aparecen en **Settings → MCP clients**, donde desconectar una termina su acceso y
 el de cada token que tiene. Las llamadas que cambian
 algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
+
+### Dárselo a un agent { #giving-it-to-an-agent }
+
+El mismo servidor es también un enlace MCP que cualquier agent puede tener, así que
+un agent responde a «qué falló ayer» o «qué agents usan esta base de conocimiento»
+con los propios registros de la plataforma. En el Builder es la primera tarjeta de
+**Servidores MCP**, con el nombre de este despliegue; activarla lo enlaza como
+`mcp_servers: [{account: platform, approval: writes}]`.
+
+- **Actúa como la persona para la que corre el agent.** Un run crea una credencial
+  de corta duración con los permisos de esa persona, así que el agent de un Viewer
+  lee lo que el Viewer puede leer y no crea nada. No se concede nada nuevo, y donde
+  nadie está detrás del run - un widget público, una programación que no actúa por
+  nadie - el enlace no está.
+- **Los cambios esperan aprobación.** `writes`, el valor predeterminado, retiene
+  cada herramienta que cambia algo (`create_agent_draft`, `publish_agent`,
+  `create_routine`, `run_agent`, `invite_member` y las demás) hasta que la persona
+  la apruebe; `all` retiene también la lectura. `none` no se ofrece: estas
+  herramientas actúan con la autoridad de una persona. La única escritura que nunca
+  espera es `set_my_language`: cambia el idioma de la consola de quien pregunta,
+  por su palabra, y una tarjeta de aprobación para «cambia a inglés» sería toda la
+  conversación. `set_my_profile` espera como las demás, porque lo que guarda se le
+  dice a cada agente que la persona ejecuta, y una página que un agente leyó no
+  debe poder escribirlo sin que se vea.
+- **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
+  cada herramienta y marcan las que cambian algo.
+
+La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
+de modo que un agent consulta la plataforma desde el principio - y configura una
+rutina o cambia el idioma de la consola cuando se lo piden.
 
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 

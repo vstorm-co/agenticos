@@ -10,8 +10,6 @@ verifier: an organization API key and an OAuth access token are both `aos_`
 keys, so `load_access_token` admits either.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable
 from datetime import datetime
 from urllib.parse import urlsplit

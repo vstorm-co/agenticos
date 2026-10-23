@@ -19,6 +19,7 @@ from app.repositories import invitation_repo, member_repo, organization_repo, us
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.invitation_admission import admits_anyone
+from app.services.proactive import ProactiveService
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +292,7 @@ class InvitationService:
             user_id=accepting_user_id,
             role=invite.role,
         )
+        await ProactiveService(self.db).queue_welcome(invite.organization_id, accepting_user_id)
         if invite.email is None:
             # A link stays open for the next person; an email invitation is
             # spent. Marking a link accepted on its first use would make it a

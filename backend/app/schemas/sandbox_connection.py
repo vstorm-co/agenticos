@@ -5,8 +5,6 @@ under its own permission check, which is the only shape a token that can run
 commands on a host may take in a response.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Literal
 from uuid import UUID

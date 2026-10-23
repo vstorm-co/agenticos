@@ -12,7 +12,7 @@ Put AI agents to work on your team's tasks. Build agents in your browser, connec
 <a href="https://github.com/vstorm-co/agenticos/actions"><img src="https://img.shields.io/github/actions/workflow/status/vstorm-co/agenticos/ci.yml?branch=main&label=tests" alt="Tests"></a>
 <a href="https://github.com/vstorm-co/agenticos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Licence"></a>
 <a href="https://github.com/vstorm-co/agenticos"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat" alt="Stars"></a>
-<img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+<img src="https://img.shields.io/badge/python-3.15-blue" alt="Python 3.15">
 </p>
 
 <p class="agenticos-hero__links" markdown>
@@ -132,7 +132,7 @@ instead.
 Docker and Docker Compose. That is the whole list — Postgres (with pgvector),
 Redis, the API, the worker and the console all come up together.
 
-Running the services by hand instead? Python 3.12, Node with
+Running the services by hand instead? Python 3.15, Node with
 [bun](https://bun.sh), PostgreSQL 16 with
 [pgvector](https://github.com/pgvector/pgvector), and Redis.
 
@@ -214,7 +214,7 @@ live stays readable, so *what did this agent look like in March* has an answer.
 ## Check it
 
 Publish it and it runs the same way in every surface: the console's chat, a
-hosted page, an embedded widget, the HTTP API, Slack, Telegram, Mattermost.
+hosted page, an embedded widget, the HTTP API, Slack, Teams, Telegram, Mattermost.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
@@ -234,11 +234,11 @@ came from.
 | **Agents** | Built in a UI, versioned on publish, exportable as YAML into your own git repository |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, web search and fetch, a real browser, Python, a sandbox with files and a shell, charts, images, delegation, planning, guardrails — switched on per agent |
 | **[Integrations](mcp.md)** | Compatible MCP servers, with 59 common ones in the picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
-| **[Models](models.md)** | 27 providers, per-organization keys, fallbacks, and self-hosted Ollama or a LiteLLM proxy |
+| **[Models](models.md)** | 28 providers, per-organization keys, fallbacks, and self-hosted Ollama or a LiteLLM proxy |
 | **[Knowledge](file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description — per collection, overridable per upload. Google Drive and S3 sync |
 | **[Skills](skills.md)** | Written know-how the agent loads only when it decides it is relevant |
 | **[Governance](governance.md)** | Monthly budgets, human approval, an audit trail, per-agent alerts |
-| **[Surfaces](channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Telegram, Mattermost — one runner behind all of them |
+| **[Surfaces](channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Teams, Telegram, Mattermost — one runner behind all of them |
 | **[Secrets](secrets.md)** | Sealed per organization. No response, log line or audit entry ever carries a plaintext key |
 
 [The full list of features →](features.md)
@@ -287,8 +287,8 @@ came from.
 ## Stack
 
 FastAPI and Pydantic v2 on PostgreSQL, [Pydantic AI](https://ai.pydantic.dev) for
-the agent runtime, pgvector for retrieval, Prefect for background work, and
-Next.js 15 for the console.
+the agent runtime, pgvector for retrieval, a job queue in the same PostgreSQL for
+background work, and Next.js 15 for the console.
 
 External destinations depend on model, parser, embedding, tool, channel, sandbox and tracing configuration. Review the [data-flow statement](security.md).
 

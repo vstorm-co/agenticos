@@ -43,8 +43,8 @@ class ConversationFavourite(Base, TimestampMixin):
         index=True,
     )
 
-    user: Mapped["User"] = relationship("User", foreign_keys="ConversationFavourite.user_id")
-    conversation: Mapped["Conversation"] = relationship(
+    user: Mapped[User] = relationship("User", foreign_keys="ConversationFavourite.user_id")
+    conversation: Mapped[Conversation] = relationship(
         "Conversation", foreign_keys="ConversationFavourite.conversation_id"
     )
 

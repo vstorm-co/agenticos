@@ -1,7 +1,5 @@
 """Rendering charts for the user."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 from pydantic_ai.capabilities import AbstractCapability

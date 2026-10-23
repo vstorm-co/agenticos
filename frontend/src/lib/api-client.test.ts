@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, apiClient } from "./api-client";
+import { CONSOLE_TAB, CONSOLE_TAB_HEADER } from "./console-tab";
 import { useAuthStore, useOrgStore } from "@/stores";
 
 /**
@@ -460,5 +461,200 @@ describe("uploading", () => {
 
     const names = (init().body as FormData).getAll("files").map((entry) => (entry as File).name);
     expect(names).toEqual(["references/x.md", "examples/x.md"]);
+  });
+});
+
+/**
+ * An `XMLHttpRequest` that answers when told to: each request takes the next
+ * answer queued in `FakeXhr.answers` the moment it is sent.
+ */
+class FakeXhr {
+  static instances: FakeXhr[] = [];
+  static answers: ((xhr: FakeXhr) => void)[] = [];
+
+  method = "";
+  url = "";
+  headers: Record<string, string> = {};
+  body: unknown = undefined;
+  status = 0;
+  statusText = "";
+  responseText = "";
+  responseHeaders = "";
+  upload: { onprogress: ((event: ProgressEvent) => void) | null; onload: (() => void) | null } = {
+    onprogress: null,
+    onload: null,
+  };
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+
+  constructor() {
+    FakeXhr.instances.push(this);
+  }
+
+  open(method: string, url: string): void {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader(name: string, value: string): void {
+    this.headers[name] = value;
+  }
+
+  send(body: unknown): void {
+    this.body = body;
+    FakeXhr.answers.shift()?.(this);
+  }
+
+  abort(): void {
+    this.onabort?.();
+  }
+
+  getAllResponseHeaders(): string {
+    return this.responseHeaders;
+  }
+
+  progress(loaded: number, total: number, lengthComputable = true): void {
+    this.upload.onprogress?.({ loaded, total, lengthComputable } as ProgressEvent);
+  }
+
+  respond(status: number, body: unknown = { ok: true }): void {
+    this.upload.onload?.();
+    this.status = status;
+    this.statusText = status === 200 ? "OK" : "Refused";
+    this.responseText = body === null ? "" : JSON.stringify(body);
+    this.responseHeaders = "content-type: application/json\r\nx-request-id: r1\r\n";
+    this.onload?.();
+  }
+}
+
+describe("uploading with progress", () => {
+  beforeEach(() => {
+    FakeXhr.instances = [];
+    FakeXhr.answers = [];
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+  });
+
+  it("goes by XMLHttpRequest, keeps the organization header, and reports each step", async () => {
+    useOrgStore.setState({ activeOrgId: "org-7" });
+    const steps: number[] = [];
+    FakeXhr.answers.push((xhr) => {
+      xhr.progress(0, 0);
+      xhr.progress(25, 100, false);
+      xhr.progress(40, 100);
+      xhr.respond(200, { text: "hi" });
+    });
+    const form = new FormData();
+    form.append("duration", "3");
+
+    const answer = await apiClient.upload("/agents/a1/dictation", form, {
+      onProgress: (fraction) => steps.push(fraction),
+    });
+
+    expect(answer).toEqual({ text: "hi" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    const [xhr] = FakeXhr.instances;
+    expect(xhr!.method).toBe("POST");
+    expect(xhr!.url).toBe("/api/agents/a1/dictation");
+    // The form the caller built, as it is: its other fields ride beside the file.
+    expect(xhr!.body).toBe(form);
+    expect(xhr!.headers).toEqual({
+      "x-organization-id": "org-7",
+      [CONSOLE_TAB_HEADER.toLowerCase()]: CONSOLE_TAB,
+    });
+    // Nothing for a step with no total; 1 once the last byte has left.
+    expect(steps).toEqual([0.4, 1]);
+  });
+
+  it("refreshes once on a 401 and sends the body again from the start", async () => {
+    fetchMock.mockResolvedValueOnce(ok({ access_token: "fresh" }));
+    FakeXhr.answers.push((xhr) => xhr.respond(401, {}));
+    FakeXhr.answers.push((xhr) => {
+      xhr.progress(10, 100);
+      xhr.respond(200, { id: "a1" });
+    });
+    const steps: number[] = [];
+
+    await expect(
+      apiClient.upload("/agents/a1/avatar", new File(["x"], "face.png"), {
+        onProgress: (fraction) => steps.push(fraction),
+      }),
+    ).resolves.toEqual({ id: "a1" });
+
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/auth/refresh");
+    expect(FakeXhr.instances).toHaveLength(2);
+    expect((FakeXhr.instances[1]!.body as FormData).get("file")).toBeInstanceOf(File);
+    expect(steps).toEqual([1, 0.1, 1]);
+  });
+
+  it("turns a refusal into the same ApiError a fetch would", async () => {
+    FakeXhr.answers.push((xhr) =>
+      xhr.respond(400, { error: { code: "X", message: "No", details: { reason: "empty" } } }),
+    );
+
+    const refused = apiClient.upload("/agents/a1/dictation", new FormData(), {
+      onProgress: () => {},
+    });
+
+    await expect(refused).rejects.toBeInstanceOf(ApiError);
+    await refused.catch((error: ApiError) => {
+      expect(error.status).toBe(400);
+      expect(error.details).toEqual({ reason: "empty" });
+    });
+  });
+
+  it("hands over the response's headers, and no body where a status may not have one", async () => {
+    FakeXhr.answers.push((xhr) => xhr.respond(204, null));
+
+    const response = await apiClient.raw("/things", { method: "POST", onProgress: () => {} });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("x-request-id")).toBe("r1");
+    expect(FakeXhr.instances[0]!.body).toBeNull();
+    await expect(response.text()).resolves.toBe("");
+  });
+
+  it("sends a JSON body as JSON", async () => {
+    FakeXhr.answers.push((xhr) => xhr.respond(200));
+
+    await apiClient.post("/things", { name: "x" }, { onProgress: () => {} });
+
+    expect(FakeXhr.instances[0]!.body).toBe('{"name":"x"}');
+    expect(FakeXhr.instances[0]!.headers["content-type"]).toBe("application/json");
+  });
+
+  it("fails as fetch does when the request never reached a server: a TypeError", async () => {
+    FakeXhr.answers.push((xhr) => xhr.onerror?.());
+
+    await expect(
+      apiClient.upload("/files/upload", new FormData(), { onProgress: () => {} }),
+    ).rejects.toBeInstanceOf(TypeError);
+  });
+
+  it("aborts on the signal with an AbortError, and stops listening once settled", async () => {
+    const controller = new AbortController();
+    const removed = vi.spyOn(controller.signal, "removeEventListener");
+    FakeXhr.answers.push(() => controller.abort());
+
+    const aborted = apiClient.upload("/files/upload", new FormData(), {
+      onProgress: () => {},
+      signal: controller.signal,
+    });
+
+    await expect(aborted).rejects.toMatchObject({ name: "AbortError" });
+    expect(removed).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+
+  it("sends nothing for a signal already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      apiClient.upload("/files/upload", new FormData(), {
+        onProgress: () => {},
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(FakeXhr.instances).toHaveLength(0);
   });
 });

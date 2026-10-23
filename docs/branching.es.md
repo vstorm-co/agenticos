@@ -1,5 +1,5 @@
 ---
-source_sha: "4eeacc219cad"
+source_sha: "f89434252ef2"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -331,6 +331,14 @@ Dos cosas al respecto no son obvias, y ambas costaron tiempo antes de entenderse
   `pull_request` recibe un token de solo lectura cuando lo disparó Dependabot, diga
   lo que diga su bloque `permissions`, así que no puede empujar el resultado de
   vuelta.
+
+**Dependabot no puede leer el backend mientras requiera Python 3.15.** Su job de
+uv se detiene en la línea `requires-python`, así que no abre pull requests del
+backend - el lock se mueve a mano con `make deps-upgrade` - y sus alertas
+seguirían comparando las versiones bloqueadas antes. Por eso
+`.github/workflows/dependency-graph.yml` envía el grafo por su cuenta: en cada
+push a `main` que mueve `backend/uv.lock`, `scripts/dependency_snapshot.py` lista
+cada versión bloqueada, y las alertas se abren y se cierran respecto a ellas.
 
 ## Reviews { #reviews }
 

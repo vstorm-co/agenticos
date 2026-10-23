@@ -28,8 +28,6 @@ does, and answered all of them for as long as it said nothing about who they
 named (#662).
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from datetime import UTC, datetime

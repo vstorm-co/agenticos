@@ -82,6 +82,46 @@ describe("conversationMessageToChatMessage", () => {
     expect(message.timestamp).toEqual(new Date("2026-07-31T12:00:00Z"));
   });
 
+  it("carries who typed a user turn, and nothing where nobody is named", () => {
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    expect(conversationMessageToChatMessage(raw({ role: "user", sender: anna })).sender).toEqual(
+      anna,
+    );
+    expect(conversationMessageToChatMessage(raw({ sender: null })).sender).toBeUndefined();
+    expect(conversationMessageToChatMessage(raw({ sender_gone: true })).senderGone).toBe(true);
+    expect(
+      conversationMessageToChatMessage(
+        raw({ reply_to: { message_id: "m-0", role: "user", excerpt: "x", sender: null } }),
+      ).replyTo,
+    ).toEqual({ messageId: "m-0", role: "user", excerpt: "x", sender: undefined });
+    expect(conversationMessageToChatMessage(raw({})).senderGone).toBeUndefined();
+  });
+
+  it("draws a person's mentions as the chips they picked, never as timeline blocks", () => {
+    const user = conversationMessageToChatMessage(
+      raw({
+        role: "user",
+        parts: [
+          { type: "mention", mention_kind: "mcp", mention_id: "gdrive", text: "Google Drive" },
+          { type: "mention", mention_kind: "skill", mention_id: "s-1", text: null },
+          { type: "mention", mention_kind: null, mention_id: "broken" },
+        ],
+      }),
+    );
+    expect(user.mentions).toEqual([
+      { kind: "mcp", id: "gdrive", name: "Google Drive" },
+      { kind: "skill", id: "s-1", name: "s-1" },
+    ]);
+    expect(user.parts).toBeUndefined();
+
+    const answer = conversationMessageToChatMessage(
+      raw({ parts: [{ type: "mention", mention_kind: "mcp", mention_id: "x", text: "X" }] }),
+    );
+    expect(answer.parts).toEqual([]);
+    expect(conversationMessageToChatMessage(raw()).mentions).toBeUndefined();
+  });
+
   it("renames a failed tool call to the status the UI knows", () => {
     // The backend says `failed`; every renderer in the chat branches on `error`,
     // and an unrecognised status renders as still-running forever.
@@ -360,5 +400,21 @@ describe("a stored tool call that never finished", () => {
     );
 
     expect(message.toolCalls?.map((call) => call.status)).toEqual(["awaiting_approval"]);
+  });
+});
+
+describe("a replayed turn spoken in a call (#54)", () => {
+  it("keeps its turn id and whether the caller talked over it", () => {
+    const spoken = conversationMessageToChatMessage(
+      raw({ turn_id: "c1:3:assistant", interrupted: true }),
+    );
+    expect(spoken.turnId).toBe("c1:3:assistant");
+    expect(spoken.interrupted).toBe(true);
+  });
+
+  it("marks nothing on a typed turn", () => {
+    const typed = conversationMessageToChatMessage(raw({ turn_id: null, interrupted: false }));
+    expect(typed.turnId).toBeUndefined();
+    expect(typed.interrupted).toBeUndefined();
   });
 });

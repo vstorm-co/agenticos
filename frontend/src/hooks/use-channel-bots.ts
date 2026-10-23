@@ -6,12 +6,14 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
+import { saveBlob } from "@/lib/file-access";
 import { qk } from "@/lib/query-keys";
 import type {
   ChannelBot,
   ChannelBotCreate,
   ChannelBotList,
   ChannelBotUpdate,
+  TeamsConversation,
 } from "@/types/channels";
 
 /**
@@ -98,6 +100,22 @@ export function useChannelBots(enabled: boolean) {
 }
 
 /**
+ * One bot as its edit form reads it, with what "inherit" would transcribe on.
+ *
+ * The listing leaves `inherited_speech_to_text` out - resolving it reads the
+ * version of the agent the bot serves, which a page of bots should not pay for
+ * - so the form asks for its one row. `null` until it answers.
+ */
+export function useChannelBot(botId: string | null): ChannelBot | null {
+  const { data } = useQuery({
+    queryKey: qk.channelBots.detail(botId ?? ""),
+    queryFn: () => apiClient.get<ChannelBot>(`/channels/bots/${botId}`),
+    enabled: botId !== null,
+  });
+  return data ?? null;
+}
+
+/**
  * Copy a Slack bot's app manifest to the clipboard (#2067).
  *
  * The manifest is the whole Slack app - its events, buttons, `/agent`, the
@@ -116,5 +134,31 @@ export function useCopySlackManifest() {
     },
     onSuccess: () => toast.success(t("slackManifestCopied")),
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+}
+
+/**
+ * The Teams app package for one bot (#1985): the manifest naming its Azure
+ * registration and the two icons, zipped - what an administrator uploads to the
+ * tenant's app catalog instead of writing a manifest by hand.
+ */
+export function useDownloadTeamsPackage() {
+  const tErrors = useTranslations("errors");
+  return useMutation({
+    mutationFn: async (bot: { id: string; name: string }) => {
+      const response = await apiClient.raw(`/channels/bots/${bot.id}/teams-app-package`);
+      saveBlob(await response.blob(), `${bot.name.replace(/[^\w.-]+/g, "-")}-teams-app.zip`);
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+}
+
+/** Where a trigger can post: the Teams channels and group chats the organization's bots are in. */
+export function useTeamsConversations(enabled = true) {
+  return useQuery({
+    queryKey: qk.channelBots.teamsConversations(),
+    queryFn: async () =>
+      (await apiClient.get<{ items: TeamsConversation[] }>("/channels/teams-conversations")).items,
+    enabled,
   });
 }

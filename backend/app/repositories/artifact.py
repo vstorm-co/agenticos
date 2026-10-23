@@ -17,7 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_run import AgentRun
 from app.db.models.artifact import Artifact, ArtifactFollower, ArtifactVersion
+from app.db.models.conversation import Conversation
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
 
@@ -146,6 +148,7 @@ async def list_visible(
     search: str | None = None,
     agent_id: UUID | None = None,
     only_ids: Sequence[UUID] | None = None,
+    project_id: UUID | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Artifact], int]:
@@ -157,6 +160,8 @@ async def list_visible(
         shared_with_me: Narrow to rows shared with the caller and not their own.
         agent_id: Narrow to one agent's pages, on top of the visibility rules.
         only_ids: Narrow to these rows - the pages shared with one group.
+        project_id: Narrow to the pages a run in one of this project's chats
+            published a version of, on top of the visibility rules.
     """
     where = _visible(
         organization_id=organization_id,
@@ -171,6 +176,18 @@ async def list_visible(
         where.append(Artifact.agent_id == agent_id)
     if only_ids is not None:
         where.append(Artifact.id.in_(only_ids))
+    if project_id is not None:
+        # Through the versions, not the artifact: a page is the project's when
+        # any version of it was written there, the way a chat in the project
+        # points at the version its run published.
+        where.append(
+            Artifact.id.in_(
+                select(ArtifactVersion.artifact_id)
+                .join(AgentRun, AgentRun.id == ArtifactVersion.run_id)
+                .join(Conversation, Conversation.id == AgentRun.conversation_id)
+                .where(Conversation.project_id == project_id)
+            )
+        )
     items = await db.execute(
         select(Artifact)
         .where(*where)

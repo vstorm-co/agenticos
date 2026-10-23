@@ -29,13 +29,24 @@
 # database was correctly unreachable and so was api.anthropic.com, so no agent
 # could have answered anything.
 
+# Every service's log, capped. Docker's `json-file` driver keeps a container's
+# output until the container is removed, and nothing else on the host rotates it:
+# prod held 570 MB of logs and growing when this was added (#2228). Five files of
+# 20 MB is about a day of a busy API and every line `docker compose logs` needs.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: "5"
+
 services:
-  # Runs the migrations and exits; `app` and `prefect-runner` wait for it to have
+  # Runs the migrations and exits; `app` and `worker` wait for it to have
   # completed. This is what `make prod` and `scripts/deploy.sh` used to do with
   # an `exec` after `up`, and what a bare `docker compose up -d` on this file
   # did not do at all. `docker compose logs migrate` is where a failed migration
   # says why the API never started.
   migrate:
+    logging: *logging
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     command: agenticos db upgrade
     env_file:
@@ -52,6 +63,7 @@ services:
     restart: "no"
 
   app:
+    logging: *logging
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
@@ -65,7 +77,6 @@ services:
       - ENVIRONMENT=production
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
-      - PREFECT_API_URL=http://prefect-server:4200/api
       # Empty unless the sandbox profile is up. Note what is absent from
       # this service: the Docker socket.
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
@@ -73,16 +84,20 @@ services:
     # production exactly as much as it does locally.
     #
     # --workers puts uvicorn's own `Multiprocess` supervisor at PID 1, and it is
-    # deliberately left there (#358): it pings each worker and replaces one that
-    # does not answer within `timeout_worker_healthcheck`, which covers a worker
-    # that died, hung or was stopped. What it cannot cover is a worker whose
-    # event loop is blocked, because the ping is answered by a thread
-    # (`Process.always_pong`) that keeps answering regardless - so the one
-    # stack with cover had cover against the least likely failure. The worker
-    # now judges its own loop (`app/core/watchdog.py`) and kills itself, which
-    # this supervisor already replaces twice a second. Subclassing it instead
-    # would have meant owning four upstream call sites in the one process whose
-    # job is to survive whatever killed the worker.
+    # deliberately left there (#358): it replaces a worker that died, and pings
+    # the live ones over a pipe. What the ping cannot see is a worker whose
+    # event loop is blocked, because a thread (`Process.always_pong`) answers it
+    # regardless - so the worker judges its own loop (`app/core/watchdog.py`)
+    # and kills itself, which this supervisor replaces twice a second.
+    # Subclassing it instead would have meant owning four upstream call sites
+    # in the one process whose job is to survive whatever killed the worker.
+    #
+    # That leaves the ping one job: a process that is stopped outright. Its
+    # default window of 5 seconds is shorter than a starved host takes to
+    # answer, and on prod it killed live workers and their half-started
+    # replacements 17 times in 20 minutes (#2223) - each one an import of the
+    # whole application, added to the CPU pressure that got it killed. A
+    # minute costs nothing the watchdog does not already cover.
     #
     # How many workers is a deployment's decision, not a constant: each one is a
     # *spawned* process that imports the application on its own - 460 MiB
@@ -93,7 +108,9 @@ services:
     # default; lower both together.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --workers ${UVICORN_WORKERS:-4} --ws websockets-sansio
+      --workers ${UVICORN_WORKERS:-4}
+      --timeout-worker-healthcheck ${UVICORN_WORKER_HEALTHCHECK_TIMEOUT:-60}
+      --ws websockets-sansio
     networks:
       data:
       edge:
@@ -109,12 +126,12 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    # Moved out of backend/Dockerfile, which the Prefect runner shares and could
+    # Moved out of backend/Dockerfile, which the worker shares and could
     # never answer; see docker-compose.yml for the whole reasoning, including why
     # `raise_for_status` and a 30s start_period are not what the image had. Four
     # workers import the application four times, so the grace matters more here.
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -135,6 +152,7 @@ services:
           memory: 512M
 
   db:
+    logging: *logging
     # pgvector, not stock postgres: the RAG store runs
     # `CREATE EXTENSION IF NOT EXISTS vector` when a collection is first
     # written to, and on postgres:16-alpine that fails with
@@ -146,8 +164,23 @@ services:
     # `effective_cache_size` describing what the host's page cache is likely to
     # be holding on top. `random_page_cost` and `effective_io_concurrency` say
     # the storage is an SSD, which every deployment of this now is.
+    #
+    # `max_connections` is sized to what the pools can open, not left at 100.
+    # Each API worker holds two pools of `DB_POOL_SIZE + DB_MAX_OVERFLOW` (15) -
+    # the session's and the vector store's - so the default four workers can open
+    # 120, and the background worker another 30 plus its listener and its ingest
+    # children. Past 100, Postgres refuses the connection outright with "too many
+    # clients", before any pool timeout or 503 can shed the load in order. Raise
+    # it with `UVICORN_WORKERS` or the pool settings.
+    #
+    # `pg_stat_statements` records what each statement costs, which is the only
+    # place a slow query shows up without reading logs (#2228). It has to be
+    # loaded at server start; the migration that creates the extension is
+    # `0143_pg_stat_statements`, and `doctor` says whether it is recording.
     command: >-
       postgres
+      -c max_connections=200
+      -c shared_preload_libraries=pg_stat_statements
       -c shared_buffers=512MB
       -c effective_cache_size=1536MB
       -c maintenance_work_mem=128MB
@@ -188,6 +221,7 @@ services:
           memory: 2G
 
   redis:
+    logging: *logging
     image: valkey/valkey:8-alpine
     # A cache with no ceiling is a cache that grows until the container is
     # killed, and this one holds rate-limit buckets, channel dedupe claims and
@@ -219,55 +253,17 @@ services:
           cpus: "0.5"
           memory: 512M
 
-  prefect-server:
-    # Production had no Prefect at all, which meant document ingestion,
-    # collection syncs and scheduled reports never ran: an upload was accepted
-    # and the document stayed unsearchable forever.
-    # Pinned, not `3-latest`: every deploy pulls, and the floating tag moved on
-    # 2026-09-28 to a 3.8.7 image built against SQLAlchemy 2.1, whose scheduler
-    # creates no runs (PrefectHQ/prefect#23199) - every heartbeat in
-    # app/worker/prefect_app.py stopped while the API still answered healthy.
-    # Bump deliberately, and check the image's SQLAlchemy is below 2.1 until
-    # that issue is closed.
-    image: prefecthq/prefect:3.8.8-python3.12
-    command: prefect server start --host 0.0.0.0
-    volumes:
-      # Where Prefect 3 keeps its SQLite database ($PREFECT_HOME). The volume used
-      # to sit on /root/.local/share/prefect/, which nothing writes, so every
-      # recreate of this container dropped the deployments, the run history and
-      # every queued run, and the scheduler had nothing until the runner restarted.
-      - prefect_data:/root/.prefect/
-    environment:
-      - PREFECT_API_URL=http://prefect-server:4200/api
-      # Empty unless the sandbox profile is up. Note what is absent from
-      # this service: the Docker socket.
-      - PREFECT_SERVER_API_HOST=0.0.0.0
-    # No published port: the UI is reached through the reverse proxy or an SSH
-    # tunnel, not from the internet.
-    networks:
-      - data
-      - edge
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-    # It had none, which on a host without swap makes it the service that takes
-    # the others down: its SQLite state and its API are small, but nothing was
-    # stopping it from growing into whatever the machine had.
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 768M
-
-  prefect-runner:
+  # The background worker: ingestion, syncs, fired triggers, cleanups and the
+  # scheduled sweeps, claimed from the queue in Postgres (#2219). It replaced a
+  # Prefect server and runner whose process-per-run model is what starved this
+  # host on 2026-10-18 - one long-lived process now, importing the application
+  # once.
+  worker:
+    logging: *logging
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     volumes:
       - media_data:/app/media
-    command: python -m app.worker.prefect_app
+    command: python -m app.worker
     env_file:
       - ./backend/.env
     environment:
@@ -275,49 +271,49 @@ services:
       - ENVIRONMENT=production
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
-      - PREFECT_API_URL=http://prefect-server:4200/api
-      # The runner's own health endpoint, started by app/worker/prefect_app.py.
-      # Bound to the loopback because the same webserver serves `/shutdown`; see
-      # docker-compose.yml.
-      - PREFECT_RUNNER_SERVER_HOST=127.0.0.1
-      - PREFECT_RUNNER_SERVER_PORT=8080
-      # Empty unless the sandbox profile is up. Note what is absent from
-      # this service: the Docker socket.
+      # One ingest child by default here: with its limit below, that is the
+      # worker (~450 MiB) plus one parse of up to WORKER_INGEST_MEMORY_MB, inside
+      # the container's own ceiling - so the watchdog stops a runaway parse, and
+      # says so, before the kernel kills anything. Raise both together.
+      - WORKER_INGEST_CHILDREN=${WORKER_INGEST_CHILDREN:-1}
     # Egress too: ingestion calls an embedding provider.
     networks:
       - data
       - edge
     depends_on:
-      prefect-server:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      app:
-        condition: service_started
-    # 503 once the runner has missed two polls; the start_period covers the
-    # application import and the first poll. See docker-compose.yml.
+      redis:
+        condition: service_healthy
+    # Touched after every heartbeat that reached the database. See
+    # docker-compose.yml.
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8080/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(time.time() - os.stat(os.environ.get('WORKER_HEALTH_FILE', '/tmp/agenticos-worker-alive')).st_mtime > 90)"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 90s
+    stop_grace_period: 45s
     restart: unless-stopped
     deploy:
       resources:
         limits:
           cpus: "2"
-          # 241 MiB measured at rest; the headroom is for a parse of a large
-          # document, which is the one thing here that allocates in bursts.
-          memory: 1536M
+          memory: ${WORKER_MEMORY_LIMIT:-2560M}
 
   # The only service holding the Docker socket. See docker-compose.yml for the
   # reasoning; the differences here are that it is not on by default (mounting
   # the socket on a shared host is a deliberate act) and that the image tag is
   # pinned rather than tracking a minor.
   sandboxd:
+    logging: *logging
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]
+    # Without an init the server is PID 1, and Python reaps only the children it
+    # waits on: anything orphaned under it stays a zombie for the container's
+    # lifetime, and production once showed more than 600. docker-init reaps
+    # them, as it already does in every sandbox this service starts.
+    init: true
     # The token comes from the same file every other secret in this stack comes
     # from, rather than through compose interpolation. Interpolation reads the
     # project root, not `backend/.env`, so a token generated where the
@@ -361,7 +357,7 @@ services:
       # `prewarm` rebuilds what it names as the service starts rather than inside
       # somebody's first request - which is minutes on a cold cache, and the
       # reason this deployment ships one runtime rather than eight.
-      SANDBOXD_RUNTIMES: '{"workbench":{"description":"Python, Node and LibreOffice - documents, data, charts and code","runtime":{"name":"workbench","base_image":"python:3.12-slim","description":"Python, Node and LibreOffice - documents, data, charts and code","setup_commands":["apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils poppler-utils libreoffice-writer libreoffice-calc libreoffice-impress unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*","arch=\"$$(dpkg --print-architecture)\"; case \"$$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $$arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-$${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx && npm cache clean --force","curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"],"packages":["liteparse","pypdf","python-docx","openpyxl","python-pptx","pillow","pandas","duckdb","matplotlib","httpx","requests","beautifulsoup4","lxml","markdownify","pyyaml","tabulate","reportlab"],"env_vars":{"PYTHONUNBUFFERED":"1","PYTHONDONTWRITEBYTECODE":"1","PYTHONUTF8":"1","MPLBACKEND":"Agg","PIP_DISABLE_PIP_VERSION_CHECK":"1"}},"mem_limit":"2g","network_mode":"bridge"}}'
+      SANDBOXD_RUNTIMES: '{"workbench":{"description":"Python, Node and LibreOffice - documents, data, charts and code","runtime":{"name":"workbench","base_image":"python:3.12-slim","description":"Python, Node and LibreOffice - documents, data, charts and code","setup_commands":["apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils poppler-utils libreoffice-writer libreoffice-calc libreoffice-impress unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*","arch=\"$$(dpkg --print-architecture)\"; case \"$$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $$arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-$${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx @anthropic-ai/claude-code@2.1.288 @openai/codex@0.160.0 && npm cache clean --force","curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"],"packages":["liteparse","pypdf","python-docx","openpyxl","python-pptx","pillow","pandas","duckdb","matplotlib","httpx","requests","beautifulsoup4","lxml","markdownify","pyyaml","tabulate","reportlab"],"env_vars":{"PYTHONUNBUFFERED":"1","PYTHONDONTWRITEBYTECODE":"1","PYTHONUTF8":"1","MPLBACKEND":"Agg","PIP_DISABLE_PIP_VERSION_CHECK":"1"}},"mem_limit":"2g","network_mode":"bridge"}}'
       # An escape starts from whoever the container runs as, and the default is
       # root. The image is built around this uid - a home directory and a
       # virtualenv it owns, without which an agent's `pip install` fails - so it
@@ -413,4 +409,3 @@ networks:
 volumes:
   media_data:
   postgres_data:
-  prefect_data:

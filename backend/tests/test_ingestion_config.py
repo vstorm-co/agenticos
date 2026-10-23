@@ -7,8 +7,6 @@ all look like success at the moment they happen and like corrupt search results
 weeks later.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

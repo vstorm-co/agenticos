@@ -4,6 +4,7 @@ import {
   answerPreview,
   applyDelegationFrame,
   delegateNamed,
+  delegateOf,
   childrenOf,
   closeOpenDelegations,
   resolveAwaitingOnResume,
@@ -12,7 +13,13 @@ import {
   taskOutcome,
 } from "./delegations";
 import { ApiError } from "@/lib/api-error";
-import type { Delegation, SpecialistDefinition, SubagentFrame, ToolCall } from "@/types";
+import type {
+  Delegation,
+  SpecialistDefinition,
+  SubagentFrame,
+  SubagentStartFrame,
+  ToolCall,
+} from "@/types";
 
 /** A `subagent_start`, which is the only frame that can create a panel. */
 function start(
@@ -196,8 +203,38 @@ describe("applyDelegationFrame - a delegate's own tool calls", () => {
     ]);
 
     expect(named(delegations, "t1").steps).toEqual([
-      { id: "c1", name: "search_documents", ok: true },
+      { id: "c1", name: "search_documents", ok: true, title: null },
     ]);
+  });
+
+  it("keeps what a coding harness's step was about, and which harness it is", () => {
+    const delegations = fold([
+      {
+        ...(start("t1", { subagent: "Claude Code" }) as SubagentStartFrame),
+        harness: "claude_code",
+      },
+      {
+        kind: "subagent_tool_call",
+        task_id: "t1",
+        subagent: "Claude Code",
+        depth: 0,
+        tool_name: "edit",
+        tool_call_id: "c1",
+        title: "/workspace/app.py",
+      },
+    ]);
+
+    const delegation = named(delegations, "t1");
+    expect(delegation.harness).toBe("claude_code");
+    expect(delegation.steps).toEqual([
+      { id: "c1", name: "edit", ok: null, title: "/workspace/app.py" },
+    ]);
+    expect(delegateOf(delegation, [])).toEqual({
+      id: null,
+      slug: "claude_code",
+      name: "Claude Code",
+      harness: "claude_code",
+    });
   });
 
   it("records a tool that raised as having failed rather than as still running", () => {

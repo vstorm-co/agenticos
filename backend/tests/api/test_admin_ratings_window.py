@@ -7,8 +7,6 @@ because the dashboard's filter has to survive three hops - the browser, the
 Next proxy, this route - and it used to be dropped at every one of them.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from datetime import UTC, date, datetime
 from typing import Any
@@ -52,7 +50,7 @@ def _client(*, is_app_admin: bool, service: Any) -> AsyncClient:
 
 
 @pytest.fixture
-async def service() -> AsyncGenerator[AsyncMock, None]:
+async def service() -> AsyncGenerator[AsyncMock]:
     yield AsyncMock(get_summary=AsyncMock(return_value=_SUMMARY))
     app.dependency_overrides.clear()
 

@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { ImageGenerationSection } from "@/components/agents/image-generation-section";
+import { TextToSpeechSection } from "@/components/agents/text-to-speech-section";
+import { VideoGenerationSection } from "@/components/agents/video-generation-section";
 import {
   CapabilityResources,
   resourceTabKey,
@@ -21,10 +23,17 @@ import {
   MEMORY_MEM0_ID,
   SANDBOX_ID,
   SUBAGENTS_ID,
+  TEXT_TO_SPEECH_ID,
+  VIDEO_GENERATION_ID,
   unboundBinding,
 } from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
-import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
+import type {
+  CapabilityBindingSpec,
+  CapabilityCatalogEntry,
+  ExternalAgentRef,
+  SubagentRef,
+} from "@/types/agents";
 import { useTranslations } from "next-intl";
 
 /**
@@ -67,6 +76,9 @@ interface CapabilityWorkbenchProps {
    */
   subagents: SubagentRef[];
   onSubagentsChange: (subagents: SubagentRef[]) => void;
+  /** `spec.external_agents`, the remote A2A delegates, for the same reason (#2092). */
+  externalAgents: ExternalAgentRef[];
+  onExternalAgentsChange: (externalAgents: ExternalAgentRef[]) => void;
   /**
    * What the organization owns and this agent may be given - context files,
    * collections, skills.
@@ -123,6 +135,8 @@ export function CapabilityWorkbench({
   onChange,
   subagents,
   onSubagentsChange,
+  externalAgents,
+  onExternalAgentsChange,
   resources,
   modelProfileId,
   disabled,
@@ -205,6 +219,26 @@ export function CapabilityWorkbench({
               disabled={disabled || !isOn}
               readOnly={disabled}
             />
+          ) : focused.id === TEXT_TO_SPEECH_ID ? (
+            <TextToSpeechSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : focused.id === VIDEO_GENERATION_ID ? (
+            <VideoGenerationSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
           ) : focused.id === SUBAGENTS_ID ? (
             <SubagentsSection
               definition={focused}
@@ -216,6 +250,8 @@ export function CapabilityWorkbench({
               subagents={subagents}
               onChange={onChange}
               onSubagentsChange={onSubagentsChange}
+              externalAgents={externalAgents}
+              onExternalAgentsChange={onExternalAgentsChange}
               disabled={disabled || !isOn}
               readOnly={disabled}
             />

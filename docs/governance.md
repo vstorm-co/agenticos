@@ -447,6 +447,72 @@ to the bill, because each child's cost is added by its own row and removed by it
 parent's. A key works the same way, and matters more: a key is what somebody
 rotates when a bill looks wrong.
 
+### A voice call's budget
+
+A [voice call](voice.md) is a run, and its spend counts against the agent's and
+the organization's budgets like any other. Three things differ, because a call
+cannot be checked before each request the way a text run is:
+
+- **Before it starts**, the call's longest possible length times the model's
+  worst-case price per minute is checked against the budget left. A call that
+  could not be afforded is refused rather than started and cut short.
+- **While it runs**, each response is booked on the run as it finishes, and the
+  month's spend is re-read every 15 seconds, so other runs spending meanwhile
+  are seen. A budget that runs out mid-call gets one spoken sentence and ends
+  the call, recorded `budget_exceeded`.
+- **Its length is the agent's.** A call runs at most the agent's longest call,
+  10 minutes by default and 50 at most; there is no separate allowance of call
+  minutes, so the budgets are the one limit on what calls spend.
+
+A call whose process died is closed by the voice sweep at the cost its last
+heartbeat recorded, unlike a text run, whose spend dies with its process.
+
+### Proactive work { #proactive-work }
+
+The platform can do a little on its own initiative, and does nothing of the kind
+until an organization turns it on: the **Proactivity** card on its members page
+(`budgets:manage`). Turned on, a background job looks at each person's recent
+requests on the days and at the hour the organization chose - in each person's
+time zone, or an hour before the working hours their profile states - and
+proposes a routine for a request they keep repeating, a profile, or the first
+messages their empty chat offers ([Console](console.md#chat)).
+
+Each is one model
+call, on the model the organization chose when it turned this on (there is no
+default: `proactive_model_profile_id` is required), recorded in run history as a
+run from the **proactive** surface and counted against the organization's budget
+like any other. A person can leave themselves out under **Settings → Assistant**.
+
+On top of that, each person's proactive runs in a calendar month are capped by
+the organization's **proactive limit** - $1 by default, set on the same card
+(`proactive_limit_usd`). A person nothing new happened to costs nothing: the job
+only calls the model when there is something to read.
+
+**Watches** point the same work at a person's own connections, switched on
+separately on the same card (`proactive_watches_enabled`), on the same model and
+inside the same limit. A person starts one with **New watch** under
+**Routines**, where a Watches card lists each with when it last looked and how
+many of its findings wait, or with **Watch** beside the account's **Tools** on
+the MCP servers page. They pick one of their own MCP connections - any server
+they connected - and say what to look for - a ready-made watch for that server
+or their own words - and how often, never more often than the organization
+allows (`proactive_watch_min_minutes`, an hour by default).
+
+Each look is one run from the **proactive** surface, offered only the tools the
+server marks read-only (`readOnlyHint`), so a watch never changes anything in the
+account. What it finds is the person's alone: a suggestion of kind `finding`,
+keyed on the item's own id so it is reported once, with a link to open it. A
+finding on a watch set to say urgent things at once, which the model also judged
+urgent, is sent straight away as a notification; the rest waits for their morning
+[briefing](console.md#the-inbox).
+Unlike a routine, a watch says nothing when nothing is new.
+
+The same card holds the **welcome message**, off by default and gated on
+`org:settings`: a new member's direct message from the organization's Slack,
+Teams and Mattermost bots, in the organization's own words when it wrote some
+(`{organization}`, `{bot}` and `{url}` are filled in) or the built-in greeting in
+their language.
+
 ### What run history shows
 
 **`GET /runs` lists top-level runs only, and its `total` counts those.** The same
@@ -853,11 +919,81 @@ The other kind of runaway is a tool loop: cheap per call, and it never finishes.
 budget only bills for that. `max_steps` caps how many model requests one run may
 make and is what actually stops it.
 
+The loop guard stops most loops sooner, and says why. Every agent has it, on by
+default. When a run calls one tool with the same arguments four times in a row,
+or goes round a cycle of two or three calls three times, the model is told it is
+looping and to change approach. If the calls after that warning loop again, the
+run ends as `loop_stopped`, with a reason naming the tools - never their
+arguments. Calls with different arguments are never a loop, and only the run's
+own calls count. The Builder sets both thresholds, or switches the guard off,
+beside `max_steps` (`loop_guard` in the spec).
+
+### Run reviewers { #run-reviewers }
+
+A long run drifts: instructions fade, claims pile up without a source, the agent
+wanders off the request. An agent can carry up to five reviewers (`reviewers` in
+the spec, *Run reviewers* in the Builder beside the limits), each a second,
+usually cheaper model with one concern. Every `every` model requests a reviewer
+reads the most recent `window` tokens of the run and either lets it be or sends
+one short correction, which the run's model receives on its next request with the
+reviewer's name on it. The run view lists each correction and who sent it.
+
+A reviewer's calls are checked against the agent's and the organization's budget
+before they are made and booked on the run, priced as the reviewer's model. One
+refused for budget is skipped, and a reviewer that fails is logged; neither fails
+the run. An agent without a reviewer makes no extra model calls.
+
+### Code mode { #code-mode }
+
+An agent that works through records - update ten rows, then summarise them - pays
+a model turn per dependent call, and every turn re-sends the whole context. With
+*Code mode* on (`code_mode` in the spec, beside the limits in the Builder) the
+agent's tools are folded into one `run_code` tool: the model writes a short Python
+script that runs in the Monty sandbox and calls the tools in loops and in
+parallel, up to `max_tool_calls` per script.
+
+At most four of a script's calls run at once, and the rest wait, so a script
+fanning out over hundreds of sandboxed calls cannot open them all together.
+
+Each call from a script goes through the same guardrails, budget and permission
+checks as a direct call. A tool that needs approval is never folded in: it stays
+an ordinary call, and the run stops for the person as it always does. The run view
+lists each script and every call it made.
+
 ### Reporting
 
 A run that could not be priced - a model `genai-prices` does not know - is
 recorded at zero with a warning and the total is flagged as a **floor** rather
 than guessed at. The UI shows that as a `+` next to the figure.
+
+**Cache reads and writes are kept apart.** A run's input tokens include the ones
+the provider served from its prompt cache and the ones it wrote to it, and the
+three are priced apart - on Claude Sonnet 5.5 a cache read costs 5% of the input
+rate and a write 125%. Each run and each answer stores `cache_read_tokens` and
+`cache_write_tokens` beside the total, the cost is priced from that split, and the
+run view and the cost under each answer show it - which is what reconciles a run
+with the provider's console.
+
+**A run's cost includes its delegations.** The run somebody started carries the
+whole ledger, delegates included; a delegation's own row divides the same money by
+agent, and the run view says its delegations are already inside the figure above
+them. Adding the two counts the delegations twice.
+
+**A prompt cache that stops hitting is flagged.** Caching pays only while the
+start of each request stays identical; a reordered tool list or a timestamp in
+the instructions makes the provider charge full price for tokens it had cached.
+Every agent reads the provider's own cache figures on each response, and a
+request whose cached prefix collapsed is marked in the run's request waterfall -
+*cache bust* while the provider should still have held it, *cache expired* once
+its retention passed - with how many cached tokens it did not read back, and logged with
+the agent and model. The first request of a turn is compared with what the
+previous turn cached, when the same API worker serves both.
+
+The counts are kept on each run, so **Runs → Spend** adds up where the cache did
+not hold: a *Prompt cache* card, one row per agent and model, with its busts,
+expiries and the cached tokens they did not read back over the window - a
+measure of the miss, not of what was billed again, since a compaction can also
+shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
 
@@ -1028,6 +1164,27 @@ which MCP tools are exposed; what holds them for a person is the binding's own
 mode applies like a capability's (see
 [which calls wait for a person](mcp.md#which-calls-wait-for-a-person)).
 
+### An approval inside a voice call
+
+A [voice call](voice.md#approvals-in-a-call) cannot pause and wait for the
+queue, so its approvals are decided in the call, by the person on it:
+
+- The request is written to the queue at once, and the call shows the tool,
+  the exact arguments it will run with, and what the caller was heard to say.
+  Approving runs those arguments, once.
+- It is decided **only through the call**, and only by a caller holding
+  `approvals:decide`. `POST /approvals/{id}` refuses a request that belongs to a
+  live call, and the stale-approval sweep below skips voice runs.
+- **60 seconds** without a decision expires it, with no decider - the same null
+  the sweep writes. A call that ends for any reason expires whatever it was
+  still waiting on.
+- A member without `approvals:decide` is told plainly, and the tool is refused.
+  A visitor on a widget or a hosted page never sees a tool that needs an
+  approval: it is left out of their call.
+
+`approval_mode` follows the agent's spec, as in text chat, and every decision
+reaches the audit trail like any other.
+
 ### A decision nobody makes
 
 An approval waits on a person, and some of them wait for ever: the reviewer left,
@@ -1070,8 +1227,12 @@ worker killed mid-run — OOM, a deploy that does not drain — leaves a durable
 nothing left to finish it: in Activity for ever, and blocking any schedule whose
 trigger it was the linked run of.
 
-An hourly sweep ends anything still `running` past `STALE_RUN_REAPED_AFTER_HOURS` —
-six hours by default, zero switches it off — as **`failed`**. Nobody stopped this
+While its model works, the process executing a run stamps it alive every
+`RUN_HEARTBEAT_SECONDS`. A sweep every minute ends anything still `running` with no
+sign of life for `STALE_RUN_REAPED_AFTER_SECONDS` — two minutes by default, zero
+switches it off — as **`failed`**, and tells open consoles, so a chat stops saying
+"Working" over a turn nobody is answering and offers to ask again. A voice call's
+run is left to the voice reaper, which hangs the call up. Nobody stopped this
 run, the infrastructure did, and an operator filtering run history for problems is
 exactly who should see it.
 
@@ -1172,9 +1333,14 @@ the same write, which is why one can fail - a bounced address, a down SMTP relay
 
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
-email off, or the other way round. The same page also carries every other
-event the inbox delivers: a run finishing or failing unattended, a document's
-ingestion **failing**, a connector sync's own whole-attempt figure, and an app
+email off, or the other way round.
+
+The same page also carries every other
+event the inbox delivers: a run finishing or failing unattended - a routine's
+finish named after the routine and opening with the start of its answer, told to
+whoever set it up - an ask to switch a capability on, for the agent's owner,
+proposals the [proactive work](#proactive-work) made for a person, a
+document's ingestion **failing**, a connector sync's own whole-attempt figure, and an app
 admin's own broadcast - `POST /admin/announcements`, not yet a console page -
 addressed by organization and, optionally, role, and restricted to one or both
 channels.
@@ -1500,7 +1666,7 @@ where the per-tenant periods are set.
 |---|---|---|
 | Conversations | Messages, tool calls, and the chat files attached to them - the stored bytes **before** the rows, so a file that could not be unlinked keeps its row for the next pass rather than outliving it unfindable | The thread's last activity, so one somebody is still returning to is not old |
 | Runs | The run row, its manifest and its tool approvals | When the run started |
-| Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL | Last use |
+| Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL. A project's are kept as long as the project is | Last use |
 | Apps | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
 | Memory | An agent's memory files | Last write, because a note is written once and read for months |
 | Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |

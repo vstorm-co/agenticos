@@ -7,7 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
 import { mergeServers, type McpServerRow } from "@/lib/mcp-servers";
 import { qk } from "@/lib/query-keys";
-import type { McpCatalog } from "@/types/mcp";
+import type { McpCatalog, PlatformMcpToolList } from "@/types/mcp";
 import { useMcpConnections } from "./use-mcp-connections";
 import { useOrgMcpConnections } from "./use-org-mcp-connections";
 
@@ -24,6 +24,41 @@ export function useMcpCatalog() {
     staleTime: Infinity,
   });
   return { servers: data?.items ?? [], isLoading, error };
+}
+
+/**
+ * One server by its catalog key - curated, or mirrored from the public registry,
+ * which the curated catalog does not hold and which is searched for by name
+ * (a registry server's name is its key). Null while looking, and for a key
+ * neither knows: an agent wrote it, so it may name nothing.
+ */
+export function useMcpServerEntry(key: string | null) {
+  const { servers, isLoading: catalogLoading } = useMcpCatalog();
+  const curated = key === null ? null : (servers.find((server) => server.key === key) ?? null);
+  const mirrored = useQuery({
+    queryKey: qk.mcpServers.entry(key ?? ""),
+    queryFn: () =>
+      apiClient.get<McpCatalog>(`/agents/mcp-servers?q=${encodeURIComponent(key ?? "")}&limit=10`),
+    enabled: key !== null && !catalogLoading && curated === null,
+    staleTime: Infinity,
+  });
+  const entry = curated ?? mirrored.data?.items.find((server) => server.key === key) ?? null;
+  return { entry, isLoading: entry === null && (catalogLoading || mirrored.isLoading) };
+}
+
+/**
+ * The tools of this deployment's own MCP server, for a platform binding to pick from.
+ *
+ * Cached indefinitely for the same reason as the catalog: they change on redeploy.
+ */
+export function usePlatformMcpTools({ enabled = true }: { enabled?: boolean } = {}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.mcpServers.platformTools(),
+    queryFn: () => apiClient.get<PlatformMcpToolList>("/agents/platform-mcp-tools"),
+    staleTime: Infinity,
+    enabled,
+  });
+  return { tools: data?.items ?? [], isLoading, error };
 }
 
 /** What one page of the server list holds. */

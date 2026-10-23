@@ -9,8 +9,6 @@ ways that shape loses or duplicates work, beyond the ones Gmail's tests cover:
 * a **delta link** Graph has expired treated as an error.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs, urlsplit

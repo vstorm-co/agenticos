@@ -85,7 +85,7 @@ whatever its instructions say.
 | **Answer from what your company knows** — your documents, your written procedures, and whatever was attached to this conversation | Knowledge search · Skills · Context |
 | **Remember, and look it up** — keep notes across conversations, recall a fact by meaning, or find what was actually said in a past conversation and read it back | Memory · Memory (mem0) · Past conversations |
 | **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Read web pages · Web browser |
-| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Calculations · Sandbox · Charts · Image generation |
+| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image, read a text aloud or make a short clip | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Handle work too big for one answer** — delegate to specialists, keep a task list, think longer before replying, carry a long conversation without losing the start of it | Delegation · Planning · Thinking · Long conversations |
 | **Stay inside the lines** — redact or block what must not pass, cap what one tool may return, know what today's date is | Guardrails · Tool output limits · Date and time |
 
@@ -95,7 +95,7 @@ somebody makes about *this* agent, not a change to the platform.
 
 [Every capability, its tools and its config →](reference/capabilities.md)
 
-## Any model, from 27 providers
+## Any model, from 28 providers
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, an Ollama on your own
 hardware, a LiteLLM proxy in front of all of it.
@@ -164,7 +164,18 @@ Publish once. The same runner answers on all of these:
 - **Slack**, **Telegram** and **Mattermost**, where an `@mention` runs as the
   person who sent it — not as the bot
 
-[Surfaces →](channels.md)
+Speech to text runs on the organization's own provider on these too: dictation
+in web chat, on a hosted page and in the widget, and voice notes transcribed
+in Slack, Telegram and Mattermost.
+
+**Voice calls** let a person talk to a published agent and interrupt it, in web
+chat, on a hosted page or in the widget. The agent keeps its tools, knowledge,
+approvals and budgets, every turn is saved as text in the conversation, and no
+audio is stored. Calls are off until an organization turns them on, and carry
+their own time and monthly-minute limits. OpenAI's realtime models are tested
+live; Azure OpenAI, Gemini Live and xAI are not verified live yet.
+
+[Surfaces →](channels.md) · [Voice conversations →](voice.md)
 
 ## Budgets that actually stop a run
 

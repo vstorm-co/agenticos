@@ -6,8 +6,6 @@ four facts - who, where, which message, which value - and that Mattermost, which
 signs nothing, is not trusted with a press this deployment did not sign.
 """
 
-from __future__ import annotations
-
 import base64
 import contextlib
 import json

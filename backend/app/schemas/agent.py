@@ -124,6 +124,13 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    a2a_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether other systems may reach this agent over A2A: its card at "
+            "/a2a/{id}/.well-known/agent-card.json, its tasks at /a2a/{id} (#2092)."
+        ),
+    )
     has_avatar: bool = Field(
         default=False,
         description=(
@@ -218,6 +225,14 @@ class AgentRead(BaseSchema):
             "shared_user_count."
         ),
     )
+    starters: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The published version's first messages, which an empty chat offers - read "
+            "off the frozen spec, not the draft. Empty for a draft agent and for one "
+            "with none. Filled by the listing, same bargain as shared_user_count."
+        ),
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -248,6 +263,15 @@ class AgentCreate(AudienceChoice):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
+    from_starter: bool = Field(
+        default=False,
+        description=(
+            "Start as the AgenticOS agent does: whatever of its instructions, "
+            "capabilities, skills, platform tools, first messages and budget the spec "
+            "leaves empty is filled from it - what the console's New agent sends. "
+            "Without it, a spec with no instructions gets only the starter's instructions"
+        ),
+    )
     # Discovery labels, folded the same way `AgentMetadataRequest` folds them.
     # They are not spec, and they are offered here because the catalog a new
     # agent joins is the moment somebody knows what to call it - the detail page
@@ -296,6 +320,24 @@ class AgentMetadataRequest(BaseSchema):
     @classmethod
     def _normalize(cls, v: list[str]) -> list[str]:
         return normalize_labels_strict(v)
+
+
+class CapabilityEnabled(BaseSchema):
+    """What switching a capability on from an agent's card did (#2301)."""
+
+    published: bool = Field(
+        description=(
+            "Whether the agent answers with it now. False when the draft held other "
+            "unpublished changes, or the caller may edit but not publish: the "
+            "capability is in the draft, for the Builder's Publish"
+        )
+    )
+
+
+class CapabilityRequest(BaseSchema):
+    """Asking an agent's owner to switch a capability on (#2301)."""
+
+    reason: str = Field(min_length=1, max_length=300, description="What it was needed for")
 
 
 class AgentPublish(BaseSchema):
@@ -426,7 +468,7 @@ class DelegationTreeNode(BaseSchema):
         default=False,
         description="Has delegates of its own that a run from this root cannot reach.",
     )
-    children: list["DelegationTreeNode"] = Field(default_factory=list)
+    children: list[DelegationTreeNode] = Field(default_factory=list)
 
 
 class DelegationTree(BaseSchema):
@@ -499,7 +541,21 @@ class CapabilityCatalogEntry(BaseSchema):
             "and description the model sees via tool_overrides, both keyed by the id here."
         )
     )
+    tool_settings: bool = Field(
+        default=True,
+        description=(
+            "Whether the Builder offers per-tool approval and tool text for this "
+            "capability. False where its one tool is the capability itself, so its "
+            "approval is the capability's own."
+        ),
+    )
     scopes: list[str]
+    voice: Literal["live", "hand_off", "never"] = Field(
+        description=(
+            "How this capability takes part in a voice call: `live` on the call's own model, "
+            "`hand_off` in the agent's text model the call hands a task to, `never` not at all"
+        )
+    )
     contracts: list[CapabilityToolContract] = Field(
         default_factory=list,
         description=(
@@ -522,7 +578,7 @@ class CapabilityCatalogEntry(BaseSchema):
     recommended: CapabilityBindingSpec | None = Field(
         default=None,
         description=(
-            "How the starter agent (the Claude Code like template) binds this "
+            "How the starter agent (the AgenticOS template) binds this "
             "capability, or null where it does not. The console marks these "
             "Recommended and switches them on for a new agent."
         ),
@@ -604,15 +660,51 @@ class McpCatalog(BaseSchema):
     )
 
 
+class PlatformMcpTool(BaseSchema):
+    name: str = Field(description="The tool's name on the platform's MCP server")
+    description: str = Field(description="The first line of what the model reads")
+    writes: bool = Field(
+        description="Whether it changes something - held for approval under `approval: writes`"
+    )
+    ungated: bool = Field(
+        default=False,
+        description=(
+            "Whether it runs without approval under every policy - a write that changes "
+            "only the caller's own preference, such as the console's language"
+        ),
+    )
+    held: bool = Field(
+        default=False,
+        description=(
+            "A read held for approval under `approval: writes` all the same - reading a "
+            "whole past conversation, which an injected instruction could carry off"
+        ),
+    )
+
+
+class PlatformMcpToolList(BaseSchema):
+    items: list[PlatformMcpTool]
+    total: int
+
+
 class CapabilityCatalog(BaseSchema):
     items: list[CapabilityCatalogEntry]
     total: int
 
 
+MAX_RUN_PROMPT_CHARS = 500_000
+"""The longest prompt one run takes: the per-turn text budget a chat turn has
+(`CHAT_TURN_TEXT_MAX_CHARS`). Unbounded, an asynchronous run put whatever the
+proxy let through - tens of megabytes - into a queued job's JSONB."""
+
+MAX_RUN_FILES = 20
+"""Uploads one run may attach."""
+
+
 class AgentRunRequest(BaseSchema):
     """Ask a published agent a question."""
 
-    prompt: str = Field(min_length=1)
+    prompt: str = Field(min_length=1, max_length=MAX_RUN_PROMPT_CHARS)
     conversation_id: UUID | None = Field(
         default=None,
         description=(
@@ -632,12 +724,22 @@ class AgentRunRequest(BaseSchema):
     )
     file_ids: list[UUID] = Field(
         default_factory=list,
+        max_length=MAX_RUN_FILES,
         description=(
             "Files already uploaded through `POST /files/upload`, to attach to this "
             "turn. Where each one goes is the agent's to decide - written into its "
             "workspace when it has one, read into the prompt when it does not - which "
             "is the same routing the chat and the widget get. They must be the "
             "caller's own uploads"
+        ),
+    )
+    draft: bool = Field(
+        default=False,
+        description=(
+            "Run the unpublished draft instead of a version, as the Builder's test "
+            "panel does: a test run, budgeted and recorded. Needs `agents:edit` on the "
+            "agent, and the draft must pass the checks a publish makes. Not with "
+            "`environment_id`, nor with `Prefer: respond-async`"
         ),
     )
 
@@ -736,6 +838,12 @@ class AgentRunResult(BaseSchema):
     )
     input_tokens: int
     output_tokens: int
+    cache_read_tokens: int = Field(
+        default=0, description="Of `input_tokens`, those read from the provider's cache"
+    )
+    cache_write_tokens: int = Field(
+        default=0, description="Of `input_tokens`, those written to the provider's cache"
+    )
     steps: list[RunStep] = Field(
         default_factory=list,
         description=(
@@ -773,6 +881,28 @@ class AgentRunResult(BaseSchema):
             "The questions the run is now waiting on its person to answer, which is "
             "empty unless it stopped on one again - the same reason `parked` exists."
         ),
+    )
+
+
+RunRequestStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
+
+
+class RunRequestRead(BaseSchema):
+    """An asynchronous run: where it is, and once it has finished, what it answered."""
+
+    id: UUID = Field(description="The request to poll: `GET /api/v1/run-requests/{id}`.")
+    status: RunRequestStatus
+    conversation_id: UUID = Field(
+        description="The conversation the run files under, known from the moment it is queued."
+    )
+    created_at: datetime
+    finished_at: datetime | None = None
+    error: str | None = Field(
+        default=None, description="Why a failed request failed, in the platform's words."
+    )
+    result: AgentRunResult | None = Field(
+        default=None,
+        description="What the synchronous call would have answered, once the run has completed.",
     )
 
 
@@ -868,3 +998,9 @@ class AgentKnowledgeReach(BaseSchema):
     whole_organization: bool
     groups: list[str] = Field(default_factory=list)
     sources: list[KnowledgeSource] = Field(default_factory=list)
+
+
+class AgentA2ARequest(BaseSchema):
+    """Serve this agent over A2A, or stop (#2092)."""
+
+    enabled: bool

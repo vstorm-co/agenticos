@@ -2,7 +2,7 @@
 title: "AgenticOS vs Claude Managed Agents"
 seo_title: "AgenticOS vs Claude Managed Agents: runtime agentów u siebie"
 description: "Claude Managed Agents to hostowany runtime agentów Anthropic dla deweloperów. Porównaj z AgenticOS: runtime razem z konsolą, na twoich serwerach."
-source_sha: "b649b66a1946"
+source_sha: "059068f07c88"
 ---
 
 # AgenticOS vs Claude Managed Agents { #agenticos-vs-claude-managed-agents }
@@ -11,7 +11,7 @@ Claude Managed Agents to hostowane przez Anthropic środowisko uruchomieniowe dl
 
 Jeśli jesteś deweloperem, który buduje jeden produkt na Claude i chce, żeby Anthropic hostował runtime, Managed Agents to najkrótsza droga. Jeśli chcesz, żeby agentów firmy budowały osoby, które ich potrzebują, zarządzane w jednym miejscu i trzymane na twojej infrastrukturze, AgenticOS jest zbudowany właśnie do tego.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja bazowa AgenticOS: v0.0.535. Zakres Managed Agents: publiczna beta ogłoszona 8-9 kwietnia 2026 i opublikowany cennik, a nie przetestowane konto.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Managed Agents: publiczna beta ogłoszona 8-9 kwietnia 2026 i opublikowany cennik, a nie przetestowane konto.
 
 ## W skrócie { #at-a-glance }
 
@@ -21,7 +21,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja
 | Kto buduje | Deweloperzy, przez API | Każdy z odpowiednią rolą, w przeglądarce; inżynierowie rozszerzają w Pythonie |
 | Gdzie działa | Chmura Anthropic | Twoja infrastruktura, z Docker Compose |
 | Kod źródłowy | Zamknięty | Apache-2.0 |
-| Modele | Tylko Claude | 27 providerów, w tym Claude i modele lokalne |
+| Modele | Tylko Claude | 28 providerów, w tym Claude i modele lokalne |
 | Sandbox | Zarządzany, na sesję | Sandbox na rozmowę, na twoim własnym hoście Docker |
 | Cena | Tokeny plus 0,08 $ za godzinę sesji | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
 
@@ -53,7 +53,7 @@ Tak, jeśli chcesz uruchamiać agentów sam. AgenticOS uruchamia agentów z sand
 
 ### Czy AgenticOS może używać Claude? { #can-agenticos-use-claude }
 
-Tak. Anthropic to jeden z 27 providerów; dodajesz klucz raz i wybierasz Claude w profilu modelu.
+Tak. Anthropic to jeden z 28 providerów; dodajesz klucz raz i wybierasz Claude w profilu modelu.
 
 ## Powiązane porównania { #related-comparisons }
 

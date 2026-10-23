@@ -345,6 +345,7 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
 
 @register(
     id=BROWSER_CAPABILITY_ID,
+    voice="hand_off",
     name="Web browser",
     category="research",
     description="Use a real web browser step by step - read, click, fill forms, search.",

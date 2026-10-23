@@ -10,21 +10,21 @@ Viktor sells one AI teammate per Slack or Microsoft Teams workspace, run in its 
 
 If you want one helpful colleague in chat by this afternoon, Viktor is quick to try. If you want to decide what each agent may do, what it costs and where the data lives, AgenticOS gives you that control.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. Viktor scope: its public product, pricing, security and enterprise pages and changelog, not a tested account or negotiated contract.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Viktor scope: its public product, pricing, security and enterprise pages and changelog, not a tested account or negotiated contract.
 
 ## At a glance
 
 | Area | Viktor | AgenticOS |
 | --- | --- | --- |
 | What you get | One shared "AI employee" per workspace | Any number of agents, each a versioned spec |
-| Where it runs | Viktor's cloud, hosted on AWS us-east-1 | Your infrastructure, with Docker Compose |
+| Where it runs | Viktor's cloud, US-hosted by default | Your infrastructure, with Docker Compose |
 | Source | Proprietary | Apache-2.0 |
-| Models | OpenAI, Anthropic, Google and Kimi presets; your own OpenRouter key | 27 providers, including Ollama and LiteLLM on your own hardware |
+| Models | OpenAI, Anthropic, Google and xAI models in a picker; your own OpenRouter key | 28 providers, including Ollama and LiteLLM on your own hardware |
 | Knowledge | Workspace memory and connected tools | Document collections in your Postgres, with five sync connectors |
 | Surfaces | Slack, Teams, Discord, its own email inbox, web, desktop and mobile apps, API | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Access | Workspace level; its pages differ on role-based access | Six roles, 27 permissions and per-resource grants, per organization |
-| Spend control | The credit pool; limits tailored on Enterprise | A monthly budget per agent and per organization, checked before each model request |
-| Pricing | From $50 a month for 20,000 credits, a flat $2.50 per 1,000 credits | No licence fee; you pay model providers and infrastructure |
+| Access | Workspace level; its pages differ on role-based access | Six roles, 33 permissions and per-resource grants, per organization |
+| Spend control | The credit pool with a monthly cap on auto top-ups; per-user caps on Enterprise | A monthly budget per agent and per organization, checked before each model request |
+| Pricing | Free with up to $100 of credits; Team $100 a month for 40,000 shared credits; Enterprise custom | No licence fee; you pay model providers and infrastructure |
 | Compliance evidence | SOC 2 Type 1; Type II and ISO 27001 in progress | Your controls on your infrastructure; see [security](../security.md) |
 
 ## Where AgenticOS goes further
@@ -37,7 +37,7 @@ An agent's spec is [versioned on publish](../concepts.md#version) and [exports a
 
 ### Access decided per agent and per person
 
-Viktor's homepage FAQ, checked on 25 September 2026, says a plan shares one Viktor instance and context, and that a connected integration is available to every team member. Its enterprise page lists role-based access. Ask which applies to your contract.
+Viktor's homepage FAQ, checked on 21 October 2026, says all team members on a plan share one Viktor instance and context, and that a connected tool can be shared with the whole team or, in Slack workspaces, kept private. Its enterprise page lists role-based access. Ask which applies to your contract.
 
 In AgenticOS, access comes from the [permission catalog](../permissions.md#the-built-in-roles), and [grants](../permissions.md#layer-3-visibility-and-grants) share one agent, skill or collection with a person or a group. An MCP binding can use [each person's own account](../mcp.md#whose-account-a-binding-speaks-through) rather than one shared login. A linked Slack user runs [as themselves](../channels.md#slack).
 
@@ -56,9 +56,9 @@ Viktor learns from conversations and connected tools. AgenticOS adds managed doc
 ## When Viktor is enough
 
 - You want one assistant in Slack or Teams with no infrastructure to run.
-- Its catalog of more than 3,200 OAuth integrations and its code sandbox cover your tasks.
+- Its catalog of more than 9,800 tools and its code sandbox cover your tasks.
 - Credit billing and US hosting meet your requirements.
-- You need Microsoft Teams, voice or an email inbox today. AgenticOS has no Teams, voice or email conversation channel yet.
+- You need Microsoft Teams, a phone line or an email inbox today. AgenticOS has no Teams, phone or email conversation channel yet; its [voice calls](../voice.md) run in the browser.
 
 ## Try one handbook question
 
@@ -78,11 +78,11 @@ Yes. A published agent answers in Slack, and a linked user runs as themselves. A
 
 ### How does pricing compare?
 
-Viktor sells workspace credits, from $50 a month for 20,000. AgenticOS has no licence fee: you pay model providers directly, and each agent has its own monthly budget.
+Viktor sells workspace credits: Team is $100 a month for 40,000, shared across the workspace. AgenticOS has no licence fee: you pay model providers directly, and each agent has its own monthly budget.
 
 ### Where is the data stored?
 
-Viktor says it is hosted on AWS us-east-1. AgenticOS stores conversations, documents and vectors in your own Postgres, wherever you deploy it.
+Viktor says it is US-hosted by default, with EU residency offered on Enterprise contracts on one page and on its roadmap on another. AgenticOS stores conversations, documents and vectors in your own Postgres, wherever you deploy it.
 
 ## Related comparisons
 
@@ -90,8 +90,8 @@ Viktor says it is hosted on AWS us-east-1. AgenticOS stores conversations, docum
 
 ## Sources
 
-- [Viktor product page and FAQ](https://viktor.com/): positioning, shared workspace instance, integrations shared across the team, RBAC roadmap.
-- [Pricing](https://viktor.com/pricing): credit plans, no seat fee, pass-through model cost.
-- [Security](https://viktor.com/security): AWS us-east-1, SOC 2 Type 1, ISO 27001 in progress, approvals, SAML SSO on Enterprise.
-- [Enterprise](https://www.viktor.com/enterprise.md): chat-native identity, EU residency and retention statements, annual contracts.
-- [Changelog](https://www.viktor.com/changelog.md): OpenRouter keys, Enterprise audit logs, Discord and email.
+- [Viktor product page and FAQ](https://viktor.com/): positioning, shared workspace instance, integrations shared with the team or kept private, access at workspace level.
+- [Pricing](https://viktor.com/pricing): Free, Team and Enterprise credit plans, spend caps, no seat fee.
+- [Security](https://viktor.com/security): US hosting by default, SOC 2 Type 1, ISO 27001 in progress, SAML SSO.
+- [Enterprise](https://www.viktor.com/enterprise): identity inherited from Slack or Teams, EU residency and retention on the roadmap.
+- [Changelog](https://www.viktor.com/changelog): OpenRouter keys, models in the picker, Discord and email.

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
+import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
 import type {
   NewSecret,
@@ -16,6 +17,7 @@ import type {
   SecretKindList,
   SecretList,
   SecretPurposeList,
+  SecretVisibility,
   StorableSecretKind,
 } from "@/types/secrets";
 
@@ -58,6 +60,9 @@ export function useSecrets() {
     // Cancelling first forces a genuinely new post-commit fetch.
     await queryClient.cancelQueries({ queryKey: qk.secrets.list() });
     await queryClient.invalidateQueries({ queryKey: qk.secrets.list() });
+    // An organization-visible key is one of the credentials speech to text is
+    // sent with, so which providers are usable can change with it.
+    await invalidateSpeechSettings(queryClient);
   }, [queryClient]);
 
   // Neither writing mutation toasts its failure: a name already in use is the
@@ -136,4 +141,56 @@ export function useSecretPurposes() {
   });
 
   return { purposes: data?.items ?? [], isLoading };
+}
+
+/** What `POST /secrets/openai-codex` takes: a finished sign-in, and what to call it. */
+export interface NewChatGPTSignIn {
+  name: string;
+  description?: string | null;
+  visibility?: SecretVisibility;
+  /** The whole address ChatGPT sent the browser to - it carries the code. */
+  callback_url: string;
+}
+
+/**
+ * Signing in with ChatGPT, the one secret nobody types.
+ *
+ * ChatGPT only redirects to `localhost:1455`, which a deployment elsewhere never
+ * receives, so the sign-in ends on an address that does not load and the person
+ * pastes it back. `start` mints the sign-in server-side and answers with where
+ * to send them; `create` and `reconnect` redeem the pasted address once.
+ */
+export function useChatGPTSignIn() {
+  const t = useTranslations("vault");
+  const queryClient = useQueryClient();
+
+  const invalidate = useCallback(async () => {
+    // The same cancel-then-invalidate as `useSecrets`, for the same dedup race.
+    await queryClient.cancelQueries({ queryKey: qk.secrets.list() });
+    await queryClient.invalidateQueries({ queryKey: qk.secrets.list() });
+  }, [queryClient]);
+
+  const start = useMutation({
+    mutationFn: () =>
+      apiClient.post<{ authorization_url: string }>("/secrets/openai-codex/sign-in"),
+  });
+
+  const create = useMutation({
+    mutationFn: (data: NewChatGPTSignIn) => apiClient.post<Secret>("/secrets/openai-codex", data),
+    onSuccess: async (secret) => {
+      await invalidate();
+      toast.success(t("secretStored", { name: secret.name, hint: secret.hint }));
+    },
+  });
+
+  const reconnect = useMutation({
+    mutationFn: ({ id, callback_url }: { id: string; callback_url: string }) =>
+      apiClient.put<Secret>(`/secrets/${id}/openai-codex`, { callback_url }),
+    onSuccess: async (secret) => {
+      await invalidate();
+      toast.success(t("chatgptReconnected", { name: secret.name }));
+    },
+  });
+
+  return { start, create, reconnect };
 }

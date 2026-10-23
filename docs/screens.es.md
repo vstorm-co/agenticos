@@ -1,5 +1,5 @@
 ---
-source_sha: "2cbc4623a620"
+source_sha: "4b8832761f4a"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -27,6 +27,12 @@ Entra una hoja de cálculo, sale una página publicada. El agent leyó el CSV co
 
 ![Chat](assets/screens/light/chat.webp#only-light)
 ![Chat](assets/screens/dark/chat.webp#only-dark)
+
+### Una llamada de voz { #a-voice-call }
+
+El composer convertido en barra de llamada: lo que está haciendo la llamada, su tiempo frente al límite, una forma de onda de las dos voces, silenciar, push-to-talk y End. La conversación sigue por encima: subtítulos dentro del mensaje que se está diciendo, las herramientas que se ejecutan y una tarjeta de aprobación con los argumentos exactos y lo que se te oyó decir.
+
+> **Captura pendiente — Una llamada de voz.**
 
 ## Construir un agent { #building-an-agent }
 
@@ -259,7 +265,7 @@ Conecta cualquier servidor MCP por URL y sus herramientas se convierten en inter
 
 ### Channels { #channels }
 
-Las plataformas de chat en las que responde esta organización — Slack, Telegram, Mattermost. Un bot sirve a cada agent vinculado a él, y el vínculo se hace en la pestaña Availability de ese agent.
+Las plataformas de chat en las que responde esta organización — Slack, Teams, Telegram, Mattermost. Un bot sirve a cada agent vinculado a él, y el vínculo se hace en la pestaña Availability de ese agent.
 
 ![Channels](assets/screens/light/channels.webp#only-light)
 ![Channels](assets/screens/dark/channels.webp#only-dark)

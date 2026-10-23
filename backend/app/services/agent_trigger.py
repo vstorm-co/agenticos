@@ -29,8 +29,6 @@ revoked - the trigger auto-disables and an audit entry records why, rather than
 retrying a refusal for ever.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import json
@@ -48,7 +46,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
-from app.core.background import spawn_after_commit
+from app.core.background import spawn_after_rollback
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -61,7 +59,13 @@ from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.db.models.agent_trigger import AgentTrigger, EventSource, ScheduleKind, TriggerType
+from app.db.models.agent_trigger import (
+    AgentTrigger,
+    EventSource,
+    ScheduleKind,
+    TriggerOverlap,
+    TriggerType,
+)
 from app.db.models.mcp_connection import McpConnection
 from app.db.session import get_db_context
 from app.db.updates import writable
@@ -73,6 +77,7 @@ from app.repositories import (
     mcp_connection_repo,
     member_repo,
     organization_secret_repo,
+    teams_conversation_repo,
 )
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
@@ -85,9 +90,13 @@ from app.schemas.portal import PortalPresetRead, PortalRead
 from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
+from app.services.background_jobs import enqueue
+from app.services.channels.teams_post import post_to_teams
 from app.services.mcp_connection import McpConnectionService
+from app.services.notifications import NotificationService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
+from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -153,17 +162,20 @@ def _connect_blocked_by(
 
 @dataclass(frozen=True)
 class EventFireDecision:
-    """A verified, matched delivery that should fire - the route dispatches it.
+    """A verified, matched delivery that should fire - queued as a job, not run.
 
     Returned by :meth:`AgentTriggerService.prepare_event_fire` rather than firing
     inline, because the fire runs an agent and a provider (GitHub's 10s) would time
-    the webhook out. The route hands this to a background task that calls
-    :meth:`AgentTriggerService.fire` with the `event_context` off its own session,
-    exactly as a channel mention is processed after its webhook returns.
+    the webhook out. `queue_event_fire` queues it, and a worker calls
+    :meth:`AgentTriggerService.fire` with the `event_context` off its own session.
     """
 
     trigger_id: UUID
     event_context: str
+    organization_id: UUID
+    """The trigger's own organization, which the queued job carries: a job without
+    one is deployment-wide, so a fire that kept killing its worker would pause
+    `fire-trigger` for every tenant rather than for this one."""
 
 
 def _cron_next(expression: str, *, now: datetime) -> datetime:
@@ -275,8 +287,8 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     )
 
 
-_WHAT_IT_DOES = ("prompt", "environment_id", "event_config")
-"""The edits that change what a fire does, and so end its acting as the creator."""
+_WHAT_IT_DOES = ("prompt", "environment_id", "event_config", "teams_conversation_id")
+"""The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
 
 
 def _update_action(changes: dict[str, Any]) -> str:
@@ -564,6 +576,8 @@ class AgentTriggerService:
             )
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
+        if data.teams_conversation_id is not None:
+            await self._teams_target(ctx, data.teams_conversation_id)
         if data.runs_as_creator and not _acts_as_themselves(ctx, ctx.user_id):
             raise AuthorizationError(
                 message="Only you, signed in as yourself, can let a trigger act as you",
@@ -671,6 +685,8 @@ class AgentTriggerService:
             portal_key=portal_key,
             delivery_mode=delivery_mode,
             runs_as_creator=data.runs_as_creator,
+            overlap=data.overlap or TriggerOverlap.SKIP.value,
+            teams_conversation_id=data.teams_conversation_id,
         )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
@@ -905,9 +921,16 @@ class AgentTriggerService:
                 message="only a schedule has a cadence to change",
                 details={"trigger_id": str(trigger.id)},
             )
+        if "overlap" in changes and trigger.trigger_type != TriggerType.SCHEDULE.value:
+            raise BadRequestError(
+                message="only a schedule has an overlap policy",
+                details={"trigger_id": str(trigger.id)},
+            )
 
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
+        if changes.get("teams_conversation_id") is not None:
+            await self._teams_target(ctx, changes["teams_conversation_id"])
 
         # A cadence change or a resume takes effect from now: a schedule shrunk from
         # daily to minutely, switched to cron, or resumed must not wait out the old
@@ -948,7 +971,9 @@ class AgentTriggerService:
         Turning it on is the creator's alone. And it does not survive anybody else
         changing what the trigger does: otherwise a member who may edit the trigger
         could write a prompt that reads the creator's mailbox and wait for the next
-        fire. A pause, a rename or a new cadence changes no such thing, so it stays.
+        fire - or point the answer at a Teams channel they read, which hands them
+        what the creator's own connections returned. A pause, a rename or a new
+        cadence changes no such thing, so it stays.
         """
         themselves = _acts_as_themselves(ctx, trigger.created_by_user_id)
         if changes.get("runs_as_creator") is True and not themselves:
@@ -997,11 +1022,10 @@ class AgentTriggerService:
         pydantic error nor a filter stored to match nothing.
         """
         try:
-            return cast(
-                dict[str, Any],
+            return (
                 _EVENT_CONFIG_MODELS[event_source]
                 .model_validate({**dict(preset.event_config), **(override or {})})
-                .model_dump(),
+                .model_dump()
             )
         except PydanticValidationError as exc:
             raise ValidationError(
@@ -1027,7 +1051,7 @@ class AgentTriggerService:
             )
         model = _EVENT_CONFIG_MODELS[cast(str, trigger.event_source)]
         try:
-            return cast(dict[str, Any], model.model_validate(config).model_dump())
+            return model.model_validate(config).model_dump()
         except PydanticValidationError as exc:
             raise ValidationError(
                 message="event_config is not valid for this trigger's source",
@@ -1172,15 +1196,13 @@ class AgentTriggerService:
         timeout - 60s by default on nginx - answered the caller 504 while the run
         carried on and committed server-side: a failure reported for something that
         was working, and an invitation to press the button again and fire the
-        schedule twice. It is dispatched as its own `run-scheduled-trigger` flow -
-        the same durable, capped door the heartbeat and the webhook path use -
-        rather than an in-process task, because the 202 is a promise: a task
-        living in the API process is lost with the process (a restart, a deploy,
-        an exceeded drain timeout), leaving the caller polling for a `last_run_id`
-        that will never arrive, while an accepted flow run survives the API and is
-        performed by the worker. `spawn_after_commit`, not `spawn`, because the
-        fire reads the trigger on a session of its own and must not outrun this
-        request's transaction.
+        schedule twice. It is queued as a `fire-trigger` job - the same durable,
+        capped door the heartbeat and the webhook path use - rather than an
+        in-process task, because the 202 is a promise: a task living in the API
+        process is lost with the process (a restart, a deploy, an exceeded drain
+        timeout), leaving the caller polling for a `last_run_id` that will never
+        arrive. The job is written in this request's transaction, so it exists
+        exactly when the audit entry beside it does, and a worker runs it.
 
         Returns the trigger as it stands, which is why the route answers 202: the
         run has not happened yet, so `last_run_id` still names the previous one. The
@@ -1196,13 +1218,7 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id)},
         )
-        # Local, like the webhook route's: `trigger_tasks` pulls in Prefect, and
-        # the API import must stay free of it (#520).
-        from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
-
-        spawn_after_commit(
-            self.db, dispatch_trigger_fire(str(trigger.id)), name=f"trigger-run-now-{trigger.id}"
-        )
+        await self.queue_fire(trigger.id, organization_id=trigger.organization_id)
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(trigger, "can_manage", True)  # noqa: B010
         return trigger
@@ -1255,16 +1271,15 @@ class AgentTriggerService:
         # not fire a second run and a second spend. Claim the provider's delivery
         # id; a delivery that carries none, or a Redis that cannot be reached, fails
         # open and fires, and a duplicate answers the same nothing-to-do `None` an
-        # unmatched delivery does, so it stays unprobeable. The claim is kept even
-        # when the route's hand-off then raises - the raise is ambiguous, the flow
-        # may have been enqueued - and lapses with its TTL (see the route).
+        # unmatched delivery does, so it stays unprobeable. A transaction that
+        # then rolls back queued nothing and gives the claim back (`_claim`).
         delivery = trigger_events.delivery_id(source, headers)
-        if delivery is not None and not await trigger_dedupe.claim_event_delivery(
-            trigger_id=trigger.id, delivery_id=delivery
-        ):
+        if delivery is not None and not await self._claim(trigger.id, delivery):
             return None
         context = trigger_events.render_context(source, payload=payload)
-        return EventFireDecision(trigger_id=trigger.id, event_context=context)
+        return EventFireDecision(
+            trigger_id=trigger.id, event_context=context, organization_id=trigger.organization_id
+        )
 
     async def prepare_app_fires(
         self, *, body: bytes, headers: Mapping[str, str]
@@ -1344,9 +1359,7 @@ class AgentTriggerService:
             ):
                 continue
             delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers)
-            if delivery is not None and not await trigger_dedupe.claim_event_delivery(
-                trigger_id=trigger.id, delivery_id=delivery
-            ):
+            if delivery is not None and not await self._claim(trigger.id, delivery):
                 continue
             decisions.append(
                 EventFireDecision(
@@ -1354,6 +1367,7 @@ class AgentTriggerService:
                     event_context=trigger_events.render_context(
                         EventSource.GITHUB.value, payload=payload
                     ),
+                    organization_id=trigger.organization_id,
                 )
             )
         return decisions
@@ -1442,9 +1456,7 @@ class AgentTriggerService:
                     event_source, headers={}, payload=event.payload, config=trigger.event_config
                 ):
                     continue
-                if not await trigger_dedupe.claim_event_delivery(
-                    trigger_id=trigger.id, delivery_id=event.delivery_id
-                ):
+                if not await self._claim(trigger.id, event.delivery_id):
                     continue
                 decisions.append(
                     EventFireDecision(
@@ -1452,6 +1464,7 @@ class AgentTriggerService:
                         event_context=trigger_events.render_context(
                             event_source, payload=event.payload
                         ),
+                        organization_id=trigger.organization_id,
                     )
                 )
         return decisions
@@ -1505,6 +1518,19 @@ class AgentTriggerService:
             stopped += 1
         return stopped
 
+    async def _claim(self, trigger_id: UUID, delivery_id: str) -> bool:
+        """Claim a delivery for this unit of work, given back if it does not commit."""
+        if not await trigger_dedupe.claim_event_delivery(
+            trigger_id=trigger_id, delivery_id=delivery_id
+        ):
+            return False
+        spawn_after_rollback(
+            self.db,
+            trigger_dedupe.release_event_delivery(trigger_id=trigger_id, delivery_id=delivery_id),
+            name="release a trigger delivery claim",
+        )
+        return True
+
     def _unseal_event_secret(self, trigger: AgentTrigger) -> str:
         """The trigger's signing secret, unsealed for its organization.
 
@@ -1519,8 +1545,62 @@ class AgentTriggerService:
             key_version=cast(int, trigger.secret_key_version),
         )
 
+    async def queue_fire(
+        self,
+        trigger_id: UUID,
+        *,
+        organization_id: UUID | None,
+        event_context: str | None = None,
+        claimed_at: datetime | None = None,
+    ) -> None:
+        """Queue one fired run of `trigger_id`, in this unit of work's transaction.
+
+        Every door reaches the fire through here - the scheduled check, a polled
+        portal, an inbound webhook, the run-now button - so all of them run as a
+        `fire-trigger` job on the agent pool, capped and isolated from whatever
+        asked, and none as an agent run competing with request handling on the
+        API's loop. `claimed_at` is the scheduled claim's ticket (see `fire`);
+        only `claim_and_advance` has one.
+        """
+        await enqueue(
+            self.db,
+            FIRE_TRIGGER,
+            FireTrigger(trigger_id=trigger_id, event_context=event_context, claimed_at=claimed_at),
+            organization_id=organization_id,
+        )
+
+    async def queue_event_fire(
+        self, source: str, trigger_id: UUID, *, body: bytes, headers: Mapping[str, str]
+    ) -> bool:
+        """Authenticate and match an inbound delivery, and queue its fire. Answers whether it fired.
+
+        `False` - nothing to do - is answered by the route exactly as a fire is,
+        so a caller holding the secret cannot tell an existing trigger from a
+        missing one (see `prepare_event_fire`).
+        """
+        decision = await self.prepare_event_fire(source, trigger_id, body=body, headers=headers)
+        if decision is None:
+            return False
+        await self.queue_fire(
+            decision.trigger_id,
+            organization_id=decision.organization_id,
+            event_context=decision.event_context,
+        )
+        return True
+
+    async def queue_app_fires(self, *, body: bytes, headers: Mapping[str, str]) -> int:
+        """Authenticate a GitHub App delivery and queue a fire for every trigger it matches."""
+        decisions = await self.prepare_app_fires(body=body, headers=headers)
+        for decision in decisions:
+            await self.queue_fire(
+                decision.trigger_id,
+                organization_id=decision.organization_id,
+                event_context=decision.event_context,
+            )
+        return len(decisions)
+
     async def claim_and_advance(self, *, now: datetime, limit: int = 100) -> list[AgentTrigger]:
-        """Claim the triggers due now, advancing each so no later tick re-fires it.
+        """Claim the triggers due now, advance each so no later tick re-fires it, and queue its fire.
 
         The claim locks each row `FOR UPDATE SKIP LOCKED`, and advancing
         `next_fire_at` happens under that same lock, so two heartbeats running at
@@ -1536,29 +1616,45 @@ class AgentTriggerService:
         An orphaned schedule - one whose creator's user row was hard-deleted, so
         `created_by_user_id` is null - is claimed now (the query no longer filters
         it out) and disabled here rather than dispatched: it can never run, and
-        `fire` would only disable it after a wasted flow run. Dispatching is left to
-        the schedules that can still fire.
+        `fire` would only disable it after a wasted job. Firing is left to the
+        schedules that can still fire.
+
+        The fire is queued in the claim's own transaction, so a trigger is never
+        advanced without its run queued, nor queued twice: the two commit together.
+
+        A trigger whose previous fire is still busy is claimed only when its
+        `overlap` lets it be (`claim_due`), and then: `skip` advances past the
+        occurrence without firing; `allow` fires with no claim ticket, as
+        `run_now` does, leaving the marker to the fire still relying on it.
+        Returns the triggers that fired.
         """
-        triggers = await agent_trigger_repo.claim_due(self.db, now=now, limit=limit)
-        live: list[AgentTrigger] = []
-        for trigger in triggers:
+        claimed = await agent_trigger_repo.claim_due(self.db, now=now, limit=limit)
+        fired: list[tuple[AgentTrigger, datetime | None]] = []
+        for trigger, busy in claimed:
             if trigger.created_by_user_id is None:
                 await self._disable(trigger, reason="creator_not_active")
                 continue
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
+            if busy:
+                if trigger.overlap == TriggerOverlap.SKIP.value:
+                    logger.info("trigger_occurrence_skipped", extra={"trigger_id": str(trigger.id)})
+                    continue
+                fired.append((trigger, None))
+                continue
             # Mark the fire in flight in the same committed UPDATE that advances the
             # schedule, so no window opens in which a slow run's trigger looks
             # claimable to the next tick. This timestamp is the claim's ticket: the
             # scheduled fire this claim dispatches is handed it back as `claimed_at`
             # and clears the marker only while it still matches (`fire`), so a fire
-            # that outran the lease cannot clear a newer claim's marker. A dispatch
-            # that never started a run leaves the marker for the lease to free rather
-            # than clearing it eagerly - the child flow may have started even when the
-            # submit call raised.
+            # that outran the lease cannot clear a newer claim's marker.
             trigger.fire_in_flight_since = now
-            live.append(trigger)
+            fired.append((trigger, now))
         await self.db.flush()
-        return live
+        for trigger, ticket in fired:
+            await self.queue_fire(
+                trigger.id, organization_id=trigger.organization_id, claimed_at=ticket
+            )
+        return [trigger for trigger, _ticket in fired]
 
     async def fire(
         self,
@@ -1591,7 +1687,7 @@ class AgentTriggerService:
         to disable. `_run` has already committed the row as `failed`, so the fire
         is in Activity; `fire` recovers that row from the trigger's conversation to
         stamp `last_run_id` and returns, rather than letting the error fail the
-        Prefect flow and retry the same outage against the same money. The recovered
+        job and retry the same outage against the same money. The recovered
         row is identified by *this* fire having advanced the conversation's tail past
         the previous fire's run - an error before the run existed leaves the tail
         where it was, and stamping it would name the wrong fire.
@@ -1702,12 +1798,12 @@ class AgentTriggerService:
 
         try:
             agent = await self.agents.get(ctx, trigger.agent_id, perm=Perm.AGENTS_RUN)
-        except (NotFoundError, AuthorizationError):
+        except NotFoundError, AuthorizationError:
             # The grants-aware pre-check, mirroring the run path's own
             # `resolve_access`. A creator who kept a role with `agents:run` but
             # lost the grant on *this* agent is refused here, before a run is
             # opened - not inside execute(), where the refusal would raise and
-            # Prefect would retry it.
+            # the queue would retry it.
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
@@ -1727,10 +1823,14 @@ class AgentTriggerService:
         # the wrong fire - the trigger appends every fire to one conversation (#589).
         previous_run_id = trigger.last_run_id
         runner = AgentRunnerService(self.db)
+        answer: str | None = None
         if ctx.fired_as_creator is not None:
             set_acting_trigger(trigger.id, ctx.subject_id)
+        # Empty unless the run answered: a fire recovered from an error below has
+        # nothing to tell its creator.
+        answer = ""
         try:
-            _answer, run = await runner.execute(
+            answer, run = await runner.execute(
                 ctx,
                 trigger.agent_id,
                 message,
@@ -1741,7 +1841,7 @@ class AgentTriggerService:
                 # the creator let it act as them; otherwise nobody is speaking.
                 acts_for_sender=ctx.fired_as_creator is not None,
             )
-        except (NotFoundError, AuthorizationError):
+        except NotFoundError, AuthorizationError:
             # Access was withdrawn between the pre-check and the run. Same verdict:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
@@ -1761,8 +1861,8 @@ class AgentTriggerService:
             # The run failed on something the runner re-raises instead of recording
             # as a terminal status - a provider 5xx, a revoked key, a timeout. `_run`
             # commits the row as `failed` before re-raising, so the failure is in
-            # Activity; letting it propagate would only fail the Prefect flow for a
-            # run already accounted for and retry the same outage. Recover the row
+            # Activity; letting it propagate would only fail the job for a run
+            # already accounted for and retry the same outage. Recover the row
             # from the trigger's own conversation, stamp it, and return.
             logger.exception("trigger_fire_run_errored", extra={"trigger_id": str(trigger.id)})
             # This fire's own uncommitted writes go back before anything is
@@ -1800,6 +1900,17 @@ class AgentTriggerService:
                 # sweep bounds a `running` remainder.
                 return
 
+        if (
+            trigger.teams_conversation_id is not None
+            and run.status == RunStatus.COMPLETED.value
+            and answer
+        ):
+            await post_to_teams(
+                self.db,
+                trigger.teams_conversation_id,
+                f"**{trigger.name or agent.name}**\n\n{answer}",
+            )
+
         trigger.last_run_id = run.id
         # And the run says which trigger made it: with `user_id`, "trigger X,
         # acting as member Y" rather than a run that reads as the member's own.
@@ -1809,6 +1920,14 @@ class AgentTriggerService:
         # runs it made, because only `claim_and_advance` used to set it.
         trigger.last_fired_at = datetime.now(UTC)
         await self.db.flush()
+        if run.status == RunStatus.COMPLETED.value:
+            await NotificationService(self.db).routine_finished(
+                run,
+                agent=agent,
+                routine_name=trigger.name,
+                creator_id=trigger.created_by_user_id,
+                answer=answer,
+            )
         logger.info(
             "trigger_fired",
             extra={"trigger_id": str(trigger.id), "run_id": str(run.id), "status": run.status},
@@ -1921,6 +2040,22 @@ class AgentTriggerService:
             raise NotFoundError(
                 message="Environment not found",
                 details={"environment_id": str(environment_id)},
+            )
+
+    async def _teams_target(self, ctx: AuthContext, conversation_id: UUID) -> None:
+        """Refuse a Teams conversation that is not one of this organization's to post into.
+
+        A team channel one of its bots is in. Another organization's, a group
+        chat - private to its participants, who need not include whoever sets up
+        the routine - or somebody's personal chat with a bot, is not found.
+        """
+        target = await teams_conversation_repo.get_postable(
+            self.db, conversation_id, organization_id=ctx.organization_id
+        )
+        if target is None:
+            raise NotFoundError(
+                message="Teams conversation not found",
+                details={"teams_conversation_id": str(conversation_id)},
             )
 
     async def _owned(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:

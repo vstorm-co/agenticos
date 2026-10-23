@@ -4,8 +4,6 @@ Created for the whole organization by default; limited to named groups in the sa
 request, which makes them private and shares them with each group.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

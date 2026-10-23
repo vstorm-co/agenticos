@@ -13,8 +13,6 @@ the opposite of what guarding the write was for. The money is on the parent's
 row, and that row is what must survive.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal

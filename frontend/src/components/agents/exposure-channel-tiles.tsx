@@ -14,12 +14,14 @@ import {
 import { cn } from "@/lib/utils";
 import type { ExposureSurface, ExposureTarget } from "@/types/exposures";
 
-const PLATFORMS: readonly ExposureSurface[] = ["slack", "telegram", "mattermost"];
+const PLATFORMS: readonly ExposureSurface[] = ["slack", "teams", "telegram", "mattermost"];
 
 export const SURFACE_LABEL: Record<ExposureSurface, string> = {
   slack: "Slack",
   telegram: "Telegram",
   mattermost: "Mattermost",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  teams: "Microsoft Teams",
 };
 
 const TILE =

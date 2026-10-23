@@ -1,5 +1,5 @@
 ---
-source_sha: "2cbc4623a620"
+source_sha: "4b8832761f4a"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -27,6 +27,12 @@ Eine Tabelle hinein, eine veröffentlichte Seite heraus. Der Agent hat die CSV m
 
 ![Chat](assets/screens/light/chat.webp#only-light)
 ![Chat](assets/screens/dark/chat.webp#only-dark)
+
+### Ein Sprachanruf { #a-voice-call }
+
+Das Eingabefeld ist zur Anrufleiste geworden: was der Anruf gerade tut, seine Zeit gemessen am Limit, eine Wellenform beider Stimmen, Stummschalten, Push-to-Talk und Beenden. Darüber läuft die Unterhaltung weiter - Untertitel in der Nachricht, die gerade gesprochen wird, Tool-Ausführungen und eine Freigabekarte mit den exakten Argumenten und dem, was von Ihnen verstanden wurde.
+
+> **Screenshot ausstehend — Ein Sprachanruf.**
 
 ## Einen Agent bauen { #building-an-agent }
 
@@ -259,7 +265,7 @@ Verbinden Sie jeden MCP-Server per URL, und seine Tools werden zu Schaltern im B
 
 ### Channels { #channels }
 
-Die Chat-Plattformen, auf denen diese Organisation antwortet - Slack, Telegram, Mattermost. Ein Bot bedient jeden an ihn gebundenen Agent, und die Bindung wird auf dem Availability-Tab dieses Agents gemacht.
+Die Chat-Plattformen, auf denen diese Organisation antwortet - Slack, Teams, Telegram, Mattermost. Ein Bot bedient jeden an ihn gebundenen Agent, und die Bindung wird auf dem Availability-Tab dieses Agents gemacht.
 
 ![Channels](assets/screens/light/channels.webp#only-light)
 ![Channels](assets/screens/dark/channels.webp#only-dark)

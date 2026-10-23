@@ -11,8 +11,6 @@ them" without loading the lot and slicing it, so the console showed the curated
 hundred and hid the rest behind a query - which reads as a catalog of a hundred.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 

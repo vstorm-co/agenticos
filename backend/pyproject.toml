@@ -1,8 +1,8 @@
 [project]
 name = "agenticos"
-version = "1.1.1"
+version = "1.16.0"
 description = "OS for your agents."
-requires-python = ">=3.12"
+requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
 authors = [
     { name = "DEENUU1", email = "kacper.wlodarczyk@vstorm.co" },
@@ -20,24 +20,27 @@ dependencies = [
     # is what makes the request's transaction commit before the response is sent
     # (#353), and an older FastAPI answers `TypeError` at import rather than
     # quietly reverting - but only 0.141.1 has been run against this suite.
-    "fastapi>=0.143.0",
+    "fastapi>=0.143.2",
     "uvicorn[standard]>=0.54.0",
-    "pydantic[email]>=2.13.5",
-    "pydantic-settings>=2.15.0",
+    "pydantic[email]>=2.14.1",
+    "pydantic-settings>=2.16.0",
     "python-multipart>=0.0.20",
-    "logfire[fastapi,asyncpg,redis,httpx]>=5.1.1",
+    "logfire[fastapi,asyncpg,redis,httpx]>=5.2.0",
     "sqlalchemy[asyncio]>=2.1.4",
     "asyncpg>=0.32.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
     # builds a *sync* engine from `DATABASE_URL_SYNC`, which is
-    # `postgresql+psycopg2://`. Removing it breaks every migration (#155).
+    # `postgresql+psycopg2://`. Removing it breaks every migration (#155). Moving
+    # Alembic to asyncpg was tried for 9 MB of image (#2219) and dropped: asyncpg
+    # is strict about bind types where psycopg2 is not, and the backfills that
+    # would meet that run only against data no local check has.
     "psycopg2-binary>=2.9.13",
     "alembic>=1.19.2",
     "greenlet>=3.5.5",
     "pyjwt>=2.15.1",
     "bcrypt>=4.0.0",
-    "authlib>=1.8.0",
+    "authlib>=1.9.1",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
     # declared only in the `dev` group - so `uv sync --no-dev`, which is what the
     # image builds with, was relying on Starlette to pull it in.
@@ -48,7 +51,6 @@ dependencies = [
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
-    "prefect>=3.8.7",
     # The floor is ours as well as `pydantic-ai-harness`'s: the sandbox runs on
     # `pydantic_ai.workspaces` and passes `workspace=` to a run, both from 2.52,
     # and stating it keeps a resolver from picking a slim the harness cannot run
@@ -56,9 +58,9 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.55.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime]>=2.57.0",
     "genai-prices>=0.1.10",
-    "pydantic-ai-slim[mcp]>=2.55.0",
+    "pydantic-ai-slim[mcp]>=2.57.0",
     # The MCP SDK. Uncapped since #1820 moved the one path where our code and
     # the SDK exchange HTTP objects onto `httpx2`, which 2.0 migrated the whole
     # SDK to: `PinnedAsyncClient` (`app/core/pinned_http.py`) and the MCP OAuth
@@ -86,7 +88,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.52.0 is the
     # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness>=0.55.0",
+    "pydantic-ai-harness>=0.57.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -100,10 +102,12 @@ dependencies = [
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
-    "liteparse>=2.15.1",
-    "google-api-python-client>=2.201.0",
-    "google-auth>=2.59.1",
-    "boto3>=1.43.111",
+    "liteparse>=2.16.0",
+    # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
+    # `google-auth` only signs the service account's token, over `requests`.
+    # `google-api-python-client` was 108 MB of discovery documents for four URLs.
+    "google-auth[requests]>=2.62.0",
+    "boto3>=1.43.114",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
     # catalog, the web-research search - and `httpx2` is what the MCP SDK is
@@ -137,7 +141,7 @@ dependencies = [
     # `sandboxd`. Floors at 0.2.32 for named sandboxd sessions and Daytona
     # sandboxes, which a workspace keyed on its scope opens or attaches by name
     # (#2003).
-    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.33",
+    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.37",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
@@ -174,7 +178,7 @@ dependencies = [
     # websockets and websocket-client for one transport's HTTP client. And not
     # `slack-sdk[socket-mode]`, which does not exist - the only extra is
     # `optional`, so the advice in that ImportError's message was unfollowable.
-    "aiohttp>=3.14.4",
+    "aiohttp>=3.14.5",
     # Cron schedules: the next fire after a given instant for a crontab
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is
@@ -196,6 +200,11 @@ dependencies = [
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
     "phonenumberslite>=9.0.41",
+    # The ingest pool's memory watchdog (#2219): the resident size of a job's child
+    # process and of whatever it starts - LibreOffice for a conversion - so a parse
+    # that grows past its limit is stopped and the parent says why. `/proc` alone
+    # would do on Linux and nowhere else.
+    "psutil>=7.0",
 ]
 
 [project.optional-dependencies]
@@ -241,9 +250,9 @@ dev = [
     "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.17.0",
-    "ty>=0.0.86",
-    "pre-commit>=4.6.2",
+    "ruff>=0.17.1",
+    "ty>=0.0.88",
+    "pre-commit>=4.7.0",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
     # test fails here rather than months later in an unrelated pull request.
@@ -272,7 +281,7 @@ docs = [
     "mkdocs>=1.6.0",
     "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
-    "mkdocstrings[python]>=1.0.6",
+    "mkdocstrings[python]>=1.0.7",
     # One build per locale from `<page>.<locale>.md` files sitting beside the
     # English source, so `/install/` keeps its URL and `/pl/install/` is added
     # rather than everything moving under `/en/`.
@@ -369,8 +378,12 @@ DEP002 = [
 ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py315"
 line-length = 100
+# These run on the runner's own `python3` (3.12), before any toolchain is
+# installed - CI's first job, and the dependency-graph submission - so they keep
+# to syntax that interpreter parses.
+per-file-target-version = { "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
 
 [tool.ruff.lint]
 # The rule set is deliberately wide. A linter that only catches formatting is a
@@ -501,19 +514,22 @@ ignore = [
 "app/services/channels/telegram.py" = ["TRY300", "S107"]
 "app/services/rag/ingestion.py" = ["TRY300", "PTH123"]
 "app/services/rag/documents.py" = ["PTH123"]
-"app/services/rag/sources/google_drive.py" = ["ASYNC230", "PTH123"]
 "app/worker/tasks/rag_tasks.py" = ["TRY300"]
 "app/clients/redis.py" = ["TRY300"]
 "app/core/security.py" = ["TRY300"]
 "app/commands/seed.py" = ["S311"]
-# A polling loop that exits on a flag rather than an Event, and one more
-# blocking read inside a Google SDK call. Same tracked debt as the rest of the
-# generator's channel and connector code.
+# A polling loop that exits on a flag rather than an Event. Same tracked debt as
+# the rest of the generator's channel code.
 "app/services/channels/slack.py" = ["ASYNC110"]
-"app/services/rag/connectors/google_drive.py" = ["PTH123"]
 # The CLI binds 0.0.0.0 because that is what a container needs, and its
 # command bodies read fine as try/except/return.
 "cli/**" = ["S104", "TRY300"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Annotations are evaluated lazily since Python 3.14 (PEP 649), so this import
+# changes nothing but turns every annotation into a string - which a library
+# reading annotations at runtime then has to resolve itself (#2229).
+"__future__.annotations".msg = "annotations are lazy on Python 3.14+; drop the import"
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "cli"]
@@ -531,7 +547,7 @@ known-first-party = ["app", "cli"]
 error-on-warning = true
 
 [tool.ty.environment]
-python-version = "3.12"
+python-version = "3.15"
 
 [tool.ty.src]
 # `app/commands/` used to be here, which quietly took `app/commands/bootstrap.py`
@@ -662,6 +678,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     # What the model is actually told about each tool, read off the built
@@ -683,6 +700,7 @@ include = [
     # reasoning to a stranger.
     "app/services/run_stream.py",
     "app/services/run_reaper.py",
+    "app/services/run_heartbeat.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
@@ -703,12 +721,15 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
+    # Next steps offered as buttons, a press of which is the next message (#2301).
+    "app/services/channels/next_steps.py",
     "app/services/channels/slack_answer.py",
     "app/services/channels/slack_app.py",
     "app/services/channels/slack_manifest.py",
@@ -717,13 +738,28 @@ include = [
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
+    "app/repositories/pending_sandbox_destroy.py",
     "app/services/embed_session.py",
+    "app/services/embed_voice_js.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     "app/services/audit.py",
     "app/services/impersonation.py",
     "app/services/ws_auth.py",
     "app/services/health.py",
+    # The job queue that replaced Prefect (#2219). The claim spends an attempt
+    # before the job runs and the worker never hot-loops, so a job that kills
+    # its process cannot loop and a database that is down cannot spin it.
+    "app/worker/*.py",
+    "app/worker/tasks/background_tasks.py",
+    "app/repositories/background_job.py",
+    "app/repositories/background_schedule.py",
+    "app/repositories/background_task_kind.py",
+    "app/repositories/background_worker.py",
+    "app/services/background_jobs.py",
+    "app/services/api_runs.py",
+    "app/api/routes/v1/admin_background_jobs.py",
+    "app/api/routes/v1/run_requests.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
     "app/services/rag/failures.py",
@@ -757,6 +793,7 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
@@ -765,12 +802,36 @@ include = [
     "app/services/mcp_registry.py",
     "app/services/mcp_audit.py",
     "app/services/speech_to_text.py",
+    "app/services/speech_to_text_settings.py",
+    "app/services/realtime_models.py",
+    "app/services/provider_keys.py",
+    "app/repositories/voice_call.py",
+    "app/services/voice/**",
+    "app/api/routes/v1/voice.py",
+    "app/worker/tasks/voice_tasks.py",
+    "app/db/models/voice_call.py",
+    "app/schemas/voice.py",
     "app/services/transcription.py",
+    "app/services/text_to_speech_models.py",
+    "app/services/text_to_speech/__init__.py",
+    "app/services/text_to_speech/clients.py",
+    "app/services/text_to_speech/exceptions.py",
+    "app/services/text_to_speech/synthesis.py",
+    "app/services/video_models.py",
+    "app/services/video_generation/__init__.py",
+    "app/services/video_generation/clients.py",
+    "app/services/video_generation/exceptions.py",
+    "app/services/video_generation/generation.py",
+    "app/services/provider_error_code.py",
+    "app/services/transcription_usage.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # The Drive REST client that replaced Google's discovery SDK: written here,
+    # so held to the bar.
+    "app/services/rag/drive_api.py",
     # What a chunk is, and therefore what a search can find. Written here rather
     # than imported (#158), and the rest of the pipeline can only retrieve what
     # this module decided to store - so it is held to the bar the code it
@@ -819,6 +880,9 @@ include = [
     "app/services/dashboard_preset.py",
     "app/repositories/context.py",
     "app/services/context.py",
+    "app/repositories/project.py",
+    "app/services/project.py",
+    "app/api/routes/v1/projects.py",
     "app/api/routes/v1/context.py",
     "app/db/models/artifact.py",
     "app/schemas/artifact.py",
@@ -826,6 +890,15 @@ include = [
     "app/services/artifact.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
+    "app/db/models/visual.py",
+    "app/db/models/pending_sandbox_destroy.py",
+    "app/schemas/visual.py",
+    "app/repositories/visual.py",
+    "app/services/visual.py",
+    "app/services/visual_render.py",
+    "app/core/map_tiles.py",
+    "app/services/tile_proxy.py",
+    "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
     "app/repositories/api_key.py",
@@ -863,8 +936,13 @@ include = [
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/db/models/generated_media.py",
+    "app/repositories/generated_media.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    "app/services/embed_generated_media.py",
+    "app/api/routes/v1/embed_generated_media.py",
+    "app/worker/tasks/generated_media_tasks.py",
     # What this deployment calls itself, who may register, and whether it is open
     # at all. The identity half is cosmetic; the other two are refusals - a sign-up
     # policy applied on the only unauthenticated paths that mint an account, and a
@@ -912,6 +990,8 @@ include = [
     "app/services/ml/pii.py",
     "app/services/ml/parsing.py",
     "app/services/ml/facade.py",
+    "app/services/ml/audio_duration.py",
+    "app/services/ml/pcm_wav.py",
     "app/db/models/ml_service_call.py",
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
@@ -934,6 +1014,9 @@ include = [
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
     "app/services/live_browse.py",
+    "app/services/live_turn.py",
+    "app/services/chat_room.py",
+    "app/services/redis_view.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
     "app/db/models/browser_sign_in.py",
@@ -942,6 +1025,19 @@ include = [
     "app/services/browser_sign_in.py",
     "app/services/browser_sign_in_session.py",
     "app/api/routes/v1/browser_sign_ins.py",
+    # What the platform does for people on its own initiative, all of it in
+    # background jobs, and the suggestions it leaves them (#2301).
+    "app/services/proactive/**",
+    "app/services/suggestions.py",
+    "app/services/role_packs.py",
+    "app/repositories/suggestion.py",
+    "app/api/routes/v1/me_suggestions.py",
+    "app/worker/tasks/proactive_tasks.py",
+    # Watches over a person's own connections, and the presets they start from.
+    "app/services/watches.py",
+    "app/services/watch_presets.py",
+    "app/repositories/watch.py",
+    "app/api/routes/v1/me_watches.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1074,6 +1170,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     # What the model is actually told about each tool, read off the built
@@ -1098,6 +1195,7 @@ include = [
     # reasoning to a stranger.
     "app/services/run_stream.py",
     "app/services/run_reaper.py",
+    "app/services/run_heartbeat.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
@@ -1118,12 +1216,15 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
+    # Next steps offered as buttons, a press of which is the next message (#2301).
+    "app/services/channels/next_steps.py",
     "app/services/channels/slack_answer.py",
     "app/services/channels/slack_app.py",
     "app/services/channels/slack_manifest.py",
@@ -1132,11 +1233,13 @@ include = [
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
+    "app/repositories/pending_sandbox_destroy.py",
     # One visitor's turn on a public widget: who it runs as, how often they may
     # ask, and what the page is allowed to put in front of the model. An
     # unreachable `except BudgetExceeded` sat here for as long as it was
     # ungated, which is the failure this gate exists to name (#663).
     "app/services/embed_session.py",
+    "app/services/embed_voice_js.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     # The read half of the audit trail. `audit:read` is the only way to see who
@@ -1155,6 +1258,19 @@ include = [
     # provider check. A probe nobody has watched fail is not a probe, which is
     # why this module is gated rather than reported.
     "app/services/health.py",
+    # The job queue that replaced Prefect (#2219). The claim spends an attempt
+    # before the job runs and the worker never hot-loops, so a job that kills
+    # its process cannot loop and a database that is down cannot spin it.
+    "app/worker/*.py",
+    "app/worker/tasks/background_tasks.py",
+    "app/repositories/background_job.py",
+    "app/repositories/background_schedule.py",
+    "app/repositories/background_task_kind.py",
+    "app/repositories/background_worker.py",
+    "app/services/background_jobs.py",
+    "app/services/api_runs.py",
+    "app/api/routes/v1/admin_background_jobs.py",
+    "app/api/routes/v1/run_requests.py",
     # Template-inherited, gated anyway. Its fixed `emails/compiled` path pointed
     # at a directory that never existed, so every email raised
     # EmailTemplateError — and every caller logs and swallows that, so
@@ -1202,6 +1318,7 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
@@ -1210,12 +1327,36 @@ include = [
     "app/services/mcp_registry.py",
     "app/services/mcp_audit.py",
     "app/services/speech_to_text.py",
+    "app/services/speech_to_text_settings.py",
+    "app/services/realtime_models.py",
+    "app/services/provider_keys.py",
+    "app/repositories/voice_call.py",
+    "app/services/voice/**",
+    "app/api/routes/v1/voice.py",
+    "app/worker/tasks/voice_tasks.py",
+    "app/db/models/voice_call.py",
+    "app/schemas/voice.py",
     "app/services/transcription.py",
+    "app/services/text_to_speech_models.py",
+    "app/services/text_to_speech/__init__.py",
+    "app/services/text_to_speech/clients.py",
+    "app/services/text_to_speech/exceptions.py",
+    "app/services/text_to_speech/synthesis.py",
+    "app/services/video_models.py",
+    "app/services/video_generation/__init__.py",
+    "app/services/video_generation/clients.py",
+    "app/services/video_generation/exceptions.py",
+    "app/services/video_generation/generation.py",
+    "app/services/provider_error_code.py",
+    "app/services/transcription_usage.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # The Drive REST client that replaced Google's discovery SDK: written here,
+    # so held to the bar.
+    "app/services/rag/drive_api.py",
     # What a chunk is, and therefore what a search can find. Written here rather
     # than imported (#158), and the rest of the pipeline can only retrieve what
     # this module decided to store - so it is held to the bar the code it
@@ -1264,6 +1405,9 @@ include = [
     "app/services/dashboard_preset.py",
     "app/repositories/context.py",
     "app/services/context.py",
+    "app/repositories/project.py",
+    "app/services/project.py",
+    "app/api/routes/v1/projects.py",
     "app/api/routes/v1/context.py",
     "app/db/models/artifact.py",
     "app/schemas/artifact.py",
@@ -1271,6 +1415,15 @@ include = [
     "app/services/artifact.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
+    "app/db/models/visual.py",
+    "app/db/models/pending_sandbox_destroy.py",
+    "app/schemas/visual.py",
+    "app/repositories/visual.py",
+    "app/services/visual.py",
+    "app/services/visual_render.py",
+    "app/core/map_tiles.py",
+    "app/services/tile_proxy.py",
+    "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
     "app/repositories/api_key.py",
@@ -1308,8 +1461,13 @@ include = [
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/db/models/generated_media.py",
+    "app/repositories/generated_media.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    "app/services/embed_generated_media.py",
+    "app/api/routes/v1/embed_generated_media.py",
+    "app/worker/tasks/generated_media_tasks.py",
     # What this deployment calls itself, who may register, and whether it is open
     # at all. The identity half is cosmetic; the other two are refusals - a sign-up
     # policy applied on the only unauthenticated paths that mint an account, and a
@@ -1357,6 +1515,8 @@ include = [
     "app/services/ml/pii.py",
     "app/services/ml/parsing.py",
     "app/services/ml/facade.py",
+    "app/services/ml/audio_duration.py",
+    "app/services/ml/pcm_wav.py",
     "app/db/models/ml_service_call.py",
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
@@ -1379,6 +1539,9 @@ include = [
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
     "app/services/live_browse.py",
+    "app/services/live_turn.py",
+    "app/services/chat_room.py",
+    "app/services/redis_view.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
     "app/db/models/browser_sign_in.py",
@@ -1387,6 +1550,19 @@ include = [
     "app/services/browser_sign_in.py",
     "app/services/browser_sign_in_session.py",
     "app/api/routes/v1/browser_sign_ins.py",
+    # What the platform does for people on its own initiative, all of it in
+    # background jobs, and the suggestions it leaves them (#2301).
+    "app/services/proactive/**",
+    "app/services/suggestions.py",
+    "app/services/role_packs.py",
+    "app/repositories/suggestion.py",
+    "app/api/routes/v1/me_suggestions.py",
+    "app/worker/tasks/proactive_tasks.py",
+    # Watches over a person's own connections, and the presets they start from.
+    "app/services/watches.py",
+    "app/services/watch_presets.py",
+    "app/repositories/watch.py",
+    "app/api/routes/v1/me_watches.py",
 ]
 branch = true
 omit = [
@@ -1410,7 +1586,14 @@ exclude_also = [
 ]
 
 [tool.uv]
-# FastMCP asks for a beartype pre-release on Python 3.15, where no final
-# release supports it yet. Allowing that one pre-release, only there, is what
-# lets the lock resolve for every Python this project claims; 3.12 is unaffected.
-constraint-dependencies = ["beartype>=0.23.0rc2; python_full_version >= '3.15'"]
+# aiogram 3.31 caps pydantic below 2.14, and every pydantic 2.13 pins a
+# pydantic-core with no CPython 3.15 wheel, so without this the backend cannot
+# be installed on the Python it runs (#2229). aiogram raises that cap with each
+# pydantic minor release rather than for a break; the Telegram channel's tests
+# exercise it. Drop this once aiogram allows 2.14.
+#
+# xai-sdk 1.20 caps packaging below 26, and virtualenv (pre-commit's) fixes
+# CVE-2026-113725 only from 21.14.7, which needs packaging 26.3 - so the cap
+# held a known advisory in the lock. xai-sdk reads versions with packaging's
+# stable API; the xAI realtime tests exercise it. Drop this once xai-sdk allows 26.
+override-dependencies = ["pydantic[email]>=2.14.1", "packaging>=26.3"]

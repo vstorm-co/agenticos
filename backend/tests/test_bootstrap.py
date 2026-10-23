@@ -6,8 +6,6 @@ sure it worked - and that a missing API key produces a visible half-built state
 rather than an agent that silently cannot run.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -49,21 +47,51 @@ class TestProviderDefaults:
 
 class TestOrganization:
     @pytest.mark.anyio
-    async def test_an_existing_personal_org_is_reused(self):
+    async def test_the_organization_the_owner_lands_in_is_reused(self):
         """It is where a new operator lands after signing in."""
         existing = MagicMock(name="Personal")
-        with patch(
-            "app.commands.bootstrap.organization_repo.get_personal_for_user",
-            new=AsyncMock(return_value=existing),
+        with (
+            patch(
+                "app.commands.bootstrap.OrganizationService.fallback_for",
+                new=AsyncMock(return_value=existing),
+            ),
+            patch(
+                "app.commands.bootstrap.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER.value)),
+            ),
         ):
             assert await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme") is existing
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_default_organization_it_only_belongs_to_is_not_taken_over(self):
+        """Bootstrap acts as an owner; an account that joined the default organization
+        as a member gets an organization of its own instead (#2156)."""
+        joined = MagicMock(id=uuid.uuid4())
+        created = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.OrganizationService.fallback_for",
+                new=AsyncMock(return_value=joined),
+            ),
+            patch(
+                "app.commands.bootstrap.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER.value)),
+            ),
+            patch(
+                "app.commands.bootstrap.organization_repo.create",
+                new=AsyncMock(return_value=created),
+            ),
+            patch("app.commands.bootstrap.member_repo.create", new=AsyncMock()),
+        ):
+            assert await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme") is created
 
     @pytest.mark.anyio
     async def test_a_fresh_install_gets_an_organization_and_an_owner(self):
         created = MagicMock(id=uuid.uuid4())
         with (
             patch(
-                "app.commands.bootstrap.organization_repo.get_personal_for_user",
+                "app.commands.bootstrap.OrganizationService.fallback_for",
                 new=AsyncMock(return_value=None),
             ),
             patch(
@@ -189,11 +217,11 @@ class TestModel:
 
 
 class TestStarterAgents:
-    """The Architect and Claude Code like - what a new organization opens with."""
+    """The Architect and AgenticOS - what a new organization opens with."""
 
     @staticmethod
     def _patches(*, existing=None, assistant_status="ready", publish=None):
-        agent = MagicMock(id=uuid.uuid4(), draft_spec={"name": "Claude Code like"})
+        agent = MagicMock(id=uuid.uuid4(), draft_spec={"name": "AgenticOS"})
         install = AsyncMock(return_value=MagicMock(agent_id=agent.id))
         mocks = {
             "state": AsyncMock(return_value=MagicMock(status=assistant_status, name="Architect")),

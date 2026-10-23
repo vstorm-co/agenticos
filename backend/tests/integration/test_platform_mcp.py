@@ -5,8 +5,6 @@ asserted here is the join: the MCP handshake admits a key, the tools reach the
 API as that key, and the key's narrowing and revocation hold through it.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -18,6 +16,9 @@ import httpx2
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from pydantic_ai import RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +31,13 @@ from app.main import app
 from app.schemas.api_key import ApiKeyCreate
 from app.services.api_key import ApiKeyService
 from app.services.platform_mcp import serve_platform_mcp
+
+
+def _run_context() -> RunContext[None]:
+    """A real one: from Pydantic AI 2.57 a prefixed toolset copies the context it
+    is handed with `dataclasses.replace`, which a `MagicMock` is not."""
+    return RunContext(deps=None, model=TestModel(), usage=RunUsage())
+
 
 pytestmark = pytest.mark.anyio
 
@@ -182,7 +190,7 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     agent = PydanticAgent(FunctionModel(asks_whoami), toolsets=[toolset])
     async with agent:
         result = await agent.run("who am I?")
-        tools = await toolset.get_tools(MagicMock())
+        tools = await toolset.get_tools(_run_context())
 
     assert str(organization.id) in result.output
     assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
@@ -214,7 +222,7 @@ async def test_a_platform_binding_asking_no_approval_still_holds_its_writes(
     # Opened the way a run opens it - through the agent - as the test above does.
     agent = PydanticAgent(FunctionModel(lambda _m, _i: ModelResponse(parts=[])), toolsets=[toolset])
     async with agent:
-        tools = await toolset.get_tools(MagicMock())
+        tools = await toolset.get_tools(_run_context())
 
     assert tools["agenticos_invite_member"].tool_def.metadata[NEEDS_APPROVAL] is True
     assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False

@@ -3,7 +3,14 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useImageProviders, useModelProviders, useProviderModels } from "./use-model-providers";
+import {
+  useImageProviders,
+  useModelProviders,
+  useProviderModels,
+  useTextToSpeechProviders,
+  useVideoProviders,
+  useSpeechToTextProviders,
+} from "./use-model-providers";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -195,5 +202,84 @@ describe("useImageProviders", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.providers).toEqual([]);
+  });
+});
+
+describe("useTextToSpeechProviders", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks the platform which providers can speak, with which models and voices", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        {
+          provider: "elevenlabs",
+          name: "ElevenLabs",
+          formats: ["mp3", "wav"],
+          account_voices: true,
+          models: [],
+        },
+      ],
+      total: 1,
+    });
+    const { result } = renderHook(() => useTextToSpeechProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/text-to-speech-models");
+    expect(result.current.providers[0]?.account_voices).toBe(true);
+  });
+
+  it("answers with an empty list and says it failed, rather than throwing", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("502"));
+    const { result } = renderHook(() => useTextToSpeechProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.providers).toEqual([]);
+  });
+});
+
+describe("useVideoProviders", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks the platform which providers can make video and what each model makes", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ provider: "xai", name: "xAI (Grok)", models: [] }],
+      total: 1,
+    });
+    const { result } = renderHook(() => useVideoProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/video-models");
+    expect(result.current.providers[0]?.provider).toBe("xai");
+  });
+
+  it("answers with an empty list and says it failed, rather than throwing", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("502"));
+    const { result } = renderHook(() => useVideoProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.providers).toEqual([]);
+  });
+});
+
+describe("useSpeechToTextProviders", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("passes on the languages a recording may be pinned to", async () => {
+    // The organization's Voice card offers exactly these, so the list is the
+    // server's and not a copy kept here.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, languages: ["en", "pl"] });
+    const { result } = renderHook(() => useSpeechToTextProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.languages).toEqual(["en", "pl"]));
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/speech-to-text-models");
+  });
+
+  it("answers with no providers and no languages when the catalog cannot be read", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("502"));
+    const { result } = renderHook(() => useSpeechToTextProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.providers).toEqual([]);
+    expect(result.current.languages).toEqual([]);
   });
 });

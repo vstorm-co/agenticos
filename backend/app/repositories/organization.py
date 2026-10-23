@@ -6,12 +6,18 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
-from app.db.models.organization import Organization, OrganizationMember, OrgRole
+from app.db.models.organization import (
+    Organization,
+    OrganizationMember,
+    OrgRole,
+    ProactiveTiming,
+)
 from app.db.models.user import User
 from app.repositories._search import contains_ci
 
@@ -210,6 +216,77 @@ async def update(
     return org
 
 
+async def set_proactive_limit(
+    db: AsyncSession, org: Organization, *, limit_usd: Decimal
+) -> Organization:
+    """Set what background work may spend per person per month; zero switches it off (#2301)."""
+    org.proactive_limit_usd = limit_usd
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_proactivity(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    enabled: bool,
+    model_profile_id: UUID | None,
+    days: list[int],
+    hour: int,
+    timing: ProactiveTiming,
+) -> Organization:
+    """Write whether the platform works on its own initiative here, on what and when (#2301)."""
+    org.proactive_enabled = enabled
+    org.proactive_model_profile_id = model_profile_id
+    org.proactive_days = days
+    org.proactive_hour = hour
+    org.proactive_timing = timing
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_watch_policy(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    enabled: bool,
+    min_minutes: int,
+) -> Organization:
+    """Write whether people here may watch their connections, and how often at most."""
+    org.proactive_watches_enabled = enabled
+    org.proactive_watch_min_minutes = min_minutes
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def stop_proactivity_on(
+    db: AsyncSession, *, organization_id: UUID, model_profile_id: UUID
+) -> None:
+    """Switch the organization's proactive work off if it runs on this model (#2301)."""
+    await db.execute(
+        sql_update(Organization)
+        .where(
+            Organization.id == organization_id,
+            Organization.proactive_model_profile_id == model_profile_id,
+        )
+        .values(proactive_enabled=False, proactive_watches_enabled=False)
+    )
+
+
+async def set_welcome_dm(
+    db: AsyncSession, org: Organization, *, enabled: bool, text: str | None
+) -> Organization:
+    """Write whether new members are greeted in the chat apps, and with what (#2301)."""
+    org.welcome_dm_enabled = enabled
+    org.welcome_dm_text = text
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_monthly_budget(
     db: AsyncSession, org: Organization, *, limit_usd: Decimal | None
 ) -> Organization:
@@ -249,6 +326,33 @@ async def set_chat_approval_waiver(
     argument and so cannot express a boolean somebody deliberately set to false.
     """
     org.chat_may_waive_approvals = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_speech_settings(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    provider: str | None,
+    model: str | None,
+    secret_id: UUID | None,
+    language: str | None,
+    max_seconds: int,
+) -> Organization:
+    """Write all five speech settings at once (#1797).
+
+    One setter for the five because they are validated together - the pair is
+    both-or-neither and must be one the catalog offers, and its key goes with
+    it - and because :func:`update` skips a `None` argument, so it cannot clear
+    a provider, a key or a language.
+    """
+    org.speech_to_text_provider = provider
+    org.speech_to_text_model = model
+    org.speech_to_text_secret_id = secret_id
+    org.speech_to_text_language = language
+    org.dictation_max_seconds = max_seconds
     await db.flush()
     await db.refresh(org)
     return org

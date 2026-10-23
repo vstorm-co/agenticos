@@ -10,7 +10,7 @@ Claude Team and Claude Enterprise give each employee Anthropic's assistant: chat
 
 They are not either-or. AgenticOS can run Claude models through the Anthropic API or Amazon Bedrock, so a Claude subscription and an AgenticOS deployment often sit side by side.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. Claude scope: Anthropic's pricing, product and Help Center pages for the Team and Enterprise plans, not a tested account.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Claude scope: Anthropic's pricing, product and Help Center pages for the Team and Enterprise plans, not a tested account.
 
 ## At a glance
 
@@ -19,14 +19,14 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Unit of purchase | A seat per employee | A deployment; no seat fee |
 | Where it runs | Anthropic's cloud | Your infrastructure |
 | Source | Proprietary | Apache-2.0 |
-| Models | Claude only | 27 providers, Claude included, and local models |
+| Models | Claude only | 28 providers, Claude included, and local models |
 | What you build | Projects, skills and plugins for people who chat | Published agents, each a versioned spec |
 | Who uses it | Employees with a seat | Employees, customers and systems, on eight surfaces |
-| Surfaces | Web, desktop, mobile, Chrome, Office add-ins, Slack in beta | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Spend control | Organization, group and user spend limits | A budget per agent and per organization, checked before each model request |
-| Approvals | The acting user, or an automatic mode | A run parks until a person with `approvals:decide` decides |
+| Surfaces | Web, desktop, mobile, Chrome, Microsoft 365, Slack through Claude Tag in beta | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Spend control | Organization and user spend caps | A budget per agent and per organization, checked before each model request |
+| Approvals | The acting user, or an automatic mode the organization may allow | A run parks until a person with `approvals:decide` decides |
 | Audit log | Enterprise; 180 days of events as CSV | Every plan; tamper-evident, exported as CSV or JSONL |
-| Pricing | Team $20 per seat per month annually, $25 monthly; Enterprise $20 per seat per month plus usage at API rates, from 20 seats | Model usage at your provider's rates, plus infrastructure |
+| Pricing | Team, 2 to 150 seats: a Standard seat at $20 per month annually ($25 monthly), a Premium seat at $100 ($125); Enterprise $20 per seat per month plus usage at API rates, from 20 seats | Model usage at your provider's rates, plus infrastructure |
 
 ## Where AgenticOS goes further
 
@@ -36,19 +36,19 @@ Claude Projects hold instructions and knowledge for the people who chat in them.
 
 ### Any model, and the option to keep it local
 
-Claude plans use Claude models only. AgenticOS reaches [27 providers](../models.md#providers), including Anthropic and Bedrock for Claude, plus OpenAI, Google, Mistral, and Ollama or LiteLLM on your own hardware. A [model profile](../models.md#a-model-profile) with [fallbacks](../models.md#fallbacks) lets an agent move to another model or provider with no republish.
+Claude plans use Claude models only. AgenticOS reaches [28 providers](../models.md#providers), including Anthropic and Bedrock for Claude, plus OpenAI, Google, Mistral, and Ollama or LiteLLM on your own hardware. A [model profile](../models.md#a-model-profile) with [fallbacks](../models.md#fallbacks) lets an agent move to another model or provider with no republish.
 
 ### Approval by someone other than the requester
 
-In Cowork, the person running the task approves write actions, or turns on automatic approval. Anthropic's pages do not describe an approval routed to someone else. In AgenticOS a tool the agent's author gated [parks the run](../governance.md#approvals). The [alert](../governance.md#alerts) goes to the members you choose, and only someone holding `approvals:decide` can decide it, once.
+In Cowork, the person running the task approves write actions, or turns on automatic approval where the organization allows it. Anthropic's pages do not describe an approval routed to someone else. In AgenticOS a tool the agent's author gated [parks the run](../governance.md#approvals). The [alert](../governance.md#alerts) goes to the members you choose, and only someone holding `approvals:decide` can decide it, once.
 
 ### Cost per agent, not per seat
 
-Claude limits spend per organization, group and user. There is no per-agent budget, because the apps have no agent object. AgenticOS gives each agent a [monthly budget](../governance.md#budgets) checked [before each model request](../governance.md#enforcement-is-before-the-request). You see [what each agent spent](../governance.md#what-the-cost-screen-shows) and pay the provider directly, with no seat fee.
+Claude caps spend per organization and per user. There is no per-agent budget, because the apps have no agent object. AgenticOS gives each agent a [monthly budget](../governance.md#budgets) checked [before each model request](../governance.md#enforcement-is-before-the-request). You see [what each agent spent](../governance.md#what-the-cost-screen-shows) and pay the provider directly, with no seat fee.
 
 ### Enterprise controls without an Enterprise tier
 
-On Claude, audit logs, custom roles, SCIM, custom retention and the Compliance API are Enterprise-only, with a minimum of 20 seats. AgenticOS ships most of these in every deployment: a [tamper-evident audit log](../governance.md#audit), six built-in [roles with per-resource grants](../permissions.md#layer-3-visibility-and-grants), [directory group mappings](../directory.md#directory-group-mappings) and [retention per data class](../governance.md#retention). Custom roles and SCIM are not there yet; see [the gaps](comparison.md#what-agenticos-does-not-do-yet).
+On Claude, audit logs, role-based access, SCIM, custom retention and the Compliance API are Enterprise-only, with a minimum of 20 seats. AgenticOS ships most of these in every deployment: a [tamper-evident audit log](../governance.md#audit), six built-in [roles with per-resource grants](../permissions.md#layer-3-visibility-and-grants), [directory group mappings](../directory.md#directory-group-mappings) and [retention per data class](../governance.md#retention). Custom roles and SCIM are not there yet; see [the gaps](comparison.md#what-agenticos-does-not-do-yet).
 
 ### Knowledge you can tune
 
@@ -57,13 +57,13 @@ Claude Projects switch to retrieval automatically as project knowledge grows, an
 ## When Claude alone is enough
 
 - You want a strong assistant for every employee with nothing to operate.
-- Cowork, Claude Code, the Office add-ins and Chrome under one seat cover your needs.
+- Cowork, Claude Code, Microsoft 365 and Chrome under one seat cover your needs.
 - You need Anthropic's certifications, customer-managed keys or its Compliance API partner integrations.
 - You need SAML or SCIM today. AgenticOS offers OIDC, LDAP and Kerberos, but not SAML or SCIM yet.
 
 ## Use them together
 
-Keep Claude for employees' everyday work. Use AgenticOS for the agents that need an owner, a budget, an approval step or a public surface. Add an Anthropic model profile and publish the agent: a support widget, a Telegram bot, an internal policy agent. Each of these runs on Claude models under your own governance.
+Keep Claude for employees' everyday work. Use AgenticOS for the agents that need an owner, a budget, an approval step or a public surface. Add an Anthropic model profile and publish the agent: a support widget, a Telegram bot, an internal policy agent. Each of these runs on Claude models under your own governance. The [coding agent](../reference/capabilities.md#coding-agent) hands software work to Claude Code in a sandbox, and because [AgenticOS is an MCP server](../mcp.md#agenticos-as-an-mcp-server), Claude Code and Claude Desktop can list and run your agents.
 
 ## Try one handbook question
 
@@ -95,9 +95,9 @@ Yes. An agent answers through a website widget, a hosted page link, the HTTP API
 
 - [Claude pricing](https://claude.com/pricing): Team and Enterprise seat prices and the Enterprise feature list.
 - [What is the Enterprise plan](https://support.claude.com/en/articles/9797531-what-is-the-enterprise-plan): usage billed at API rates, minimum seats.
-- [What is the Team plan](https://support.claude.com/en/articles/9266767-what-is-the-team-plan): seats, SSO and spend caps.
+- [What is the Team plan](https://support.claude.com/en/articles/9266767-what-is-the-team-plan): Standard and Premium seats, 2 to 150 members, SSO and spend caps.
 - [Audit logs](https://support.claude.com/en/articles/9970975-access-audit-logs): Enterprise only, 180-day export.
 - [Model access](https://support.claude.com/en/articles/15694740-manage-model-access-for-your-organization): Claude models only.
 - [Cowork on Team and Enterprise](https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans): approvals and admin controls.
 - [RAG for Projects](https://support.claude.com/en/articles/11473015-retrieval-augmented-generation-rag-for-projects): automatic project retrieval.
-- [Introducing Claude Tag](https://www.anthropic.com/news/introducing-claude-tag): Slack beta.
+- [Introducing Claude Tag](https://www.anthropic.com/news/introducing-claude-tag): Slack beta for Team and Enterprise.

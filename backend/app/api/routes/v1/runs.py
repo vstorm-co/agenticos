@@ -38,6 +38,7 @@ from app.schemas.agent_run import (
     ApprovalDecision,
     ApprovalList,
     ApprovalRead,
+    CacheByAgentModel,
     CostByAgent,
     CostByDay,
     CostByKey,
@@ -90,6 +91,7 @@ async def list_runs(
     exposure_id: UUID | None = Query(None, description="Runs admitted through this binding"),
     agent_version_id: UUID | None = Query(None, description="Runs that executed this frozen spec"),
     rated: RunRating | None = Query(None, description="Only runs somebody rated this way"),
+    modality: Literal["text", "voice"] | None = Query(None, description="Text runs or voice calls"),
     test: bool | None = Query(
         None, description="Only runs from the Builder's test panel, or only the rest"
     ),
@@ -132,6 +134,10 @@ async def list_runs(
 
     Every filter narrows both the page and `total`, so the number always
     describes the rows under it.
+
+    A call is one row (#54): a reconnect's run continues the call and is left
+    out, and the first run carries `voice_chain` - every connection summed.
+    `modality=voice` lists calls alone.
     """
     items, total = await service.list_runs(
         ctx,
@@ -150,6 +156,8 @@ async def list_runs(
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
             rated=rated,
+            modality=modality,
+            one_row_per_call=True,
             is_test=test,
         ),
         order_by=order_by,
@@ -160,9 +168,12 @@ async def list_runs(
     down_rated = (
         await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
     )
+    chains = await service.voice_chains(ctx, [run.id for run in items if run.modality == "voice"])
     return AgentRunList(
         items=[
-            AgentRunRead.model_validate(run).model_copy(update={"down_rated": run.id in down_rated})
+            AgentRunRead.model_validate(run).model_copy(
+                update={"down_rated": run.id in down_rated, "voice_chain": chains.get(run.id)}
+            )
             for run in items
         ],
         total=total,
@@ -190,6 +201,9 @@ async def export_runs(
     exposure_id: UUID | None = Query(None),
     agent_version_id: UUID | None = Query(None),
     rated: RunRating | None = Query(None),
+    modality: Literal["text", "voice"] | None = Query(
+        None, description="Text runs or voice calls. Every run of a call is exported"
+    ),
     test: bool | None = Query(None),
 ) -> Any:
     """Run history as CSV, over exactly the rows `GET /runs` would list.
@@ -217,6 +231,9 @@ async def export_runs(
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
             rated=rated,
+            # Not `one_row_per_call`: a reconnect's run is money spent, and the
+            # file has to add up to the bill (#54).
+            modality=modality,
             is_test=test,
         ),
     )
@@ -613,6 +630,23 @@ async def get_spend(
         by_day=[
             CostByDay(day=day, cost_usd=cost, run_count=runs)
             for day, cost, runs in await service.spend_by_day(ctx, since=since, until=to_date)
+        ],
+        # Where a cost investigation looks for full-price tokens the provider
+        # could have served from cache (#2109).
+        cache_by_agent_model=[
+            CacheByAgentModel(
+                agent_id=agent_id,
+                agent_name=name,
+                agent_slug=slug,
+                model_label=model,
+                busts=busts,
+                expiries=expiries,
+                missed_tokens=missed,
+                run_count=runs,
+            )
+            for agent_id, name, slug, model, busts, expiries, missed, runs in (
+                await service.cache_collapses(ctx, since=since, until=to_date)
+            )
         ],
     )
 

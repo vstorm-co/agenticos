@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "ea4e850dac4a"
 ---
 
 # Conceptos { #concepts }
@@ -197,9 +197,9 @@ condiciones:
   evento lleva un correo o el cuerpo de un webhook que nadie revisó, y una nota
   escrita a partir de él la leería cada chat posterior como propia del creador.
 - **Las conversaciones anteriores siguen cerradas** en ambos casos.
-- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno o el
-  filtro de un trigger que no creaste lo desactiva, así que nadie reescribe lo que
-  se ejecuta como tú. Un administrador que actúa como tú mediante suplantación, o
+- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno, el
+  filtro o el canal de Teams de un trigger que no creaste lo desactiva, así que
+  nadie reescribe lo que se ejecuta como tú ni envía su respuesta a otro sitio. Un administrador que actúa como tú mediante suplantación, o
   un script con tu clave de API, no puede activarlo.
 - **También una versión nueva que no publicaste tú.** Una publicación, una
   promoción o una reversión de cualquier otra persona lo desactiva, y también una
@@ -230,7 +230,9 @@ distinguir un run desatendido del de una persona. Cada disparo es su propio run
 en Activity, y sus respuestas se acumulan en una única conversación de registro
 que el trigger abre una vez — de forma anticipada, en el momento en que se crea
 el trigger, así que es un elemento en el que puedes pulsar antes de que se haya
-disparado nunca.
+disparado nunca. Un trigger también puede publicar cada respuesta en un canal o
+chat de grupo de Teams en el que esté el bot de su organización
+([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Dos formas de disparar { #two-ways-to-fire }
 
@@ -316,6 +318,7 @@ correctamente:
 | `failed` | se rompió |
 | `budget_exceeded` | alcanzó un tope — un límite de gasto haciendo su trabajo |
 | `guardrail_blocked` | lo rechazó un [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | siguió repitiendo las mismas llamadas tras el aviso y se [detuvo](governance.md#step-limits) |
 | `cancelled` | se detuvo: el botón de parar del compositor, un socket que se fue, una delegación cancelada desde arriba. En todas las superficies, no solo en la de streaming |
 | `awaiting_approval` | quedó aparcado en una aprobación, y es **reanudable** — su historial de mensajes está guardado, así que la decisión se aplica a la conversación a la que pertenece |
 
@@ -525,6 +528,12 @@ dentro del spec de otro.
 Así que usa un especialista para trabajo que no debería exigir publicar un agent
 — "resume esto en tres viñetas" — y un delegado para una capacidad que la
 organización posee y reutiliza.
+
+Un tercer tipo está a su lado: un **agent remoto**, el agent de otro proveedor al
+que se llega por A2A y que se registra en la organización por su agent card. Se
+llama igual y se cobra contra el mismo budget, pero aquí no tiene versiones — su
+dueño lo cambia de su lado —, así que una referencia nombra el registro y no una
+versión. Ver [Agents remotos por A2A](reference/capabilities.md#remote-agents).
 
 #### Especialistas dinámicos, y la salida { #dynamic-specialists-and-the-way-out }
 

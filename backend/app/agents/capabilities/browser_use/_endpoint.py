@@ -6,8 +6,6 @@ security-relevant: one resolves an operator-supplied endpoint, the other is the
 only thing standing between "browse the docs" and "browse the intranet".
 """
 
-from __future__ import annotations
-
 from fnmatch import fnmatch
 from urllib.parse import urlparse, urlsplit
 

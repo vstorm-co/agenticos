@@ -11,6 +11,13 @@ const state = vi.hoisted(() => ({
   // and the organization's ceiling (#925).
   mayDecide: true,
   orgAllowsWaiving: true,
+  pathname: "/chat",
+  openPage: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
+vi.mock("@/stores/onboarding-store", () => ({
+  useOnboardingStore: (pick: (store: unknown) => unknown) => pick({ openPage: state.openPage }),
 }));
 
 vi.mock("@/hooks", () => ({
@@ -64,6 +71,28 @@ beforeEach(() => {
   state.conversationId = null;
   state.mayDecide = true;
   state.orgAllowsWaiving = true;
+  state.pathname = "/chat";
+  state.openPage = vi.fn();
+});
+
+describe("the page's tips", () => {
+  it("are replayed from the controls, which close first so the tour can walk them (#2301)", async () => {
+    render(<ChatControls />);
+    await userEvent.click(trigger());
+
+    await userEvent.click(screen.getByRole("button", { name: "Show tips for this page" }));
+
+    expect(state.openPage).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+  });
+
+  it("are not offered where the page has none", async () => {
+    state.pathname = "/admin/users";
+    render(<ChatControls />);
+    await userEvent.click(trigger());
+
+    expect(screen.queryByRole("button", { name: "Show tips for this page" })).toBeNull();
+  });
 });
 
 describe("the chat controls trigger", () => {
@@ -75,6 +104,22 @@ describe("the chat controls trigger", () => {
 
     const found = screen.getByRole("button", { name: "Chat controls" });
     expect(document.querySelector("[data-chat-settings-trigger]")).toBe(found);
+  });
+
+  it("stays open under the page tour's caption, and closes on an outside click otherwise", async () => {
+    // The tour walks the popover's sections: its caption sits outside the popover,
+    // and closing on it left the next stop pinned to a section that had gone.
+    render(<ChatControls onModelProfileChange={vi.fn()} />);
+    const caption = document.createElement("div");
+    caption.className = "driver-popover";
+    document.body.appendChild(caption);
+    await userEvent.click(trigger());
+    await userEvent.click(caption);
+    expect(screen.getByText("Saves on send")).toBeInTheDocument();
+
+    caption.remove();
+    await userEvent.click(document.body);
+    expect(screen.queryByText("Saves on send")).toBeNull();
   });
 
   it("is one icon, titled 'Chat controls' when the agent's model could not be read", () => {

@@ -12,8 +12,6 @@ that types stops recording at that step, so a password or a search with a name
 in it is never kept, and the model types it again.
 """
 
-from __future__ import annotations
-
 from hashlib import sha256
 from typing import Literal
 from urllib.parse import urlsplit

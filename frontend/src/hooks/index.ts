@@ -20,6 +20,7 @@ export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organ
 export { useActiveOrganizationRecovery } from "./use-active-organization";
 export { useMembers } from "./use-members";
 export { useMounted } from "./use-mounted";
+export { useReducedMotion } from "./use-reduced-motion";
 export { useUrlState } from "./use-url-state";
 export { useInvitations } from "./use-invitations";
 export { useKnowledgeBaseFor, useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";
@@ -30,6 +31,7 @@ export { useDashboardLayout } from "./use-dashboard-layout";
 export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";
+export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
@@ -61,7 +63,12 @@ export {
   useDelegationTree,
   usePromptVariables,
 } from "./use-agents";
-export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
+export {
+  useMcpCatalog,
+  useMcpServers,
+  usePlatformMcpTools,
+  type McpServerRow,
+} from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
 export {
   usePortalCatalog,
@@ -83,7 +90,8 @@ export {
   useSandboxPolicy,
   useSandboxSessions,
 } from "./use-sandbox-connections";
-export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
+export { useSecrets, useSecretPurposes, useChatGPTSignIn, kindInfo } from "./use-secrets";
+export type { NewChatGPTSignIn } from "./use-secrets";
 export {
   useApprovalHistory,
   useApprovals,
@@ -126,3 +134,13 @@ export { useAgentEnvironments } from "./use-agent-environments";
 export { useExposures } from "./use-exposures";
 export { usePollWhileIngesting, type IngestingDocument } from "./use-poll-while-ingesting";
 export { useResizablePanel, type ResizablePanel } from "./use-resizable-panel";
+export { useDictationStatus } from "./use-dictation-status";
+export {
+  useDictation,
+  type DictationActions,
+  type DictationPhase,
+  type DictationState,
+} from "./use-dictation";
+export { useVoiceReadiness } from "./use-voice-readiness";
+export { useRealtimeModels } from "./use-realtime-models";
+export { useVoiceSession, type VoiceSession, type VoiceTarget } from "./use-voice-session";

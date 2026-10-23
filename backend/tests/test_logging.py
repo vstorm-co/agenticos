@@ -9,15 +9,17 @@ unconfigured process is still covered, and the two entrypoints that were missing
 the call now make it.
 """
 
-from __future__ import annotations
-
+import copy
 import io
 import logging
-from unittest.mock import AsyncMock, patch
+import logging.config
+from collections.abc import Iterator
+from unittest.mock import patch
 
 import pytest
+from uvicorn.config import LOGGING_CONFIG
 
-from app.core.logging import PiiRedactionFilter, setup_logging
+from app.core.logging import PiiRedactionFilter, one_line, setup_logging
 
 # Built from fragments on purpose: the test proves the filter strips a credential
 # at runtime, so a static secret-scanner must not read a literal one flowing into
@@ -71,9 +73,8 @@ def test_a_module_logger_record_is_redacted_at_the_handler(root_stream):
 @pytest.mark.security
 def test_a_submitted_value_cannot_write_a_log_entry_of_its_own(root_stream):
     """One entry is one line, so a value carrying a newline writes a second one -
-    with a timestamp, a level and a message of the sender's choosing. The clearest
-    way in is the rate limiter's `caller`, which can be the address somebody typed
-    into a sign-in form (`py/log-injection`)."""
+    with a timestamp, a level and a message of the sender's choosing - an address
+    somebody typed into a sign-in form, say (`py/log-injection`)."""
     setup_logging()
 
     logging.getLogger("app.services.rate_limit").warning(
@@ -147,25 +148,72 @@ def test_an_unconfigured_process_redacts_through_last_resort(root_stream):
     assert any(isinstance(f, PiiRedactionFilter) for f in logging.lastResort.filters)
 
 
-def test_the_worker_sets_logging_up():
-    """The worker ran the ingestion and syncs in a process that never called
-    setup_logging, so even redactable lines were not redacted (#440)."""
-    from app.worker import prefect_app
+_LINK_TOKEN = "1761200000." + "ab" * 32
+_ACCESS_PATH = f"/api/v1/embed/pk/generated/0123456789ab_image.png?token={_LINK_TOKEN}"
 
-    with (
-        patch.object(prefect_app, "setup_logging") as configure,
-        patch.object(
-            prefect_app.ingest_document_flow,
-            "ato_deployment",
-            new=AsyncMock(side_effect=RuntimeError("stop after setup")),
-        ),
-        pytest.raises(RuntimeError),
-    ):
-        import anyio
 
-        anyio.run(prefect_app.main)
+@pytest.fixture
+def uvicorn_access() -> Iterator[io.StringIO]:
+    """uvicorn's loggers as `uvicorn app.main:app` configures them, then put back.
 
-    configure.assert_called_once()
+    Its `LOGGING_CONFIG` gives `uvicorn.access` a handler of its own and turns
+    propagation off, so nothing it writes reaches the root's handlers.
+    """
+    loggers = [logging.getLogger(name) for name in ("uvicorn", "uvicorn.access", "uvicorn.error")]
+    saved = [
+        (logger, list(logger.handlers), list(logger.filters), logger.propagate, logger.level)
+        for logger in loggers
+    ]
+    logging.config.dictConfig(copy.deepcopy(LOGGING_CONFIG))
+    stream = io.StringIO()
+    for handler in logging.getLogger("uvicorn.access").handlers:
+        assert isinstance(handler, logging.StreamHandler)
+        handler.setStream(stream)
+    try:
+        yield stream
+    finally:
+        for logger, handlers, filters, propagate, level in saved:
+            logger.handlers = handlers
+            logger.filters = filters
+            logger.propagate = propagate
+            logger.setLevel(level)
+
+
+def _access_line() -> None:
+    """One request line, in the shape uvicorn's HTTP protocol logs it."""
+    logging.getLogger("uvicorn.access").info(
+        '%s - "%s %s HTTP/%s" %d', "10.0.0.5:1234", "GET", _ACCESS_PATH, "1.1", 200
+    )
+
+
+def test_a_signed_link_in_the_access_log_is_redacted(uvicorn_access):
+    """uvicorn configures its loggers before the app is imported, so the access
+    log's handler exists when `setup_logging` runs - and is not the root's."""
+    setup_logging()
+
+    _access_line()
+
+    line = uvicorn_access.getvalue()
+    assert "GET /api/v1/embed/pk/generated/0123456789ab_image.png?[SECRET_REDACTED]" in line
+    assert _LINK_TOKEN not in line
+    assert '" 200' in line
+
+
+def test_the_access_log_is_redacted_whatever_is_configured_after_setup(uvicorn_access):
+    """A server that sets its handlers up after the app's startup still writes
+    through the logger the filter is on."""
+    logging.getLogger("uvicorn.access").filters.clear()
+    setup_logging()
+    access = logging.getLogger("uvicorn.access")
+    for handler in access.handlers:
+        handler.filters.clear()
+
+    _access_line()
+
+    assert _LINK_TOKEN not in uvicorn_access.getvalue()
+    assert any(
+        isinstance(f, PiiRedactionFilter) for f in logging.getLogger("uvicorn.error").filters
+    )
 
 
 def test_the_cli_sets_logging_up():
@@ -179,3 +227,11 @@ def test_the_cli_sets_logging_up():
 
     configure.assert_called_once()
     cli.assert_called_once()
+
+
+def test_one_line_writes_a_line_break_out_and_leaves_none_alone():
+    """The call-site twin of the filter's escaping, for a value the static analyser
+    would otherwise report as reaching a log line unsanitised."""
+    assert one_line("https://a.example\r\nforged: entry") == "https://a.example\\r\\nforged: entry"
+    assert one_line("plain") == "plain"
+    assert one_line(None) is None

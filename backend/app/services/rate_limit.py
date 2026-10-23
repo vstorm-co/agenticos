@@ -1,9 +1,11 @@
 """How often one caller may reach a public surface.
 
-Eight of this platform's surfaces are reachable without a session: the public run
+Eleven of this platform's surfaces are reachable without a session: the public run
 API, the widget's script, its config endpoint, its socket, a hosted page's config,
-that page's logo, a public artifact link and the signed address an artifact's page
-is served from. Every one of them reads at least one row before it decides
+that page's logo and its file upload, the dictation a page and a widget share, a
+public artifact link, the signed address an artifact's page is served from, and
+the signed link a visitor's socket hands out for a file the agent generated. Every
+one of them answers a caller nobody signed in, most read a row before they decide
 anything, and between them and somebody else's model budget there was, until #39,
 nothing at all - a limiter was constructed in `app/core/rate_limit.py`,
 registered on the app, and used by no route, while a second Redis-backed one sat
@@ -40,10 +42,10 @@ control - a channel bot's `rate_limit_rpm` - can keep a per-process floor under
 the caller for as long as the outage lasts rather than none at all.
 """
 
-from __future__ import annotations
-
 import hashlib
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from starlette.requests import HTTPConnection
@@ -149,7 +151,10 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     limited at all", so it is a warning rather than a debug.
     """
     if _redis is None:
-        logger.warning("Rate limiting not configured - %s reached unmetered by %s", surface, caller)
+        # The surface, never the caller: a caller is an address, a sign-in email,
+        # a key's digest or a visitor's subject, and none of it says more about a
+        # limiter nobody configured than which surface went unmetered.
+        logger.warning("Rate limiting not configured - %s reached unmetered", surface)
         return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     key = f"ratelimit:{surface}:{_bounded(caller)}"
@@ -162,6 +167,64 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     if used > limit.attempts:
         return Decision(allowed=False, retry_after_seconds=limit.window_seconds)
     return Decision(allowed=True, retry_after_seconds=0)
+
+
+class LocalWindows:
+    """A per-process fixed window, for the attempts the shared limiter could not count.
+
+    `consume` is the limit that holds across workers, and it fails open when
+    Redis is down or nobody configured one. For a public widget's socket that is
+    the documented trade; where the limit is a production control - a channel
+    bot's per-sender `rate_limit_rpm` (`SECURITY.md`), and every surface where a
+    stranger's attempt is a paid call (`consume_floored`) - a limiter that
+    vanishes for the length of a Redis outage lets a caller go as fast as they
+    like until it recovers. So this stands in for exactly that stretch: wrong by
+    the worker count, which is the defect the shared limiter exists to fix, and
+    still a floor where there would have been none.
+
+    Bounded: every write drops the windows that have expired, so the map is the
+    size of the callers seen in the last minute, not of every caller since the
+    process started - which is what the dict this replaces did.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._windows: dict[str, tuple[int, float]] = {}
+        self._clock = clock
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
+        now = self._clock()
+        for key in [
+            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
+        ]:
+            del self._windows[key]
+        count, opened = self._windows.get(caller, (0, now))
+        self._windows[caller] = (count + 1, opened)
+        return count < attempts
+
+
+_floor = LocalWindows()
+
+
+async def consume_floored(*, surface: str, caller: str, limit: Limit) -> Decision:
+    """`consume`, with a per-process floor for as long as it cannot count.
+
+    For the surfaces where a stranger's attempt costs the organization money -
+    a dictation, a voice call - and the limit is all that bounds it: failing
+    open there turns a Redis outage into unlimited paid calls on a public link.
+    """
+    decision = await consume(surface=surface, caller=caller, limit=limit)
+    if decision.metered:
+        return decision
+    if _floor.consume(
+        f"{surface}:{_bounded(caller)}",
+        attempts=limit.attempts,
+        window_seconds=limit.window_seconds,
+    ):
+        return decision
+    return Decision(allowed=False, retry_after_seconds=limit.window_seconds, metered=False)
 
 
 async def exhausted(*, surface: str, caller: str, limit: Limit) -> bool:
@@ -194,6 +257,16 @@ def api_key_limit() -> Limit:
 def ml_limit() -> Limit:
     """What one caller may ask the standalone ML services for, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
+
+
+def dictation_limit() -> Limit:
+    """What one person may dictate into the composer, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_DICTATION_PER_MINUTE)
+
+
+def voice_preview_limit() -> Limit:
+    """How many voices one person may listen to in the Builder, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE)
 
 
 def export_limit() -> Limit:
@@ -289,6 +362,35 @@ async def artifact_content_allowed(token: str) -> Decision:
     )
 
 
+EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE = 120
+"""How often one signed link to a generated file may be fetched in a minute.
+
+Wider than an artifact address's because a player does not fetch once: a clip is
+requested in byte ranges - a probe, the body in pieces, more on every seek and
+every replay - so a single play is a dozen requests or more. A hundred and twenty
+is room for a visitor scrubbing through a video, and a ceiling on one leaked link
+replayed into whole-file reads, which every range still costs on the server.
+"""
+
+
+async def embed_generated_media_allowed(token: str) -> Decision:
+    """Whether the file behind this signed link may be served again right now.
+
+    Keyed on the link, for `artifact_content_allowed`'s reasons: the request
+    reaches this deployment through the hosted page's own proxy, so its address
+    is the frontend's; and the link is minted here, for one stored file, so it
+    cannot be varied for free. A link has one spelling - the expiry carries no
+    leading zero - and `limit_embed_generated_media` counts only a link whose
+    signature holds, so any other string is refused uncounted. A bearer
+    credential for hours, so it is counted by its digest.
+    """
+    return await consume(
+        surface="embed_generated_media",
+        caller=f"token:{hashlib.sha256(token.encode()).hexdigest()}",
+        limit=Limit(attempts=EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE),
+    )
+
+
 async def hosted_logo_allowed(public_key: str) -> Decision:
     """Whether this hosted page's logo may be served again right now.
 
@@ -337,6 +439,120 @@ async def embed_upload_allowed(
         return by_address
     return await consume(
         surface="embed_upload", caller=f"key:{public_key}:visitor:{visitor}", limit=limit
+    )
+
+
+async def embed_dictation_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may send another dictation to a page or widget now.
+
+    **Every dictation is a paid call** to the organization's speech-to-text
+    provider, and it is not part of any model budget - so the counters here and
+    in `embed_dictation_link_allowed` are the whole of what bounds a stranger's
+    spend on it. The address is counted before the key is looked up, because it
+    is the one a stranger cannot vary for free.
+
+    The link's own ceiling is spent only once the visitor is admitted
+    (`embed_dictation_link_allowed`): spent before, anybody holding a `jwt`
+    widget's public key could exhaust its minute for every signed-in visitor
+    without a valid token (Codex on #2204).
+    """
+    return await consume_floored(
+        surface="embed_dictation",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
+    )
+
+
+async def embed_dictation_link_allowed(*, public_key: str) -> Decision:
+    """Whether an admitted visitor's dictation fits the link's minute.
+
+    The ceiling no visitor can vary: whatever addresses a script rotates
+    through, one page or widget accepts at most
+    `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` recordings a minute from
+    everybody together, and that number times the organization's longest
+    dictation is the worst a leaked link can cost - `docs/channels.md` works it
+    through. A `jwt` widget's visitor is counted on their own first
+    (`embed_dictation_visitor_allowed`), so one of them takes at most
+    `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` of it.
+    """
+    return await consume_floored(
+        surface="embed_dictation",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE),
+    )
+
+
+async def embed_dictation_visitor_allowed(*, public_key: str, visitor: str) -> Decision:
+    """Whether this verified `jwt` visitor may send another dictation now.
+
+    Keyed on the token's subject, which the customer's backend signed and a
+    visitor cannot mint - unlike a hosted page's continuity key, which is why a
+    page has no counter of this kind.
+    """
+    return await consume_floored(
+        surface="embed_dictation",
+        caller=f"key:{public_key}:visitor:{visitor}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
+    )
+
+
+async def embed_voice_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may start another voice call on a page or widget now (#54).
+
+    **Every call is a paid realtime session**, so this is the
+    `embed_dictation_allowed` shape with counters of its own: the address before
+    the key is looked up, and the link's ceiling (`embed_voice_link_allowed`) only
+    once the visitor is admitted, so nobody without a valid `jwt` token can spend
+    it for the visitors who have one.
+    """
+    return await consume_floored(
+        surface="embed_voice",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),
+    )
+
+
+async def embed_voice_link_allowed(*, public_key: str) -> Decision:
+    """Whether an admitted visitor's call fits the link's minute (#54).
+
+    Whatever addresses a script rotates through, one page or widget starts at
+    most `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` calls a minute, and that
+    number times the agent's longest call - inside the agent's and the
+    organization's budgets - is the worst a leaked link can cost.
+    """
+    return await consume_floored(
+        surface="embed_voice",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE),
+    )
+
+
+async def embed_voice_visitor_allowed(*, public_key: str, visitor: str) -> Decision:
+    """Whether this verified `jwt` visitor may start another voice call now (#54).
+
+    Keyed on the token's subject, which the customer's backend signed and a
+    visitor cannot mint - so one signed-in visitor takes at most
+    `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` of the link's starts, wherever they
+    connect from. Their open calls are bounded with everybody's by
+    `VOICE_MAX_CALLS_PER_EMBED`.
+    """
+    return await consume_floored(
+        surface="embed_voice",
+        caller=f"key:{public_key}:visitor:{visitor}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),
+    )
+
+
+async def map_tiles_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may fetch another map tile through the deployment right now.
+
+    Per address: the tile route is cookieless and token-free - every page, saved
+    or shared, loads it - so the network address is the one thing to count.
+    """
+    return await consume(
+        surface="map_tiles",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_MAP_TILES_PER_MINUTE),
     )
 
 

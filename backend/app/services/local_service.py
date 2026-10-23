@@ -14,8 +14,6 @@ the catalog is what says which models the service serves and at what width; an
 field, rather than discovered when a collection's first document fails to index.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession

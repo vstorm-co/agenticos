@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Bot, Check, ChevronDown, Star } from "lucide-react";
 
@@ -71,6 +72,19 @@ export function AgentPicker() {
     if (fallback) selectAgent(fallback.id);
   }, [isLoading, isFetching, selected, selectedAgentId, runnable, defaultAgentId, selectAgent]);
 
+  // `?agent=` - a handle or an id - is a link asking for one agent: a
+  // notification opening the starter agent's empty chat, where its suggestions
+  // wait (#2301). Once per link, and after the fallback above so it wins over it.
+  const wanted = useSearchParams().get("agent");
+  const handedOver = useRef<string | null>(null);
+  useEffect(() => {
+    if (!wanted || handedOver.current === wanted) return;
+    const named = runnable.find((agent) => agent.id === wanted || agent.slug === wanted);
+    if (!named) return;
+    handedOver.current = wanted;
+    selectAgent(named.id);
+  }, [wanted, runnable, selectAgent]);
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -115,7 +129,13 @@ export function AgentPicker() {
           {currentConversationId ? t("appliesNext") : t("whoAnswers")}
         </p>
 
-        <div role="radiogroup" aria-label={t("label")} className="space-y-px">
+        <div
+          role="radiogroup"
+          aria-label={t("label")}
+          // Scrolls on its own, under the line that says what it is, so an
+          // organization with many agents does not run the menu off the screen.
+          className="max-h-[min(60vh,26rem)] scrollbar-thin space-y-px overflow-y-auto"
+        >
           {runnable.map((agent) => (
             <AgentOption
               key={agent.id}

@@ -35,6 +35,7 @@ from app.repositories import agent_run as agent_run_repo
 from app.repositories import agent_trigger as agent_trigger_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
+from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
@@ -57,6 +58,11 @@ from app.repositories import invitation as invitation_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import channel_prompt as channel_prompt_repo
+from app.repositories import external_agent as external_agent_repo
+from app.repositories import project as project_repo
+from app.repositories import suggestion as suggestion_repo
+from app.repositories import watch as watch_repo
+from app.repositories import teams_conversation as teams_conversation_repo
 from app.repositories import organization_assistant as organization_assistant_repo
 
 from app.repositories import user_slash_command as user_slash_command_repo
@@ -71,6 +77,8 @@ from app.repositories import mcp_server_check as mcp_server_check_repo
 from app.repositories import organization_secret as organization_secret_repo
 
 from app.repositories import notification as notification_repo
+from app.repositories import voice_call as voice_call_repo
+from app.repositories import generated_media as generated_media_repo
 
 __all__ = [
     "user_repo",
@@ -92,6 +100,11 @@ __all__ = [
     "channel_session_repo",
     "organization_repo",
     "channel_prompt_repo",
+    "external_agent_repo",
+    "project_repo",
+    "suggestion_repo",
+    "watch_repo",
+    "teams_conversation_repo",
     "organization_assistant_repo",
     "member_repo",
     "invitation_repo",
@@ -118,6 +131,7 @@ __all__ = [
     "agent_trigger_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
+    "pending_sandbox_destroy_repo",
     "sandbox_connection_repo",
     "sandbox_operation_repo",
     "skill_proposal_repo",
@@ -130,4 +144,6 @@ __all__ = [
     "context_repo",
     "memory_repo",
     "notification_repo",
+    "voice_call_repo",
+    "generated_media_repo",
 ]

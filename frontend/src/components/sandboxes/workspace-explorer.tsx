@@ -1,19 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, Download, Info, Search } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { AlertTriangle, Download, Info, Search, Trash2 } from "lucide-react";
 
 import { FileContent, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
 import { Badge, BlankPeek, Button, DocPeek, Input, Skeleton } from "@/components/ui";
-import { hasSourceView, resolveFileKind } from "@/lib/file-kinds";
+import { hasSourceView, readsAsText, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
 import { cn, formatBytes } from "@/lib/utils";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
-import type { WorkspaceFile } from "@/lib/sandbox-workspaces-api";
+import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 
 interface WorkspaceExplorerProps {
   workspaceId: string;
+}
+
+interface FileExplorerProps {
+  source: FileSource;
+  files: WorkspaceFiles | null;
+  isLoading: boolean;
+  error: string | null;
+  /** Controls above the panes - a project's upload and new-folder buttons. */
+  toolbar?: ReactNode;
+  /** Offered on every file and folder when given; a workspace an agent keeps has none. */
+  onRemove?: (path: string) => void;
 }
 
 /** The path's segments, without the empties a leading slash produces. */
@@ -148,9 +159,25 @@ function initiallyOpen(nodes: TreeNode[]): Set<string> {
  * *is* the whole errand.
  */
 export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
+  const listing = useWorkspaceFiles(workspaceId);
+  const source = useMemo<FileSource>(() => ({ kind: "workspace", id: workspaceId }), [workspaceId]);
+  return <FileExplorer source={source} {...listing} />;
+}
+
+/**
+ * The tree-and-reader any set of workspace files is browsed in - one agent's
+ * workspace on Documents, a project's container on its page.
+ */
+export function FileExplorer({
+  source,
+  files,
+  isLoading,
+  error,
+  toolbar,
+  onRemove,
+}: FileExplorerProps) {
   const t = useTranslations("sandboxes.workspaces");
   const tc = useTranslations("common");
-  const { files, isLoading, error } = useWorkspaceFiles(workspaceId);
   // Which folders are open, by path. A set rather than a prefix: the tree shows
   // every level at once, so "where am I" is not a single place any more.
   const [query, setQuery] = useState("");
@@ -170,7 +197,6 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
   // render already shows what `initiallyOpen` wants rather than opening it a
   // frame later.
   const [open, setOpen] = useState<Set<string> | null>(null);
-  const source = useMemo<FileSource>(() => ({ kind: "workspace", id: workspaceId }), [workspaceId]);
 
   // Memoised, because it is the dependency of the two memos below: `?? []` builds a
   // fresh array on every render, which would recompute both of them every time.
@@ -213,6 +239,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
           them is the wrong thing to hand somebody auditing it. */}
       {files !== null && (
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+          {toolbar}
           <Badge variant="outline">
             {files.backend === "state" ? t("stored") : t("container")}
           </Badge>
@@ -272,6 +299,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                 files={matches}
                 selected={selected}
                 onSelect={choose}
+                onRemove={onRemove}
                 showFullPath
               />
             )
@@ -323,15 +351,19 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                   >
                     <Download className="h-3.5 w-3.5" aria-hidden />
                   </button>
+                  {onRemove && <RemoveButton path={node.path} onRemove={onRemove} />}
                 </>
               )}
               /* Everything under it, not the files immediately in it: `src`
                  holding only `src/components/widget.tsx` counted zero and then
                  opened to reveal a file, which is a row contradicting itself. */
               renderFolderMeta={(node) => (
-                <span className="text-muted-foreground shrink-0 pr-2 text-xs">
-                  {t("fileCount", { count: countFiles(node.children) })}
-                </span>
+                <>
+                  <span className="text-muted-foreground shrink-0 pr-2 text-xs">
+                    {t("fileCount", { count: countFiles(node.children) })}
+                  </span>
+                  {onRemove && <RemoveButton path={node.path} onRemove={onRemove} />}
+                </>
               )}
             />
           )}
@@ -375,13 +407,17 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
               {/* Keyed on the path, so moving between two files remounts the reader
                   rather than showing the previous one's bytes while the next load is
                   in flight. */}
-              <div className="min-h-0 flex-1 overflow-auto p-3">
+              {/* Text fills the pane edge to edge, as an editor's does: padded, it
+                  was a second box inside this one. A picture or a PDF keeps a
+                  margin to sit in. */}
+              <div className={cn("min-h-0 flex-1 overflow-auto", !readsAsText(kind) && "p-3")}>
                 <FileContent
                   key={chosen.path}
                   access={workspaceFileAccess(source, chosen.path)}
                   kind={kind}
                   name={chosen.path.split("/").filter(Boolean).pop() ?? chosen.path}
                   asSource={asSource}
+                  bare
                 />
               </div>
             </>
@@ -397,7 +433,23 @@ interface FileListProps {
   files: WorkspaceFile[];
   selected: string | null;
   onSelect: (path: string) => void;
+  onRemove?: (path: string) => void;
   showFullPath?: boolean;
+}
+
+/** Remove a file or a folder, named by its path so a reader hears which. */
+function RemoveButton({ path, onRemove }: { path: string; onRemove: (path: string) => void }) {
+  const tc = useTranslations("common");
+  return (
+    <button
+      type="button"
+      aria-label={tc("removeNamed", { name: path })}
+      onClick={() => onRemove(path)}
+      className="text-muted-foreground hover:text-destructive shrink-0 rounded-md p-1"
+    >
+      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+    </button>
+  );
 }
 
 /**
@@ -407,7 +459,7 @@ interface FileListProps {
  * selecting a file reads it, and a 50 MB archive is a file somebody wants a copy of
  * without paying to load it first.
  */
-function FileList({ source, files, selected, onSelect, showFullPath }: FileListProps) {
+function FileList({ source, files, selected, onSelect, onRemove, showFullPath }: FileListProps) {
   const tc = useTranslations("common");
   return (
     <ul className="space-y-0.5">
@@ -442,6 +494,7 @@ function FileList({ source, files, selected, onSelect, showFullPath }: FileListP
           >
             <Download className="h-3.5 w-3.5" />
           </button>
+          {onRemove && <RemoveButton path={file.path} onRemove={onRemove} />}
         </li>
       ))}
     </ul>

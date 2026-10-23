@@ -14,8 +14,6 @@ that goes out on one. A binding's own prompt is appended after it, so an operato
 can say something more specific without having to restate any of this.
 """
 
-from __future__ import annotations
-
 _MATTERMOST = """
 You are answering in Mattermost. It renders Markdown, including headings, tables,
 fenced code blocks and task lists.
@@ -57,10 +55,23 @@ You are answering in Telegram, which renders a subset of Markdown.
 - Keep answers short. Telegram splits a long message and the split is arbitrary.
 """
 
+_TEAMS = """
+You are answering in Microsoft Teams, which renders a subset of Markdown.
+
+- Bold `**like this**`, italic `_like this_`, inline code and fenced code blocks.
+- Links: `[what it is](https://example.com)`.
+- Bulleted and numbered lists work. Headings and tables render poorly - use a
+  bold line and a short list instead.
+- Lead a link with an emoji when it is an action or a destination, e.g.
+  📄 [the invoice](https://example.com/invoice).
+- Keep paragraphs short. A chat pane is narrow, and a wall of text is skimmed.
+"""
+
 HOUSE_STYLE: dict[str, str] = {
     "mattermost": _MATTERMOST.strip(),
     "slack": _SLACK.strip(),
     "telegram": _TELEGRAM.strip(),
+    "teams": _TEAMS.strip(),
 }
 """Per platform, because the differences are not preferences - they are what the
 client will and will not draw.

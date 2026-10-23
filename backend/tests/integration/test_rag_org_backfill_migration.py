@@ -11,8 +11,6 @@ Driven against a real database because the whole migration is raw SQL over
 tables no model declares, joined to `rag_documents` and `knowledge_bases`.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import json
 import uuid
@@ -144,7 +142,7 @@ async def _has_org_index(engine: AsyncEngine, collection: str) -> bool:
 
 
 @pytest.fixture
-async def seeded(engine: AsyncEngine) -> AsyncGenerator[uuid.UUID, None]:
+async def seeded(engine: AsyncEngine) -> AsyncGenerator[uuid.UUID]:
     """An org-scoped collection and an app-scoped one, each with a tracked
     document, plus a residual row in the org table whose tracking document is
     gone (an organization torn down out of a still-shared table)."""

@@ -7,8 +7,6 @@ that the sync, run over real rows, joins, re-roles and removes exactly the
 memberships it owns and nothing an administrator made.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

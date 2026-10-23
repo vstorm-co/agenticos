@@ -6,8 +6,6 @@ and the service that builds a thread's history - and `agent.py` reaches for
 `app.api.deps`, which reaches back for `ConversationService`.
 """
 
-from __future__ import annotations
-
 from typing import NotRequired, TypedDict
 
 from pydantic_ai.messages import (

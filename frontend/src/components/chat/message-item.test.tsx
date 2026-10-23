@@ -44,6 +44,25 @@ vi.mock("./tool-call-card", () => ({
     </div>
   ),
 }));
+// The shortcuts are tested on their own; here it only matters where they are offered.
+vi.mock("./turn-shortcuts", () => ({
+  TurnShortcuts: ({ request, agentId }: { request: string; agentId: string | null }) => (
+    <div data-testid="turn-shortcuts" data-agent={agentId ?? ""} data-request={request} />
+  ),
+}));
+// What a turn left - memory notes, cards - is tested on its own; here only that
+// it sits above the time and actions, named by the agent that answered.
+vi.mock("./turn-extras", () => ({
+  // Nothing for an unnamed agent, as the real one draws nothing for a turn that
+  // left nothing - so the tests about the answer's own parts are not about it.
+  TurnExtras: ({ agentName }: { agentName?: string }) =>
+    agentName ? <div data-testid="turn-extras" data-agent={agentName} /> : null,
+}));
+vi.mock("./skill-shortcut", () => ({
+  SkillShortcut: ({ request, answer }: { request: string; answer: string }) => (
+    <div data-testid="skill-shortcut" data-request={request} data-answer={answer} />
+  ),
+}));
 // Ratings own their own fetch; this file cares only that they are offered.
 vi.mock("./rating-buttons", () => ({
   RatingButtons: ({
@@ -135,10 +154,26 @@ describe("a turn in the transcript", () => {
     expect(screen.getByText("stopped")).toBeVisible();
   });
 
+  it("marks a turn spoken in a call, and an answer the caller talked over", () => {
+    item({
+      role: "assistant",
+      content: "Tomorrow in Warsaw",
+      turnId: "c1:2:assistant",
+      interrupted: true,
+    });
+
+    expect(screen.getByText("Voice")).toBeVisible();
+    expect(screen.getByText("Interrupted")).toHaveAttribute(
+      "title",
+      "Cut to roughly what was heard",
+    );
+  });
+
   it("says nothing about a turn that finished", () => {
     item({ role: "assistant", content: "Refunds run to thirty days." });
 
     expect(screen.queryByText("stopped")).toBeNull();
+    expect(screen.queryByText("Voice")).toBeNull();
   });
 
   it("marks a stopped ask-only turn, whose only body is the answered question", () => {
@@ -161,6 +196,16 @@ describe("a turn in the transcript", () => {
     item({ role: "user", content: "How long?", wasStopped: true });
 
     expect(screen.queryByText("stopped")).toBeNull();
+  });
+
+  it("shows what a question pointed the agent at as chips above it (#2189)", () => {
+    item({
+      role: "user",
+      content: "Find the brief",
+      mentions: [{ kind: "skill", id: "s-1", name: "refund-policy" }],
+    });
+    expect(screen.getByTitle("refund-policy")).toHaveTextContent("refund-policy");
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
   });
 
   it("renders an answer as Markdown and a question as plain text", () => {
@@ -190,6 +235,58 @@ describe("a turn in the transcript", () => {
   it("offers no pin outside the test panel, nor on an answer", () => {
     item({ role: "user", content: "Refunds?" });
     expect(screen.queryByRole("button", { name: /Pin to ask again/ })).toBeNull();
+  });
+
+  it("puts what the turn left under the answer and above its time and actions", () => {
+    item(
+      { content: "Here they are", timestamp: new Date() },
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent },
+    );
+
+    const extras = screen.getByTestId("turn-extras");
+    expect(extras).toHaveAttribute("data-agent", "Support");
+    const time = screen.getByRole("button", { name: "rate" });
+    // Before the footer in the document: read with the answer, not after its receipt.
+    expect(extras.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("offers to keep a person's request, but not an answer, nor in the test panel", () => {
+    const { rerender } = item(
+      { role: "user", content: "Refunds?" },
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent },
+    );
+    expect(screen.getByTestId("turn-shortcuts")).toHaveAttribute("data-agent", "a-1");
+    expect(screen.getByTestId("turn-shortcuts")).toHaveAttribute("data-request", "Refunds?");
+
+    rerender(<MessageItem message={message({ content: "Here they are" })} />);
+    expect(screen.queryByTestId("turn-shortcuts")).toBeNull();
+
+    rerender(
+      <MessageItem
+        message={message({ role: "user", content: "Refunds?" })}
+        pins={{ pinned: [], toggle: vi.fn() }}
+      />,
+    );
+    expect(screen.queryByTestId("turn-shortcuts")).toBeNull();
+  });
+
+  it("offers to make a skill of a finished answer it was handed the request for", () => {
+    const { rerender } = render(
+      <MessageItem message={message({ content: "Here they are" })} request="Refunds?" />,
+    );
+    expect(screen.getByTestId("skill-shortcut")).toHaveAttribute("data-request", "Refunds?");
+    expect(screen.getByTestId("skill-shortcut")).toHaveAttribute("data-answer", "Here they are");
+
+    rerender(
+      <MessageItem
+        message={message({ content: "Here they", isStreaming: true })}
+        request="Refunds?"
+      />,
+    );
+    expect(screen.queryByTestId("skill-shortcut")).toBeNull();
+
+    rerender(<MessageItem message={message({ content: "Here they are" })} />);
+    expect(screen.queryByTestId("skill-shortcut")).toBeNull();
   });
 
   it("names the agent that answered, and the version that did", () => {
@@ -449,6 +546,23 @@ describe("the ordered timeline", () => {
     });
 
     expect(container.querySelectorAll(".animate-pulse")).toHaveLength(1);
+  });
+
+  it("gives the answer a little air after the thinking, and none after a plain line", () => {
+    const { getAllByTestId } = item({
+      isStreaming: true,
+      parts: [
+        { id: "p-1", type: "thinking", content: "Checking." },
+        { id: "p-2", type: "text", content: "Answer." },
+        { id: "p-3", type: "text", content: "More." },
+      ],
+    });
+
+    const [answer, more] = getAllByTestId("markdown")
+      .slice(-2)
+      .map((node) => node.parentElement!);
+    expect(answer!.className).toContain("pt-1");
+    expect(more!.className).not.toContain("pt-1");
   });
 
   it("skips a part with nothing in it yet", () => {
@@ -714,7 +828,9 @@ describe("what a person attached", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("shows a person's own picture beside their message", () => {
+  it("keeps a person's face beside their message while their picture loads, or if it fails", () => {
+    // jsdom never loads an image, which is what a missing file looks like: a
+    // bare <img> left an empty circle there (#2248).
     useAuthStore.setState({
       user: { id: "u-1", email: "k@example.com", avatar_url: "/api/users/avatar/u-1" } as never,
       avatarVersion: 2,
@@ -722,7 +838,7 @@ describe("what a person attached", () => {
 
     const { container } = item({ role: "user", content: "x" });
 
-    expect(container.querySelector("img")).toBeInTheDocument();
+    expect(container.querySelector("g.mo-root")).toBeInTheDocument();
   });
 
   it("draws a person who uploaded nothing the face generated from their id", () => {
@@ -731,6 +847,59 @@ describe("what a person attached", () => {
     const { container } = item({ role: "user", content: "x" });
 
     expect(container.querySelector("g.mo-root")).toBeInTheDocument();
+  });
+
+  it("names a teammate's turn in a project's chat by them, not as You", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    const { unmount } = item({ role: "user", content: "picking this up", sender: anna });
+    expect(screen.getByText("Anna")).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
+    unmount();
+
+    // The reader's own turn, signed with their own id, is still theirs.
+    item({ role: "user", content: "x", sender: { ...anna, user_id: "u-1", name: "Kacper" } });
+    expect(screen.getByText("You")).toBeInTheDocument();
+  });
+
+  it("offers Reply on a stored message, and quotes what a reply answers", async () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+    const { unmount } = item({
+      id: "m-2",
+      role: "assistant",
+      content: "Plan:\n step one",
+      conversationId: "c-1",
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+    expect(useChatStore.getState().replyTo).toEqual({
+      messageId: "m-2",
+      role: "assistant",
+      excerpt: "Plan: step one",
+      sender: undefined,
+      agentId: undefined,
+      agentName: undefined,
+    });
+    unmount();
+
+    item({
+      role: "user",
+      content: "bigger",
+      isTemporaryId: true,
+      replyTo: { messageId: "m-2", role: "assistant", excerpt: "Plan: step one" },
+    });
+    expect(screen.getByText("Plan: step one")).toBeInTheDocument();
+    // Its own id is this tab's: nothing can be addressed to it yet.
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("draws a turn whose writer has left as a former member, never as You", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+
+    item({ role: "user", content: "an old idea", senderGone: true });
+
+    expect(screen.getByText("A former member")).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
   });
 
   it("draws the agent's face mid-thought while the turn is still streaming", () => {
@@ -896,6 +1065,18 @@ describe("the runs a turn is made of", () => {
 
     expect(runs.map((run) => run.kind)).toEqual(["tools", "other", "tools"]);
     expect(runs.at(-1)?.isLast).toBe(true);
+  });
+
+  it("leaves out a call drawn under the answer instead, without splitting the run around it", () => {
+    const offer = {
+      id: "s",
+      type: "tool" as const,
+      toolCall: { id: "tc-s", name: "suggest_next_steps", args: {}, status: "completed" as const },
+    };
+    const runs = runsOf([tool("a"), offer, tool("b")]);
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.kind === "tools" && runs[0].parts.map((part) => part.id)).toEqual(["a", "b"]);
   });
 
   it("drops an empty text or thinking part rather than drawing an empty bubble", () => {

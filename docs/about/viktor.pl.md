@@ -1,5 +1,5 @@
 ---
-source_sha: "174f12cba031"
+source_sha: "3f2886a77dd8"
 title: "AgenticOS vs Viktor"
 seo_title: "AgenticOS vs Viktor: self-hosted alternatywa dla Viktora"
 description: "Viktor to jeden współpracownik AI na workspace Slacka lub Teams. AgenticOS: wielu zarządzanych agentów, dowolny model i budżet per agent na twoich serwerach."
@@ -11,21 +11,21 @@ Viktor sprzedaje jednego współpracownika AI na workspace Slacka lub Microsoft 
 
 Jeśli chcesz jeszcze dziś po południu mieć na czacie jednego pomocnego kolegę, Viktora można szybko wypróbować. Jeśli chcesz decydować, co może każdy agent, ile kosztuje i gdzie leżą dane, AgenticOS daje Ci tę kontrolę.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres Viktor: jego publiczne strony produktu, cennika, bezpieczeństwa i oferty enterprise oraz changelog, a nie przetestowane konto ani negocjowana umowa.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Viktor: jego publiczne strony produktu, cennika, bezpieczeństwa i oferty enterprise oraz changelog, a nie przetestowane konto ani negocjowana umowa.
 
 ## W skrócie { #at-a-glance }
 
 | Obszar | Viktor | AgenticOS |
 | --- | --- | --- |
 | Co dostajesz | Jednego wspólnego „pracownika AI” na workspace | Dowolną liczbę agentów, każdy jako wersjonowany spec |
-| Gdzie działa | Chmura Viktor, hostowana w AWS us-east-1 | Twoja infrastruktura, z Docker Compose |
+| Gdzie działa | Chmura Viktor, domyślnie hostowana w USA | Twoja infrastruktura, z Docker Compose |
 | Źródła | Własnościowe | Apache-2.0 |
-| Modele | Presety OpenAI, Anthropic, Google i Kimi; własny klucz OpenRouter | 27 providerów, w tym Ollama i LiteLLM na twoim sprzęcie |
+| Modele | Modele OpenAI, Anthropic, Google i xAI do wyboru; własny klucz OpenRouter | 28 providerów, w tym Ollama i LiteLLM na twoim sprzęcie |
 | Wiedza | Pamięć workspace'u i podłączone narzędzia | Kolekcje dokumentów w twoim Postgresie, z pięcioma konektorami synchronizacji |
 | Powierzchnie | Slack, Teams, Discord, własna skrzynka e-mail, aplikacje web, desktop i mobilne, API | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Dostęp | Na poziomie workspace'u; jego strony różnią się w opisie dostępu opartego na rolach | Sześć ról, 27 uprawnień i granty per zasób, w każdej organizacji |
-| Kontrola wydatków | Pula kredytów; limity dopasowywane w planie Enterprise | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
-| Ceny | Od $50 miesięcznie za 20 000 kredytów, stałe $2,50 za 1000 kredytów | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
+| Dostęp | Na poziomie workspace'u; jego strony różnią się w opisie dostępu opartego na rolach | Sześć ról, 33 uprawnienia i granty per zasób, w każdej organizacji |
+| Kontrola wydatków | Pula kredytów z miesięcznym limitem automatycznych doładowań; limity per użytkownik w Enterprise | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
+| Ceny | Free z kredytami do $100; Team za $100 miesięcznie za 40 000 wspólnych kredytów; Enterprise wycena indywidualna | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
 | Dowody zgodności | SOC 2 Type 1; Type II i ISO 27001 w toku | Twoje kontrole na twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
@@ -38,7 +38,7 @@ Spec agenta jest [wersjonowany przy publikacji](../concepts.md#version) i [ekspo
 
 ### Dostęp decydowany per agent i per osoba { #access-decided-per-agent-and-per-person }
 
-FAQ na stronie głównej Viktora, sprawdzone 25 września 2026, mówi, że plan dzieli jedną instancję Viktora i jeden kontekst, a podłączona integracja jest dostępna dla każdego członka zespołu. Jego strona enterprise wymienia dostęp oparty na rolach. Zapytaj, co dotyczy twojej umowy.
+FAQ na stronie głównej Viktora, sprawdzone 21 października 2026, mówi, że wszyscy członkowie zespołu w planie dzielą jedną instancję Viktora i jeden kontekst, a podłączone narzędzie można udostępnić całemu zespołowi albo, w workspace'ach Slacka, zostawić prywatne. Jego strona enterprise wymienia dostęp oparty na rolach. Zapytaj, co obowiązuje w twojej umowie.
 
 W AgenticOS dostęp wynika z [katalogu uprawnień](../permissions.md#the-built-in-roles), a [granty](../permissions.md#layer-3-visibility-and-grants) udostępniają jednego agenta, skill albo kolekcję osobie lub grupie. Powiązanie MCP może korzystać z [własnego konta każdej osoby](../mcp.md#whose-account-a-binding-speaks-through) zamiast jednego wspólnego loginu. Połączony użytkownik Slacka działa [jako on sam](../channels.md#slack).
 
@@ -57,9 +57,9 @@ Viktor uczy się z rozmów i podłączonych narzędzi. AgenticOS dodaje zarządz
 ## Kiedy Viktor wystarczy { #when-viktor-is-enough }
 
 - Chcesz jednego asystenta w Slacku lub Teams bez żadnej infrastruktury do utrzymania.
-- Jego katalog ponad 3200 integracji OAuth i jego sandbox do kodu pokrywają twoje zadania.
+- Jego katalog ponad 9800 narzędzi i jego sandbox do kodu pokrywają twoje zadania.
 - Rozliczanie w kredytach i hosting w USA spełniają twoje wymagania.
-- Potrzebujesz dziś Microsoft Teams, głosu albo skrzynki e-mail. AgenticOS nie ma jeszcze kanału rozmów przez Teams, głos ani e-mail.
+- Potrzebujesz dziś Microsoft Teams, linii telefonicznej albo skrzynki e-mail. AgenticOS nie ma jeszcze kanału rozmów przez Teams, telefon ani e-mail; jego [rozmowy głosowe](../voice.md) działają w przeglądarce.
 
 ## Wypróbuj jedno pytanie o podręcznik { #try-one-handbook-question }
 
@@ -79,11 +79,11 @@ Tak. Opublikowany agent odpowiada w Slacku, a powiązany użytkownik działa pod
 
 ### Jak wypadają ceny? { #how-does-pricing-compare }
 
-Viktor sprzedaje kredyty na workspace, od $50 miesięcznie za 20 000. AgenticOS nie ma opłaty licencyjnej: płacisz bezpośrednio providerom modeli, a każdy agent ma własny miesięczny budżet.
+Viktor sprzedaje kredyty na workspace: Team kosztuje $100 miesięcznie za 40 000 kredytów wspólnych dla całego workspace'u. AgenticOS nie ma opłaty licencyjnej: płacisz bezpośrednio providerom modeli, a każdy agent ma własny miesięczny budżet.
 
 ### Gdzie są przechowywane dane? { #where-is-the-data-stored }
 
-Viktor podaje, że jest hostowany w AWS us-east-1. AgenticOS przechowuje rozmowy, dokumenty i wektory w twoim własnym Postgresie, gdziekolwiek go wdrożysz.
+Viktor podaje, że domyślnie jest hostowany w USA; rezydencję danych w UE jedna jego strona oferuje w umowach Enterprise, a inna wymienia w planach rozwoju. AgenticOS przechowuje rozmowy, dokumenty i wektory w twoim własnym Postgresie, gdziekolwiek go wdrożysz.
 
 ## Powiązane porównania { #related-comparisons }
 
@@ -91,8 +91,8 @@ Viktor podaje, że jest hostowany w AWS us-east-1. AgenticOS przechowuje rozmowy
 
 ## Źródła { #sources }
 
-- [Strona produktu i FAQ Viktora](https://viktor.com/): pozycjonowanie, wspólna instancja workspace'u, integracje dzielone w całym zespole, RBAC na roadmapie.
-- [Cennik](https://viktor.com/pricing): plany kredytowe, brak opłaty za stanowisko, koszt modeli przenoszony na klienta.
-- [Bezpieczeństwo](https://viktor.com/security): AWS us-east-1, SOC 2 Type 1, ISO 27001 w toku, zatwierdzenia, SAML SSO w planie Enterprise.
-- [Enterprise](https://www.viktor.com/enterprise.md): tożsamość natywna dla czatu, deklaracje o rezydencji danych w UE i retencji, umowy roczne.
-- [Changelog](https://www.viktor.com/changelog.md): klucze OpenRouter, logi audytowe w Enterprise, Discord i e-mail.
+- [Strona produktu i FAQ Viktora](https://viktor.com/): pozycjonowanie, wspólna instancja workspace'u, integracje udostępniane zespołowi albo prywatne, dostęp na poziomie workspace'u.
+- [Cennik](https://viktor.com/pricing): plany kredytowe Free, Team i Enterprise, limity wydatków, brak opłaty za stanowisko.
+- [Bezpieczeństwo](https://viktor.com/security): domyślny hosting w USA, SOC 2 Type 1, ISO 27001 w toku, SAML SSO.
+- [Enterprise](https://www.viktor.com/enterprise): tożsamość dziedziczona ze Slacka lub Teams, rezydencja danych w UE i retencja w planach rozwoju.
+- [Changelog](https://www.viktor.com/changelog): klucze OpenRouter, modele do wyboru, Discord i e-mail.

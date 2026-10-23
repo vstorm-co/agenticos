@@ -1,5 +1,5 @@
 ---
-source_sha: "fcddf28be3f1"
+source_sha: "7a628dbf307e"
 ---
 
 # Instalación { #install }
@@ -63,8 +63,8 @@ curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-co
 docker compose up -d
 ```
 
-Eso descarga las imágenes y arranca **Postgres (con pgvector), Redis, el
-servidor y el runner de Prefect, la API y la consola**, ejecuta las migraciones y
+Eso descarga las imágenes y arranca **Postgres (con pgvector), Redis, la API, el
+worker en segundo plano y la consola**, ejecuta las migraciones y
 responde en <http://localhost:3000>. La primera descarga son unos 2 GB.
 
 ```mermaid
@@ -73,9 +73,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector")]
     A --> RD[("redis")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
     M["migrate<br/><i>runs once, exits</i>"] --> PG
 ```
 
@@ -141,9 +139,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector, :5432")]
     A --> RD[("redis<br/>:6379")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server<br/>:4200"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
 ```
 
 Las migraciones se ejecutan como el servicio `migrate` cada vez que arranca el
@@ -184,18 +180,23 @@ esto recorre esa cadena una vez:
 | Un propietario | `admin@example.com` / `admin123`, o `--email` / `--password` |
 | Una entrada en el vault | Tu clave de provider, sellada para esa organización |
 | Un perfil de modelo | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` o `openai/gpt-4.1`, según de qué provider sea la clave |
-| Dos agents | El **Architect**, en la esquina de cada página, y **Claude Code like**, ambos publicados si hay una clave |
+| Dos agents | El **Architect**, en la esquina de cada página, y **AgenticOS**, ambos publicados si hay una clave |
 
 Ahora abre <http://localhost:3000>, inicia sesión como `admin@example.com` /
-`admin123` y pregunta algo a cualquiera de los dos: a **Claude Code like** en
+`admin123` y pregunta algo a cualquiera de los dos: a **AgenticOS** en
 **Chat**, o al **Architect** desde la esquina de cualquier página.
 
-Claude Code like es un agent de uso general: lee antes de actuar, planifica un
-trabajo de varios pasos, edita archivos y ejecuta comandos en su sandbox, investiga
-en la web, delega en sus especialistas y comprueba lo que hizo. El Architect conoce
-esta plataforma: encuentra agents, runs y bases de conocimiento, explica por qué
-falló un run y cuánto costó, y prepara un agent o una base de conocimiento para que
-lo apruebes.
+AgenticOS es un agent de uso general: lee antes de actuar, planifica un trabajo de
+varios pasos, edita archivos y ejecuta comandos en su sandbox, investiga en la web,
+delega en sus especialistas y comprueba lo que hizo. Por el camino también te
+enseña lo que hace la plataforma: ofrece una rutina cuando una petición va a
+volver, dice qué podría hacer si se encendiera una capability, recuerda tus
+preferencias y cambia el idioma de la consola cuando se lo pides. Cada agent que
+creas desde cero empieza como una copia suya.
+
+El Architect construye agents contigo, una decisión cada vez, desde lo que el
+agent debe hacer hasta un agent probado y publicado; también encuentra agents,
+runs y bases de conocimiento, y explica por qué falló un run y cuánto costó.
 
 Abre cualquiera de los dos en el Builder para ver cómo: cada una de esas cosas es
 una capability que alguien encendió, y las instrucciones del agent son un campo de
@@ -208,8 +209,8 @@ texto que puedes cambiar.
     responder, y publicar uno que falla en su primer mensaje es peor que no
     publicarlo.
 
-    Añade una clave en **Settings → AI providers** y después publica Claude Code
-    like. El Architect se publica solo con el primer modelo de la organización.
+    Añade una clave en **Settings → AI providers** y después publica AgenticOS. El
+    Architect se publica solo con el primer modelo de la organización.
 
 !!! note "`make seed` es otra cosa"
 
@@ -252,7 +253,7 @@ eso vas a cambiar el código: `git clone`, `make dev`, `make dev-frontend`,
 | Lo que ves | Por qué |
 |---|---|
 | La ingesta da 500 con `extension "vector" is not available` | Postgres estándar en vez de `pgvector/pgvector:pg16`. Ver más abajo |
-| `uv run` informa de Python 3.13 o 3.14 | `backend/.venv` resolvió por encima del pin. Bórralo y vuelve a ejecutar `uv sync` |
+| `uv run` informa de un Python distinto de 3.15 | `backend/.venv` resolvió por encima del pin. Bórralo y vuelve a ejecutar `uv sync` |
 | El frontend carga pero todas las peticiones fallan | La API todavía está arrancando - espera al servicio `migrate` - o al navegador se le dijo el host equivocado: `PUBLIC_API_URL` y `PUBLIC_WS_URL` tienen que ser alcanzables desde donde esté el navegador. `docker compose logs migrate app` |
 | `docker compose up` falla con `unauthorized` en `ghcr.io/vstorm-co/...` | El paquete es privado, o hay un `docker login` caducado a GHCR en medio. Las imágenes se descargan de forma anónima; haz `docker logout ghcr.io` e inténtalo otra vez, y si sigue rechazándolo el problema es la visibilidad del paquete, no tu máquina |
 | El servicio `app` está `Up` y `unhealthy`, y todas las peticiones se quedan colgadas | Un bucle de eventos atascado. El worker se tumba a sí mismo a los 15 s y algo lo reemplaza, en los tres stacks — así que si un minuto después sigue colgado, `EVENT_LOOP_WEDGED_AFTER` está puesto a `0` en algún sitio, que es lo que necesita un depurador y lo que no debería necesitar nada más. `docker inspect` muestra `137` con `OOMKilled=false`, y la línea de log de encima dice cuál |
@@ -298,7 +299,7 @@ Y dónde está cada cosa:
 | API | <http://localhost:8000> |
 | Documentación OpenAPI | <http://localhost:8000/docs> |
 | Admin al estilo de Django | <http://localhost:8000/admin> |
-| Interfaz de Prefect | <http://localhost:4200> |
+| Background jobs | <http://localhost:3000/admin/background-jobs> - como propietario del despliegue |
 | Postgres | `localhost:5432` (`postgres` / `postgres`) - publicado solo por el archivo override del clon |
 | Redis | `localhost:6379` - lo mismo |
 
@@ -338,7 +339,7 @@ Ninguna de las tres cosas es opcional, y cada una faltó en algún momento:
 Las dos son por checkout y no se comparten entre dos worktrees, así que esto hay
 que hacerlo en cada clon y no una vez por portátil.
 
-!!! note "Python está fijado a 3.12"
+!!! note "Python está fijado a 3.15"
 
     `backend/.python-version` lo fija, en correspondencia con `requires-python`,
     `backend/Dockerfile` y todos los jobs de CI. Si `uv run python -V` informa de

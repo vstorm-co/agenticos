@@ -19,8 +19,6 @@ at all - the token's subject *is* the identity, and a second one would be a
 weaker way to answer a question already answered.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import datetime
 

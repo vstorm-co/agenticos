@@ -7,8 +7,6 @@ no further - not into `AgentDeps`, not into a tool argument, not into the
 model's context, not into a log line.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from collections.abc import Iterator
@@ -16,6 +14,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 from pydantic_ai.capabilities import AbstractCapability
 
 from app.agents.capabilities import (
@@ -28,7 +27,13 @@ from app.agents.capabilities import (
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret, SecretKind, SecretRequirement
+from app.core.secret_kinds import (
+    ApiKeySecret,
+    AwsCredentialsSecret,
+    SecretCondition,
+    SecretKind,
+    SecretRequirement,
+)
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.agent_registry import AgentRegistryService
 
@@ -157,6 +162,7 @@ def secret_row() -> MagicMock:
     row.id = uuid.uuid4()
     row.name = "Weather API"
     row.kind = SecretKind.API_KEY.value
+    row.purpose = "custom"
     return row
 
 
@@ -234,6 +240,68 @@ class TestPublishValidation:
             f"Capability '{CAPABILITY_ID}' needs a api_key secret, but "
             "'Bedrock' holds a aws_credentials"
         ]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(("harness", "refused"), [("claude_code", True), ("codex", False)])
+    async def test_a_chatgpt_sign_in_runs_only_codex(self, secret_row, harness, refused):
+        """Switched to Claude Code, a binding kept the sign-in and published; every
+        task then refused at run time."""
+        secret_row.kind = SecretKind.OPENAI_CODEX.value
+        secret_row.name = "My ChatGPT"
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(
+                id="coding_agent", secret_id=secret_row.id, config={"harness": harness}
+            ),
+            secret=secret_row,
+        )
+
+        said = any("ChatGPT sign-in, which only Codex runs on" in problem for problem in problems)
+        assert said is refused
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("capability", "config"),
+        [
+            ("image_generation", {"provider": "google", "model": "gemini-3-pro-image"}),
+            (
+                "text_to_speech",
+                {"provider": "google", "model": "gemini-3.8-flash-tts", "voice": "Kore"},
+            ),
+            ("video_generation", {"provider": "google"}),
+        ],
+    )
+    async def test_a_key_for_another_provider_is_refused(self, secret_row, capability, config):
+        """Same kind, wrong service: the key would be sent in Google's auth header
+        at every call (#2258)."""
+        secret_row.purpose = "openai"
+        secret_row.name = "OpenAI"
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(id=capability, secret_id=secret_row.id, config=config),
+            secret=secret_row,
+        )
+
+        assert problems == [
+            f"Capability '{capability}' is set to use google, but 'OpenAI' is a key for openai"
+        ]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("purpose", ["google", "custom"])
+    async def test_a_key_for_the_chosen_provider_or_a_custom_one_publishes(
+        self, secret_row, purpose
+    ):
+        """`custom` is every key stored before purposes existed; it stays accepted."""
+        secret_row.purpose = purpose
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(
+                id="video_generation", secret_id=secret_row.id, config={"provider": "google"}
+            ),
+            secret=secret_row,
+        )
+
+        assert problems == []
 
     @pytest.mark.anyio
     async def test_a_matching_secret_publishes(self, secret_row):
@@ -473,3 +541,29 @@ class TestSpecCarriesOnlyAReference:
                 id=CAPABILITY_ID,
                 secret=AwsCredentialsSecret,  # type: ignore[call-arg]
             )
+
+
+class _Chosen(BaseModel):
+    provider: str | None = None
+
+
+@pytest.mark.parametrize(
+    ("config", "purpose"),
+    [
+        (_Chosen(provider="google"), "google"),
+        (_Chosen(provider=""), "mem0"),
+        (_Chosen(), "mem0"),
+        (None, "mem0"),
+    ],
+    ids=["chosen", "empty", "unset", "no-config"],
+)
+def test_a_keys_purpose_is_the_chosen_service_or_the_named_one(config, purpose):
+    """The order the Builder's `purposeOf` reads: the gating field, then the name."""
+    requirement = SecretRequirement(
+        kind=SecretKind.API_KEY,
+        description="A key",
+        purpose="mem0",
+        required_when=SecretCondition(field="provider", equals=("google",)),
+    )
+
+    assert requirement.purpose_for(config) == purpose

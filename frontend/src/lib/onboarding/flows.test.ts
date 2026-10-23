@@ -127,6 +127,7 @@ describe("FLOWS", () => {
       "flow-agent-skills-return-edit",
       "flow-agent-skills-attach",
       "flow-agent-tools",
+      "flow-agent-platform-mcp",
       "flow-agent-mcp",
       "flow-agent-mcp-ask",
       "flow-agent-mcp-connect",

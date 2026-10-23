@@ -6,8 +6,6 @@ The queries are covered over a real database in
 `tests/integration/test_mcp_usage_and_calls.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime

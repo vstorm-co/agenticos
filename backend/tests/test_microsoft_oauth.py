@@ -5,8 +5,6 @@ converts the translated provider error into its `ok=false` result, so anything
 this module lets raise past `MicrosoftOAuthError` strands a consent on a 500.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import patch
 

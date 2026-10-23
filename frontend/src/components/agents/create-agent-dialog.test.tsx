@@ -100,8 +100,25 @@ describe("CreateAgentDialog", () => {
     );
   });
 
+  it("asks the server for the rest of the starter agent, which only it holds (#2301)", async () => {
+    // Its instructions, skills, the platform's tools and its budget - an agent
+    // made any other way keeps an empty field empty.
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support Copilot" });
+    open();
+
+    await userEvent.type(name(), "Support Copilot");
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/agents",
+        expect.objectContaining({ from_starter: true }),
+      ),
+    );
+  });
+
   it("starts every agent with the starter agent's recommended capabilities", async () => {
-    // What the Claude Code like template binds, config and all - ask_user among
+    // What the AgenticOS template binds, config and all - ask_user among
     // them (#2064) - and nothing the catalog does not recommend.
     const sandbox = {
       id: "sandbox",

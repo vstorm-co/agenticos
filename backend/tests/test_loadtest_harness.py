@@ -10,8 +10,6 @@ Imported by path, the way `test_check_comments.py` reaches the repository's guar
 scripts: `loadtest/` is a console tool outside the backend package.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import itertools
 import sys
@@ -317,21 +315,42 @@ class TestTheDriverSizesItselfToTheScenario:
         assert scenario.peak_concurrency(scenario.PHASES, slowest_request_seconds=90.0) == 36 * 90
 
 
+class _Collection:
+    """A console whose collection gains `per_poll` vectors each time it is read."""
+
+    def __init__(self, *, holds: int, per_poll: int = 0) -> None:
+        self.holds = holds
+        self.per_poll = per_poll
+        self.uploads = 0
+
+    def get(self, path: str, **_: object) -> dict[str, int]:
+        self.holds += self.per_poll
+        return {"total_vectors": self.holds}
+
+    def post(self, path: str, **_: object) -> None:
+        self.uploads += 1
+
+
 class TestSeedingRefusesAPartialCorpus:
-    def test_a_failure_the_command_printed_is_not_a_success(self) -> None:
-        """`rag-ingest` counts a per-file failure, prints it, and exits zero."""
-        output = "  x record-00003.txt: no embedding credential\nDone: 39 ingested\nFailed: 1 files"
+    def test_a_collection_already_holding_the_corpus_is_left_alone(self) -> None:
+        """A second seeding must not double the index and change what retrieval costs."""
+        console = _Collection(holds=40)
 
-        with pytest.raises(RuntimeError, match="failed to index"):
-            seed._accounted(output, expected=40)
+        assert seed.ingest(console, name="corpus", count=40) == 40
+        assert console.uploads == 0
 
-    def test_files_the_command_never_mentioned_are_refused_too(self) -> None:
-        with pytest.raises(RuntimeError, match="accounted for neither"):
-            seed._accounted("Done: 12 ingested", expected=40)
+    def test_every_document_is_uploaded_and_waited_for(self, monkeypatch) -> None:
+        monkeypatch.setattr(seed.time, "sleep", lambda _seconds: None)
+        console = _Collection(holds=0, per_poll=10)
 
-    def test_a_complete_corpus_is_accepted(self) -> None:
-        assert seed._accounted("Done: 40 ingested", expected=40) == 40
+        assert seed.ingest(console, name="corpus", count=40) == 40
+        assert console.uploads == 40
 
-    def test_documents_already_present_count_as_accounted_for(self) -> None:
-        """`new_only` skips what is unchanged, which is still a complete index."""
-        assert seed._accounted("Done: 5 ingested, 35 skipped", expected=40) == 40
+    def test_an_index_that_never_fills_is_refused(self, monkeypatch) -> None:
+        """Measured against a partial index, retrieval would look cheaper than it is."""
+        clock = iter(range(0, 10_000, seed.INGEST_PATIENCE_SECONDS))
+        monkeypatch.setattr(seed.time, "monotonic", lambda: next(clock))
+        monkeypatch.setattr(seed.time, "sleep", lambda _seconds: None)
+
+        with pytest.raises(RuntimeError, match="is a worker running"):
+            seed.ingest(_Collection(holds=3), name="corpus", count=40)

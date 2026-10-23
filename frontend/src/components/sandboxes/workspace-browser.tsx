@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 
 import { FileViewer } from "@/components/files";
 import { DocumentTile } from "@/components/sandboxes/document-tile";
+import { groupByWorkspace, WorkspaceGroups } from "@/components/sandboxes/workspace-groups";
 import { useAllWorkspaceFiles } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { suffixOf } from "@/lib/file-kinds";
@@ -41,7 +42,7 @@ type Origin = "any" | "upload" | "agent";
 
 /** Newest and biggest first: those orders answer "what changed" and "what is
  *  eating the quota", where a name orders alphabetically. */
-function compareFlat(sort: FlatSort, a: FlatFile, b: FlatFile): number {
+export function compareFlat(sort: FlatSort, a: FlatFile, b: FlatFile): number {
   switch (sort) {
     case "size":
       return (b.size ?? -1) - (a.size ?? -1);
@@ -72,21 +73,11 @@ function compareFlat(sort: FlatSort, a: FlatFile, b: FlatFile): number {
  * part of.
  */
 export function WorkspaceBrowser() {
-  const t = useTranslations("sandboxes");
-  // The same query the list below reads, so the count costs no second request.
-  const { listing, isLoading } = useAllWorkspaceFiles(true);
-  return (
-    <ListCard
-      namedByPage
-      title={t("workspaces.allFiles")}
-      counted={isLoading ? null : t("fileCount", { count: listing?.total ?? 0 })}
-      empty={listing?.total === 0}
-      contentClassName="p-0"
-    >
-      <FlatFiles />
-    </ListCard>
-  );
+  return <FlatFiles />;
 }
+
+/** How many of the newest files the Recent strip previews above the groups. */
+const RECENT = 4;
 
 /**
  * Every file at once, with the workspace each came from named beside it.
@@ -100,7 +91,8 @@ function FlatFiles() {
   const router = useRouter();
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
   const [opened, setOpened] = useState<FlatFile | null>(null);
-  const [sort, setSort] = useState<FlatSort>("name");
+  // Newest first: what an agent just made is what this page is opened for.
+  const [sort, setSort] = useState<FlatSort>("modified");
   const [origin, setOrigin] = useState<Origin>("any");
 
   const sorted = useMemo(
@@ -124,22 +116,40 @@ function FlatFiles() {
       suffixOf(file.path) === query.replace(/^\./, ""),
   });
 
+  // Grouped by workspace until something is searched for: a search is after one
+  // file wherever it is, and the groups would only scatter the matches.
+  const grouped = list.query === "";
+  const groups = useMemo(() => (grouped ? groupByWorkspace(sorted) : []), [grouped, sorted]);
+  // A preview of what changed last, above the groups, when there is more than a
+  // screen of it: the tiles that show a file's first lines earn their room here.
+  const recent = useMemo(
+    () =>
+      grouped && sorted.length > RECENT
+        ? [...sorted].sort((a, b) => compareFlat("modified", a, b)).slice(0, RECENT)
+        : [],
+    [grouped, sorted],
+  );
+  const download = (file: FlatFile) =>
+    void workspaceFileAccess({ kind: "workspace", id: file.workspace_id }, file.path).download();
+
   if (isLoading) return <Skeleton className="m-5 h-24" />;
   if (error !== null) return <p className="text-destructive px-5 py-4 text-sm">{error}</p>;
   if (listing === null) return null;
 
   if (listing.items.length === 0)
     return (
-      <ListCardEmpty
-        icon={FolderOpen}
-        title={t("noAgentHoldingFile")}
-        description={t("noAgentHoldingFileWhy")}
-        cta={{ label: t("openAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
-      />
+      <ListCard namedByPage title={t("workspaces.allFiles")} counted={null} empty>
+        <ListCardEmpty
+          icon={FolderOpen}
+          title={t("noAgentHoldingFile")}
+          description={t("noAgentHoldingFileWhy")}
+          cta={{ label: t("openAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
+        />
+      </ListCard>
     );
 
   return (
-    <div className="space-y-3 p-5">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchFiles")} />
         <Select value={origin} onValueChange={(value) => setOrigin(value as Origin)}>
@@ -163,9 +173,34 @@ function FlatFiles() {
             <SelectItem value="agent">{t("sortByAgent")}</SelectItem>
           </SelectContent>
         </Select>
+        <span className="text-muted-foreground ml-auto text-xs">
+          {t("fileCount", { count: listing.total })}
+        </span>
       </div>
+      {recent.length > 0 && (
+        <section aria-label={t("workspaces.recent")} className="space-y-2.5">
+          <h2 className="text-muted-foreground text-xs font-medium">{t("workspaces.recent")}</h2>
+          {/* A strip that scrolls sideways on a phone: four cards stacked were the
+              whole first screen before the first conversation. */}
+          <ul className="-mx-1 flex snap-x scrollbar-none gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4">
+            {recent.map((file) => (
+              <li key={key(file)} className="w-[78%] shrink-0 snap-start sm:w-auto">
+                <DocumentTile
+                  file={file}
+                  onOpen={() => setOpened(file)}
+                  onDownload={() => download(file)}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {/* Nothing left after the origin filter says so, grouped or not: grouping
+          an empty list drew no groups and no sentence - a blank results area. */}
       {list.matched === 0 ? (
         <p className="text-muted-foreground py-8 text-center text-sm">{t("noFileMatches")}</p>
+      ) : grouped ? (
+        <WorkspaceGroups groups={groups} onOpen={setOpened} onDownload={download} />
       ) : (
         /* Four across on a wide screen: a document is recognised by its first
            lines and its name, and a fourth column shows a quarter more of them
@@ -177,25 +212,22 @@ function FlatFiles() {
               <DocumentTile
                 file={file}
                 onOpen={() => setOpened(file)}
-                onDownload={() =>
-                  void workspaceFileAccess(
-                    { kind: "workspace", id: file.workspace_id },
-                    file.path,
-                  ).download()
-                }
+                onDownload={() => download(file)}
               />
             </li>
           ))}
         </ul>
       )}
-      <Pager
-        page={list.page}
-        pageCount={list.pageCount}
-        matched={list.matched}
-        total={list.total}
-        onPage={list.setPage}
-        counted={t("fileCount", { count: list.total })}
-      />
+      {!grouped && (
+        <Pager
+          page={list.page}
+          pageCount={list.pageCount}
+          matched={list.matched}
+          total={list.total}
+          onPage={list.setPage}
+          counted={t("fileCount", { count: list.total })}
+        />
+      )}
       {opened !== null && (
         <FileViewer
           file={{

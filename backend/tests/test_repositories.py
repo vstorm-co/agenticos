@@ -155,6 +155,41 @@ class TestAgentRepositoryLock:
         assert "FOR NO KEY UPDATE" not in sql
 
 
+class TestPublishedStarters:
+    """One path read out of each frozen spec, for the listing (#2301)."""
+
+    @pytest.mark.anyio
+    async def test_each_version_s_starters_are_read_by_its_id(self):
+        from uuid import uuid4
+
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import agent as agent_repo
+
+        version = uuid4()
+        session = MagicMock()
+        session.execute = AsyncMock(
+            return_value=MagicMock(all=lambda: [(version, ["What can you do?"])])
+        )
+
+        found = await agent_repo.published_starters(session, version_ids=[version])
+
+        assert found == {version: ["What can you do?"]}
+        sql = str(session.execute.call_args.args[0].compile(dialect=postgresql.dialect()))
+        # A version published before the field existed has no key, and is left out.
+        assert "IS NOT NULL" in sql
+
+    @pytest.mark.anyio
+    async def test_no_versions_is_no_query(self):
+        from app.repositories import agent as agent_repo
+
+        session = MagicMock()
+        session.execute = AsyncMock()
+
+        assert await agent_repo.published_starters(session, version_ids=[]) == {}
+        session.execute.assert_not_awaited()
+
+
 class TestOrganizationSecretRepository:
     """Promoting a departing owner's private keys before their row is deleted."""
 

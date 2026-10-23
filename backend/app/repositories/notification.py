@@ -1,7 +1,5 @@
 """Notification repository (PostgreSQL async) (#1598)."""
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Sequence
 from datetime import datetime

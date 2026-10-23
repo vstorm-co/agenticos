@@ -25,8 +25,6 @@ and a branch in each of the three functions - nothing on the row and nothing in 
 service.
 """
 
-from __future__ import annotations
-
 import hashlib
 import hmac
 import json

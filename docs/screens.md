@@ -24,6 +24,12 @@ A spreadsheet in, a published page out. The agent read the CSV with Python, work
 ![Chat](assets/screens/light/chat.webp#only-light)
 ![Chat](assets/screens/dark/chat.webp#only-dark)
 
+### A voice call
+
+The composer turned into a call bar: what the call is doing, its time against the limit, a waveform of both voices, mute, push to talk and End. The conversation goes on above it - captions inside the message being spoken, tool runs, and an approval card with the exact arguments and what you were heard to say.
+
+> **Screenshot pending — A voice call.**
+
 ## Building an agent
 
 ### Agents
@@ -255,7 +261,7 @@ Connect any MCP server by URL and its tools become switches in the Builder. Conn
 
 ### Channels
 
-The chat platforms this organization answers on - Slack, Telegram, Mattermost. A bot serves every agent bound to it, and the binding is made on that agent's Availability tab.
+The chat platforms this organization answers on - Slack, Teams, Telegram, Mattermost. A bot serves every agent bound to it, and the binding is made on that agent's Availability tab.
 
 ![Channels](assets/screens/light/channels.webp#only-light)
 ![Channels](assets/screens/dark/channels.webp#only-dark)

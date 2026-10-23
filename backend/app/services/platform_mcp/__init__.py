@@ -10,8 +10,6 @@ around it; :mod:`._oauth` answers its authorization-server decisions from the
 database.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -67,7 +65,9 @@ def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:
     )
     api = PlatformApi(app, token=_mcp_token, on_refusal=_tool_error)
     for tool in platform_tools(api):
-        server.tool(tool.function, annotations=_WRITE if tool.writes else _READ)
+        # A held read is announced as no read-only tool, which is what holds it
+        # for approval under `writes` - see `HELD`.
+        server.tool(tool.function, annotations=_WRITE if tool.writes or tool.held else _READ)
     # Stateless, answering in JSON: a tool call is one request and one answer,
     # so any worker of any replica can serve it, with nothing to keep in memory.
     # FastMCP's Host/Origin guard stays off: it protects unauthenticated local
@@ -95,7 +95,7 @@ ROUTE_PATHS = (
 
 
 @asynccontextmanager
-async def serve_platform_mcp(app: ASGIApp, state: object) -> AsyncGenerator[None, None]:
+async def serve_platform_mcp(app: ASGIApp, state: object) -> AsyncGenerator[None]:
     """Run the MCP server for one lifespan of `app`, reachable through :func:`forward`.
 
     Built per lifespan rather than once: FastMCP's session manager runs once per
@@ -242,6 +242,21 @@ def _counting_refusals(
 forward = _Forward()
 
 
+async def _unreachable(scope: Scope, receive: Receive, send: Send) -> None:
+    raise RuntimeError("The tool catalog is read for its descriptions; nothing is called")
+
+
+def platform_tool_catalog() -> tuple[PlatformTool, ...]:
+    """Every tool the platform's server offers, for the Builder to list beside a binding.
+
+    Read off the same definitions `/mcp` serves - names, first lines and which
+    ones change something - so the list a person picks from is the list a run
+    reaches. Bound to an API that cannot be called, because describing a tool
+    must never be a way to run one.
+    """
+    return platform_tools(PlatformApi(_unreachable, token=lambda: None, on_refusal=_tool_error))
+
+
 __all__ = [
     "MCP_PATH",
     "ROUTE_PATHS",
@@ -249,6 +264,7 @@ __all__ = [
     "PlatformTool",
     "build_platform_mcp",
     "forward",
+    "platform_tool_catalog",
     "platform_tools",
     "serve_platform_mcp",
 ]

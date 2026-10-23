@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
@@ -91,6 +92,7 @@ vi.mock("@/hooks", async () => {
       setAvatar: { mutateAsync: vi.fn(), isPending: false },
       setColor: { mutate: vi.fn(), isPending: false },
       setMetadata: { mutate: vi.fn(), isPending: false },
+      setA2a: { mutate: vi.fn(), isPending: false },
     }),
     useAgentEnvironments: () => ({ environments: [], promote: { mutateAsync: vi.fn() } }),
     useAgents: () => ({
@@ -150,6 +152,7 @@ vi.mock("@/stores", () => ({
 // harder to read.
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
+vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
   MarkdownEditor: () => null,
@@ -169,9 +172,11 @@ vi.mock("@/components/triggers/triggers-panel", () => ({ TriggersPanel: () => nu
 async function mount() {
   await act(async () => {
     render(
-      <Suspense fallback={null}>
-        <AgentBuilderPage params={Promise.resolve({ id: "a-1" })} />
-      </Suspense>,
+      <QueryClientProvider client={new QueryClient()}>
+        <Suspense fallback={null}>
+          <AgentBuilderPage params={Promise.resolve({ id: "a-1" })} />
+        </Suspense>
+      </QueryClientProvider>,
     );
   });
 }

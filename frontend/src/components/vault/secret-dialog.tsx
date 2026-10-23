@@ -4,9 +4,10 @@ import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
+import { ChatGPTSignInSteps } from "@/components/vault/chatgpt-sign-in";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
-import { useSecretPurposes } from "@/hooks";
+import { useChatGPTSignIn, useSecretPurposes } from "@/hooks";
 import { cn } from "@/lib/utils";
 
 import {
@@ -125,7 +126,7 @@ export function AddSecretDialog({
   const opened = purposes.find((entry) => entry.id === purposeId) ?? null;
   const category = chosenCategory ?? (opened?.category as PurposeCategory) ?? "model_provider";
   const purpose = chosenPurpose ?? opened?.id ?? "";
-  const [visibility, setVisibility] = useState<SecretVisibility>("org");
+  const [chosenVisibility, setVisibility] = useState<SecretVisibility | null>(null);
   // `null` is "nobody has typed a name", which is not the same as an empty one:
   // it is what lets the field follow the chosen service until somebody makes it
   // theirs. Once typed, it stays typed - including when typed back to blank.
@@ -133,7 +134,9 @@ export function AddSecretDialog({
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<StorableSecretKind>("api_key");
   const [value, setValue] = useState<Record<string, unknown>>({});
+  const [callbackUrl, setCallbackUrl] = useState("");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+  const chatgpt = useChatGPTSignIn();
 
   const inCategory = purposes.filter((entry) => entry.category === category);
   // Falls back to the first in the category so the select is never blank: an
@@ -145,21 +148,29 @@ export function AddSecretDialog({
   const effectiveKind = chosen && chosen.id !== "custom" ? chosen.kind : kind;
   const isCustom = chosen === null || chosen.id === "custom";
   const info = kindInfo(kinds, effectiveKind);
+  // The one shape nobody types: it is stored by signing in, and it is somebody's
+  // own subscription - so it starts private, where every other key starts shared.
+  const signsIn = effectiveKind === "openai_codex";
+  const visibility = chosenVisibility ?? (signsIn ? "private" : "org");
+  const pending = isPending || chatgpt.create.isPending;
   // What the field shows: what was typed, or the service's own name. Switching
   // from OpenAI to Anthropic with the field still reading "OpenAI" leaves a key
   // named after the wrong provider, in a list people scan by name.
   const suggestedName = chosen === null || chosen.id === "custom" ? "" : chosen.label;
   const shownName = name ?? suggestedName;
   const complete =
-    shownName.trim().length > 0 && info !== null && isSecretComplete(info.json_schema, value);
+    shownName.trim().length > 0 &&
+    info !== null &&
+    (signsIn ? callbackUrl.trim() !== "" : isSecretComplete(info.json_schema, value));
 
   function reset() {
     setCategory(null);
     setPurpose(null);
-    setVisibility("org");
+    setVisibility(null);
     setName(null);
     setDescription("");
     setValue({});
+    setCallbackUrl("");
     setErrors({});
   }
 
@@ -172,6 +183,7 @@ export function AddSecretDialog({
     // stands in for it below.
     setPurpose("");
     setValue({});
+    setCallbackUrl("");
     setErrors({});
   }
 
@@ -179,6 +191,7 @@ export function AddSecretDialog({
   function choosePurpose(next: string) {
     setPurpose(next);
     setValue({});
+    setCallbackUrl("");
     setErrors({});
   }
 
@@ -192,20 +205,33 @@ export function AddSecretDialog({
   async function submit() {
     if (info === null) return;
     try {
-      await onSubmit({
-        name: shownName.trim(),
-        description: description.trim() || null,
-        value: toSecretPayload(effectiveKind, value),
-        purpose: chosen?.id ?? "custom",
-        visibility,
-      });
+      if (signsIn) {
+        await chatgpt.create.mutateAsync({
+          name: shownName.trim(),
+          description: description.trim() || null,
+          visibility,
+          callback_url: callbackUrl.trim(),
+        });
+      } else {
+        await onSubmit({
+          name: shownName.trim(),
+          description: description.trim() || null,
+          value: toSecretPayload(effectiveKind, value),
+          purpose: chosen?.id ?? "custom",
+          visibility,
+        });
+      }
       onOpenChange(false);
       reset();
     } catch (error) {
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "description", ...secretFieldNames(info.json_schema)],
+          fields: [
+            "name",
+            "description",
+            ...(signsIn ? ["callback_url"] : secretFieldNames(info.json_schema)),
+          ],
           identifiedBy: "name",
         },
         tErrors,
@@ -326,7 +352,16 @@ export function AddSecretDialog({
             </p>
           </div>
 
-          {info && (
+          {info && signsIn && (
+            <ChatGPTSignInSteps
+              callbackUrl={callbackUrl}
+              onCallbackUrlChange={setCallbackUrl}
+              error={errors.callback_url}
+              disabled={pending}
+              idPrefix="secret"
+            />
+          )}
+          {info && !signsIn && (
             <SecretFields
               info={info}
               value={value}
@@ -366,11 +401,15 @@ export function AddSecretDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {kinds.map((entry) => (
-                      <SelectItem key={entry.kind} value={entry.kind}>
-                        {entry.name}
-                      </SelectItem>
-                    ))}
+                    {/* Not a shape a custom secret can take: a ChatGPT
+                        sign-in is stored by signing in, under its provider. */}
+                    {kinds
+                      .filter((entry) => entry.kind !== "openai_codex")
+                      .map((entry) => (
+                        <SelectItem key={entry.kind} value={entry.kind}>
+                          {entry.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -418,7 +457,7 @@ export function AddSecretDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel2")}
           </Button>
-          <Button onClick={submit} disabled={!complete || isPending}>
+          <Button onClick={submit} disabled={!complete || pending}>
             {t("storeSecret")}
           </Button>
         </DialogFooter>
@@ -458,20 +497,38 @@ export function RotateSecretDialog({
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
   const [value, setValue] = useState<Record<string, unknown>>({});
+  const [callbackUrl, setCallbackUrl] = useState("");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+  const chatgpt = useChatGPTSignIn();
 
   const info = secret === null ? null : kindInfo(kinds, secret.kind);
-  const complete = info !== null && isSecretComplete(info.json_schema, value);
+  // A ChatGPT sign-in is rotated by signing in again: there is no value to type,
+  // and the grant a refused refresh left behind is the thing being replaced.
+  const reconnects = secret?.kind === "openai_codex";
+  const pending = isPending || chatgpt.reconnect.isPending;
+  const complete =
+    info !== null &&
+    (reconnects ? callbackUrl.trim() !== "" : isSecretComplete(info.json_schema, value));
+
+  function clear() {
+    setValue({});
+    setCallbackUrl("");
+    setErrors({});
+  }
 
   async function submit() {
     if (secret === null || info === null) return;
     try {
-      await onSubmit({ id: secret.id, value: toSecretPayload(secret.kind, value) });
+      if (reconnects) {
+        await chatgpt.reconnect.mutateAsync({ id: secret.id, callback_url: callbackUrl.trim() });
+      } else {
+        await onSubmit({ id: secret.id, value: toSecretPayload(secret.kind, value) });
+      }
       onOpenChange(false);
-      setValue({});
-      setErrors({});
+      clear();
     } catch (error) {
-      const failure = submitFailure(error, { fields: secretFieldNames(info.json_schema) }, tErrors);
+      const fields = reconnects ? ["callback_url"] : secretFieldNames(info.json_schema);
+      const failure = submitFailure(error, { fields }, tErrors);
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     }
@@ -481,17 +538,18 @@ export function RotateSecretDialog({
     <Dialog
       open={secret !== null}
       onOpenChange={(next) => {
-        if (!next) {
-          setValue({});
-          setErrors({});
-        }
+        if (!next) clear();
         onOpenChange(next);
       }}
     >
       <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
-          <DialogTitle>{t("rotateNamed", { name: secret?.name ?? "" })}</DialogTitle>
-          <DialogDescription>{t("newValueReplacesOld")}</DialogDescription>
+          <DialogTitle>
+            {t(reconnects ? "chatgptReconnectNamed" : "rotateNamed", { name: secret?.name ?? "" })}
+          </DialogTitle>
+          <DialogDescription>
+            {reconnects ? t("chatgptReconnectBody") : t("newValueReplacesOld")}
+          </DialogDescription>
         </DialogHeader>
 
         {secret && info && (
@@ -500,14 +558,24 @@ export function RotateSecretDialog({
               {t("nameCurrentlyEnds", { name: info.name })}{" "}
               <span className="font-mono">····{secret.hint}</span>
             </p>
-            <SecretFields
-              info={info}
-              value={value}
-              onChange={setValue}
-              disabled={isPending}
-              idPrefix="rotate"
-              errors={errors}
-            />
+            {reconnects ? (
+              <ChatGPTSignInSteps
+                callbackUrl={callbackUrl}
+                onCallbackUrlChange={setCallbackUrl}
+                error={errors.callback_url}
+                disabled={pending}
+                idPrefix="rotate"
+              />
+            ) : (
+              <SecretFields
+                info={info}
+                value={value}
+                onChange={setValue}
+                disabled={isPending}
+                idPrefix="rotate"
+                errors={errors}
+              />
+            )}
           </div>
         )}
 
@@ -515,8 +583,8 @@ export function RotateSecretDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel3")}
           </Button>
-          <Button onClick={submit} disabled={!complete || isPending}>
-            {t("rotate")}
+          <Button onClick={submit} disabled={!complete || pending}>
+            {reconnects ? t("chatgptReconnect") : t("rotate")}
           </Button>
         </DialogFooter>
       </DialogContent>

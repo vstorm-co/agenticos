@@ -7,8 +7,6 @@ reaching another person's store, which is an `owner_key` filter and a tenant
 filter working together.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

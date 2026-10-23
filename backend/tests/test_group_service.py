@@ -6,8 +6,6 @@ would need contortions to reach: each refusal, asserted to happen before
 anything is written, and the savepoint turning a lost race into a 409.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

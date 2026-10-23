@@ -119,8 +119,16 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/agenticos-2.css` | The console's look for pages, light and dark, and the `ao-` components a page is built from |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs |
 | `lib/agenticos-1.css` | The first version of the look, kept for the pages published against it |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 as an ES module, with `addons/controls/OrbitControls.js` beside it - map `three` and `three/addons/` to them with an import map |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, as `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, as `window.L` - draws on the deployment's [map tiles](#visuals), when it has any |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: numbered pins shown in order and dropped one by one on request, a map 16:9 of the page's width, a line joining them, and cards for the stops - on map tiles, or as an outline of the stops without them. `lib/agenticos-map-1.js`, which drops the pins on load at one height, stays served for the pages that name it |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: numbered pins dropped in order, a line joining them, pause and replay, and cards for the stops - on map tiles, or as an outline of the stops without them |
 
-Every name carries its version and is cached for a year. An upgrade adds a new
+Every name carries its version and is cached for a year. The files answer
+`Access-Control-Allow-Origin: *`, because a module script is fetched in CORS mode
+and a page in an opaque origin sends `Origin: null` - without it three.js would not
+import. An upgrade adds a new
 file beside the old one, so a page published against a version keeps getting it.
 Nothing is fetched from outside the deployment, so an air-gapped one works the
 same way. The files are listed in `backend/app/core/catalog/artifact_lib/`.
@@ -132,6 +140,91 @@ with `read_artifact`. A new organization gets it with the other bundled skills, 
 existing one through `seed-skills`, and the Apps capability's **Page style**
 tab in the Builder offers it. Edit the skill to describe your own brand, and the
 agent follows it.
+
+## Visuals
+
+A [visual](reference/capabilities.md#visuals) is an app that has not been saved:
+a drawing an agent writes into the conversation with `draw`, shown under its
+message while it is written. It is the same kind of document - an `html` visual is
+a page, and an `svg` or `mermaid` one becomes a page that holds it - and it is
+drawn with the same isolation.
+
+**The frame.** `/api/v1/artifact-content/visual-frame` is one fixed page on the
+content origin, served with the very policy every app's page gets. It holds no
+drawing: the console posts the drawing into it as it streams, so nothing has to
+be stored before it can be shown, and the isolation comes from the response
+header rather than a `srcdoc` meta tag. While the call streams, the frame morphs
+the markup in place with scripts and `on*` handlers removed; when it is complete,
+it writes the whole document so its scripts run, exactly as the saved page will.
+The frame reports its size, its errors and a heartbeat; a drawing that stops
+beating is taken down rather than left to hold the tab.
+
+**In the chat.** A drawing sits in the conversation itself, with no card around
+it, from the left edge of the message's text: an SVG is fitted by its `viewBox`
+and shrunk past 560 pixels, a page is laid out at the column's width and shrunk
+past 900. A quiet line under it names it and says whether it is still being
+drawn; *Show code*, *Download* (`.svg`, `.html`, or the Mermaid source), *Copy
+as image* for an SVG, *Save to Apps* and *Full screen* appear on that line when
+the pointer is over the drawing, and always on a touch screen. While it streams,
+the drawing keeps the height its call declared, on a faint shade, so the
+conversation does not move under the reader. Full screen shows it at its own
+size; on a phone the preview opens full screen at a tap. Zoom sits in the
+drawing's bottom right corner while the pointer is on it: an SVG is drawn
+larger, a page is scaled, and the box scrolls once the drawing outgrows it. An
+error the drawing reports comes with *Fix it*, which asks the agent.
+
+**Follow-ups.** A control in a drawing can hand the person's choice back to the
+conversation - *Plan this stop*, *Use these numbers* - by calling
+`agenticos.followUp(text)`. The drawing only asks. The console shows the exact
+text under the drawing with *Send*, *Edit* and *Dismiss*, and it becomes the
+person's message only when they click *Send*, a click the drawing cannot make
+for them. A request arriving with no user interaction behind it - on load, on a
+timer - is dropped, as is one over 2,000 characters, and while one waits a
+second cannot replace it. Follow-ups are offered only in the chat:
+`agenticos.canFollowUp()` is false in a shared thread, the widget and an app,
+where `followUp` does nothing and returns `false`, so a saved drawing keeps
+working.
+
+**Maps.** With [`VISUAL_MAP_TILES`](configuration.md#published-artifacts) set, a
+drawing or an app can draw on real map tiles: the deployment fetches each tile
+from that server and serves it from its own tile path, `agenticos.map` says
+where, and the map kit draws an itinerary on it with the server's credit
+underneath. Without it, the same call draws an outline of the stops - pins and
+the line between them, no streets - and so does a map whose tiles do not load.
+The agent says so in its answer: that no map server is connected, and that an
+administrator turns real maps on with this setting.
+A chat app's picture of a map is drawn finished, with every pin in place.
+
+**Choosing the form.** The `visual-design` skill tells the agent when a drawing
+is the right answer at all: text for a fact or advice, a Markdown table for
+exact values, `create_chart` for numbers to see - so "now chart it" turns a
+table into a native chart - and a drawing to explain how something moves, to
+make a tool for the moment, or to follow places on a map. Its templates are a
+diagram, an explainer with sliders, a 3D aircraft with pitch, roll and yaw, a
+calculator and an itinerary. An empty chat with an agent that draws opens on
+one starter for each. Switching Visuals on in the Builder binds Charts too.
+
+**Downloading one.** A file opened from disk has no frame around it, so the
+download carries what the frame enforced. An SVG keeps the drawing and loses
+what could run or reach out: scripts, handlers, embedded documents and any
+reference outside the file. A page opens with the frame's policy ahead of
+everything it wrote, and loads its libraries from this deployment's artifact
+origin.
+
+**Saving one as an app.** *Save to Apps* takes a title and a name, both filled
+in, and publishes the visual as a version of an app under the agent whose turn
+drew it, in the environment that turn ran in, owned by the person saving it and
+private to them until they share it.
+The server rebuilds the visual from the transcript - revisions applied - rather
+than taking bytes from the browser, so the app is exactly what the agent drew.
+Saving under a name the person already has adds a version to that app, which is
+how a revision of a saved drawing updates the page it was shared as. Saving takes
+`artifacts:edit`.
+
+**From a delegate.** A drawing stays in the run that made it, so an agent
+working as another agent's delegate does not draw: `draw` tells it so, and it
+describes the picture in its result for the agent it works for to draw in the
+conversation.
 
 ## Who can open it
 
@@ -223,7 +316,12 @@ the person looking at it:
   somebody opens the content address on its own.
 - The same policy sets `default-src 'none'` and `connect-src 'none'`. The only
   remote source it names is the library set's own path on the content origin,
-  for scripts, styles and fonts. `frame-ancestors` names only the console - and,
+  for scripts, styles and fonts - and, on a deployment that sets
+  `VISUAL_MAP_TILES`, images from its own tile path,
+  `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. That route takes three numbers,
+  each checked against the zoom it can exist at, and fetches the tile itself, so
+  a page never learns the tile server's address or key and can send it nothing
+  it chose. `frame-ancestors` names only the console - and,
   for a page with a public link and embedding sites, the embed document and
   those sites. The frame in the console carries the same `sandbox` list as a
   second lock.
@@ -235,7 +333,9 @@ the person looking at it:
   new tab only when the person agrees; the embed document does the same in a bar
   under the page. The page could send that message itself, so it is a request and
   never a permission - the person reading the address is what stands between a
-  prompt-injected page and the address it would send its numbers to.
+  prompt-injected page and the address it would send its numbers to. A
+  [follow-up](#visuals) is the same kind of request: the console shows the text
+  and a person sends it.
 - One signed address loads its page a few times a minute at most, counted per
   address before anything is read. The console and the public page mint a
   fresh address each time they draw the frame, and minting one through a public
@@ -306,6 +406,12 @@ under `artifacts/<organization>/<artifact>/`.
   inside another site's frame.
 - **Removed versions are gone.** A conversation that links to a version older
   than the kept window can only offer the latest one.
+- **A visual draws only in the web chat and a shared thread.** A chat app gets a
+  picture of it where `VISUAL_RENDER_CDP_URL` names a browser, and its title
+  otherwise; the widget and an embed on another site show its title.
+- **A shared thread shows its newest twelve visuals**, and no more than 16 MB of
+  them between them. Anybody holding the link can open it as often as they like,
+  so one view is bounded; a turn past either keeps its text and shows no drawing.
 
 ## Recap
 

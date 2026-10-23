@@ -24,7 +24,10 @@ vi.mock("@/lib/api-client", async () => {
 // depends on it, and a fresh function per render would re-run the effect on every
 // state change and stage the same token twice.
 const adoptSession = vi.hoisted(() => vi.fn());
-vi.mock("@/hooks/use-auth", () => ({ useAdoptSession: () => adoptSession }));
+vi.mock("@/hooks/use-auth", () => ({
+  useAdoptSession: () => adoptSession,
+  readSession: () => apiClient.get("/auth/me"),
+}));
 
 // One router object across renders, as `next/navigation` hands out: a fresh one per
 // render would re-run the verify effect on every state change and stage twice.

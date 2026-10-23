@@ -4,6 +4,8 @@ import { useRef, useState, type ReactNode } from "react";
 import { Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { cn } from "@/lib/utils";
+
 /**
  * The `DataTransfer` type a dragged file carries, spelled as the DOM spells it.
  *
@@ -14,6 +16,18 @@ import { useTranslations } from "next-intl";
  * explaining it.
  */
 const DRAGGED_FILES = "Files";
+
+/**
+ * Whether a drag may be carrying files.
+ *
+ * Firefox hands some drag events over with no `dataTransfer` at all. Reading
+ * `.types` off it threw, `dragover` then never called `preventDefault`, and the
+ * browser refused the drop - so nothing uploaded. Such a drag is treated as one
+ * that may carry files; the drop itself decides, by whether any arrived.
+ */
+function mayCarryFiles(transfer: DataTransfer | null): boolean {
+  return transfer === null || transfer.types.includes(DRAGGED_FILES);
+}
 
 /**
  * Wraps a page so that a file dropped anywhere on it is an upload.
@@ -27,11 +41,14 @@ export function FileDropZone({
   collectionName,
   onFiles,
   children,
+  className,
 }: {
   /** Named in the overlay, so a drop says which collection it will land in. */
   collectionName: string;
   onFiles: (files: FileList) => void;
   children: ReactNode;
+  /** Replaces the default bottom padding: a pane that fills the page lays itself out. */
+  className?: string;
 }) {
   const t = useTranslations("pages.kb");
   const [isDragging, setIsDragging] = useState(false);
@@ -39,9 +56,9 @@ export function FileDropZone({
 
   return (
     <div
-      className="relative pb-8"
+      className={cn("relative", className ?? "pb-8")}
       onDragEnter={(e) => {
-        if (e.dataTransfer.types.includes(DRAGGED_FILES)) {
+        if (mayCarryFiles(e.dataTransfer)) {
           dragCounter.current += 1;
           setIsDragging(true);
         }
@@ -51,13 +68,14 @@ export function FileDropZone({
         if (dragCounter.current === 0) setIsDragging(false);
       }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(DRAGGED_FILES)) e.preventDefault();
+        if (mayCarryFiles(e.dataTransfer)) e.preventDefault();
       }}
       onDrop={(e) => {
         e.preventDefault();
         dragCounter.current = 0;
         setIsDragging(false);
-        onFiles(e.dataTransfer.files);
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) onFiles(files);
       }}
     >
       {isDragging && (

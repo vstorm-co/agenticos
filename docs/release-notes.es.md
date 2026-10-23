@@ -1,5 +1,5 @@
 ---
-source_sha: "88fd384cb2a0"
+source_sha: "53c45109ee05"
 ---
 
 # Notas de versión { #release-notes }
@@ -11,7 +11,10 @@ el archivo y la página no pueden separarse. Las entradas en sí se quedan en
 inglés, porque son el historial de commits.
 
 El formato sigue [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) y las
-versiones siguen [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+versiones siguen [Semantic Versioning](https://semver.org/spec/v2.0.0.html) con
+una excepción: AgenticOS se queda en la versión mayor 1, así que un cambio al que
+un despliegue tiene que reaccionar sale en una versión MINOR. Lee las notas de
+una versión MINOR antes de actualizar.
 
 Hay dos cosas que se versionan aparte de la lista de abajo.
 

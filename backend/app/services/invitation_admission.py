@@ -17,8 +17,6 @@ The sign-up policy needs the boolean rather than the reasons: its refusal is pub
 and "you were not invited" must not become a way to enumerate a deployment's tenants.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 
 from app.db.models.organization import Invitation, InvitationStatus

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -118,23 +117,22 @@ export const WINDOW_CLASSES =
  * useful exactly when somebody is stuck in a form, so the widget takes pointer
  * events back and keeps its presses from reaching the document, where the
  * dialog listens for them.
+ *
+ * Stopped in React's own handler, once the widget's controls have had the
+ * press: a native listener on this div stopped it before React - which listens
+ * at its root - ever saw it, so every control opening on `pointerdown`, the
+ * composer's `+` menu among them, was dead here. `stopImmediatePropagation`
+ * because that root may be the document itself, where the dialog listens too,
+ * later.
  */
 export function WidgetRoot({ children }: { children: React.ReactNode }) {
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    // Set by the time an effect runs: the div is this component's only output.
-    const element = root.current;
-    const keep = (event: PointerEvent) => event.stopPropagation();
-    element?.addEventListener("pointerdown", keep);
-    return () => element?.removeEventListener("pointerdown", keep);
-  }, []);
   return (
     // The Builder's test panel takes the corner the widget sits in, and is a chat
     // of its own; the Architect comes back when it closes.
     <div
-      ref={root}
       data-tour="assistant-widget"
       className="pointer-events-auto [html[data-test-panel]_&]:hidden"
+      onPointerDown={(event) => event.nativeEvent.stopImmediatePropagation()}
     >
       {children}
     </div>

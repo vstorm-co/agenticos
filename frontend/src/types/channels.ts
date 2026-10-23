@@ -1,6 +1,6 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost. */
+/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams. */
 
-export type ChannelPlatform = "telegram" | "slack" | "mattermost";
+export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";
@@ -60,6 +60,15 @@ export interface ChannelBot extends AnswerStyle {
   /** Mattermost only: the request URL to paste into the `/agent` slash command. */
   command_url: string | null;
   /**
+   * Teams only: the Azure Bot's app and tenant (#1985). Identifiers, not
+   * credentials - the app package is built from them; the client secret is the
+   * token and is never read back.
+   */
+  teams_app_id?: string | null;
+  teams_tenant_id?: string | null;
+  /** Teams only: the messaging endpoint to paste into the Azure Bot resource. */
+  messaging_endpoint?: string | null;
+  /**
    * Whether the socket this bot receives on is actually up.
    *
    * `null` for a webhook bot, which holds no connection, and for a polling bot
@@ -69,16 +78,28 @@ export interface ChannelBot extends AnswerStyle {
    * would put a fault on every bot in a deployment that cannot report.
    */
   connection: ChannelConnection | null;
+  /** Whether voice notes are transcribed here at all; off wins over every pair. */
+  transcribe_voice_notes: boolean;
   /**
-   * Which model transcribes voice notes here, or null for none.
+   * Which model transcribes voice notes here, or null to inherit the agent's or
+   * the organization's.
    *
    * A pair that moves together: a provider with no model has nothing to call and
    * a model with no provider has nowhere to send it. Read back plainly - these
-   * are choices somebody made, not credentials; the key they run on is the
-   * organization's own model profile and is never named here.
+   * are choices somebody made, not credentials.
    */
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
+  /**
+   * The vault key the bot's own pair is sent with, by id: an organization-visible
+   * API key for the provider. Null with a pair means it was deleted.
+   */
+  speech_to_text_secret_id: string | null;
+  /**
+   * What "inherit" resolves to for this bot. On the single-bot read only - the
+   * listing leaves it out - and null where nothing resolves.
+   */
+  inherited_speech_to_text?: InheritedSpeechToText | null;
   /**
    * Who answers here, from the active bindings.
    *
@@ -89,6 +110,20 @@ export interface ChannelBot extends AnswerStyle {
   agents: BotAgent[];
   created_at: string;
   updated_at?: string | null;
+}
+
+/** The engine a bot's voice notes go to when it inherits rather than names one. */
+export interface InheritedSpeechToText {
+  provider: string;
+  model: string;
+  language: string | null;
+  /** Whether the bot's agent or its organization chose the pair. */
+  pair_source: "agent" | "organization";
+  language_source: "agent" | "organization" | null;
+  /** The agent the bot serves. */
+  agent_name: string | null;
+  /** Whether the level the pair comes from names a key that is still usable. */
+  has_key: boolean;
 }
 
 /** The state of the inbound socket a polling bot receives on. */
@@ -132,6 +167,8 @@ export interface ChannelBotCreate {
   slack_signing_secret?: string;
   /** Slack only: this app's xapp- token, for Socket Mode. */
   slack_app_token?: string;
+  /** Omitted inherits; `false` never transcribes. */
+  transcribe_voice_notes?: boolean;
   /**
    * Slack: `true` when Slack calls this deployment's address, `false` when the
    * deployment connects out to Slack (Socket Mode) and needs no public address.
@@ -139,12 +176,27 @@ export interface ChannelBotCreate {
   webhook_mode?: boolean;
   /** Mattermost only: the token Mattermost shows for the `/agent` slash command. */
   command_token?: string;
+  /** Teams only, and required there: the Azure Bot's Microsoft App ID. */
+  teams_app_id?: string;
+  /** Teams only, and required there: the tenant the single-tenant bot is registered in. */
+  teams_tenant_id?: string;
   ack_reaction?: string | null;
   stream_answers?: boolean;
   step_display?: StepDisplay;
   rate_answers?: boolean;
   speech_to_text_provider?: string | null;
   speech_to_text_model?: string | null;
+  /** Required with a pair, refused without one. */
+  speech_to_text_secret_id?: string | null;
+}
+
+/** A Teams channel or group chat a bot is in - where a trigger can post (#1985). */
+export interface TeamsConversation {
+  id: string;
+  bot_id: string;
+  name: string | null;
+  conversation_type: "channel" | "groupChat";
+  last_activity_at: string;
 }
 
 /**
@@ -176,7 +228,14 @@ export interface ChannelBotUpdate {
   stream_answers?: boolean;
   step_display?: StepDisplay;
   rate_answers?: boolean;
-  /** Both halves or neither; the server pairs them against the stored row. */
+  /** `false` never transcribes and clears the pair; never `null`. */
+  transcribe_voice_notes?: boolean;
+  /**
+   * Both halves or neither; the server pairs them against the stored row. Null
+   * clears the pair, which inherits - it used to mean off.
+   */
   speech_to_text_provider?: string | null;
   speech_to_text_model?: string | null;
+  /** The key goes with the pair: sent whenever the pair or the key moved. */
+  speech_to_text_secret_id?: string | null;
 }

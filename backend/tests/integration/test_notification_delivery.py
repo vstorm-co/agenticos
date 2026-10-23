@@ -8,8 +8,6 @@ a lease has moved on, and the window-function count on the failed-deliveries
 view actually agreeing with the rows beside it.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta

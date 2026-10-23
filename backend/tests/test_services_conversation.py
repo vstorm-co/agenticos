@@ -72,6 +72,10 @@ class MockMessage:
         self.run_id = run_id
         self.attachment_context = None
         self.parts: list[dict[str, object]] | None = None
+        # Who typed it and what it answers: nobody named, nothing answered.
+        self.author_user_id = None
+        self.channel_identity_id = None
+        self.reply_to_message_id = None
         # Enough of a row for `MessageRead.model_validate`, which the listing runs
         # when it has a reader to attach ratings for.
         self.created_at = datetime(2026, 8, 16, tzinfo=UTC)
@@ -136,10 +140,21 @@ class TestConversationServiceGetConversation:
         identity_id = uuid4()
         identity = MagicMock(id=identity_id, platform_username="kacper.wlodarczyk")
         conversation = MockConversation()
-        wrote = MagicMock(id=uuid4(), channel_identity_id=identity_id)
+        wrote = MagicMock(
+            id=uuid4(),
+            channel_identity_id=identity_id,
+            author_user_id=None,
+            reply_to_message_id=None,
+        )
         # `author=None` explicitly: a bare mock invents the attribute, and then the
         # assertion below would pass whatever the code did.
-        typed = MagicMock(id=uuid4(), channel_identity_id=None, author=None)
+        typed = MagicMock(
+            id=uuid4(),
+            channel_identity_id=None,
+            author=None,
+            author_user_id=None,
+            reply_to_message_id=None,
+        )
         conversation.messages = [wrote, typed]
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
@@ -160,7 +175,11 @@ class TestConversationServiceGetConversation:
     ):
         """One query per page, and not even that when there is nothing to name."""
         conversation = MockConversation()
-        conversation.messages = [MagicMock(id=uuid4(), channel_identity_id=None)]
+        conversation.messages = [
+            MagicMock(
+                id=uuid4(), channel_identity_id=None, author_user_id=None, reply_to_message_id=None
+            )
+        ]
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
@@ -763,6 +782,10 @@ class TestParticipationDoesNotCarryTheWrite:
                 "app.services.conversation.personal_data_repo.attachment_paths_in",
                 new=AsyncMock(return_value=[]),
             ),
+            patch(
+                "app.services.conversation.GeneratedMediaService.forget_conversations",
+                new=AsyncMock(),
+            ),
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.favourite_ids = AsyncMock(return_value=set())
@@ -773,6 +796,18 @@ class TestParticipationDoesNotCarryTheWrite:
             assert await service.delete_conversation(
                 conversation.id, user_id=uuid4(), organization_id=TEST_ORG_ID
             )
+
+
+@pytest.mark.anyio
+async def test_the_sockets_own_thread_is_read_by_id(monkeypatch):
+    """No access check: the socket checked the thread when it opened it."""
+    thread = SimpleNamespace(id=uuid4())
+    read = AsyncMock(return_value=thread)
+    monkeypatch.setattr(conversation_repo, "get_conversation_by_id", read)
+    service = ConversationService(AsyncMock())
+
+    assert await service.find_conversation(thread.id) is thread
+    assert read.await_args.args[1] == thread.id
 
 
 class TestConversationServiceListConversations:
@@ -953,6 +988,7 @@ class TestConversationServiceListConversations:
         with (
             patch("app.services.conversation.conversation_repo") as mock_repo,
             patch("app.services.conversation.channel_membership") as mock_membership,
+            patch.object(service, "visible_project_ids", AsyncMock(return_value=[])),
         ):
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
@@ -970,6 +1006,40 @@ class TestConversationServiceListConversations:
             mock_membership.confirmed_participant_threads.assert_awaited_once_with(
                 service.db, user_id=reader, organization_id=TEST_ORG_ID
             )
+
+    @pytest.mark.anyio
+    async def test_the_requests_context_spares_a_second_membership_read(
+        self, service: ConversationService
+    ):
+        reader = uuid4()
+        ctx = AuthContext(user_id=reader, organization_id=TEST_ORG_ID, role="owner")
+        project = uuid4()
+
+        with (
+            patch("app.services.conversation.member_repo") as members,
+            patch("app.services.conversation.project_repo") as projects,
+        ):
+            members.get = AsyncMock()
+            projects.visible_ids = AsyncMock(return_value=[project])
+
+            found = await service.visible_project_ids(reader, TEST_ORG_ID, reader=ctx)
+
+        assert found == [project]
+        members.get.assert_not_awaited()
+        assert projects.visible_ids.call_args.kwargs["see_all"] is True
+
+    @pytest.mark.anyio
+    async def test_a_context_without_a_role_reaches_no_project(self, service: ConversationService):
+        """An app administrator outside the organization has a context but no role."""
+        reader = uuid4()
+        ctx = AuthContext(user_id=reader, organization_id=TEST_ORG_ID, role="", is_app_admin=True)
+
+        with patch("app.services.conversation.project_repo") as projects:
+            projects.visible_ids = AsyncMock()
+
+            assert await service.visible_project_ids(reader, TEST_ORG_ID, reader=ctx) == []
+
+        projects.visible_ids.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_an_unnarrowed_listing_never_asks_the_platform(
@@ -1183,6 +1253,10 @@ class TestConversationServiceDelete:
                 "app.services.conversation.personal_data_repo.attachment_paths_in",
                 new=AsyncMock(return_value=[]),
             ),
+            patch(
+                "app.services.conversation.GeneratedMediaService.forget_conversations",
+                new=AsyncMock(),
+            ),
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.delete_conversation = AsyncMock(return_value=None)
@@ -1194,6 +1268,47 @@ class TestConversationServiceDelete:
             mock_repo.delete_conversation.assert_called_once_with(
                 service.db, db_conversation=mock_conv
             )
+
+    @pytest.mark.anyio
+    async def test_deleting_a_conversation_forgets_what_its_agents_generated(
+        self, service: ConversationService, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Images, speech and video generated in a thread go with it (#2310): the
+        service drops their rows and queues their unlink as a job in this
+        transaction; the attachments keep their after-commit unlink."""
+        conv_id = uuid4()
+        unlinked: list[list[str]] = []
+
+        async def unlink(paths: list[str]) -> None:
+            unlinked.append(paths)
+
+        monkeypatch.setattr("app.services.conversation.delete_files_best_effort", unlink)
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.spawn_after_commit") as spawned,
+            patch(
+                "app.services.conversation.personal_data_repo.attachment_paths_in",
+                new=AsyncMock(return_value=["user/a.pdf"]),
+            ),
+            patch(
+                "app.services.conversation.GeneratedMediaService.forget_conversations",
+                new=AsyncMock(),
+            ) as forgot,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.delete_conversation = AsyncMock(return_value=None)
+
+            await service.delete_conversation(conv_id, organization_id=TEST_ORG_ID)
+
+        for call in spawned.call_args_list:
+            coroutine = call.args[1]
+            if call.kwargs["name"] == "delete-conversation-attachments":
+                await coroutine
+            else:
+                coroutine.close()
+
+        forgot.assert_awaited_once_with(TEST_ORG_ID, [conv_id])
+        assert unlinked == [["user/a.pdf"]]
 
     @pytest.mark.anyio
     async def test_delete_nonexistent_conversation_raises(self, service: ConversationService):
@@ -1410,6 +1525,7 @@ class TestConversationServiceAddMessage:
         mock_data.content = "Hello"
         mock_data.model_name = None
         mock_data.tokens_used = None
+        mock_data.reply_to_message_id = None
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
@@ -2472,6 +2588,7 @@ class TestAFavouriteBelongsToTheReader:
         monkeypatch.setattr(conversation_repo, "get_conversations_by_user", listed)
         monkeypatch.setattr(conversation_repo, "count_conversations", AsyncMock(return_value=0))
         monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
+        monkeypatch.setattr(ConversationService, "visible_project_ids", AsyncMock(return_value=[]))
         service = ConversationService(AsyncMock())
         reader = uuid4()
 

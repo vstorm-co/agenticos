@@ -8,7 +8,6 @@ See: https://anyio.readthedocs.io/en/stable/testing.html
 
 import os
 import re
-import tempfile
 from pathlib import Path
 
 # Before anything imports `app.core.config`, and therefore before anything can
@@ -88,47 +87,6 @@ if not _a_password_is_already_configured():
     os.environ["POSTGRES_PASSWORD"] = "postgres"
 
 
-# Prefect reads `.env` itself - its own settings model carries `env_file=".env"` - so
-# `PREFECT_API_URL=http://localhost:4200/api`, which `backend/.env` sets for `make dev`,
-# is also the address a `@flow` call in this suite tries to reach. With no server up
-# that is `RuntimeError: Failed to reach API at http://localhost:4200/api/` out of a
-# test that patched every collaborator it has, which is #536: the failure belongs to the
-# environment and reads as the test's. CI never saw it, having no `.env` and therefore no
-# URL at all, so what a laptop ran was never what CI ran.
-#
-# Deleting the variable would not do it: an unset variable leaves the dotenv source to
-# answer, and the dotenv source is what holds the URL. An empty *assignment* is what
-# outranks it, because Prefect's settings model carries `env_ignore_empty=False` and an
-# empty string is therefore an answer rather than a silence. That is Prefect's rule and
-# not ours: `app/core/config.py` sets it the other way, so the same line against one of
-# *our* settings is discarded and the `.env` answers anyway - which is why the password
-# above is checked for rather than emptied. Prefect reads an empty URL as no URL and
-# runs the flow against a temporary server of its own, which is what CI has always done.
-# Unconditionally, because the point is that the two agree: a developer with `make dev`
-# up gets the same run CI gets rather than a different code path.
-#
-# That server keeps its state in a SQLite database under `PREFECT_HOME`, which is
-# `~/.prefect` unless something says otherwise - a developer's own Prefect data, and the
-# file a locally run `prefect server` has open. Pointed at a directory of the tests' own
-# for the same reason as the database name above: a unit run has no business writing
-# there. One directory rather than one per process, because what costs is creating it.
-#
-# Ephemeral mode is named rather than assumed. It is the default today, but with no URL
-# and no ephemeral server a `@flow` call does not fail - it retries for 75 seconds and
-# then fails, which is a worse version of the bug this removes.
-#
-# Creating that database is a migration, and the allowance for it is raised past
-# Prefect's own 20 seconds as headroom rather than because 20 has been seen to fail:
-# against a `PREFECT_HOME` nothing had written yet the whole start takes about six
-# seconds here and about nine on a CI runner, which is cold on every run. What 90 buys
-# is that the one step whose cost nothing here bounds - a migration on a contended
-# machine, or a temporary directory that has been swept - waits instead of failing a
-# suite that a second run would pass.
-os.environ["PREFECT_API_URL"] = ""
-os.environ["PREFECT_HOME"] = str(Path(tempfile.gettempdir()) / "agenticos-prefect-test")
-os.environ["PREFECT_SERVER_EPHEMERAL_ENABLED"] = "true"
-os.environ["PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS"] = "90"
-
 from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -142,6 +100,19 @@ from app.clients.redis import RedisClient
 from app.api.deps import get_db_session
 
 
+@pytest.fixture(autouse=True)
+def _no_steps_written_after(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No follow-ups model wrote next steps after any run here (#2301).
+
+    Most runner tests stub the build with a `MagicMock`, whose deps answer
+    `next_steps` with steps no JSON encoder can write - across the runner's,
+    the surfaces' and the delegation suites. The helper is covered on its own by
+    `test_agent_runner.py::TestNextStepsWrittenAfterTheAnswer`, which calls it
+    directly.
+    """
+    monkeypatch.setattr("app.services.agent_runner._written_next_steps", lambda _deps: [])
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     """Specify the async backend for anyio tests.
@@ -152,7 +123,7 @@ def anyio_backend() -> str:
 
 
 @pytest.fixture(autouse=True)
-def _reset_channel_intake() -> Generator[None, None, None]:
+def _reset_channel_intake() -> Generator[None]:
     """Reset the channel supervisor's shutdown flag after every test.
 
     `_shutting_down` is a process global, and a test that runs the real lifespan
@@ -167,7 +138,7 @@ def _reset_channel_intake() -> Generator[None, None, None]:
 
 
 @pytest.fixture(autouse=True)
-def _forget_mcp_answers() -> Generator[None, None, None]:
+def _forget_mcp_answers() -> Generator[None]:
     """Clear which MCP servers answered a probe recently.
 
     A process global, like the flag above: a server one test probed as up would
@@ -180,8 +151,22 @@ def _forget_mcp_answers() -> Generator[None, None, None]:
     _answered.clear()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_rate_floor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give every test its own per-process rate floor.
+
+    `consume_floored` counts in a process global whenever no limiter is
+    configured, which is every unit test. Calls made under one test's caller
+    address would otherwise fill the window another test on the same worker
+    opens, and refuse it with a 4029 it never earned.
+    """
+    from app.services import rate_limit
+
+    monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
+
+
 @pytest.fixture
-def sole_source_run() -> Generator[None, None, None]:
+def sole_source_run() -> Generator[None]:
     """Grant `_run_source_sync` its per-source lock without a database.
 
     The lock is a Postgres advisory lock on a session of its own (#987), and the
@@ -195,11 +180,110 @@ def sole_source_run() -> Generator[None, None, None]:
     from app.worker.tasks import rag_tasks
 
     @asynccontextmanager
-    async def held(_source_id: str) -> AsyncGenerator[bool, None]:
+    async def held(_source_id: str) -> AsyncGenerator[bool]:
         yield True
 
     with patch.object(rag_tasks, "_exclusive_source_run", new=held):
         yield
+
+
+@pytest.fixture
+def _generated_media_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[list[dict[str, object]], dict[object, dict[str, object]]]:
+    """Generated media's rows and quota claims, held in memory instead of a database.
+
+    The organization's advisory lock is an `anyio.Lock` held until the fake
+    session ends, as a transaction-scoped lock is held until the commit, so
+    concurrent admissions serialize here as they do on Postgres.
+    """
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    import anyio
+
+    from app.services import generated_media
+
+    rows: list[dict[str, object]] = []
+    reservations: dict[object, dict[str, object]] = {}
+    locks: dict[object, anyio.Lock] = {}
+
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[SimpleNamespace]:
+        db = SimpleNamespace(held=[])
+        try:
+            yield db
+        finally:
+            for lock in db.held:
+                lock.release()
+
+    async def hold_subject(db: SimpleNamespace, _scope: object, subject: object) -> None:
+        lock = locks.setdefault(subject, anyio.Lock())
+        await lock.acquire()
+        db.held.append(lock)
+
+    async def create(_db: object, **row: object) -> SimpleNamespace:
+        rows.append(row)
+        return SimpleNamespace(**row)
+
+    async def bytes_used(_db: object, *, organization_id: object) -> int:
+        return sum(
+            int(str(row["size_bytes"])) for row in rows if row["organization_id"] == organization_id
+        )
+
+    async def bytes_reserved(_db: object, *, organization_id: object, since: object) -> int:
+        return sum(
+            int(str(claim["size_bytes"]))
+            for claim in reservations.values()
+            if claim["organization_id"] == organization_id
+        )
+
+    async def reserve(_db: object, *, organization_id: object, size_bytes: int) -> object:
+        reservation_id = uuid4()
+        reservations[reservation_id] = {
+            "organization_id": organization_id,
+            "size_bytes": size_bytes,
+        }
+        return reservation_id
+
+    async def release(_db: object, *, organization_id: object, reservation_id: object) -> None:
+        if reservations.get(reservation_id, {}).get("organization_id") == organization_id:
+            del reservations[reservation_id]
+
+    monkeypatch.setattr(generated_media, "get_db_context", session)
+    monkeypatch.setattr(generated_media, "hold_subject", hold_subject)
+    repo = generated_media.generated_media_repo
+    monkeypatch.setattr(repo, "create", create)
+    monkeypatch.setattr(repo, "bytes_used", bytes_used)
+    monkeypatch.setattr(repo, "bytes_reserved", bytes_reserved)
+    monkeypatch.setattr(repo, "reserve", reserve)
+    monkeypatch.setattr(repo, "release", release)
+    return rows, reservations
+
+
+@pytest.fixture
+def generated_media_ledger(
+    _generated_media_store: tuple[list[dict[str, object]], dict[object, dict[str, object]]],
+) -> list[dict[str, object]]:
+    """Record generated media in a list rather than a database; the list is returned.
+
+    Every file an agent's tool stores is recorded in `generated_media` through a
+    session of its own (#2310), and the quota is summed from those rows and the
+    claims of calls in flight (`generated_media_reservations`). The unit tests
+    of the tools are about what a tool does with a file, so they are handed
+    this; the rows themselves are proved against a real database in
+    `tests/integration/test_generated_media.py`.
+    """
+    return _generated_media_store[0]
+
+
+@pytest.fixture
+def generated_media_reservations(
+    _generated_media_store: tuple[list[dict[str, object]], dict[object, dict[str, object]]],
+) -> dict[object, dict[str, object]]:
+    """The quota claims of generation calls in flight, by id, beside `generated_media_ledger`."""
+    return _generated_media_store[1]
 
 
 @pytest.fixture
@@ -217,7 +301,7 @@ def mock_redis() -> MagicMock:
 
 
 @pytest.fixture
-async def mock_db_session() -> AsyncGenerator[AsyncMock, None]:
+async def mock_db_session() -> AsyncGenerator[AsyncMock]:
     """Create a mock database session for testing."""
     mock = AsyncMock()
     mock.execute = AsyncMock()
@@ -236,7 +320,7 @@ async def mock_db_session() -> AsyncGenerator[AsyncMock, None]:
 async def client(
     mock_redis: MagicMock,
     mock_db_session,
-) -> AsyncGenerator[AsyncClient, None]:
+) -> AsyncGenerator[AsyncClient]:
     """Async HTTP client for testing.
 
     Uses HTTPX AsyncClient with ASGITransport instead of Starlette's TestClient.

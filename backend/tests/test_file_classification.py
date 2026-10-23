@@ -5,8 +5,6 @@ must still reach the PNG path and a `.xls` the xlrd branch — so a canonical fo
 resolved from MIME + extension, and the *resolved* MIME is what is persisted.
 """
 
-from __future__ import annotations
-
 import io
 
 import pytest

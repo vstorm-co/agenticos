@@ -1,5 +1,5 @@
 ---
-source_sha: "94ce53b8a699"
+source_sha: "c6da76bc5fe8"
 ---
 
 # Aplicaciones { #artifacts }
@@ -134,12 +134,21 @@ contenido a otro origen:
 | `lib/agenticos-2.css` | El aspecto de la consola para páginas, claro y oscuro, y los componentes `ao-` con los que se construye una página |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas |
 | `lib/agenticos-1.css` | La primera versión del aspecto, conservada para las páginas publicadas con ella |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 como módulo ES, con `addons/controls/OrbitControls.js` al lado - asigne `three` y `three/addons/` con un import map |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, como `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, como `window.L` - dibuja sobre las [teselas de mapa](#visuals) del despliegue, cuando las tiene |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: chinchetas numeradas mostradas en orden y que caen una a una cuando se pide, un mapa 16:9 del ancho de la página, una línea entre ellas y tarjetas para las paradas - sobre teselas de mapa, o sin ellas como un contorno de las paradas. `lib/agenticos-map-1.js`, que deja caer las chinchetas al cargar y tiene una sola altura, se sigue sirviendo a las páginas que lo nombran |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: chinchetas numeradas que caen en orden, una línea entre ellas, pausa y repetición, y tarjetas para las paradas - sobre teselas de mapa, o sin ellas como un contorno de las paradas |
 
 Cada nombre lleva su versión y se guarda en caché un año. Una actualización añade
 un archivo nuevo junto al antiguo, así que una página publicada con una versión
 sigue recibiendo esa. No se descarga nada de fuera del despliegue, así que uno sin
 acceso a internet funciona igual. Los archivos están en
 `backend/app/core/catalog/artifact_lib/`.
+
+Los archivos responden `Access-Control-Allow-Origin: *`, porque un script de módulo se
+descarga en modo CORS y una página en un origen opaco envía `Origin: null` - sin ello
+three.js no se importaría.
 
 El [skill](skills.md) incluido **`artifact-pages`** enseña a un agent a usarlos: dos
 plantillas (un dashboard y un informe), el estilo de la casa con sus componentes,
@@ -148,6 +157,93 @@ página con `read_artifact`. Una organización nueva lo recibe con los demás sk
 incluidos, una existente con `seed-skills`, y la pestaña **Page style** de la
 capability Artifacts en el Builder lo ofrece. Edita el skill para describir tu
 propia marca, y el agent la sigue.
+
+## Visuals { #visuals }
+
+Un [visual](reference/capabilities.md#visuals) es una aplicación que aún no se ha
+guardado: un dibujo que un agente escribe en la conversación con `draw`, mostrado bajo
+su mensaje mientras se escribe. Es el mismo tipo de documento - un visual `html` es una
+página, y uno `svg` o `mermaid` se convierte en una página que lo contiene - y se dibuja
+con el mismo aislamiento.
+
+**El marco.** `/api/v1/artifact-content/visual-frame` es una página fija en el origen
+de contenido, servida con la misma política que recibe la página de cada aplicación. No
+contiene ningún dibujo: la consola se lo envía mientras llega, así que nada tiene que
+guardarse antes de mostrarse, y el aislamiento viene de la cabecera de la respuesta y no
+de una etiqueta meta en `srcdoc`. Mientras llega, el marco transforma el marcado en su
+sitio, sin scripts ni atributos `on*`; al completarse escribe el documento entero para
+que sus scripts se ejecuten, exactamente como en la página guardada. El marco informa de
+su tamaño, sus errores y un latido; un dibujo que deja de latir se cierra en lugar de
+bloquear la pestaña.
+
+**En el chat.** Un dibujo está en la propia conversación, sin tarjeta alrededor,
+desde el borde izquierdo del texto del mensaje: un SVG se ajusta por su `viewBox` y
+se reduce por encima de 560 píxeles, una página se compone al ancho de la columna y
+se reduce por encima de 900. Una línea discreta debajo lo nombra y dice si todavía
+se está dibujando; *Mostrar código*, *Descargar* (`.svg`, `.html` o la fuente
+Mermaid), *Copiar como imagen* para un SVG, *Guardar en Apps* y *Pantalla
+completa* aparecen en esa línea cuando el puntero está sobre el dibujo, y siempre
+en una pantalla táctil. Mientras se transmite, el dibujo conserva la altura que
+declaró su llamada, sobre un tono suave, para que la conversación no se mueva bajo
+el lector. La pantalla completa lo muestra a su propio tamaño; en un teléfono, un
+toque abre la vista previa a pantalla completa. El zoom está en la esquina
+inferior derecha del dibujo mientras el puntero está encima: un SVG se dibuja más
+grande, una página se escala, y el marco se desplaza cuando el dibujo lo supera.
+Un error que el dibujo informa llega con *Arreglarlo*, que se lo pide al agent.
+
+**Mensajes de seguimiento.** Un control de un dibujo puede devolver la elección de
+la persona a la conversación - *Planificar esta parada*, *Usar estas cifras* -
+llamando a `agenticos.followUp(text)`. El dibujo solo lo pide. La consola muestra
+el texto exacto bajo el dibujo con *Enviar*, *Editar* y *Descartar*, y se convierte
+en el mensaje de la persona solo cuando hace clic en *Enviar*, un clic que el
+dibujo no puede hacer por ella. Una petición sin interacción del usuario detrás -
+al cargar, con un temporizador - se descarta, igual que una de más de 2.000
+caracteres, y mientras una espera, otra no puede sustituirla. Los seguimientos solo
+se ofrecen en el chat: `agenticos.canFollowUp()` es falso en un hilo compartido, en
+el widget y en una app, donde `followUp` no hace nada y devuelve `false`, así que un
+dibujo guardado sigue funcionando.
+
+**Mapas.** Con [`VISUAL_MAP_TILES`](configuration.md#published-artifacts)
+definido, un dibujo o una app pueden dibujar sobre teselas de mapa reales: el
+despliegue trae cada tesela de ese servidor y la sirve desde su propia ruta de
+teselas, `agenticos.map` dice dónde, y el kit de mapas dibuja sobre ella un
+itinerario con el crédito del servidor debajo. Sin él, la misma llamada dibuja un
+contorno de las paradas - chinchetas y la línea entre ellas, sin calles - y lo mismo
+hace un mapa cuyas teselas no cargan. El agent lo dice en su respuesta: que no hay
+un servidor de mapas conectado y que un administrador activa los mapas reales con
+este ajuste. La imagen de un mapa en una app de chat se
+dibuja terminada, con todas las chinchetas en su sitio.
+
+**Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
+siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown
+para valores exactos, `create_chart` para cifras que ver - así «ahora en gráfico»
+convierte una tabla en un gráfico nativo - y un dibujo para explicar cómo se mueve
+algo, hacer una herramienta para el momento o seguir lugares en un mapa. Sus
+plantillas son un diagrama, una explicación con controles deslizantes, un avión 3D
+con cabeceo, alabeo y guiñada, una calculadora y un itinerario. Un chat vacío con
+un agent que dibuja se abre con un iniciador para cada uno. Activar Visuals en el
+Builder vincula también Charts.
+
+**Descargarlo.** Un archivo abierto desde el disco no tiene marco alrededor, así que
+la descarga lleva lo que imponía el marco. Un SVG conserva el dibujo y pierde lo que
+podría ejecutarse o salir fuera: scripts, manejadores, documentos incrustados y
+cualquier referencia fuera del archivo. Una página se abre con la política del marco
+por delante de todo lo que escribió, y carga sus bibliotecas desde el origen de
+artefactos de este despliegue.
+
+**Guardarlo como aplicación.** *Guardar en Aplicaciones* toma un título y un nombre,
+ambos rellenados, y publica el visual como versión de una aplicación bajo el agente
+cuyo turno lo dibujó, en el entorno en el que corrió ese turno, propiedad de quien lo guarda y privada hasta que la comparta. El
+servidor reconstruye el visual a partir de la transcripción - con las revisiones
+aplicadas - en lugar de tomar bytes del navegador, así que la aplicación es exactamente
+lo que dibujó el agente. Guardarlo con un nombre que la persona ya tiene añade una
+versión a esa aplicación - así una revisión de un dibujo guardado actualiza la página con
+la que se compartió. Guardar requiere `artifacts:edit`.
+
+**Desde un delegado.** Un dibujo se queda en el run que lo hizo, así que un agente
+que trabaja como delegado de otro agente no dibuja: `draw` se lo dice, y describe la
+imagen en su resultado para que el agente para el que trabaja la dibuje en la
+conversación.
 
 ## Quién puede abrirla { #who-can-open-it }
 
@@ -246,7 +342,7 @@ consola ni a la persona que la mira:
   sola.
 - La misma política fija `default-src 'none'` y `connect-src 'none'`. El único
   origen remoto que nombra es la ruta propia del conjunto de bibliotecas en el
-  origen del contenido, para scripts, estilos y fuentes. `frame-ancestors` nombra
+  origen del contenido, para scripts, estilos y fuentes. En un despliegue que define `VISUAL_MAP_TILES`, se suman las imágenes de su propia ruta de teselas, `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. Esa ruta toma tres números, cada uno comprobado contra el zoom en el que puede existir, y trae la tesela ella misma, así que una página nunca conoce la dirección ni la clave del servidor de teselas y no puede enviarle nada que haya elegido. `frame-ancestors` nombra
   solo la consola — y, para una página con enlace público y sitios que la
   incrustan, el documento de incrustación y esos sitios. El frame de la consola
   lleva la misma lista `sandbox` como segundo cerrojo.
@@ -260,7 +356,7 @@ consola ni a la persona que la mira:
   página. La página podría enviar ese mensaje por sí misma, así que es una
   petición y nunca un permiso: la persona que lee la dirección es lo que se
   interpone entre una página manipulada por prompt injection y la dirección a la
-  que enviaría sus cifras.
+  que enviaría sus cifras. Un [mensaje de seguimiento](#visuals) es el mismo tipo de petición: la consola muestra el texto y lo envía una persona.
 - Una dirección firmada carga su página unas pocas veces por minuto como mucho,
   contadas por dirección antes de leer nada. La consola y la página pública
   emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través
@@ -336,6 +432,14 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   miembros no pueden iniciar sesión dentro del frame de otro sitio.
 - **Las versiones eliminadas desaparecen.** Una conversación que enlaza a una
   versión más antigua que la ventana conservada solo puede ofrecer la última.
+- **Un visual solo se dibuja en el chat web y en un hilo compartido.** Una app de
+  chat recibe una imagen de él donde `VISUAL_RENDER_CDP_URL` nombra un navegador, y
+  su título en otro caso; el widget y una incrustación en otro sitio muestran su
+  título.
+- **Un hilo compartido muestra sus doce visuals más recientes**, y no más de 16 MB
+  entre todos. Cualquiera con el enlace puede abrirlo tantas veces como quiera, así
+  que una vista está acotada; un turno más allá de cualquiera de los dos límites
+  conserva su texto y no muestra el dibujo.
 
 ## Resumen { #recap }
 

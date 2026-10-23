@@ -12,8 +12,6 @@ Rolling back publishes a *new* version copied from an old one. The alternative -
 moving a pointer backwards - would make run history lie about what was live.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 import re
@@ -36,6 +34,7 @@ from app.agents.capabilities import (
     all_capabilities,
 )
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities._generated import MEDIA_TOOL_NAMES
 from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import (
     WebBrowserConfig,
@@ -43,8 +42,9 @@ from app.agents.capabilities.browser_use import (
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use._route import check_address
+from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.follow_ups import FollowUpsConfig
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
 from app.agents.spec import (
     SPEC_VERSION,
@@ -56,7 +56,9 @@ from app.agents.spec import (
     PersonalMcpServerRef,
     PlatformMcpServerRef,
     SpecialistSpec,
+    SpeechToTextSpec,
     SubagentRef,
+    VoiceSpec,
 )
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import (
@@ -67,6 +69,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
@@ -79,6 +82,7 @@ from app.repositories import (
     agent_trigger_repo,
     context_repo,
     credential_repo,
+    external_agent_repo,
     knowledge_base_repo,
     mcp_connection_repo,
     member_repo,
@@ -87,6 +91,7 @@ from app.repositories import (
     resource_grant_repo,
     sandbox_connection_repo,
     skill_repo,
+    user_repo,
 )
 from app.schemas.agent import (
     MAX_CATEGORIES,
@@ -95,6 +100,7 @@ from app.schemas.agent import (
     AgentTemplateCatalog,
     AgentTemplateRead,
     AgentVersionRead,
+    CapabilityEnabled,
     DelegationTree,
     DelegationTreeNode,
     PublishedModel,
@@ -102,7 +108,14 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
-from app.services import agent_templates, mcp_catalog, skill_library
+from app.services import (
+    agent_templates,
+    mcp_catalog,
+    provider_keys,
+    realtime_models,
+    skill_library,
+    speech_to_text,
+)
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -122,11 +135,13 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import sandbox_config
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +265,25 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
     return problems
 
 
+def _coding_agent_problems(spec: AgentSpec) -> list[str]:
+    """A coding agent with nowhere to run its harness.
+
+    Claude Code and Codex run as commands in the agent's sandbox, so they need a
+    container-backed one with the shell on. Every other shape publishes and then
+    answers each task with "no shell here", which is the run-time surprise
+    publish exists to prevent.
+    """
+    if not any(binding.id == CODING_AGENT_ID and binding.enabled for binding in spec.capabilities):
+        return []
+    config = sandbox_config(spec)
+    if config is None or config.backend != "service" or not config.include_execute:
+        return [
+            "The coding agent runs in the agent's sandbox, so it needs the Sandbox "
+            "capability on a sandbox connection with shell commands allowed."
+        ]
+    return []
+
+
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
 """What `get` may be asked for on the assistant by anyone who reaches it."""
 
@@ -367,6 +401,19 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
             "framework provides itself - two tools of that name abort the turn"
         )
 
+    # A media tool's name is read as that tool's everywhere a step is shown, so
+    # another tool may not take it. Its own tool keeping it is no rename at all.
+    impostors = sorted(
+        override.name
+        for tool_id, override in binding.tool_overrides.items()
+        if override.name in MEDIA_TOOL_NAMES and override.name != tool_id
+    )
+    if impostors:
+        problems.append(
+            f"Capability '{binding.id}' renames a tool to {', '.join(impostors)}, the name "
+            "of the tool that stores generated media - only that tool may carry it"
+        )
+
     return problems
 
 
@@ -468,6 +515,21 @@ class _DelegationStep:
     """The names from the agent being published down to this delegate's caller."""
     ancestors: frozenset[UUID]
     """Which agents are already in that chain - reaching one again is the cycle."""
+
+
+def _with_starter_instructions(spec: AgentSpec) -> AgentSpec:
+    """A spec with no instructions, given the starter agent's.
+
+    An agent with no instructions still answers - as whatever the underlying
+    model is by default, which is a different product on every provider and
+    changes when the model is upgraded - so a new one opens with the starter's
+    prompt rather than an empty box. Applied at creation rather than as a field
+    default, because a spec imported with an empty prompt means an empty prompt.
+    """
+    template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+    if template is None:  # pragma: no cover - the template ships with the image
+        return spec
+    return spec.model_copy(update={"instructions": template.instructions})
 
 
 def _without_unselectable(spec: AgentSpec) -> AgentSpec:
@@ -827,6 +889,19 @@ class AgentRegistryService:
         )
         return True, grant_ids
 
+    async def any_visible(self, ctx: AuthContext) -> bool:
+        """Whether the caller sees at least one agent: the listing's own scope, one row of it."""
+        see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=False)
+        agents, _total = await agent_repo.list_visible(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=see_all,
+            shared_ids=grant_ids,
+            limit=1,
+        )
+        return bool(agents)
+
     async def list_labels(
         self, ctx: AuthContext, *, shared_with_me: bool = False, include_archived: bool = False
     ) -> tuple[list[str], list[str]]:
@@ -905,6 +980,7 @@ class AgentRegistryService:
         )
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
+        starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
         profiles = (
             await credential_repo.get_profiles_by_ids(
@@ -950,6 +1026,9 @@ class AgentRegistryService:
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id
                     else None
+                ),
+                starters=(
+                    starters.get(agent.current_version_id, []) if agent.current_version_id else []
                 ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
@@ -1075,10 +1154,47 @@ class AgentRegistryService:
             and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
         ]
 
+    async def _from_the_starter(self, ctx: AuthContext, spec: AgentSpec) -> AgentSpec:
+        """A new agent made what the starter agent is, for the console's New agent (#2301).
+
+        It starts as the organization's own AgenticOS agent does: its
+        instructions, which lead with the agent's own `{{agent_name}}`, and
+        whatever of its capabilities, skills, platform tools, starters and budget
+        the caller left empty. The author then edits the first paragraph and
+        switches off what this agent should not do. Asked for rather than implied
+        by an empty spec: an integration creating a bare agent over the API is
+        not asking for a sandbox, the platform's tools and a budget.
+        """
+        template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+        if template is None:  # pragma: no cover - the template ships with the image
+            return spec
+        update: dict[str, Any] = {
+            "instructions": spec.instructions
+            if spec.instructions.strip()
+            else template.instructions
+        }
+        if not spec.capabilities:
+            update["capabilities"] = agent_templates.for_this_deployment(template.capabilities)
+        if not spec.mcp_servers:
+            update["mcp_servers"] = list(template.mcp_servers)
+        if not spec.skill_ids:
+            update["skill_ids"] = [row.id for row in await self.template_skills(ctx, template)]
+        if not spec.starters:
+            update["starters"] = list(template.starters)
+        if spec.budget is None and template.budget_usd is not None:
+            update["budget"] = {"monthly_usd": template.budget_usd}
+        return AgentSpec.model_validate({**spec.model_dump(), **update})
+
     async def install_template(
-        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.PRIVATE
+        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.ORG
     ) -> TemplateInstallResult:
         """Create a draft agent from a shipped template, with its skills.
+
+        Visible to the organization, as an agent from the create form is. The
+        reason `create` defaults to private - a copy must not publish somebody's
+        private instructions to the tenant - does not reach a template: its
+        instructions ship with the product. Installed private, every template
+        agent had to be found and re-shared by hand before a colleague could see it.
 
         A **draft**, deliberately. The template cannot name a model - this
         platform has no organization-wide default, because a model an agent did
@@ -1115,8 +1231,13 @@ class AgentRegistryService:
                 if template.budget_usd is not None
                 else None
             ),
+            starters=list(template.starters),
         )
         agent = await self.create(ctx, spec, visibility=visibility)
+        if template.avatar is not None:
+            agent = await self.set_avatar(
+                ctx, agent.id, file_data=template.avatar.read_bytes(), content_type="image/png"
+            )
         return TemplateInstallResult(
             agent_id=agent.id,
             slug=agent.slug,
@@ -1134,15 +1255,17 @@ class AgentRegistryService:
         # The least-exposing value, deliberately. `org` is what a person picks in
         # the create form, and `AgentCreate.visibility` carries that choice to the
         # route - so the default here only ever reaches the callers that make an
-        # agent without anybody choosing: a clone, a promoted specialist, a
-        # template install. Defaulting those to `org` published a copy of a
-        # private agent to the whole tenant, which is what a colleague then read
-        # the instructions out of.
+        # agent without anybody choosing: a clone and a promoted specialist.
+        # Defaulting those to `org` published a copy of a private agent to the
+        # whole tenant, which is what a colleague then read the instructions out
+        # of. A template install passes `org` itself: its instructions ship with
+        # the product.
         visibility: Visibility = Visibility.PRIVATE,
         categories: list[str] | None = None,
         tags: list[str] | None = None,
         group_ids: list[UUID] | None = None,
         user_ids: list[UUID] | None = None,
+        from_starter: bool = False,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1163,13 +1286,10 @@ class AgentRegistryService:
                 `DeploymentSettings.max_agents_per_organization`.
         """
         await self._refuse_past_the_ceiling(ctx)
-        # A new agent opens with a prompt rather than an empty box. An agent with
-        # no instructions still answers - as whatever the underlying model is by
-        # default, which is a different product on every provider and changes when
-        # the model is upgraded. Applied here rather than as a field default,
-        # because a spec imported with an empty prompt means an empty prompt.
-        if not spec.instructions.strip():
-            spec = spec.model_copy(update={"instructions": DEFAULT_INSTRUCTIONS})
+        if from_starter:
+            spec = await self._from_the_starter(ctx, spec)
+        elif not spec.instructions.strip():
+            spec = _with_starter_instructions(spec)
         spec = _without_unselectable(spec)
 
         slug = slugify(spec.name)
@@ -1397,6 +1517,15 @@ class AgentRegistryService:
             problems.add(["No model selected - pick one before publishing"])
         else:
             problems.add(await self._model_profile_problems(ctx, spec.model_profile_id))
+        # And each reviewer's, refused here rather than when a run first reaches
+        # its cadence and finds nothing to review with.
+        for reviewer in spec.reviewers:
+            if reviewer.model_profile_id is None:
+                problems.add([f"Reviewer '{reviewer.name}': pick the model it reviews with"])
+            else:
+                problems.add(await self._model_profile_problems(ctx, reviewer.model_profile_id))
+            if not reviewer.instructions.strip():
+                problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
         problems.add(await self._skill_problems(ctx, spec.skill_ids))
@@ -1404,9 +1533,12 @@ class AgentRegistryService:
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
         problems.add(await self._observability_problems(ctx, spec))
+        problems.add(await self._speech_to_text_problems(ctx, spec.speech_to_text))
+        problems.add(await self._voice_problems(ctx, spec.voice))
         problems.merge(_variable_problems(spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
+        problems.add(_coding_agent_problems(spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
 
         if problems.messages:
@@ -1452,6 +1584,8 @@ class AgentRegistryService:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
                 problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
+            if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
+                problems.add(await self._model_profile_problems(ctx, config.model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
@@ -1710,10 +1844,32 @@ class AgentRegistryService:
                 f"Capability '{binding.id}' points at a secret this organization does not "
                 f"have: {binding.secret_id}"
             ]
-        if secret.kind != requirement.kind.value:
+        if not requirement.accepts(secret.kind):
             return [
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
+            ]
+        # Kind is not enough: an OpenAI key bound to a Google binding is the same
+        # `api_key`, and would be sent in Google's auth header at every call. A
+        # `custom` key - every key stored before purposes existed, and any for a
+        # service the deployment does not name - is the author's word, as in the
+        # Builder's picker (#2258).
+        purpose = requirement.purpose_for(config)
+        if purpose is not None and secret.purpose not in (purpose, "custom"):
+            return [
+                f"Capability '{binding.id}' is set to use {purpose}, but '{secret.name}' "
+                f"is a key for {secret.purpose}"
+            ]
+        # A sign-in is accepted for the coding agent only because Codex runs on
+        # one; switched to Claude Code, it would refuse every task at run time.
+        if (
+            isinstance(config, CodingAgentConfig)
+            and secret.kind == SecretKind.OPENAI_CODEX.value
+            and config.harness != "codex"
+        ):
+            return [
+                f"'{secret.name}' is a ChatGPT sign-in, which only Codex runs on - pick an "
+                "Anthropic key or Claude subscription token for Claude Code"
             ]
         return []
 
@@ -1752,6 +1908,107 @@ class AgentRegistryService:
             ]
         return []
 
+    async def _speech_to_text_problems(
+        self, ctx: AuthContext, override: SpeechToTextSpec | None
+    ) -> list[str]:
+        """Everything wrong with an agent's speech-to-text override.
+
+        Here rather than on `SpeechToTextSpec` itself, because the Builder saves a
+        draft on every change and a half-chosen pair - a provider picked, its model
+        or its key not yet - is a draft somebody is in the middle of, not a
+        mistake. Published, it is one: a provider with no model reads as
+        configured and transcribes nothing, a model outside the catalog is
+        refused by the provider while the person who sent the recording waits,
+        and a pair with no key has nothing to pay with. All are caught while
+        somebody is looking at the form, the same as every other reference a
+        spec makes.
+
+        The key follows the lending rule every key in a spec does - the
+        publisher must be able to view it - plus the kind and purpose checks
+        (`SpeechToTextSettingsService.key_problem`).
+        """
+        if override is None:
+            return []
+        problems: list[str] = []
+        provider, model, secret_id = override.provider, override.model, override.secret_id
+        if (provider is None) != (model is None):
+            problems.append(
+                "Speech to text needs a provider and a model together - choose both, or "
+                "inherit the organization's"
+            )
+        elif provider is not None and model is not None:
+            if not speech_to_text.is_offered(provider, model):
+                problems.append(
+                    f"Speech to text: '{model}' is not a transcription model this deployment "
+                    f"offers for {provider}"
+                )
+            elif secret_id is None:
+                problems.append(f"Speech to text: choose a key for {provider} to transcribe with")
+            else:
+                problem = await SpeechToTextSettingsService(self.db).key_problem(
+                    secret_id, organization_id=ctx.organization_id, provider=provider, ctx=ctx
+                )
+                if problem is not None:
+                    problems.append(f"Speech to text: {problem}")
+        elif secret_id is not None:
+            problems.append(
+                "Speech to text: a key goes with a provider and a model - choose those, "
+                "or clear the key to inherit the organization's"
+            )
+        if override.language is not None and override.language not in speech_to_text.LANGUAGES:
+            problems.append(
+                f"Speech to text: '{override.language}' is not a language transcription accepts"
+            )
+        return problems
+
+    async def _voice_problems(self, ctx: AuthContext, voice: VoiceSpec | None) -> list[str]:
+        """Everything wrong with an agent's Voice conversations section (#54).
+
+        Refused at publish so a broken voice section is a red field, never a
+        call that fails while somebody is talking: the pair is in the realtime
+        catalog, the voice is one of the model's, the key passes the shared
+        check (`provider_keys.key_problem`) with the kind its provider needs, and
+        the language is one calls accept. The longest call's 50-minute ceiling is
+        the field's own bound.
+        """
+        if voice is None:
+            return []
+        if voice.provider is None:
+            return ["Voice: choose a provider and a model, or remove the voice section"]
+        provider = realtime_models.by_provider(voice.provider)
+        if provider is None:
+            return [f"Voice: {voice.provider} cannot hold voice conversations on this deployment"]
+        problems: list[str] = []
+        catalog_model = voice.base_model if provider.deployment else voice.model
+        if catalog_model is None:
+            return [f"Voice: choose a model for {voice.provider}"]
+        entry = realtime_models.offered(voice.provider, catalog_model)
+        if entry is None:
+            return [
+                f"Voice: '{catalog_model}' is not a realtime model this deployment offers for {voice.provider}"
+            ]
+        if provider.deployment and not voice.deployment:
+            problems.append(f"Voice: name the Azure deployment that runs {catalog_model}")
+        if voice.voice is not None and voice.voice not in entry.voices:
+            problems.append(f"Voice: {catalog_model} has no voice called '{voice.voice}'")
+        if voice.secret_id is None:
+            problems.append(f"Voice: choose a key for {voice.provider} to hold calls with")
+        else:
+            problem = await provider_keys.key_problem(
+                self.db,
+                voice.secret_id,
+                organization_id=ctx.organization_id,
+                provider=voice.provider,
+                kind=provider.secret_kind,
+                feature="voice conversations",
+                ctx=ctx,
+            )
+            if problem is not None:
+                problems.append(f"Voice: {problem}")
+        if voice.language is not None and voice.language not in speech_to_text.LANGUAGES:
+            problems.append(f"Voice: '{voice.language}' is not a language code calls accept")
+        return problems
+
     async def _delegation_problems(
         self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None
     ) -> _SpecProblems:
@@ -1770,7 +2027,7 @@ class AgentRegistryService:
         """
         binding = delegation_binding(spec)
         if binding is None:
-            if spec.subagents:
+            if spec.subagents or spec.external_agents:
                 # A pin nothing reads: the capability is what turns these into
                 # tools, so without it they are configuration that reads as a
                 # decision and has no effect - and the author who wired up three
@@ -1805,11 +2062,47 @@ class AgentRegistryService:
         # Both are what the runtime hands the model, which is the only namespace
         # a collision can happen in.
         names.extend(pins.handles)
+        remote = await self._external_agent_problems(ctx, spec)
+        problems.add(remote[0])
+        names.extend(remote[1])
         problems.add(_collision_problems(names))
         problems.add(
             await self._cycle_problems(ctx, pins.delegates, agent_id=agent_id, root_name=spec.name)
         )
         return problems
+
+    async def _external_agent_problems(
+        self, ctx: AuthContext, spec: AgentSpec
+    ) -> tuple[list[str], list[str]]:
+        """Remote agents named that this organization has not registered, and the
+        handles of those it has - which share the namespace delegates are called in."""
+        ids = [ref.external_agent_id for ref in spec.external_agents]
+        found = await external_agent_repo.get_many(
+            self.db, ids, organization_id=ctx.organization_id
+        )
+        problems = [
+            f"Remote agent {ref_id} is not registered in this organization."
+            for ref_id in ids
+            if ref_id not in found
+        ]
+        # Its key is lent to every run, as a capability's is, so the publisher
+        # must reach it - `_secret_problems` gives the reason, and a registration
+        # is made by anybody who may edit agents, with a key of their own.
+        for ref_id in ids:
+            registered = found.get(ref_id)
+            if registered is None or registered.secret_id is None:
+                continue
+            secret = await organization_secret_repo.get(
+                self.db, registered.secret_id, organization_id=ctx.organization_id
+            )
+            if secret is None or not await resolve_access(
+                self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+            ):
+                problems.append(
+                    f"Remote agent '{registered.slug}' sends a key you cannot use; "
+                    "ask whoever registered it to share the key, or register it with your own."
+                )
+        return problems, [found[ref_id].slug for ref_id in ids if ref_id in found]
 
     async def _specialist_problems(
         self, ctx: AuthContext, specialist: SpecialistSpec
@@ -2322,6 +2615,34 @@ class AgentRegistryService:
             self.db, agent=agent, update_data={"categories": categories, "tags": tags}
         )
 
+    async def set_a2a(self, ctx: AuthContext, agent_id: UUID, *, enabled: bool) -> Agent:
+        """Serve this agent over A2A, or stop (#2092).
+
+        A publishing decision rather than an edit: turning it on makes the agent's
+        name and description readable by anybody who has the card's address, and
+        reachable by every key and OAuth grant of the organization allowed to run
+        it. So it takes `AGENTS_PUBLISH`, grant-aware through `self.get`, and an
+        agent with no published version cannot be served - it has nothing to run.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        if enabled and agent.current_version_id is None:
+            raise BadRequestError(
+                message="Publish the agent before serving it over A2A",
+                details={"agent_id": agent.id},
+            )
+        updated = await agent_repo.update(
+            self.db, agent=agent, update_data={"a2a_enabled": enabled}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.a2a_served" if enabled else "agent.a2a_withdrawn",
+            target_type="agent",
+            target_id=str(agent.id),
+        )
+        return updated
+
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
         """The storage path of the agent's picture, for the route that streams it.
 
@@ -2698,6 +3019,101 @@ class AgentRegistryService:
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
         return agent, spec
+
+    async def enable_capability(
+        self, ctx: AuthContext, agent_id: UUID, capability_id: str
+    ) -> CapabilityEnabled:
+        """Switch a capability on from the card an agent showed for it (#2301).
+
+        Bound as the starter agent binds it, where it does, so it arrives
+        configured as the Toolbox would recommend. Checked the way a publish
+        checks it before anything is written, so a capability that needs a key
+        nobody stored is refused with the reason and the draft is left alone.
+        Published only when the draft was exactly the published version and the
+        caller may publish: a draft holding somebody's unfinished edits is not
+        made live as a side effect of a click in a chat.
+
+        Raises:
+            NotFoundError: If the caller may not edit this agent.
+            BadRequestError: If no agent may bind such a capability, or the
+                agent would not publish with it.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        definition = get_capability(capability_id)
+        if not definition.selectable:
+            raise refused_field(
+                "capability_id", f"{definition.name} is not something an agent can be given"
+            )
+        draft = AgentSpec.model_validate(agent.draft_spec)
+        unchanged = await self._is_published_as_is(agent)
+        recommended = agent_templates.starter_capabilities().get(
+            capability_id, {"id": capability_id}
+        )
+        # A binding switched off keeps its place and its config; only a missing one is added.
+        if any(binding.id == capability_id for binding in draft.capabilities):
+            bindings = [
+                binding.model_copy(update={"enabled": True})
+                if binding.id == capability_id
+                else binding
+                for binding in draft.capabilities
+            ]
+        else:
+            bindings = [*draft.capabilities, CapabilityBindingSpec.model_validate(recommended)]
+        spec = draft.model_copy(update={"capabilities": bindings})
+        await self.validate_spec(ctx, spec, agent_id=agent.id)
+        await self.save_draft(ctx, agent.id, spec)
+        may_publish = await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
+        )
+        if not (unchanged and may_publish):
+            return CapabilityEnabled(published=False)
+        await self.publish(ctx, agent.id, note=f"Switched on {definition.name}")
+        return CapabilityEnabled(published=True)
+
+    async def _is_published_as_is(self, agent: Agent) -> bool:
+        """Whether the draft is exactly the version that runs - nothing unpublished in it."""
+        if agent.current_version_id is None:
+            return False
+        version = await agent_repo.get_version(
+            self.db, agent.current_version_id, organization_id=agent.organization_id
+        )
+        return version is not None and version.spec == agent.draft_spec
+
+    async def ask_for_capability(
+        self, ctx: AuthContext, agent_id: UUID, capability_id: str, *, reason: str
+    ) -> None:
+        """Ask an agent's owner to switch a capability on, from its card (#2301).
+
+        Anyone who may talk to the agent may ask; the owner decides. The ask is
+        the person's own words beside the capability's name, and the owner is
+        told once however often it is clicked.
+
+        Raises:
+            AuthorizationError: If no person is signed in to be named as asking.
+            NotFoundError: If the caller may not run this agent.
+            BadRequestError: If no agent may bind such a capability.
+        """
+        if ctx.user_id is None:
+            raise AuthorizationError(
+                message="Only a signed-in person can ask an agent's owner",
+                details={"agent_id": agent_id},
+            )
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        definition = get_capability(capability_id)
+        if not definition.selectable:
+            raise refused_field(
+                "capability_id", f"{definition.name} is not something an agent can be given"
+            )
+        requester = await user_repo.get_by_id(self.db, ctx.user_id)
+        name = (requester.full_name or requester.email) if requester is not None else "Somebody"
+        await NotificationService(self.db).capability_requested(
+            agent=agent,
+            capability_name=definition.name,
+            capability_id=definition.id,
+            reason=reason,
+            requester_id=ctx.user_id,
+            requester_name=name,
+        )
 
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None

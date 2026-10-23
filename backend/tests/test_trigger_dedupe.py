@@ -6,8 +6,6 @@ asserted here against a mocked client, since the guarantee is the client's and t
 fail-open is this module's.
 """
 
-from __future__ import annotations
-
 import asyncio
 from typing import cast
 from unittest.mock import AsyncMock
@@ -97,3 +95,24 @@ async def test_a_second_claim_on_the_same_delivery_is_refused(redis):
 async def test_a_claim_fails_open_when_redis_is_unreachable(redis):
     redis.set = AsyncMock(side_effect=RuntimeError("redis down"))
     assert await trigger_dedupe.claim_event_delivery(trigger_id=uuid4(), delivery_id="d1") is True
+
+
+async def test_a_released_claim_lets_the_retry_fire(fake_redis):
+    """Its transaction rolled back, so no fire was queued: the redelivery must not be a duplicate."""
+    trigger_id = uuid4()
+    assert await trigger_dedupe.claim_event_delivery(trigger_id=trigger_id, delivery_id="d1")
+
+    await trigger_dedupe.release_event_delivery(trigger_id=trigger_id, delivery_id="d1")
+
+    assert await trigger_dedupe.claim_event_delivery(trigger_id=trigger_id, delivery_id="d1")
+
+
+async def test_a_release_with_no_redis_does_nothing():
+    trigger_dedupe.configure(None)
+    await trigger_dedupe.release_event_delivery(trigger_id=uuid4(), delivery_id="d1")
+
+
+async def test_a_release_redis_refuses_leaves_the_claim_to_its_ttl(redis, caplog):
+    redis.delete = AsyncMock(side_effect=RuntimeError("redis down"))
+    await trigger_dedupe.release_event_delivery(trigger_id=uuid4(), delivery_id="d1")
+    assert "trigger_dedupe_release_failed" in caplog.text

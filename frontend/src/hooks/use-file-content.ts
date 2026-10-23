@@ -52,7 +52,7 @@ interface UseFileBytesResult {
    * What the server said this is.
    *
    * Read off the response rather than guessed from the name. The API decides what may
-   * be displayed inline - raster images and PDFs, never SVG or HTML, because either
+   * be displayed inline - raster images, PDFs, audio and video, never SVG or HTML, because either
    * served inline from this origin is stored XSS written by the agent - and a second
    * list of suffixes in the client is a second answer to that question. When the two
    * disagreed, `<img>` got a blob typed `application/octet-stream` and showed a broken

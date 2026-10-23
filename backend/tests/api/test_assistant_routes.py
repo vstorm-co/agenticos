@@ -1,7 +1,5 @@
 """The assistant's routes: every member reads it, `org:settings` changes it (#2063)."""
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock
 
@@ -12,7 +10,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
-from app.schemas.assistant import AssistantRead
+from app.schemas.assistant import AssistantRead, AssistantSignals
 
 pytestmark = pytest.mark.anyio
 
@@ -41,3 +39,22 @@ async def test_a_viewer_reads_the_assistant() -> None:
 
     assert answer.status_code == 200
     assert answer.json()["name"] == "AI Architect"
+
+
+async def test_a_viewer_reads_what_the_bubble_may_raise() -> None:
+    service = AsyncMock()
+    service.signals.return_value = AssistantSignals(
+        pending_approvals=0, has_agents=True, failed_run_id=None
+    )
+    app.dependency_overrides[deps.get_assistant_service] = lambda: service
+    app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
+        user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.VIEWER
+    )
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as http:
+            answer = await http.get(f"{settings.API_V1_STR}/assistant/signals")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert answer.status_code == 200
+    assert answer.json() == {"pending_approvals": 0, "has_agents": True, "failed_run_id": None}

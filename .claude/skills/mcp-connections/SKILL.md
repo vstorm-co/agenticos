@@ -52,8 +52,11 @@ would make the token unreadable the moment they switched.
 probe before the turn; failures log a warning and the turn proceeds without those
 tools. Pydantic AI enters every toolset when a run starts, so raising would let one
 expired token abort every agent that names the connection. The trade is real: a
-skipped server means the model answers *without* the tools. `/test` and `last_status`
-are how you find out.
+skipped server means the model answers *without* the tools. It is briefed, though:
+`UnavailableUnreachableServer` for a failed probe, and `AnsweredRecently` for a
+server that answered within two minutes and fails on connect, both through
+`unreachable_briefing` in `app/agents/mcp.py`. `/test` and `last_status` are how you
+find out.
 
 **Tools are prefixed with the connection name.** `github-work` → `github_work_*`.
 Two servers exposing the same tool name make Pydantic AI raise on duplicates, which
@@ -103,6 +106,16 @@ checked with `validate_mcp_url` and then handed to a browser that resolves it it
 The **connection's own URL** is checked at save and resolved again at run time — a
 point-in-time check (#840), bearable only because an operator typed it. A URL a *model*
 chose belongs in neither; it needs `safe_download`.
+
+`MCP_ALLOWED_HOSTS` exempts a listed host from the address half of the check on
+a connection's own URL: `_checked_url` (save, update, the sign-in probe and the
+OAuth start) always passes `honour_allowlist=True`. The OAuth requests after it
+get `mcp.trusted_hosts_for(server_url)`, which is every listed host when the
+connection's own host is listed and none otherwise. `resolve_pinned_url` still
+resolves and pins a trusted host and refuses loopback, link-local and metadata
+answers for it. The catalog audit stays strict. Never compute the trusted set
+from a URL a remote server named: that is how a public server would aim its
+token endpoint at a listed host.
 
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.

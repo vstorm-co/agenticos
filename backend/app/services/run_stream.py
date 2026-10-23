@@ -21,8 +21,7 @@ approval panel, `ask_user`. A frame that needs somebody to answer it needs a
 somebody, and only the surface knows whether it has one.
 """
 
-from __future__ import annotations
-
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -44,6 +43,8 @@ from pydantic_ai.messages import (
     ToolCallPart,
 )
 
+from app.agents.deps import AgentDeps
+from app.agents.tool_call_ids import fresh_call_id, used_call_ids
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
 from app.services.transcript import tool_result_text, tool_retry_notice
@@ -101,7 +102,9 @@ class RunFrames:
                 self.timeline.next_response()
                 await self.emit("model_request_start", {})
                 async with node.stream(agent_run.ctx) as request_stream:
-                    await self.request(request_stream)
+                    await self.request(
+                        request_stream, used_call_ids(agent_run.ctx.state.message_history)
+                    )
             elif Agent.is_call_tools_node(node):
                 await self.emit("call_tools_start", {})
                 async with node.stream(agent_run.ctx) as handle_stream:
@@ -118,10 +121,36 @@ class RunFrames:
                 # had it ever been it would have dropped the frame carrying the
                 # answer without saying anything. Whatever made it false now
                 # raises instead, and reaches the client as `error`.
+                await self.next_steps(agent_run.ctx.deps)
                 await self.emit("final_result", {"output": display_output(agent_run.result.output)})
 
-    async def request(self, request_stream: Any) -> None:
+    async def next_steps(self, deps: object) -> None:
+        """The next steps a model of their own wrote, as the agent's own call would be.
+
+        The follow-ups capability writes them after the answer rather than the agent
+        calling `suggest_next_steps` (#2301); sent and collected as that call, so the
+        console draws them and the transcript keeps them with nothing new to read.
+        """
+        written = deps.next_steps if isinstance(deps, AgentDeps) else None
+        if written is None:
+            return
+        call: dict[str, Any] = {
+            "tool_call_id": written.call_id,
+            "tool_name": "suggest_next_steps",
+            "args": {"steps": written.steps},
+        }
+        self.tool_calls.append(call)
+        self.timeline.add_tool(written.call_id)
+        await self.emit("tool_call", dict(call))
+        call["result"] = json.dumps({"steps": written.steps}, ensure_ascii=False)
+        await self.emit("tool_result", {"tool_call_id": written.call_id, "content": call["result"]})
+
+    async def request(self, request_stream: Any, used: set[str]) -> None:
         """Forward model-request events: text, reasoning, tool deltas, final-result start.
+
+        `used` is every tool call id the conversation already holds. A call that
+        reuses one is renamed on its start event, before the console hears of it -
+        see `app/agents/tool_call_ids.py`.
 
         `timeline` records exactly what was sent as `text_delta` and
         `thinking_delta`, and where each block sat, so a turn that never finishes
@@ -135,6 +164,8 @@ class RunFrames:
                     "part_type": type(event.part).__name__,
                 }
                 if isinstance(event.part, ToolCallPart):
+                    # In place: the part is the one the finished response holds.
+                    event.part.tool_call_id = fresh_call_id(event.part.tool_call_id, used)
                     # The name and id let a client show the call while its
                     # arguments stream - which, for a `write_file` carrying a
                     # whole report, can take minutes before `tool_call` exists.

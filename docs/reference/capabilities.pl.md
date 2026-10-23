@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "75c53c320348"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -35,11 +35,24 @@ W ustawieniach capability limity, czasy życia cache, prompty i inne strojenie s
 zwinięte pod **Ustawieniami zaawansowanymi**, które otwierają się same, gdy
 któreś z nich zostało ustawione.
 
-Capabilities, które ma agent startowy - szablon **Claude Code like**, który świeża
+Capabilities, które ma agent startowy - szablon **AgenticOS**, który świeża
 organizacja dostaje przy pierwszym uruchomieniu - mają odznakę **Polecane**, a
 agent utworzony przez **New agent** startuje dokładnie z nimi włączonymi i
-skonfigurowanymi tak, jak konfiguruje je szablon. Jego autor wyłącza to, czego
-agent nie powinien robić.
+skonfigurowanymi tak, jak konfiguruje je szablon, razem z instrukcjami, skillami,
+narzędziami platformy i budżetem szablonu. Jego autor wyłącza to, czego agent nie
+powinien robić.
+
+Niezależnie od tego, z jakimi capabilities agent skończy, każdy run dostaje w
+instrukcjach, pod **Your setup**, listę tych, które ma, i tych, których nie ma -
+więc opisuje tylko to, co potrafi, i mówi, co trzeba by włączyć do reszty.
+
+Gdy prośba wymaga capability, której agent nie ma, pokazuje w czacie kartę z
+nią i z powodem. Ktoś, kto może edytować agenta, włącza ją z karty - powiązaną
+tak, jak wiąże ją agent startowy, i sprawdzoną tak, jak sprawdza publikacja.
+Publikuje się od razu tylko wtedy, gdy w szkicu nie było nic nieopublikowanego,
+a ta osoba może publikować; inaczej czeka w szkicu na Builder. Każdy inny prosi
+z karty właściciela agenta, a właściciel dostaje powiadomienie, które otwiera
+Toolbox agenta.
 
 Dwie z nich zależą od tego, co uruchamia wdrożenie. Przestrzeń robocza to
 kontener w usłudze sandbox samego wdrożenia, którą bootstrap i pierwsza publikacja
@@ -49,34 +62,39 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 
 ## Co jest dostarczane { #what-ships }
 
-| id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz |
-|---|---|---|---|---|---|
-| `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
-| `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — |
-| `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — |
-| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
-| `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
-| `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych |
-| `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — |
-| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` |
-| `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
-| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
-| `charts` | Wykresy | analiza | `create_chart` | — | — |
-| `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
-| `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
-| `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
-| `thinking` | Myślenie | rozumowanie | brak, celowo | — | — |
-| `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — |
-| `tool_search` | Wyszukiwanie narzędzi | użytkowe | brak, celowo | — | — |
-| `clock` | Data i godzina | użytkowe | brak, celowo | — | — |
-| `guardrails` | Zabezpieczenia | użytkowe | brak, celowo | — | — |
-| `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — |
-| `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — |
-| `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — |
-| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
-| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — |
+| id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz | Głos |
+|---|---|---|---|---|---|---|
+| `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — | bez zmian |
+| `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — | dostosowana |
+| `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — | bez zmian |
+| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | bez zmian |
+| `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany | bez zmian |
+| `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
+| `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
+| `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
+| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
+| `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
+| `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
+| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
+| `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
+| `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany | bez zmian |
+| `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany | przekazana |
+| `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany | przekazana |
+| `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
+| `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
+| `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
+| `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — | bez efektu |
+| `tool_search` | Wyszukiwanie narzędzi | użytkowe | brak, celowo | — | — | pominięta |
+| `clock` | Data i godzina | użytkowe | brak, celowo | — | — | bez zmian |
+| `guardrails` | Zabezpieczenia | użytkowe | brak, celowo | — | — | na transkrypcjach |
+| `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — | bez efektu |
+| `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — | bez efektu |
+| `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — | bez zmian |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — | bez zmian |
+| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | niedostępna |
+| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
+| `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps`, `propose_setup` | — | — | niedostępna |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -97,6 +115,28 @@ model.** Delegowanie jest jedynym miejscem, w którym jedno różni się od drug
 `create_agent` i `delegate` pojawiają się tylko przy `allow_dynamic`, a
 `answer_subagent` nie pojawia się nikomu — oba wyjaśnione niżej w sekcji
 [Delegowanie](#delegation).
+
+**Kolumna Głos mówi, co capability robi w [rozmowie głosowej](../voice.md#what-a-call-can-use).**
+*Bez zmian* działa tak samo. *Dostosowana*: skille ładują się na żądanie jako
+instrukcje, bez narzędzia do ich czytania. *Pominięta*: wyszukiwanie narzędzi
+daje rozmowie jej narzędzia MCP bezpośrednio, bo narzędzia rozmowy są ustalane
+w chwili połączenia. *Odwzorowana*: myślenie staje się własnym ustawieniem
+rozumowania modelu realtime. *Przekazana* działa w modelu tekstowym
+agenta, któremu rozmowa przekazuje zadanie
+([Przekazywanie pracy](../voice.md#handing-work-off)); karta Głos (Voice) w
+Builderze wymienia je dla agenta, który je ma, tak jak pracę w trakcie narzędzi,
+która tylko wysyła przekazane narzędzie w tło. *Na ekranie* zadaje pytania na
+karcie w widoku rozmowy w `/chat`. Podgląd kanału czatu jest *niedostępny*, bo
+rozmowy nigdy nie prowadzi się w kanale, i tak samo Następne kroki - rozmowa
+głosowa nie ma gdzie pokazać ich przycisków. *Bez efektu* oznacza trzy capability, które działają na żądaniach
+do modelu w tekstowym runie i na ich zapisanej historii, a tych rozmowa nie
+wysyła.
+
+Guardraile sprawdzają transkrypcje rozmowy. Wynik narzędzia jest sprawdzany i
+blokowany, zanim agent go przeczyta; sprawdzeniem przed wykonaniem narzędzia
+jest zatwierdzenie, dla narzędzi, które go wymagają. Guardraile nie sprawdzają
+argumentów narzędzia. API katalogu podaje, jak każda capability bierze udział w rozmowie, w polu
+`voice`: `live` na własnym modelu rozmowy, `hand_off` albo `never`.
 
 **Jedna z nich w ogóle nie jest w Toolboksie.** `channel_tools` wybiera się
 osobno dla każdego powiązanego bota, w sekcji *Where this agent is available*, a
@@ -733,8 +773,8 @@ browser`, osiągalną jako `http://browser:9222`. Host musi być na
 automatyzację przeglądarki całkowicie, przy publikacji.
 
 Przeglądarka z compose działa we własnej sieci Dockera, do której dołączają tylko
-API i runner, żeby się z nią połączyć: strona, którą otwiera albo na którą zostaje
-przekierowana, nie dosięgnie bazy, Redisa, Prefecta ani MinIO. Nadal sięga tam,
+API i worker, żeby się z nią połączyć: strona, którą otwiera albo na którą zostaje
+przekierowana, nie dosięgnie bazy, Redisa ani MinIO. Nadal sięga tam,
 dokąd pozwala sieć hosta, np. do adresu metadanych chmury, więc tam, gdzie to ważne,
 zablokuj go na hoście.
 
@@ -1081,11 +1121,328 @@ wtedy run zapisuje wywołanie po zerze i oznacza swoją sumę jako częściową
 organizacja** i zwracany przez
 [`GET /api/v1/generated/{filename}`](../architecture.md), zawężony do organizacji
 wywołującego — szersza granica niż przy pliku wrzuconym na czacie, który należy do
-jednego użytkownika, bo nie ma zapisu o tym, kto obraz wyprodukował. Gdy agent ma
+jednego użytkownika. Jest zapisany przy konwersacji, w której powstał, i usuwany
+razem z nią, wliczany do limitu wygenerowanych mediów organizacji i usuwany po
+okresie retencji ([konfiguracja](../configuration.md#generated-media)). Po
+przekroczeniu limitu narzędzie odpowiada o tym, zanim cokolwiek wyda. Gdy agent ma
 też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 `/output`, żeby późniejszy krok `execute` mógł coś z niego zbudować — złożyć PDF,
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
+
+## Zamiana tekstu na mowę { #text-to-speech }
+
+`generate_speech` — *Speak a text aloud as an audio clip.*
+
+Odczytuje tekst na głos przez providera mowy wybranego przez autora i zachowuje
+się jak generowanie obrazów: nagranie jest zapisywane, pokazywane w rozmowie jako
+odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `provider` | `openai` | `openai`, `elevenlabs`, `google` |
+| `model` | `gpt-4o-mini-tts` | Modele tego providera z `app/core/catalog/text_to_speech_models.json` |
+| `voice` | pierwszy głos modelu | Domyślny głos agenta; może przełączyć się dla każdego klipu w obrębie `voices`. Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
+| `voices` | brak: dowolny głos modelu | Do 20 głosów, na które agent może się przełączyć dla każdego klipu, każdy jako `id` i - dla głosu z konta - `note` do 120 znaków mówiąca, kto to jest. Pusta lista dopuszcza każdy głos modelu - dla ElevenLabs dowolne id głosu z konta |
+| `output_format` | pierwszy format providera | `mp3`, `wav` (Gemini zwraca tylko `wav`) |
+| `max_characters` | `5000` | 1–10 000; najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie |
+
+**Providerzy, modele, głosy i ceny to dane** w pliku katalogu. Provider jest
+[celem sekretu](../secrets.md) przyjmującym zwykły klucz API - ElevenLabs nie
+uruchamia modeli czatu, więc jest usługą w vault, a nie providerem modeli - a
+wpis, którego celu brakuje albo którego kształt API nie ma klienta, jest
+pomijany. Starsze `tts-1` i `tts-1-hd` od OpenAI mówią dziewięcioma z trzynastu
+głosów, więc głosy są wypisane per model.
+
+**Głosy ElevenLabs należą do konta.** Wspólne domyślne głosy wygasają
+31.12.2026, więc katalog nie wypisuje żadnego, a binding wskazuje jeden z głosów
+konta po id; publikacja bez niego jest odrzucana.
+
+**Głos jest domyślny; dozwolone głosy są limitem.** `voice` to głos, którym
+agent mówi, dopóki nie poprosi o inny, a `voices` wymienia jedyne pozostałe, na
+które może się przełączyć - do dialogu albo dla narratora i postaci. Pusta lista
+dopuszcza każdy głos modelu; w ElevenLabs dowolne id głosu z konta, łącznie ze
+sklonowanymi, o czym Builder ostrzega. Głosy trafiają do modelu jako `enum`
+parametru `voice` narzędzia, ze zwykłym głosem jako domyślnym i z opisem każdego
+z katalogu albo - dla głosu z konta - z notatką autora. Otwarty głos z konta to
+wolny tekst, którego format jest sprawdzany. Głos z listy, którego model nie ma,
+jest odrzucany przy publikacji, a głos spoza listy wraca do modelu ze wskazówką.
+
+**Picker kluczy pokazuje klucze wybranego providera.** Sekret jest wymagany dla
+każdego providera i zadeklarowany jako wymagany *gdy* `provider` jest jednym z
+nich, co mówi Builderowi, że provider jest celem klucza.
+
+**Długi tekst to jedno nagranie.** Tekst ponad limit modelu na żądanie jest
+cięty na akapicie, zdaniu albo słowie i wypowiadany po kolei. Kawałki MP3 są
+łączone jeden za drugim; WAV jest pobierany od każdego providera jako PCM 24 kHz
+i opakowany jednym nagłówkiem. `instructions` - ton, tempo, akcent - trafiają do
+modeli, które je czytają (`gpt-4o-mini-tts` od OpenAI, Gemini), a dla reszty są
+pomijane.
+
+**Budget jest pytany z ceną nagrania.** Mowa jest sprzedawana za znak, więc
+katalog trzyma datowaną cenę za milion znaków i koszt jest znany przed
+wywołaniem. Run dostaje odmowę nagrania, które przekroczyłoby limit, a potem koszt
+jest księgowany; przy błędzie w połowie księgowane są też kawałki już
+wypowiedziane. Modele rozliczane w tokenach są sprawdzane po cenie za znak
+typowej mowy. Gemini, które zwraca dźwięk jako surowe PCM, jest potem księgowane z
+dźwięku, który zwrócił każdy kawałek - tokeny tekstu na wejściu i 25 tokenów audio
+na sekundę na wyjściu - więc wolne mówienie kosztuje tyle, ile nalicza provider.
+Datowana cena działa od swojego dnia - tak zapisane jest podwojenie cen Gemini
+1.01.2027.
+
+**Księgowane w trakcie mówienia, jedno nagranie naraz.** Każdy kawałek długiego
+tekstu jest księgowany, gdy przychodzi jego audio, więc błąd albo anulowany run w
+połowie wciąż księguje kawałki, które wróciły. Sprawdzenie budgetu niczego nie
+rezerwuje, więc narzędzie wykonuje jedno wywołanie naraz. `instructions` ma limit
+1000 znaków, trafia do providera z każdym kawałkiem i nie jest wyceniane.
+
+**Ma skutki uboczne**, z tych samych powodów co generowanie obrazów: wydaje
+pieniądze i tworzy nagranie, które ktoś może opublikować.
+
+**Błędy trafiają do tego, kto może je naprawić.** Pusty tekst, tekst ponad
+`max_characters` albo tekst odrzucony przez providera wraca do modelu, podobnie
+provider, który ogranicza ruch albo nie działa. Odrzucony klucz, nieznany głos i
+wyczerpany budget są zwracane jako wynik, bo naprawić je może tylko autor albo
+operator; głos wybrany przez model, którego provider nie zna, wraca do modelu.
+Logowany jest tylko kod błędu providera; jego tekst błędu nie trafia ani do logów,
+ani do modelu.
+
+## Generowanie wideo { #video-generation }
+
+`generate_video` — *Make a short video from a written description.*
+
+Tworzy krótki klip przez providera wideo wybranego przez autora i zachowuje się
+jak generowanie obrazów: klip jest zapisywany, pokazywany w rozmowie jako
+odtwarzacz i zapisywany w `output/`, gdy workspace jest otwarty (#2260). Może
+zacząć od obrazu - `filename` zwróconego przez `generate_image` w tym samym runie
+albo ścieżki w workspace, gdzie wygenerowany obraz leży też w `output/` -
+rozpoznanego po bajtach, a nie po nazwie. Sama nazwa pliku nigdy nie sięga do
+wygenerowanych plików organizacji: run musi sam zrobić ten obraz.
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
+| `model` | `gemini-omni-1.1-flash` | Modele tego providera z `app/core/catalog/video_models.json` |
+| `resolution` | pierwsza modelu | Domyślna; agent może poprosić o inną dla każdego klipu, do `max_resolution` |
+| `max_resolution` | brak: dowolna, którą renderuje model | Najwyższa, o jaką może poprosić agent; co najmniej `resolution` |
+| `aspect_ratio` | pierwsze modelu | Domyślne; agent może poprosić o dowolne proporcje, które renderuje model |
+| `seconds` | 5 albo najbliższa wartość modelu | W zakresie modelu; odrzucane dla Gemini Omni, który sam decyduje |
+| `max_seconds` | najdłuższy klip modelu | Najdłuższy klip, o jaki może poprosić agent; odrzucane dla Gemini Omni |
+| `audio` | domyślne providera | Domyślnie włączony albo wyłączony; agent może poprosić o jedno lub drugie dla każdego klipu. Odrzucane, gdy dźwięk modelu jest stały |
+| `alibaba_workspace` | brak: wspólny endpoint DashScope | Tylko Alibaba: id workspace'u Model Studio, jedna etykieta hosta; Wan jest wtedy wywoływany pod `https://{workspace}.{region}.maas.aliyuncs.com/api/v1` |
+| `alibaba_region` | `ap-southeast-1` | Tylko Alibaba: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong` |
+| `timeout_seconds` | `600` | 60–1800 |
+
+**To, co potrafi każdy model, to dane.** Katalog podaje zakres długości modelu,
+proporcje obrazu, rozdzielczości, czy klipy mają dźwięk i czy model może zacząć
+od obrazu, a Builder oferuje tylko to. BytePlus jest [celem sekretu](../secrets.md)
+w vault; Google, xAI i Alibaba Cloud już są providerami modeli. Brakuje OpenAI:
+jego API wideo wyłączono 24.09.2026.
+
+**Ustawienia są domyślne; najwyższa rozdzielczość jest limitem.** Rozdzielczość,
+proporcje, długość i dźwięk ustawione w bindingu dostaje klip, jeśli agent nie
+poprosi o inne w danym wywołaniu. Długość kończy się na `max_seconds`, proporcje
+na tych, które renderuje model, a rozdzielczość na `max_resolution`: puste
+pozwala agentowi poprosić o każdą rozdzielczość modelu, o czym Builder ostrzega,
+bo od rozdzielczości zależy cena sekundy. Budżet jest sprawdzany ceną wybranej
+rozdzielczości. Proporcje i rozdzielczość trafiają do modelu jako `enum` ze
+zwykłą wartością jako domyślną, a dźwięk jest oferowany tylko tam, gdzie model
+robi go opcjonalnym.
+
+**Klip to zadanie, na które czeka się jak na obraz.** Gemini odpowiada w samym
+żądaniu; BytePlus, xAI i Alibaba przyjmują zadanie, o które się odpytuje. W obu
+przypadkach wywołanie czeka minutę albo kilka, najwyżej `timeout_seconds`.
+Zadanie po tym czasie jest anulowane tam, gdzie provider na to pozwala - w
+BytePlus, póki czeka w kolejce - a wywołanie dostaje odpowiedź zamiast ponowienia,
+bo xAI i Alibaba nie dokumentują anulowania i mogą dokończyć oraz rozliczyć
+zadanie. Klip jest pobierany, zanim wygaśnie adres providera, a klucz nigdy nie
+trafia do hosta z plikami.
+
+**Budget jest pytany z ceną klipu.** Każdy provider rozlicza sekundy według
+stawki zależnej od rozdzielczości, więc katalog trzyma datowaną cenę za sekundę
+dla każdej rozdzielczości. Run dostaje odmowę klipu, który przekroczyłby limit, a
+potem księgowana jest długość podana przez providera. Gemini Omni sam decyduje o
+długości i jej nie podaje, więc tam klip jest wyceniany i księgowany według
+najdłuższego klipu modelu.
+
+**Ma skutki uboczne**, z tych samych powodów co generowanie obrazów, i to
+bardziej: klip to najdroższe pojedyncze wywołanie, jakie robi agent.
+
+**Błędy trafiają do tego, kto może je naprawić.** Pusty prompt, długość albo
+proporcje, których model nie robi, i obraz, którego nie da się odczytać, wracają
+do modelu ze wskazówką, podobnie jak provider, który ogranicza ruch albo nie
+działa. Odrzucony klucz, wyczerpany budżet, prompt odrzucony przez politykę
+treści providera i zadanie po limicie czasu są zwracane jako wynik: wskazówka
+ponowienia przy odmowie zachęcałaby do jej obejścia. Zadanie po limicie czasu albo
+anulowane razem z przebiegiem jest księgowane według szacunku, o ile jego żądanie
+mogło już dotrzeć do providera, bo provider może je jeszcze dokończyć i rozliczyć. Klip zrobiony, ale nie
+do pobrania, też jest księgowany i zwracany jako wynik, a nie kierowany z powrotem
+do modelu: druga próba zostałaby rozliczona ponownie.
+
+## Coding agent { #coding-agent }
+
+`run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
+
+Przekazuje pracę programistyczną do **Claude Code** albo **Codex**, działających we
+własnym [sandboxie](../sandbox.md) agenta. Zwykły agent z shellem też edytuje kod,
+ale harness programistyczny robi to lepiej, i w ten sposób agent do niego sięga.
+Harness to osobny agent: agent przekazuje mu całe zadanie, harness pracuje do końca,
+a czat pokazuje jego pracę. Inny agent sięga do coding agenta zwykłą
+[delegacją](#delegation), tak jak do każdego specjalisty.
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI albo logowanie ChatGPT) |
+| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (tylko Claude Code) |
+| `model` | domyślny dla harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa |
+| `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwany po wyborze Codexa |
+| `timeout_minutes` | 15 | 1–60, na jedno zadanie |
+
+**Jedno narzędzie, a binding decyduje, co wolno.** Przy `edit` harness edytuje
+dowolny plik i uruchamia dowolne polecenie w sandboxie z wyłączonymi własnymi
+pytaniami (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
+nikt nie siedzi przy jego terminalu, a granicą jest kontener, dla którego oba
+przełączniki są opisane. Przy `read_only` Claude Code działa w trybie planu, bez
+żadnego narzędzia, które pisze - bez narzędzi edycji i bez powłoki - i czyta przez
+Read, Grep i Glob; wie, że niczego innego nie da się zatwierdzić. Nawet poleceń
+czytających: żadna lista prefiksów poleceń nie robi z powłoki narzędzia tylko do
+odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex nie ma `read_only`: jego tryb tylko do odczytu
+to jego własny sandbox, który nie startuje w kontenerze agenta, więc publikacja
+odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadaniem, ustawia
+**Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
+jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
+narzędzie to sama capability.
+
+**Człowiek widzi jego pracę.** Harness startuje w sandboxie w tle
+(`claude -p --output-format stream-json` albo `codex exec --json`), a plik jego
+zdarzeń jest czytany co półtorej sekundy. Każdy krok trafia do czatu, gdy się
+dzieje, w osobnym panelu pod znakiem Claude Code albo Codex, tak jak kroki
+delegacji: czytany plik, edycja, uruchomione polecenie, to, co mówi między nimi. Po
+zakończeniu wynik wywołania zawiera odpowiedź, każdy krok i zmienione pliki.
+Zadaniu po `timeout_minutes` i zadaniu zatrzymanemu przez człowieka zatrzymywana
+jest cała grupa procesów. Praca w tle oznacza też, że zadania nie ucina limit
+usługi sandboxa na jedno polecenie.
+
+**Zadania jednej rozmowy kontynuują jedną sesję.** Identyfikator sesji harnessu
+jest trzymany w sandboxie obok pracy, w `.agenticos/coding-agent/`, osobno dla każdej
+rozmowy, więc drugie zadanie w czacie wie, co przeczytało pierwsze - a czat nigdy nie
+kontynuuje cudzej sesji w sandboxie, który dzieli kilka rozmów: projektu albo
+przypisanym do osoby czy agenta. Model przekazuje `fresh_session`, by
+zacząć od nowa, a sesja, której sandbox już nie ma, zaczyna się od nowa sama, raz.
+
+**Czego potrzebuje.** Capability `sandbox` na backendzie `service` z włączonymi
+poleceniami shella — publikacja odrzuca każdą inną konfigurację — oraz runtime'u z
+zainstalowanym harnessem: runtime `workbench` przypina Claude Code 2.1.288 i Codex
+0.160.0. Poświadczenie pochodzi z vault przez `secret_id` bindingu i trafia do
+polecenia przez jego środowisko, nigdy w linii poleceń. W [projekcie](../projects.md),
+który trzyma pliki bez kontenera, nie ma shella, więc coding agent jest tam pomijany
+w runach, a agent wie dlaczego.
+
+**Klucz albo subskrypcja.** Claude Code przyjmuje klucz API Anthropic albo token,
+który `claude setup-token` wypisuje dla subskrypcji Claude Pro albo Max, zapisany jako
+klucz — rozpoznawany po prefiksie `sk-ant-oat`; loguje się wyłącznie do Anthropic, nie
+do bramki. Codex przyjmuje klucz API OpenAI albo logowanie ChatGPT zrobione przyciskiem
+**Sign in with ChatGPT**, to samo, którego używa [profil modelu](../models.md). Na czas
+zadania logowanie trafia do `auth.json` w katalogu domowym Codexa należącym do tego
+jednego zadania (`CODEX_HOME`), poza workspace, i jest potem usuwane - dwa zadania
+działające naraz nigdy nie dzielą jednego, a sesje wznawiane przez Codex są trzymane
+osobno dla każdej rozmowy. Tokeny odświeżone
+przez Codex są pieczętowane z powrotem w tym samym sekrecie. Wszystko, co Codex
+uruchomi, może przeczytać ten plik, więc logowanie jest przekazywane tylko osobie,
+która sama może je zobaczyć w vault - uruchomienie agenta nigdy nie daje dostępu do
+cudzej subskrypcji - i tylko w sandboxie, którego nie dzielą zadania innych osób: w
+kontenerze projektu, sandboxie na poziomie agenta albo czacie udostępnionym komuś do
+edycji zadanie innej osoby działa
+jako ten sam użytkownik i mogłoby je przeczytać. Klucz API jest czym innym: należy do agenta, jak token bota w
+Slacku, więc używa go każdy run, ktokolwiek pytał - i wszystko, co uruchomi
+zadanie, może go odczytać. Podpinaj klucz, który mogą dzielić wszyscy, którzy mogą
+uruchamiać agenta. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych
+planów, które mogą na to nie pozwalać we współdzielonym wdrożeniu.
+
+**Delegowanie do coding agenta.** Delegat, który sam wiąże `sandbox`, działa w świeżym
+workspace w pamięci, bez shella, więc coding agent osiągany przez delegowanie nie ma
+gdzie uruchomić harnessu. Daj delegującemu agentowi capability `sandbox` na połączeniu
+sandbox i dodaj `sandbox` do *Capabilities dziedziczone przez delegaty* w ustawieniach delegowania: coding
+agent pracuje wtedy w kontenerze rodzica, a pliki, które zapisze, są tymi, które widzi
+rodzic.
+
+**Jej koszt jest mierzony.** Oba harnessy raportują tokeny per model, które trafiają
+do księgi runa jak każde żądanie do modelu, a budżet jest sprawdzany przed każdym
+zadaniem. Codex nie podaje modelu w swoich zdarzeniach, więc bez ustawionego `model`
+jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy. Tak
+samo księgowane jest zadanie, które kończy się, zanim harness poda, ile wydał -
+nieudane, przerwane limitem czasu albo zatrzymane.
+
+## Wizualizacje { #visuals }
+
+`draw` — *Narysuj w rozmowie: diagram, mapę, przepływ, explainer, scenę 3D.*
+`revise_visual` — *Zmień wizual dokładnymi zamianami, bez rysowania go od nowa.*
+`read_visual` — *Przeczytaj wizual z tej rozmowy w obecnej postaci, z naniesionymi poprawkami.*
+
+Rysuje w samym czacie. `kind` to `svg` dla diagramów i ilustracji, `mermaid` dla
+schematów blokowych, sekwencji i diagramów ER albo `html` dla wszystkiego, co
+interaktywne - suwaków, `<canvas>`, three.js, mapy. Bez konfiguracji; dostarczany
+skill `visual-design` niesie styl i pięć szablonów, a Builder podpina go, razem z
+Wykresami (Charts), przy włączeniu Wizualizacji.
+
+**Najpierw wybiera formę.** Nie każda odpowiedź jest rysunkiem. Opis narzędzia i
+skill każą modelowi odpowiadać na fakt tekstem, na dokładne wartości tabelą
+Markdown, na liczby do obejrzenia przez `create_chart` - więc „teraz zrób wykres”
+zamienia tabelę w natywny wykres - a rysować wtedy, gdy osoba ma zrozumieć, jak coś
+działa, użyć narzędzia zrobionego na chwilę albo śledzić miejsca na mapie. Skill
+mówi też, jak rysunek ma wyglądać, żeby wyglądał na zrobiony dla tej odpowiedzi, a
+nie wygenerowany: jeden duży temat, przestrzeń zamiast ramek, tylko kolory motywu,
+bez pigułek, cieni i gradientów.
+
+**Rysunek może kontynuować rozmowę.** `agenticos.followUp(text)` w rysunku prosi o
+wysłanie wyboru osoby jako jej następnej wiadomości - *Zaplanuj ten przystanek*,
+*Użyj tych liczb*. Konsola pokazuje tekst pod rysunkiem i wysyła go dopiero, gdy
+osoba kliknie *Wyślij*; prośba, za którą nie stoi kliknięcie, jest odrzucana. Zobacz
+[follow-upy](../artifacts.md#visuals).
+
+**Mapy.** `lib/agenticos-map-2.js` rysuje trasę - ponumerowane pinezki po kolei i
+linię między nimi, pokazane od razu i wbijane jedna po drugiej na życzenie, na mapie
+w proporcji 16:9 do szerokości strony, oraz kartę dla każdego przystanku - na
+serwerze kafelków wskazanym przez `VISUAL_MAP_TILES`, a na deploymencie, który
+żadnego nie wskazuje, jako zarys przystanków. Instrukcje capability mówią modelowi,
+który to przypadek, żeby nie obiecywał ulic, których nie pokaże.
+
+**Pojawia się w trakcie pisania.** Rysunek to argument `content` wywołania. Konsola
+czyta go ze strumieniowanych argumentów i wysyła do ramki pod wiadomością, więc SVG
+i HTML rosną na ekranie, a Mermaid przerysowuje się po każdej pełnej linii. Skrypty
+startują raz, po zakończeniu wywołania: do tego czasu znaczniki są pokazywane bez
+skryptów i atrybutów `on*`, więc w połowie napisana scena nigdy nie rusza.
+
+**Żyje w rozmowie.** Zapisywane jest tylko wywołanie narzędzia, które transkrypt i tak
+przechowuje, więc przeładowanie i udostępniony wątek rysują je ponownie. Wcześniejsza
+tura trafia do modelu tylko jako tekst, dlatego capability wymienia w instrukcjach
+wcześniejsze wizuale rozmowy - po id i tytule - a `read_visual` przywraca jeden przed
+poprawką.
+
+**Model słyszy, jak się wyrenderował.** Gdy ktoś patrzy w czacie, konsola zgłasza błędy
+skryptów, nieudane ładowania i odrzucone żądania każdego rysunku, a `draw` czeka na ten
+raport do dziesięciu sekund, zanim odpowie - więc model poprawia zepsuty rysunek przez
+`revise_visual` w tej samej turze. Gdy nikt nie patrzy, odpowiada od razu i mówi, że
+rysunek nie został sprawdzony.
+
+**Poprawki** to dokładne zamiany, ta sama reguła co edycje `publish_artifact`, i każda
+jest osobnym wizualem pod wiadomością, która ją zrobiła. Rysunek za duży na aplikację
+(`ARTIFACT_MAX_BYTES`), SVG, które nie jest jednym elementem `<svg>`, albo rysunek,
+który ładuje cokolwiek z innej witryny, to ponowienie z informacją, co zmienić.
+
+**Obrazy.** `images` wnosi do rysunku do sześciu obrazów, każdy pod nazwą, której
+rysunek używa jako `{{image:NAME}}`: obraz załączony do rozmowy, plik w workspace
+albo adres `https://`. Adres działa tylko dla agenta, który już czyta sieć - z
+włączonym `web_fetch` albo `browser_use` - i tylko na hoście, który któryś z nich
+by przeczytał: ich `allowed_domains` i `blocked_domains` ograniczają też obrazy, a
+pobierania nie można przekierować na inny host. Każdy obraz ma najwyżej 2 MiB, a
+wizual niesie tylko obrazy, których jego rysunek wciąż używa, najwyżej sześć przez
+wszystkie rewizje.
+
+**Ma izolację aplikacji.** Ramka to sandbox aplikacji - nieprzezroczysty origin,
+`connect-src 'none'`, nic zdalnego poza zestawem bibliotek deploymentu, który zawiera
+teraz three.js, Mermaid i Leaflet, oraz własną ścieżką kafelków map deploymentu.
+Zobacz [Wizualizacje](../artifacts.md#visuals).
 
 ## Aplikacje { #artifacts }
 
@@ -1417,6 +1774,50 @@ bibliotekę: delegaci z nazwy i opisu, tryb, którego ten run naprawdę użyje, 
 rozgałęzienia, który inaczej odkryłby, dostając odmowę. Dwie listy tych samych
 delegatów w jednym prompcie systemowym to kontekst opłacony dwa razy, a tylko jedna
 z nich może powiedzieć, co deployment naprawdę egzekwuje.
+
+### Zdalni agenci przez A2A { #remote-agents }
+
+Agent może też delegować do **agenta innego dostawcy**, który obsługuje
+[protokół Agent2Agent](https://a2a-protocol.org). Rejestruje się go raz w
+**Connections → Remote agents** po adresie jego agent card, który jest wtedy
+odczytywany i sprawdzany, z opcjonalnym kluczem API z vault wysyłanym jako bearer
+token. Spec agenta wskazuje rejestracje w `external_agents`, a ustawienia
+delegowania pokazują je obok własnych agentów organizacji. Klucz rejestracji jest
+pożyczany każdemu runowi, jak klucz capability, więc publikacja odmawia rejestracji,
+której klucza publikujący nie widzi w vault.
+
+Od rejestracji zależy każdy agent, który do niej deleguje, więc odświeżyć albo usunąć
+ją może ten, kto ją zarejestrował, albo ktoś, kto edytuje wszystkie agenty - a
+odświeżyć, co decyduje, dokąd trafi klucz, tylko ktoś, kto wciąż może tego klucza
+używać.
+Odświeżenie, po którym karta przenosi agenta na inny host, trafia do audytu, bo ten
+host dostaje odtąd żądania i klucz. Lista pokazuje adres karty i jej endpoint bez
+zapytania i danych logowania, w których podpisany adres trzyma poświadczenie.
+
+Usunięcie klucza, który wysyła rejestracja, usuwa rejestrację, zamiast zostawić ją
+wołającą bez klucza. Klucz trafia tylko do endpointu HTTPS, więc karta ze zwykłym
+HTTP jest odrzucana dla rejestracji, która ma klucz. Adres z nazwą użytkownika lub
+hasłem jest odrzucany od razu: poświadczenie trafia do vault.
+
+Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po
+nazwie tym samym narzędziem `task`. Każde wywołanie to jedno A2A `message/send` z
+najnowszą prośbą, a `contextId` zdalnego agenta przechodzi z jednego wywołania do
+następnego w obrębie tej samej delegacji: dopytanie o zadanie kontynuuje jego zdalną
+rozmowę, a dwa zadania wysłane naraz mają każde własną.
+
+Odpowiedź `input-required`
+albo `auth-required` wraca jako tekst, który to mówi, bo delegat czekający na
+własnego użytkownika to odpowiedź, którą model musi przeczytać. Część odpowiedzi z
+danymi albo plikiem nie jest czytana i pojawia się jako linijka mówiąca, że ją
+wysłano. Zdalny agent, do którego nie da się dotrzeć, odpowiada właśnie tym, a run
+toczy się dalej.
+
+Budżet jest sprawdzany przed każdym wywołaniem. Wycena wywołania należy do zdalnego
+dostawcy i nikt jej nie publikuje, więc każde wywołanie jest księgowane bez ceny, a
+koszt runa mówi, że jest częściowy. Każde żądanie przechodzi przez kontrole adresów
+deploymentu, więc karta ani endpoint nie mogą skierować platformy do jej własnej
+sieci. Publikacja odrzuca odwołanie do nieistniejącej rejestracji, a run, którego
+rejestracja została w międzyczasie usunięta, kończy się błędem, który ją wskazuje.
 
 Co kosztuje delegowanie i który wiersz runa je zapisuje — zobacz
 [Nadzór](../governance.md#delegation-spends-the-parents-budget). Kto może delegować
@@ -2031,6 +2432,40 @@ może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
 `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
+
+## Następne kroki { #follow-ups }
+
+Na końcu odpowiedzi `suggest_next_steps` proponuje pod nią do trzech następnych
+kroków jako przyciski, każdy najwyżej 80 znaków i sformułowany tak, jak
+powiedziałaby to osoba: „Zrób z tego tabelę”, „Rób to w każdy poniedziałek o
+9:00”. Kliknięcie wysyła krok jako jej następną wiadomość. Proponuje je tylko
+najnowsza odpowiedź, a w trakcie tury żadna. Agent pomija je po small talku albo
+po własnym pytaniu i nie powtarza kroków w odpowiedzi. W Slacku, Teams,
+Telegramie i Mattermost kroki przychodzą pod odpowiedzią jako wiadomość z
+przyciskami, a naciśnięcie jednego to naciskający mówiący ten krok - szczegóły są
+w [Kanałach](../channels.md#next-steps-as-buttons).
+
+**Model do następnych kroków** (`model_profile_id`) oddaje kroki osobnemu modelowi:
+agent nie dostaje już `suggest_next_steps`, a gdy jego odpowiedź jest gotowa, ten
+model czyta prośbę i odpowiedź i pisze do trzech kroków albo żadnego. Na trzy
+krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie
+zapytania. Wywołanie najpierw przechodzi przez budżety i jest księgowane na runie
+jak każde inne; takie, którego nie da się wykonać, kosztuje przyciski, nigdy
+odpowiedź. Puste pole zostawia kroki agentowi.
+
+`propose_setup` proponuje do trzech rzeczy do ustawienia, rysowanych jako karty
+pod odpowiedzią: własnego agenta osoby, rutynę albo usługę do podłączenia. Karta
+działa jednym kliknięciem - rutyna otwiera wypełnione okno rutyny na agencie,
+który ją zaproponował; agent to pytanie do Architekta.
+
+Połączenie, które wskazuje serwer kluczem z katalogu, jest kartą tej usługi - z jej logo i przyciskiem
+Podłącz, który prowadzi prosto do logowania u dostawcy i z powrotem do rozmowy -
+a połączenie bez klucza otwiera stronę serwerów MCP przy przycisku dodawania.
+Agent AgenticOS kończy nimi rozmowę powitalną i proponuje kartę połączenia
+zawsze, gdy prośba wymaga usługi, której osoba jeszcze nie podłączyła. Karty są tylko w konsoli; aplikacja czatu ich nie rysuje.
+
+Jest włączona w agencie startowym i w Architekcie, a autor może ją wyłączyć.
+Rozmowa głosowa jej nie używa.
 
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 

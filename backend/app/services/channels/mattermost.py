@@ -24,8 +24,6 @@ Both paths normalise into the same `IncomingMessage`, so the router, the access
 policy and the mention handling are shared with Slack and Telegram.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import binascii
@@ -34,9 +32,10 @@ import json
 import logging
 import re
 import secrets
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 
 import httpx
 from cryptography.exceptions import InvalidSignature
@@ -53,6 +52,7 @@ from app.agents.capabilities.channel_tools import (
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
+from app.services.channels.attachments import routed_type
 from app.services.channels.base import (
     ChannelAdapter,
     FeedbackComment,
@@ -78,6 +78,8 @@ FEEDBACK_DIALOG = "aos_feedback_comment"
 # Mattermost closes an idle socket; the client is expected to keep it warm.
 _PING_SECONDS = 30.0
 _HTTP_TIMEOUT = 20.0
+_FILE_INFO_CONCURRENCY = 4
+"""How many `GET /files/{id}/info` lookups one webhook post runs at once."""
 
 TRIGGER_MAX_AGE = timedelta(minutes=5)
 """How old a press's trigger id may be. Mattermost relays a press at once."""
@@ -97,7 +99,7 @@ def trigger_presser(trigger_id: str, public_key_der: bytes, *, now: datetime) ->
         minted = datetime.fromtimestamp(int(parts[2]) / 1000, UTC)
         signature = base64.b64decode(parts[-1], validate=True)
         key = serialization.load_der_public_key(public_key_der)
-    except (binascii.Error, UnicodeDecodeError, ValueError, IndexError):
+    except binascii.Error, UnicodeDecodeError, ValueError, IndexError:
         return None
     if len(parts) < 4 or abs(now - minted) > TRIGGER_MAX_AGE:
         return None
@@ -141,7 +143,7 @@ def decode_webhook_body(raw: str) -> dict[str, Any]:
     """
     try:
         parsed = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
+    except json.JSONDecodeError, TypeError:
         return {key: values[0] for key, values in parse_qs(raw).items()}
     return parsed if isinstance(parsed, dict) else {}
 
@@ -205,6 +207,47 @@ class MattermostAdapter(ChannelAdapter):
     def _headers(bot_token: str) -> dict[str, str]:
         """The bearer auth header every REST call to this server carries."""
         return {"Authorization": f"Bearer {bot_token}"}
+
+    async def welcome(
+        self,
+        bot_token: str,
+        email: str,
+        text: str,
+        *,
+        api_base_url: str | None,
+        places: Sequence[str] = (),
+    ) -> bool:
+        """Find the person by address and greet them in a direct channel with the bot.
+
+        A server that hides addresses from bots answers 403 or 404 to the
+        lookup; both read as not found rather than as a failure.
+        """
+        if not api_base_url:
+            return False
+        base_url = api_base_url.rstrip("/")
+        headers = self._headers(bot_token)
+        async with self._client() as client:
+            found = await client.get(
+                f"{base_url}/api/v4/users/email/{quote(email)}", headers=headers
+            )
+            if found.status_code in (403, 404):
+                return False
+            found.raise_for_status()
+            me = await client.get(f"{base_url}/api/v4/users/me", headers=headers)
+            me.raise_for_status()
+            direct = await client.post(
+                f"{base_url}/api/v4/channels/direct",
+                headers=headers,
+                json=[me.json()["id"], found.json()["id"]],
+            )
+            direct.raise_for_status()
+            posted = await client.post(
+                f"{base_url}/api/v4/posts",
+                headers=headers,
+                json={"channel_id": direct.json()["id"], "message": text},
+            )
+            posted.raise_for_status()
+        return True
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Post a reply.
@@ -1061,7 +1104,7 @@ class MattermostAdapter(ChannelAdapter):
         """Handle one event. A malformed frame is skipped, never fatal."""
         try:
             payload = json.loads(frame)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             return
         if payload.get("event") != "posted":
             return
@@ -1118,7 +1161,7 @@ class MattermostAdapter(ChannelAdapter):
         data = payload.get("data") or {}
         try:
             post = json.loads(data.get("post", "{}"))
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             return None
 
         # A bot's own posts come back down the same socket. Answering them is an
@@ -1181,7 +1224,7 @@ class MattermostAdapter(ChannelAdapter):
             return False
         try:
             mentioned = json.loads(raw) if isinstance(raw, str) else raw
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             return False
         return own in mentioned if isinstance(mentioned, list) else False
 
@@ -1216,10 +1259,15 @@ class MattermostAdapter(ChannelAdapter):
         found: list[IncomingAttachment] = []
         for file_id in file_ids:
             entry = described.get(str(file_id), {})
+            name = entry.get("name") or str(file_id)
             found.append(
                 IncomingAttachment(
-                    filename=entry.get("name") or str(file_id),
-                    mime_type=entry.get("mime_type") or "application/octet-stream",
+                    filename=name,
+                    # Typed from the extension when the server sent none, so an
+                    # untyped `.mp3` is heard rather than stored (`routed_type`).
+                    mime_type=routed_type(
+                        entry.get("mime_type"), name, extension=entry.get("extension")
+                    ),
                     size=int(entry.get("size") or 0),
                     handle=f"{base_url}/api/v4/files/{file_id}" if base_url else "",
                 )
@@ -1243,6 +1291,81 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.get(attachment.handle, headers=self._headers(bot_token))
         response.raise_for_status()
         return response.content
+
+    async def describe_attachments(
+        self, bot_token: str, attachments: list[IncomingAttachment]
+    ) -> list[IncomingAttachment]:
+        """Look up the files an outgoing webhook named by id alone.
+
+        The webhook body carries `file_ids` and nothing about them, so the
+        parser could only call each file by its id and claim no type - and an
+        untyped file is never taken for a voice note. `GET /files/{id}/info`
+        answers the name, extension, size and type the socket would have sent.
+        Only files the parser could not describe are asked about, which on the
+        event stream is none.
+
+        A lookup that fails keeps the file as parsed: it is still delivered as
+        an ordinary attachment, exactly as before this existed, and the log says
+        why it was not recognised. An answer that is not the object it should
+        be - a list, a `size` that is not a number - is a failed lookup too,
+        rather than an exception that would drop the whole turn.
+
+        The lookups run together, at most `_FILE_INFO_CONCURRENCY` at a time:
+        a post carries up to ten files, and asking about them one by one put
+        ten round trips in front of the answer.
+        """
+        gate = asyncio.Semaphore(_FILE_INFO_CONCURRENCY)
+        async with self._client() as client:
+            return list(
+                await asyncio.gather(
+                    *(
+                        self._describe_one(client, gate, bot_token, attachment)
+                        for attachment in attachments
+                    )
+                )
+            )
+
+    async def _describe_one(
+        self,
+        client: httpx.AsyncClient,
+        gate: asyncio.Semaphore,
+        bot_token: str,
+        attachment: IncomingAttachment,
+    ) -> IncomingAttachment:
+        """One file's details from `GET /files/{id}/info`, or the file as parsed."""
+        # `_attachments` names a file with no metadata after its id, which
+        # is the last segment of its handle.
+        if not attachment.handle or not attachment.handle.endswith(f"/{attachment.filename}"):
+            return attachment
+        try:
+            async with gate:
+                response = await client.get(
+                    f"{attachment.handle}/info", headers=self._headers(bot_token)
+                )
+            response.raise_for_status()
+            info = response.json()
+            name = str(info.get("name") or attachment.filename)
+            claimed, extension = info.get("mime_type"), info.get("extension")
+            return IncomingAttachment(
+                filename=name,
+                mime_type=routed_type(
+                    claimed if isinstance(claimed, str) else None,
+                    name,
+                    extension=extension if isinstance(extension, str) else None,
+                ),
+                size=int(info.get("size") or 0),
+                handle=attachment.handle,
+            )
+        # Beside the transport's own failures: an answer that is not an object
+        # has no `.get` (AttributeError), and a `size` that is a word, a list or
+        # not finite does not convert (ValueError, TypeError, OverflowError).
+        except httpx.HTTPError, ValueError, TypeError, OverflowError, AttributeError:
+            logger.warning(
+                "Could not look up a Mattermost file's details: file=%s",
+                attachment.filename,
+                exc_info=True,
+            )
+            return attachment
 
     def _from_webhook(self, payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise one outgoing-webhook body.

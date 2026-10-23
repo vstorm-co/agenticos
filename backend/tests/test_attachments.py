@@ -7,8 +7,6 @@ there is a workspace throws away the point of having one; referencing when there
 is not leaves the model told about a file it has no tool to open.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -452,7 +450,7 @@ class TestWhereAnAttachmentLands:
         # The same defect in the other direction: an image the agent made was
         # written outside the workspace, so it was also absent from the snapshot
         # a channel diffs to decide what to post back.
-        from app.agents.capabilities.image_generation._toolset import WORKSPACE_OUTPUT_DIR
+        from app.agents.capabilities._generated import WORKSPACE_OUTPUT_DIR
 
         assert not WORKSPACE_OUTPUT_DIR.startswith("/")
 

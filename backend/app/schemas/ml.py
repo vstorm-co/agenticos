@@ -11,16 +11,17 @@ on this surface is the record of the call, which is read and never written by a
 client.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pydantic import Field
 
+from app.db.models.ml_service_call import MLServiceCall, TranscriptionSurface
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.services.speech_to_text import ComposerDictation, DictationUnavailable, RecordingFormat
 
 if TYPE_CHECKING:
+    from app.repositories.ml_service_call import UsageSummary
     from app.services.ml import parsing, pii
 
 ParserLiteral = Literal["liteparse", "pymupdf"]
@@ -116,6 +117,62 @@ class TranscriptionRead(BaseSchema):
     model: str
 
 
+class DictationRead(BaseSchema):
+    """What was said, for the composer to insert.
+
+    Nothing about the engine: the person did not choose it, and the
+    organization's settings already say.
+    """
+
+    text: str
+
+
+class DictationStatusRead(BaseSchema):
+    """Whether the composer may offer server dictation for one agent, and how."""
+
+    engine: ComposerDictation = Field(
+        description=(
+            "How the composer transcribes for this agent: `server` when its Dictation switch "
+            "is on, it is not archived, a provider and model resolve, the catalog offers them "
+            "and a usable key is named - configured, not proven: a revoked key fails on the "
+            "first recording. Otherwise `browser`, the browser's own recognition"
+        )
+    )
+    requested: bool = Field(
+        description="The agent's published Dictation switch: send dictation to its provider"
+    )
+    server_available: bool = Field(
+        description=(
+            "A provider and model resolve for this agent, the catalog offers them and a usable "
+            "key is named, whatever the switch. What a hosted page or a widget set to `server` "
+            "needs, since they have a switch of their own."
+        )
+    )
+    unavailable: DictationUnavailable | None = Field(
+        default=None,
+        description=(
+            "Why `server_available` is false: `no_provider` (no level names a pair), "
+            "`not_offered` (the catalog withdrew it) or `no_key` (no usable key is "
+            "named beside the pair - choose one). Null when it is available."
+        ),
+    )
+    max_seconds: int = Field(description="The organization's longest dictation, in seconds")
+    provider: str | None = Field(
+        description=(
+            "The provider a recording would go to - the agent's override or the "
+            "organization's. Null when none resolves."
+        )
+    )
+    format: RecordingFormat = Field(
+        description=(
+            "What the browser records in: `wav` (16 kHz mono 16-bit PCM), unless the "
+            "deployment accepts compressed audio and the speech-to-text catalog says this "
+            "provider takes what MediaRecorder makes, then `webm`. Decided here, so every "
+            "client records the same way."
+        )
+    )
+
+
 class PiiCategoryCountRead(BaseSchema):
     """How many matches one category accounted for."""
 
@@ -174,11 +231,154 @@ class MLServiceCallRead(BaseSchema, TimestampSchema):
         default=None, description="A sentence about the refusal, on a failure"
     )
     input_bytes: int
-    units: int = Field(description="How much was produced, in `unit`")
-    unit: str = Field(description="`pages`, `characters`, or empty on a failure")
-    duration_ms: int
+    units: int = Field(
+        description=(
+            "How much was produced, in `unit`. A transcription counts seconds of audio, "
+            "rounded up, and 0 when no length was reported (`audio_ms` is null)"
+        )
+    )
+    unit: str = Field(description="`pages`, `characters`, `seconds`, or empty on a failure")
+    duration_ms: int = Field(description="How long the call took to answer, not the audio's length")
+    provider: str | None = Field(
+        default=None, description="The transcription provider, where one was chosen"
+    )
+    model: str | None = Field(default=None, description="The transcription model on `provider`")
+    surface: TranscriptionSurface | None = Field(
+        default=None,
+        description=(
+            "Where a transcription arrived: `chat` (dictation in the composer), `channel` "
+            "(a bot's voice note), `api` (`POST /ml/audio/transcriptions`), `hosted` or "
+            "`widget` (a visitor dictating on a hosted page or in a website widget). Null "
+            "for other services and for older rows"
+        ),
+    )
+    agent_id: UUID | None = Field(
+        default=None,
+        description="The agent a dictation was for, or the agent the channel bot serves",
+    )
+    channel_bot_id: UUID | None = Field(
+        default=None, description="The channel bot a voice note arrived on"
+    )
+    audio_ms: int | None = Field(
+        default=None,
+        description=(
+            "The recording's length in milliseconds. A dictation's is read from the "
+            "recording itself where its container states one; otherwise the provider's "
+            "figure, else the platform's metadata, else the browser's for a dictation. "
+            "Null where nobody reported it"
+        ),
+    )
+
+    @classmethod
+    def of(cls, row: MLServiceCall, *, attributed: bool) -> MLServiceCallRead:
+        """One record, with its agent, bot and surface only for a caller who may see them.
+
+        `attributed` is `MLService.sees_attribution`; without it the three are
+        null, as on a row written before they existed.
+        """
+        read = cls.model_validate(row)
+        if attributed:
+            return read
+        return read.model_copy(update={"agent_id": None, "channel_bot_id": None, "surface": None})
 
 
 class MLServiceCallList(BaseSchema):
     items: list[MLServiceCallRead]
     total: int
+
+
+class TranscriptionUsageByAgent(BaseSchema):
+    """One agent's share of the transcription summary."""
+
+    agent_id: UUID
+    name: str
+    seconds: int = Field(
+        description="Audio seconds, each recording rounded up as its call record's `units`"
+    )
+    count: int = Field(description="Successful transcriptions, with a length or without")
+
+
+class TranscriptionUsageByChannel(BaseSchema):
+    """One channel bot's share of the transcription summary."""
+
+    channel_bot_id: UUID
+    name: str
+    seconds: int
+    count: int
+
+
+class TranscriptionUsageBySurface(BaseSchema):
+    """One surface's share of the transcription summary."""
+
+    surface: TranscriptionSurface | None = Field(
+        description="Null for transcriptions recorded before surfaces were"
+    )
+    seconds: int
+    count: int
+
+
+class TranscriptionUsageSummary(BaseSchema):
+    """An organization's successful transcriptions over a window, added up."""
+
+    service: Literal["speech_to_text"]
+    days: int
+    seconds: int = Field(
+        description=(
+            "Audio seconds across the recordings whose length is known, each rounded up "
+            "to the second as its call record's `units`, so this is the sum of what "
+            "`GET /ml/calls` lists. An under-count whenever `count_unknown_length` is not 0"
+        )
+    )
+    count: int = Field(description="Successful transcriptions in the window")
+    count_unknown_length: int = Field(
+        description=(
+            "How many of them have no length: `gpt-4o(-mini)-transcribe` reports none, nor "
+            "does a Mattermost voice note's metadata"
+        )
+    )
+    by_agent: list[TranscriptionUsageByAgent] = Field(
+        description="Longest first. Leaves out calls with no agent, or a deleted one"
+    )
+    by_channel: list[TranscriptionUsageByChannel] = Field(
+        description="Longest first. Leaves out calls that did not arrive on a bot"
+    )
+    by_surface: list[TranscriptionUsageBySurface] = Field(
+        description="Longest first; together these add up to `count`"
+    )
+
+    @classmethod
+    def of(cls, summary: UsageSummary, *, days: int) -> TranscriptionUsageSummary:
+        """Serialize a summary; its seconds are already whole, summed from `units`."""
+        return cls(
+            service="speech_to_text",
+            days=days,
+            seconds=summary.seconds,
+            count=summary.count,
+            count_unknown_length=summary.count_unknown_length,
+            by_agent=[
+                TranscriptionUsageByAgent(
+                    agent_id=group.id,
+                    name=group.name,
+                    seconds=group.seconds,
+                    count=group.count,
+                )
+                for group in summary.by_agent
+            ],
+            by_channel=[
+                TranscriptionUsageByChannel(
+                    channel_bot_id=group.id,
+                    name=group.name,
+                    seconds=group.seconds,
+                    count=group.count,
+                )
+                for group in summary.by_channel
+            ],
+            by_surface=[
+                TranscriptionUsageBySurface(
+                    surface=group.surface,
+                    seconds=group.seconds,
+                    count=group.count,
+                )
+                for group in summary.by_surface
+            ],
+        )

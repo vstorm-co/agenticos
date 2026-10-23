@@ -12,8 +12,6 @@ the person who started it may watch it, because its pictures are them typing a
 password.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
 from typing import NamedTuple

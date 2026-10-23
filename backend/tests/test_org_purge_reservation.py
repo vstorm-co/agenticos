@@ -18,13 +18,14 @@ import pytest
 from app.core.exceptions import ConcurrentChangeError
 from app.db.locks import LockScope, try_hold_name
 from app.services.organization import OrganizationService
+from app.worker.jobs import Restamp
 
 pytestmark = pytest.mark.anyio
 
 SERVICE = "app.services.organization"
-# `dispatch_external_state_cleanup` is imported inside `purge`, so it is patched
+# `queue_external_state_cleanup` is imported inside `purge`, so it is patched
 # where it is defined rather than on the service module.
-SERVICE_TEARDOWN = "app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup"
+SERVICE_TEARDOWN = "app.worker.tasks.teardown_tasks.queue_external_state_cleanup"
 
 
 def _kb(collection_name: str) -> MagicMock:
@@ -63,27 +64,15 @@ def _purge(*, snapshot: list[str], authoritative: list[str], lock_free: bool = T
 
 @contextlib.contextmanager
 def _patched(mocks: dict):
-    # `spawn_after_commit` is imported inside the method, so it is patched where
-    # it is defined rather than on the service module.
+    # The media prefix removal is still handed off after the commit (#55); the
+    # collection cleanup this file is about is a job queued on the purge's session.
     with (
         patch.multiple(SERVICE, **mocks),
-        patch("app.core.background.spawn_after_commit") as spawned,
+        patch("app.core.background.spawn_after_commit"),
+        patch(SERVICE_TEARDOWN, new=AsyncMock()) as queued,
     ):
-        mocks["spawned"] = spawned
+        mocks["dispatch"] = queued
         yield mocks
-
-
-def _collection_cleanups(spawned) -> list:
-    """The dispatches this file is about, which is not every dispatch.
-
-    An organization purge also removes the tenant's offloaded media prefix, and
-    that is unconditional - a directory removal for a tenant that may have
-    offloaded nothing (#55). Asserting "nothing was spawned" would fail on that
-    without saying anything about the collection teardown these tests exist for.
-    """
-    return [
-        call for call in spawned.call_args_list if call.kwargs.get("name") == "org_purge_cleanup"
-    ]
 
 
 async def _run(org, db, mocks) -> dict:
@@ -132,7 +121,7 @@ class TestACollectionCreatedWhileThePurgeRuns:
         with _patched(mocks), pytest.raises(ConcurrentChangeError):
             await OrganizationService(db, vector_store=MagicMock()).purge(org)
 
-        mocks["spawned"].assert_not_called()
+        mocks["dispatch"].assert_not_awaited()
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
 
 
@@ -147,7 +136,8 @@ class TestACollectionAnotherOrganizationStillReferences:
         await _run(org, db, mocks)
 
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
-        assert not _collection_cleanups(mocks["spawned"])
+        _db, _paths, to_drop, _restamps = mocks["dispatch"].call_args.args
+        assert to_drop == []
 
 
 class TestWithNoVectorStoreWired:
@@ -171,29 +161,26 @@ class TestReStampingOrphanedPersonalBases:
 
     @staticmethod
     def _dispatched(mocks: dict) -> tuple:
-        return mocks["dispatch"].call_args.args
+        _db, *queued = mocks["dispatch"].call_args.args
+        return tuple(queued)
 
     async def test_it_dispatches_a_restamp_carrying_each_bases_name_org_and_id(self):
-        """Each orphaned base rides as `[collection, org_id, kb_id]` - the kb id is
-        what lets the deferred cleanup resolve that base's own documents to untag."""
+        """Each orphaned base rides as a `Restamp` - the kb id is what lets the
+        cleanup job resolve that base's own documents to untag."""
         book, notes = _kb("mybook"), _kb("notes")
         org, db, mocks = _purge(snapshot=[], authoritative=[])
         mocks["knowledge_base_repo"].list_personal_carrying_org = AsyncMock(
             return_value=[book, notes]
         )
-        dispatch = MagicMock(return_value=None)
-        with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
-            mocks["dispatch"] = dispatch
+        with _patched(mocks):
             await OrganizationService(db, vector_store=MagicMock()).purge(org)
 
         _paths, to_drop, restamps = self._dispatched(mocks)
         assert to_drop == []
-        assert sorted(restamps) == sorted(
-            [
-                ["mybook", str(org.id), str(book.id)],
-                ["notes", str(org.id), str(notes.id)],
-            ]
-        )
+        assert sorted(restamps, key=lambda r: r.collection) == [
+            Restamp(collection="mybook", organization_id=org.id, knowledge_base_id=book.id),
+            Restamp(collection="notes", organization_id=org.id, knowledge_base_id=notes.id),
+        ]
 
     async def test_a_personal_base_sharing_an_org_name_is_still_restamped(self):
         """The cleanup untags by the base's own documents, so a personal base sharing
@@ -205,21 +192,19 @@ class TestReStampingOrphanedPersonalBases:
         mocks["knowledge_base_repo"].list_personal_carrying_org = AsyncMock(
             return_value=[shared, private]
         )
-        dispatch = MagicMock(return_value=None)
-        with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
-            mocks["dispatch"] = dispatch
+        with _patched(mocks):
             await OrganizationService(db, vector_store=MagicMock()).purge(org)
 
         _paths, _to_drop, restamps = self._dispatched(mocks)
-        assert sorted(r[0] for r in restamps) == ["private", "shared"]
+        assert sorted(r.collection for r in restamps) == ["private", "shared"]
 
-    async def test_no_dispatch_when_nothing_is_orphaned(self):
+    async def test_no_restamp_is_queued_when_nothing_is_orphaned(self):
         org, db, mocks = _purge(snapshot=[], authoritative=[])
-        dispatch = MagicMock(return_value=None)
-        with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
+        with _patched(mocks):
             await OrganizationService(db, vector_store=MagicMock()).purge(org)
 
-        dispatch.assert_not_called()
+        _paths, _to_drop, restamps = self._dispatched(mocks)
+        assert restamps == []
 
     async def test_without_a_vector_store_no_orphan_lookup_runs(self):
         """Ordinary organization work does not pay for a teardown it is not doing, so
@@ -259,3 +244,19 @@ class TestTakingTheLockWithoutWaiting:
         await try_hold_name(db, LockScope.COLLECTION_TEARDOWN, "handbook")
 
         assert "pg_try_advisory_xact_lock" in str(db.execute.await_args.args[0])
+
+
+class TestGeneratedMedia:
+    """The organization's generated media rows cascade with it, so the job queued
+    in the purge's transaction is the only record of the bytes left (#2310)."""
+
+    async def test_its_prefix_rides_the_queued_cleanup_rather_than_a_spawned_task(self):
+        org, db, mocks = _purge(snapshot=[], authoritative=[])
+        with _patched(mocks), patch("app.core.background.spawn_after_commit") as spawned:
+            await OrganizationService(db).purge(org)
+
+        assert mocks["dispatch"].call_args.kwargs["prefixes"] == [f"generated_{org.id}"]
+        assert mocks["dispatch"].call_args.kwargs["organization_id"] == org.id
+        assert [call.kwargs["name"] for call in spawned.call_args_list] == ["org_purge_media"]
+        for call in spawned.call_args_list:
+            call.args[1].close()

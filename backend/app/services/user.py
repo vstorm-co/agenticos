@@ -33,6 +33,7 @@ from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
     collection_teardown_repo,
+    conversation_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
@@ -53,6 +54,7 @@ from app.services import rate_limit
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
+from app.services.generated_media import GeneratedMediaService
 from app.services.organization import OrganizationService
 from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
@@ -80,7 +82,7 @@ deployment's verification mail to any inbox it likes, repeatedly (#1772)."""
 
 
 class UserService:
-    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
+    def __init__(self, db: AsyncSession, vector_store: BaseVectorStore | None = None):
         self.db = db
         # Only the account-teardown path drops a departing user's vector tables.
         # A caller may inject the store (the delete route, a test on its own
@@ -238,7 +240,7 @@ class UserService:
             )
 
         is_first_user = await self._is_first_user()
-        await check_may_register(
+        admission = await check_may_register(
             self.db,
             email=user_in.email,
             is_first_user=is_first_user,
@@ -253,8 +255,12 @@ class UserService:
             full_name=user_in.full_name,
             is_app_admin=is_first_user,
         )
-        org_service = OrganizationService(self.db)
-        await org_service.create_personal_org(user.id, user_in.email)
+        await OrganizationService(self.db).settle_new_account(
+            user.id,
+            user_in.email,
+            invitation_token=user_in.invitation_token,
+            admitted_by_policy=admission == "policy",
+        )
         try:
             login_url = settings.FRONTEND_URL.rstrip("/") + "/login"
             await get_email_service().send_welcome(
@@ -311,7 +317,7 @@ class UserService:
         # simply a check inside `register`: a deployment with Google sign-in and a
         # closed sign-up form is not closed at all if this branch is ungated, and
         # nothing about the OAuth callback looks like a registration.
-        await check_may_register(
+        admission = await check_may_register(
             self.db,
             email=email,
             is_first_user=await self._is_first_user(),
@@ -327,8 +333,12 @@ class UserService:
             oauth_provider=provider,
             oauth_id=provider_id,
         )
-        org_service = OrganizationService(self.db)
-        await org_service.create_personal_org(user.id, user.email)
+        await OrganizationService(self.db).settle_new_account(
+            user.id,
+            user.email,
+            invitation_token=invitation_token,
+            admitted_by_policy=admission == "policy",
+        )
         try:
             login_url = settings.FRONTEND_URL.rstrip("/") + "/login"
             await get_email_service().send_welcome(
@@ -676,6 +686,11 @@ class UserService:
         # were has not erased them, and nothing left can find them afterwards
         # (#1421).
         attachments = await personal_data_repo.attachment_paths_of(self.db, user_id)
+        # And what their agents generated in those conversations (#2310): the
+        # cascade would leave those rows with no conversation and the bytes
+        # readable by the organization. After `_release_owned_rows`, so a project
+        # chat the person started - kept for the team - keeps its media too.
+        await GeneratedMediaService(self.db).forget_user(user_id)
         await PersonalDataService(self.db).purge(user_id)
         await user_repo.delete(self.db, user_id)
         if attachments:
@@ -761,6 +776,10 @@ class UserService:
         them, and their documents, files and vector table would be retained and
         unreachable while the collection name kept blocking reuse. They are torn
         down explicitly, with the same store the org purge needs (#1131).
+
+        A sixth is a loss rather than an orphan: a project's chat the user
+        started, which the `users` cascade would delete for every teammate who
+        reads and continues it. It is kept, with no starter.
         """
         from app.services.rag.embeddings import EmbeddingService
         from app.services.rag.vectorstore import process_vector_store
@@ -820,6 +839,11 @@ class UserService:
                 )
 
         await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
+        # A project's chat is the team's, not its starter's: teammates read and
+        # continue it, and the cascade from `users` would take it - transcript and
+        # all - with the account. Unowned, it stays with the project; the
+        # person's own chats outside any project still go.
+        await conversation_repo.release_project_chats(self.db, user_id=user_id)
 
         await self._purge_personal_collections(user_id)
 
@@ -841,9 +865,9 @@ class UserService:
         Mirrors `OrganizationService.purge`'s collection teardown for the rows the
         org purge cannot see. Each base's document rows and the base row go in the
         request's transaction; the stored files and the physical `rag_<collection>`
-        tables are handed to the durable cleanup after the commit
-        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
-        keeps them, a worker restart mid-cleanup does not orphan them (#1349), and
+        tables are a cleanup job queued in this transaction
+        (`queue_external_state_cleanup`), so a rollback keeps them, a worker
+        restart mid-cleanup does not orphan them (#1349), and
         the drop takes the `COLLECTION_TEARDOWN` lock and re-reads the reference
         check on its own session, so a name a second base still holds - or is
         mid-claim on - keeps its table (#913, #1355). A table is queued for drop
@@ -870,14 +894,9 @@ class UserService:
                 collections_to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or collections_to_drop:
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
-                name="purge-personal-collections",
-            )
+            await queue_external_state_cleanup(self.db, storage_paths, collections_to_drop)
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

@@ -17,8 +17,6 @@ Nothing here reaches a browser; `_page.py` does that and hands a
 :class:`~._elements.Snapshot` in.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator

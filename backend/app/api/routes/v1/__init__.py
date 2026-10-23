@@ -20,6 +20,8 @@ from app.api.routes.v1 import conversations
 from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_mcp_connections
+from app.api.routes.v1 import me_suggestions
+from app.api.routes.v1 import me_watches
 from app.api.routes.v1 import org_mcp_connections
 from app.api.routes.v1 import local_services
 from app.api.routes.v1 import ml as ml_services
@@ -43,14 +45,17 @@ from app.api.routes.v1 import skill_changes
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
+from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
 from app.api.routes.v1 import slack_webhook
-from app.api.routes.v1 import mattermost_webhook
+from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
+from app.api.routes.v1 import teams_webhook
 from app.api.routes.v1 import embed as embed_widget
+from app.api.routes.v1 import embed_generated_media
 from app.api.routes.v1 import members, organizations
 from app.api.routes.v1 import groups, directory_mappings, directory_auth
 from app.api.routes.v1.invitations import (
@@ -68,6 +73,9 @@ from app.api.routes.v1 import catalog_icons
 from app.api.routes.v1 import org_integrations
 from app.api.routes.v1 import notifications
 from app.api.routes.v1 import admin_announcements
+from app.api.routes.v1 import voice
+from app.api.routes.v1 import admin_background_jobs
+from app.api.routes.v1 import run_requests
 
 v1_router = APIRouter()
 
@@ -86,6 +94,10 @@ v1_router.include_router(notifications.router, tags=["notifications"])
 v1_router.include_router(
     admin_announcements.router, prefix="/admin/announcements", tags=["admin:announcements"]
 )
+v1_router.include_router(
+    admin_background_jobs.router, prefix="/admin/background-jobs", tags=["admin:background-jobs"]
+)
+v1_router.include_router(run_requests.router, tags=["agents"])
 v1_router.include_router(model_providers.router, prefix="/providers", tags=["providers"])
 v1_router.include_router(catalog_icons.router, prefix="/catalog", tags=["catalog"])
 v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])
@@ -98,6 +110,7 @@ v1_router.include_router(agent_triggers.org_router, tags=["agents:triggers"])
 v1_router.include_router(trigger_webhooks.router, prefix="/webhooks", tags=["triggers:webhooks"])
 v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:embeds"])
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
+v1_router.include_router(embed_generated_media.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
@@ -108,6 +121,7 @@ v1_router.include_router(context_files.router, prefix="/context", tags=["context
 v1_router.include_router(artifacts.router, prefix="/apps", tags=["apps"])
 v1_router.include_router(artifacts.public_router, prefix="/public/apps", tags=["apps:public"])
 v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["apps"], deprecated=True)
+v1_router.include_router(visuals.router, prefix="/visuals", tags=["visuals"])
 v1_router.include_router(
     artifacts.public_router, prefix="/public/artifacts", tags=["apps:public"], deprecated=True
 )
@@ -159,6 +173,8 @@ v1_router.include_router(
 v1_router.include_router(
     me_mcp_connections.router, prefix="/me/mcp-connections", tags=["me:mcp-connections"]
 )
+v1_router.include_router(me_suggestions.router, prefix="/me/suggestions", tags=["me:suggestions"])
+v1_router.include_router(me_watches.router, prefix="/me/watches", tags=["me:watches"])
 
 v1_router.include_router(
     me_channel_link.router, prefix="/me/channel-link", tags=["me:channel-link"]
@@ -187,6 +203,16 @@ v1_router.include_router(telegram_webhook.router, prefix="/telegram", tags=["tel
 v1_router.include_router(slack_webhook.router, prefix="/slack", tags=["slack"])
 
 v1_router.include_router(mattermost_webhook.router, prefix="/mattermost", tags=["mattermost"])
+v1_router.include_router(a2a.card_router, prefix="/a2a", tags=["a2a"])
+v1_router.include_router(a2a.router, prefix="/a2a", tags=["a2a"])
+v1_router.include_router(
+    external_agents.router, prefix="/external-agents", tags=["external-agents"]
+)
+v1_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+v1_router.include_router(
+    sharing.project_sharing_router, prefix="/projects", tags=["projects:sharing"]
+)
+v1_router.include_router(teams_webhook.router, prefix="/teams", tags=["teams"])
 
 v1_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
 v1_router.include_router(members.router, prefix="/orgs", tags=["members"])
@@ -211,3 +237,4 @@ v1_router.include_router(
 v1_router.include_router(
     org_integrations.router, prefix="/org/integrations", tags=["org:integrations"]
 )
+v1_router.include_router(voice.router, tags=["voice"])

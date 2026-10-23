@@ -1,5 +1,5 @@
 ---
-source_sha: "94ce53b8a699"
+source_sha: "c6da76bc5fe8"
 ---
 
 # Aplikacje { #artifacts }
@@ -128,11 +128,20 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/agenticos-2.css` | Wygląd konsoli dla stron, jasny i ciemny, oraz komponenty `ao-`, z których buduje się stronę |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js w stylu konsoli, formatowanie liczb w języku strony, ikony, zakładki |
 | `lib/agenticos-1.css` | Pierwsza wersja wyglądu, zostawiona dla stron opublikowanych z nią |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 jako moduł ES, z `addons/controls/OrbitControls.js` obok - zmapuj `three` i `three/addons/` mapą importów |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, jako `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, jako `window.L` - rysuje na [kafelkach map](#visuals) deploymentu, jeśli je ma |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: ponumerowane pinezki pokazane po kolei i wbijane jedna po drugiej na życzenie, mapa w proporcji 16:9 do szerokości strony, linia między nimi oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków. `lib/agenticos-map-1.js`, który wbija pinezki przy ładowaniu i ma jedną wysokość, jest dalej serwowany stronom, które go wskazują |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: ponumerowane pinezki wbijane po kolei, linia między nimi, pauza i powtórka oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje
 nowy plik obok starego, więc strona opublikowana z jedną wersją dalej ją dostaje.
 Nic nie jest pobierane spoza wdrożenia, więc wdrożenie bez dostępu do internetu
 działa tak samo. Pliki są wymienione w `backend/app/core/catalog/artifact_lib/`.
+
+Pliki odpowiadają `Access-Control-Allow-Origin: *`, bo skrypt modułowy jest pobierany
+w trybie CORS, a strona w nieprzezroczystym originie wysyła `Origin: null` - bez tego
+three.js by się nie zaimportował.
 
 Dołączony [skill](skills.md) **`artifact-pages`** uczy agenta z nich korzystać: dwa
 szablony (dashboard i raport), styl domu z jego komponentami, ikony zamiast
@@ -141,6 +150,85 @@ emoji i sposób zmiany strony przez
 istniejąca przez `seed-skills`, a zakładka **Page style** capability Artifacts w
 Builderze go proponuje. Edytuj skill, żeby opisać własny branding, a agent będzie
 się go trzymał.
+
+## Wizualizacje { #visuals }
+
+[Wizual](reference/capabilities.md#visuals) to aplikacja, której jeszcze nie zapisano:
+rysunek, który agent pisze w rozmowie przez `draw`, pokazywany pod jego wiadomością w
+trakcie pisania. To ten sam rodzaj dokumentu - wizual `html` jest stroną, a `svg` czy
+`mermaid` staje się stroną, która go zawiera - i jest rysowany z tą samą izolacją.
+
+**Ramka.** `/api/v1/artifact-content/visual-frame` to jedna stała strona na originie
+treści, serwowana z tą samą polityką, którą dostaje strona każdej aplikacji. Nie zawiera
+rysunku: konsola wysyła do niej rysunek w trakcie strumieniowania, więc nic nie musi być
+zapisane, zanim zostanie pokazane, a izolacja pochodzi z nagłówka odpowiedzi, a nie z
+meta tagu `srcdoc`. Podczas strumieniowania ramka przekształca znaczniki na miejscu, bez
+skryptów i atrybutów `on*`; po zakończeniu zapisuje cały dokument, żeby jego skrypty
+ruszyły, dokładnie tak jak na zapisanej stronie. Ramka zgłasza swój rozmiar, błędy i
+sygnał życia; rysunek, który przestaje go wysyłać, jest zamykany, zamiast blokować kartę.
+
+**W czacie.** Rysunek stoi w samej rozmowie, bez karty wokół, od lewej krawędzi
+tekstu wiadomości: SVG jest dopasowane po `viewBox` i zmniejszane powyżej 560 pikseli,
+strona jest układana w szerokości kolumny i zmniejszana powyżej 900. Cicha linia pod
+nim podaje jego nazwę i mówi, czy wciąż jest rysowany; *Pokaż kod*, *Pobierz*
+(`.svg`, `.html` albo źródło Mermaid), *Kopiuj jako obraz* dla SVG, *Zapisz w
+aplikacjach* i *Pełny ekran* pojawiają się w tej linii, gdy kursor jest nad
+rysunkiem, a na ekranie dotykowym zawsze. Podczas streamingu rysunek trzyma
+wysokość zadeklarowaną w wywołaniu, na delikatnym tle, więc rozmowa nie przesuwa
+się pod czytelnikiem. Pełny ekran pokazuje go w jego rozmiarze; na telefonie podgląd
+otwiera pełny ekran po stuknięciu. Powiększenie pojawia się w prawym dolnym rogu
+rysunku, gdy jest na nim kursor: SVG jest rysowane większe, strona skalowana, a
+ramka przewija się, gdy rysunek z niej wyrośnie. Błąd zgłoszony przez rysunek
+przychodzi z *Napraw*, które prosi agenta.
+
+**Dalsze pytania (follow-upy).** Kontrolka w rysunku może oddać wybór osoby do
+rozmowy - *Zaplanuj ten przystanek*, *Użyj tych liczb* - wywołując
+`agenticos.followUp(text)`. Rysunek tylko prosi. Konsola pokazuje dokładny tekst
+pod rysunkiem z *Wyślij*, *Edytuj* i *Odrzuć*, a wiadomością osoby staje się on
+dopiero, gdy kliknie *Wyślij* - tego kliknięcia rysunek nie wykona za nią. Prośba,
+za którą nie stoi interakcja użytkownika - przy ładowaniu, z timera - jest
+odrzucana, podobnie jak dłuższa niż 2000 znaków, a gdy jedna czeka, druga nie może
+jej zastąpić. Follow-upy są dostępne tylko w czacie: `agenticos.canFollowUp()` jest
+fałszywe w udostępnionym wątku, w widżecie i w aplikacji, gdzie `followUp` nic nie
+robi i zwraca `false`, więc zapisany rysunek nadal działa.
+
+**Mapy.** Gdy ustawione jest
+[`VISUAL_MAP_TILES`](configuration.md#published-artifacts), rysunek albo aplikacja
+mogą rysować na prawdziwych kafelkach map: deployment pobiera każdy kafelek z
+tego serwera i serwuje go z własnej ścieżki kafelków, `agenticos.map` mówi
+gdzie, a kit map rysuje na nim trasę z atrybucją serwera pod spodem. Bez tego to
+samo wywołanie rysuje zarys przystanków - pinezki i linię między nimi, bez ulic -
+i tak samo mapa, której kafelki się nie ładują. Agent mówi o tym w odpowiedzi: że
+nie podłączono serwera map i że administrator włącza prawdziwe mapy tym
+ustawieniem. Obraz mapy w aplikacji czatowej
+jest rysowany w stanie końcowym, ze wszystkimi pinezkami.
+
+**Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest
+właściwą odpowiedzią: tekst dla faktu albo rady, tabela Markdown dla dokładnych
+wartości, `create_chart` dla liczb do obejrzenia - więc „teraz zrób wykres” zamienia
+tabelę w natywny wykres - a rysunek, by wyjaśnić, jak coś działa, zrobić narzędzie
+na chwilę albo śledzić miejsca na mapie. Jego szablony to diagram, objaśnienie z
+suwakami, samolot 3D z pochyleniem, przechyleniem i odchyleniem, kalkulator i
+plan podróży. Pusty czat z agentem, który rysuje, otwiera się z jednym starterem na
+każdy z nich. Włączenie Wizualizacji w Builderze podpina też Wykresy (Charts).
+
+**Pobieranie.** Plik otwarty z dysku nie ma wokół siebie ramki, więc pobrany plik
+niesie to, co wymuszała ramka. SVG zachowuje rysunek i traci to, co mogłoby się
+uruchomić albo sięgnąć na zewnątrz: skrypty, handlery, osadzone dokumenty i każde
+odwołanie poza plik. Strona otwiera się z polityką ramki przed wszystkim, co
+napisała, i ładuje biblioteki z originu artefaktów tego wdrożenia.
+
+**Zapis jako aplikacja.** *Zapisz w Aplikacjach* bierze tytuł i nazwę, obie wypełnione,
+i publikuje wizual jako wersję aplikacji pod agentem, którego tura go narysowała,
+w środowisku, w którym ta tura działała, należącą do osoby, która zapisuje, i prywatną, dopóki jej nie udostępni. Serwer odtwarza
+wizual z transkryptu - z naniesionymi poprawkami - zamiast brać bajty z przeglądarki,
+więc aplikacja jest dokładnie tym, co narysował agent. Zapis pod nazwą, którą osoba już
+ma, dodaje wersję tej aplikacji - w ten sposób poprawka zapisanego rysunku aktualizuje
+stronę, którą udostępniono. Zapis wymaga `artifacts:edit`.
+
+**Z delegata.** Rysunek zostaje w runie, który go zrobił, więc agent działający
+jako delegat innego agenta nie rysuje: `draw` mu to mówi, a on opisuje obraz w
+swoim wyniku, żeby agent, dla którego pracuje, narysował go w rozmowie.
 
 ## Kto może ją otworzyć { #who-can-open-it }
 
@@ -237,7 +325,7 @@ ani osoby, która ją ogląda:
   bezpośrednio.
 - Ta sama polityka ustawia `default-src 'none'` i `connect-src 'none'`. Jedynym
   zdalnym źródłem, jakie wymienia, jest własna ścieżka zestawu bibliotek w
-  originie treści, dla skryptów, stylów i fontów. `frame-ancestors` wymienia tylko
+  originie treści, dla skryptów, stylów i fontów. Na deploymencie, który ustawia `VISUAL_MAP_TILES`, dochodzą obrazy z jego własnej ścieżki kafelków, `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. Ta trasa przyjmuje trzy liczby, każdą sprawdzoną względem przybliżenia, przy którym kafelek istnieje, i sama pobiera kafelek, więc strona nigdy nie poznaje adresu ani klucza serwera kafelków i nie może mu wysłać niczego, co sama wybrała. `frame-ancestors` wymienia tylko
   konsolę — a dla strony z publicznym linkiem i witrynami do osadzania także
   dokument osadzenia i te witryny. Ramka w konsoli niesie tę samą listę `sandbox`
   jako drugi zamek.
@@ -249,7 +337,7 @@ ani osoby, która ją ogląda:
   otwierają go w nowej karcie tylko wtedy, gdy człowiek się zgodzi; dokument
   osadzenia robi to samo w pasku pod stroną. Strona mogłaby wysłać tę wiadomość
   sama, więc jest ona prośbą, a nigdy zgodą — to człowiek czytający adres stoi
-  między stroną po prompt injection a adresem, pod który wysłałaby swoje liczby.
+  między stroną po prompt injection a adresem, pod który wysłałaby swoje liczby. [Follow-up](#visuals) to prośba tego samego rodzaju: konsola pokazuje tekst, a wysyła go człowiek.
 - Jeden podpisany adres ładuje swoją stronę najwyżej kilka razy na minutę, licząc
   per adres, zanim cokolwiek zostanie odczytane. Konsola i strona publiczna
   wydają świeży adres za każdym razem, gdy rysują ramkę, a wydanie go przez
@@ -322,6 +410,13 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
   zalogować się w ramce na cudzej witrynie.
 - **Usunięte wersje przepadają.** Rozmowa, która linkuje do wersji starszej niż
   przechowywane okno, może zaproponować tylko najnowszą.
+- **Wizual rysuje się tylko w czacie konsoli i w udostępnionym wątku.** Aplikacja
+  czatu dostaje jego obraz, gdy `VISUAL_RENDER_CDP_URL` wskazuje przeglądarkę, a w
+  przeciwnym razie tytuł; widget i osadzenie na innej witrynie pokazują jego tytuł.
+- **Udostępniony wątek pokazuje dwanaście najnowszych wizuali** i nie więcej niż
+  16 MB łącznie. Każdy, kto ma link, może go otwierać dowolnie często, więc jedno
+  wyświetlenie jest ograniczone; tura poza którymś z limitów zachowuje tekst i nie
+  pokazuje rysunku.
 
 ## Podsumowanie { #recap }
 

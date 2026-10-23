@@ -203,8 +203,8 @@ describe("the workspace panel", () => {
     expect(await screen.findByRole("button", { name: /Show the files \(1\)/ })).toBeVisible();
   });
 
-  it("is absent before a conversation exists", () => {
-    const { container } = draw(
+  it("is there before a conversation exists, saying what will land in it", async () => {
+    draw(
       <WorkspaceFiles
         buttonSlot={document.body}
         conversationId={null}
@@ -213,8 +213,30 @@ describe("the workspace panel", () => {
       />,
     );
 
-    expect(container).toBeEmptyDOMElement();
+    await userEvent.click(screen.getByRole("button", { name: "Show the files" }));
+    expect(
+      screen.getByText(
+        "Files you attach and files the agent writes appear here once the conversation starts.",
+      ),
+    ).toBeInTheDocument();
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("lies over a narrow window's conversation instead of taking a column from it", async () => {
+    // A column of its own squeezed the Architect's composer until its buttons
+    // fell out of the box.
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId={null}
+        attachments={[]}
+        revision={0}
+        overlay
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Show the files" }));
+    expect(screen.getByRole("complementary")).toHaveClass("absolute");
   });
 
   it("does not list a directory as a file", async () => {

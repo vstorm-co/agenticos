@@ -1,5 +1,5 @@
 ---
-source_sha: "911fcf1c1d12"
+source_sha: "6e9ccd7fcca1"
 ---
 
 # Słownik { #glossary }
@@ -20,12 +20,14 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Test | Czat obok Buildera, który odpowiada jako wersja robocza albo dowolna wersja | `is_test` na jego runach |
 | Instrukcje | To, co agent słyszy przed każdą rozmową | `instructions` |
 | Zmienne | `{{name}}` w instrukcjach, uzupełniane na starcie runu | `variables` |
+| Pierwsze wiadomości | To, co pusty czat proponuje komuś, kto otwiera agenta, każda jednym kliknięciem | `starters` |
 | Capability | Coś, co agent może robić, włączane w Builderze | `capabilities[]` |
 | Skill | Wiedza praktyczna zapisana raz i czytana przez każdego agenta, który jej potrzebuje | `skill` |
 | Kontekst | Stała wiedza, którą agent zawsze ma, np. słownik albo polityka | `context` |
 | Baza wiedzy | Dokumenty, które agent przeszukuje i cytuje | `collection` |
 | Aplikacja | Strona, którą publikuje agent, np. raport albo mały dashboard | `artifact` |
 | Architekt | Asystent w rogu każdej strony, który może budować z tobą agentów | `platform-assistant` |
+| AgenticOS | Agent ogólnego przeznaczenia, z którym nowa organizacja zaczyna w Chat, i to, od czego zaczyna nowy agent | `general/agenticos` |
 
 ## Gdzie to działa { #where-it-runs }
 
@@ -37,6 +39,8 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Run | Jedna odpowiedź agenta, z jej kosztem i krokami | `agent_run` |
 | Środowisko | Nazwany etap, np. produkcja, wskazujący jedną wersję | `environment` |
 | Serwer MCP | Zewnętrzny serwer narzędzi, z którego korzystają agenci, podłączony raz | `mcp_connection` |
+| Zdalny agent | Agent innego dostawcy, osiągalny przez A2A, do którego delegują agenci | `external_agent` |
+| Agent2Agent (A2A) | Protokół, przez który agenci innych systemów wysyłają agentowi zadania | `a2a_enabled` |
 | Sandbox | Odizolowany komputer, na którym agent zapisuje pliki i uruchamia kod | `sandbox` |
 | Dokumenty | Pliki, które agenci trzymają dla człowieka, załączone lub napisane, w swoich sandboxach | `workspace` |
 
@@ -66,9 +70,11 @@ w [Capabilities](capabilities.md).
 | Wykresy | `charts` |
 | Data i godzina | `clock` |
 | Obliczenia | `code_execution` |
+| Coding agent | `coding_agent` |
 | Długie rozmowy | `compaction` |
 | Kontekst | `context` |
 | Poprzednie rozmowy | `conversation_search` |
+| Następne kroki | `follow_ups` |
 | Zabezpieczenia | `guardrails` |
 | Generowanie obrazów | `image_generation` |
 | Wyszukiwanie wiedzy | `knowledge` |
@@ -81,8 +87,11 @@ w [Capabilities](capabilities.md).
 | Skille | `skills` |
 | Subagenci | `subagents` |
 | Przypomnienia instrukcji | `system_reminders` |
+| Zamiana tekstu na mowę | `text_to_speech` |
 | Myślenie | `thinking` |
 | Limity wyników narzędzi | `tool_output_limits` |
 | Wyszukiwanie narzędzi | `tool_search` |
+| Generowanie wideo | `video_generation` |
+| Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |

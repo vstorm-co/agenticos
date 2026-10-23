@@ -1,6 +1,6 @@
 """Sends what the notification write path queued (#1598).
 
-One flow, two committed steps: claim due deliveries and advance their lease
+One sweep, two committed steps: claim due deliveries and advance their lease
 (one transaction), then send and settle each claimed row (one transaction
 apiece, opened fresh per row - see `app.services.notification_delivery` for
 why holding one session across both would undo the claim's own guarantee).
@@ -13,8 +13,6 @@ import logging
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
-
-from prefect import flow
 
 from app.db.models.notification import (
     NOTIFICATION_OUTER_RETENTION_DAYS,
@@ -58,11 +56,13 @@ async def _send_and_settle_one(
         )
 
 
-@flow(name="notification-delivery-sweep")
-async def notification_delivery_sweep_flow() -> dict[str, int]:
+async def deliver_due_notifications() -> dict[str, int]:
     """Claim, send and settle every due delivery, then reap what a dead
-    worker left behind. Returns outcome counts, so a flow run's result says
-    what it did without anybody reading the logs."""
+    worker left behind. Returns outcome counts, so a test or a caller can say
+    what it did without reading the logs.
+
+    The `deliver-notifications` schedule (`app/worker/schedules.py`), every
+    minute: a pending delivery sits queued for at most one tick."""
     now = datetime.now(UTC)
     async with get_worker_db_context() as db:
         claimed = await NotificationDeliveryService(db).claim_and_advance(now=now)
@@ -93,8 +93,7 @@ async def notification_delivery_sweep_flow() -> dict[str, int]:
     return counts
 
 
-@flow(name="notification-retention-sweep", log_prints=True)
-async def notification_retention_sweep_flow() -> int:
+async def sweep_notifications() -> int:
     """Drop notifications past their retention window (Decision 8).
 
     Both cutoffs are age since the row was *created*, never since it was
@@ -105,7 +104,7 @@ async def notification_retention_sweep_flow() -> int:
     `NOTIFICATION_OUTER_RETENTION_DAYS`, so it does not vanish out from
     under someone who genuinely has not looked, but even that grace has a
     ceiling: a row that old is dropped either way. Daily,
-    matching `sweep_sandbox_operations_flow`: the exact hour a row leaves is
+    matching `sweep_sandbox_operations`: the exact hour a row leaves is
     nobody's business, and a delete over a many-day-old boundary is cheap
     run once rather than hourly.
     """

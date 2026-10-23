@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "7772e57485bb"
 ---
 
 # Governance { #governance }
@@ -478,6 +478,80 @@ dando la factura, porque el coste de cada hijo lo añade su propia fila y lo qui
 de su padre. Una clave funciona igual, e importa más: una clave es lo que alguien
 rota cuando una factura parece mal.
 
+### El budget de una llamada de voz { #a-voice-calls-budget }
+
+Una [llamada de voz](voice.md) es un run, y su gasto cuenta contra los budgets
+del agent y de la organización como cualquier otro. Tres cosas cambian, porque
+una llamada no se puede comprobar antes de cada petición como un run de texto:
+
+- **Antes de empezar**, la duración máxima posible de la llamada multiplicada por
+  el precio por minuto del peor caso del modelo se comprueba contra el budget
+  restante. Una llamada que no se podría pagar se rechaza, en vez de empezar y
+  cortarse a medias.
+- **Mientras dura**, cada respuesta se anota en el run cuando termina, y el gasto
+  del mes se vuelve a leer cada 15 segundos, así que se ve lo que otros runs
+  gastan entretanto. Un budget que se agota a mitad de llamada recibe una frase
+  hablada y termina la llamada, registrada como `budget_exceeded`.
+- **Su duración es la del agent.** Una llamada dura como mucho la llamada más
+  larga del agent, 10 minutos por defecto y 50 como máximo; no hay una bolsa
+  aparte de minutos de llamada, así que los budgets son el único límite de lo
+  que gastan las llamadas.
+
+Una llamada cuyo proceso murió la cierra el barrido de voz con el coste que
+registró su último heartbeat, a diferencia de un run de texto, cuyo gasto muere
+con su proceso.
+
+### Trabajo por iniciativa propia { #proactive-work }
+
+La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
+hasta que una organización lo activa: la tarjeta **Proactividad** en su página de
+miembros (`budgets:manage`). Activada, una tarea en segundo plano lee las
+peticiones recientes de cada persona los días y a la hora que eligió la
+organización - en la zona horaria de cada persona, o una hora antes del horario
+laboral que indica su perfil - y propone una rutina para una petición que repite,
+un perfil o los primeros mensajes que ofrece su chat vacío
+([Consola](console.md#chat)).
+
+Cada uno es una llamada al modelo, con el modelo
+que la organización eligió al activarla (no hay uno por defecto:
+`proactive_model_profile_id` es obligatorio), registrada en el historial de runs
+como un run de la superficie **proactive** y contada contra el budget de la
+organización como cualquier otra. Una persona puede excluirse en **Ajustes →
+Asistente**.
+
+Además, los runs por iniciativa propia de cada persona en un mes natural los
+limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por
+defecto, que se fija en la misma tarjeta (`proactive_limit_usd`). Una persona a la
+que no le pasó nada nuevo no cuesta nada: la tarea solo llama al modelo cuando hay
+algo que leer.
+
+Las **vigilancias** apuntan el mismo trabajo a las conexiones propias de una
+persona. Se activan aparte en la misma tarjeta (`proactive_watches_enabled`),
+con el mismo modelo y dentro del mismo límite. Una persona crea una con **New
+watch** en **Rutinas**, donde una tarjeta de vigilancias muestra cada una con
+cuándo revisó por última vez y cuántos de sus hallazgos esperan, o con **Watch**
+junto a **Tools** de la cuenta en la página de servidores MCP.
+
+Elige una de sus propias conexiones MCP - cualquier servidor que haya conectado
+- y dice qué buscar - una vigilancia hecha para ese servidor o sus propias
+palabras - y cada cuánto, nunca más a menudo de lo que permite la organización
+(`proactive_watch_min_minutes`, cada hora por defecto).
+
+Cada revisión es un run de la superficie **proactive** al que solo se le ofrecen
+las herramientas que el servidor marca como de solo lectura (`readOnlyHint`), así
+que una vigilancia nunca cambia nada en la cuenta. Lo que encuentra es solo de la
+persona: una sugerencia de tipo `finding`, con la clave del id propio del
+elemento para que se avise una vez, con un enlace para abrirlo. Un hallazgo de
+una vigilancia configurada para avisar lo urgente al momento, que el modelo
+también juzgó urgente, se envía enseguida como notificación; el resto espera a su
+[briefing](console.md#the-inbox) de la mañana. A diferencia de una rutina, una vigilancia calla cuando no hay nada nuevo.
+
+La misma tarjeta tiene el **mensaje de bienvenida**, desactivado por defecto y
+sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y
+Mattermost de la organización a un miembro nuevo, con las palabras de la
+organización si las escribió (`{organization}`, `{bot}` y `{url}` se rellenan) o
+el saludo incorporado en su idioma.
+
 ### Qué muestra el historial de runs { #what-run-history-shows }
 
 **`GET /runs` lista solo runs de nivel superior, y su `total` cuenta esos.** El
@@ -901,11 +975,92 @@ La otra clase de desbocamiento es un bucle de herramientas: barato por llamada, 
 termina nunca. Un budget solo factura eso. `max_steps` limita cuántas peticiones al
 modelo puede hacer un run y es lo que de verdad lo detiene.
 
+El guardián de bucles detiene la mayoría antes, y dice por qué. Lo tiene cada
+agente, activado por defecto. Cuando un run llama a una herramienta con los
+mismos argumentos cuatro veces seguidas, o recorre tres veces un ciclo de dos o
+tres llamadas, se le dice al modelo que está en un bucle y que cambie de enfoque.
+Si las llamadas tras ese aviso vuelven a entrar en bucle, el run termina como
+`loop_stopped`, con un motivo que nombra las herramientas - nunca sus
+argumentos.
+
+Llamadas con argumentos distintos nunca son un bucle, y solo cuentan
+las llamadas del propio run. El Builder fija ambos umbrales, o apaga el
+guardián, junto a `max_steps` (`loop_guard` en el spec).
+
+### Revisores del run { #run-reviewers }
+
+Un run largo deriva: las instrucciones se desvanecen, se acumulan afirmaciones sin
+fuente, el agente se aleja de la petición. Un agente puede llevar hasta cinco
+revisores (`reviewers` en el spec, *Revisores del run* en el Builder junto a los
+límites), cada uno un segundo modelo, normalmente más barato, con un solo
+cometido. Cada `every` peticiones al modelo un revisor lee los últimos `window`
+tokens del run y lo deja seguir o envía una corrección breve, que el modelo del
+run recibe en su siguiente petición con el nombre del revisor. La vista del run
+lista cada corrección y quién la envió.
+
+Las llamadas de un revisor se comprueban contra el budget del agente y de la
+organización antes de hacerse y se anotan en el run, al precio del modelo del
+revisor. Una rechazada por el budget se omite, y un revisor que falla queda
+registrado; ninguna de las dos hace fallar el run. Un agente sin revisor no hace
+llamadas de modelo adicionales.
+
+### Modo código { #code-mode }
+
+Un agente que recorre registros - actualiza diez filas y luego las resume - paga
+un turno de modelo por cada llamada dependiente, y cada turno reenvía todo el
+contexto. Con el *Modo código* activado (`code_mode` en el spec, junto a los
+límites en el Builder) las herramientas del agente se pliegan en una sola
+herramienta `run_code`: el modelo escribe un script corto de Python que corre en
+el sandbox Monty y llama a las herramientas en bucles y en paralelo, hasta
+`max_tool_calls` por script.
+
+Como mucho cuatro llamadas de un script corren a la vez y el resto espera, así que
+un script que reparte cientos de llamadas en el sandbox no puede abrirlas todas
+juntas.
+
+Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
+las mismas comprobaciones de permisos que una llamada directa. Una herramienta
+que necesita aprobación nunca se pliega: sigue siendo una llamada normal, y el run
+se detiene para la persona como siempre. La vista del run lista cada script y
+cada llamada que hizo.
+
 ### Informes { #reporting }
 
 Un run que no se pudo tarifar — un modelo que `genai-prices` no conoce — se registra
 a cero con un aviso y el total se marca como un **suelo** en vez de adivinarse. La UI
 lo muestra como un `+` junto a la cifra.
+
+**Las lecturas y escrituras de caché se llevan aparte.** Los tokens de entrada de
+un run incluyen los que el proveedor sirvió desde su caché de prompts y los que
+escribió en ella, y los tres se tarifan aparte - en Claude Sonnet 5.5 una lectura
+de caché cuesta el 5 % de la tarifa de entrada y una escritura el 125 %. Cada run
+y cada respuesta guardan `cache_read_tokens` y `cache_write_tokens` junto al
+total, el coste se calcula a partir de ese reparto, y la vista del run y el coste
+bajo cada respuesta lo muestran - que es lo que concilia un run con la consola del
+proveedor.
+
+**El coste de un run incluye sus delegaciones.** El run que alguien inició lleva
+todo el ledger, delegados incluidos; la fila propia de una delegación reparte el
+mismo dinero por agente, y la vista del run dice que sus delegaciones ya están
+dentro de la cifra de arriba. Sumar ambas cuenta las delegaciones dos veces.
+
+**Una caché de prompts que deja de acertar se señala.** La caché solo compensa
+mientras el principio de cada petición sigue idéntico; una lista de herramientas
+reordenada o una marca de tiempo en las instrucciones hacen que el proveedor
+cobre a precio completo tokens que tenía en caché. Cada agente lee las cifras de
+caché del proveedor en cada respuesta, y una petición cuyo prefijo en caché se
+hundió se marca en la cascada de peticiones del run - *caché rota* cuando el
+proveedor aún debía conservarla, *caché caducada* cuando pasó su retención - con
+cuántos tokens en caché no leyó, y se registra con el agente y el modelo.
+La primera petición de un turno se compara con lo que guardó el turno anterior,
+cuando el mismo worker de API atiende ambos.
+
+Los recuentos se guardan en cada run, así que **Runs → Spend** suma dónde no
+aguantó la caché: una tarjeta *Prompt cache*, una fila por agent y modelo, con
+sus busts, expiraciones y los tokens en caché que no se leyeron de vuelta en la
+ventana - una medida del fallo, no de lo que se volvió a cobrar, ya que una
+compactación también puede acortar el prompt que la caché guardaba.
+La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
 
@@ -1083,6 +1238,29 @@ política `approval` del propio vínculo - `writes` o `all` -, que el modo
 predeterminado **Follow the agent** aplica como la de una capability (ver
 [qué llamadas esperan a una persona](mcp.md#which-calls-wait-for-a-person)).
 
+### Una aprobación dentro de una llamada de voz { #an-approval-inside-a-voice-call }
+
+Una [llamada de voz](voice.md#approvals-in-a-call) no puede pausarse y esperar a
+la cola, así que sus aprobaciones se deciden en la llamada, por la persona que
+está en ella:
+
+- La solicitud se escribe en la cola al instante, y la llamada muestra la
+  herramienta, los argumentos exactos con los que se ejecutará y lo que se oyó
+  decir a quien llama. Aprobar ejecuta esos argumentos, una vez.
+- Se decide **solo a través de la llamada**, y solo por quien llama si tiene
+  `approvals:decide`. `POST /approvals/{id}` rechaza una solicitud que pertenece
+  a una llamada en curso, y el barrido de aprobaciones caducadas de más abajo se
+  salta los runs de voz.
+- **60 segundos** sin decisión la caducan, sin nadie que decida: el mismo null
+  que escribe el barrido. Una llamada que termina por cualquier motivo caduca lo
+  que todavía estuviera esperando.
+- A un miembro sin `approvals:decide` se le dice claramente, y la herramienta se
+  rechaza. Un visitante en un widget o en una página alojada nunca ve una
+  herramienta que necesite aprobación: se deja fuera de su llamada.
+
+`approval_mode` sigue el spec del agent, como en el chat de texto, y cada
+decisión llega al registro de auditoría como cualquier otra.
+
 ### Una decisión que nadie toma { #a-decision-nobody-makes }
 
 Una aprobación espera a una persona, y algunas esperan para siempre: quien revisaba se
@@ -1128,8 +1306,13 @@ La fila de un run se confirma como `running` antes de llamar a su modelo
 que no drena — deja una fila duradera sin nada que la termine: en Activity para
 siempre, y bloqueando cualquier horario del que fuera el run enlazado de su trigger.
 
-Un barrido cada hora termina como **`failed`** todo lo que siga en `running` pasadas
-`STALE_RUN_REAPED_AFTER_HOURS` — seis horas por defecto, cero lo apaga. Nadie detuvo
+Mientras su modelo trabaja, el proceso que ejecuta un run lo marca como vivo cada
+`RUN_HEARTBEAT_SECONDS`. Un barrido cada minuto termina como **`failed`** todo lo
+que siga en `running` sin señal de vida durante `STALE_RUN_REAPED_AFTER_SECONDS` —
+dos minutos por defecto, cero lo apaga — y avisa a las consolas abiertas, así que
+un chat deja de mostrar "Working" sobre un turno que nadie responde y ofrece
+preguntar de nuevo. El run de una llamada de voz queda para el reaper de llamadas,
+que la cuelga. Nadie detuvo
 este run, lo hizo la infraestructura, y quien filtra el historial de runs buscando
 problemas es exactamente quien debería verlo.
 
@@ -1236,13 +1419,20 @@ un relay SMTP caído — sin que el otro se entere jamás.
 
 Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
-las aprobaciones y apagar su correo, o al revés. La misma página lleva además
+las aprobaciones y apagar su correo, o al revés.
+
+La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
-desatendido, la ingesta de un documento que **falla**, la cifra propia de un
+desatendido - el final de una rutina con su nombre y el comienzo de su
+respuesta, para quien la configuró -, la petición de activar una capability,
+para el propietario del agent, la ingesta de un documento que **falla**, la cifra propia de un
 ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
+
+Llegan también las propuestas que el [trabajo por iniciativa
+propia](#proactive-work) hizo para una persona.
 
 Un documento que se indexó limpiamente no escribe nada, y es deliberado. Antes
 escribía una fila cada uno, lo que en el caso corriente — una carpeta de
@@ -1577,7 +1767,7 @@ ellos; la página de la organización es donde se fijan los periodos por tenant.
 |---|---|---|
 | Conversaciones | Mensajes, llamadas a herramientas y los archivos de chat colgados de ellos — los bytes **antes** que las filas, de modo que un archivo que no se pudo desenlazar conserva su fila para la siguiente pasada en vez de sobrevivirla sin que nada pueda encontrarlo | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
 | Runs | La fila del run, su manifiesto y sus aprobaciones de herramientas | El inicio del run |
-| Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila *es* el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox | El último uso |
+| Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila *es* el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox. Los de un proyecto se conservan mientras exista el proyecto | El último uso |
 | Aplicaciones | Una [página publicada](artifacts.md) con todas sus versiones, sus bytes almacenados (**antes** que las filas, como en las conversaciones), sus grants y su enlace público | La última publicación, para que un informe que una programación vuelve a publicar no sea viejo |
 | Memoria | Los archivos de memoria de un agente | La última escritura, porque una nota se escribe una vez y se lee durante meses |
 | Documentos subidos | La fila, sus vectores y el archivo subido | El momento de la subida |

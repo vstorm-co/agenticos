@@ -10,8 +10,6 @@ below the HTTP client and a bag-of-words embedder from the website test - so the
 rows removal reads are the rows the ingest wrote, and the search is the store's own.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncGenerator, Iterator
 from typing import Any
@@ -41,7 +39,7 @@ COLLECTION = "sharepointsync"
 
 
 @pytest.fixture(autouse=True)
-async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None]:
+async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None]:
     """The runtime table is not a model, so the suite's reset does not reach it."""
     async with engine.begin() as conn:
         await conn.execute(text(f"DROP TABLE IF EXISTS rag_{COLLECTION}"))

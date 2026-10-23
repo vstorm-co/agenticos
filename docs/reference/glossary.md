@@ -17,12 +17,14 @@ rename.
 | Test panel | The chat beside the Builder that answers as the draft or any version | `is_test` on its runs |
 | Instructions | What the agent is told before every conversation | `instructions` |
 | Variables | `{{name}}` in the instructions, filled in when a run starts | `variables` |
+| First messages | What an empty chat offers whoever opens the agent, one click each | `starters` |
 | Capability | Something an agent may do, switched on in the Builder | `capabilities[]` |
 | Skill | Know-how written once and read by any agent that needs it | `skill` |
 | Context file | Standing knowledge an agent always has, such as a glossary or a policy | `context` |
 | Knowledge base | Documents an agent searches and cites | `collection` |
 | App | A page an agent publishes, such as a report or a small dashboard | `artifact` |
 | Architect | The assistant in the corner of every page, which can build agents with you | `platform-assistant` |
+| AgenticOS | The general-purpose agent a new organization opens with in Chat, and what a new agent starts as | `general/agenticos` |
 
 ## Where it runs
 
@@ -34,6 +36,8 @@ rename.
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
 | Environment | A named stage, such as production, pointing at one version | `environment` |
 | MCP server | An external tool server agents call, connected once | `mcp_connection` |
+| Remote agent | Another vendor's agent, reached over A2A, that agents delegate to | `external_agent` |
+| Agent2Agent (A2A) | The protocol other systems' agents use to send an agent tasks | `a2a_enabled` |
 | Sandbox | An isolated computer where an agent writes files and runs code | `sandbox` |
 | Documents | The files agents keep for a person, attached or written, in their sandboxes | `workspace` |
 
@@ -63,9 +67,11 @@ in [Capabilities](capabilities.md).
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |
+| Coding agent | `coding_agent` |
 | Long conversations | `compaction` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
+| Follow-ups | `follow_ups` |
 | Guardrails | `guardrails` |
 | Image generation | `image_generation` |
 | Knowledge search | `knowledge` |
@@ -78,8 +84,11 @@ in [Capabilities](capabilities.md).
 | Skills | `skills` |
 | Subagents | `subagents` |
 | Instruction reminders | `system_reminders` |
+| Text to speech | `text_to_speech` |
 | Thinking | `thinking` |
 | Tool output limits | `tool_output_limits` |
 | Tool search | `tool_search` |
+| Video generation | `video_generation` |
+| Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |

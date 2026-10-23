@@ -122,6 +122,11 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   const { kinds, create: createSecret } = useSecrets();
   const queryClient = useQueryClient();
 
+  // The vault's own name for the client a portal's consent flow spends - the
+  // sentence named GitHub's OAuth App on every card, Gmail's included.
+  const credentialName = (kind: string | null) =>
+    kinds.find((known) => known.kind === kind)?.name ?? t("oauthAppFallback");
+
   const categories = useMemo(
     () => [...new Set(items.map((item) => item.portal.category))].sort(),
     [items],
@@ -274,7 +279,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                   {blocked(item) && canManageConnections && (
                     <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
                       {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"], {
-                        service: item.portal.name,
+                        credential: credentialName(item.portal.oauth_app_kind),
                       })}
                     </p>
                   )}

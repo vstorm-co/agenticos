@@ -18,8 +18,6 @@ content type, never taken from the upload: this file is served from the origin t
 app's own pages run on, and `logo.html` there is a script rather than a picture.
 """
 
-from __future__ import annotations
-
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -63,6 +61,10 @@ def a_row(**overrides) -> DeploymentSettings:
         maintenance_mode=False,
         maintenance_message=None,
         notify_impersonated_users=False,
+        personal_organizations=True,
+        default_organization_id=None,
+        default_organization_role="member",
+        dictation_compressed_audio=False,
     )
     row.created_at = WRITTEN
     row.updated_at = None
@@ -319,6 +321,66 @@ class TestTellingAnImpersonatedPerson:
         branding = await DeploymentSettingsService(mock_db_session).branding()
 
         assert "notify_impersonated_users" not in branding.model_dump()
+
+
+class TestAcceptingCompressedDictation:
+    """A risk the administrator takes on the settings page, never a default (#1797)."""
+
+    async def test_an_unconfigured_deployment_takes_raw_pcm_alone(self, mock_db_session, repo):
+        repo.get.return_value = None
+
+        service = DeploymentSettingsService(mock_db_session)
+        assert await service.accepts_compressed_dictation() is False
+        assert (await service.read()).dictation_compressed_audio is False
+        repo.upsert.assert_not_called()
+
+    async def test_it_is_off_until_somebody_turns_it_on(self, mock_db_session, repo):
+        repo.get.return_value = a_row()
+
+        assert (
+            await DeploymentSettingsService(mock_db_session).accepts_compressed_dictation() is False
+        )
+
+    async def test_a_deployment_that_turned_it_on_says_so(self, mock_db_session, repo):
+        repo.get.return_value = a_row(dictation_compressed_audio=True)
+
+        service = DeploymentSettingsService(mock_db_session)
+        assert await service.accepts_compressed_dictation() is True
+        assert (await service.read()).dictation_compressed_audio is True
+
+    async def test_it_is_not_on_the_public_branding(self, mock_db_session, repo):
+        repo.get.return_value = a_row(dictation_compressed_audio=True)
+
+        branding = await DeploymentSettingsService(mock_db_session).branding()
+
+        assert "dictation_compressed_audio" not in branding.model_dump()
+
+    async def test_turning_it_on_is_written_and_audited_by_name(
+        self, mock_db_session, repo, monkeypatch
+    ):
+        recorded = AsyncMock()
+        monkeypatch.setattr(module, "record_audit", recorded)
+
+        await DeploymentSettingsService(mock_db_session).update(
+            actor_user_id=uuid4(), data=DeploymentSettingsUpdate(dictation_compressed_audio=True)
+        )
+
+        assert repo.upsert.await_args.kwargs["update_data"] == {"dictation_compressed_audio": True}
+        assert recorded.await_args.kwargs["details"] == {"fields": ["dictation_compressed_audio"]}
+
+    async def test_a_null_never_reaches_the_column(self, mock_db_session, repo):
+        """NOT NULL, so `null` is "not provided" rather than a third answer."""
+        data = DeploymentSettingsUpdate.model_validate(
+            {"app_name": "Acme", "dictation_compressed_audio": None}
+        )
+
+        await DeploymentSettingsService(mock_db_session).update(actor_user_id=uuid4(), data=data)
+
+        assert repo.upsert.await_args.kwargs["update_data"] == {"app_name": "Acme"}
+
+    def test_only_a_boolean_is_accepted(self):
+        with pytest.raises(ValidationError):
+            DeploymentSettingsUpdate.model_validate({"dictation_compressed_audio": "sometimes"})
 
 
 class TestTheAdministratorsView:
@@ -742,3 +804,93 @@ class TestTheSingletonRepository:
 
     def test_the_model_says_what_it_holds(self):
         assert "Acme AI" in repr(a_row(app_name="Acme AI"))
+
+
+class TestWhereANewAccountStarts:
+    """Personal organizations on or off, and a default organization (#2156)."""
+
+    async def test_an_unconfigured_deployment_keeps_personal_organizations(
+        self, mock_db_session, repo
+    ):
+        placement = await DeploymentSettingsService(mock_db_session).new_account_placement()
+
+        assert placement == module.NewAccountPlacement(
+            personal=True, default_organization_id=None, role="member"
+        )
+        repo.upsert.assert_not_awaited()
+
+    async def test_the_stored_choice_is_what_a_new_account_gets(self, mock_db_session, repo):
+        company = uuid4()
+        repo.get.return_value = a_row(
+            personal_organizations=False,
+            default_organization_id=company,
+            default_organization_role="viewer",
+        )
+
+        placement = await DeploymentSettingsService(mock_db_session).new_account_placement()
+
+        assert placement == module.NewAccountPlacement(
+            personal=False, default_organization_id=company, role="viewer"
+        )
+
+    @pytest.mark.security
+    async def test_an_owner_role_written_by_hand_joins_as_a_member(self, mock_db_session, repo):
+        repo.get.return_value = a_row(default_organization_role="owner")
+
+        placement = await DeploymentSettingsService(mock_db_session).new_account_placement()
+
+        assert placement.role == "member"
+
+    @pytest.mark.security
+    def test_owner_is_not_a_role_the_setting_takes(self):
+        with pytest.raises(ValidationError):
+            DeploymentSettingsUpdate(default_organization_role="owner")
+
+    async def test_the_administrators_view_carries_both_settings(self, mock_db_session, repo):
+        company = uuid4()
+        repo.get.return_value = a_row(personal_organizations=False, default_organization_id=company)
+
+        read = await DeploymentSettingsService(mock_db_session).read()
+
+        assert read.personal_organizations is False
+        assert read.default_organization_id == company
+        assert read.default_organization_role == "member"
+
+    @pytest.mark.parametrize(
+        ("found", "refused"),
+        [(None, "does not exist"), (MagicMock(is_personal=True), "personal organization")],
+    )
+    async def test_a_default_that_is_missing_or_somebodys_own_is_refused(
+        self, mock_db_session, repo, monkeypatch, found, refused
+    ):
+        monkeypatch.setattr(module.organization_repo, "get_by_id", AsyncMock(return_value=found))
+
+        with pytest.raises(BadRequestError, match=refused):
+            await DeploymentSettingsService(mock_db_session).update(
+                actor_user_id=uuid4(),
+                data=DeploymentSettingsUpdate(default_organization_id=uuid4()),
+            )
+        repo.upsert.assert_not_awaited()
+
+    async def test_a_company_organization_is_accepted_and_null_clears_it(
+        self, mock_db_session, repo, monkeypatch
+    ):
+        company = uuid4()
+        monkeypatch.setattr(
+            module.organization_repo,
+            "get_by_id",
+            AsyncMock(return_value=MagicMock(is_personal=False)),
+        )
+        service = DeploymentSettingsService(mock_db_session)
+
+        await service.update(
+            actor_user_id=uuid4(),
+            data=DeploymentSettingsUpdate(default_organization_id=company),
+        )
+        assert repo.upsert.await_args.kwargs["update_data"] == {"default_organization_id": company}
+
+        await service.update(
+            actor_user_id=uuid4(),
+            data=DeploymentSettingsUpdate.model_validate({"default_organization_id": None}),
+        )
+        assert repo.upsert.await_args.kwargs["update_data"] == {"default_organization_id": None}

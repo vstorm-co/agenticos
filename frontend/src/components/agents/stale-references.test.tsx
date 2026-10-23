@@ -43,10 +43,10 @@ describe("staleReferences", () => {
       context_ids: ["ctx-1"],
       skill_ids: ["sk-1"],
       mcp_servers: [
-        { account: "organization", connection_id: "c1", allowed_tools: null },
-        { account: "personal", catalog_key: "notion", allowed_tools: null },
+        { account: "organization", connection_id: "c1", allowed_tools: null, approval: "none" },
+        { account: "personal", catalog_key: "notion", allowed_tools: null, approval: "none" },
         // This deployment's own server is never gone.
-        { account: "platform" },
+        { account: "platform", allowed_tools: null, approval: "writes" },
       ],
     });
 
@@ -64,8 +64,8 @@ describe("staleReferences", () => {
       context_ids: ["ctx-gone"],
       skill_ids: ["sk-gone"],
       mcp_servers: [
-        { account: "organization", connection_id: "c-gone", allowed_tools: null },
-        { account: "personal", catalog_key: "gone", allowed_tools: null },
+        { account: "organization", connection_id: "c-gone", allowed_tools: null, approval: "none" },
+        { account: "personal", catalog_key: "gone", allowed_tools: null, approval: "none" },
       ],
     });
 
@@ -84,7 +84,9 @@ describe("staleReferences", () => {
       collection_ids: ["kb-gone"],
       context_ids: ["ctx-gone"],
       skill_ids: ["sk-gone"],
-      mcp_servers: [{ account: "organization", connection_id: "c-gone", allowed_tools: null }],
+      mcp_servers: [
+        { account: "organization", connection_id: "c-gone", allowed_tools: null, approval: "none" },
+      ],
     });
 
     expect(
@@ -159,8 +161,8 @@ describe("StaleReferences", () => {
       context_ids: ["ctx-gone", "ctx-also-gone"],
       skill_ids: ["sk-1"],
       mcp_servers: [
-        { account: "organization", connection_id: "c1", allowed_tools: null },
-        { account: "personal", catalog_key: "gone", allowed_tools: null },
+        { account: "organization", connection_id: "c1", allowed_tools: null, approval: "none" },
+        { account: "personal", catalog_key: "gone", allowed_tools: null, approval: "none" },
       ],
     });
     render(<StaleReferences spec={draft} onRemove={onRemove} {...KNOWN} />);
@@ -174,7 +176,9 @@ describe("StaleReferences", () => {
       collection_ids: ["kb-1"],
       context_ids: [],
       skill_ids: ["sk-1"],
-      mcp_servers: [{ account: "organization", connection_id: "c1", allowed_tools: null }],
+      mcp_servers: [
+        { account: "organization", connection_id: "c1", allowed_tools: null, approval: "none" },
+      ],
     });
   });
 

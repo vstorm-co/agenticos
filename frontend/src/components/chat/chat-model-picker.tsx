@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import {
   useModelProviders,
@@ -220,14 +221,21 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               only offer what is already stored, and answers "add one in the Vault"
               when nothing is, is a dead end - and the provider is already chosen, so
               the purpose this key needs is known. */}
-          {provider !== undefined && !secrets.some((secret) => secret.purpose === provider.id) && (
-            <InlineSecret
-              kind="api_key"
-              purpose={provider.id}
-              suggestedName={provider.label}
-              onCreated={() => setFailure(null)}
-            />
-          )}
+          {provider !== undefined &&
+            !secrets.some((secret) => secret.purpose === provider.id) &&
+            (provider.kind === "openai_codex" ? (
+              <InlineChatGPTSignIn
+                suggestedName={provider.label}
+                onCreated={() => setFailure(null)}
+              />
+            ) : (
+              <InlineSecret
+                kind="api_key"
+                purpose={provider.id}
+                suggestedName={provider.label}
+                onCreated={() => setFailure(null)}
+              />
+            ))}
 
           <Button type="button" size="sm" disabled={!canApply} onClick={apply}>
             {t("runModel")}

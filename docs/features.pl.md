@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1db9e6554c"
+source_sha: "fc38ba431992"
 ---
 
 # Funkcje { #features }
@@ -91,7 +91,7 @@ capability, która jest wyłączona, cokolwiek mówią jego instrukcje.
 | **Odpowiadać z tego, co wie Twoja firma** — Twoje dokumenty, Twoje spisane procedury i to, co dołączono do tej rozmowy | Knowledge search · Skills · Context |
 | **Pamiętać i sprawdzać** — prowadzić notatki przez wiele rozmów, przypomnieć sobie fakt po znaczeniu albo znaleźć to, co naprawdę padło w przeszłej rozmowie, i to odczytać | Memory · Memory (mem0) · Past conversations |
 | **Pójść i się dowiedzieć** — przeszukać sieć, przeczytać jedną stronę porządnie albo poprowadzić prawdziwą przeglądarkę przez witrynę wymagającą klikania | Web search · Read web pages · Web browser |
-| **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz | Calculations · Sandbox · Charts · Image generation |
+| **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz, przeczytać tekst na głos albo zrobić krótki klip | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Poradzić sobie z pracą za dużą na jedną odpowiedź** — zdelegować do specjalistów, prowadzić listę zadań, pomyśleć dłużej przed odpowiedzią, ciągnąć długą rozmowę bez gubienia jej początku | Delegation · Planning · Thinking · Long conversations |
 | **Trzymać się w ryzach** — zredagować albo zablokować to, co nie może przejść, ograniczyć to, co może zwrócić jedno narzędzie, wiedzieć, jaka jest dzisiaj data | Guardrails · Tool output limits · Date and time |
 
@@ -101,7 +101,7 @@ decyzją, którą ktoś podejmuje wobec *tego* agenta, a nie zmianą w platformi
 
 [Każda capability, jej narzędzia i jej konfiguracja →](reference/capabilities.md)
 
-## Dowolny model, od 27 providerów { #any-model-from-27-providers }
+## Dowolny model, od 28 providerów { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, Ollama na Twoim
 własnym sprzęcie, proxy LiteLLM przed tym wszystkim.
@@ -173,7 +173,19 @@ Publikujesz raz. Ten sam runner odpowiada na wszystkich tych:
 - **Slack**, **Telegram** i **Mattermost**, gdzie `@mention` uruchamia się jako
   osoba, która go wysłała — a nie jako bot
 
-[Powierzchnie →](channels.md)
+Zamiana mowy na tekst działa na nich na własnym providerze organizacji:
+dyktowanie w czacie webowym, na hostowanej stronie i w widgecie oraz
+transkrypcja wiadomości głosowych w Slacku, Telegramie i Mattermost.
+
+**Rozmowy głosowe** pozwalają rozmawiać z opublikowanym agentem i mu przerywać,
+w czacie webowym, na hostowanej stronie albo w widgecie. Agent zachowuje swoje
+narzędzia, wiedzę, zatwierdzenia i budżety, każda tura jest zapisywana jako
+tekst w konwersacji, a żadne audio nie jest przechowywane. Rozmowy są
+wyłączone, dopóki organizacja ich nie włączy, i mają własne limity czasu
+i miesięcznych minut. Modele realtime OpenAI są przetestowane na żywo; Azure
+OpenAI, Gemini Live i xAI nie zostały jeszcze zweryfikowane na żywo.
+
+[Powierzchnie →](channels.md) · [Rozmowy głosowe →](voice.md)
 
 ## Budżety, które naprawdę zatrzymują run { #budgets-that-actually-stop-a-run }
 

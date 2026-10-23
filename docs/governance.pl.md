@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "7772e57485bb"
 ---
 
 # Governance { #governance }
@@ -482,6 +482,75 @@ wierszu dalej daje rachunek, bo koszt każdego dziecka jest dodawany przez jego
 własny wiersz i usuwany przez wiersz jego rodzica. Klucz działa tak samo i znaczy
 więcej: to klucz ktoś rotuje, gdy rachunek wygląda źle.
 
+### Budżet rozmowy głosowej { #a-voice-calls-budget }
+
+[Rozmowa głosowa](voice.md) jest runem, a jej wydatki liczą się do budżetów
+agenta i organizacji jak każde inne. Różnią się trzy rzeczy, bo rozmowy nie da
+się sprawdzić przed każdym żądaniem tak, jak sprawdza się run tekstowy:
+
+- **Zanim się zacznie**, najdłuższy możliwy czas rozmowy pomnożony przez
+  najgorszą cenę modelu za minutę jest porównywany z pozostałym budżetem.
+  Rozmowa, na którą nie byłoby stać, jest odrzucana, zamiast zacząć się i zostać
+  ucięta.
+- **W trakcie**, każda odpowiedź jest księgowana na runie, gdy się skończy, a
+  wydatki miesiąca są odczytywane na nowo co 15 sekund, więc widać runy, które w
+  tym czasie wydają. Budżet, który wyczerpie się w trakcie rozmowy, dostaje jedno
+  wypowiedziane zdanie i kończy rozmowę, zapisaną jako `budget_exceeded`.
+- **Jej długość należy do agenta.** Rozmowa trwa najwyżej tyle, ile najdłuższa
+  rozmowa agenta, domyślnie 10 minut i najwyżej 50; nie ma osobnej puli minut
+  rozmów, więc budżety są jedynym limitem tego, co rozmowy wydają.
+
+Rozmowę, której proces umarł, zamyka przemiatanie rozmów głosowych z kosztem
+zapisanym przez jej ostatni heartbeat - inaczej niż run tekstowy, którego
+wydatki umierają razem z jego procesem.
+
+### Praca z własnej inicjatywy { #proactive-work }
+
+Platforma może zrobić trochę z własnej inicjatywy, ale nie robi nic takiego,
+dopóki organizacja tego nie włączy: karta **Proaktywność** na stronie jej
+członków (`budgets:manage`). Po włączeniu zadanie w tle przegląda ostatnie
+prośby każdej osoby w dni i o godzinie, które wybrała organizacja - w strefie
+czasowej każdej osoby albo godzinę przed godzinami pracy podanymi w jej profilu -
+i proponuje rutynę dla prośby, którą powtarza, profil albo pierwsze wiadomości,
+które oferuje jej pusty czat ([Konsola](console.md#chat)).
+
+Każde to jedno
+wywołanie modelu, na modelu wybranym przez organizację przy włączaniu (nie ma
+domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
+runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
+każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
+
+Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogranicza
+**limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany na tej
+samej karcie (`proactive_limit_usd`). Osoba, u której nic nowego się nie
+wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co czytać.
+
+**Obserwacje** kierują tę samą pracę na własne połączenia osoby. Włącza się je
+osobno na tej samej karcie (`proactive_watches_enabled`), działają na tym samym
+modelu i w tym samym limicie. Osoba zakłada obserwację przyciskiem **Nowa
+obserwacja** w **Rutynach**, gdzie karta Obserwacje pokazuje każdą z tym, kiedy
+ostatnio sprawdzała i ile jej znalezisk czeka, albo przyciskiem **Obserwuj**
+obok **Tools** konta na stronie serwerów MCP. Wybiera jedno ze swoich połączeń
+MCP - dowolny serwer, który podłączyła - i mówi, czego szukać - gotowa
+obserwacja dla tego serwera albo jej własne słowa - i jak często, nigdy
+częściej, niż pozwala organizacja (`proactive_watch_min_minutes`, domyślnie co
+godzinę).
+
+Każdy przegląd to jeden run z powierzchni **proactive**, który dostaje tylko
+narzędzia oznaczone przez serwer jako tylko do odczytu (`readOnlyHint`), więc
+obserwacja niczego na koncie nie zmienia. To, co znajdzie, należy tylko do tej
+osoby: sugestia rodzaju `finding`, z kluczem z identyfikatora samej rzeczy, więc
+każda jest zgłaszana raz, z linkiem, żeby ją otworzyć. Znalezisko z obserwacji
+ustawionej na pilne od razu, które model też uznał za pilne, idzie od razu jako
+powiadomienie; reszta czeka na jej poranny [briefing](console.md#the-inbox). W odróżnieniu od rutyny obserwacja milczy,
+gdy nie ma nic nowego.
+
+Na tej samej karcie jest **wiadomość powitalna**, domyślnie wyłączona i
+wymagająca `org:settings`: wiadomość prywatna dla nowej osoby od botów
+organizacji w Slacku, Teams i Mattermost, słowami organizacji, jeśli je napisała
+(`{organization}`, `{bot}` i `{url}` zostają uzupełnione), albo wbudowanym
+powitaniem w jej języku.
+
 ### Co pokazuje historia runów { #what-run-history-shows }
 
 **`GET /runs` wypisuje wyłącznie runy najwyższego poziomu, a jego `total` liczy
@@ -920,11 +989,86 @@ i nigdy się nie kończy. Budżet tylko wystawia za nią rachunek. `max_steps`
 ogranicza, ile żądań do modelu może wykonać jeden run, i to on faktycznie ją
 zatrzymuje.
 
+Strażnik pętli zatrzymuje większość pętli wcześniej i mówi dlaczego. Ma go każdy
+agent, domyślnie włączony. Gdy run wywoła jedno narzędzie z tymi samymi
+argumentami cztery razy z rzędu albo trzy razy obejdzie cykl dwóch lub trzech
+wywołań, model dostaje informację, że się zapętlił i ma zmienić podejście. Jeśli
+wywołania po tym ostrzeżeniu znowu się zapętlą, run kończy się jako
+`loop_stopped`, z powodem wymieniającym narzędzia - nigdy ich argumenty.
+Wywołania z różnymi argumentami nigdy nie są pętlą i liczą się tylko wywołania
+tego runa. Builder ustawia oba progi albo wyłącza strażnika obok `max_steps`
+(`loop_guard` w specu).
+
+### Recenzenci runu { #run-reviewers }
+
+Długi run dryfuje: instrukcje bledną, twierdzenia bez źródła się mnożą, agent
+odchodzi od prośby. Agent może mieć do pięciu recenzentów (`reviewers` w specu,
+*Recenzenci runu* w Builderze obok limitów), każdy to drugi, zwykle tańszy model z
+jednym zadaniem. Co `every` żądań do modelu recenzent czyta ostatnie `window`
+tokenów runu i albo zostawia go w spokoju, albo wysyła jedną krótką poprawkę,
+którą model runu dostaje przy następnym żądaniu, z nazwą recenzenta. Widok runu
+wymienia każdą poprawkę i to, kto ją wysłał.
+
+Wywołania recenzenta są sprawdzane z budżetem agenta i organizacji, zanim
+zostaną wykonane, i księgowane na runie po cenie modelu recenzenta. Wywołanie
+odrzucone z powodu budżetu jest pomijane, a recenzent, który zawiedzie, jest
+logowany; żadne z nich nie przerywa runu. Agent bez recenzenta nie wykonuje
+dodatkowych wywołań modelu.
+
+### Tryb kodu { #code-mode }
+
+Agent, który przechodzi przez rekordy - zaktualizuj dziesięć wierszy, potem je
+podsumuj - płaci turą modelu za każde zależne wywołanie, a każda tura wysyła
+ponownie cały kontekst. Z włączonym *Trybem kodu* (`code_mode` w specu, obok
+limitów w Builderze) narzędzia agenta są zwijane w jedno narzędzie `run_code`:
+model pisze krótki skrypt Pythona, który działa w sandboksie Monty i wywołuje
+narzędzia w pętlach i równolegle, do `max_tool_calls` na skrypt.
+
+Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skrypt
+rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
+
+Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
+sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające
+zatwierdzenia nigdy nie trafia do skryptu: pozostaje zwykłym wywołaniem, a run
+zatrzymuje się dla człowieka jak zawsze. Widok runu wymienia każdy skrypt i każde
+wywołanie, które wykonał.
+
 ### Raportowanie { #reporting }
 
 Run, którego nie dało się wycenić — model, którego `genai-prices` nie zna — jest
 zapisywany na zero z ostrzeżeniem, a suma jest oznaczana jako **dolna granica**,
 zamiast być zgadywana. UI pokazuje to jako `+` obok liczby.
+
+**Odczyty i zapisy cache są liczone osobno.** Tokeny wejściowe runa obejmują te,
+które dostawca podał z cache promptu, i te, które do niego zapisał, a wszystkie
+trzy są wyceniane osobno - na Claude Sonnet 5.5 odczyt z cache kosztuje 5% stawki
+wejściowej, a zapis 125%. Każdy run i każda odpowiedź zapisują
+`cache_read_tokens` i `cache_write_tokens` obok sumy, koszt jest liczony z tego
+podziału, a widok runa i koszt pod każdą odpowiedzią go pokazują - i to pozwala
+uzgodnić run z konsolą dostawcy.
+
+**Koszt runa obejmuje jego delegacje.** Run, który ktoś uruchomił, niesie cały
+ledger, łącznie z delegatami; własny wiersz delegacji dzieli te same pieniądze
+według agenta, a widok runa mówi, że jego delegacje są już w liczbie nad nimi.
+Dodanie obu liczy delegacje dwa razy.
+
+**Cache promptu, który przestaje trafiać, jest oznaczany.** Cache'owanie opłaca
+się tylko, dopóki początek każdego żądania jest identyczny; zmieniona kolejność
+narzędzi albo znacznik czasu w instrukcjach sprawia, że dostawca liczy pełną
+stawkę za tokeny, które miał w cache. Każdy agent odczytuje z każdej odpowiedzi
+liczby cache podane przez dostawcę, a żądanie, którego prefiks z cache się
+załamał, jest oznaczane w wykresie żądań runu - *cache zerwany*, gdy dostawca
+powinien go jeszcze trzymać, *cache wygasł*, gdy minęła retencja - z liczbą
+tokenów z cache, których nie odczytało, i logowane z agentem i modelem.
+Pierwsze żądanie tury jest porównywane z tym, co zapisała poprzednia tura, gdy
+obie obsługuje ten sam worker API.
+
+Liczby są zapisywane na każdym runie, więc **Runs → Spend** sumuje, gdzie cache
+nie trzymał: karta *Cache promptu*, jeden wiersz na agenta i model, z busts,
+wygaśnięciami i tokenami z cache, których nie odczytano z powrotem, w wybranym
+oknie - to miara chybienia, a nie tego, co naliczono ponownie, bo prompt trzymany
+w cache może też skrócić kompakcja.
+Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
 
@@ -1105,6 +1249,29 @@ każe im czekać własna polityka `approval` powiązania - `writes` albo `all` -
 domyślny tryb **Follow the agent** stosuje tak jak politykę capability (zobacz
 [które wywołania czekają na człowieka](mcp.md#which-calls-wait-for-a-person)).
 
+### Zatwierdzenie w trakcie rozmowy głosowej { #an-approval-inside-a-voice-call }
+
+[Rozmowa głosowa](voice.md#approvals-in-a-call) nie może się wstrzymać i czekać
+na kolejkę, więc jej zatwierdzenia rozstrzyga się w rozmowie, a decyduje osoba,
+która w niej jest:
+
+- Prośba trafia do kolejki od razu, a rozmowa pokazuje narzędzie, dokładne
+  argumenty, z którymi się wykona, i to, co według transkrypcji powiedział
+  rozmówca. Zatwierdzenie wykonuje te argumenty, raz.
+- Rozstrzyga się ją **wyłącznie przez rozmowę** i tylko wtedy, gdy rozmówca ma
+  `approvals:decide`. `POST /approvals/{id}` odrzuca prośbę, która należy do
+  trwającej rozmowy, a opisane niżej przemiatanie nieaktualnych zatwierdzeń
+  pomija runy głosowe.
+- **60 sekund** bez decyzji powoduje jej wygaśnięcie, bez decydenta - ten sam
+  null, który zapisuje przemiatanie. Rozmowa, która kończy się z dowolnego
+  powodu, powoduje wygaśnięcie wszystkiego, na co jeszcze czekała.
+- Członek bez `approvals:decide` słyszy to wprost, a narzędzie jest odrzucane.
+  Odwiedzający w widgecie albo na hostowanej stronie nigdy nie widzi narzędzia,
+  które wymaga zatwierdzenia: jest ono pomijane w jego rozmowie.
+
+`approval_mode` wynika ze speca agenta, tak jak w czacie tekstowym, a każda
+decyzja trafia do śladu audytowego jak każda inna.
+
 ### Decyzja, której nikt nie podejmuje { #a-decision-nobody-makes }
 
 Zatwierdzenie czeka na człowieka, a niektóre czekają wiecznie: recenzent odszedł,
@@ -1152,9 +1319,13 @@ drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Acti
 zawsze i blokujący każdy harmonogram, dla którego triggera był podlinkowanym
 runem.
 
-Godzinne przemiatanie kończy wszystko, co dalej jest `running` po
-`STALE_RUN_REAPED_AFTER_HOURS` — domyślnie sześć godzin, zero to wyłącza — jako
-**`failed`**. Nikt nie zatrzymał tego runa, zrobiła to infrastruktura, a operator
+Gdy model pracuje, proces wykonujący run oznacza go jako żywy co
+`RUN_HEARTBEAT_SECONDS`. Przemiatanie co minutę kończy jako **`failed`** wszystko,
+co dalej jest `running` bez znaku życia przez `STALE_RUN_REAPED_AFTER_SECONDS` —
+domyślnie dwie minuty, zero to wyłącza — i mówi o tym otwartym konsolom, więc
+czat przestaje pokazywać "Working" nad turą, na którą nikt nie odpowiada, i
+proponuje zapytać ponownie. Run rozmowy głosowej zostaje dla reapera rozmów,
+który ją rozłącza. Nikt nie zatrzymał tego runa, zrobiła to infrastruktura, a operator
 filtrujący historię runów pod kątem problemów to dokładnie ten, kto powinien go
 zobaczyć.
 
@@ -1262,9 +1433,14 @@ SMTP — a drugi nigdy się o tym nie dowie.
 
 Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
 **Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
-zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
+zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie.
+
+Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
-błąd runa, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
+błąd runa - koniec rutyny nazwany jej imieniem i zaczynający się początkiem jej
+odpowiedzi, dla osoby, która ją ustawiła - prośbę o włączenie capability, dla
+właściciela agenta, propozycje, które [praca z własnej
+inicjatywy](#proactive-work) przygotowała dla osoby, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
 konektora oraz własne ogłoszenie administratora aplikacji -
 `POST /admin/announcements`, jeszcze bez strony w konsoli - adresowane do
 organizacji i, opcjonalnie, do roli, oraz ograniczone do jednego albo obu
@@ -1607,7 +1783,7 @@ gdzie ustawia się okresy per tenant.
 |---|---|---|
 | Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty **przed** wierszami, więc plik, którego nie udało się odpiąć, zachowuje swój wiersz na kolejny przebieg, zamiast przeżyć go nieodnajdywalny | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
 | Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
-| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa | Ostatniego użycia |
+| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa. Pliki projektu zostają, dopóki jest projekt | Ostatniego użycia |
 | Aplikacje | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
 | Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
 | Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |

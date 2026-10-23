@@ -9,8 +9,6 @@ reason the content route exists at all - the headers that isolate the page.
 These run the real service with the repository stubbed at the database edge.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -170,6 +168,23 @@ class TestMembers:
         assert body["total"] == 1
         assert body["items"][0]["current_version"]["number"] == 3
         assert body["items"][0]["public_url"] is None
+
+    async def test_the_listing_narrows_to_a_project_the_caller_can_see(
+        self, client: OpenClient
+    ) -> None:
+        project_id = uuid.uuid4()
+        with (
+            patch(f"{PATH}.ProjectService") as projects,
+            patch(
+                f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([], 0))
+            ) as listing,
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+        ):
+            projects.return_value.get = AsyncMock()
+            async with client() as http:
+                response = await http.get(_url(f"?project_id={project_id}"))
+        assert response.status_code == 200
+        assert listing.await_args.kwargs["project_id"] == project_id
 
     @pytest.mark.security
     async def test_an_artifact_in_another_organization_is_not_found(
@@ -342,6 +357,53 @@ class TestTheContentRoute:
             response = await http.get(f"{settings.API_V1_STR}/artifact-content/{token}")
         assert response.status_code == 404
         assert "sandbox" not in response.headers.get("content-security-policy", "")
+
+
+class TestTheTileRoute:
+    @pytest.mark.security
+    async def test_a_tile_is_an_image_for_any_page_and_carries_nothing_else(
+        self, client: OpenClient
+    ) -> None:
+        app.dependency_overrides.pop(deps.get_auth_context)
+        png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+        with patch(
+            "app.api.routes.v1.artifacts.tile_proxy.tile",
+            new=AsyncMock(return_value=(png, "image/png")),
+        ) as fetched:
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/artifact-content/tiles/3/4/5")
+
+        assert response.status_code == 200
+        assert response.content == png
+        assert response.headers["content-type"] == "image/png"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["cross-origin-resource-policy"] == "cross-origin"
+        assert "set-cookie" not in response.headers
+        fetched.assert_awaited_once_with(3, 4, 5)
+
+    async def test_a_tile_path_that_is_not_three_numbers_is_refused(
+        self, client: OpenClient
+    ) -> None:
+        async with client() as http:
+            response = await http.get(
+                f"{settings.API_V1_STR}/artifact-content/tiles/3/4/secret-from-the-page"
+            )
+        assert response.status_code == 422
+
+    @pytest.mark.security
+    async def test_an_address_fetching_too_many_tiles_is_refused_before_any_fetch(
+        self, client: OpenClient
+    ) -> None:
+        refused = rate_limit.Decision(allowed=False, retry_after_seconds=60)
+        fetch = AsyncMock()
+        with (
+            patch.object(rate_limit, "map_tiles_allowed", new=AsyncMock(return_value=refused)),
+            patch("app.api.routes.v1.artifacts.tile_proxy.tile", new=fetch),
+        ):
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/artifact-content/tiles/1/0/0")
+        assert response.status_code == 429
+        fetch.assert_not_awaited()
 
 
 class TestWhatAPageGained:
@@ -570,3 +632,36 @@ class TestTheOldPaths:
         assert old and len(old) == len(new)
         assert all(op.get("deprecated") for p in old for op in paths[p].values())
         assert not any(op.get("deprecated") for p in new for op in paths[p].values())
+
+
+class TestTheVisualFrame:
+    @pytest.mark.security
+    async def test_the_frame_is_the_app_sandbox_and_holds_no_visual(
+        self, client: OpenClient
+    ) -> None:
+        """A drawing is model-written script that may have read hostile input, so
+        it gets exactly an app's isolation - from a header, not a meta tag."""
+        app.dependency_overrides.pop(deps.get_auth_context)
+        async with client() as http:
+            response = await http.get(f"{settings.API_V1_STR}/artifact-content/visual-frame")
+        assert response.status_code == 200
+        policy = response.headers["content-security-policy"]
+        assert policy.startswith("sandbox allow-scripts allow-modals;")
+        assert "connect-src 'none'" in policy
+        assert "frame-ancestors" in policy
+        assert response.headers["cache-control"] == "no-cache"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert "__agenticosVisualDocument" in response.text
+
+    async def test_a_module_library_answers_cors_for_an_opaque_origin(
+        self, client: OpenClient
+    ) -> None:
+        """three.js imports as a module, fetched in CORS mode with `Origin: null`."""
+        app.dependency_overrides.pop(deps.get_auth_context)
+        async with client() as http:
+            response = await http.get(
+                f"{settings.API_V1_STR}/artifact-content/lib/three-0.186.0/addons/controls/OrbitControls.js"
+            )
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == "*"
+        assert b"OrbitControls" in response.content

@@ -14,8 +14,6 @@ value* per entry point rather than that a call was made - the code paths were
 already exercised by other tests, and none of them looked at what was written.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any
@@ -36,15 +34,20 @@ class TestEveryMemberIsAssignedBySomething:
     design documents a paragraph each explaining the omission.
     """
 
-    def test_the_vocabulary_is_exactly_the_seven_surfaces_that_exist(self):
+    def test_the_vocabulary_is_exactly_the_surfaces_that_exist(self):
+        """`proactive` is the platform's own background work for a person (#2301);
+        that it is written is proven in `tests/test_proactive.py`."""
         assert {surface.value for surface in RunSurface} == {
             "web",
             "embed",
             "api",
+            "a2a",
             "slack",
             "telegram",
             "mattermost",
+            "teams",
             "schedule",
+            "proactive",
         }
 
     def test_playground_is_absent_but_schedule_now_has_a_writer(self):
@@ -60,7 +63,7 @@ class TestEveryMemberIsAssignedBySomething:
         """The map's `.get(platform, API)` default is what silently recorded a
         Mattermost mention as an HTTP API call. A platform missing here does not
         error; it lands in the wrong bucket."""
-        assert set(_SURFACES) == {"slack", "telegram", "mattermost"}
+        assert set(_SURFACES) == {"slack", "telegram", "mattermost", "teams"}
         assert _SURFACES["mattermost"] is RunSurface.MATTERMOST
 
 

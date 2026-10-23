@@ -1,5 +1,5 @@
 ---
-source_sha: "5f956391f056"
+source_sha: "c53ca829ee5e"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: herramientas de agents open source"
 description: "OpenCode: agent de código MIT para un desarrollador. AgenticOS: plataforma Apache-2.0 para los agents de IA de una empresa, con roles, budgets y auditoría."
@@ -9,7 +9,7 @@ description: "OpenCode: agent de código MIT para un desarrollador. AgenticOS: p
 
 OpenCode es un agent de programación de código abierto con licencia MIT. Se ejecuta en una terminal, una app de escritorio o un IDE y se conecta a más de 75 providers de modelos. Es una opción sólida para un desarrollador que quiere su propio agent en su propio repositorio. AgenticOS también es de código abierto, y está construido para otro trabajo: muchos agents, muchos usuarios, un único despliegue gobernado.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2026. Versión de referencia de AgenticOS: v0.0.504. Alcance de OpenCode: su documentación en opencode.ai y el repositorio `anomalyco/opencode` en v1.18.32, no un despliegue empresarial probado.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de OpenCode: su documentación en opencode.ai, incluidas las páginas de la Console de OpenCode 2 bajo `/v2/`, y el repositorio `anomalyco/opencode` en v1.19.3, de la línea 1.x, no un despliegue empresarial probado.
 
 ## De un vistazo { #at-a-glance }
 
@@ -18,13 +18,12 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Para quién es | Un desarrollador, en un repositorio | Una organización: equipos de negocio, usuarios finales e ingenieros |
 | Dónde se ejecuta | La máquina del desarrollador; `opencode serve` para un servidor HTTP local | Un servicio compartido en tu infraestructura |
 | Código | MIT | Apache-2.0 |
-| Modelos | Más de 75 providers a través de Models.dev, incluidos locales | 27 providers, incluidos locales |
-| Usuarios y acceso | Un usuario; los equipos de Zen tienen Admin y Member | Organizaciones, seis roles, 27 permisos, concesiones por recurso |
+| Modelos | Más de 75 providers a través de Models.dev, incluidos locales | 28 providers, incluidos locales |
+| Usuarios y acceso | Un usuario; los workspaces de Console tienen propietarios, administradores y miembros | Organizaciones, seis roles, 33 permisos, concesiones por recurso |
 | Aprobaciones | `allow`, `ask` o `deny` por herramienta, respondidos desde el teclado | Una persona con `approvals:decide`, desde una cola compartida |
-| Control del gasto | Límites mensuales en su gateway Zen | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
+| Control del gasto | Budgets mensuales para un workspace de Console y para cada miembro | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Auditoría | No documentada | Registro de auditoría con evidencia de manipulación |
-| Compartir | Enlaces públicos en `opncd.ai` hasta que se dejan de compartir | Concesiones, páginas alojadas y aplicaciones con propietario y visibilidad |
-| Precio | Gratis; opcionalmente Zen de pago por uso y Go a $10 al mes; Enterprise por puesto | Sin cuota de licencia; uso del modelo e infraestructura |
+| Precio | Gratis; opcionalmente créditos de Console de pago por uso, Go a $10 o Go Plus a $40 al mes; Enterprise por puesto | Sin cuota de licencia; uso del modelo e infraestructura |
 
 ## Dónde AgenticOS va más allá { #where-agenticos-goes-further }
 
@@ -86,5 +85,4 @@ Sí. Una capability es Python tipado en el repositorio, y OpenCode puede ayudar 
 - [Repositorio](https://github.com/anomalyco/opencode): la licencia MIT y las versiones publicadas.
 - [Providers](https://opencode.ai/docs/providers/): más de 75 providers y modelos locales.
 - [Permisos](https://opencode.ai/docs/permissions/): `allow`, `ask` y `deny`.
-- [Compartir](https://opencode.ai/docs/share/): enlaces públicos para compartir.
-- [Zen](https://opencode.ai/docs/zen/), [Go](https://opencode.ai/docs/go/) y [Enterprise](https://opencode.ai/docs/enterprise/): opciones de pago y límites.
+- [Console models](https://opencode.ai/v2/docs/console/models/), [Go](https://opencode.ai/v2/docs/console/go/) y [Enterprise](https://opencode.ai/docs/enterprise/): workspaces, budgets, planes de pago y Enterprise por puesto.

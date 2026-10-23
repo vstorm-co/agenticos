@@ -50,7 +50,7 @@ component and none of it appears in the third-party notices.
 | Component | Where | What it is | Shipped in |
 |---|---|---|---|
 | API and platform | `backend/app` | The FastAPI application: routes, services, repositories, the agent runner, the capability registry | `agenticos-backend` |
-| Background worker | `backend/app/worker` | The Prefect runner for ingestion, syncs, sweeps and scheduled triggers | `agenticos-backend` |
+| Background worker | `backend/app/worker` | Claims jobs from the PostgreSQL queue - agent runs, ingestion, syncs, sweeps - and fires the deployment's schedules (`python -m app.worker`) | `agenticos-backend` |
 | Migrations | `backend/alembic` | The schema chain, applied by the migration service before the API starts | `agenticos-backend` |
 | Command line | `backend/app/commands` | `agenticos cmd …` — bootstrap, doctor, the RAG commands | `agenticos-backend` |
 | Console | `frontend/src` | The Next.js application an operator and a user meet | `agenticos-frontend` |
@@ -91,7 +91,7 @@ CycloneDX documents because the generator reads the published image rather than
 the source tree.
 
 Services a deployment runs beside these three — PostgreSQL with pgvector, Redis, a
-reverse proxy, a Prefect server, the browser's Squid egress proxy — are pulled by the operator from their own
+reverse proxy, the browser's Squid egress proxy — are pulled by the operator from their own
 publishers. They are named in the compose files, they are not built here, and
 they are not in this project's SBOM.
 

@@ -17,8 +17,6 @@ read themselves. `offline_access` is what yields a refresh token - without it th
 grant lasts an hour.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass

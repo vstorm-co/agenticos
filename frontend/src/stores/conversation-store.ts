@@ -20,6 +20,11 @@ export interface ConversationState {
    * thread in which nothing was ever measured.
    */
   currentCost: ConversationCost | null;
+  /**
+   * The project the next new conversation starts in. Read only while there is no
+   * conversation yet: a chat is in the project it was started in, and stays there.
+   */
+  pendingProjectId: string | null;
   isLoading: boolean;
   error: string | null;
 
@@ -36,6 +41,7 @@ export interface ConversationState {
    * arithmetic double-counts exactly the turn somebody had to approve.
    */
   setCurrentCost: (cost: ConversationCost | null) => void;
+  setPendingProjectId: (projectId: string | null) => void;
   addMessage: (message: ConversationMessage) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -46,6 +52,7 @@ const initialState = {
   currentConversationId: null,
   currentMessages: [],
   currentCost: null,
+  pendingProjectId: null,
   isLoading: false,
   error: null,
 };
@@ -62,6 +69,8 @@ const conversationState: StateCreator<ConversationState> = (set) => ({
     set({ currentMessages: messages, currentCost: cost }),
 
   setCurrentCost: (cost) => set({ currentCost: cost }),
+
+  setPendingProjectId: (projectId) => set({ pendingProjectId: projectId }),
 
   addMessage: (message) =>
     set((state) => ({

@@ -1,3 +1,6 @@
+import type { ChatPerson } from "./conversation";
+import type { Mentionable } from "./mention";
+
 export type MessageRole = "user" | "assistant" | "system";
 /** Rating values for message feedback. */
 export enum RatingValue {
@@ -15,6 +18,20 @@ export interface ChatMessageFile {
   file_type: string;
 }
 
+/** The earlier message a turn answers, quoted above it. */
+export interface MessageReply {
+  messageId: string;
+  role: MessageRole;
+  /** A short line of it: whitespace folded, the tail cut. */
+  excerpt: string;
+  /** Who wrote it, for a person's message; absent for the agent's. */
+  sender?: ChatPerson;
+  /** The agent that wrote it, for an answer. */
+  agentId?: string;
+  /** Its name, where the reply was chosen on screen and the name was at hand. */
+  agentName?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -28,8 +45,18 @@ export interface ChatMessage {
   fileIds?: string[];
   /** Full file metadata for rendering attachments. */
   files?: ChatMessageFile[];
+  /** What a person's message pointed the agent at with `@`, drawn as chips (#2189). */
+  mentions?: Mentionable[];
   /** Conversation ID for this message */
   conversationId?: string;
+  /** Who typed a user turn, when it was somebody signed in. In a project's chat
+   *  that is not always the reader, so the turn says whose words they are. */
+  sender?: ChatPerson;
+  /** A project chat's turn whose writer's account is gone: theirs, not the
+   *  reader's, and nobody left to name. */
+  senderGone?: boolean;
+  /** The message this turn answers, where somebody replied to one. */
+  replyTo?: MessageReply;
   /** The published agent that produced this assistant turn. Absent means the
    *  general assistant, which is what a turn sent without an `agent_id` runs.
    *  Recorded per message on both paths - live and reloaded - because the
@@ -61,6 +88,10 @@ export interface ChatMessage {
    * has no answer on screen to mark.
    */
   wasStopped?: boolean;
+  /** A spoken turn's id within its voice call (#54). Absent for a typed turn. */
+  turnId?: string;
+  /** The caller talked over this spoken answer, so it is trimmed to roughly what was heard. */
+  interrupted?: boolean;
   /**
    * How long the run behind this turn was open, from the stored run. Absent on a
    * live turn, which times itself, and on a turn written outside a run.
@@ -198,6 +229,7 @@ export type WSEventType =
   | "thinking_delta"
   | "part_start"
   | "tool_call_delta"
+  | "visual_images"
   | "tool_call"
   | "tool_result"
   | "final_result"
@@ -212,6 +244,17 @@ export type WSEventType =
   | "compaction_finished"
   | "compaction_impossible"
   | "personal_services_unavailable"
+  // The run's sandbox is still being opened - usually its runtime image being built
+  // after an update (#2222) - and then that it is open, or failed to open.
+  | "sandbox_preparing"
+  | "sandbox_ready"
+  // Following a turn another socket is writing - the reader came back to a
+  // conversation whose agent was still answering (`app/services/live_turn.py`).
+  | "turn_attached"
+  | "turn_prompt"
+  | "presence"
+  | "typing"
+  | "turn_followed_to_end"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
   // message, so `user_prompt` and `user_prompt_processed` have nothing left to do,
@@ -319,6 +362,10 @@ export interface BrowserFrame {
 export interface TurnUsage {
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache - priced at a fraction. */
+  cache_read_tokens?: number | null;
+  /** Of `input_tokens`, those written to the provider's cache - priced above it. */
+  cache_write_tokens?: number | null;
   /** The turn's cost as a Decimal string, the shape every REST surface uses. */
   cost_usd: string;
   /**
@@ -534,7 +581,15 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    * else keeps - so a surface can offer to promote it while the run is on screen.
    */
   specialist: SpecialistDefinition | null;
+  /**
+   * Set when the worker is Claude Code or Codex, started by the `coding_agent`
+   * capability rather than delegated to an agent, so the panel draws its mark.
+   */
+  harness?: CodingHarness | null;
 }
+
+/** The coding harnesses the `coding_agent` capability runs. */
+export type CodingHarness = "claude_code" | "codex";
 
 export interface SubagentTextDeltaFrame extends SubagentFrameBase {
   kind: "subagent_text_delta";
@@ -550,6 +605,8 @@ export interface SubagentToolCallFrame extends SubagentFrameBase {
   kind: "subagent_tool_call";
   tool_name: string;
   tool_call_id: string;
+  /** What the step is about - a file, a command - where the worker says; a coding harness does. */
+  title?: string | null;
 }
 
 export interface SubagentToolResultFrame extends SubagentFrameBase {
@@ -650,6 +707,8 @@ export interface DelegationStep {
   id: string;
   name: string;
   ok: boolean | null;
+  /** The file or command the step was about, when the frame said; see `SubagentToolCallFrame`. */
+  title: string | null;
 }
 
 /** One delegation, assembled from its frames - the thing a panel draws. */
@@ -673,6 +732,8 @@ export interface Delegation {
    * chat reads, and what its absence hides that action for. See `SpecialistDefinition`.
    */
   specialist: SpecialistDefinition | null;
+  /** Claude Code or Codex, when the worker is a coding harness rather than an agent. */
+  harness: CodingHarness | null;
   text: string;
   thinking: string;
   steps: DelegationStep[];

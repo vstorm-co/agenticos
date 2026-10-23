@@ -1,5 +1,5 @@
 ---
-source_sha: "2cbc4623a620"
+source_sha: "4b8832761f4a"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -27,6 +27,12 @@ Arkusz na wejściu, opublikowana strona na wyjściu. Agent przeczytał CSV Pytho
 
 ![Chat](assets/screens/light/chat.webp#only-light)
 ![Chat](assets/screens/dark/chat.webp#only-dark)
+
+### Rozmowa głosowa { #a-voice-call }
+
+Pole wiadomości zamienione w pasek rozmowy: co się teraz dzieje w rozmowie, jej czas na tle limitu, wykres fali dźwiękowej obu głosów, wyciszenie, „naciśnij, aby mówić” i Zakończ. Nad nim toczy się dalej konwersacja - napisy w wypowiadanej właśnie wiadomości, uruchomienia narzędzi i karta zatwierdzenia z dokładnymi argumentami i tym, co według transkrypcji powiedziałeś.
+
+> **Miejsce na zrzut — Rozmowa głosowa.**
 
 ## Budowanie agenta { #building-an-agent }
 
@@ -259,7 +265,7 @@ Podłącz dowolny serwer MCP po URL, a jego narzędzia stają się przełącznik
 
 ### Channels { #channels }
 
-Platformy czatowe, na których odpowiada ta organizacja - Slack, Telegram, Mattermost. Bot obsługuje każdego związanego z nim agenta, a to powiązanie tworzy się na zakładce Availability tego agenta.
+Platformy czatowe, na których odpowiada ta organizacja - Slack, Teams, Telegram, Mattermost. Bot obsługuje każdego związanego z nim agenta, a to powiązanie tworzy się na zakładce Availability tego agenta.
 
 ![Channels](assets/screens/light/channels.webp#only-light)
 ![Channels](assets/screens/dark/channels.webp#only-dark)

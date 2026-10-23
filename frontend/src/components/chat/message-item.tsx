@@ -1,5 +1,7 @@
 "use client";
 
+import { MentionChip } from "./mention-chip";
+import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
@@ -13,14 +15,30 @@ import { CopyButton } from "./copy-button";
 import { MessageSources } from "./message-sources";
 import { TurnDelegations } from "./turn-delegations";
 import { RoundedCost } from "./message-cost";
+import { PersonFace } from "./person-face";
+import { ReplyQuote, replyExcerpt } from "./reply-quote";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
+import { SkillShortcut } from "./skill-shortcut";
+import { TurnShortcuts } from "./turn-shortcuts";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, OctagonPause, Paperclip, Pin, PinOff, RefreshCw } from "lucide-react";
+import {
+  Bot,
+  CornerUpLeft,
+  FileText,
+  Mic,
+  OctagonPause,
+  Paperclip,
+  Pause,
+  Pin,
+  PinOff,
+  RefreshCw,
+  UserRound,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
@@ -30,6 +48,7 @@ import { FileCard } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
+import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -79,6 +98,8 @@ interface MessageItemProps {
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
+  request?: string;
 }
 
 export function MessageItem({
@@ -92,14 +113,27 @@ export function MessageItem({
   onRegenerate,
   pins,
   agents = [],
+  request,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
   const isUser = message.role === "user";
+  // A mention sits in the text it was typed into; only one the text does not
+  // carry - a turn sent before that was so - is shown as a chip beside it.
+  const unplaced = (message.mentions ?? []).filter(
+    (item) => stillMentioned(message.content, [item]).length === 0,
+  );
   const updateMessage = useChatStore((state) => state.updateMessage);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
+  const tReply = useTranslations("chat.reply");
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
   const { user: authUser } = useAuthStore();
+  // A teammate's words in a project's chat: theirs, not the reader's "You".
+  const teammate =
+    isUser && message.sender && message.sender.user_id !== authUser?.id ? message.sender : null;
+  // Somebody who has since left: never drawn as the reader.
+  const former = isUser && message.senderGone === true;
   // Read once per turn and handed to each step, so a public surface can render the
   // same step without a session - see `TurnParts`.
   const mcpServers = useMcpToolServers();
@@ -137,7 +171,13 @@ export function MessageItem({
         !isUser && !agent && "bg-muted text-foreground",
       )}
     >
-      {isUser ? (
+      {teammate ? (
+        <PersonFace person={teammate} className="h-full w-full text-[10px]" />
+      ) : former ? (
+        <span className="bg-muted text-muted-foreground grid h-full w-full place-items-center">
+          <UserRound className="h-3.5 w-3.5" aria-hidden />
+        </span>
+      ) : isUser ? (
         <YouFace />
       ) : agent ? (
         <AgentAvatar
@@ -178,8 +218,12 @@ export function MessageItem({
         // turn that ran three commands is three segments, each carrying one step,
         // so three steps of one run sat two message-gaps apart and looked like
         // three separate things the agent did.
-        continuesTurn ? "pt-0" : compact ? "pt-2" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
-        endsTurn ? (compact ? "pb-2" : isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
+        //
+        // 12px a side between messages, not 16: under every message sits its row of
+        // time and actions, 36px that is empty until hovered, so 32px on top of it
+        // left a 68px hole between a question and its answer (#2302).
+        continuesTurn ? "pt-0" : compact || isGrouped ? "pt-2" : "pt-3",
+        endsTurn ? (compact || isGrouped ? "pb-2" : "pb-3") : "pb-0",
         isUser && "items-end",
       )}
     >
@@ -196,7 +240,13 @@ export function MessageItem({
               compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
             )}
           >
-            {isUser ? t("rail.you") : (agent?.name ?? t("rail.agent"))}
+            {teammate
+              ? teammate.name
+              : former
+                ? t("rail.formerMember")
+                : isUser
+                  ? t("rail.you")
+                  : (agent?.name ?? t("rail.agent"))}
             {!isUser && message.agentVersion !== undefined && (
               <span className="text-muted-foreground font-normal"> · v{message.agentVersion}</span>
             )}
@@ -210,6 +260,13 @@ export function MessageItem({
           isUser ? "flex max-w-[85%] flex-col items-end" : "w-full",
         )}
       >
+        {isUser && unplaced.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {unplaced.map((item) => (
+              <MentionChip key={`${item.kind}:${item.id}`} item={item} />
+            ))}
+          </div>
+        )}
         {isUser &&
           (() => {
             const attachments: AttachmentDisplay[] =
@@ -266,6 +323,9 @@ export function MessageItem({
             );
           })()}
 
+        {message.replyTo && (
+          <ReplyQuote reply={message.replyTo} agents={agents} align={isUser ? "end" : "start"} />
+        )}
         <MessageBody
           message={message}
           isUser={isUser}
@@ -297,6 +357,10 @@ export function MessageItem({
           </div>
         )}
 
+        {/* Under what the turn said and above its time and actions: a card the
+            answer introduces belongs with the answer, not after its receipt. */}
+        <TurnExtras message={message} agentName={agent?.name} />
+
         {!message.isStreaming && hasBody && endsTurn && (
           // The time and the cost surface on hover with the actions beside them:
           // a column of receipts under every turn is noise while reading, and the
@@ -311,6 +375,23 @@ export function MessageItem({
               <span className="text-muted-foreground flex items-center gap-1 text-xs">
                 <OctagonPause className="h-3 w-3" aria-hidden />
                 {t("turnWasStopped")}
+              </span>
+            )}
+            {/* A turn spoken in a call (#54), and one the caller talked over -
+                whose text is cut to roughly what was heard. */}
+            {message.turnId !== undefined && (
+              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                <Mic className="h-3 w-3" aria-hidden />
+                {t("voice.view.voice")}
+              </span>
+            )}
+            {message.interrupted && (
+              <span
+                title={t("voice.view.interruptedTitle")}
+                className="text-foreground flex items-center gap-1 text-[11px] font-medium"
+              >
+                <Pause className="text-warning h-3 w-3" aria-hidden />
+                {t("voice.view.interrupted")}
               </span>
             )}
             {/* When and what it cost, as one quiet group before the actions. */}
@@ -341,6 +422,39 @@ export function MessageItem({
             )}
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />
+            )}
+            {/* What was asked, kept: on a schedule, or as an agent of its own (#2301). */}
+            {isUser && !pins && !message.isTemporaryId && message.content && (
+              <TurnShortcuts request={message.content} agentId={agent?.id ?? null} />
+            )}
+            {/* Stored messages only: a reply names the row it answers, and a
+                message still on this tab's own id has none yet. */}
+            {!message.isTemporaryId && !message.isStreaming && message.content && (
+              <button
+                type="button"
+                onClick={() =>
+                  setReplyTo({
+                    messageId: message.id,
+                    role: message.role,
+                    excerpt: replyExcerpt(message.content),
+                    sender: isUser ? message.sender : undefined,
+                    agentId: isUser ? undefined : agent?.id,
+                    agentName: isUser ? undefined : agent?.name,
+                  })
+                }
+                title={tReply("reply")}
+                aria-label={tReply("reply")}
+                className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
+              >
+                <CornerUpLeft />
+              </button>
+            )}
+            {!isUser && request && !message.isStreaming && message.content && (
+              <SkillShortcut
+                request={request}
+                answer={message.content}
+                conversationId={message.conversationId}
+              />
             )}
             {!isUser && onRegenerate && (
               <button
@@ -465,6 +579,7 @@ function MessageBody({
               showCursor={!isUser && Boolean(message.isStreaming)}
               isUser={isUser}
               onCiteClick={onCiteClick}
+              mentions={isUser ? message.mentions : undefined}
             />
           )}
           {legacyCalls.length > 0 && (

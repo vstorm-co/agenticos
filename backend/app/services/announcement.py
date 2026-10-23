@@ -19,8 +19,6 @@ snapshot list of ids) also correct for `NotificationCenterService`'s own
 read-time recheck (Decision 7).
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID

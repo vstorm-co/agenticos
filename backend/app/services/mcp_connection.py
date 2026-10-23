@@ -21,13 +21,13 @@ unreadable the moment they switched. Neither is encrypted with a deployment-wide
 key any more; that gave a ciphertext no owner at all.
 
 The service also owns SSRF validation of submitted URLs (same policy as
-webhooks), the connectivity test that discovers a server's tools, and building
-per-turn agent toolsets - either from the user's own enabled connections (the
-general assistant) or from the organization-scoped ones a published agent's
-spec names.
+webhooks, except that a host on the deployment's `MCP_ALLOWED_HOSTS` skips the
+private-address check on a connection's own address, and the OAuth flow of such
+a connection may reach the listed hosts), the
+connectivity test that discovers a server's tools, and building per-turn agent
+toolsets - either from the user's own enabled connections (the general
+assistant) or from the organization-scoped ones a published agent's spec names.
 """
-
-from __future__ import annotations
 
 import asyncio
 import logging
@@ -153,12 +153,17 @@ async def _checked_url(url: str) -> str:
     goes to the log and the body stays empty. `tests/test_ssrf.py` fails on a
     refusal that is not a `UrlRefusedError`.
 
+    Every caller passes a connection's own address - the four that save it,
+    `probe_sign_in` and `_oauth_start` - so `MCP_ALLOWED_HOSTS` is honoured
+    for all of them. The OAuth discovery after the last two reaches a listed
+    host exactly when the connection's own host is one (`mcp_oauth.discover`).
+
     Raises:
         BadRequestError: If the URL is malformed or points inside the
             deployment's network.
     """
     try:
-        return await validate_mcp_url(url)
+        return await validate_mcp_url(url, honour_allowlist=True)
     except UrlRefusedError as exc:
         # Ours to quote, in the log as much as in the body - see the docstring.
         logger.warning("MCP server URL refused: %s", exc)
@@ -230,6 +235,7 @@ async def _complete_mcp_flow(
         code_verifier=payload.code_verifier,
         redirect_uri=payload.redirect_uri,
         resource=payload.resource,
+        server_url=payload.server_url,
     )
     payload = _apply_token(payload, token)
     return payload, (payload.scope.split() if payload.scope else None)
@@ -503,6 +509,7 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
             # already say which API the token is for.
             resource=None if payload.provider == microsoft_oauth.PROVIDER else payload.resource,
             scope=payload.scope,
+            server_url=payload.server_url,
         )
     except mcp_oauth.OAuthGrantRevoked:
         # Dead for good, so it is dropped rather than spent again every minute:
@@ -2207,9 +2214,47 @@ class UnavailablePrefixCollision:
     kept_binding: str
 
 
+@dataclass(frozen=True)
+class UnavailablePlatformServer:
+    """This platform's own server, bound but not attached: nobody to act as.
+
+    Its tools act as the person the run is for, so a visitor, an unlinked chat
+    account or a schedule acting as nobody gets no server - briefed rather than
+    left silent, so a model told about the tools does not reach for them.
+    """
+
+
+@dataclass(frozen=True)
+class UnavailableUnreachableServer:
+    """A bound server that did not answer its probe, so the turn runs without it.
+
+    Skipped rather than attached because a dead server aborts the whole turn once
+    pydantic-ai enters its toolset - but skipped silently it is invisible to the
+    model, which then answers as though the agent never had the service ("no data
+    available") instead of saying the service is down. A slow server is the usual
+    case, not a dead one: a bridge whose `tools/list` takes longer than
+    :data:`~app.agents.mcp.HANDSHAKE_TIMEOUT_SECS` is left out of one turn and
+    attached on the next, and the person asking should hear that a retry may help.
+
+    `held_by` names another binding that answered under the same tool prefix:
+    those tools are attached, so the model is told whose they are rather than
+    that the prefix has none.
+    """
+
+    server: str
+    binding: str
+    held_by: str | None = None
+
+
 # A binding a turn could not honour: a personal one with nobody or nothing to
-# speak through, or a server dropped because its tool prefix collided.
-UnavailableBinding = UnavailablePersonalService | UnavailablePrefixCollision
+# speak through, the platform's own with nobody to act as, a server dropped
+# because its tool prefix collided, or one that did not answer its probe.
+UnavailableBinding = (
+    UnavailablePersonalService
+    | UnavailablePlatformServer
+    | UnavailablePrefixCollision
+    | UnavailableUnreachableServer
+)
 
 
 @dataclass(frozen=True)
@@ -2313,6 +2358,8 @@ async def build_toolsets_for_agent(
                 )
                 specs.append(spec)
                 bindings[id(spec)] = "this platform's own server"
+            else:
+                unavailable.append(UnavailablePlatformServer())
             continue
         if isinstance(ref, PersonalMcpServerRef):
             own, gap = await _personal_specs(db, ref, sender_user_id=sender_user_id)
@@ -2412,6 +2459,23 @@ async def build_toolsets_for_agent(
             )
     origins: dict[str, UUID] = {}
     attached = [(spec, toolset) for spec, toolset in reachable if id(spec) not in dropped]
+    # A server whose probe failed is briefed, not left to the warning in the log.
+    # Where another binding answered under its prefix, those tools are present,
+    # so the briefing says whose they are: read as this binding's, the other
+    # account's results would pass for the one that is down. The same binding
+    # bound twice and answering once is not missing at all.
+    held = {tool_prefix(spec.name): bindings[id(spec)] for spec, _ in attached}
+    for spec, toolset in probed:
+        if toolset is not None:
+            continue
+        holder = held.get(tool_prefix(spec.name))
+        if holder == bindings[id(spec)]:
+            continue
+        unavailable.append(
+            UnavailableUnreachableServer(
+                server=spec.name, binding=bindings[id(spec)], held_by=holder
+            )
+        )
     return ResolvedMcpToolsets(
         toolsets=[
             toolset
@@ -2503,6 +2567,28 @@ async def _own_specs(
         )
         accounts.append(_OwnAccount(spec=spec, label=_account_name(account)))
     return accounts or "unauthorized"
+
+
+async def watched_connection_spec(
+    db: AsyncSession, connection: McpConnection
+) -> McpServerSpec | None:
+    """One of a person's own connections as a server a watch reads (#2301), or `None`.
+
+    `None` where its credential no longer works. Everything it offers is
+    listed; the watch keeps only the tools the server marks read-only, so the
+    approval policy here never comes into play.
+    """
+    headers = await _resolve_auth_headers(db, connection)
+    if headers is None:
+        return None
+    return McpServerSpec(
+        name=connection.catalog_key or connection.name,
+        url=connection.url,
+        headers=headers,
+        allowed_tools=connection.allowed_tools,
+        include_instructions=connection.include_instructions,
+        account=_account_name(connection),
+    )
 
 
 def _account_name(account: McpConnection) -> str:

@@ -17,6 +17,7 @@ import type {
   SyncSourceCreate,
   SyncSourceList,
   SyncSourceRead,
+  SyncSourceUpdate,
 } from "@/lib/rag-api";
 import { overrideSize } from "@/lib/ingestion-config";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
@@ -537,8 +538,8 @@ export function useKBDetail(id: string | null) {
   /**
    * Wire up a sync source, and leave its refusal to the wizard.
    *
-   * Alone among the writes here, this one does not toast what went wrong. The
-   * things that stop a source being created - a folder id that is not one, a
+   * This and `updateSyncSource` are the writes here that do not toast what went
+   * wrong. The things that stop a source being saved - a folder id that is not one, a
    * credential left empty - are fields on a step the reader can go back to, and
    * the connector now names them (#897). A toast would say the same sentence
    * where it cannot be acted on and then take it away.
@@ -560,6 +561,28 @@ export function useKBDetail(id: string | null) {
       }
       toast.success(t("syncSourceConnected"));
       return created;
+    },
+    [id, activeOrgId, stillSameTenant, queryClient, t],
+  );
+
+  /** Save an edit to one of this base's sources; a refusal goes back to the wizard. */
+  const updateSyncSource = useCallback(
+    async (sourceId: string, data: SyncSourceUpdate) => {
+      if (!id) return;
+      const startedIn = activeOrgId;
+      const updated = await apiClient.patch<SyncSourceRead>(
+        `/kb/${id}/sync-sources/${sourceId}`,
+        data,
+      );
+      if (stillSameTenant(startedIn)) {
+        queryClient.setQueryData<SyncSourceList>(qk.kb.syncSources(id), (prev) =>
+          prev
+            ? { ...prev, items: prev.items.map((s) => (s.id === sourceId ? updated : s)) }
+            : prev,
+        );
+      }
+      toast.success(t("syncSourceUpdated"));
+      return updated;
     },
     [id, activeOrgId, stillSameTenant, queryClient, t],
   );
@@ -661,6 +684,7 @@ export function useKBDetail(id: string | null) {
     deleteDocument,
     deleteCollection,
     createSyncSource,
+    updateSyncSource,
     cloneSyncSource,
     triggerSyncSource,
     deleteSyncSource,

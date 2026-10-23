@@ -23,8 +23,6 @@ schedule stores and compares its next fire; `tests/test_trigger_templates.py`
 proves every schedule template's cadence is one a schedule would actually accept.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter, model_validator

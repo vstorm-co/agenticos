@@ -17,8 +17,6 @@ part-end events and its enqueued messages say nothing a reader of the panel
 needs, and every frame pushed is a WebSocket write.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from pydantic_ai.messages import (

@@ -12,14 +12,13 @@ check on that; the shape here is what keeps it true: read the sealed row, unseal
 at the moment of use, hand the plaintext to the client and nothing else.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
 from pydantic import SecretStr
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -35,10 +34,12 @@ from app.repositories import (
     agent_workspace_repo,
     member_repo,
     organization_secret_repo,
+    project_repo,
     sandbox_connection_repo,
     sandbox_operation_repo,
 )
 from app.repositories import conversation as conversation_repo
+from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
     SandboxConnectionRead,
@@ -229,16 +230,56 @@ class SandboxConnectionService:
             )
         return to_read(row)
 
-    async def delete(self, ctx: AuthContext, connection_id: UUID) -> None:
+    async def delete(
+        self, ctx: AuthContext, connection_id: UUID, *, forget_pending_destroys: bool = False
+    ) -> None:
         """Remove a connection.
 
         The workspaces keyed to it are left alone: their rows record what an
         agent did and where, and deleting a host is not a statement about that
         history. A published agent naming it starts failing with a message that
         says the connection is gone, which is the truth.
+
+        Refused while a project is pinned to it. A project's files live in its
+        container on this host, and a pin cleared to "the organization's
+        default" would open an empty workspace elsewhere and strand them.
+
+        Refused too while sandboxes on it are still to be destroyed, unless
+        `forget_pending_destroys` says somebody removed them on the provider by
+        hand (#2250). A credential deleted or revoked leaves those tombstones
+        nothing to retry with, and before this nothing could ever clear them, so
+        the connection could never be deleted. How many were forgotten goes in
+        the audit entry.
         """
         row = await self.get(ctx, connection_id)
-        await sandbox_connection_repo.delete(self.db, connection=row)
+        projects = await project_repo.names_on_connection(
+            self.db, organization_id=ctx.organization_id, connection_id=row.id
+        )
+        if projects:
+            raise BadRequestError(
+                message=(
+                    "Projects keep their files on this connection. Delete those "
+                    "projects first, or keep the connection."
+                ),
+                details={"projects": projects},
+            )
+        forgotten = 0
+        if forget_pending_destroys:
+            forgotten = await pending_destroy_repo.remove_on_connection(
+                self.db, connection_id=row.id
+            )
+        pending = await pending_destroy_repo.count_on_connection(self.db, connection_id=row.id)
+        if pending:
+            raise self._sandboxes_pending(pending)
+        try:
+            async with self.db.begin_nested():
+                await sandbox_connection_repo.delete(self.db, connection=row)
+        except IntegrityError:
+            # A conversation deleted meanwhile wrote a tombstone the count above
+            # could not see; the foreign key refuses to take it with the
+            # connection, as it is the only record of that sandbox.
+            count = await pending_destroy_repo.count_on_connection(self.db, connection_id=row.id)
+            raise self._sandboxes_pending(count) from None
         notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
         # chain lock to the end of the transaction, and the notification
@@ -252,9 +293,23 @@ class SandboxConnectionService:
             action="sandbox_connection.deleted",
             target_type="sandbox_connection",
             target_id=str(connection_id),
-            details={"name": row.name},
+            details={"name": row.name, "forgotten_pending_destroys": forgotten},
         )
         await notifications.security_event(entry, recipients=audience)
+
+    @staticmethod
+    def _sandboxes_pending(pending: int) -> BadRequestError:
+        # The tombstones are the only record of sandboxes still standing on the
+        # provider - a Daytona one billed until somebody deletes it (#2209).
+        return BadRequestError(
+            message=(
+                f"{pending} sandboxes on this connection are still waiting to be "
+                "removed from the provider. Switch the connection off and keep it "
+                "until they are gone, or delete them on the provider and confirm "
+                "that you did."
+            ),
+            details={"pending_destroys": pending},
+        )
 
     @staticmethod
     def runtime_catalog() -> list[SandboxRuntimeOption]:
@@ -540,6 +595,26 @@ class SandboxConnectionService:
                 ),
                 details={"connection_id": str(row.id)},
             )
+        return await self._unsealed(ctx, row)
+
+    async def resolve_for_teardown(
+        self, ctx: AuthContext, connection_id: UUID
+    ) -> ResolvedConnection:
+        """A connection to destroy a sandbox on, whether or not it is switched off.
+
+        Switching a connection off stops new work reaching it. It does not make
+        the sandboxes already there stop existing - a Daytona one is still billed
+        - so removing them must not be refused for the reason `resolve` refuses a
+        run (#2209).
+
+        Raises:
+            BadRequestError: If the connection is gone, or its credential is gone
+                or is not an API key.
+        """
+        return await self._unsealed(ctx, await self._named(ctx, connection_id))
+
+    async def _unsealed(self, ctx: AuthContext, row: SandboxConnection) -> ResolvedConnection:
+        """The connection with its credential out of the vault."""
         if row.secret_id is None:
             raise BadRequestError(
                 message=(

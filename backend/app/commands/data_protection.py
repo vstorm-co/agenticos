@@ -18,8 +18,6 @@ the deployment needs them to sit, and exclude the traffic from training. Those
 are contracts, not rows, and the page names each as evidence to obtain.
 """
 
-from __future__ import annotations
-
 import asyncio
 import re
 from collections import Counter
@@ -29,6 +27,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
+from uuid import UUID
 
 import click
 from sqlalchemy import func, select
@@ -52,6 +51,7 @@ from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.embed_visitor import EmbedVisitor
+from app.db.models.generated_media import GeneratedMedia
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
@@ -62,6 +62,7 @@ from app.db.models.rag_document import RAGDocument
 from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
+from app.db.models.visual import Visual
 from app.db.session import get_db_context
 
 # Every column holding a path under `MEDIA_DIR`. The unreferenced-file scan is
@@ -80,12 +81,16 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
     DeploymentSettings.logo_path,
     DeploymentSettings.favicon_path,
     ArtifactVersion.storage_path,
+    Visual.thumbnail_path,
+    GeneratedMedia.storage_path,
 )
 
-# Directories under `MEDIA_DIR` that hold files no row points at, by design:
-# generated images are addressed by their path in a message, and the parse
-# scratch directory is cleared by the worker that wrote it.
-UNREFERENCED_BY_DESIGN = ("generated_", "_rag_tmp")
+# Directories under `MEDIA_DIR` that hold files no row points at, by design: the
+# parse scratch directory is cleared by the worker that wrote it. Generated media
+# is not one of them since `generated_media` records each file (#2310), so a
+# file generated before that table existed is counted here - it has no row, and
+# goes only with its organization.
+UNREFERENCED_BY_DESIGN = ("_rag_tmp",)
 
 # Which capabilities send something out of the deployment when an agent runs
 # with them, and where. A capability reaches the network without any row in
@@ -104,10 +109,26 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     # excerpt of its text - goes to the agent's own model provider, which the
     # inventory already names.
     "browser_use": "a browser host on BROWSER_CDP_ALLOWED_HOSTS, and the sites it opens",
+    # Claude Code or Codex reads the sandbox's files and sends what it reads to
+    # its own vendor, from inside the sandbox rather than from the platform.
+    "coding_agent": (
+        "Anthropic, OpenAI or the gateway the binding names, from the agent's sandbox, "
+        "with the code the coding agent reads"
+    ),
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
     "sandbox": "the sandbox runtime this deployment configures",
+    "text_to_speech": "the speech provider named in the binding",
+    "video_generation": "the video provider named in the binding, with any starting image",
+    # A drawing's pictures by address, only for an agent that already reads the
+    # web and only on a host its `web_fetch` or `browser_use` may reach.
+    # And, for a channel reply's picture and a thumbnail, the whole drawing with
+    # its pictures inlined, to the rendering browser the deployment configures.
+    "visuals": (
+        "picture addresses the model names, on hosts the agent's web readers may reach; "
+        "the whole drawing to the browser at VISUAL_RENDER_CDP_URL, where it is set"
+    ),
     "web_fetch": "whatever address the model asks for",
     "web_research": "DuckDuckGo by default, or the search provider the binding names",
 }
@@ -133,6 +154,8 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "compaction",
         "context",
         "conversation_search",
+        # Next steps go to the person's own screen, under the answer.
+        "follow_ups",
         "guardrails",
         # The bytes leave the database for the deployment's own file storage,
         # which is a store this report already lists rather than a destination
@@ -213,10 +236,14 @@ def _settings_section() -> Section:
         ["LOG_PROVIDER_WRITE_TO_DISK", _yes_no(settings.LOG_PROVIDER_WRITE_TO_DISK)],
         ["RATE_LIMIT_TRUST_FORWARDED_FOR", _yes_no(settings.RATE_LIMIT_TRUST_FORWARDED_FOR)],
         ["MEM0_ALLOWED_HOSTS", ", ".join(settings.MEM0_ALLOWED_HOSTS) or "none"],
+        # Its host only: an address can carry a token, and this report is attached
+        # to reviews.
+        ["VISUAL_RENDER_CDP_URL", urlsplit(settings.VISUAL_RENDER_CDP_URL).hostname or "unset"],
         [
             "BROWSER_CDP_ALLOWED_HOSTS",
             ", ".join(settings.BROWSER_CDP_ALLOWED_HOSTS) or "none",
         ],
+        ["MCP_ALLOWED_HOSTS", ", ".join(settings.MCP_ALLOWED_HOSTS) or "none"],
         ["GOOGLE_CLIENT_ID", "set" if settings.GOOGLE_CLIENT_ID else "unset"],
     ]
     return Section(
@@ -605,6 +632,17 @@ def _walk_media(media_dir: Path) -> list[str]:
     return found
 
 
+def _conversation_of(path: str) -> UUID | None:
+    """The conversation a `media/<organization>/<conversation>/...` path belongs to."""
+    parts = PurePosixPath(path).parts
+    if len(parts) < 4 or parts[0] != "media":
+        return None
+    try:
+        return UUID(parts[2])
+    except ValueError:
+        return None
+
+
 async def _unreferenced_media(db: AsyncSession) -> Section:
     """Files under `MEDIA_DIR` that no row points at any more.
 
@@ -619,7 +657,16 @@ async def _unreferenced_media(db: AsyncSession) -> Section:
         referenced.update(str(value) for value in result.scalars().all())
 
     media_dir = Path(settings.MEDIA_DIR)
-    orphans = [path for path in _walk_media(media_dir) if path not in referenced]
+    unlisted = [path for path in _walk_media(media_dir) if path not in referenced]
+    # A conversation's media - offloaded history, a visual's pictures - has no row
+    # of its own: its prefix is its lifetime, so it is live while the
+    # conversation is, and an orphan once the conversation is gone.
+    threads = {thread for path in unlisted if (thread := _conversation_of(path)) is not None}
+    live: set[UUID] = set()
+    if threads:
+        found = await db.execute(select(Conversation.id).where(Conversation.id.in_(threads)))
+        live = set(found.scalars().all())
+    orphans = [path for path in unlisted if _conversation_of(path) not in live]
 
     # Counted per directory, never named. An upload keeps the original filename
     # in its stored path, so listing twenty of them would put "medical-results"
@@ -630,10 +677,14 @@ async def _unreferenced_media(db: AsyncSession) -> Section:
     return Section(
         title=f"Files on disk with no row ({len(orphans)} under {media_dir})",
         note=(
-            "Generated images and the parse scratch directory are excluded - "
-            "they have no row by design. Everything else here is bytes the "
-            "product can no longer find, and cannot delete. Directories and "
-            "counts only: a stored path carries the original filename."
+            "The parse scratch directory is excluded - it has no row by design. "
+            "Under generated_<organization> these are mostly files generated "
+            "before generated_media recorded them, which go only with their "
+            "organization; also a file whose unlink failed after its row was "
+            "deleted, or one still being saved before its row is written. "
+            "Everything else here is bytes the product can no "
+            "longer find, and cannot delete. Directories and counts only: a "
+            "stored path carries the original filename."
         ),
         headers=("Directory", "Files"),
         rows=rows,

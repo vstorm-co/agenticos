@@ -41,12 +41,13 @@ test.describe("Chat", () => {
   test("the composer is live, not merely rendered", async ({ page }) => {
     const input = await readyComposer(page);
 
-    // Disabled until there is something to send: an empty message would open a
-    // conversation with nothing in it.
-    await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
+    // Nothing to send yet, so the call stands where Send is - an empty message
+    // would open a conversation with nothing in it (#2301).
+    await expect(page.getByRole("button", { name: "Start a voice call" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send message" })).toHaveCount(0);
 
     await input.fill("Hello, AI assistant!");
-    await expect(input).toHaveValue("Hello, AI assistant!");
+    await expect(input).toHaveText("Hello, AI assistant!");
     await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
   });
 
@@ -84,7 +85,7 @@ test.describe("Chat", () => {
 
     // Cleared, so the transcript assertion below cannot be satisfied by the box
     // the text was typed into.
-    await expect(input).toHaveValue("");
+    await expect(input).toHaveText("");
     await expect(page.getByText(message)).toBeVisible();
 
     // The sidebar is fed by the conversations API, and the title is derived
@@ -111,11 +112,12 @@ test.describe("Chat", () => {
     await input.press("Shift+Enter");
     await input.pressSequentially("Line 2");
     // Still in the box: Shift+Enter is a newline, not a send.
-    await expect(input).toHaveValue(/Line 1[\s\S]*Line 2/);
+    // The composer is a rich editor: a newline is a <br>, which only innerText reads.
+    await expect(input).toHaveText(/Line 1\n+Line 2/, { useInnerText: true });
 
     await input.fill(message);
     await input.press("Enter");
-    await expect(input).toHaveValue("");
+    await expect(input).toHaveText("");
     await expect(
       page.getByRole("main").getByRole("complementary").getByText(message),
     ).toBeVisible();

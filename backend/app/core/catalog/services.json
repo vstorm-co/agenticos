@@ -53,11 +53,36 @@
     "description": "Store an agent's remembered facts in a mem0 service (cloud or self-hosted)."
   },
   {
+    "id": "elevenlabs",
+    "label": "ElevenLabs",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://elevenlabs.io/app/settings/api-keys",
+    "description": "Speech generated from text, in the voices on your ElevenLabs account.",
+    "icon": "elevenlabs"
+  },
+  {
+    "id": "byteplus",
+    "label": "BytePlus ModelArk",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey",
+    "description": "ByteDance's Seedance video models, through BytePlus ModelArk.",
+    "icon": "byteplus"
+  },
+  {
     "id": "sandboxd",
     "label": "Sandbox service",
     "category": "other",
     "kind": "api_key",
     "description": "The token a sandbox service accepts. Whoever holds it can open a session, and a session runs commands on the host holding the Docker socket."
+  },
+  {
+    "id": "a2a",
+    "label": "Remote agent (A2A)",
+    "category": "other",
+    "kind": "api_key",
+    "description": "The bearer token another vendor's A2A agent accepts, sent with every task this organization's agents delegate to it."
   },
   {
     "id": "daytona",

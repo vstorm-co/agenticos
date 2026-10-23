@@ -1,7 +1,5 @@
 """A department's monthly budget: what it meters, who hears, and what it exports (#2072)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

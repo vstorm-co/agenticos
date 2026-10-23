@@ -10,7 +10,7 @@ Microsoft Agent 365 is a control plane for a company's agents - Microsoft's own,
 
 If your company runs on Microsoft 365 and wants to inventory and police agents it already has, Agent 365 fits that estate. If you want the agents themselves, and the rules over them, on infrastructure you control and with any model, AgenticOS does both in one place.
 
-Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v0.0.535. Agent 365 scope: Microsoft's general availability around 1 May 2026 as reported by the press, not a tested tenant. For building agents in Microsoft's stack, see [AgenticOS vs Copilot Studio](copilot-studio.md).
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Agent 365 scope: Microsoft's general availability around 1 May 2026 as reported by the press, not a tested tenant. For building agents in Microsoft's stack, see [AgenticOS vs Copilot Studio](copilot-studio.md).
 
 ## At a glance
 
@@ -21,7 +21,7 @@ Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS bas
 | Source | Proprietary | Apache-2.0 |
 | Identity | Microsoft Entra ID | OIDC single sign-on, LDAP and Kerberos, including Entra ID |
 | Policy and audit | Purview, data loss prevention, lifecycle | Roles and per-resource grants, approvals, budgets before each model request, a tamper-evident audit log |
-| Models | Through the agents it governs | 27 providers, including local models |
+| Models | Through the agents it governs | 28 providers, including local models |
 | Pricing | Microsoft 365 licensing | No licence fee; you pay model providers and infrastructure |
 
 ## Where AgenticOS goes further
@@ -32,7 +32,7 @@ A control plane watches agents that run elsewhere. AgenticOS [checks the budget]
 
 ### Outside one vendor's cloud
 
-Agent 365 lives in Microsoft's cloud and its licensing. AgenticOS runs [where you deploy it](../deploy.md), signs in through your [directory](../directory.md#signing-in-with-a-directory-account) - Entra ID included - and works with [any of 27 model providers](../models.md#providers).
+Agent 365 lives in Microsoft's cloud and its licensing. AgenticOS runs [where you deploy it](../deploy.md), signs in through your [directory](../directory.md#signing-in-with-a-directory-account) - Entra ID included - and works with [any of 28 model providers](../models.md#providers).
 
 ### Open to read and extend
 

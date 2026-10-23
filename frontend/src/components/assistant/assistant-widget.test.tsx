@@ -5,9 +5,11 @@ import { toast } from "sonner";
 
 import type { ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
+import { useArchitectAskStore } from "@/stores/architect-ask-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
+import { WidgetRoot } from "./assistant-launcher";
 import { AssistantWidget, DOCK_AFTER_MS } from "./assistant-widget";
 
 const state = vi.hoisted(() => ({
@@ -195,6 +197,24 @@ describe("the Architect widget", () => {
     expect(screen.queryByText(/Want a new agent/)).toBeNull();
   });
 
+  it("opens and asks what somebody elsewhere in the console asked it, each ask once", () => {
+    useArchitectAskStore.setState({ request: null });
+    const { rerender } = render(<AssistantWidget />);
+
+    act(() => useArchitectAskStore.getState().ask("Make an agent of this"));
+
+    expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+    expect(chat()).toHaveAttribute("data-prompt", "Make an agent of this");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
+    rerender(<AssistantWidget />);
+    expect(screen.getByRole("dialog", { name: "Architect" })).toHaveClass("hidden");
+    expect(useArchitectAskStore.getState().request).toBeNull();
+
+    act(() => useArchitectAskStore.getState().ask("And another"));
+    expect(chat()).toHaveAttribute("data-prompt", "And another");
+  });
+
   it("lets a bubble fade when nobody answers it, and holds it while the pointer rests on it", () => {
     render(<AssistantWidget />);
     lookAtThePage();
@@ -311,6 +331,15 @@ describe("the Architect widget", () => {
     lookAtThePage();
 
     expect(screen.getByText(/waiting for your approval/)).toBeInTheDocument();
+  });
+
+  it("keeps quiet in the chat, where the composer has its corner and no launcher shows", () => {
+    state.signals.pendingApprovals = 2;
+    state.pathname = "/chat";
+    render(<AssistantWidget />);
+    lookAtThePage();
+
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
   });
 
   it("says what is waiting once a visit, not again on every page, until more arrives", () => {
@@ -548,6 +577,23 @@ describe("the Architect widget", () => {
 
     expect(outside).not.toHaveBeenCalled();
     document.removeEventListener("pointerdown", outside);
+  });
+
+  it("lets its own controls have the press first, so a menu opening on it opens", () => {
+    // The composer's `+` is a menu that opens on pointerdown; a listener that
+    // stopped the press before React saw it left it dead in the window.
+    const pressed = vi.fn();
+    render(
+      <WidgetRoot>
+        <button type="button" onPointerDown={pressed}>
+          Add to message
+        </button>
+      </WidgetRoot>,
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Add to message" }));
+
+    expect(pressed).toHaveBeenCalledOnce();
   });
 
   it("stays quiet on a page somebody silenced", () => {

@@ -33,7 +33,12 @@ import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
-import { type McpOAuthClient, mcpOAuthClient, secretWithoutClientId } from "@/lib/mcp-oauth";
+import {
+  type McpOAuthClient,
+  mcpOAuthClient,
+  rememberMcpOAuthReturn,
+  secretWithoutClientId,
+} from "@/lib/mcp-oauth";
 import {
   connectionState,
   CUSTOM_CATEGORY,
@@ -48,6 +53,7 @@ import {
   slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
+import { setUrlParam } from "@/lib/utils";
 import type { McpAuthKind } from "@/types/mcp";
 import type { AudiencePayload } from "@/types/sharing";
 import { useTranslations } from "next-intl";
@@ -62,6 +68,20 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
  * parameter's name is a contract between the two rather than this file's own.
  */
 const CONNECT_PARAM = "connect";
+
+/**
+ * Which server's accounts are open, by key: in the URL so a reload, a shared link
+ * and the return from a provider's consent screen all land on that server's
+ * accounts rather than on the list (#2301).
+ */
+const SERVER_PARAM = "server";
+
+/** Where a consent started here comes back to: this page, with the server open. */
+function serverReturn(key: string): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set(SERVER_PARAM, key);
+  return `${url.pathname}?${url.searchParams.toString()}`;
+}
 
 /** Whether a row is filtered by whether anybody has connected it. */
 type StateFilter = "all" | "connected" | "not-connected";
@@ -212,7 +232,38 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   }
 
   const [draft, setDraft] = useState<DraftState | null>(null);
-  const [managing, setManaging] = useState<McpServerRow | null>(null);
+  // The open server by key, read from live data below: a disconnect then shows
+  // at once, where a row held from the moment it opened kept the account on
+  // screen until the dialog was closed and opened again.
+  const [managingKey, setManagingKey] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : new URL(window.location.href).searchParams.get(SERVER_PARAM),
+  );
+  const manage = (key: string | null) => {
+    setManagingKey(key);
+    setUrlParam(SERVER_PARAM, key);
+  };
+  const managing = useMemo((): McpServerRow | null => {
+    if (managingKey === null) return null;
+    const entry =
+      listing.servers.find((each) => each.key === managingKey) ??
+      catalog.servers.find((each) => each.key === managingKey);
+    if (entry) {
+      return rowsForEntries([entry], organization.connections, personal.connections)[0]!;
+    }
+    return (
+      customRows(catalog.servers, organization.connections, personal.connections).find(
+        (row) => row.key === managingKey,
+      ) ?? null
+    );
+  }, [
+    managingKey,
+    listing.servers,
+    catalog.servers,
+    organization.connections,
+    personal.connections,
+  ]);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
@@ -326,6 +377,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         },
         scope,
       );
+      rememberMcpOAuthReturn(serverReturn(row.key));
       // `assign`, not a write to `href`: the React compiler reads a property
       // write on `window` as mutating a value from outside the component.
       window.location.assign(authorization_url);
@@ -392,7 +444,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     const taken = new Set(personal.connections.map((connection) => connection.name));
     const name = freeName(requestedRow, taken) ?? slugForPrefix(connectKey);
     startMcpOAuth({ name, url: requestedRow.url ?? "", catalog_key: connectKey }, "personal")
-      .then(({ authorization_url }) => window.location.assign(authorization_url))
+      .then(({ authorization_url }) => {
+        rememberMcpOAuthReturn(serverReturn(connectKey));
+        window.location.assign(authorization_url);
+      })
       .catch((caught: unknown) =>
         toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign"))),
       );
@@ -658,9 +713,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               }
               description={rowDescription(row, t)}
               dataTour={index === 0 ? "mcp-connect" : undefined}
-              status={<RowStatus row={row} onManage={() => setManaging(row)} />}
+              status={<RowStatus row={row} onManage={() => manage(row.key)} />}
               // A server somebody holds an account on opens its accounts.
-              onOpen={connectionCount(row) > 0 ? () => setManaging(row) : undefined}
+              onOpen={connectionCount(row) > 0 ? () => manage(row.key) : undefined}
               // The same two controls on every card, whatever it holds.
               actions={
                 <>
@@ -703,13 +758,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         row={managing}
         canManageOrganization={canManageOrganization}
         busyId={busyId}
-        onClose={() => setManaging(null)}
+        onClose={() => manage(null)}
         onConnect={(scope, row) => {
-          setManaging(null);
+          manage(null);
           connect(scope, row);
         }}
         onEdit={(scope, row, connection) => {
-          setManaging(null);
+          manage(null);
           openDraft(scope, row, connection);
         }}
         onTools={handleTools}

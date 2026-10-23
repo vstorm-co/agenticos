@@ -2,7 +2,7 @@
 title: "AgenticOS vs Microsoft Agent 365"
 seo_title: "AgenticOS vs Microsoft Agent 365: Agents selbst steuern"
 description: "Agent 365 ist die Steuerungsebene von Microsoft für Agents in Microsoft 365. Vergleichen Sie AgenticOS: Agents auf Ihren Servern bauen, betreiben und steuern."
-source_sha: "80d442e7ad99"
+source_sha: "c7529954399e"
 ---
 
 # AgenticOS vs Microsoft Agent 365 { #agenticos-vs-microsoft-agent-365 }
@@ -11,7 +11,7 @@ Microsoft Agent 365 ist eine Steuerungsebene für die Agents eines Unternehmens 
 
 Wenn Ihr Unternehmen auf Microsoft 365 läuft und die vorhandenen Agents erfassen und überwachen möchte, passt Agent 365 in diese Umgebung. Wenn Sie die Agents selbst und die Regeln darüber auf einer Infrastruktur unter Ihrer Kontrolle und mit jedem Modell möchten, erledigt AgenticOS beides an einem Ort.
 
-Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Basisversion: v0.0.535. Umfang Agent 365: die allgemeine Verfügbarkeit von Microsoft um den 1. Mai 2026 laut Presseberichten, kein getesteter Tenant. Zum Bauen von Agents im Microsoft-Stack siehe [AgenticOS vs Copilot Studio](copilot-studio.md).
+Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.10.0. Umfang Agent 365: die allgemeine Verfügbarkeit von Microsoft um den 1. Mai 2026 laut Presseberichten, kein getesteter Tenant. Zum Bauen von Agents im Microsoft-Stack siehe [AgenticOS vs Copilot Studio](copilot-studio.md).
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -22,7 +22,7 @@ Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Bas
 | Quellcode | Proprietär | Apache-2.0 |
 | Identität | Microsoft Entra ID | OIDC-Single-Sign-on, LDAP und Kerberos, einschließlich Entra ID |
 | Richtlinien und Audit | Purview, Schutz vor Datenverlust, Lebenszyklus | Rollen und Grants pro Ressource, Freigaben, Budgets vor jeder Modellanfrage, ein manipulationssicheres Audit-Log |
-| Modelle | Über die Agents, die es steuert | 27 Provider, darunter lokale Modelle |
+| Modelle | Über die Agents, die es steuert | 28 Provider, darunter lokale Modelle |
 | Preise | Microsoft-365-Lizenzen | Keine Lizenzgebühr; Sie bezahlen Modell-Provider und Infrastruktur |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
@@ -33,7 +33,7 @@ Eine Steuerungsebene beobachtet Agents, die anderswo laufen. AgenticOS [prüft d
 
 ### Außerhalb der Cloud eines Anbieters { #outside-one-vendors-cloud }
 
-Agent 365 lebt in der Cloud und den Lizenzen von Microsoft. AgenticOS läuft [dort, wo Sie es betreiben](../deploy.md), meldet über Ihr [Verzeichnis](../directory.md#signing-in-with-a-directory-account) an - Entra ID eingeschlossen - und arbeitet mit [jedem der 27 Modell-Provider](../models.md#providers).
+Agent 365 lebt in der Cloud und den Lizenzen von Microsoft. AgenticOS läuft [dort, wo Sie es betreiben](../deploy.md), meldet über Ihr [Verzeichnis](../directory.md#signing-in-with-a-directory-account) an - Entra ID eingeschlossen - und arbeitet mit [jedem der 28 Modell-Provider](../models.md#providers).
 
 ### Offen zum Lesen und Erweitern { #open-to-read-and-extend }
 

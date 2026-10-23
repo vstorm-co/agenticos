@@ -10,7 +10,7 @@ Claude Managed Agents is Anthropic's hosted runtime for developers: it runs an a
 
 If you are a developer building one product on Claude and want Anthropic to host the runtime, Managed Agents is the shortest path. If you want a company's agents built by the people who need them, governed in one place and kept on your infrastructure, AgenticOS is built for that.
 
-Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v0.0.535. Managed Agents scope: the public beta announced 8-9 April 2026 and its published pricing, not a tested account.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Managed Agents scope: the public beta announced 8-9 April 2026 and its published pricing, not a tested account.
 
 ## At a glance
 
@@ -20,7 +20,7 @@ Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS bas
 | Who builds | Developers, through the API | Anyone with the right role, in a browser; engineers extend it in Python |
 | Where it runs | Anthropic's cloud | Your infrastructure, with Docker Compose |
 | Source | Proprietary | Apache-2.0 |
-| Models | Claude only | 27 providers, Claude among them, plus local models |
+| Models | Claude only | 28 providers, Claude among them, plus local models |
 | Sandbox | Managed, per session | A sandbox per conversation, on your own Docker host |
 | Pricing | Tokens plus $0.08 per session-hour | No licence fee; you pay model providers and infrastructure |
 
@@ -52,7 +52,7 @@ Yes, if you want to run agents yourself. AgenticOS runs agents with a sandbox, s
 
 ### Can AgenticOS use Claude?
 
-Yes. Anthropic is one of 27 providers; you add a key once and choose Claude in a model profile.
+Yes. Anthropic is one of 28 providers; you add a key once and choose Claude in a model profile.
 
 ## Related comparisons
 

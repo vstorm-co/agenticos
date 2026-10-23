@@ -28,6 +28,21 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def get_locked(
+    db: AsyncSession, secret_id: UUID, *, organization_id: UUID
+) -> OrganizationSecret | None:
+    """The secret, its row locked to the end of the transaction - for a compare-and-swap."""
+    result = await db.execute(
+        select(OrganizationSecret)
+        .where(
+            OrganizationSecret.id == secret_id,
+            OrganizationSecret.organization_id == organization_id,
+        )
+        .with_for_update()
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_by_name(
     db: AsyncSession, name: str, *, organization_id: UUID
 ) -> OrganizationSecret | None:

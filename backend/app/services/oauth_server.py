@@ -11,8 +11,6 @@ as theft, the way RFC 9700 asks: the whole grant is revoked, so the copy an
 attacker holds and the one the client holds both stop working.
 """
 
-from __future__ import annotations
-
 import hashlib
 import secrets
 from dataclasses import dataclass

@@ -32,21 +32,22 @@ request that has to answer when the database has stopped answering, and a probe
 that times out at the kubelet is indistinguishable from a wedged pod.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
+import httpx
 from sqlalchemy import distinct, func, select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.db.models.credential import ModelProfile
 from app.schemas.health import SystemCheck, SystemHealthResponse
+from app.services import tile_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -350,111 +351,148 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
     )
 
 
-_HEARTBEAT_DEPLOYMENT = "agent-triggers-check"
-"""The trigger heartbeat's deployment, as `app/worker/prefect_app.py` registers it.
-
-The heartbeat stands for every interval deployment there: one scheduler service
-creates all their runs and one runner executes them, so when this one stops
-completing, the others have stopped with it.
-"""
-
-_HEARTBEAT_SECONDS = 60
-"""The heartbeat's declared interval in `app/worker/prefect_app.py`."""
-
 _MISSED_HEARTBEATS = 5
-"""How many intervals may pass without a completed heartbeat before it is a failure.
+"""How many intervals may pass without a fired schedule before it is a failure.
 
-One missed tick is a slow run or a runner restart; five is a stopped scheduler.
+One missed tick is a slow worker or a restart; five is something stopped.
 """
 
+_WORKER_SILENT_AFTER = timedelta(minutes=2)
+"""A worker that has not beaten for this long is not counted as alive (its heartbeat is every 15s)."""
 
-async def _last_heartbeat() -> datetime | None:
-    """When the trigger heartbeat last completed, according to Prefect - or never.
+_WHAT_STOPS = "scheduled triggers, notification emails, ingestion and sweeps are not running"
 
-    Imported here rather than at the top: the API process otherwise loads Prefect
-    only when it dispatches a run, and this module is imported at start-up.
+
+async def probe_scheduler(db: AsyncSession) -> SystemCheck:
+    """Whether background work is actually running, judged by what the workers last did.
+
+    Three facts, all read from the queue's own tables (#2219): that a worker has
+    said it is alive within two minutes; that every minute schedule fired within
+    five of its intervals - a schedule fires only when a worker is up, its
+    database works and its scheduler loop runs, so its age is the check that
+    needs all three; and that no kind of job is paused by the circuit breaker,
+    which stays paused until somebody resumes it.
     """
-    from prefect.client.orchestration import get_client
-    from prefect.client.schemas.filters import (
-        DeploymentFilter,
-        DeploymentFilterName,
-        FlowRunFilter,
-        FlowRunFilterState,
-        FlowRunFilterStateType,
-    )
-    from prefect.client.schemas.objects import StateType
-    from prefect.client.schemas.sorting import FlowRunSort
+    from app.repositories import background_schedule as schedule_repo
+    from app.repositories import background_task_kind as kind_repo
+    from app.repositories import background_worker as worker_repo
+    from app.worker.jobs import Pool
 
-    async with get_client() as client:
-        runs = await client.read_flow_runs(
-            deployment_filter=DeploymentFilter(
-                name=DeploymentFilterName(any_=[_HEARTBEAT_DEPLOYMENT])
-            ),
-            flow_run_filter=FlowRunFilter(
-                state=FlowRunFilterState(type=FlowRunFilterStateType(any_=[StateType.COMPLETED]))
-            ),
-            sort=FlowRunSort.END_TIME_DESC,
-            limit=1,
-        )
-    return runs[0].end_time if runs else None
-
-
-async def probe_scheduler() -> SystemCheck:
-    """Whether scheduled work is actually running, judged by the trigger heartbeat.
-
-    The Prefect server's own health says nothing about this. From 2026-09-28 to
-    2026-10-09 its scheduler failed on every tick (PrefectHQ/prefect#23199) and
-    created no runs, while `/api/health` answered and every deployment read
-    `READY`; scheduled triggers, notification emails and the sweeps all stopped,
-    and nothing reported it. A completed heartbeat is the one fact that needs the
-    scheduler, the runner and the database all working, so its age is the check.
-
-    The threshold honours `WORKER_MIN_INTERVAL_SECONDS` the way the deployment
-    does, or a development machine that slows its ticks would always read failed.
-    """
-    interval = max(_HEARTBEAT_SECONDS, settings.WORKER_MIN_INTERVAL_SECONDS)
     start = perf_counter()
+    now = datetime.now(UTC)
     try:
         async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
-            completed_at = await _last_heartbeat()
+            workers = await worker_repo.list_seen_since(db, since=now - _WORKER_SILENT_AFTER)
+            schedules = await schedule_repo.list_all(db)
+            paused = [
+                kind.kind if name is None else f"{kind.kind} ({name})"
+                for kind, name in await kind_repo.list_all(db)
+                if kind.paused_at
+            ]
     except TimeoutError:
-        return _timed_out("scheduler", "the Prefect API")
-    except Exception as exc:
+        await _abandon_the_transaction(db)
+        return _timed_out("scheduler", "the background job tables")
+    except SQLAlchemyError as exc:
         logger.warning("scheduler health probe failed", exc_info=True)
+        await _abandon_the_transaction(db)
         return SystemCheck(
             key="scheduler",
             status="unhealthy",
-            detail=f"reading flow runs from the Prefect API failed: {exc}",
+            detail=f"reading the background job tables failed: {type(exc).__name__}",
         )
     latency = _elapsed_ms(start)
-    if completed_at is None:
-        return SystemCheck(
-            key="scheduler",
-            status="unhealthy",
-            detail=(
-                f"no {_HEARTBEAT_DEPLOYMENT} run has ever completed, so scheduled triggers, "
-                "notification emails and sweeps are not running; check the Prefect server "
-                "log for scheduler errors and that the worker is up"
-            ),
-            latency_ms=latency,
+    problems: list[str] = []
+    if not workers:
+        problems.append(f"no worker has said it is alive in two minutes, so {_WHAT_STOPS}")
+    else:
+        # A split deployment runs a pool per worker: a live `agent,system` worker
+        # keeps every schedule firing while the dead `ingest` one leaves uploads
+        # queued for ever, so one live worker is not enough to call it healthy.
+        served = {pool for worker in workers for pool in worker.pools}
+        unserved = [pool.value for pool in Pool if pool.value not in served]
+        if unserved:
+            problems.append(
+                f"no live worker serves the {', '.join(unserved)} pool(s), "
+                "so jobs queued there are not running"
+            )
+    for schedule in schedules:
+        if schedule.interval_seconds > 60:
+            continue
+        if schedule.last_fired_at is None:
+            problems.append(f"the {schedule.name} schedule has never fired")
+            continue
+        age = (now - schedule.last_fired_at).total_seconds()
+        if age > schedule.interval_seconds * _MISSED_HEARTBEATS:
+            problems.append(
+                f"the {schedule.name} schedule last fired {age / 60:.0f} min ago "
+                f"(expected every {schedule.interval_seconds}s)"
+            )
+    if paused:
+        problems.append(
+            f"paused after repeated worker deaths: {', '.join(paused)} - resume on the "
+            "Background jobs page once the cause is fixed"
         )
-    age = (datetime.now(UTC) - completed_at).total_seconds()
-    if age > interval * _MISSED_HEARTBEATS:
+    if problems:
         return SystemCheck(
             key="scheduler",
             status="unhealthy",
-            detail=(
-                f"the {_HEARTBEAT_DEPLOYMENT} heartbeat last completed {age / 60:.0f} min ago "
-                f"(expected every {interval}s), so scheduled triggers, notification emails "
-                "and sweeps are not running; check the Prefect server log for scheduler "
-                "errors and that the worker is up"
-            ),
+            detail=f"{'; '.join(problems)}; check the worker's log",
             latency_ms=latency,
         )
     return SystemCheck(
         key="scheduler",
         status="healthy",
-        detail=f"the {_HEARTBEAT_DEPLOYMENT} heartbeat completed {age:.0f}s ago",
+        detail=(
+            f"{len(workers)} worker(s) alive; every minute schedule fired within "
+            f"{_MISSED_HEARTBEATS} intervals"
+        ),
+        latency_ms=latency,
+    )
+
+
+async def probe_map_tiles() -> SystemCheck:
+    """Whether the tile server visuals draw maps on answers, when the deployment names one.
+
+    It is the reader's browser that loads the tiles, not this server, so a
+    healthy answer here says the server is up and serves images - a network
+    between a reader and it can still refuse them. The detail names the server
+    and never its address, which may carry the operator's key.
+    """
+    tiles = settings.map_tiles()
+    if tiles is None:
+        return SystemCheck(
+            key="map_tiles",
+            status="unconfigured",
+            detail="VISUAL_MAP_TILES is not set, so maps in visuals are drawn as an outline",
+        )
+    url = tiles.url.replace("{z}", "0").replace("{x}", "0").replace("{y}", "0")
+    start = perf_counter()
+    try:
+        async with httpx.AsyncClient(
+            timeout=PROBE_TIMEOUT_SECONDS, headers={"User-Agent": tile_proxy.USER_AGENT}
+        ) as client:
+            response = await client.get(url)
+    except httpx.TimeoutException:
+        return _timed_out("map_tiles", f"the {tiles.name} tile server")
+    except httpx.HTTPError as exc:
+        return SystemCheck(
+            key="map_tiles",
+            status="unhealthy",
+            detail=f"fetching a tile from {tiles.name} failed: {type(exc).__name__}",
+        )
+    latency = _elapsed_ms(start)
+    kind = response.headers.get("content-type", "")
+    if response.status_code != 200 or not kind.startswith("image/"):
+        return SystemCheck(
+            key="map_tiles",
+            status="unhealthy",
+            detail=f"{tiles.name} answered {response.status_code} ({kind or 'no type'}) for the first tile",
+            latency_ms=latency,
+        )
+    return SystemCheck(
+        key="map_tiles",
+        status="healthy",
+        detail=f"{tiles.name} served the first tile; readers' browsers load the rest themselves",
         latency_ms=latency,
     )
 
@@ -482,22 +520,24 @@ async def readiness(*, db: AsyncSession, redis: RedisClient) -> tuple[bool, dict
 async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealthResponse:
     """Every check this deployment can perform, for an operator who is signed in.
 
-    The database probe gates the two that read through it. Not for speed - a
+    The database probe gates the three that read through it. Not for speed - a
     timed-out query leaves the session unusable, and the cascade of driver errors
     that follows reports three broken things when one is. `not_checked` names
     the reason instead.
     """
-    database, redis_check, scheduler = await asyncio.gather(
-        probe_database(db), probe_redis(redis), probe_scheduler()
+    database, redis_check, map_tiles = await asyncio.gather(
+        probe_database(db), probe_redis(redis), probe_map_tiles()
     )
     if database.status == "healthy":
         vector_store = await probe_vector_store(db)
         model_access = await probe_model_access(db)
+        scheduler = await probe_scheduler(db)
     else:
         vector_store = _not_checked("vector_store", "the database probe failed")
         model_access = _not_checked("model_access", "the database probe failed")
+        scheduler = _not_checked("scheduler", "the database probe failed")
 
     return SystemHealthResponse(
         checked_at=datetime.now(UTC),
-        checks=[database, redis_check, vector_store, model_access, scheduler],
+        checks=[database, redis_check, vector_store, model_access, scheduler, map_tiles],
     )

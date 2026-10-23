@@ -5,8 +5,6 @@ timestamp, and what it must leave alone - a question asked an hour ago, a run
 parked on an approval - is decided by that `WHERE`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

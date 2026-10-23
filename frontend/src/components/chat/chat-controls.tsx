@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { HelpCircle, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ChatModelPicker } from "./chat-model-picker";
@@ -9,8 +10,11 @@ import { YourConnections } from "./your-connections";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
 import { useConversationStore, useOrgStore } from "@/stores";
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
+import { stripLocale } from "@/lib/active-route";
+import { pageHasSteps } from "@/lib/onboarding/tour";
 import { cn } from "@/lib/utils";
 
 /** Offered in this order: what the agent says, then looser, then tighter. */
@@ -67,6 +71,10 @@ export function ChatControls({
   agentModel = null,
 }: ChatControlsProps) {
   const t = useTranslations("chat.controls");
+  const tOnboarding = useTranslations("onboarding");
+  const pathname = usePathname();
+  const openPage = useOnboardingStore((state) => state.openPage);
+  const [open, setOpen] = useState(false);
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
@@ -91,7 +99,7 @@ export function ChatControls({
   const hasOverride = profileId !== null || approvalMode !== "follow_agent";
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -100,6 +108,7 @@ export function ChatControls({
           // The /settings slash command opens this popover by clicking the
           // trigger through this attribute - see ChatContainer's slashContext.
           data-chat-settings-trigger
+          data-tour="chat-settings"
           // One icon beside the microphone: the model is a choice made once
           // per conversation, and its name took the width of the row it sat in.
           // The dot is what an override leaves visible once the popover closes.
@@ -123,6 +132,12 @@ export function ChatControls({
         align="end"
         sideOffset={8}
         className="border-border bg-popover relative w-[380px] overflow-hidden rounded-2xl border p-0 shadow-md"
+        // The page tour walks through this popover's sections. Its caption takes
+        // focus and its overlay takes the pointer - both outside - and closing on
+        // either left the next stop pinned to a section that had gone.
+        onInteractOutside={(event) => {
+          if (document.querySelector(".driver-popover")) event.preventDefault();
+        }}
       >
         <div className="max-h-[420px] scrollbar-thin overflow-y-auto p-4">
           <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
@@ -197,6 +212,24 @@ export function ChatControls({
             )}
           </div>
           <YourConnections />
+          {/* Chat has no PageHeader, so its tips are replayed from here - beside
+              the other controls, rather than under the composer (#2301). Closed
+              first: the tour walks through this very popover. */}
+          {pageHasSteps(stripLocale(pathname ?? "/")) && (
+            <div className="border-foreground/10 mt-4 border-t pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  openPage();
+                }}
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs transition-colors"
+              >
+                <HelpCircle className="h-3.5 w-3.5" aria-hidden />
+                {tOnboarding("pageHelp")}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-xs tracking-wider uppercase">

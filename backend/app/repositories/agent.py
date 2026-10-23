@@ -18,6 +18,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.resource_grant import Visibility
 
 
@@ -65,6 +66,28 @@ async def existing_ids_locked(
 async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:
     result = await db.execute(
         select(Agent).where(Agent.id == agent_id, Agent.organization_id == organization_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
+    """A published agent its organization chose to serve over A2A, whatever the tenant.
+
+    The one cross-tenant read by id, because an agent card is fetched before any
+    caller is known. What it finds is only what the organization made discoverable -
+    and not an assistant it has switched off, which reads as no agent at all.
+    """
+    switched_off = select(OrganizationAssistant.agent_id).where(
+        OrganizationAssistant.agent_id == agent_id, OrganizationAssistant.enabled.is_(False)
+    )
+    result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.a2a_enabled.is_(True),
+            Agent.status == AgentStatus.PUBLISHED.value,
+            Agent.current_version_id.is_not(None),
+            Agent.id.not_in(switched_off),
+        )
     )
     return result.scalar_one_or_none()
 
@@ -237,6 +260,25 @@ async def published_budget_caps(
     return {row[0]: row[1] for row in result.all()}
 
 
+async def published_starters(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, list[str]]:
+    """Each version's first messages, read off the frozen spec's JSONB.
+
+    The same one-path-per-row extraction as `published_budget_caps`. A version
+    published before `starters` existed has none and is absent.
+    """
+    if not version_ids:
+        return {}
+    starters = AgentVersion.spec["starters"]
+    result = await db.execute(
+        select(AgentVersion.id, starters).where(
+            AgentVersion.id.in_(list(version_ids)), starters.isnot(None)
+        )
+    )
+    return {row[0]: [str(item) for item in row[1]] for row in result.all()}
+
+
 async def published_model_profiles(
     db: AsyncSession, *, version_ids: Sequence[UUID]
 ) -> dict[UUID, UUID]:
@@ -374,9 +416,9 @@ async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentV
     `audit-skill-bindings` sweep is deployment-wide. A run records the version it
     executed in `agent_version_id`, and a run that has not ended still loads it: a
     `running` run is executing it now, and an `awaiting_approval` run reloads it
-    when :meth:`AgentRunnerService.resume` continues it. The five terminal states -
-    `completed`, `failed`, `cancelled`, `budget_exceeded` and `guardrail_blocked` -
-    never load it again, so there `agent_version_id` is only a historical record.
+    when :meth:`AgentRunnerService.resume` continues it. The six terminal states -
+    `completed`, `failed`, `cancelled`, `budget_exceeded`, `guardrail_blocked` and
+    `loop_stopped` - never load it again, so there `agent_version_id` is only a historical record.
     A parked run resumes only from stored `paused_state`; one without it can never
     continue, so it is excluded rather than seeding a version no resume can reach.
 

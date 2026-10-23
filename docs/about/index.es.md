@@ -1,5 +1,5 @@
 ---
-source_sha: "51103c7b1def"
+source_sha: "fa5a6c8ba066"
 ---
 
 # Acerca de AgenticOS { #about-agenticos }
@@ -51,7 +51,7 @@ lo estés comparando.
 | Procesos | Los runs son de primera clase: historial, coste, estado, y un aislamiento entre inquilinos que imponen restricciones de base de datos en vez del código de servicio |
 | Límites de recursos | [Budgets mensuales](../governance.md) por agent, comprobados antes de cada petición al modelo. Un run que falla registra igualmente lo que gastó, porque un budget que ignora los fallos no es un budget |
 | Control de acceso | Un [catálogo de permisos](../permissions.md) en código, roles compuestos a partir de él, grants por recurso que amplían y nunca reducen. `approval: required` es el `sudo` — el run se aparca y espera a una persona |
-| Drivers | [27 providers de modelos](../models.md) detrás de un perfil de modelo, y [cualquier servidor MCP por URL](../mcp.md). Cambia el perfil y todos los agents que lo usan se mueven con él, sin republicar ninguno |
+| Drivers | [28 providers de modelos](../models.md) detrás de un perfil de modelo, y [cualquier servidor MCP por URL](../mcp.md). Cambia el perfil y todos los agents que lo usan se mueven con él, sin republicar ninguno |
 | Sistema de ficheros | [Colecciones, skills y context](../file-processing.md) en tu propio Postgres, con embeddings que usan una clave por organización |
 | Shell | Un único runner detrás del [chat web, la API, Slack, Telegram, un widget, una página alojada y un horario](../channels.md) |
 | Registro de auditoría | Cada run, cada decisión de aprobación, cada rotación de secreto — con valores, nunca con filas, y nunca con una clave en texto plano |

@@ -8,8 +8,6 @@ for its portal's `event_source`, so a preset with a typo'd key is caught in CI
 rather than as a 422 the first time someone clicks the card.
 """
 
-from __future__ import annotations
-
 from app.db.models.agent_trigger import EventSource
 from app.schemas.agent_trigger import _EVENT_CONFIG_MODELS
 from app.services import mcp_catalog, portal_catalog

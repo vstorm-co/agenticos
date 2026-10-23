@@ -18,8 +18,6 @@ adds a field is a schema that stops being written to. `RunManifestRead` is what
 gives it a shape on the way out.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

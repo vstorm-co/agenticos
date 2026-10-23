@@ -3,15 +3,27 @@
 from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Integer, Numeric, distinct, func, or_, select, type_coerce
+from sqlalchemy import (
+    ColumnElement,
+    Integer,
+    Numeric,
+    and_,
+    distinct,
+    func,
+    or_,
+    select,
+    type_coerce,
+    union_all,
+)
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, raiseload, selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
@@ -41,8 +53,8 @@ async def agents_in_conversations(
 ) -> dict[UUID, list[Agent]]:
     """Which agents each of these conversations was with, oldest turn first.
 
-    One query per source for the whole page rather than one per row: a conversation
-    list is fifty rows, and the alternative is fifty round trips to render a chip.
+    One query for the whole page rather than one per row: a conversation list is
+    fifty rows, and the alternative is fifty round trips to render a chip.
 
     An agent appears once however many times it answered - the list says who took
     part, not how often. Ordering by the first evidence of it answering makes that
@@ -76,43 +88,40 @@ async def agents_in_conversations(
     if not conversation_ids:
         return {}
 
-    first_turn = func.min(Message.created_at).label("first_turn")
-    from_messages = await db.execute(
-        select(Message.conversation_id, Agent, first_turn)
-        .join(Agent, Agent.id == Message.agent_id)
-        .where(Message.conversation_id.in_(conversation_ids))
-        .group_by(Message.conversation_id, Agent.id)
-        .order_by(Message.conversation_id, first_turn)
-    )
-
-    first_run = func.min(AgentRun.created_at).label("first_run")
-    from_runs = await db.execute(
-        select(AgentRun.conversation_id, Agent, first_run)
-        .join(Agent, Agent.id == AgentRun.agent_id)
-        .where(
+    # Both sources in one statement, aggregated on ids before the agents are
+    # joined: the chip needs five columns, and grouping whole rows carried each
+    # agent's draft spec through the aggregate, once per conversation (#2248).
+    evidence = union_all(
+        select(
+            Message.conversation_id.label("conversation_id"),
+            Message.agent_id.label("agent_id"),
+            Message.created_at.label("at"),
+        ).where(Message.conversation_id.in_(conversation_ids), Message.agent_id.is_not(None)),
+        select(AgentRun.conversation_id, AgentRun.agent_id, AgentRun.created_at).where(
             AgentRun.conversation_id.in_(conversation_ids),
             AgentRun.parent_run_id.is_(None),
-        )
-        .group_by(AgentRun.conversation_id, Agent.id)
-        .order_by(AgentRun.conversation_id, first_run)
+        ),
+    ).subquery()
+    first = func.min(evidence.c.at).label("first")
+    firsts = (
+        select(evidence.c.conversation_id, evidence.c.agent_id, first)
+        .where(evidence.c.conversation_id.is_not(None))
+        .group_by(evidence.c.conversation_id, evidence.c.agent_id)
+        .subquery()
     )
-
-    # Merged on the earliest evidence from either source, so the order is the order
-    # the agents appeared however the row was recorded.
-    seen: dict[UUID, dict[UUID, tuple[datetime, Agent]]] = {}
-    for rows in (from_messages.all(), from_runs.all()):
-        for conversation_id, agent, at in rows:
-            if conversation_id is None:
-                continue
-            found = seen.setdefault(conversation_id, {})
-            existing = found.get(agent.id)
-            if existing is None or at < existing[0]:
-                found[agent.id] = (at, agent)
-
-    return {
-        conversation_id: [agent for _at, agent in sorted(agents.values(), key=lambda p: p[0])]
-        for conversation_id, agents in seen.items()
-    }
+    result = await db.execute(
+        select(firsts.c.conversation_id, Agent)
+        .join(Agent, Agent.id == firsts.c.agent_id)
+        .options(
+            load_only(Agent.id, Agent.slug, Agent.name, Agent.avatar_url, Agent.avatar_color),
+            raiseload("*"),
+        )
+        .order_by(firsts.c.conversation_id, firsts.c.first, Agent.id)
+    )
+    found: dict[UUID, list[Agent]] = {}
+    for conversation_id, agent in result.all():
+        found.setdefault(conversation_id, []).append(agent)
+    return found
 
 
 class ConversationHead(NamedTuple):
@@ -211,6 +220,7 @@ def _list_filters(
     include_archived: bool = False,
     archived_only: bool = False,
     hide_api: bool = False,
+    project_id: UUID | None = None,
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
 
@@ -234,6 +244,8 @@ def _list_filters(
     nothing rather than confirming the agent exists.
     """
     filters: list[ColumnElement[bool]] = []
+    if project_id is not None:
+        filters.append(Conversation.project_id == project_id)
     if hide_api:
         # Null for every conversation opened in the console or a channel.
         filters.append(or_(Conversation.origin.is_(None), Conversation.origin != "api"))
@@ -277,7 +289,9 @@ async def authors_of(db: AsyncSession, identity_ids: list[UUID]) -> dict[UUID, C
     return {identity.id: identity for identity in result.scalars().all()}
 
 
-def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnElement[bool]:
+def _reachable_by(
+    user_id: UUID, participant_ids: Collection[UUID], project_ids: Collection[UUID]
+) -> ColumnElement[bool]:
     """Whose conversation list a thread appears in.
 
     Theirs if they own it, and theirs if they are a *confirmed* participant of
@@ -291,10 +305,20 @@ def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnEle
     The default is therefore the narrow one. A caller that passes nothing gets
     owner-only, which fails safe - forgetting the participation step hides a
     thread rather than showing it to somebody who was removed.
+
+    Owning reaches only a chat outside any project. One in a project is
+    reached through the project, its starter's included: a person who lost the
+    project would otherwise still list a chat that answers 404 when opened.
+    `project_ids` are the projects this person may see, decided by the caller
+    on the projects as they stand - a predicate over them rather than a list of
+    their chats, which grows with every chat a busy project holds.
     """
-    if not participant_ids:
-        return Conversation.user_id == user_id
-    return or_(Conversation.user_id == user_id, Conversation.id.in_(participant_ids))
+    ways_in = [and_(Conversation.user_id == user_id, Conversation.project_id.is_(None))]
+    if participant_ids:
+        ways_in.append(Conversation.id.in_(participant_ids))
+    if project_ids:
+        ways_in.append(Conversation.project_id.in_(project_ids))
+    return or_(*ways_in)
 
 
 class ParticipationClaim(NamedTuple):
@@ -354,6 +378,25 @@ async def participation_claims(
         query = query.where(Message.conversation_id == conversation_id)
     result = await db.execute(query)
     return [ParticipationClaim(*row) for row in result.all()]
+
+
+# What a listing reads of each row - what `ConversationRead` draws, and no more.
+# The rest is a run's working state: `summary_messages` is the summarised history
+# itself, 3.7 KB on average in production and over 500 KB on a long thread, and a
+# sidebar fetched and decoded it for thirty rows on every refresh. `raiseload`, so a
+# caller that starts reading one of them from a listed row fails in a test rather
+# than lazily loading per row.
+_LISTED_COLUMNS = (
+    Conversation.id,
+    Conversation.user_id,
+    Conversation.organization_id,
+    Conversation.title,
+    Conversation.is_archived,
+    Conversation.project_id,
+    Conversation.origin,
+    Conversation.created_at,
+    Conversation.updated_at,
+)
 
 
 def _sort_columns() -> dict[str, Any]:
@@ -433,6 +476,82 @@ async def running_since(
         .group_by(AgentRun.conversation_id)
     )
     return dict(result.all())
+
+
+async def running_users(db: AsyncSession, conversation_ids: Collection[UUID]) -> dict[UUID, UUID]:
+    """Who started the run still at work in each of these conversations.
+
+    The same runs `running_since` counts, so a list saying a thread is busy and
+    one saying who is busy in it agree. The earliest, where two are running.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.conversation_id, AgentRun.user_id)
+        .where(
+            AgentRun.conversation_id.in_(list(conversation_ids)),
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status == RunStatus.RUNNING,
+            AgentRun.ended_at.is_(None),
+            AgentRun.started_at >= datetime.now(UTC) - RUNNING_HORIZON,
+            AgentRun.user_id.is_not(None),
+        )
+        .order_by(AgentRun.started_at.desc())
+    )
+    # Newest first, so the earliest run's person is the one left standing.
+    return dict(result.all())
+
+
+async def readers_of(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, list[tuple[User, datetime]]]:
+    """Who has had each of these conversations open, and when last - newest first.
+
+    One query for a page. Read from the rows `mark_read` keeps for the unread
+    mark, which is exactly the record of somebody having had the thread open.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(ConversationLastRead.conversation_id, User, ConversationLastRead.read_at)
+        .join(User, User.id == ConversationLastRead.user_id)
+        .where(ConversationLastRead.conversation_id.in_(list(conversation_ids)))
+        .order_by(ConversationLastRead.read_at.desc())
+    )
+    readers: dict[UUID, list[tuple[User, datetime]]] = {}
+    for conversation_id, user, read_at in result.all():
+        readers.setdefault(conversation_id, []).append((user, read_at))
+    return readers
+
+
+async def messages_by_id(db: AsyncSession, message_ids: Collection[UUID]) -> dict[UUID, Message]:
+    """These messages, keyed by id; one query, and none for an empty set."""
+    if not message_ids:
+        return {}
+    result = await db.execute(select(Message).where(Message.id.in_(set(message_ids))))
+    return {message.id: message for message in result.scalars().all()}
+
+
+async def release_project_chats(db: AsyncSession, *, user_id: UUID) -> None:
+    """Take this person off the project chats they started, so the chats outlive them.
+
+    Called as their account goes: the `users` cascade deletes the rows that
+    still name them, and a project's chat is its members' to keep.
+    """
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.user_id == user_id, Conversation.project_id.is_not(None))
+        .values(user_id=None)
+    )
+    await db.flush()
+
+
+async def users_by_id(db: AsyncSession, user_ids: Collection[UUID]) -> dict[UUID, User]:
+    """These people, keyed by id; one query, and none for an empty set."""
+    if not user_ids:
+        return {}
+    result = await db.execute(select(User).where(User.id.in_(set(user_ids))))
+    return {user.id: user for user in result.scalars().all()}
 
 
 async def favourite_ids(
@@ -559,7 +678,9 @@ async def get_conversations_by_user(
     sort_dir: str = "desc",
     favourites_first_for: UUID | None = None,
     participant_conversation_ids: Collection[UUID] = frozenset(),
+    visible_project_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
+    project_id: UUID | None = None,
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -578,16 +699,25 @@ async def get_conversations_by_user(
     `participant_conversation_ids` widens a user's list to channel threads whose
     membership the caller has already confirmed against the platform - see
     :func:`_reachable_by` for why they arrive vetted rather than derived here.
+    `visible_project_ids` widens it to every chat in the projects the caller
+    decided this person may see.
     """
-    query = select(Conversation).where(Conversation.organization_id == organization_id)
+    query = (
+        select(Conversation)
+        .options(load_only(*_LISTED_COLUMNS, raiseload=True))
+        .where(Conversation.organization_id == organization_id)
+    )
     if user_id:
-        query = query.where(_reachable_by(user_id, participant_conversation_ids))
+        query = query.where(
+            _reachable_by(user_id, participant_conversation_ids, visible_project_ids)
+        )
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
         include_archived=include_archived,
         archived_only=archived_only,
         hide_api=hide_api,
+        project_id=project_id,
     ):
         query = query.where(condition)
     orders = [] if favourites_first_for is None else [_favourited_by(favourites_first_for).desc()]
@@ -663,7 +793,9 @@ async def count_conversations(
     include_archived: bool = False,
     archived_only: bool = False,
     participant_conversation_ids: Collection[UUID] = frozenset(),
+    visible_project_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
+    project_id: UUID | None = None,
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
@@ -676,13 +808,16 @@ async def count_conversations(
         Conversation.organization_id == organization_id
     )
     if user_id:
-        query = query.where(_reachable_by(user_id, participant_conversation_ids))
+        query = query.where(
+            _reachable_by(user_id, participant_conversation_ids, visible_project_ids)
+        )
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
         include_archived=include_archived,
         archived_only=archived_only,
         hide_api=hide_api,
+        project_id=project_id,
     ):
         query = query.where(condition)
     result = await db.execute(query)
@@ -696,6 +831,7 @@ async def create_conversation(
     user_id: UUID | None = None,
     title: str | None = None,
     origin: str | None = None,
+    project_id: UUID | None = None,
 ) -> Conversation:
     """Create a new conversation owned by an organization.
 
@@ -708,6 +844,7 @@ async def create_conversation(
         organization_id=organization_id,
         title=title,
         origin=origin,
+        project_id=project_id,
     )
     db.add(conversation)
     await db.flush()
@@ -796,6 +933,123 @@ async def recent_tool_calls(
     return [ToolCallSeen(*row) for row in result.all()]
 
 
+class ToolCallArgs(NamedTuple):
+    """A recorded call's name and arguments, and the agent and run whose turn made it."""
+
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, Any]
+    agent_id: UUID | None = None
+    run_id: UUID | None = None
+
+
+def _succeeded(result_prefixes: Collection[str]) -> ColumnElement[bool]:
+    """A completed call whose result says it did its work.
+
+    `completed` alone does not: a call refused with a retry prompt, or steered
+    away with a sentence, is stored completed too.
+    """
+    return or_(*(ToolCall.result.startswith(prefix, autoescape=True) for prefix in result_prefixes))
+
+
+async def tool_calls_named(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    names: Collection[str],
+    result_prefixes: Collection[str],
+    limit: int,
+) -> list[ToolCallArgs]:
+    """The conversation's latest calls of these tools that succeeded, oldest first.
+
+    A call succeeded when it completed with a result opening on one of
+    `result_prefixes` - see `_succeeded`.
+    """
+    newest = (
+        select(ToolCall.tool_call_id, ToolCall.tool_name, ToolCall.args, ToolCall.started_at)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ToolCall.tool_name.in_(names),
+            ToolCall.status == "completed",
+            _succeeded(result_prefixes),
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(limit)
+        .subquery()
+    )
+    result = await db.execute(
+        select(newest.c.tool_call_id, newest.c.tool_name, newest.c.args).order_by(
+            newest.c.started_at.asc()
+        )
+    )
+    return [ToolCallArgs(*row) for row in result.all()]
+
+
+async def tool_call_in_conversation(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    tool_call_id: str,
+    names: Collection[str],
+    result_prefixes: Collection[str],
+) -> ToolCallArgs | None:
+    """One succeeded call of these tools, by the provider's id, within one conversation.
+
+    Succeeded as `tool_calls_named` means it.
+
+    The conversation is the boundary: the id is the model's to name, and a call in
+    any other conversation is not one it may reach.
+    """
+    result = await db.execute(
+        select(
+            ToolCall.tool_call_id,
+            ToolCall.tool_name,
+            ToolCall.args,
+            Message.agent_id,
+            Message.run_id,
+        )
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ToolCall.tool_call_id == tool_call_id,
+            ToolCall.tool_name.in_(names),
+            ToolCall.status == "completed",
+            _succeeded(result_prefixes),
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(1)
+    )
+    row = result.first()
+    return ToolCallArgs(*row) if row is not None else None
+
+
+async def person_requests_since(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime, limit: int
+) -> list[Message]:
+    """What one person asked agents here since `since`, newest first (#2301).
+
+    Their own messages: written by them in a shared chat, or unattributed in a
+    conversation that is theirs - a one-person chat records no author per turn.
+    """
+    result = await db.execute(
+        select(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.role == "user",
+            Message.created_at >= since,
+            or_(
+                Message.author_user_id == user_id,
+                and_(Message.author_user_id.is_(None), Conversation.user_id == user_id),
+            ),
+        )
+        .order_by(Message.created_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:
     """Get message by ID."""
     return await db.get(Message, message_id)
@@ -869,7 +1123,17 @@ async def conversation_cost(
     return int(input_tokens), int(output_tokens), Decimal(cost_usd), partial
 
 
-async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, Decimal]:
+class Attributed(NamedTuple):
+    """What a run's messages already claim of what the run spent."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: Decimal = Decimal(0)
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+
+
+async def attributed_to_run(db: AsyncSession, run_id: UUID) -> Attributed:
     """What this run's messages already claim of what the run spent.
 
     A run row carries *cumulative* totals, and one run can write more than one
@@ -886,10 +1150,14 @@ async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, D
             type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
             type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
             type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
+            type_coerce(func.coalesce(func.sum(Message.cache_read_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.cache_write_tokens), 0), Integer),
         ).where(Message.run_id == run_id)
     )
-    input_tokens, output_tokens, cost_usd = result.one()
-    return int(input_tokens), int(output_tokens), Decimal(cost_usd)
+    input_tokens, output_tokens, cost_usd, cache_read, cache_write = result.one()
+    return Attributed(
+        int(input_tokens), int(output_tokens), Decimal(cost_usd), int(cache_read), int(cache_write)
+    )
 
 
 class RunOutcome(NamedTuple):
@@ -1064,6 +1332,22 @@ async def get_messages_by_run(
     return list(result.scalars().all())
 
 
+async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:
+    """The latest assistant turn one run wrote that says something, or `None`."""
+    result = await db.execute(
+        select(Message.content)
+        .where(
+            Message.run_id == run_id,
+            Message.role == "assistant",
+            Message.content.is_not(None),
+            Message.content != "",
+        )
+        .order_by(Message.ordinal.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def count_messages_by_run(db: AsyncSession, run_id: UUID) -> int:
     """Count the turns one run produced."""
     query = select(func.count(Message.id)).where(Message.run_id == run_id)
@@ -1083,6 +1367,8 @@ async def create_message(
     tokens_used: int | None = None,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    cache_read_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
     cost_usd: Decimal | None = None,
     cost_is_partial: bool | None = None,
     context_used_tokens: int | None = None,
@@ -1090,6 +1376,8 @@ async def create_message(
     agent_version_id: UUID | None = None,
     run_id: UUID | None = None,
     channel_identity_id: UUID | None = None,
+    author_user_id: UUID | None = None,
+    reply_to_message_id: UUID | None = None,
     attachment_context: str | None = None,
 ) -> Message:
     """Create a new message."""
@@ -1099,12 +1387,16 @@ async def create_message(
         content=content,
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
+        author_user_id=author_user_id,
+        reply_to_message_id=reply_to_message_id,
         thinking=thinking,
         parts=parts,
         model_name=model_name,
         tokens_used=tokens_used,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
         cost_usd=cost_usd,
         cost_is_partial=cost_is_partial,
         context_used_tokens=context_used_tokens,
@@ -1115,6 +1407,11 @@ async def create_message(
     db.add(message)
     await db.flush()
     await db.refresh(message)
+    # Nothing hangs off a message that was just written, so say so rather than
+    # leave both collections to a lazy load: a route serializing the new row
+    # read them outside the session's async context and answered 500.
+    set_committed_value(message, "tool_calls", [])
+    set_committed_value(message, "files", [])
 
     await db.execute(
         sql_update(Conversation)
@@ -1122,6 +1419,57 @@ async def create_message(
         .values(updated_at=message.created_at)
     )
 
+    return message
+
+
+async def create_voice_turn(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    role: Literal["user", "assistant"],
+    content: str,
+    turn_id: str,
+    interrupted: bool,
+    run_id: UUID,
+    agent_id: UUID | None,
+    agent_version_id: UUID | None,
+    parts: list[dict[str, object]] | None,
+) -> Message | None:
+    """Write one spoken turn, or nothing when this turn is already written (#54).
+
+    `ON CONFLICT DO NOTHING` on (conversation_id, turn_id): the voice service
+    writes each turn the moment it finishes, from its own session, and a
+    retried write after a timeout must not leave the turn twice. Like
+    :func:`create_message`, a written turn moves the conversation up the list.
+    """
+    statement = (
+        pg_insert(Message)
+        .values(
+            conversation_id=conversation_id,
+            role=role,
+            content=content,
+            turn_id=turn_id,
+            interrupted=interrupted,
+            run_id=run_id,
+            agent_id=agent_id,
+            agent_version_id=agent_version_id,
+            parts=parts,
+        )
+        .on_conflict_do_nothing(
+            index_elements=[Message.conversation_id, Message.turn_id],
+            index_where=Message.turn_id.is_not(None),
+        )
+        .returning(Message)
+    )
+    message = (await db.execute(statement)).scalar_one_or_none()
+    if message is None:
+        return None
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id == conversation_id)
+        .values(updated_at=message.created_at)
+    )
+    await db.flush()
     return message
 
 

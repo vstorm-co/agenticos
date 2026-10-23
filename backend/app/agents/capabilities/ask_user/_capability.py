@@ -1,7 +1,5 @@
 """`AskUser` from pydantic-ai-harness, answered by whichever surface is running the agent."""
 
-from __future__ import annotations
-
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any

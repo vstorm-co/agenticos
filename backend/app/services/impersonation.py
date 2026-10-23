@@ -37,8 +37,6 @@ session id and the expiry, and `admin.user.impersonation_ended` when the
 administrator ends it. An expiry writes nothing, because nobody acted.
 """
 
-from __future__ import annotations
-
 import logging
 import secrets
 from contextvars import ContextVar

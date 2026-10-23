@@ -1,7 +1,5 @@
 """A bot's reaction emoji and Mattermost's `/agent` token, as settings (#2084)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -46,6 +44,7 @@ def _row(platform: str = "mattermost") -> ChannelBot:
         stream_answers=True,
         step_display="timeline",
         rate_answers=True,
+        transcribe_voice_notes=True,
     )
 
 

@@ -18,8 +18,6 @@ The transport (streamable HTTP or SSE) is inferred from each server's URL, so
 SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
 """
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import importlib
@@ -27,25 +25,51 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Iterable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
+import httpx2
+
+# At import, not on the first turn: `pydantic_ai.mcp` brings in fastmcp's client,
+# and lazily that was a few hundred milliseconds - seconds on a host short of CPU -
+# inside the first chat turn each process served, before the model was asked.
+from pydantic_ai.mcp import MCPToolset, infer_transport_type_from_url
+from pydantic_ai.messages import InstructionPart
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
 from app.agents.spec import McpApproval
+from app.core.config import settings
 from app.core.sanitize import validate_webhook_url
 
 logger = logging.getLogger(__name__)
 
-# How long a server gets to answer a connect or a probe. A constant rather than
-# a setting: the right value is a property of the protocol round-trip, not of a
-# deployment, and no installation ever tuned it.
+# How long a server gets to accept a connection, and an OAuth request to answer.
+# A constant rather than a setting: the right value is a property of the
+# protocol round-trip, not of a deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
+
+HANDSHAKE_TIMEOUT_SECS = 10.0
+"""How long a probe's whole session may take: `initialize`, `initialized` and `tools/list`.
+
+Apart from the connect timeout because a server can be slow per request without
+being down. One that checks every request's token at its identity provider - an
+OAuth proxy in front of GitHub or Microsoft Entra - spends about a second on
+each, and a probe is three or four requests, so a single 3s budget left it out
+of every turn although it answered every request. A host that does not accept
+the connection still fails within :data:`CONNECT_TIMEOUT_SECS`; one that accepts
+and then hangs holds a turn for this long.
+
+A run's own `initialize` keeps :data:`CONNECT_TIMEOUT_SECS`. It is one request,
+which such a server answers within it, and a server that answered a probe in
+the last :data:`ANSWERED_FOR` seconds is entered without another - so one that
+went down in that window still fails a turn in seconds, not in this budget.
+"""
 
 ANSWERED_FOR = 120.0
 """How long, in seconds, a server that answered its probe is taken to be up without another.
@@ -87,7 +111,65 @@ class McpProbeError(Exception):
     """
 
 
-async def validate_mcp_url(url: str) -> str:
+def _allowed_hosts() -> frozenset[str]:
+    """`MCP_ALLOWED_HOSTS`, spelled the way `urlparse` spells a host.
+
+    Each entry is trimmed and lower-cased, a leading `[` and a trailing `]` are
+    dropped (each on its own, for an IPv6 address listed with brackets), and a
+    blank entry is skipped rather than read as a host. Nothing else is
+    folded: not a trailing dot, a port or a glob, so an entry matches one host
+    spelled exactly that way. Read on every call, so a test's monkeypatch is
+    seen and there is nothing to invalidate.
+    """
+    hosts = (
+        entry.strip().removeprefix("[").removesuffix("]").lower()
+        for entry in settings.MCP_ALLOWED_HOSTS
+    )
+    return frozenset(host for host in hosts if host)
+
+
+def trusted_hosts_for(server_url: str) -> frozenset[str]:
+    """The listed hosts the OAuth flow for the connection at *server_url* may reach.
+
+    All of `MCP_ALLOWED_HOSTS` when the connection's own host is on it, and none
+    otherwise. Its discovery documents name the addresses the flow fetches, so
+    the decision is made from the URL the connection was saved with, never from
+    an address a server named. That keeps a public server from aiming its token
+    endpoint at a listed host. A flow that began at a listed host may reach the
+    others: a member could already save a connection to any of them, so they
+    open nothing new. A URL `urlparse` cannot read trusts nothing; the guard
+    that checks it next writes the refusal.
+
+    Each host is in the set twice when its spellings differ: as `urlparse`
+    reads a URL a server wrote, and as httpx2 sends it, a name IDNA-encoded.
+    The pinned client checks the URL httpx2 built, so a listed `täst.internal`
+    has to match `xn--tst-qla.internal` there.
+    """
+    try:
+        host = urlparse(server_url).hostname
+    except ValueError:
+        return frozenset()
+    listed = _allowed_hosts()
+    spellings = listed | {_on_the_wire(entry) for entry in listed}
+    if host is None or _on_the_wire(host) not in spellings:
+        return frozenset()
+    return spellings
+
+
+def _on_the_wire(host: str) -> str:
+    """*host* as httpx2 puts it in a request: a name IDNA-encoded, an address as written.
+
+    httpx2's own encoder rather than the `idna` codec, which is IDNA 2003 and
+    spells `straße` differently. A host it cannot encode is kept as typed and
+    matches nothing it would send.
+    """
+    try:
+        return httpx2.URL(scheme="http", host=host).raw_host.decode("ascii")
+    except httpx2.InvalidURL:
+        return host
+
+
+async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     """SSRF-check a URL before we talk to it (same policy as webhooks).
 
     For a URL an operator typed: the connection's own address, and the consent
@@ -98,8 +180,23 @@ async def validate_mcp_url(url: str) -> str:
     goes through :class:`app.core.pinned_http.PinnedAsyncClient` instead, which
     connects to the address it checked rather than handing the name back to be
     resolved again (#860).
+
+    Args:
+        url: The URL to check; http or https.
+        honour_allowlist: Pass `True` only for a connection's own address, as
+            `mcp_connection._checked_url` checks it. A host on
+            `MCP_ALLOWED_HOSTS` then skips the address check and is not
+            resolved. A URL a remote server chose keeps the strict default.
+
+    Returns:
+        The URL, unchanged.
+
+    Raises:
+        SSRFBlockedError: If the URL is blocked by SSRF protection.
+        UrlRefusedError: If the URL is malformed.
     """
-    return await asyncio.to_thread(validate_webhook_url, url)
+    trusted = _allowed_hosts() if honour_allowlist else frozenset()
+    return await asyncio.to_thread(validate_webhook_url, url, trusted_hosts=trusted)
 
 
 @dataclass(frozen=True)
@@ -137,12 +234,15 @@ class McpServerSpec:
     # The organization's connection row this server is, so a call can be
     # recorded against it. None for a member's own connection and for `/mcp`.
     connection_id: UUID | None = None
+    # Tools, by the name the server gives them, that never wait for approval
+    # whatever `approval` says. Only this deployment's own server names any.
+    ungated: frozenset[str] = frozenset()
 
 
 @asynccontextmanager
 async def _mcp_transport(
-    url: str, headers: dict[str, str] | None
-) -> AsyncGenerator[tuple[Any, Any], None]:
+    url: str, headers: dict[str, str] | None, *, timeout: float
+) -> AsyncGenerator[tuple[Any, Any]]:
     """Open the right client transport for *url*, yielding `(read, write)`.
 
     The transport is inferred from the URL exactly as the toolset layer does it
@@ -157,18 +257,20 @@ async def _mcp_transport(
     into the client `create_mcp_http_client` builds, and the client is owned
     here so it closes with the transport (#1820).
     """
-    from pydantic_ai.mcp import infer_transport_type_from_url
-
     if infer_transport_type_from_url(url) == "sse":
         from mcp.client.sse import sse_client
 
-        async with sse_client(url, headers=headers or None) as (read, write):
+        async with sse_client(url, headers=headers or None, timeout=CONNECT_TIMEOUT_SECS) as (
+            read,
+            write,
+        ):
             yield read, write
     else:
         from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
+        limits = httpx2.Timeout(timeout, connect=CONNECT_TIMEOUT_SECS)
         async with (
-            create_mcp_http_client(headers=headers or None) as http_client,
+            create_mcp_http_client(headers=headers or None, timeout=limits) as http_client,
             streamable_http_client(url, http_client=http_client) as (read, write),
         ):
             yield read, write
@@ -191,10 +293,11 @@ async def probe_mcp_server(
     """
     from mcp import ClientSession
 
+    budget = timeout or HANDSHAKE_TIMEOUT_SECS
     try:
-        async with asyncio.timeout(timeout or CONNECT_TIMEOUT_SECS):
+        async with asyncio.timeout(budget):
             async with (
-                _mcp_transport(url, headers) as (read, write),
+                _mcp_transport(url, headers, timeout=budget) as (read, write),
                 ClientSession(read, write) as session,
             ):
                 await session.initialize()
@@ -202,7 +305,7 @@ async def probe_mcp_server(
     except (Exception, BaseExceptionGroup) as exc:
         if _carries_base_exception(exc):
             raise
-        raise McpProbeError(probe_error_message(exc)) from exc
+        raise McpProbeError(probe_error_message(exc, timeout=budget)) from exc
     return [
         McpToolInfo(
             name=t.name,
@@ -224,7 +327,7 @@ def _carries_base_exception(exc: BaseException) -> bool:
     return not isinstance(exc, Exception)
 
 
-def probe_error_message(exc: BaseException) -> str:
+def probe_error_message(exc: BaseException, *, timeout: float | None = None) -> str:
     """Human-readable reason for a failed probe.
 
     The MCP client runs on anyio task groups, so failures surface as nested
@@ -233,8 +336,10 @@ def probe_error_message(exc: BaseException) -> str:
     """
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
-    if isinstance(exc, TimeoutError):
+    if isinstance(exc, httpx2.ConnectTimeout):
         return f"Connection timed out after {CONNECT_TIMEOUT_SECS:g}s"
+    if isinstance(exc, TimeoutError):
+        return f"The server timed out after {timeout or HANDSHAKE_TIMEOUT_SECS:g}s"
     return str(exc) or exc.__class__.__name__
 
 
@@ -274,8 +379,6 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     model reading the refusal could have fixed the query or said it could not.
     Repeats stay bounded by the run's step limit.
     """
-    from pydantic_ai.mcp import MCPToolset
-
     # The in-process client carries the headers itself: the two are exclusive.
     server: Any = MCPToolset(
         spec.url,
@@ -289,10 +392,12 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
+    prefix = tool_prefix(spec.name)
     return ApprovalMarked(
-        FittedNames(server.prefixed(tool_prefix(spec.name))),
+        FittedNames(server.prefixed(prefix)),
         policy=spec.approval,
         account=spec.account,
+        ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
     )
 
 
@@ -384,6 +489,7 @@ class ApprovalMarked(WrapperToolset[Any]):
 
     policy: McpApproval = "none"
     account: str | None = None
+    ungated: frozenset[str] = frozenset()
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         tools = await super().get_tools(ctx)
@@ -395,7 +501,8 @@ class ApprovalMarked(WrapperToolset[Any]):
                     tool.tool_def,
                     metadata={
                         **(tool.tool_def.metadata or {}),
-                        NEEDS_APPROVAL: needs_approval(tool.tool_def, self.policy),
+                        NEEDS_APPROVAL: name not in self.ungated
+                        and needs_approval(tool.tool_def, self.policy),
                         **named,
                     },
                 ),
@@ -423,6 +530,31 @@ class ToolOrigins(WrapperToolset[Any]):
         return tools
 
 
+def unreachable_briefing(server: str, *, binding: str | None, held_by: str | None = None) -> str:
+    """What the model is told about a bound server that did not answer this turn.
+
+    Told nothing, the model reads the missing tools as an empty answer and
+    reports "no data". The failure may be a timeout, a refused token or a
+    protocol error, so the text promises neither that a retry works nor that it
+    does not. `held_by` is another binding attached under the same prefix.
+    """
+    named = f"{server} server ({binding})" if binding else f"{server} server"
+    prefix = tool_prefix(server)
+    attached = (
+        f"so none of its {prefix}_* tools are attached"
+        if held_by is None
+        else f"so it is not attached; the {prefix}_* tools that are attached belong to "
+        f"{held_by}, and what they return comes from that account, not this one"
+    )
+    return (
+        f"The {named} is not available this turn: it did not answer, or refused the "
+        f"connection, when the turn started, {attached}. If asked for anything that "
+        f"needs it, say it could not be reached just now - trying again may work, and "
+        "if it keeps failing the connection needs checking. Do not answer as though it "
+        "returned nothing, and do not guess what it would have said."
+    )
+
+
 @dataclass
 class AnsweredRecently(WrapperToolset[Any]):
     """A server attached on a recent probe's word, left out of the turn if it is down now.
@@ -430,6 +562,8 @@ class AnsweredRecently(WrapperToolset[Any]):
     Entering is where pydantic-ai connects, so a server that stopped answering
     since its probe fails here; the turn goes on without its tools, as it would
     have had the probe run, and the memo is dropped so the next turn probes again.
+    The probe's own failure is briefed by the turn that ran it; this one happens
+    after that briefing was written, so the toolset briefs it itself.
     """
 
     name: str = ""
@@ -461,11 +595,25 @@ class AnsweredRecently(WrapperToolset[Any]):
             return {}
         return await super().get_tools(ctx)
 
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        if self.down:
+            return unreachable_briefing(self.name, binding=None)
+        return await super().get_instructions(ctx)
+
 
 PLATFORM_MCP_NAME = "agenticos"
 """What this deployment's own server is called in a run, and so its tools' prefix."""
 
 PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
+
+PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language"})
+"""The platform's writes that never wait for approval - `platform_mcp._tools.UNGATED`.
+
+Named again rather than imported: the platform's server imports the application,
+which imports this layer.
+"""
 
 PLATFORM_MCP_URL = "http://agenticos/mcp"
 """Where the in-process client addresses `/mcp`. The host is never resolved."""
@@ -482,6 +630,7 @@ def platform_spec(
         allowed_tools=allowed_tools,
         approval=approval,
         in_process=True,
+        ungated=PLATFORM_UNGATED_TOOLS,
     )
 
 
@@ -492,8 +641,6 @@ def _in_process_client(headers: dict[str, str]) -> Any:
     imports the agent layer, so the agent layer reaching for it at import time
     would be a cycle.
     """
-    import httpx2
-
     app = importlib.import_module("app.main").app
     return httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app=app),

@@ -39,6 +39,7 @@ from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionC
 from app.agents.capabilities.knowledge import Knowledge, KnowledgeConfig
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.agents.capabilities.web_research import WebResearch, WebResearchConfig
+from app.agents.hand_off import HAND_OFF_TOOL
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DynamicSpecialists,
@@ -908,6 +909,43 @@ def _frontend_tool_ids() -> frozenset[str]:
     return frozenset(ids)
 
 
+ART_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "frontend"
+    / "src"
+    / "components"
+    / "agents"
+    / "capability-art"
+)
+
+
+def _capabilities_with_art() -> frozenset[str]:
+    """The capability ids the Toolbox has a scene for, read out of the two art tables.
+
+    `art.generated.ts` is the design canvas's export, one key per scene at two
+    spaces; `art.drawn.ts` holds the scenes drawn by hand since, in `DRAWN_ART`.
+    """
+    generated = (ART_DIR / "art.generated.ts").read_text(encoding="utf-8")
+    drawn = (ART_DIR / "art.drawn.ts").read_text(encoding="utf-8")
+    table = drawn[drawn.index("export const DRAWN_ART") :]
+    return frozenset(
+        re.findall(r"^  ([a-z0-9_]+):\n    '<svg", generated, re.MULTILINE)
+    ) | frozenset(re.findall(r"^  ([a-z0-9_]+): [A-Z0-9_]+,$", table, re.MULTILINE))
+
+
+class TestToolboxArt:
+    def test_every_capability_has_a_scene_and_every_scene_a_capability(self):
+        """A capability with no scene shows a lone initial among the dioramas -
+        `background_tools` did, unnoticed, because nothing compared the two."""
+        registered = frozenset(definition.id for definition in all_capabilities())
+        drawn = _capabilities_with_art()
+
+        assert sorted(registered - drawn) == [], (
+            "draw a scene for each of these in capability-art/art.drawn.ts"
+        )
+        assert sorted(drawn - registered) == [], "these scenes draw no capability"
+
+
 class TestFrontendToolCatalog:
     """The web chat's tool table holds exactly the tools capabilities register.
 
@@ -943,6 +981,38 @@ class TestFrontendToolCatalog:
             f"{CATALOG_PATH.name} has a row for a tool no capability registers; "
             "nothing will ever render it"
         )
+
+    def test_the_tool_a_call_adds_has_its_own_row(self):
+        """`hand_off` is no capability's, so the check above cannot see it (#54)."""
+        source = CATALOG_PATH.read_text(encoding="utf-8")
+        start = source.index("export const CALL_TOOLS")
+        body = source[source.index("{", start) : source.index("\n};", start)]
+        assert re.findall(r"^  ([a-z][a-z0-9_]*): \{", body, flags=re.MULTILINE) == [HAND_OFF_TOOL]
+
+
+def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
+    """#54: a realtime session cannot carry these, so a call hands them to the
+    agent's text twin; the Builder's Voice card lists them.
+
+    `channel_tools` alone is never in a call, which is never made on a channel;
+    `docs/reference/capabilities.md` says the same of each.
+    """
+    load_builtins()
+    by_support = {
+        support: {d.id for d in all_capabilities() if d.voice == support}
+        for support in ("hand_off", "never")
+    }
+    assert by_support == {
+        "hand_off": {
+            "sandbox",
+            "browser_use",
+            "subagents",
+            "background_tools",
+            "coding_agent",
+            "video_generation",
+        },
+        "never": {"channel_tools", "follow_ups"},
+    }
 
 
 MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"

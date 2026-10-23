@@ -18,8 +18,6 @@ and only a message received after that (less a few minutes for clock skew) is an
 event. What the slack lets through twice, the delivery-id claim suppresses.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta

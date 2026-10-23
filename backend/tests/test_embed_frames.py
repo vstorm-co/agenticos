@@ -17,8 +17,6 @@ this surface is the operator's placement note and the supplied block above what
 the visitor typed.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from collections.abc import AsyncIterator
@@ -89,7 +87,7 @@ async def _stream(session: EmbedSession, *events: Any) -> None:
         for event in events:
             yield event
 
-    await RunFrames(emit=session._emit).request(_events())
+    await RunFrames(emit=session._emit).request(_events(), set())
 
 
 async def _tools(session: EmbedSession, *events: Any) -> None:

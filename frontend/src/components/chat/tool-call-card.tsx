@@ -5,18 +5,22 @@ import type { ToolCall } from "@/types";
 import { cn } from "@/lib/utils";
 import { toolStep } from "@/lib/tool-steps";
 import { toolEntry } from "@/lib/tool-catalog";
+import { useMediaSurface } from "@/lib/generated-media";
 import { AgentStep } from "./agent-step";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
 import { parsePublishedArtifact, PublishedArtifactResult } from "./tool-results/artifact";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
+import { GeneratedSpeechResult, parseGeneratedSpeech } from "./tool-results/generated-speech";
+import { GeneratedVideoResult, parseGeneratedVideo } from "./tool-results/generated-video";
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
 import { AskedResult, parseAsked } from "./tool-results/asked";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
+import { CodingAgentResult } from "./tool-results/coding-agent";
 import { DelegationResult } from "./tool-results/delegation";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { delegateNamed, type DelegateRef } from "@/lib/delegations";
@@ -148,11 +152,26 @@ export function ToolCallCard({
     typeof toolCall.result === "string"
       ? parseWebSearch(toolCall.result)
       : null;
+  const mediaSurface = useMediaSurface();
   const generatedImage =
     renderer === "generated-image" &&
     toolCall.status === "completed" &&
     typeof toolCall.result === "string"
-      ? parseGeneratedImage(toolCall.result)
+      ? parseGeneratedImage(toolCall.result, mediaSurface)
+      : null;
+
+  const generatedSpeech =
+    renderer === "generated-speech" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseGeneratedSpeech(toolCall.result, mediaSurface)
+      : null;
+
+  const generatedVideo =
+    renderer === "generated-video" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseGeneratedVideo(toolCall.result, mediaSurface)
       : null;
 
   const publishedArtifact =
@@ -260,12 +279,18 @@ export function ToolCallCard({
         <WebSearchResults data={webResults} />
       ) : generatedImage !== null ? (
         <GeneratedImageResult data={generatedImage} />
+      ) : generatedSpeech !== null ? (
+        <GeneratedSpeechResult data={generatedSpeech} />
+      ) : generatedVideo !== null ? (
+        <GeneratedVideoResult data={generatedVideo} />
       ) : publishedArtifact !== null ? (
         <PublishedArtifactResult data={publishedArtifact} />
       ) : chartSpec !== null ? (
         <ChartMessage spec={chartSpec} />
       ) : renderer === "run-python" ? (
         <RunPythonResult toolCall={toolCall} resultText={resultText} />
+      ) : renderer === "coding-agent" ? (
+        <CodingAgentResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "loaded-skill" ? (
         <LoadedSkillResult result={toolCall.result} status={toolCall.status} />
       ) : renderer === "load-skill" ? (

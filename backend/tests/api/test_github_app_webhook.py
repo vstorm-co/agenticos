@@ -7,8 +7,6 @@ signature reaches the caller as a 403 so GitHub surfaces it to whoever
 misconfigured the App.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -39,12 +37,14 @@ async def _client() -> AsyncIterator[AsyncClient]:
 
 
 def _decision() -> EventFireDecision:
-    return EventFireDecision(trigger_id=uuid4(), event_context="an issue was opened")
+    return EventFireDecision(
+        trigger_id=uuid4(), event_context="an issue was opened", organization_id=uuid4()
+    )
 
 
-async def test_every_matched_trigger_is_dispatched_as_its_own_flow() -> None:
-    """A delivery matching four triggers starts four capped worker runs rather
-    than four agent runs on the API's event loop."""
+async def test_every_matched_trigger_is_queued_as_its_own_job() -> None:
+    """A delivery matching several triggers queues that many capped worker runs
+    rather than that many agent runs on the API's event loop."""
     decisions = [_decision(), _decision()]
     dispatched = AsyncMock()
     with (
@@ -52,13 +52,18 @@ async def test_every_matched_trigger_is_dispatched_as_its_own_flow() -> None:
             "app.services.agent_trigger.AgentTriggerService.prepare_app_fires",
             new=AsyncMock(return_value=decisions),
         ),
-        patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", dispatched),
+        patch("app.services.agent_trigger.AgentTriggerService.queue_fire", dispatched),
     ):
         async with _client() as client:
             response = await client.post(PATH, content=b"{}")
 
     assert response.status_code == 202
-    assert dispatched.await_count == 2
+    assert [call.args[0] for call in dispatched.await_args_list] == [
+        decision.trigger_id for decision in decisions
+    ]
+    assert {call.kwargs["event_context"] for call in dispatched.await_args_list} == {
+        "an issue was opened"
+    }
 
 
 async def test_a_delivery_matching_nothing_is_answered_the_same_way() -> None:
@@ -69,7 +74,7 @@ async def test_a_delivery_matching_nothing_is_answered_the_same_way() -> None:
             "app.services.agent_trigger.AgentTriggerService.prepare_app_fires",
             new=AsyncMock(return_value=[]),
         ),
-        patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", dispatched),
+        patch("app.services.agent_trigger.AgentTriggerService.queue_fire", dispatched),
     ):
         async with _client() as client:
             response = await client.post(PATH, content=b"{}")

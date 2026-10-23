@@ -24,8 +24,6 @@ every value has its braces and line breaks flattened so it cannot open a section
 of its own.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from collections.abc import Awaitable, Callable

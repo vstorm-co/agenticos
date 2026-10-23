@@ -8,8 +8,6 @@ arithmetic, the zero-filled day series, and the rule that org scope demands
 runs:view while own scope demands only a caller.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -337,7 +335,7 @@ class TestTheComposedAnswer:
             return {
                 "surface": [("web", 8), ("embed", 2)],
                 "status": [("completed", 9), ("failed", 1)],
-                "model": [("claude-sonnet-5", "anthropic", 7), (None, None, 3)],
+                "model": [("claude-sonnet-5", "anthropic", 7, 0), (None, None, 3, 2)],
             }[dimension]
 
         repos["runs_by_dimension"].side_effect = by_dimension
@@ -350,6 +348,7 @@ class TestTheComposedAnswer:
         assert result.by_status is not None and result.by_status[1].runs == 1
         assert result.by_model is not None and result.by_model[1].model_label is None
         assert result.by_model[0].provider == "anthropic"
+        assert [model.tool_args_repaired for model in result.by_model] == [0, 2]
         assert result.by_agent is not None
         assert (result.by_agent[0].agent_id, result.by_agent[0].name) == (
             agent_id,
