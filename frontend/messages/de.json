@@ -9664,7 +9664,8 @@
         "failed": "Nicht bestanden",
         "inconclusive": "Ohne Ergebnis",
         "skipped": "Nicht gelaufen",
-        "error": "Fehler"
+        "error": "Fehler",
+        "baseline_set": "Vergleichsbasis gesetzt"
       },
       "checkVerdict": "So würde die Suite <suite>{name}</suite> nach ihrem Schwellenwert beim Start der Prüfung urteilen. Eine Prüfung ist keiner ihrer Runs und steht in keinem Verlauf.",
       "lastResult": "{status} · {rate}",
@@ -9789,7 +9790,8 @@
         "costRise": "Kosten/Bestehen ≤+{rise}",
         "p95Rise": "p95 ≤+{rise}"
       },
-      "notCompared": "Nicht verglichen: auch die frühere Version auszuführen würde die Kostengrenze der Suite überschreiten."
+      "notCompared": "Nicht verglichen: auch die frühere Version auszuführen würde die Kostengrenze der Suite überschreiten.",
+      "baselineSetHint": "Es gab weder eine Mindestbestehensquote noch ein früheres Ergebnis. Diese Messung legt die Vergleichsbasis für spätere Vergleiche fest; sie besteht nicht und befördert keine Version."
     },
     "excludedEvidence": "{count, plural, =1 {1 Fall wurde} other {# Fälle wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
     "backToSuggestions": "Zurück zu den Vorschlägen",

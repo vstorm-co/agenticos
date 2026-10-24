@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A first suite measurement without a minimum cannot pass by default.** It
+  establishes a baseline for later comparisons and leaves guarded environments
+  in place. Existing unqualified passes are reclassified on upgrade (#2401).
+
 - **Publishing explains guarded environments accurately.** Followers move only
   after their named guard suites pass. A draft whose last test broke cases
   offers testing first and an explicit secondary Publish anyway action. Suite

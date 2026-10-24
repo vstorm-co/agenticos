@@ -18,6 +18,7 @@ export const RESULT_TONE: Record<
   pending: "outline",
   running: "secondary",
   passed: "success",
+  baseline_set: "secondary",
   failed: "destructive",
   inconclusive: "warning",
   skipped: "warning",
@@ -189,6 +190,7 @@ export function skipText(result: EvalSuiteResult, t: Translate): string | null {
  * no threshold to fall short of - a run that was cancelled, one that never ran.
  */
 export function resultReasons(result: EvalSuiteResult, t: Translate, locale: string): string[] {
+  if (result.status === "baseline_set") return [t("baselineSetHint")];
   // Run alone because a pair would have crossed the suite's ceiling: said first, whatever it found.
   const alone = result.reason === "not_compared_cost_cap" ? [t("notCompared")] : [];
   const reasons = result.summary?.reasons ?? [];

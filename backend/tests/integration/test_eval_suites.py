@@ -183,6 +183,8 @@ async def _dataset(
 
 
 def _suite_data(dataset: Dataset, **values: Any) -> EvalSuiteCreate:
+    # These scenarios need a quality floor; bootstrap without one is tested separately.
+    values.setdefault("threshold", EvalSuiteThreshold(min_pass_rate=0.8))
     return EvalSuiteCreate(name=f"nightly-{uuid.uuid4().hex[:6]}", dataset_id=dataset.id, **values)
 
 
@@ -1771,3 +1773,27 @@ async def test_an_owner_who_can_no_longer_read_runs_starts_no_run(db) -> None:
     [result] = await _results(db, suite.id)
     assert (result.status, result.reason) == ("error", "owner_lacks_access")
     assert (await db.scalar(select(func.count()).select_from(EvalRun))) == 0
+
+
+async def test_a_first_all_failed_measurement_sets_a_nonpassing_baseline(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    agent, version = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalSuiteService(db)
+    suite = await service.create(
+        ctx, agent.id, _suite_data(dataset, threshold=EvalSuiteThreshold())
+    )
+    first = await service.run_now(ctx, agent.id, suite.id)
+    with patch.object(service, "_follow", new=AsyncMock()) as follow:
+        await _finish_runs(db, Model(db, answer=lambda prompt: _FAIL))
+        await service.settle_finished(now=datetime.now(UTC))
+        follow.assert_not_awaited()
+    row = await db.get(EvalSuiteResult, first.id)
+    assert row is not None and row.status == "baseline_set"
+    assert row.summary is not None and row.summary["pass_rate"] == 0
+    stored = await db.get(EvalSuite, suite.id)
+    assert stored is not None
+    baseline = await service._earlier_run(stored, version.id, now=datetime.now(UTC))
+    assert baseline is not None and baseline.id == first.id and baseline.status != "passed"
+    second = await service.run_now(ctx, agent.id, suite.id)
+    assert second.baseline_eval_run_id == first.eval_run_id

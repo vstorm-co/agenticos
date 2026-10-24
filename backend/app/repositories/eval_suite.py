@@ -298,8 +298,8 @@ async def previous_settled(
 ) -> EvalSuiteResult | None:
     """The last result of this suite on this version that came out one way or another.
 
-    `passed_on_dataset` narrows to the last one that passed, with its eval run
-    still there and answering that dataset: the last state known to be good.
+    `passed_on_dataset` narrows to the last pass or initial baseline, with its
+    eval run still answering that dataset. A failed run never replaces it.
     """
     query = select(EvalSuiteResult).where(
         EvalSuiteResult.suite_id == suite_id,
@@ -314,7 +314,9 @@ async def previous_settled(
     )
     if passed_on_dataset is not None:
         query = query.join(EvalRun, EvalRun.id == EvalSuiteResult.eval_run_id).where(
-            EvalSuiteResult.status == EvalSuiteResultStatus.PASSED.value,
+            EvalSuiteResult.status.in_(
+                (EvalSuiteResultStatus.PASSED.value, EvalSuiteResultStatus.BASELINE_SET.value)
+            ),
             EvalRun.dataset_id == passed_on_dataset,
         )
     result = await db.execute(query.order_by(EvalSuiteResult.settled_at.desc()).limit(1))

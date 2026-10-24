@@ -110,4 +110,6 @@ def judge(
         return EvalSuiteResultStatus.FAILED, reasons
     if open_cases:
         return EvalSuiteResultStatus.INCONCLUSIVE, open_cases
+    if threshold.min_pass_rate is None and comparison.baseline is None:
+        return EvalSuiteResultStatus.BASELINE_SET, []
     return EvalSuiteResultStatus.PASSED, []

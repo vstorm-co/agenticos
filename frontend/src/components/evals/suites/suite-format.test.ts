@@ -194,3 +194,9 @@ describe("resultReasons", () => {
     ]);
   });
 });
+
+it("explains a baseline-only result without calling it a pass", () => {
+  expect(resultReasons(suiteResult({ status: "baseline_set" }), t, "en")).toEqual([
+    "baselineSetHint",
+  ]);
+});

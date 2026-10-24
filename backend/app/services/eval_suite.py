@@ -1490,7 +1490,7 @@ class EvalSuiteService:
     ) -> tuple[int | None, UUID | None]:
         """What a run that names no baseline is measured against: `(version, run)`.
 
-        The suite's last passing run of this version, to show drift. Once a later
+        The suite's last passing run or its initial baseline of this version, to show drift. Once a later
         result could not be compared with it - the judge or the scoring changed
         since - an old run graded the old way would make every run after it
         incomparable too, so the version before runs beside it instead, graded
@@ -1520,9 +1520,9 @@ class EvalSuiteService:
     async def _earlier_run(
         self, suite: EvalSuite, version_id: UUID, *, now: datetime
     ) -> EvalSuiteResult | None:
-        """This suite's last passing result on the same version and dataset.
+        """This suite's last pass or initial baseline on the same version and dataset.
 
-        The last state known to be good, not merely the last run: measured against
+        The last pass, or the first measurement when no minimum was set, not merely the last run: measured against
         yesterday's failure, a case still broken today would not have flipped, and
         a suite that had just gone red would read green again with the agent
         unchanged.

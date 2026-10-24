@@ -1,5 +1,5 @@
 ---
-source_sha: "e60db061f5bf"
+source_sha: "7a7ab0b41b47"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -559,6 +559,8 @@ sie prüft, bis die Festlegung verschoben wird. Sie lässt sich erst löschen, w
 sie dort abgenommen ist.
 
 ### Was ein Ergebnis erfüllen muss { #what-a-result-must-meet }
+
+Ohne Mindestbestehensquote oder früheres vergleichbares Ergebnis erhält eine vollständige erste Messung den Status **Vergleichsbasis gesetzt**, auch wenn alle Fälle durchgefallen sind. Sie dient späteren Vergleichen und gilt nicht als bestanden: Sie öffnet keine Promotionsschranke und verschiebt keine folgende Umgebung. Setze eine Mindestquote für eine absolute Qualitätsanforderung. Beim Upgrade werden frühere Bestehensergebnisse ohne beide Kriterien neu eingestuft; bereits verschobene Umgebungen bleiben zur Prüfung durch den Betreiber bestehen.
 
 Ein Ergebnis **besteht nicht**, wenn mehr Fälle reproduzierbar gegenüber der
 Baseline brechen, als die Suite erlaubt - standardmäßig keiner, also lässt eine

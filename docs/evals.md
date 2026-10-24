@@ -485,6 +485,8 @@ pin is moved. It cannot be deleted until it is taken off there.
 
 ### What a result must meet { #what-a-result-must-meet }
 
+Without a minimum pass rate or an earlier comparable result, a complete first measurement reads **Baseline set**, even when every case failed. It is a reference for later comparisons, not a pass: it does not open a promotion gate or move a following environment. Set a minimum if the suite must enforce an absolute quality floor. Existing passes granted without either bar are reclassified on upgrade; environments already promoted are left for an operator to assess.
+
 A result **fails** when more cases break reproducibly against the baseline
 than the suite allows - none by default, so one confirmed regression fails it -
 or when the settled pass rate, each case counted by the majority of its

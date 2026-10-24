@@ -1108,3 +1108,25 @@ async def _results(db: AsyncSession, suite_id) -> list[EvalSuiteResult]:
             )
         ).scalars()
     )
+
+
+async def test_a_baseline_only_result_does_not_move_a_guarded_follower(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(
+        db,
+        ctx,
+        agent,
+        first,
+        await _dataset(db, ctx, cases=1),
+        tracks_latest=True,
+        threshold=EvalSuiteThreshold(),
+    )
+    await _published(db, ctx, agent)
+    service = EvalSuiteService(db)
+    result = await service.run_now(ctx, agent.id, suite.id)
+    await _finish_runs(db, Model(db, answer=lambda prompt: _FAIL))
+    await service.settle_finished(now=datetime.now(UTC))
+    row = await db.get(EvalSuiteResult, result.id)
+    assert row is not None and row.status == "baseline_set"
+    assert await _serving(db, ctx, agent, env_id) == first.version

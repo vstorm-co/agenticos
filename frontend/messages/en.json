@@ -9781,7 +9781,8 @@
         "failed": "Failed",
         "inconclusive": "Inconclusive",
         "skipped": "Did not run",
-        "error": "Error"
+        "error": "Error",
+        "baseline_set": "Baseline set"
       },
       "checkVerdict": "What the suite <suite>{name}</suite> would say, by its threshold when the check started. A check is not one of the suite's runs, so it is in no history.",
       "lastResult": "{status} · {rate}",
@@ -9906,7 +9907,8 @@
         "costRise": "cost/pass ≤+{rise}",
         "p95Rise": "p95 ≤+{rise}"
       },
-      "notCompared": "Not compared: running the earlier version too would exceed the suite's cost cap."
+      "notCompared": "Not compared: running the earlier version too would exceed the suite's cost cap.",
+      "baselineSetHint": "No minimum pass rate or earlier result was available. This measurement sets the baseline for later comparisons; it does not pass or promote a version."
     },
     "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",
     "backToSuggestions": "Back to the suggestions",

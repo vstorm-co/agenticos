@@ -49,3 +49,11 @@ describe("SuiteCheckVerdict", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+it("explains that a baseline-only check does not pass or promote", () => {
+  render(
+    <SuiteCheckVerdict agentId="agent-1" check={check({ status: "baseline_set", reasons: [] })} />,
+  );
+  expect(screen.getByText("Baseline set")).toBeVisible();
+  expect(screen.getByText(/it does not pass or promote a version/)).toBeVisible();
+});

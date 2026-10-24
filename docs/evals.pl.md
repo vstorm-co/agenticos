@@ -1,5 +1,5 @@
 ---
-source_sha: "e60db061f5bf"
+source_sha: "7a7ab0b41b47"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -529,6 +529,8 @@ przypięcie nie zostanie przesunięte. Nie da się jej usunąć, dopóki nie zos
 tam zdjęta.
 
 ### Co musi spełnić wynik { #what-a-result-must-meet }
+
+Bez minimalnego odsetka zaliczeń i wcześniejszego porównywalnego wyniku kompletny pierwszy pomiar ma stan **Ustalono wynik bazowy**, nawet gdy wszystkie przypadki są niezaliczone. To punkt odniesienia dla kolejnych porównań, nie zaliczenie: nie otwiera bramki promocji ani nie przesuwa podążającego środowiska. Ustaw minimum, jeśli suita ma wymagać bezwzględnego poziomu jakości. Aktualizacja zmienia klasyfikację wcześniejszych zaliczeń bez obu kryteriów; operator ocenia środowiska, które już zostały przesunięte.
 
 Wynik **nie przechodzi**, gdy więcej przypadków, niż suita dopuszcza, psuje
 się powtarzalnie względem baseline'u - domyślnie żaden, więc jedna

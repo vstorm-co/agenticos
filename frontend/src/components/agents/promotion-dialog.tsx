@@ -62,7 +62,9 @@ function GuardDetail({ guard }: { guard: PromotionGuard }) {
   const locale = useLocale();
   const result = guard.result;
   const told =
-    result && guard.state === result.status ? resultReasons(result, tSuites, locale) : [];
+    result && (guard.state === result.status || result.status === "baseline_set")
+      ? resultReasons(result, tSuites, locale)
+      : [];
   const lines =
     guard.state === "paused"
       ? [

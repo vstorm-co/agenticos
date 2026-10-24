@@ -34,6 +34,9 @@ export function SuiteCheckVerdict({ agentId, check }: { agentId: string; check: 
           {t.rich("checkVerdict", { name: check.name, suite })}
         </span>
       </p>
+      {check.status === "baseline_set" && (
+        <p className="text-muted-foreground text-xs">{t("baselineSetHint")}</p>
+      )}
       {check.reasons.length > 0 && (
         <ul className="text-muted-foreground list-disc pl-5 text-xs">
           {check.reasons.map((reason) => (

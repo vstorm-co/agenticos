@@ -133,7 +133,7 @@ def test_a_run_in_which_nothing_was_graded_is_inconclusive(minimum: float | None
 
 def test_without_a_baseline_only_the_pass_rate_is_held() -> None:
     status, reasons = judge(
-        EvalSuiteThreshold(max_cost_per_pass_rise=0.1),
+        EvalSuiteThreshold(min_pass_rate=0.8, max_cost_per_pass_rise=0.1),
         _summary(),
         _comparison(baseline=False, regressions_confirmed=3),
     )
@@ -352,3 +352,11 @@ def test_a_result_says_whether_it_alerts_as_its_status_does(status: EvalSuiteRes
 
     assert read.alerting is status.alerting
     assert "alerting" in EvalSuiteResultRead.model_json_schema(mode="serialization")["properties"]
+
+
+@pytest.mark.parametrize("rate", [0.0, 0.5, 1.0])
+def test_a_first_measurement_without_a_minimum_sets_a_baseline_not_a_pass(rate: float) -> None:
+    status, reasons = judge(
+        EvalSuiteThreshold(), _summary(pass_rate=rate), _comparison(baseline=False)
+    )
+    assert (status, reasons) == (EvalSuiteResultStatus.BASELINE_SET, [])

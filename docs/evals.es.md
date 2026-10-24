@@ -1,5 +1,5 @@
 ---
-source_sha: "e60db061f5bf"
+source_sha: "7a7ab0b41b47"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -520,6 +520,8 @@ convirtió en guardiana, así que editar el dataset no cambia lo que comprueba
 hasta que se mueve la fijación. No se puede borrar hasta quitarla de allí.
 
 ### Qué debe cumplir un resultado { #what-a-result-must-meet }
+
+Sin una tasa mínima de aprobación ni un resultado anterior comparable, una primera medición completa indica **Base de comparación establecida**, aunque fallen todos los casos. Sirve de referencia para comparaciones posteriores y no cuenta como aprobada: no abre la puerta de promoción ni mueve un entorno que sigue las publicaciones. Define un mínimo para exigir un nivel absoluto de calidad. La actualización reclasifica los aprobados anteriores sin ninguno de esos criterios; el operador debe revisar los entornos ya promovidos.
 
 Un resultado **no pasa** cuando más casos de los que la suite permite se rompen
 de forma reproducible frente al baseline - ninguno por defecto, así que una

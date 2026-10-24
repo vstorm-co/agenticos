@@ -425,6 +425,12 @@ describe("SuiteResultsSheet", () => {
     await userEvent.click(screen.getByRole("button", { name: "Results of Nightly" }));
     expect(screen.getByText("The results could not be read.")).toBeInTheDocument();
   });
+
+  it("shows a baseline-only result and explains why it cannot promote", async () => {
+    await open([suiteResult({ status: "baseline_set" })]);
+    expect(screen.getByText("Baseline set")).toBeVisible();
+    expect(screen.getByText(/it does not pass or promote a version/)).toBeVisible();
+  });
 });
 
 describe("SuiteFormDialog", () => {

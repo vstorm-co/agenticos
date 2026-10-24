@@ -61,6 +61,8 @@ class EvalSuiteResultStatus(StrEnum):
 
     RUNNING = "running"
     PASSED = "passed"
+    BASELINE_SET = "baseline_set"
+    """A complete first measurement with no minimum: a comparison baseline, not a pass."""
     FAILED = "failed"
     """Below the threshold: too low a pass rate, a confirmed regression too many,
     or past an efficiency ceiling."""
@@ -259,7 +261,7 @@ class EvalSuiteResult(Base):
         ),
         CheckConstraint(
             "status IN ('pending', 'running', 'passed', 'failed', 'inconclusive', "
-            "'skipped', 'error')",
+            "'skipped', 'error', 'baseline_set')",
             name="ck_eval_suite_result_status",
         ),
         # A burst of triggers for one version is one run; a running result does not

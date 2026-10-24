@@ -8953,7 +8953,8 @@
         "failed": "Niezaliczona",
         "inconclusive": "Bez rozstrzygnięcia",
         "skipped": "Nie uruchomiona",
-        "error": "Błąd"
+        "error": "Błąd",
+        "baseline_set": "Ustalono wynik bazowy"
       },
       "checkVerdict": "Tak oceniłaby to suita <suite>{name}</suite> według progu z chwili startu sprawdzenia. Sprawdzenie ewaluacją nie jest runem suity, więc nie trafia do jej historii.",
       "lastResult": "{status} · {rate}",
@@ -9078,7 +9079,8 @@
         "costRise": "koszt/zaliczenie ≤+{rise}",
         "p95Rise": "p95 ≤+{rise}"
       },
-      "notCompared": "Bez porównania: uruchomienie także wcześniejszej wersji przekroczyłoby limit kosztu suity."
+      "notCompared": "Bez porównania: uruchomienie także wcześniejszej wersji przekroczyłoby limit kosztu suity.",
+      "baselineSetHint": "Nie ustawiono minimalnego odsetka zaliczeń ani nie było wcześniejszego wyniku. Ten pomiar ustala wynik bazowy dla kolejnych porównań; nie zalicza ani nie promuje wersji."
     },
     "excludedEvidence": "{count, plural, one {Pominięto 1 przypadek} few {Pominięto # przypadki} other {Pominięto # przypadków}}: pochodzą z rozmów, z których wzięła się sprawdzana zmiana.",
     "backToSuggestions": "Wróć do sugestii",

@@ -10,7 +10,14 @@ import type { EvalRunEstimate, Overall, Verdict } from "./eval-runs";
 export type EvalSuiteTrigger =
   "schedule" | "publish" | "promotion" | "dependency" | "manual" | "gate";
 export type EvalSuiteResultStatus =
-  "pending" | "running" | "passed" | "failed" | "inconclusive" | "skipped" | "error";
+  | "pending"
+  | "running"
+  | "passed"
+  | "failed"
+  | "inconclusive"
+  | "skipped"
+  | "error"
+  | "baseline_set";
 export type ThresholdReasonCode =
   | "pass_rate_below"
   | "nothing_graded"

@@ -80,7 +80,7 @@ class EvalSuiteCheckRead(BaseSchema):
     )
     status: EvalSuiteResultStatus | None = Field(
         description=(
-            "`passed`, `failed` or `inconclusive` once the run completed; null while it "
+            "`passed`, `failed`, `inconclusive` or `baseline_set` once the run completed; null while it "
             "runs or when it ended without completing"
         )
     )

@@ -60,6 +60,7 @@ logger = logging.getLogger(__name__)
 _RECONCILE_LIMIT = 200
 
 _SETTLED_STATES: dict[str, GuardState] = {
+    EvalSuiteResultStatus.BASELINE_SET.value: "inconclusive",
     EvalSuiteResultStatus.FAILED.value: "failed",
     EvalSuiteResultStatus.INCONCLUSIVE.value: "inconclusive",
     EvalSuiteResultStatus.SKIPPED.value: "skipped",
