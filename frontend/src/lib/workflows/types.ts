@@ -536,6 +536,8 @@ export interface WorkflowRunRead {
   triggered_by: string;
   budget_limit: number | null;
   spent_cost: number;
+  /** Own provider charges, excluding called runs; older APIs omit this. */
+  own_cost?: number;
   cost_is_partial: boolean;
   deadline_at: string | null;
   paused_reason: string | null;

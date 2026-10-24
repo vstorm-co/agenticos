@@ -49,13 +49,13 @@ export function VersionComparison({
       : t(`diffField.${field.kind}`);
 
   return (
-    <div className="flex h-full min-h-0 gap-4">
-      <div className="min-h-0 min-w-0 flex-1">
+    <div className="flex h-full min-h-0 flex-col gap-4 md:flex-row">
+      <div className="min-h-48 min-w-0 flex-1 md:min-h-0">
         <VersionPreview graph={diff.union} catalog={catalog} changes={changes} />
       </div>
       <aside
         aria-label={t("diffListLabel")}
-        className="border-border w-72 shrink-0 space-y-3 overflow-y-auto rounded-lg border p-3"
+        className="border-border max-h-40 w-full shrink-0 space-y-3 overflow-y-auto rounded-lg border p-3 md:max-h-none md:w-72"
       >
         <p className="text-muted-foreground text-xs">
           {t("diffSummary", {

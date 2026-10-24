@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { deleteRecord } from "@/lib/tables-api";
 import { useTableViewStore } from "@/stores";
+import { useOrgStore } from "@/stores/org-store";
 import type { RecordRead } from "@/types/tables";
 
 import { isRevisionConflict } from "./use-record-mutation";
@@ -35,12 +36,17 @@ export function useDeferredDelete(tableId: string) {
 
   return useCallback(
     (records: RecordRead[]) => {
+      const organizationId = useOrgStore.getState().activeOrgId;
       const ids = records.map((record) => record.id);
       hide(ids);
 
       const send = async () => {
         const results = await Promise.allSettled(
-          records.map((record) => deleteRecord(tableId, record.id, record.revision)),
+          records.map((record) =>
+            organizationId
+              ? deleteRecord(tableId, record.id, record.revision, organizationId)
+              : deleteRecord(tableId, record.id, record.revision),
+          ),
         );
         // Refetched first, so a deleted record is gone from the data before it
         // stops being hidden, and a kept one simply comes back.

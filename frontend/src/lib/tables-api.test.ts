@@ -190,3 +190,11 @@ describe("batchRefusal", () => {
     expect([error.status, error.code, error.message]).toEqual([422, "ALREADY_EXISTS", "Taken"]);
   });
 });
+
+it("pins the organization for a delayed record deletion", async () => {
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+  await deleteRecord("t1", "r1", 3, "org-a");
+  expect(apiClient.delete).toHaveBeenCalledWith("/tables/t1/records/r1?expected_revision=3", {
+    headers: { "X-Organization-Id": "org-a" },
+  });
+});

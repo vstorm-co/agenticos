@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api-error";
 import * as api from "@/lib/tables-api";
 import { useTableViewStore } from "@/stores/table-view-store";
+import { useOrgStore } from "@/stores/org-store";
 import type { RecordRead } from "@/types/tables";
 
 import { UNDO_MS, useDeferredDelete } from "./use-deferred-delete";
@@ -31,6 +32,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   useTableViewStore.getState().reset();
+  useOrgStore.setState({ activeOrgId: null });
 });
 afterEach(() => vi.useRealTimers());
 
@@ -53,6 +55,16 @@ describe("useDeferredDelete", () => {
     expect(api.deleteRecord).toHaveBeenCalledWith("t1", "a", 3);
     expect(api.deleteRecord).toHaveBeenCalledWith("t1", "b", 7);
     expect(useTableViewStore.getState().deleting).toEqual({});
+  });
+
+  it("keeps the organization that owned the delete when the active organization changes", async () => {
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    vi.mocked(api.deleteRecord).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDeferredDelete("t1"), { wrapper });
+    act(() => result.current([record("a")]));
+    act(() => useOrgStore.setState({ activeOrgId: "org-b" }));
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS));
+    expect(api.deleteRecord).toHaveBeenCalledWith("t1", "a", 3, "org-a");
   });
 
   it("sends nothing and brings the records back on Undo", async () => {

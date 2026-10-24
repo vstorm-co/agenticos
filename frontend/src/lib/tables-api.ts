@@ -132,7 +132,14 @@ export function deleteRecord(
   tableId: string,
   recordId: string,
   expectedRevision: number,
+  organizationId?: string,
 ): Promise<void> {
+  if (organizationId) {
+    return apiClient.delete<void>(
+      `/tables/${tableId}/records/${recordId}?expected_revision=${expectedRevision}`,
+      { headers: { "X-Organization-Id": organizationId } },
+    );
+  }
   return apiClient.delete<void>(
     `/tables/${tableId}/records/${recordId}?expected_revision=${expectedRevision}`,
   );
