@@ -26,6 +26,9 @@ interface PublishDialogProps {
    */
   environments: AgentEnvironment[] | null;
   publishing?: boolean;
+  draftBreaks?: boolean;
+  onTest?: () => void;
+  guardNames?: Record<string, string>;
   onConfirm: () => void | Promise<void>;
   /** What the evals said about this draft, said before it goes live. */
   children?: ReactNode;
@@ -34,14 +37,11 @@ interface PublishDialogProps {
 /**
  * What publishing is about to change, said before it happens.
  *
- * Publishing freezes the draft as a new version and moves exactly one pointer:
- * the default environment. A named environment somebody pinned - dev on v12, a
- * client held back on v9 - stays put, and an agent with pinned environments is
- * exactly the one where the button hides the most. So the dialog names the
- * version it will create, the environment that moves the moment it lands, and
- * the ones that deliberately do not. The first publish is the other silent
- * surprise: it creates the default environment, and the agent goes live with
- * no further step.
+ * Publishing freezes the draft as a version. Followers take it immediately
+ * unless guarded, in which case every guard must pass first; pinned
+ * environments stay put. The first publish creates the default environment.
+ * A breaking draft test makes retesting the primary action, while publishing
+ * remains an explicit choice.
  */
 export function PublishDialog({
   open,
@@ -49,6 +49,9 @@ export function PublishDialog({
   version,
   environments,
   publishing,
+  draftBreaks = false,
+  onTest,
+  guardNames = {},
   onConfirm,
   children,
 }: PublishDialogProps) {
@@ -76,7 +79,17 @@ export function PublishDialog({
               environments.map((environment) => (
                 <p key={environment.id}>
                   {environment.tracks_latest
-                    ? t("publishMovesFollower", { name: environment.name, version })
+                    ? environment.guard_suite_ids.length > 0
+                      ? t("publishGuardedFollower", {
+                          name: environment.name,
+                          version,
+                          guards: environment.guard_suite_ids.every((id) => guardNames[id])
+                            ? environment.guard_suite_ids.map((id) => guardNames[id]).join(", ")
+                            : t("publishGuardedChecks", {
+                                count: environment.guard_suite_ids.length,
+                              }),
+                        })
+                      : t("publishMovesFollower", { name: environment.name, version })
                     : t("publishPinnedStays", {
                         name: environment.name,
                         version: environment.version,
@@ -90,8 +103,17 @@ export function PublishDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={publishing}>
             {tUi("cancel")}
           </Button>
-          <Button disabled={publishing} onClick={() => void onConfirm()}>
-            {publishing ? "…" : t("publishConfirm")}
+          {draftBreaks && onTest && (
+            <Button disabled={publishing} onClick={onTest}>
+              {t("publishTestDraft")}
+            </Button>
+          )}
+          <Button
+            variant={draftBreaks ? "outline" : "default"}
+            disabled={publishing}
+            onClick={() => void onConfirm()}
+          >
+            {publishing ? "…" : t(draftBreaks ? "publishAnyway" : "publishConfirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

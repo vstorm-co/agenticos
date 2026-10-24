@@ -123,6 +123,7 @@ vi.mock("@/hooks", async () => {
 
 // The page's eval parts read their own queries; this test is not about them.
 vi.mock("@/hooks/use-eval-runs", () => ({
+  useDraftEvalRuns: () => ({ runs: [] }),
   useEvalArmSpec: () => ({ spec: undefined }),
   useRunsADataset: () => false,
 }));

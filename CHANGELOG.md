@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Publishing explains guarded environments accurately.** Followers move only
+  after their named guard suites pass. A draft whose last test broke cases
+  offers testing first and an explicit secondary Publish anyway action. Suite
+  forms name environments and their served versions, and regression notices
+  use the correct singular or plural (#2366).
+
 - **Eval results redact recognized secrets before storage.** Answers, nested
   tool-call evidence and errors use the same detector as Review. Existing
   results are redacted on upgrade; grading still reads the original answer in

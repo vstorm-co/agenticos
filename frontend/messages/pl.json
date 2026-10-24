@@ -1030,7 +1030,11 @@
     "newStarterPlaceholder": "W czym możesz mi pomóc?",
     "addStarter": "Dodaj",
     "platformUngatedBadge": "własne ustawienie, bez zgody",
-    "platformHeldBadge": "czyta wcześniejsze rozmowy, pyta najpierw"
+    "platformHeldBadge": "czyta wcześniejsze rozmowy, pyta najpierw",
+    "publishGuardedFollower": "{name} jest chronione przez {guards}: przejdzie na v{version} dopiero po zaliczeniu wszystkich kontroli.",
+    "publishGuardedChecks": "{count, plural, one {# zestaw kontrolny} few {# zestawy kontrolne} many {# zestawów kontrolnych} other {# zestawu kontrolnego}}",
+    "publishAnyway": "Opublikuj mimo to",
+    "publishTestDraft": "Przetestuj wersję roboczą"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -9019,9 +9023,9 @@
         "datasetPlaceholder": "Wybierz dataset",
         "datasetOption": "{name} · {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
         "datasetHint": "Przy każdym uruchomieniu odpowiada jego najnowsza wersja, oceniana tak, jak mówi dataset.",
-        "environment": "Sprawdzana wersja",
-        "currentVersion": "Bieżąca opublikowana wersja",
-        "environmentHint": "Run z harmonogramu sprawdza wersję serwowaną przez to środowisko, na jego połączeniach testowych. Promocja oznacza promocję na to środowisko.",
+        "environment": "Środowisko",
+        "currentVersion": "Każda nowa wersja",
+        "environmentHint": "Wybierz wersję sprawdzaną przez run: każdą nowo opublikowaną albo wersję serwowaną przez wskazane środowisko z jego połączeniami testowymi. Promocja dotyczy tego środowiska.",
         "when": "Kiedy się uruchamia",
         "onPublish": "Przy każdej publikacji",
         "onPublishHint": "Każda nowa wersja działa obok poprzedniej, więc regresja wychodzi, zanim ktoś ją wypromuje.",
@@ -9065,7 +9069,8 @@
         "enableAi": "Włącz wsparcie AI",
         "cancel": "Anuluj",
         "save": "Zapisz",
-        "create": "Utwórz suitę"
+        "create": "Utwórz suitę",
+        "environmentOption": "{name} · serwuje v{version}"
       },
       "threshold": {
         "minPassRate": "≥{rate}",

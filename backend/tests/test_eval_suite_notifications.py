@@ -52,9 +52,7 @@ def test_a_failure_names_why_and_the_first_cases() -> None:
 
     line = _suite_summary(suite, result, agent=agent, summary=summary)
 
-    assert line.startswith(
-        "Refunds failed on Clerk v7: pass rate 40% is below 80%; 2 case(s) break"
-    )
+    assert line.startswith("Refunds failed on Clerk v7: pass rate 40% is below 80%; 2 cases break")
     assert "'Question 0', 'Question 1', 'Question 2', 'Question 3', 'Question 4'" in line
     assert line.endswith("and 2 more.")
 
@@ -167,3 +165,17 @@ async def test_an_owner_who_is_no_longer_a_member_is_told_nothing() -> None:
         await service.eval_suite_failed(suite, result, agent=agent)
 
     write.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("count", "phrase"), [(1, "1 case breaks reproducibly"), (2, "2 cases break reproducibly")]
+)
+def test_regression_counts_use_singular_and_plural(count: int, phrase: str) -> None:
+    summary = EvalSuiteSummary(
+        pass_rate=0,
+        first_pass_rate=0,
+        cases=count,
+        reasons=[ThresholdReason(code="regressions", value=count, limit=0)],
+    )
+    suite, result, agent = _rows(status="failed")
+    assert phrase in _suite_summary(suite, result, agent=agent, summary=summary)

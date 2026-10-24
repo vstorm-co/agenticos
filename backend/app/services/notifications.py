@@ -1588,7 +1588,11 @@ def _reason_text(reason: ThresholdReason) -> str:
         case "nothing_graded":
             return "no case could be graded"
         case "regressions":
-            return f"{int(value)} case(s) break reproducibly"
+            return (
+                "1 case breaks reproducibly"
+                if int(value) == 1
+                else f"{int(value)} cases break reproducibly"
+            )
         case "cost_per_pass_rise":
             return f"cost per passed case rose {value:.0%}"
         case "p95_rise":

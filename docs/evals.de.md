@@ -692,4 +692,4 @@ Löschen der Conversation, aus der ein Fall stammt, löscht keine bereits daraus
 erzeugten Ergebnisse. [Datenschutz](data-protection.md) führt es mit den
 anderen Speichern auf.
 
-Erkannte Geheimnisse in gespeicherten Antworten, Werkzeugaufrufen und Fehlern werden durch dieselben Platzhalter wie in Review und Dataset-Fällen ersetzt. Die erste Bewertung prüft die Originalantwort im Arbeitsspeicher vor dem Speichern; eine erneute Bewertung verwendet die gespeicherten, bereinigten Daten. Das Upgrade bereinigt auch vorhandene Ergebnisse; ein Downgrade stellt entfernte Geheimnisse nicht wieder her.
+Erkannte Geheimnisse in gespeicherten Antworten, Werkzeugaufrufen und Fehlern werden durch dieselben Platzhalter wie in der Prüfung und Dataset-Fällen ersetzt. Die erste Bewertung prüft die Originalantwort im Arbeitsspeicher vor dem Speichern; eine erneute Bewertung verwendet die gespeicherten, bereinigten Daten. Das Upgrade bereinigt auch vorhandene Ergebnisse; ein Downgrade stellt entfernte Geheimnisse nicht wieder her.

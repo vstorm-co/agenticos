@@ -75,7 +75,7 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   }),
 }));
 vi.mock("@/hooks/use-agent-environments", () => ({
-  useAgentEnvironments: () => ({ environments: [{ id: "env-1", name: "staging" }] }),
+  useAgentEnvironments: () => ({ environments: [{ id: "env-1", name: "staging", version: 7 }] }),
 }));
 const access = vi.hoisted(() => ({ allowed: new Set<string>(), org: "org-1" as string | null }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -166,7 +166,7 @@ describe("EvalSuitesCard", () => {
         id: "suite-2",
         name: "On publish",
         dataset_name: null,
-        environment_name: "staging",
+        environment_name: "staging · serves v7",
         schedule: null,
         on_publish: false,
         is_active: false,
@@ -491,10 +491,10 @@ describe("SuiteFormDialog", () => {
     await userEvent.type(within(dialog).getByLabelText("Cron expression"), "0 7 1 * *");
     await userEvent.clear(within(dialog).getByLabelText("Time zone"));
     await userEvent.type(within(dialog).getByLabelText("Time zone"), "UTC");
-    await userEvent.click(within(dialog).getByRole("combobox", { name: "Version checked" }));
-    await userEvent.click(screen.getByRole("option", { name: "staging" }));
-    await userEvent.click(within(dialog).getByRole("combobox", { name: "Version checked" }));
-    await userEvent.click(screen.getByRole("option", { name: "Current published version" }));
+    await userEvent.click(within(dialog).getByRole("combobox", { name: "Environment" }));
+    await userEvent.click(screen.getByRole("option", { name: "staging · serves v7" }));
+    await userEvent.click(within(dialog).getByRole("combobox", { name: "Environment" }));
+    await userEvent.click(screen.getByRole("option", { name: "Every new version" }));
     for (const label of [
       "On every publish",
       "On promotion",

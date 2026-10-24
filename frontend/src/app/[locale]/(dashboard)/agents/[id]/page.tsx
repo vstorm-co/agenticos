@@ -79,10 +79,11 @@ import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { useGuardedPromotion } from "@/components/agents/promotion-dialog";
+import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { DraftEvalNote } from "@/components/evals/draft-eval-note";
 import { EvalsPanel } from "@/components/evals/evals-panel";
 import { EvalSuitesCard } from "@/components/evals/suites/eval-suites-card";
-import { useEvalArmSpec, useRunsADataset } from "@/hooks/use-eval-runs";
+import { useDraftEvalRuns, useEvalArmSpec, useRunsADataset } from "@/hooks/use-eval-runs";
 import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
@@ -376,6 +377,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const isSystem = isSystemAgent(agent?.kind);
   const isJudge = agent?.kind === "judge";
   const canViewRuns = can(Perm.runsView);
+  const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
+    enabled: publishOpen,
+  });
+  const { suites: publishSuites } = useAgentEvalSuites(id, {
+    enabled:
+      publishOpen &&
+      canViewRuns &&
+      !isSystem &&
+      environments.some((environment) => environment.guard_suite_ids.length > 0),
+  });
   // The Builder's tabs, as `?tab=` names them, for this caller and this agent; a
   // link naming one they lack - Evals without runs:view, a judge's Toolbox -
   // opens the first.
@@ -1300,6 +1311,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
           version={nextVersion}
           environments={isSystem ? null : environments}
           publishing={publish.isPending}
+          draftBreaks={(publishTests[0]?.outcome?.regressions_confirmed ?? 0) > 0}
+          guardNames={Object.fromEntries(publishSuites.map((suite) => [suite.id, suite.name]))}
+          onTest={
+            canTestDraft
+              ? () => {
+                  setPublishOpen(false);
+                  setTestingDraft(true);
+                }
+              : undefined
+          }
           onConfirm={async () => {
             try {
               await publish.mutateAsync(null);

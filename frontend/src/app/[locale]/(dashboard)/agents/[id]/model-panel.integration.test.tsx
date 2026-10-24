@@ -123,6 +123,7 @@ vi.mock("@/hooks", async () => {
 });
 
 vi.mock("@/hooks/use-eval-runs", () => ({
+  useDraftEvalRuns: () => ({ runs: [] }),
   useEvalArmSpec: () => ({ spec: undefined }),
   useRunsADataset: () => false,
 }));

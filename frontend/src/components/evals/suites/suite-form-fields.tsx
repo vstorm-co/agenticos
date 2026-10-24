@@ -15,6 +15,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { WEEKDAYS } from "@/lib/trigger-format";
+import type { AgentEnvironment } from "@/types/agents";
 import type { Dataset } from "@/types/datasets";
 import { Toggle } from "../start-eval-fields";
 import type { ScheduleChoice, ScheduleFrequency } from "./suite-format";
@@ -72,7 +73,10 @@ export function SuiteWhatFields({
   onChange,
   datasets,
   environments,
-}: FieldsProps & { datasets: Dataset[]; environments: { id: string; name: string }[] }) {
+}: FieldsProps & {
+  datasets: Dataset[];
+  environments: Pick<AgentEnvironment, "id" | "name" | "version">[];
+}) {
   const t = useTranslations("evals.suites.form");
   return (
     <div className="space-y-4">
@@ -116,7 +120,7 @@ export function SuiteWhatFields({
               <SelectItem value={CURRENT}>{t("currentVersion")}</SelectItem>
               {environments.map((environment) => (
                 <SelectItem key={environment.id} value={environment.id}>
-                  {environment.name}
+                  {t("environmentOption", { name: environment.name, version: environment.version })}
                 </SelectItem>
               ))}
             </SelectContent>

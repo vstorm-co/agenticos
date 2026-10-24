@@ -1030,7 +1030,11 @@
     "newStarterPlaceholder": "Wobei kannst du mir helfen?",
     "addStarter": "Hinzufügen",
     "platformUngatedBadge": "eigene Einstellung, ohne Freigabe",
-    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher"
+    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher",
+    "publishGuardedFollower": "{name} wird durch {guards} geschützt: Sie wechselt erst auf v{version}, wenn alle Prüfungen bestanden sind.",
+    "publishGuardedChecks": "{count, plural, one {# Schutz-Suite} other {# Schutz-Suites}}",
+    "publishAnyway": "Trotzdem veröffentlichen",
+    "publishTestDraft": "Entwurf testen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -9730,9 +9734,9 @@
         "datasetPlaceholder": "Dataset wählen",
         "datasetOption": "{name} · {count, plural, =1 {1 Fall} other {# Fälle}}",
         "datasetHint": "Bei jedem Lauf wird seine neueste Version beantwortet und so bewertet, wie das Dataset es vorgibt.",
-        "environment": "Geprüfte Version",
-        "currentVersion": "Aktuell veröffentlichte Version",
-        "environmentHint": "Ein geplanter Lauf prüft die Version, die diese Umgebung ausliefert, über ihre Testverbindungen. Promotion heißt Promotion auf diese Umgebung.",
+        "environment": "Umgebung",
+        "currentVersion": "Jede neue Version",
+        "environmentHint": "Wähle die zu prüfende Version: jede neu veröffentlichte Version oder die Version einer benannten Umgebung mit ihren Testverbindungen. Promotion bezieht sich auf diese Umgebung.",
         "when": "Wann sie läuft",
         "onPublish": "Bei jeder Veröffentlichung",
         "onPublishHint": "Jede neue Version läuft neben der vorherigen, damit eine Regression auffällt, bevor jemand sie promotet.",
@@ -9776,7 +9780,8 @@
         "enableAi": "KI-Unterstützung einschalten",
         "cancel": "Abbrechen",
         "save": "Speichern",
-        "create": "Suite anlegen"
+        "create": "Suite anlegen",
+        "environmentOption": "{name} · liefert v{version} aus"
       },
       "threshold": {
         "minPassRate": "≥{rate}",

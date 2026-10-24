@@ -1030,7 +1030,11 @@
     "newStarterPlaceholder": "What can you help me with?",
     "addStarter": "Add",
     "platformUngatedBadge": "your own setting, never asks",
-    "platformHeldBadge": "reads past conversations, asks first"
+    "platformHeldBadge": "reads past conversations, asks first",
+    "publishGuardedFollower": "{name} is guarded by {guards}: it moves to v{version} only after all guards pass.",
+    "publishGuardedChecks": "{count, plural, one {# guard suite} other {# guard suites}}",
+    "publishAnyway": "Publish anyway",
+    "publishTestDraft": "Test draft"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -9847,9 +9851,9 @@
         "datasetPlaceholder": "Choose a dataset",
         "datasetOption": "{name} · {count, plural, =1 {1 case} other {# cases}}",
         "datasetHint": "Its latest version is answered on every run, graded as the dataset says.",
-        "environment": "Version checked",
-        "currentVersion": "Current published version",
-        "environmentHint": "A scheduled run checks the version this environment serves, on its test connections. On promotion means onto this environment.",
+        "environment": "Environment",
+        "currentVersion": "Every new version",
+        "environmentHint": "Choose the version each run checks: every newly published version, or the version served by a named environment with its test connections. On promotion applies to that environment.",
         "when": "When it runs",
         "onPublish": "On every publish",
         "onPublishHint": "Each new version runs beside the one before it, so a regression is caught before anyone promotes it.",
@@ -9893,7 +9897,8 @@
         "enableAi": "Turn on AI assistance",
         "cancel": "Cancel",
         "save": "Save",
-        "create": "Create suite"
+        "create": "Create suite",
+        "environmentOption": "{name} · serves v{version}"
       },
       "threshold": {
         "minPassRate": "≥{rate}",
