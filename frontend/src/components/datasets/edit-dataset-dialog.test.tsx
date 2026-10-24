@@ -76,4 +76,23 @@ describe("EditDatasetDialog", () => {
     mount(undefined, { ...DATASET, description: null });
     expect(screen.getByLabelText("Description")).toHaveValue("");
   });
+  it("changes the split only for future questions and refuses invalid percentages", async () => {
+    const { mutateAsync } = mount();
+    expect(screen.getByText(/existing questions keep their part/)).toBeInTheDocument();
+    const share = screen.getByLabelText("Holdout share for new questions (%)");
+    await userEvent.clear(share);
+    await userEvent.type(share, "101");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(mutateAsync).not.toHaveBeenCalled();
+    await userEvent.clear(share);
+    await userEvent.type(share, "33.3");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        name: "refunds",
+        description: "Returns",
+        improvement_holdout_share: "0.333",
+      }),
+    );
+  });
 });

@@ -54,6 +54,9 @@ export function CaseRow({ item, onOpen, onRemove }: CaseRowProps) {
             <Badge variant="outline">{t("checkCount", { count: item.checks.length })}</Badge>
           )}
           {item.note !== null && <Badge variant="outline">{t("hasNote")}</Badge>}
+          {item.improvement_partition && (
+            <Badge variant="secondary">{t(`improvementSplit.${item.improvement_partition}`)}</Badge>
+          )}
           {item.tags.map((tag) => (
             <Badge key={tag} variant="outline" className="font-mono">
               {tag}

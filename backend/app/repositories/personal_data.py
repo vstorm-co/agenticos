@@ -866,6 +866,17 @@ async def comments_of(db: AsyncSession, user_id: UUID) -> dict[UUID, list[str]]:
     for run_id, comment in result.tuples():
         assert run_id is not None and comment is not None
         comments[run_id].append(comment)
+    reviewed = await db.execute(
+        select(CaseScore.run_id, CaseScore.human_note).where(
+            CaseScore.reviewed_by_user_id == user_id,
+            CaseScore.run_id.is_not(None),
+            CaseScore.human_note.is_not(None),
+            CaseScore.human_note != "",
+        )
+    )
+    for run_id, note in reviewed.tuples():
+        assert run_id is not None and note is not None
+        comments[run_id].append(note)
     return dict(comments)
 
 

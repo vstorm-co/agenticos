@@ -260,6 +260,8 @@ class AuthoringService:
         body: AuthoringStart,
         *,
         excluded_message_ids: Sequence[UUID] = (),
+        improvement_run_id: UUID | None = None,
+        evidence_dataset_id: UUID | None = None,
     ) -> AuthoringEstimate:
         """What an Improve or Verify on this agent would read and cost.
 
@@ -277,11 +279,18 @@ class AuthoringService:
                 agent.draft_spec
             ):
                 return await self._estimate(ctx, improver, EvidencePack(), "no_draft_change")
-        pack = await self.evidence.for_agent(
-            ctx,
-            agent.id,
-            window_days=body.window_days,
-            excluded_message_ids=excluded_message_ids,
+        pack = (
+            await self.evidence.for_agent(
+                ctx,
+                agent.id,
+                window_days=body.window_days,
+                excluded_message_ids=excluded_message_ids,
+                dataset_id=evidence_dataset_id,
+            )
+            if improvement_run_id is None
+            else await self.evidence.for_improvement(
+                ctx, improvement_run_id, excluded_message_ids=excluded_message_ids
+            )
         )
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
@@ -320,7 +329,7 @@ class AuthoringService:
     ) -> AuthoringEstimate:
         groups = pack.groups()
         calls = 0 if not groups else (1 if len(groups) == 1 else len(groups) + 1)
-        evidence_chars = sum(len(run.render()) for run in pack.runs)
+        evidence_chars = sum(len(run.render()) for run in pack.runs) + len(pack.training_feedback)
         per_call = await self._per_call(ctx, improver, evidence_chars // max(1, len(groups)))
         total = (per_call * calls).quantize(_CENT)
         improver_left = await self._improver_left(ctx, improver)
@@ -394,7 +403,11 @@ class AuthoringService:
                 organization has left this month. Nothing is written.
         """
         estimate = await self.estimate_agent(
-            ctx, agent_id, body, excluded_message_ids=excluded_message_ids
+            ctx,
+            agent_id,
+            body,
+            excluded_message_ids=excluded_message_ids,
+            improvement_run_id=improvement_run_id,
         )
         return await self._start(
             ctx,
@@ -1087,6 +1100,28 @@ class AuthoringService:
             suite=None,
         )
 
+    async def evidence_run_ids(self, ctx: AuthContext, batch: SpecProposalBatch) -> list[UUID]:
+        from pydantic import TypeAdapter, ValidationError
+
+        request = (
+            None
+            if batch.request_id is None
+            else await authoring_repo.get_request(
+                self.db, batch.request_id, organization_id=ctx.organization_id
+            )
+        )
+        if request is None:
+            return []
+        try:
+            return TypeAdapter(list[UUID]).validate_python(
+                request.evidence.get("source_run_ids", [])
+            )
+        except ValidationError:
+            raise BadRequestError(
+                message="The proposal's source identities no longer read. Request a new proposal.",
+                details={"reason": "invalid_evidence"},
+            ) from None
+
     async def _agent_check(
         self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
     ) -> tuple[Agent, SpecProposalBatch, AgentSpec, _CheckRun]:
@@ -1120,6 +1155,7 @@ class AuthoringService:
                     base_version=None if base is None else base.version,
                     on_draft=on_draft,
                     suggestions=pending,
+                    evidence_run_ids=await self.evidence_run_ids(ctx, batch),
                 ),
             ),
         )

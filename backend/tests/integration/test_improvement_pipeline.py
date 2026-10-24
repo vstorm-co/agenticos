@@ -42,7 +42,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
 async def _started(db: AsyncSession):
     ctx, agent, _ = await _setup(db)
-    dataset = await _dataset(db, ctx)
+    dataset = await _dataset(db, ctx, cases=5)
     service = ImprovementPipelineService(db)
     read = await service.start(
         ctx,

@@ -17,6 +17,7 @@ import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores/auth-store";
 import { ArmsTable } from "./arms-table";
 import { ALL, CaseTable, FilterSelect } from "./case-table";
+import { ImprovementMeasurement } from "./improvement-measurement";
 import { ComparisonCard } from "./comparison-card";
 import { sideName } from "./names";
 import { StartEvalDialog } from "./start-eval-dialog";
@@ -134,6 +135,9 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           cases.current?.scrollIntoView?.({ behavior: "smooth" });
         }}
       />
+      {run.proposal_check?.measurement && (
+        <ImprovementMeasurement measurement={run.proposal_check.measurement} />
+      )}
       {(run.excluded_case_ids?.length ?? 0) > 0 && (
         <p role="note" className="text-muted-foreground text-sm">
           {t("excludedEvidence", { count: run.excluded_case_ids?.length ?? 0 })}

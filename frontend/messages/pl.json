@@ -8005,7 +8005,15 @@
     "maskedConversation": "Z rozmowy, do której nie masz dostępu",
     "privateConversationWarning": "Ta rozmowa jest prywatna i należy do {name}. Jej tekst będzie widoczny dla czytelników datasetu, którzy mogą odczytywać runy.",
     "anotherMember": "innego członka",
-    "checkingSource": "Sprawdzanie prywatności źródła…"
+    "checkingSource": "Sprawdzanie prywatności źródła…",
+    "improvementSplit": {
+      "share": "Udział pytań kontrolnych w nowych pytaniach (%)",
+      "shareHint": "Podział jest przypisywany raz na pytanie. Ustawienie dotyczy nowych pytań; istniejące zachowują część po edycjach i między wersjami. Poprawianie wymaga co najmniej pięciu pytań kontrolnych, które da się ocenić.",
+      "counts": "{train} uczących · {holdout} kontrolnych",
+      "train": "Uczące",
+      "holdout": "Kontrolne",
+      "shareInvalid": "Wpisz procent od 0 do 100 z dokładnością do 0,1."
+    }
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",
@@ -8798,7 +8806,12 @@
       "brokenOnly": "{count, plural, one {Widzisz przypadek, który się zepsuł.} few {Widzisz # przypadki, które się zepsuły.} many {Widzisz # przypadków, które się zepsuły.} other {Widzisz # przypadku, które się zepsuły.}}",
       "showAll": "Pokaż wszystkie przypadki",
       "corrected": "Poprawione przez człowieka",
-      "askedOnly": "Widać tylko otwarty przypadek."
+      "askedOnly": "Widać tylko otwarty przypadek.",
+      "partition": {
+        "train": "Uczące",
+        "holdout": "Kontrolne",
+        "excluded": "Kopia dowodu"
+      }
     },
     "case": {
       "firstAnswer": "Odpowiedź",
@@ -9133,7 +9146,15 @@
     "baselineNotRerun": "Baseline nie dostał tych przypadków ponownie, więc zmiany nie są potwierdzone.",
     "noEarlierRun": "Brak porównywalnego wcześniejszego runu (inne ocenianie, model albo ustawienia). Ten run nie będzie miał z czym się porównać.",
     "besideBaseline": "Uruchom też poprzednią wersję",
-    "besideBaselineHint": "Odpowie na te same przypadki obok tego runu, oceniana tak samo, a estymata ją uwzględnia."
+    "besideBaselineHint": "Odpowie na te same przypadki obok tego runu, oceniana tak samo, a estymata ją uwzględnia.",
+    "improvementSplit": {
+      "title": "Nauka i pomiar",
+      "train": "Pytania użyte do napisania zmian",
+      "holdout": "Pytania kontrolne",
+      "body": "O werdykcie tej propozycji decydują tylko pytania kontrolne. Wyniki części uczącej mogą posłużyć do kolejnej poprawy. Zestawy i bramki promocji nadal oceniają wszystkie pytania.",
+      "excluded": "{count, plural, one {# pytanie wykluczone} few {# pytania wykluczone} many {# pytań wykluczonych} other {# pytania wykluczone}} z werdyktu, ponieważ powtarzają pytania treningowe lub materiał źródłowy sugestii.",
+      "needed": "Dodaj {count, plural, one {# ocenialne pytanie kontrolne} few {# ocenialne pytania kontrolne} many {# ocenialnych pytań kontrolnych} other {# ocenialnego pytania kontrolnego}}, aby zmierzyć zmianę."
+    }
   },
   "steps": {
     "skills-gallery": {
@@ -9992,7 +10013,7 @@
     "improve": {
       "improve": {
         "title": "Ulepsz tego agenta",
-        "body": "Asystent czyta oceniane i nieudane runy z ostatnich 30 dni - nigdy runy ewaluacji - i sugeruje zmiany. O każdej decydujesz Ty."
+        "body": "Asystent czyta ocenione i nieudane runy czatu oraz błędy, uzasadnienia sędziego i notatki przeglądu z części uczącej ewaluacji z ostatnich 30 dni. Odpowiedzi i oceny pytań kontrolnych pozostają ukryte. Ty decydujesz o każdej sugestii."
       },
       "verify": {
         "title": "Sprawdź swoje zmiany",

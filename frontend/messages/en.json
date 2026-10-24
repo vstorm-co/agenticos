@@ -8232,7 +8232,15 @@
     "maskedConversation": "From a conversation you cannot open",
     "privateConversationWarning": "This conversation is private to {name}. Its text will be visible to readers of this dataset who can read runs.",
     "anotherMember": "another member",
-    "checkingSource": "Checking source privacy…"
+    "checkingSource": "Checking source privacy…",
+    "improvementSplit": {
+      "share": "Holdout share for new questions (%)",
+      "shareHint": "The split is assigned once per question. This setting affects new questions; existing questions keep their part across edits and versions. Improve needs at least five gradable held-out questions.",
+      "counts": "{train} train · {holdout} holdout",
+      "train": "Train",
+      "holdout": "Holdout",
+      "shareInvalid": "Enter a percentage from 0 to 100 in steps of 0.1."
+    }
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",
@@ -9626,7 +9634,12 @@
       "brokenOnly": "{count, plural, =1 {Showing the case that broke.} other {Showing the # cases that broke.}}",
       "showAll": "Show every case",
       "corrected": "Corrected by a person",
-      "askedOnly": "Showing the one case you opened."
+      "askedOnly": "Showing the one case you opened.",
+      "partition": {
+        "train": "Train",
+        "holdout": "Holdout",
+        "excluded": "Evidence copy"
+      }
     },
     "case": {
       "firstAnswer": "Answer",
@@ -9961,7 +9974,15 @@
     "baselineNotRerun": "The baseline was not asked these cases again, so the changes are not confirmed.",
     "noEarlierRun": "No comparable earlier run (different grading, model or setup). This run will have nothing to compare against.",
     "besideBaseline": "Also run the version before it",
-    "besideBaselineHint": "It answers the same cases beside this one, graded the same way, and the estimate includes it."
+    "besideBaselineHint": "It answers the same cases beside this one, graded the same way, and the estimate includes it.",
+    "improvementSplit": {
+      "title": "Learning and measurement",
+      "train": "Questions used to write the changes",
+      "holdout": "Held-out questions",
+      "body": "Only held-out questions decide this proposal’s verdict. Training results remain available for the next improvement. Suites and promotion guards still evaluate every question.",
+      "excluded": "{count, plural, one {# question is} other {# questions are}} excluded from the verdict because they repeat training questions or proposal evidence.",
+      "needed": "Add {count, plural, one {# more gradable held-out question} other {# more gradable held-out questions}} to measure a change."
+    }
   },
   "remoteAgents": {
     "title": "Remote agents",
@@ -10209,7 +10230,7 @@
     "improve": {
       "improve": {
         "title": "Improve this agent",
-        "body": "The assistant reads the last 30 days of rated and failed runs - never eval runs - and suggests changes. You decide each one."
+        "body": "The assistant reads rated and failed chat runs and train-part eval failures, judge reasoning and Review notes from the last 30 days. Held-out answers and grades stay hidden. You decide every suggestion."
       },
       "verify": {
         "title": "Verify your edits",

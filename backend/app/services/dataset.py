@@ -59,6 +59,7 @@ from app.repositories import (
 from app.schemas.dataset import (
     MAX_HISTORY_TURNS,
     AnswerAs,
+    CasePartitionLiteral,
     DatasetCaseContent,
     DatasetCaseFromMessage,
     DatasetCaseList,
@@ -87,6 +88,8 @@ logger = logging.getLogger(__name__)
 
 # The most cases one dataset holds. The export cap, so every version of every
 # dataset can always be exported whole.
+from app.services.improvement_data import case_partition
+
 MAX_CASES = MAX_EXPORT_ROWS
 _MAX_REPLY_STEPS = 50
 _MAX_EXPECTED_CALLS = 50
@@ -301,6 +304,7 @@ def _dataset_read(
 ) -> DatasetRead:
     return DatasetRead(
         stats=stats or DatasetStats(),
+        improvement_holdout_share=dataset.improvement_holdout_share,
         judge_name=judge_name,
         id=dataset.id,
         name=dataset.name,
@@ -567,6 +571,7 @@ class DatasetService:
                     description=data.description,
                     visibility=data.visibility,
                     agent_id=agent_id,
+                    improvement_holdout_share=data.improvement_holdout_share,
                 )
         except IntegrityError:
             raise _name_taken(data.name) from None
@@ -904,13 +909,17 @@ class DatasetService:
         source: CaseSource,
         case_id: UUID | None = None,
         authorship: Authorship = Authorship(),
+        partition: CasePartitionLiteral | None = None,
         **provenance: UUID | None,
     ) -> DatasetCase:
+        identity = case_id or uuid.uuid4()
         return DatasetCase(
             id=uuid.uuid4(),
             dataset_id=dataset.id,
             organization_id=ctx.organization_id,
-            case_id=case_id or uuid.uuid4(),
+            case_id=identity,
+            improvement_partition=partition
+            or case_partition(identity, dataset.improvement_holdout_share),
             source=source.value,
             created_by_user_id=ctx.subject_id,
             asked_by_user_id=authorship.asked_by,
@@ -939,7 +948,7 @@ class DatasetService:
             await self._refuse_held_answer(ctx, previous, message_id)
         fields, redacted = redacted_case(content)
         case = self._revision(
-            ctx, dataset, fields, source=source, authorship=authorship, **provenance
+            ctx, dataset, fields, source=source, authorship=authorship, partition=None, **provenance
         )
         await self._mint(
             ctx,
@@ -1139,6 +1148,7 @@ class DatasetService:
             fields,
             source=CaseSource(current.source),
             case_id=current.case_id,
+            partition=current.improvement_partition,
             authorship=Authorship(
                 asked_by=current.asked_by_user_id,
                 history=_realigned(current, fields.get("history") or []),
@@ -1518,6 +1528,7 @@ class DatasetService:
                         fields,
                         source=CaseSource.CONVERSATION,
                         authorship=authorship,
+                        partition=None,
                         **provenance,
                     ),
                     found,

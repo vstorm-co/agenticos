@@ -72,6 +72,7 @@ def test_a_case_with_only_an_input_is_refused_against_the_reference_answer() -> 
 
 def test_a_stored_case_with_only_an_input_still_reads() -> None:
     row = DatasetCase(
+        improvement_partition="holdout",
         id=uuid.uuid4(),
         case_id=uuid.uuid4(),
         input="q",

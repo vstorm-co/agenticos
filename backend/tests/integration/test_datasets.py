@@ -1169,6 +1169,7 @@ async def test_a_case_source_outside_the_vocabulary_is_refused(db) -> None:
     )
     db.add(
         DatasetCase(
+            improvement_partition="holdout",
             dataset_id=dataset.id,
             organization_id=ctx.organization_id,
             case_id=uuid.uuid4(),
@@ -1562,6 +1563,7 @@ async def test_an_order_mode_outside_the_three_is_refused_by_the_table(db) -> No
     )
     db.add(
         DatasetCase(
+            improvement_partition="holdout",
             dataset_id=dataset.id,
             organization_id=ctx.organization_id,
             case_id=uuid.uuid4(),

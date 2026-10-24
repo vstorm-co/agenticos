@@ -1,5 +1,5 @@
 ---
-source_sha: "bb280a768e14"
+source_sha: "da6e26954426"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -209,11 +209,11 @@ Eine unbekannte Umgebung liefert 404. Gleichzeitiges Erstellen oder Umbenennen v
 
 ### Vorschläge prüfen { #checking-suggestions }
 
-Der [Authoring-Assistent](authoring.md#check-with-evals) startet Eval Runs, um zu
-prüfen, was er vorschlägt: den Entwurf mit den wartenden Vorschlägen, neben der
-veröffentlichten Version. Ein solcher Run lässt die Fälle aus den Gesprächen weg,
-aus denen die Vorschläge stammen, und nennt ihre Zahl, sodass eine kleinere
-Stichprobe als das Dataset sich selbst erklärt.
+**Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Review-Notizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
+
+Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen und Verbesserungssitzungen messen ausschließlich Kontrollfälle und benötigen mindestens fünf bewertbare Fragen. Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
+
+Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Spätere Runden können aus den Trainingsergebnissen dieser Version lernen; neue Chats und Fälle ändern die Kontrollstichprobe nicht.
 
 ## Als was jeder Fall läuft { #what-each-case-runs-as }
 

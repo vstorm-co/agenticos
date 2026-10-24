@@ -32,6 +32,16 @@ MAX_MODELS = 4
 MAX_RERUNS = 5
 
 
+class ImprovementMeasurement(BaseSchema):
+    """Frozen questions used for learning, measurement, and excluded evidence copies."""
+
+    train_case_ids: list[UUID]
+    holdout_case_ids: list[UUID]
+    excluded_case_ids: list[UUID]
+    gradable_holdout: int
+    minimum_holdout: int
+
+
 class ProposalCheckRecord(BaseSchema):
     """What a check of the authoring assistant's proposal measured, kept on its run.
 
@@ -53,6 +63,8 @@ class ProposalCheckRecord(BaseSchema):
     on_draft: bool = False
     suggestions: int = Field(ge=1)
     improvement_run_id: UUID | None = None
+    evidence_run_ids: list[UUID] = Field(default_factory=list)
+    measurement: ImprovementMeasurement | None = None
 
 
 class EvalRunRequest(BaseSchema):

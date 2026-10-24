@@ -31,8 +31,9 @@ dataset is for and who reaches it, and neither changes what a run was asked.
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import (
     CheckConstraint,
@@ -40,6 +41,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -99,6 +101,10 @@ class Dataset(Base, TimestampMixin):
 
     __tablename__ = "datasets"
 
+    improvement_holdout_share: Mapped[Decimal] = mapped_column(
+        Numeric(4, 3), nullable=False, default=Decimal("0.5"), server_default="0.5"
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
@@ -140,6 +146,9 @@ class Dataset(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "improvement_holdout_share BETWEEN 0 AND 1", name="ck_dataset_improvement_holdout_share"
+        ),
         UniqueConstraint("organization_id", "name", name="uq_dataset_org_name"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_dataset_visibility"),
         CheckConstraint("latest_version >= 0", name="ck_dataset_latest_version"),
@@ -202,6 +211,10 @@ class DatasetCase(Base):
     """One revision of one case. Its content is never updated after insert."""
 
     __tablename__ = "dataset_cases"
+
+    improvement_partition: Mapped[Literal["train", "holdout"]] = mapped_column(
+        String(7), nullable=False
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -307,6 +320,10 @@ class DatasetCase(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "improvement_partition IN ('train', 'holdout')",
+            name="ck_dataset_case_improvement_partition",
+        ),
         CheckConstraint(
             "source IN ('manual', 'import', 'conversation', 'synthetic')",
             name="ck_dataset_case_source",

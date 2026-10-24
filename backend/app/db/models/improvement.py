@@ -154,6 +154,9 @@ class VerdictDetail(TypedDict, total=False):
 
     fixed: int
     crashed: int
+    gradable_holdout: int
+    minimum_holdout: int
+    missing_holdout: int
     broken: int
     incomplete: int
     ungraded: int
@@ -205,6 +208,9 @@ class ImprovementRun(Base):
     dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
     suite_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    chat_evidence_run_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
     pinned_scoring: Mapped[dict[str, JsonValue] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )

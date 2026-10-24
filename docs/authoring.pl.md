@@ -1,5 +1,5 @@
 ---
-source_sha: "2e7dc8326cce"
+source_sha: "c8580972cd6e"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -49,10 +49,7 @@ ostatnich 30 dni:
 Udany run bez oceny nie mówi niczego i nie jest czytany. Nie jest też czytany
 test z panelu testowego Buildera ani run delegata.
 
-**Nigdy nie czyta ewaluacji.** Runy, które odpowiadały na przypadek
-[ewaluacji](evals.md), runy sędziego i własne runy asystenta są pomijane, a
-wyników ocen nie widzi nigdy. Zmiana sprawdzana ewaluacją nie może być
-dopasowana do przypadków, które ją sprawdzają.
+**Uczy się wyłącznie na przypadkach treningowych.** Oprócz ocenionych rozmów asystent czyta błędne odpowiedzi treningowe, potwierdzone regresje, uzasadnienia sędziego i notatki Review z dostępnych [datasetów](datasets.md). Dostaje skuteczność treningu według tagów i kryteriów sędziego oraz liczby napraw i regresji. Pytania kontrolne, odpowiedzi i oceny nigdy nie trafiają do jego promptu. Runy sędziego i samego asystenta nadal są pomijane.
 
 Gdy do przeczytania jest więcej, niż mieści jedno zapytanie, runy są najpierw
 czytane grupami, a sugestie powstają z tego, co pokazała każda grupa.
@@ -140,9 +137,9 @@ Sprawdzenie nie jest runem suity: nie trafia do żadnej historii suity, nikogo
 nie powiadamia, a Przyjmij kieruje się werdyktem samego runu. Zmiana skilla albo
 pliku kontekstu sprawdzana na suicie agenta, na którym działa, dostaje to samo.
 
-Przypadki wzięte z rozmów, z których wzięły się sugestie, są pomijane, a run
-podaje ich liczbę: zmiany nigdy nie mierzy się na danych, do których ją
-dopasowano. Dataset złożony wyłącznie z takich przypadków jest odrzucany.
+Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%). Sprawdzenia sugestii i sesje poprawy mierzą wyłącznie przypadki kontrolne i wymagają co najmniej pięciu pytań z możliwością oceny. Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
+
+Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejne rundy mogą uczyć się na wynikach treningowych tej wersji, ale nowe rozmowy i przypadki nie zmieniają próby kontrolnej.
 
 Sprawdzenie liczy się jako test wersji roboczej, gdy wersja robocza jest
 dokładnie tym, co sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym

@@ -25,7 +25,7 @@ from app.db.models.improvement import (
     StopReason,
 )
 
-MIN_GRADABLE_CASES = 3
+MIN_GRADABLE_CASES = 5
 """Gradable cases the check needs outside the evidence before a change is measured."""
 
 INCONCLUSIVE_RERUNS = 1

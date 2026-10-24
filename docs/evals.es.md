@@ -1,5 +1,5 @@
 ---
-source_sha: "bb280a768e14"
+source_sha: "da6e26954426"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -189,11 +189,13 @@ Un entorno desconocido devuelve 404. Crear o renombrar suites simultáneamente c
 
 ### Comprobar sugerencias { #checking-suggestions }
 
-El [asistente de autoría](authoring.md#check-with-evals) inicia eval runs para
-comprobar lo que sugiere: el draft con las sugerencias pendientes aplicadas,
-junto a la versión publicada. Un run así deja fuera los casos tomados de las
-conversaciones de las que salieron las sugerencias y dice cuántos son, de modo
-que una muestra menor que el dataset se explica sola.
+**Aprende solo de casos de entrenamiento.** Además de chats valorados, el asistente lee respuestas de entrenamiento fallidas, regresiones confirmadas, razones del juez y notas de Review de [datasets](datasets.md) accesibles. Recibe tasas de acierto de entrenamiento por etiqueta y criterio del juez, y cantidades de fallos corregidos y nuevos. Las preguntas de control, respuestas y puntuaciones nunca entran en su prompt. Los runs del juez y del propio asistente siguen excluidos.
+
+Cada caso tiene una asignación fija a entrenamiento o control, conservada entre versiones del dataset. Los ajustes del dataset eligen la proporción de control solo para casos futuros (50% por defecto). Las comprobaciones de sugerencias y sesiones de mejora miden solo casos de control y requieren al menos cinco preguntas evaluables.
+
+Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto normalizado y la identidad del run de origen, incluso si se introducen a mano o se generan. Bajo el mínimo, la sesión se detiene con `no_data` e indica cuántas preguntas añadir. El run identifica ambas partes y las copias excluidas. Las suites normales y las puertas de promoción siguen contando todos los casos.
+
+Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Las rondas posteriores pueden aprender de sus resultados de entrenamiento; nuevos chats y casos no cambian la muestra de control.
 
 ## Cómo se ejecuta cada caso { #what-each-case-runs-as }
 

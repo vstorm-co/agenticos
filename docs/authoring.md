@@ -45,10 +45,7 @@ days of the agent's runs:
 An unrated run that succeeded says nothing either way and is not read. Neither is
 a test from the Builder's test panel, nor a delegate's run.
 
-**It never reads evals.** Runs that answered an [eval](evals.md) case, the
-judge's runs and the assistant's own runs are left out of what it reads, and it
-never sees scores. A change checked by evals must not be fitted to the cases
-that check it.
+**It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
 
 When there is more to read than fits one request, the runs are read in groups
 first and the suggestions are written from what each group showed.
@@ -132,9 +129,9 @@ The check is not one of the suite's runs: it is in no suite's history and
 notifies nobody, and the run's own verdict is what Accept goes by. A skill or
 context change checked on a suite of the agent it runs on gets the same.
 
-The cases taken from the conversations the suggestions were derived from are left
-out, and the run says how many: a change is never measured on the data it was
-fitted to. A dataset made only of such cases is refused.
+Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default). Suggestion checks and improvement sessions measure only holdout cases and require at least five gradable questions. Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data` and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
+
+An improvement session pins its dataset version and chat evidence identities. Later rounds may learn from that version's training results, but new chats and new dataset cases cannot change its control sample.
 
 A check counts as the draft's test once the draft is exactly what it checked -
 every checked suggestion accepted and nothing else changed - so the publish

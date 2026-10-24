@@ -167,7 +167,10 @@ async def _dataset(
     checks: list[dict[str, Any]] | None = None,
 ) -> Dataset:
     service = DatasetService(db)
-    dataset = await service.create(ctx, DatasetCreate(name=f"refunds-{uuid.uuid4().hex[:6]}"))
+    dataset = await service.create(
+        ctx,
+        DatasetCreate(name=f"refunds-{uuid.uuid4().hex[:6]}", improvement_holdout_share=Decimal(1)),
+    )
     for index in range(cases):
         await service.add_case(
             ctx,

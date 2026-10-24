@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, update
@@ -26,6 +26,11 @@ from app.db.models.message_rating import MessageRating
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.repositories.agent_run import served_runs
+
+if TYPE_CHECKING:
+    from app.db.models.case_score import CaseScore
+    from app.db.models.dataset import Dataset, DatasetCase
+    from app.db.models.eval_run import EvalRunArm, EvalRunCase
 
 
 async def create_request(
@@ -441,6 +446,7 @@ async def evidence_runs(
     skill_name: str | None = None,
     excluded_message_ids: Sequence[UUID] = (),
     since: datetime,
+    only_run_ids: Sequence[UUID] | None = None,
     limit: int,
 ) -> list[EvidenceRun]:
     """The runs most worth reading, rated-down first.
@@ -530,6 +536,8 @@ async def evidence_runs(
             )
         )
         statement = statement.where(loaded.exists())
+    if only_run_ids is not None:
+        statement = statement.where(AgentRun.id.in_(only_run_ids))
     result = await db.execute(statement.order_by(rank, AgentRun.started_at.desc()).limit(limit))
     rows: list[EvidenceRun] = []
     for run, worst_value, best_value, comments, commenters in result.all():
@@ -583,3 +591,152 @@ async def split_candidate(
         hunk.position = position
     await db.flush()
     return separate
+
+
+@dataclass(frozen=True)
+class EvidenceInputs:
+    inputs: list[str]
+    run_ids: set[UUID]
+    truncated: bool
+
+
+async def evidence_inputs(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    run_ids: Sequence[UUID],
+    conversation_ids: Sequence[UUID],
+    limit: int = 2_000,
+) -> EvidenceInputs:
+    """Inputs behind a proposal, including legacy requests that kept only conversations.
+
+    New requests keep the exact run identities the model read. The conversation
+    fallback is bounded and reports truncation so a comparison can refuse an
+    incomplete exclusion set instead of accidentally learning its test.
+    """
+    from app.db.models.conversation import Conversation
+    from app.db.models.dataset import DatasetCase
+    from app.db.models.eval_run import EvalRunCase
+
+    identities = set(run_ids)
+    if not identities and conversation_ids:
+        identities.update(
+            await db.scalars(
+                select(AgentRun.id).where(
+                    AgentRun.organization_id == organization_id,
+                    AgentRun.conversation_id.in_(conversation_ids),
+                )
+            )
+        )
+    chat = list(
+        await db.scalars(
+            select(Message.content)
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .where(
+                Conversation.organization_id == organization_id,
+                Message.role == "user",
+                or_(
+                    Message.run_id.in_(identities),
+                    Message.conversation_id.in_(conversation_ids if not run_ids else ()),
+                ),
+            )
+            .limit(limit + 1)
+        )
+    )
+    train = list(
+        await db.scalars(
+            select(DatasetCase.input)
+            .join(EvalRunCase, EvalRunCase.case_revision_id == DatasetCase.id)
+            .where(
+                DatasetCase.organization_id == organization_id,
+                EvalRunCase.agent_run_id.in_(identities),
+            )
+            .limit(limit + 1)
+        )
+    )
+    return EvidenceInputs(
+        inputs=[*chat, *train][:limit], run_ids=identities, truncated=len(chat) + len(train) > limit
+    )
+
+
+@dataclass(frozen=True)
+class TrainAnswer:
+    run: AgentRun
+    case: DatasetCase
+    score: CaseScore | None
+    attempt: EvalRunCase
+    arm: EvalRunArm
+
+
+async def evaluated_datasets(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, since: datetime
+) -> list[Dataset]:
+    from app.db.models.dataset import Dataset
+    from app.db.models.eval_run import EvalRun
+
+    rows = await db.scalars(
+        select(Dataset)
+        .join(EvalRun, EvalRun.dataset_id == Dataset.id)
+        .where(
+            Dataset.organization_id == organization_id,
+            EvalRun.organization_id == organization_id,
+            EvalRun.agent_id == agent_id,
+            EvalRun.created_at >= since,
+            EvalRun.status == "completed",
+        )
+        .distinct()
+        .order_by(Dataset.id)
+        .limit(50)
+    )
+    return list(rows)
+
+
+async def train_answers(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    dataset_ids: Sequence[UUID],
+    since: datetime,
+    limit: int = 200,
+    dataset_version: int | None = None,
+) -> list[TrainAnswer]:
+    """Only current, non-erased training revisions; holdout content never enters this result."""
+    from app.db.models.case_score import CaseScore
+    from app.db.models.dataset import DatasetCase
+    from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase
+
+    if not dataset_ids:
+        return []
+    rows = await db.execute(
+        select(AgentRun, DatasetCase, CaseScore, EvalRunCase, EvalRunArm)
+        .join(EvalRunCase, EvalRunCase.agent_run_id == AgentRun.id)
+        .join(DatasetCase, DatasetCase.id == EvalRunCase.case_revision_id)
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .join(EvalRun, EvalRun.id == EvalRunCase.eval_run_id)
+        .outerjoin(CaseScore, CaseScore.id == EvalRunCase.case_score_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            EvalRun.organization_id == organization_id,
+            DatasetCase.organization_id == organization_id,
+            DatasetCase.dataset_id.in_(dataset_ids),
+            DatasetCase.improvement_partition == "train",
+            DatasetCase.anonymised_at.is_(None),
+            (
+                DatasetCase.removed_in.is_(None)
+                if dataset_version is None
+                else and_(
+                    DatasetCase.added_in <= dataset_version,
+                    or_(DatasetCase.removed_in.is_(None), DatasetCase.removed_in > dataset_version),
+                )
+            ),
+            EvalRun.agent_id == agent_id,
+            EvalRun.status == "completed",
+            EvalRun.created_at >= since,
+            EvalRunArm.role == "candidate",
+            EvalRunCase.attempt == 0,
+        )
+        .order_by(EvalRun.created_at.desc(), EvalRunCase.position, EvalRunCase.id)
+        .limit(limit)
+    )
+    return [TrainAnswer(run, case, score, attempt, arm) for run, case, score, attempt, arm in rows]

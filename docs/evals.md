@@ -179,11 +179,11 @@ An unknown environment returns 404. Concurrent suite creates or renames with the
 
 ### Checking suggestions { #checking-suggestions }
 
-The [authoring assistant](authoring.md#check-with-evals) starts eval runs to check
-what it suggests: the draft with the waiting suggestions applied, beside the
-published version. Such a run leaves out the cases taken from the conversations
-the suggestions came from and says how many, so a smaller sample than the dataset
-explains itself.
+**It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
+
+Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default). Suggestion checks and improvement sessions measure only holdout cases and require at least five gradable questions. Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data` and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
+
+An improvement session pins its dataset version and chat evidence identities. Later rounds may learn from that version's training results, but new chats and new dataset cases cannot change its control sample.
 
 ## What each case runs as { #what-each-case-runs-as }
 

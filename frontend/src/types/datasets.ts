@@ -49,6 +49,7 @@ export interface DatasetCaseContent {
 }
 
 export interface DatasetCase extends DatasetCaseContent {
+  improvement_partition?: "train" | "holdout";
   masked?: boolean;
   id: string;
   case_id: string;
@@ -81,6 +82,8 @@ export interface ExpectationMix {
 }
 
 export interface DatasetStats {
+  train_cases?: number;
+  holdout_cases?: number;
   with_reference: number;
   with_counter_example: number;
   with_tool_calls: number;
@@ -102,6 +105,7 @@ export interface DatasetStats {
 export type RunNeed = "runs:view" | "datasets:run";
 
 export interface Dataset {
+  improvement_holdout_share?: string;
   id: string;
   name: string;
   description: string | null;

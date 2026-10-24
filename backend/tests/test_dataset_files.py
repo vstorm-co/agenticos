@@ -33,6 +33,7 @@ def _case(**fields: object) -> DatasetCase:
         **fields,
     }
     return DatasetCase(
+        improvement_partition="holdout",
         id=uuid.uuid4(),
         case_id=uuid.uuid4(),
         source="manual",

@@ -102,6 +102,7 @@ from app.schemas.eval_run import (
     EvalRunRequest,
     EvalRunSuiteRead,
     EvalUngradedCaseRead,
+    ImprovementMeasurement,
     ProposalCheckRecord,
     RoutingErrorRead,
 )
@@ -1047,8 +1048,67 @@ class EvalRunService:
             candidate_contexts=candidate_contexts,
             baseline_spec=baseline_spec,
         )
+        if proposal_check is not None:
+            proposal_check = proposal_check.model_copy(
+                update={
+                    "measurement": await self.improvement_measurement(
+                        ctx,
+                        plan,
+                        evidence_run_ids=proposal_check.evidence_run_ids,
+                        evidence_conversations=exclude_conversations,
+                    )
+                }
+            )
         estimate = await self._estimate(ctx, plan)
         return estimate.model_copy(update={"proposal_check": proposal_check})
+
+    async def improvement_measurement(
+        self,
+        ctx: AuthContext,
+        plan: RunPlan,
+        *,
+        evidence_run_ids: Sequence[UUID],
+        evidence_conversations: Sequence[UUID],
+    ) -> ImprovementMeasurement:
+        from app.services.improvement_data import CaseIdentity, measurement
+
+        sources = await authoring_repo.evidence_inputs(
+            self.db,
+            organization_id=ctx.organization_id,
+            run_ids=evidence_run_ids,
+            conversation_ids=evidence_conversations,
+        )
+        if sources.truncated:
+            raise BadRequestError(
+                message="The proposal's evidence is too large to isolate its test safely. Request a new proposal.",
+                details={"reason": "evidence_too_large"},
+            )
+        ai_enabled = await AiAssistanceService(self.db).is_enabled(
+            organization_id=ctx.organization_id
+        )
+        return measurement(
+            [
+                CaseIdentity(
+                    case.case_id,
+                    case.improvement_partition,
+                    case.input,
+                    case.source_run_id,
+                    decidable(case, plan.scoring, ai_enabled=ai_enabled),
+                )
+                for case in plan.cases
+            ],
+            evidence_inputs=sources.inputs,
+            evidence_run_ids=sources.run_ids,
+            already_excluded=plan.excluded_case_ids,
+        )
+
+    @staticmethod
+    def _measurement(run: EvalRun) -> ImprovementMeasurement | None:
+        return (
+            None
+            if run.proposal_check is None
+            else ProposalCheckRecord.model_validate(run.proposal_check).measurement
+        )
 
     async def _per_case(
         self,
@@ -1245,6 +1305,17 @@ class EvalRunService:
             candidate_contexts=candidate_contexts,
             baseline_spec=baseline_spec,
         )
+        if proposal_check is not None:
+            proposal_check = proposal_check.model_copy(
+                update={
+                    "measurement": await self.improvement_measurement(
+                        ctx,
+                        plan,
+                        evidence_run_ids=proposal_check.evidence_run_ids,
+                        evidence_conversations=exclude_conversations,
+                    )
+                }
+            )
         estimate = await self._estimate(ctx, plan)
         if not estimate.affordable:
             raise PaymentRequiredError(
@@ -1427,9 +1498,11 @@ class EvalRunService:
         if run.status != EvalRunStatus.COMPLETED.value:
             return verdict
         candidate = next(arm for arm in read.arms if arm.role == ArmRole.CANDIDATE)
-        status, reasons = judge(
-            check.threshold, candidate.summary, await self._comparison(ctx, run)
+        comparison = await self._comparison(ctx, run)
+        summary = (
+            candidate.summary if self._measurement(run) is None else comparison.candidate_summary
         )
+        status, reasons = judge(check.threshold, summary, comparison)
         return verdict.model_copy(update={"status": status, "reasons": reasons})
 
     async def arm_spec(self, ctx: AuthContext, run_id: UUID, arm_id: UUID) -> AgentSpec:
@@ -2120,6 +2193,7 @@ class EvalRunService:
         *,
         arm_id: UUID | None = None,
         baseline_run_id: UUID | None = None,
+        measurement_only: bool = True,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
@@ -2128,7 +2202,13 @@ class EvalRunService:
         of the default; it must be a run of the same agent and dataset.
         """
         run = await self._readable(ctx, run_id)
-        return await self._comparison(ctx, run, arm_id=arm_id, baseline_run_id=baseline_run_id)
+        return await self._comparison(
+            ctx,
+            run,
+            arm_id=arm_id,
+            baseline_run_id=baseline_run_id,
+            measurement_only=measurement_only,
+        )
 
     @staticmethod
     def _kept_outcome(run: EvalRun) -> EvalOutcomeRead | None:
@@ -2159,8 +2239,15 @@ class EvalRunService:
         # Over every case the candidate answered, not only those the baseline shares.
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidate = next(arm for arm in arms if arm.id == comparison.candidate.arm_id)
+        measured = self._measurement(run)
+        allowed = None if measured is None else set(measured.holdout_case_ids)
         everything = summarize(
-            [c.attempt for c in await self._first_attempts(ctx, candidate, None)], with_tags=False
+            [
+                c.attempt
+                for c in await self._first_attempts(ctx, candidate, None)
+                if allowed is None or c.case_id in allowed
+            ],
+            with_tags=False,
         )
         outcome = EvalOutcomeRead(
             candidate_arm_id=comparison.candidate.arm_id,
@@ -2190,6 +2277,7 @@ class EvalRunService:
         *,
         arm_id: UUID | None = None,
         baseline_run_id: UUID | None = None,
+        measurement_only: bool = True,
     ) -> EvalComparisonRead:
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
@@ -2209,6 +2297,11 @@ class EvalRunService:
         mine = await self.outcomes(ctx, candidate, attempts)
         candidate_side = await self._side(ctx, run, candidate)
         candidate_attempts = await self._first_attempts(ctx, candidate, attempts)
+        measured = self._measurement(run) if measurement_only else None
+        allowed = None if measured is None else set(measured.holdout_case_ids)
+        if allowed is not None:
+            mine = {key: value for key, value in mine.items() if key in allowed}
+            candidate_attempts = [case for case in candidate_attempts if case.case_id in allowed]
         if baseline is None:
             return EvalComparisonRead(
                 candidate=candidate_side,
@@ -2248,6 +2341,9 @@ class EvalRunService:
         drift = drifts(run, candidate, baseline)
         confirmed_here = baseline.paired or (baseline.here is not None and not drift)
         same, changed = await self.pairing(ctx, run, candidate, baseline, attempts)
+        if allowed is not None:
+            theirs = {key: value for key, value in theirs.items() if key in allowed}
+            changed = {key for key in changed if key in allowed}
         common = [case_id for case_id in mine if case_id in theirs and case_id in same]
         paired_cases = [
             PairedCase(
@@ -2262,6 +2358,15 @@ class EvalRunService:
             for case_id in common
         ]
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
+        if measured is not None and measured.gradable_holdout < measured.minimum_holdout:
+            missing = measured.minimum_holdout - measured.gradable_holdout
+            invalid_reason = f"Add {missing} more held-out test questions to measure a change"
+        if (
+            measured is not None
+            and invalid_reason is None
+            and any(case.candidate is None or case.baseline is None for case in paired_cases)
+        ):
+            invalid_reason = "Held-out questions remain ungraded or incomplete"
         quality = quality_verdict(
             paired_cases, alpha=settings.EVAL_SIGNIFICANCE, invalid=invalid_reason is not None
         )

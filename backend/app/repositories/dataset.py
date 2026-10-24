@@ -7,6 +7,7 @@ sequence; the pieces it is built from are here.
 """
 
 from collections.abc import Sequence
+from decimal import Decimal
 from typing import Any, get_args
 from uuid import UUID
 
@@ -221,6 +222,7 @@ async def create(
     description: str | None,
     visibility: str,
     agent_id: UUID | None = None,
+    improvement_holdout_share: Decimal = Decimal("0.5"),
 ) -> Dataset:
     dataset = Dataset(
         organization_id=organization_id,
@@ -229,6 +231,7 @@ async def create(
         description=description,
         visibility=visibility,
         agent_id=agent_id,
+        improvement_holdout_share=improvement_holdout_share,
     )
     db.add(dataset)
     await db.flush()
@@ -396,6 +399,7 @@ async def case_stats(
             DatasetCase.checks,
             DatasetCase.source,
             DatasetCase.tags,
+            DatasetCase.improvement_partition,
         )
         .where(
             DatasetCase.dataset_id.in_(dataset_ids),
@@ -430,12 +434,16 @@ async def case_stats(
                 )
                 for checks, calls, reference in mixes
             ),
+            func.count().filter(held.c.improvement_partition == "train"),
+            func.count().filter(held.c.improvement_partition == "holdout"),
         ).group_by(held.c.dataset_id)
     )
     stats = {}
     for row in counts.all():
-        mixed = row[5 + len(sources) :]
+        mixed = row[5 + len(sources) : -2]
         stats[row[0]] = DatasetStats(
+            train_cases=row[-2],
+            holdout_cases=row[-1],
             with_reference=row[1],
             with_counter_example=row[2],
             with_tool_calls=row[3],

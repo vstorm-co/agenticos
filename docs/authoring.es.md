@@ -1,5 +1,5 @@
 ---
-source_sha: "2e7dc8326cce"
+source_sha: "c8580972cd6e"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -48,10 +48,7 @@ agent de los últimos 30 días:
 Un run sin valorar que salió bien no dice nada y no se lee. Tampoco una prueba
 del panel de pruebas del Builder ni el run de un delegado.
 
-**Nunca lee evals.** Los runs que respondieron un caso de [eval](evals.md), los
-runs del juez y los propios runs del asistente quedan fuera de lo que lee, y
-nunca ve puntuaciones. Un cambio comprobado con evals no debe estar ajustado a
-los casos que lo comprueban.
+**Aprende solo de casos de entrenamiento.** Además de chats valorados, el asistente lee respuestas de entrenamiento fallidas, regresiones confirmadas, razones del juez y notas de Review de [datasets](datasets.md) accesibles. Recibe tasas de acierto de entrenamiento por etiqueta y criterio del juez, y cantidades de fallos corregidos y nuevos. Las preguntas de control, respuestas y puntuaciones nunca entran en su prompt. Los runs del juez y del propio asistente siguen excluidos.
 
 Cuando hay más que leer de lo que cabe en una petición, los runs se leen primero
 en grupos y las sugerencias se escriben a partir de lo que mostró cada grupo.
@@ -140,9 +137,11 @@ de suite, no avisa a nadie, y Aceptar se guía por el veredicto del propio run.
 Un cambio de skill o de contexto comprobado en una suite del agente en el que
 funciona recibe lo mismo.
 
-Los casos tomados de las conversaciones de las que salieron las sugerencias
-quedan fuera, y el run dice cuántos: un cambio nunca se mide con los datos a los
-que se ajustó. Un dataset hecho solo de esos casos se rechaza.
+Cada caso tiene una asignación fija a entrenamiento o control, conservada entre versiones del dataset. Los ajustes del dataset eligen la proporción de control solo para casos futuros (50% por defecto). Las comprobaciones de sugerencias y sesiones de mejora miden solo casos de control y requieren al menos cinco preguntas evaluables.
+
+Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto normalizado y la identidad del run de origen, incluso si se introducen a mano o se generan. Bajo el mínimo, la sesión se detiene con `no_data` e indica cuántas preguntas añadir. El run identifica ambas partes y las copias excluidas. Las suites normales y las puertas de promoción siguen contando todos los casos.
+
+Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Las rondas posteriores pueden aprender de sus resultados de entrenamiento; nuevos chats y casos no cambian la muestra de control.
 
 Una comprobación cuenta como la prueba del draft en cuanto el draft es
 exactamente lo que comprobó - cada sugerencia comprobada aceptada y nada más

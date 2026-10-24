@@ -128,6 +128,16 @@ export default function DatasetPage({ params }: PageProps) {
         }
       />
 
+      {(version === null || version === dataset.latest_version) &&
+        dataset.stats?.train_cases !== undefined &&
+        dataset.stats.holdout_cases !== undefined && (
+          <p className="text-muted-foreground text-sm">
+            {t("improvementSplit.counts", {
+              train: dataset.stats.train_cases,
+              holdout: dataset.stats.holdout_cases,
+            })}
+          </p>
+        )}
       <Tabs value={shown} onValueChange={setTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>

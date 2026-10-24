@@ -121,13 +121,22 @@ def tool_catalog(spec: AgentSpec) -> list[tuple[str, str, str, str]]:
 
 def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None) -> str:
     if digests is None:
-        return render_runs(pack.runs)
+        return "\n\n".join(
+            part for part in [render_runs(pack.runs), pack.training_feedback] if part
+        )
     lines: list[str] = []
     for digest in digests:
         for finding in digest.findings:
             lines.append(f"- {finding.observation}")
             lines += [f'  - run {quote.run_id}: "{quote.quote}"' for quote in finding.evidence]
-    return "\n".join(lines) or "(The runs showed nothing in particular.)"
+    return "\n\n".join(
+        part
+        for part in [
+            "\n".join(lines) or "(The runs showed nothing in particular.)",
+            pack.training_feedback,
+        ]
+        if part
+    )
 
 
 def _tool_lines(spec: AgentSpec) -> str:
@@ -458,12 +467,24 @@ class AuthoringRun:
         if agent is None:
             raise Stopped("The agent is gone.")
         spec = AgentSpec.model_validate(agent.draft_spec)
-        pack = await self.evidence.for_agent(
-            self.ctx,
-            agent.id,
-            window_days=self.request.window_days,
-            excluded_message_ids=self.request.excluded_message_ids,
-        )
+        if self.request.improvement_run_id is not None:
+            from app.services.improvement_pipeline import ImprovementPipelineService
+
+            await ImprovementPipelineService(self.db).ensure_current(
+                self.ctx, self.request.improvement_run_id
+            )
+            pack = await self.evidence.for_improvement(
+                self.ctx,
+                self.request.improvement_run_id,
+                excluded_message_ids=self.request.excluded_message_ids,
+            )
+        else:
+            pack = await self.evidence.for_agent(
+                self.ctx,
+                agent.id,
+                window_days=self.request.window_days,
+                excluded_message_ids=self.request.excluded_message_ids,
+            )
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
         configuration = await self.configuration.describe(self.ctx, spec)

@@ -1,5 +1,5 @@
 ---
-source_sha: "2e7dc8326cce"
+source_sha: "c8580972cd6e"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -50,10 +50,7 @@ Ein unbewerteter, erfolgreicher Run sagt nichts aus und wird nicht gelesen.
 Ebenso wenig ein Test aus dem Testpanel des Builders oder der Run eines
 Delegierten.
 
-**Er liest nie Evals.** Runs, die einen [Eval](evals.md)-Fall beantwortet haben,
-die Runs des Bewerters und die eigenen Runs des Assistenten bleiben außen vor,
-und Bewertungen sieht er nie. Eine Änderung, die von Evals geprüft wird, darf
-nicht an die Fälle angepasst sein, die sie prüfen.
+**Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Review-Notizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
 
 Gibt es mehr zu lesen, als in eine Anfrage passt, werden die Runs zuerst in
 Gruppen gelesen, und die Vorschläge entstehen aus dem, was jede Gruppe zeigte.
@@ -145,10 +142,9 @@ benachrichtigt niemanden, und Annehmen richtet sich nach dem Urteil des Runs
 selbst. Eine Skill- oder Kontextänderung, die auf einer Suite des Agents geprüft
 wird, auf dem sie läuft, bekommt dasselbe.
 
-Die Fälle aus den Gesprächen, aus denen die Vorschläge abgeleitet wurden, werden
-weggelassen, und der Run nennt ihre Zahl: Eine Änderung wird nie an den Daten
-gemessen, an die sie angepasst wurde. Ein Dataset, das nur aus solchen Fällen
-besteht, wird abgelehnt.
+Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen und Verbesserungssitzungen messen ausschließlich Kontrollfälle und benötigen mindestens fünf bewertbare Fragen. Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
+
+Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Spätere Runden können aus den Trainingsergebnissen dieser Version lernen; neue Chats und Fälle ändern die Kontrollstichprobe nicht.
 
 Eine Prüfung zählt als Test des Entwurfs, sobald der Entwurf genau das ist, was
 sie geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,

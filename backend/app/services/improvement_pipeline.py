@@ -186,6 +186,7 @@ class ImprovementPipelineService:
             AuthoringStart(
                 window_days=target.window_days, improver_agent_id=target.improver_agent_id
             ),
+            evidence_dataset_id=inputs.request.dataset_id,
         )
         draft = AgentSpec.model_validate(inputs.agent.draft_spec)
         check = await self.evals.estimate(
@@ -226,6 +227,9 @@ class ImprovementPipelineService:
     ) -> ImprovementRead:
         inputs = await self._inputs(ctx, agent_id, data)
         estimate = await self._estimate(ctx, inputs, data)
+        pack = await self.authoring.evidence.for_agent(
+            ctx, agent_id, window_days=data.window_days, dataset_id=inputs.request.dataset_id
+        )
         active = await improvement_repo.get_active(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
@@ -264,6 +268,9 @@ class ImprovementPipelineService:
                     run=run,
                     values={
                         "pinned_scoring": inputs.scoring.model_dump(mode="json"),
+                        "chat_evidence_run_ids": [
+                            item.run_id for item in pack.runs if item.evidence_kind == "chat"
+                        ],
                         "improver_agent_id": data.improver_agent_id,
                         "judge_version_id": inputs.judge_version_id,
                     },
@@ -480,6 +487,33 @@ class ImprovementPipelineService:
                     reason=run.stop_reason,
                 )
 
+    async def ensure_current(self, ctx: AuthContext, run_id: UUID) -> None:
+        """Recheck a queued paid child's authority and pins just before it starts."""
+        run = await improvement_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None or not Status(run.status).active:
+            raise BadRequestError(
+                message="The improvement session stopped", details={"reason": "stopped"}
+            )
+        inputs = await self._inputs(
+            ctx,
+            run.agent_id,
+            ImprovementTarget(
+                dataset_id=run.dataset_id if run.suite_id is None else None, suite_id=run.suite_id
+            ),
+        )
+        pinned = rules.Pins(
+            run.base_draft_hash,
+            run.base_version_id,
+            run.scoring_hash,
+            run.dataset_id,
+            run.suite_id,
+            run.suite_hash,
+        )
+        if run.chat_evidence_run_ids is None or rules.stale(pinned, inputs.pins, archived=False):
+            raise ConcurrentChangeError(
+                message="The improvement session is stale", details={"reason": "stale"}
+            )
+
     async def advance(self, run_id: UUID, organization_id: UUID) -> None:
         run = await improvement_repo.get_run(
             self.db, run_id, organization_id=organization_id, lock=True
@@ -560,7 +594,11 @@ class ImprovementPipelineService:
             run.suite_id,
             run.suite_hash,
         )
-        if run.pinned_scoring is None or rules.stale(pins, inputs.pins, archived=False):
+        if (
+            run.pinned_scoring is None
+            or run.chat_evidence_run_ids is None
+            or rules.stale(pins, inputs.pins, archived=False)
+        ):
             await self._move(
                 run,
                 rules.Transition(
@@ -598,20 +636,50 @@ class ImprovementPipelineService:
         if run.stage is None:
             await self._move(run, rules.Transition(Status.RUNNING, Stage.ANALYZING))
         elif run.stage == Stage.ANALYZING:
-            pack = await self.authoring.evidence.for_agent(
-                ctx, run.agent_id, window_days=run.window_days
-            )
+            pack = await self.authoring.evidence.for_improvement(ctx, run.id)
             plan = await self.evals.plan(
                 ctx,
                 run.agent_id,
-                inputs.request,
+                self._eval_request(inputs, run),
                 scoring=inputs.scoring,
                 candidate_spec=AgentSpec.model_validate(inputs.agent.draft_spec),
                 exclude_conversations=pack.conversation_ids,
             )
-            transition = rules.after_analyzing(
-                has_evidence=bool(pack.runs), gradable_cases=len(plan.cases) - plan.ungraded
+            measured = await self.evals.improvement_measurement(
+                ctx,
+                plan,
+                evidence_run_ids=list(
+                    {*(run.chat_evidence_run_ids or []), *(item.run_id for item in pack.runs)}
+                ),
+                evidence_conversations=pack.conversation_ids,
             )
+            await improvement_repo.update_iteration(
+                self.db,
+                iteration=iteration,
+                values={
+                    "verdict_detail": {
+                        "gradable_holdout": measured.gradable_holdout,
+                        "minimum_holdout": measured.minimum_holdout,
+                        "missing_holdout": max(
+                            0, measured.minimum_holdout - measured.gradable_holdout
+                        ),
+                    },
+                },
+            )
+            transition = rules.after_analyzing(
+                has_evidence=bool(pack.runs), gradable_cases=measured.gradable_holdout
+            )
+            if transition.stop_reason == StopReason.NO_DATA:
+                needed = max(0, measured.minimum_holdout - measured.gradable_holdout)
+                await improvement_repo.update_run(
+                    self.db,
+                    run=run,
+                    values={
+                        "error": f"Add {needed} more held-out test questions to measure a change"
+                        if needed
+                        else "No rated chat runs or training failures are available yet",
+                    },
+                )
             # Knowledge classification is a separate branch; no paid classification
             # is necessary for a session proposing agent changes only.
             if transition.status.active:
@@ -625,6 +693,7 @@ class ImprovementPipelineService:
                     AuthoringStart(
                         window_days=run.window_days, improver_agent_id=run.improver_agent_id
                     ),
+                    improvement_run_id=run.id,
                 )
                 spent = await improvement_repo.spent(
                     self.db, run.id, organization_id=run.organization_id
@@ -877,6 +946,12 @@ class ImprovementPipelineService:
                 on_draft=True,
                 suggestions=count,
                 improvement_run_id=run.id,
+                evidence_run_ids=list(
+                    {
+                        *(run.chat_evidence_run_ids or []),
+                        *await self.authoring.evidence_run_ids(ctx, batch),
+                    }
+                ),
             ),
         )
         await improvement_repo.update_iteration(
@@ -920,6 +995,7 @@ class ImprovementPipelineService:
             values={
                 "verdict": verdict.value,
                 "verdict_detail": {
+                    **(iteration.verdict_detail or {}),
                     "broken": result.regressions_confirmed,
                     "fixed": result.fixed_confirmed,
                     "ungraded": result.ungraded,

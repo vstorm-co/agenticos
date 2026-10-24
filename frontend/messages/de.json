@@ -8115,7 +8115,15 @@
     "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können",
     "privateConversationWarning": "Diese Unterhaltung ist privat und gehört {name}. Ihr Text wird für Leser dieses Datasets sichtbar, die Runs lesen dürfen.",
     "anotherMember": "einem anderen Mitglied",
-    "checkingSource": "Privatsphäre der Quelle wird geprüft…"
+    "checkingSource": "Privatsphäre der Quelle wird geprüft…",
+    "improvementSplit": {
+      "share": "Anteil zurückgehaltener neuer Fragen (%)",
+      "shareHint": "Die Zuordnung erfolgt einmal pro Frage. Die Einstellung gilt für neue Fragen; vorhandene behalten ihren Teil über Bearbeitungen und Versionen. Eine Verbesserung benötigt mindestens fünf bewertbare zurückgehaltene Fragen.",
+      "counts": "{train} Training · {holdout} zurückgehalten",
+      "train": "Training",
+      "holdout": "Zurückgehalten",
+      "shareInvalid": "Geben Sie einen Prozentsatz von 0 bis 100 in Schritten von 0,1 ein."
+    }
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",
@@ -9509,7 +9517,12 @@
       "brokenOnly": "{count, plural, =1 {Der verschlechterte Fall wird gezeigt.} other {Die # verschlechterten Fälle werden gezeigt.}}",
       "showAll": "Alle Fälle zeigen",
       "corrected": "Von einer Person korrigiert",
-      "askedOnly": "Nur der geöffnete Fall wird gezeigt."
+      "askedOnly": "Nur der geöffnete Fall wird gezeigt.",
+      "partition": {
+        "train": "Training",
+        "holdout": "Zurückgehalten",
+        "excluded": "Belegkopie"
+      }
     },
     "case": {
       "firstAnswer": "Antwort",
@@ -9736,8 +9749,8 @@
         "ungraded": "{count, plural, =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}, daher kann die Suite für dieses Ergebnis nicht einstehen.",
         "incomplete": "{count, plural, =1 {1 Fall ließ} other {# Fälle ließen}} sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert - daher kann die Suite für dieses Ergebnis nicht einstehen.",
         "crashed": "Der Run des Agenten ist bei {count, plural, =1 {1 Fall} other {# Fällen}} gescheitert; ein gescheiterter Run lässt die Suite durchfallen.",
-        "costFromZero": "Die Kosten pro bestandenem Fall stiegen von null und überschreiten jede Prozentgrenze.",
-        "latencyFromZero": "Die p95-Latenz stieg von null und überschreitet jede Prozentgrenze."
+        "costFromZero": "Die Kosten pro bestandenem Fall stiegen vom Ausgangswert 0 und überschreiten jede Prozentgrenze.",
+        "latencyFromZero": "Die p95-Latenz stieg vom Ausgangswert 0 und überschreitet jede Prozentgrenze."
       },
       "skip": {
         "budget": "Er würde mehr kosten, als das Budget in diesem Monat noch hat.",
@@ -9844,7 +9857,15 @@
     "baselineNotRerun": "Die Baseline wurde zu diesen Fällen nicht erneut befragt, daher sind die Änderungen nicht bestätigt.",
     "noEarlierRun": "Kein vergleichbarer früherer Run (andere Bewertung, anderes Modell oder andere Einrichtung). Dieser Run hat nichts, womit er verglichen wird.",
     "besideBaseline": "Auch die Version davor ausführen",
-    "besideBaselineHint": "Sie beantwortet dieselben Fälle neben diesem Run, gleich bewertet, und die Schätzung enthält sie."
+    "besideBaselineHint": "Sie beantwortet dieselben Fälle neben diesem Run, gleich bewertet, und die Schätzung enthält sie.",
+    "improvementSplit": {
+      "title": "Lernen und Messung",
+      "train": "Zum Schreiben der Änderungen verwendete Fragen",
+      "holdout": "Zurückgehaltene Fragen",
+      "body": "Nur zurückgehaltene Fragen entscheiden das Urteil dieses Vorschlags. Trainingsergebnisse stehen für die nächste Verbesserung bereit. Suiten und Beförderungsschranken bewerten weiterhin jede Frage.",
+      "excluded": "{count, plural, one {# Frage wird} other {# Fragen werden}} vom Urteil ausgeschlossen, weil sie Trainingsfragen oder Vorschlagsbelege wiederholen.",
+      "needed": "Fügen Sie {count, plural, one {# weitere bewertbare zurückgehaltene Frage} other {# weitere bewertbare zurückgehaltene Fragen}} hinzu, um eine Änderung zu messen."
+    }
   },
   "remoteAgents": {
     "title": "Remote Agents",
@@ -10092,7 +10113,7 @@
     "improve": {
       "improve": {
         "title": "Diesen Agent verbessern",
-        "body": "Der Assistent liest bewertete und fehlgeschlagene Runs der letzten 30 Tage - nie Eval-Runs - und schlägt Änderungen vor. Über jede entscheiden Sie."
+        "body": "Der Assistent liest bewertete und fehlgeschlagene Chat-Runs sowie Fehler, Bewerterbegründungen und Prüfungsnotizen aus dem Trainingsteil der letzten 30 Tage. Zurückgehaltene Antworten und Bewertungen bleiben verborgen. Sie entscheiden jeden Vorschlag."
       },
       "verify": {
         "title": "Ihre Änderungen prüfen",

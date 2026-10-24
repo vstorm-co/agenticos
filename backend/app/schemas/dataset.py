@@ -1,6 +1,7 @@
 """Schemas for datasets, their versions and their cases."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal, get_args
 from uuid import UUID
 
@@ -17,6 +18,7 @@ from app.schemas.scoring import (
     ToolOrderModeLiteral,
 )
 
+CasePartitionLiteral = Literal["train", "holdout"]
 CaseSourceLiteral = Literal["manual", "import", "conversation", "synthetic"]
 DatasetChangeLiteral = Literal["add", "edit", "remove", "import", "generate"]
 DatasetSort = Literal["name", "updated"]
@@ -197,6 +199,7 @@ class DatasetCaseRead(StoredCaseContent):
 
     id: UUID
     case_id: UUID
+    improvement_partition: CasePartitionLiteral = "holdout"
     source: CaseSourceLiteral
     masked: bool = Field(
         default=False, description="Source conversation text is hidden from this reader"
@@ -233,6 +236,10 @@ class DatasetCaseList(BaseSchema):
 
 
 class DatasetCreate(BaseSchema):
+    improvement_holdout_share: Decimal = Field(
+        default=Decimal("0.5"), ge=0, le=1, max_digits=4, decimal_places=3
+    )
+
     name: str = Field(min_length=1, max_length=120, description="Unique per organization")
     description: str | None = Field(default=None, max_length=500)
     visibility: VisibilityLiteral = Field(
@@ -247,6 +254,9 @@ class DatasetCreate(BaseSchema):
 class DatasetUpdate(BaseSchema):
     """What the dataset is called and for. Not versioned: no case changes."""
 
+    improvement_holdout_share: Decimal | None = Field(
+        default=None, ge=0, le=1, max_digits=4, decimal_places=3
+    )
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
 
@@ -282,6 +292,8 @@ class DatasetStats(BaseSchema):
     and a check, say - so those four do not sum to the case count; the sources do.
     """
 
+    train_cases: int = 0
+    holdout_cases: int = 0
     with_reference: int = Field(default=0, description="Cases with a reference answer")
     with_counter_example: int = Field(default=0, description="Cases with a counter-example")
     with_tool_calls: int = Field(default=0, description="Cases expecting at least one tool call")
@@ -306,6 +318,8 @@ class DatasetStats(BaseSchema):
 
 
 class DatasetRead(BaseSchema):
+    improvement_holdout_share: Decimal = Decimal("0.5")
+
     id: UUID
     name: str
     description: str | None = None

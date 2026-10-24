@@ -146,6 +146,9 @@ export function CaseTable({
   opened?: string | null;
   onShowAll: () => void;
 }) {
+  const trainIds = new Set(run.proposal_check?.measurement?.train_case_ids ?? []);
+  const holdoutIds = new Set(run.proposal_check?.measurement?.holdout_case_ids ?? []);
+  const excludedIds = new Set(run.proposal_check?.measurement?.excluded_case_ids ?? []);
   const t = useTranslations("evals.cases");
   const tErrors = useTranslations("errors");
   const [outcome, setOutcome] = useState<string>(ALL);
@@ -241,6 +244,15 @@ export function CaseTable({
                       <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                     )}
                     <SideDots attempts={item.attempts} arms={run.arms} />
+                    {trainIds.has(item.case_id) && (
+                      <Badge variant="outline">{t("partition.train")}</Badge>
+                    )}
+                    {holdoutIds.has(item.case_id) && (
+                      <Badge variant="secondary">{t("partition.holdout")}</Badge>
+                    )}
+                    {excludedIds.has(item.case_id) && (
+                      <Badge variant="outline">{t("partition.excluded")}</Badge>
+                    )}
                     <span className="min-w-0 flex-1 truncate text-sm">{item.input}</span>
                     {item.attempts.some(corrected) && (
                       <Badge variant="outline">{t("corrected")}</Badge>

@@ -53,7 +53,17 @@ export interface EvalRunRequest {
  * and `on_draft` says the draft itself was the baseline because it had moved
  * from that version.
  */
+export interface ImprovementMeasurement {
+  train_case_ids: string[];
+  holdout_case_ids: string[];
+  excluded_case_ids: string[];
+  gradable_holdout: number;
+  minimum_holdout: number;
+}
+
 export interface ProposalCheckRecord {
+  measurement?: ImprovementMeasurement | null;
+  evidence_run_ids?: string[];
   kind: "agent" | "skill" | "context";
   base_version: number | null;
   on_draft: boolean;
