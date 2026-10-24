@@ -1,5 +1,5 @@
 ---
-source_sha: "4990236b568c"
+source_sha: "efcb010bd679"
 ---
 
 # Die Konsole { #the-console }
@@ -293,6 +293,11 @@ sich zuletzt bewegt hat. Einer, dessen Run noch arbeitet, zeigt einen Spinner un
 wie lange er schon läuft; einer mit einer Antwort, die Sie seit dem letzten Öffnen
 nicht gesehen haben, trägt einen Punkt, den das Öffnen löscht - nur für Sie, denn
 einen geteilten Thread liest jeder seiner Leser für sich.
+
+Beim erneuten Öffnen zeigt eine Unterhaltung ihre neuesten 100 Nachrichten.
+**Ältere Nachrichten laden** ergänzt oben die vorherige Seite und erhält die
+Position der gelesenen Passage. Neue Antworten und die Kosten gehören weiterhin
+zur aktuellen Unterhaltung.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 

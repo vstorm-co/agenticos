@@ -1263,7 +1263,9 @@
       "more": "{count, plural, =1 {Jeszcze 1 w inboksie} few {Jeszcze # w inboksie} many {Jeszcze # w inboksie} other {Jeszcze # w inboksie}}"
     },
     "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
-    "turnLostAskAgain": "Zapytaj ponownie"
+    "turnLostAskAgain": "Zapytaj ponownie",
+    "loadOlderMessages": "Wczytaj starsze wiadomości",
+    "loadingOlderMessages": "Wczytywanie starszych wiadomości…"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

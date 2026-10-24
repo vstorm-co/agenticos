@@ -1,5 +1,5 @@
 ---
-source_sha: "4990236b568c"
+source_sha: "efcb010bd679"
 ---
 
 # La consola { #the-console }
@@ -275,6 +275,11 @@ misma puerta de aprobación, mismo rastro de auditoría, porque
 lleva; uno con una respuesta que no has visto desde la última vez que lo abriste
 lleva un punto, que abrirlo borra - solo para ti, porque cada lector de un hilo
 compartido lo lee por separado.
+
+Al volver a abrir una conversación se muestran sus 100 mensajes más recientes.
+**Cargar mensajes anteriores** añade la página anterior arriba y conserva la
+posición del pasaje que estás leyendo. Las respuestas nuevas y el coste siguen
+correspondiendo a la conversación actual.
 
 Tres cosas del compositor que conviene saber.
 

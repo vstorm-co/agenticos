@@ -221,3 +221,16 @@ remains an explicit open risk. Evidence includes `test_workflow_inline_storage.p
 `test_workflow_pinned_files.py`, `test_workflow_error_foreach.py`,
 `test_workflow_settings.py`, `test_workflow_evals.py`, `TestResume`,
 `workflow-editor-store.test.ts` and `step-data-feed.test.tsx`.
+
+
+### Additional requested fix: #2468
+
+The console opens the newest 100 messages through link selection, explicit
+selection and transcript refresh. A conversation-scoped message cursor loads
+older pages without offset drift when new turns arrive. The existing ascending
+offset API stays compatible. Prepending preserves the reader's scroll position,
+a live answer and previously loaded history; failed pages remain retryable.
+Regressions cover a 205-message conversation with a concurrent new turn, foreign
+cursors, API validation, account/tenant switches, duplicate clicks and the actual
+chat container. This issue was requested separately and is outside the 56-issue
+milestone count.

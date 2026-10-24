@@ -152,6 +152,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const {
     currentConversationId,
     currentMessages,
+    hasOlderMessages,
+    loadingOlderMessages,
     isLoading: selectLoading,
     error,
     setCurrentConversationId,
@@ -301,21 +303,32 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     const urlId = scoped ? null : new URLSearchParams(window.location.search).get("id");
     await invalidateLists();
     const startedAs = useAuthStore.getState().user?.id;
+    const startedIn = useOrgStore.getState().activeOrgId;
     if (urlId && conversationApi.getState().currentConversationId !== urlId) {
       setCurrentConversationId(urlId);
       clearMessages();
       setCurrentMessages([]);
       try {
         const msgs = await apiClient.get<MessagesResponse>(
-          `/conversations/${encodeURIComponent(urlId)}/messages`,
+          `/conversations/${encodeURIComponent(urlId)}/messages?latest=true&limit=100`,
         );
-        if (!stillSameAccount(startedAs)) return;
-        setCurrentMessages(msgs.items, msgs.cost);
+        if (
+          !stillSameAccount(startedAs) ||
+          useOrgStore.getState().activeOrgId !== startedIn ||
+          conversationApi.getState().currentConversationId !== urlId
+        )
+          return;
+        setCurrentMessages(msgs.items, msgs.cost, msgs.total > msgs.items.length);
       } catch {
         // The failure belongs to whoever asked. A refusal answering after
         // somebody else has signed in says nothing about the conversation they
         // are looking at, and clearing the id would close it under them.
-        if (!stillSameAccount(startedAs)) return;
+        if (
+          !stillSameAccount(startedAs) ||
+          useOrgStore.getState().activeOrgId !== startedIn ||
+          conversationApi.getState().currentConversationId !== urlId
+        )
+          return;
         // Not accessible (deleted, no permission) - clear the stale id
         setCurrentConversationId(null);
       }
@@ -395,6 +408,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const controller = new AbortController();
       messagesAbortRef.current = controller;
       const startedAs = useAuthStore.getState().user?.id;
+      const startedIn = useOrgStore.getState().activeOrgId;
 
       setCurrentConversationId(id);
       clearMessages();
@@ -402,19 +416,30 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`, {
-          signal: controller.signal,
-        });
+        const response = await apiClient.get<MessagesResponse>(
+          `/conversations/${id}/messages?latest=true&limit=100`,
+          {
+            signal: controller.signal,
+          },
+        );
         // Guard against a superseded request resolving after a newer select.
-        if (controller.signal.aborted || !stillSameAccount(startedAs)) return;
-        setCurrentMessages(response.items, response.cost);
+        if (
+          controller.signal.aborted ||
+          !stillSameAccount(startedAs) ||
+          useOrgStore.getState().activeOrgId !== startedIn ||
+          conversationApi.getState().currentConversationId !== id
+        )
+          return;
+        setCurrentMessages(response.items, response.cost, response.total > response.items.length);
       } catch (err) {
         // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (
           controller.signal.aborted ||
           (err instanceof DOMException && err.name === "AbortError") ||
           // As above: one account's failure is not the next one's error banner.
-          !stillSameAccount(startedAs)
+          !stillSameAccount(startedAs) ||
+          useOrgStore.getState().activeOrgId !== startedIn ||
+          conversationApi.getState().currentConversationId !== id
         ) {
           return;
         }
@@ -437,6 +462,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       t,
       tErrors,
       scoped,
+      conversationApi,
     ],
   );
 
@@ -450,9 +476,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     async (id: string) => {
       const ticket = ++rereadRef.current;
       const startedAs = useAuthStore.getState().user?.id;
+      const startedIn = useOrgStore.getState().activeOrgId;
       let response: MessagesResponse;
       try {
-        response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`);
+        response = await apiClient.get<MessagesResponse>(
+          `/conversations/${id}/messages?latest=true&limit=100`,
+        );
       } catch {
         // The turn is saved whatever this read did; the transcript keeps what it
         // shows, and the next saved turn reads it again.
@@ -460,15 +489,68 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
       if (
         ticket !== rereadRef.current ||
-        useConversationStore.getState().currentConversationId !== id ||
+        conversationApi.getState().currentConversationId !== id ||
+        useOrgStore.getState().activeOrgId !== startedIn ||
         !stillSameAccount(startedAs)
       ) {
         return;
       }
-      setCurrentMessages(response.items, response.cost);
+      const current = conversationApi.getState();
+      const overlap = current.currentMessages.findIndex(
+        (message) => message.id === response.items[0]?.id,
+      );
+      const prefix = overlap >= 0 ? current.currentMessages.slice(0, overlap) : [];
+      setCurrentMessages(
+        [...prefix, ...response.items],
+        response.cost,
+        overlap >= 0 ? current.hasOlderMessages : response.total > response.items.length,
+      );
     },
-    [setCurrentMessages],
+    [setCurrentMessages, conversationApi],
   );
+
+  const loadOlderMessages = useCallback(async () => {
+    const state = conversationApi.getState();
+    const id = state.currentConversationId;
+    const first = state.currentMessages[0]?.id;
+    if (!id || !first || !state.hasOlderMessages || state.loadingOlderMessages) return;
+    const startedAs = useAuthStore.getState().user?.id;
+    const startedIn = useOrgStore.getState().activeOrgId;
+    const stillCurrent = () => {
+      const current = conversationApi.getState();
+      return (
+        stillSameAccount(startedAs) &&
+        useOrgStore.getState().activeOrgId === startedIn &&
+        current.currentConversationId === id &&
+        current.currentMessages[0]?.id === first
+      );
+    };
+    state.setLoadingOlderMessages(true);
+    try {
+      const page = await apiClient.get<MessagesResponse>(
+        `/conversations/${encodeURIComponent(id)}/messages?before_message_id=${encodeURIComponent(first)}&limit=100`,
+      );
+      if (!stillCurrent()) return;
+      const current = conversationApi.getState();
+      const seen = new Set(current.currentMessages.map((message) => message.id));
+      current.setCurrentMessages(
+        [...page.items.filter((message) => !seen.has(message.id)), ...current.currentMessages],
+        page.cost,
+        page.items.length === 100,
+      );
+    } catch (err) {
+      if (stillCurrent()) toast.error(getErrorMessage(err, tErrors, t("failedFetchMessages")));
+    } finally {
+      // A successful prepend changes the first id; only selection/account owns loading.
+      if (
+        stillSameAccount(startedAs) &&
+        useOrgStore.getState().activeOrgId === startedIn &&
+        conversationApi.getState().currentConversationId === id
+      ) {
+        conversationApi.getState().setLoadingOlderMessages(false);
+      }
+    }
+  }, [conversationApi, t, tErrors]);
 
   const archiveConversation = useCallback(
     async (id: string) => {
@@ -721,6 +803,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     total,
     currentConversationId,
     currentMessages,
+    hasOlderMessages,
+    loadingOlderMessages,
+    loadOlderMessages,
     isLoading,
     error,
     fetchConversations,

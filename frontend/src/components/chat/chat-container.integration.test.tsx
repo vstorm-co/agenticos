@@ -736,7 +736,9 @@ describe("the chat container - a voice call (#54)", () => {
     const loading = vi.fn();
     const stop = useConversationStore.subscribe((state) => loading(state.isLoading));
     act(() => voiceCall.options.onTurnSaved?.());
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-a/messages"));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/conversations/c-a/messages?latest=true&limit=100"),
+    );
     stop();
     // Not the select path: nothing is cleared and no skeleton is drawn.
     expect(loading).not.toHaveBeenCalledWith(true);
@@ -750,7 +752,9 @@ describe("the chat container - a voice call (#54)", () => {
     expect(useConversationStore.getState().currentConversationId).toBe("c-new");
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-new/messages"));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/conversations/c-new/messages?latest=true&limit=100"),
+    );
     expect(voiceCall.end).not.toHaveBeenCalled();
   });
 
@@ -765,7 +769,7 @@ describe("the chat container - a voice call (#54)", () => {
     // A saved turn from the old call no longer reloads the conversation on screen.
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
-    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages");
+    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages?latest=true&limit=100");
   });
 
   it("hangs up a call started in a new chat when another conversation is opened before it is named", async () => {
@@ -1008,7 +1012,7 @@ describe("the chat container - an answer still being written after its person le
           ],
           total: 1,
         });
-      if (url === `/conversations/${LEFT}/messages`) {
+      if (url === `/conversations/${LEFT}/messages?latest=true&limit=100`) {
         answered();
         const question = {
           id: "m-1",
@@ -1051,7 +1055,10 @@ describe("the chat container - an answer still being written after its person le
     );
 
     expect(await screen.findByText(/still answering when you left/)).toBeInTheDocument();
-    const reads = () => get.mock.calls.filter(([url]) => url === `/conversations/${LEFT}/messages`);
+    const reads = () =>
+      get.mock.calls.filter(
+        ([url]) => url === `/conversations/${LEFT}/messages?latest=true&limit=100`,
+      );
     const before = reads().length;
 
     // The run ends: the next read of the list no longer says it is at work.
@@ -1220,5 +1227,57 @@ describe("the chat container - @-mentions (#2189)", () => {
     expect(turn?.mentions).toEqual([{ kind: "agent", id: "a-fin" }]);
     // On the question, where it was written.
     expect(await screen.findByTitle("Finance Analyst")).toBeInTheDocument();
+  });
+});
+
+describe("loading earlier chat messages (#2468)", () => {
+  it("preserves the reader's position and an answer currently streaming", async () => {
+    const saved = {
+      id: "saved-100",
+      conversation_id: "c-history",
+      role: "user" as const,
+      content: "recent question",
+      created_at: "2026-10-24T10:00:00Z",
+    };
+    useConversationStore.getState().setCurrentConversationId("c-history");
+    useConversationStore.getState().setCurrentMessages([saved], null, true);
+    mount();
+    await screen.findByText("recent question");
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "live-answer",
+        role: "assistant",
+        content: "Still writing",
+        isStreaming: true,
+        timestamp: new Date(),
+      }),
+    );
+    const scroller = screen.getByRole("textbox").closest(".absolute")
+      ?.previousElementSibling as HTMLElement;
+    let height = 2000;
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: () => height });
+    scroller.scrollTop = 100;
+    const originalGet = get.getMockImplementation()!;
+    get.mockImplementation(async (url: string) => {
+      if (url.includes("before_message_id=saved-100")) {
+        height = 2600;
+        return {
+          items: [{ ...saved, id: "saved-0", content: "old question" }],
+          total: 2,
+          cost: null,
+        };
+      }
+      return originalGet(url);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Load older messages" }));
+    await screen.findByText("old question");
+    expect(useChatStore.getState().messages.map((message) => message.id)).toEqual([
+      "saved-0",
+      "saved-100",
+      "live-answer",
+    ]);
+    expect(document.querySelector('[data-message-id="live-answer"]')).toBeInTheDocument();
+    expect(scroller.scrollTop).toBe(700);
+    expect(screen.queryByRole("button", { name: "Load older messages" })).not.toBeInTheDocument();
   });
 });

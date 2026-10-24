@@ -147,6 +147,32 @@ class TestListingItsMessages:
 
         assert service.transcript.await_args.kwargs["organization_id"] == org
 
+    async def test_latest_and_cursor_paging_keep_the_caller_and_tenant(self) -> None:
+        caller, org, cursor, conversation = uuid4(), uuid4(), uuid4(), uuid4()
+        service = MagicMock(transcript=AsyncMock(return_value=([], 250, None)))
+        async with _client(user_id=caller, service=service, organization_id=org) as client:
+            response = await client.get(
+                f"{settings.API_V1_STR}/conversations/{conversation}/messages",
+                params={"latest": "true", "before_message_id": str(cursor), "limit": 100},
+            )
+        assert response.status_code == 200
+        assert response.json()["total"] == 250
+        kwargs = service.transcript.await_args.kwargs
+        assert kwargs["latest"] is True
+        assert kwargs["before_message_id"] == cursor
+        assert kwargs["organization_id"] == org
+        assert kwargs["user_id"] == caller
+
+    async def test_invalid_message_cursor_is_rejected_before_service(self) -> None:
+        service = MagicMock(transcript=AsyncMock(return_value=([], 0, None)))
+        async with _client(user_id=uuid4(), service=service) as client:
+            response = await client.get(
+                f"{settings.API_V1_STR}/conversations/{uuid4()}/messages",
+                params={"before_message_id": "invalid"},
+            )
+        assert response.status_code == 422
+        service.transcript.assert_not_awaited()
+
 
 class TestAppendingAMessage:
     async def test_the_active_organization_is_what_bounds_the_write(self) -> None:

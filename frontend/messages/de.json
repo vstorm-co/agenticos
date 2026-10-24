@@ -2110,7 +2110,9 @@
       "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
     },
     "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
-    "turnLostAskAgain": "Erneut fragen"
+    "turnLostAskAgain": "Erneut fragen",
+    "loadOlderMessages": "Ältere Nachrichten laden",
+    "loadingOlderMessages": "Ältere Nachrichten werden geladen…"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

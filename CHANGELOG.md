@@ -672,6 +672,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reopen long conversations at the newest messages and load older pages on
+  demand, preserving scroll position and live answers (#2468).
+
 - Bound foreach output collection before loading JSONB, validate terminal node
   results without retrying completed effects, and keep summary group keys intact.
 - Preserve app-admin authority on workflow sockets and error workflows; page the

@@ -74,6 +74,7 @@ import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
+import { Button } from "@/components/ui/button";
 import { Beam } from "@/components/ui/beam";
 import { useMicrophone } from "@/components/ui/voice-glow";
 import {
@@ -199,7 +200,7 @@ export function ChatContainer({
     currentCost,
     isLoading: isConversationLoading,
   } = useConversationStore();
-  const { addMessage: addChatMessage, rereadMessages } = useChatStore();
+  const chatStoreApi = useChatStore.useApi();
   // The model override the picker holds, mirrored here because the context gauge
   // is a share of *its* window rather than of the agent's default.
   const [modelProfileId, setModelProfileId] = useState<string | null>(null);
@@ -219,6 +220,9 @@ export function ChatContainer({
     selectConversation,
     createConversation,
     rereadConversation,
+    hasOlderMessages,
+    loadingOlderMessages,
+    loadOlderMessages,
     markRead,
   } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
@@ -553,29 +557,66 @@ export function ChatContainer({
     prevConversationIdRef.current = currId;
   }, [currentConversationId, clearMessages, clearQueued]);
 
+  const previousTranscript = useRef<typeof currentMessages | null>(null);
   useEffect(() => {
-    if (currentMessages.length > 0) {
-      // Not `clearMessages`: a re-read of this same conversation - a followed
-      // turn ending, a teammate's answer landing - must not drop the reply
-      // somebody is in the middle of writing. A switch has already cleared it.
-      rereadMessages();
-      currentMessages.forEach((msg) => {
-        const message = conversationMessageToChatMessage(msg);
-        addChatMessage({
-          ...message,
-          // The row is what says which agent produced a turn. When it says nothing -
-          // every message written before the API recorded it - and the conversation
-          // had exactly *one* agent, that agent answered every turn in it, and the
-          // transcript can show its face instead of a generic robot. With two the
-          // guess would relabel half the thread, so it is not made.
-          agentId: message.agentId ?? soleAgentId,
-        });
-      });
-    }
-  }, [currentMessages, addChatMessage, rereadMessages]);
+    if (previousTranscript.current === currentMessages) return;
+    const previous = previousTranscript.current ?? [];
+    previousTranscript.current = currentMessages;
+    if (currentMessages.length === 0) return;
+    const added = currentMessages.length - previous.length;
+    const prepended =
+      previous.length > 0 &&
+      added > 0 &&
+      previous.every((message, index) => currentMessages[added + index] === message);
+    const convert = (message: (typeof currentMessages)[number]) => {
+      const converted = conversationMessageToChatMessage(message);
+      return { ...converted, agentId: converted.agentId ?? soleAgentId };
+    };
+    // Prepending history must preserve a live answer that has not been saved yet.
+    // Apply the batch once instead of rebuilding the store after every row.
+    chatStoreApi.setState({
+      messages: prepended
+        ? [...currentMessages.slice(0, added).map(convert), ...chatStoreApi.getState().messages]
+        : currentMessages.map(convert),
+    });
+  }, [currentMessages, chatStoreApi, soleAgentId]);
 
   // Whether the reader has moved up to read, so the transcript stops following.
   useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
+
+  const conversationStoreApi = useConversationStore.useApi();
+  const olderScroll = useRef<{
+    id: string | null;
+    first: string | undefined;
+    height: number;
+    top: number;
+  } | null>(null);
+  const loadOlder = useCallback(async () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    userScrolledUpRef.current = true;
+    olderScroll.current = {
+      id: currentConversationId,
+      first: messages[0]?.id,
+      height: container.scrollHeight,
+      top: container.scrollTop,
+    };
+    await loadOlderMessages();
+    if (conversationStoreApi.getState().currentMessages[0]?.id === olderScroll.current?.first) {
+      olderScroll.current = null;
+    }
+  }, [currentConversationId, messages, loadOlderMessages, conversationStoreApi]);
+  useLayoutEffect(() => {
+    const previous = olderScroll.current;
+    const container = scrollContainerRef.current;
+    if (!previous || !container) return;
+    if (previous.id !== currentConversationId) {
+      olderScroll.current = null;
+    } else if (messages[0]?.id !== previous.first) {
+      container.scrollTop = previous.top + container.scrollHeight - previous.height;
+      olderScroll.current = null;
+    }
+  }, [messages, currentConversationId]);
 
   // Auto-scroll on every messages update unless user has scrolled up. The
   // transcript scrolls itself rather than calling `scrollIntoView`, which also
@@ -677,6 +718,9 @@ export function ChatContainer({
   return (
     <ChatUI
       messages={messages}
+      hasOlderMessages={hasOlderMessages}
+      loadingOlderMessages={loadingOlderMessages}
+      onLoadOlderMessages={loadOlder}
       present={present}
       typing={typing}
       onTyping={notifyTyping}
@@ -762,6 +806,9 @@ export function ChatContainer({
 }
 
 interface ChatUIProps {
+  hasOlderMessages?: boolean;
+  loadingOlderMessages?: boolean;
+  onLoadOlderMessages?: () => void;
   /** Tell the running turn how one of its drawings rendered. */
   onVisualReport?: (toolCallId: string, errors: string[]) => void;
   /** Replaces the generic empty-conversation suggestions. */
@@ -873,6 +920,9 @@ interface ChatUIProps {
 
 function ChatUI({
   messages,
+  hasOlderMessages = false,
+  loadingOlderMessages = false,
+  onLoadOlderMessages,
   present,
   typing,
   onTyping,
@@ -1217,6 +1267,7 @@ function ChatUI({
           className="flex-1 scrollbar-thin overflow-y-auto"
           style={{
             paddingBottom: dockHeight,
+            overflowAnchor: "none",
             // In the page the transcript fades out as it reaches the glass
             // composer, so nothing sharp is ever behind it: a backdrop blur is
             // drawn by the GPU and is not always drawn - a screen capture, a
@@ -1245,6 +1296,18 @@ function ChatUI({
                 canShare={ownsConversation}
                 className="sticky top-2 z-20 mb-3"
               />
+            )}
+            {hasOlderMessages && !isLoadingConversation && (
+              <div className="mb-4 flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={loadingOlderMessages}
+                  onClick={onLoadOlderMessages}
+                >
+                  {t(loadingOlderMessages ? "loadingOlderMessages" : "loadOlderMessages")}
+                </Button>
+              </div>
             )}
             {isLoadingConversation ? (
               <ConversationSkeleton />

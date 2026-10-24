@@ -1,5 +1,5 @@
 ---
-source_sha: "4990236b568c"
+source_sha: "efcb010bd679"
 ---
 
 # Konsola { #the-console }
@@ -267,6 +267,10 @@ bo [każda powierzchnia przechodzi przez jeden runner](channels.md).
 Wątek, którego run wciąż pracuje, ma kręcący się wskaźnik i czas trwania; wątek
 z odpowiedzią, której nie widziałeś od ostatniego otwarcia, ma kropkę, a otwarcie
 go ją gasi - tylko dla ciebie, bo udostępniony wątek każdy czytelnik czyta osobno.
+
+Po ponownym otwarciu rozmowy zobaczysz jej 100 najnowszych wiadomości.
+**Wczytaj starsze wiadomości** u góry dodaje poprzednią stronę, zachowując pozycję
+czytanego fragmentu. Nowe odpowiedzi i koszt nadal dotyczą bieżącej rozmowy.
 
 Trzy rzeczy w kompozytorze, które warto znać.
 

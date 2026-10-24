@@ -257,6 +257,10 @@ going; one with an answer you have not seen since you last had it open carries a
 dot, which opening it clears - for you only, since a shared thread is read by each
 of its readers separately.
 
+Reopening a conversation shows its newest 100 messages. **Load older messages**
+at the top adds the preceding page without moving the passage you are reading.
+New answers and the conversation cost still cover the current thread.
+
 Three things in the composer worth knowing.
 
 **Your own accounts.** An agent bound to

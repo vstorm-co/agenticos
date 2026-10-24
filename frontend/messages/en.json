@@ -2110,7 +2110,9 @@
       "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
     },
     "turnLost": "The agent stopped before it answered - the server running it went away.",
-    "turnLostAskAgain": "Ask again"
+    "turnLostAskAgain": "Ask again",
+    "loadOlderMessages": "Load older messages",
+    "loadingOlderMessages": "Loading older messages…"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

@@ -166,3 +166,45 @@ class TestATurnComesBackInTheOrderItWasWritten:
             db, conversation.id, skip=7, limit=3
         )
         assert [message.content for message in window] == ["turn-7", "turn-8", "turn-9"]
+
+
+class TestConsoleTranscriptPagination:
+    async def test_latest_then_older_pages_survive_new_turns(self, db) -> None:
+        conversation = await _conversation(db)
+        messages = [
+            await conversation_repo.create_message(
+                db, conversation_id=conversation.id, role="user", content=str(index)
+            )
+            for index in range(205)
+        ]
+        newest = await conversation_repo.get_messages_by_conversation(
+            db, conversation.id, latest=True, limit=100
+        )
+        assert [message.id for message in newest] == [message.id for message in messages[105:]]
+        await conversation_repo.create_message(
+            db, conversation_id=conversation.id, role="assistant", content="new arrival"
+        )
+        older = await conversation_repo.get_messages_by_conversation(
+            db, conversation.id, before_message_id=newest[0].id, limit=100
+        )
+        first = await conversation_repo.get_messages_by_conversation(
+            db, conversation.id, before_message_id=older[0].id, limit=100
+        )
+        assert [message.id for message in first + older + newest] == [
+            message.id for message in messages
+        ]
+        default = await conversation_repo.get_messages_by_conversation(db, conversation.id)
+        assert [message.id for message in default] == [message.id for message in messages[:100]]
+
+    async def test_cursor_from_another_conversation_cannot_read_its_messages(self, db) -> None:
+        conversation = await _conversation(db)
+        other = await _conversation(db)
+        cursor = await conversation_repo.create_message(
+            db, conversation_id=other.id, role="user", content="private"
+        )
+        assert (
+            await conversation_repo.get_messages_by_conversation(
+                db, conversation.id, before_message_id=cursor.id
+            )
+            == []
+        )
