@@ -6071,3 +6071,131 @@ class TestAFailedRunOverTheApi:
 
         with pytest.raises(RuntimeError):
             await service.execute(_ctx(), uuid.uuid4(), "hi")
+
+
+@pytest.mark.anyio
+class TestCancelParkedRun:
+    @pytest.mark.parametrize("status", [RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL])
+    async def test_it_stops_a_parked_run_without_a_model_call_and_preserves_its_spend(self, status):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(
+            user_id=ctx.user_id,
+            status=status.value,
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {"a-1": "tool-1"},
+                "questions": ["ask-1"],
+            },
+        )
+        db = _db()
+        service = AgentRunnerService(db)
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ) as claim,
+            patch(
+                "app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()
+            ) as expire,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()) as finish,
+            patch.object(service.transcript, "record", AsyncMock()) as recorded,
+            patch("app.services.agent_runner.record_audit", AsyncMock()) as audit,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        claim.assert_awaited_once_with(db, run.id, organization_id=ctx.organization_id)
+        assert set(recorded.await_args.kwargs["settled"]) == {"ask-1", "tool-1"}
+        assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
+        assert finish.await_args.kwargs["paused_state"] is None
+        assert finish.await_args.kwargs["cost_usd"] == run.cost_usd
+        assert finish.await_args.kwargs["input_tokens"] == run.input_tokens
+        assert finish.await_args.kwargs["output_tokens"] == run.output_tokens
+        assert finish.await_args.kwargs["cost_is_partial"] == run.cost_is_partial
+        expire.assert_awaited_once()
+        assert audit.await_args.kwargs["actor_user_id"] == ctx.user_id
+
+    async def test_a_foreign_or_missing_run_is_not_found(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await service.cancel_parked(ctx, uuid.uuid4())
+
+    @pytest.mark.parametrize("status", [RunStatus.RUNNING, RunStatus.COMPLETED, RunStatus.FAILED])
+    async def test_an_active_or_finished_run_is_not_rewritten(self, status):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(user_id=ctx.user_id, status=status.value)
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            pytest.raises(BadRequestError),
+        ):
+            await AgentRunnerService(_db()).cancel_parked(ctx, run.id)
+
+    async def test_a_second_stop_of_the_same_run_is_idempotent(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(user_id=ctx.user_id, status=RunStatus.CANCELLED.value)
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()) as finish,
+        ):
+            await AgentRunnerService(_db()).cancel_parked(ctx, run.id)
+        finish.assert_not_awaited()
+
+    async def test_someone_elses_question_cannot_be_stopped(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(user_id=uuid.uuid4(), status=RunStatus.AWAITING_ANSWER.value)
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            pytest.raises(AuthorizationError),
+        ):
+            await AgentRunnerService(_db()).cancel_parked(ctx, run.id)
+
+    async def test_a_key_cannot_stop_a_persons_run(self):
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role="owner",
+            api_key_id=uuid.uuid4(),
+        )
+        with pytest.raises(AuthorizationError):
+            await AgentRunnerService(_db()).cancel_parked(ctx, uuid.uuid4())
+
+    @pytest.mark.parametrize("role,allowed", [("member", False), ("admin", True)])
+    @pytest.mark.parametrize("state", [None, {"messages": [], "tool_call_ids": {}}])
+    async def test_only_an_approval_decider_can_stop_another_persons_approval(
+        self, role, allowed, state
+    ):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=role)
+        run = _parked_run(user_id=uuid.uuid4(), paused_state=state)
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()) as finish,
+            patch.object(service.transcript, "record", AsyncMock()) as recorded,
+            patch("app.services.agent_runner.record_audit", AsyncMock()),
+        ):
+            if allowed:
+                await service.cancel_parked(ctx, run.id)
+                assert recorded.await_args.kwargs["settled"] == {}
+                assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
+            else:
+                with pytest.raises(AuthorizationError):
+                    await service.cancel_parked(ctx, run.id)
+                finish.assert_not_awaited()

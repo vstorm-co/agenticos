@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "912065ca372b"
 ---
 
 # Konsola { #the-console }
@@ -423,6 +423,14 @@ przeglądarkę na dowolnej stronie tylko dla Ciebie, zanim agent będzie jej pot
 zaloguj się, oddaj ją z zaznaczonym polem, a logowanie zostanie zapamiętane tak samo.
 Wymaga przeglądarki wdrożenia do logowania
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Zatrzymanie oczekującego uruchomienia.** Przycisk **Stop** pozostaje dostępny, gdy
+agent czeka na odpowiedź, zatwierdzenie lub połączenie konta. Działa również po
+odświeżeniu strony z oczekującym pytaniem lub zatwierdzeniem. Zatrzymanie zamyka
+oczekujące wywołania bez wznawiania modelu i zachowuje zapisany koszt. Możesz zatrzymać
+własne uruchomienie; osoby uprawnione do zatwierdzania mogą też zatrzymać uruchomienie
+oczekujące na zatwierdzenie. Jeśli zatrzymanie się nie powiedzie, karta pozostaje
+dostępna do ponownej próby.
 
 ### Dyktowanie { #dictation }
 

@@ -718,17 +718,20 @@ describe("useChat - failures and interruptions", () => {
     expect(useChatStore.getState().messages).toEqual([]);
   });
 
-  it("stops a turn on request and clears everything waiting on it", () => {
+  it("stops a turn on request and clears everything waiting on it", async () => {
+    post.mockResolvedValue(null);
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_approval_required", {
       action_requests: [{ id: "ar-1", tool_name: "send_email", args: {} }],
+      run_id: "r-1",
       review_configs: [],
     });
 
     act(() => result.current.stopGeneration());
 
-    expect(frame(0)).toEqual({ type: "stop" });
+    await waitFor(() => expect(result.current.pendingApproval).toBeNull());
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
     expect(streaming()?.isStreaming).toBe(false);
     expect(result.current.isProcessing).toBe(false);
     expect(result.current.pendingApproval).toBeNull();
@@ -3225,6 +3228,54 @@ describe("useChat - a question its person came back to", () => {
       header: "Tone",
       allowCustom: true,
     });
+  });
+
+  it("stops a restored question by its parked run id without resuming it", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue(null);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+    expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
+    expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true);
+  });
+
+  it("keeps the question available when stopping fails", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(new Error("Network down"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(result.current.pendingQuestions).not.toBeNull();
+    expect(useChatStore.getState().messages[0]?.wasStopped).not.toBe(true);
+  });
+
+  it("does not clear another conversation after a delayed stop", async () => {
+    get.mockResolvedValue(ASKED);
+    let finish!: () => void;
+    post.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    receive("connect_account", { server_id: "new", name: "New connection" });
+    const connection = result.current.pendingConnection;
+    expect(connection).not.toBeNull();
+    await act(async () => finish());
+    expect(result.current.pendingConnection).toEqual(connection);
   });
 
   it("answers over HTTP, closes the step and draws the continuation", async () => {

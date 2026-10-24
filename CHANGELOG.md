@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep Stop available while chat waits on a question, approval or account
+  connection, including reloaded parked runs. Cancelling a parked run closes
+  pending calls without continuing the model and preserves its recorded spend.
+
 ## [1.16.0] - 2026-10-23
 
 ### Added

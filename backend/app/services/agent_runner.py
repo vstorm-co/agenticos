@@ -211,6 +211,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
+from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -5268,6 +5269,76 @@ class AgentRunnerService:
                 ),
                 details={"run_id": str(run.id), "status": run.status},
             ) from exc
+
+    async def cancel_parked(self, ctx: AuthContext, run_id: UUID) -> None:
+        """Stop a parked run without executing its continuation or losing its spend.
+
+        The person who started it may stop it. An approval decider may also stop
+        a run waiting on approval. Keys cannot use this console operation.
+        The same row lock as resume serializes stopping against a continuation;
+        a second stop is idempotent, while a run already resumed is refused.
+        """
+        if ctx.api_key_id is not None:
+            raise AuthorizationError(
+                message="Stop this run from a signed-in session", details={"run_id": run_id}
+            )
+        run = await agent_run_repo.claim_parked_run(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": run_id})
+        decider = ctx.has(Perm.APPROVALS_DECIDE) and run.status in (
+            RunStatus.AWAITING_APPROVAL.value,
+            RunStatus.CANCELLED.value,
+        )
+        if run.user_id != ctx.user_id and not decider:
+            raise AuthorizationError(
+                message="Only the person who started this run may stop it",
+                details={"run_id": run_id},
+            )
+        if run.status == RunStatus.CANCELLED.value:
+            return
+        if run.status not in (RunStatus.AWAITING_ANSWER.value, RunStatus.AWAITING_APPROVAL.value):
+            raise BadRequestError(
+                message="This run is not waiting for a response",
+                details={"run_id": run_id, "status": run.status},
+            )
+        previous_status = run.status
+        state = (
+            PausedRunState.model_validate(run.paused_state)
+            if run.paused_state is not None
+            else None
+        )
+        calls = [] if state is None else [*state.questions, *state.tool_call_ids.values()]
+        await self.transcript.record(
+            run,
+            prompt=None,
+            answer="",
+            settled=dict.fromkeys(calls, "Not performed: the run was stopped."),
+        )
+        at = datetime.now(UTC)
+        await agent_run_repo.expire_pending_approvals(self.db, run_id=run.id, decided_at=at)
+        await agent_run_repo.finish_run(
+            self.db,
+            run=run,
+            status=RunStatus.CANCELLED.value,
+            input_tokens=run.input_tokens,
+            output_tokens=run.output_tokens,
+            cost_usd=run.cost_usd,
+            cost_is_partial=run.cost_is_partial,
+            ended_at=at,
+            error="Stopped by user",
+            paused_state=None,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="run.cancelled",
+            target_type="agent_run",
+            target_id=str(run.id),
+            details={"previous_status": previous_status},
+        )
 
     async def answer(
         self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[Any]]
