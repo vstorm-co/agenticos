@@ -203,7 +203,7 @@ export function AgentCard({
                     <button
                       type="button"
                       aria-label={t("moreActionsFor", { name: agent.name })}
-                      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+                      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </button>
@@ -285,7 +285,7 @@ function IconAction({
       title={label}
       data-tour="agent-card-edit"
       data-agent-id={agentId}
-      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
     >
       <Icon className="h-4 w-4" />
     </Link>

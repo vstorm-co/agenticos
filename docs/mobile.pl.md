@@ -1,5 +1,5 @@
 ---
-source_sha: "2cdd1d63b902"
+source_sha: "078036b6a50b"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -82,6 +82,11 @@ nie jest dołączane, gdy aplikacja jest zablokowana.
 - **Strony ruszają się jak w telefonie.** Otwierana strona wjeżdża od końcowej
   krawędzi, a ta, do której się wraca, od początkowej. Ograniczony ruch to
   wyłącza.
+
+Formularz logowania i czat mieszczą się nad klawiaturą, z uwzględnieniem paska
+stanu i wskaźnika gestów. Przyciski zachowują pełne pole dotyku także przy małych
+ikonach; kopiowanie i ukrywanie wskazówek jest dostępne bez najeżdżania kursorem.
+Natywnego logowania nie zasłania baner cookies przeznaczony dla przeglądarki.
 
 ## Bez sieci { #without-a-network }
 

@@ -279,6 +279,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Phone controls and keyboard layout.** Chat, agent cards, dashboard controls,
+  settings, avatar colors and sort chips have larger touch targets. Copy and tip
+  actions remain visible without hover. Sign-in fits system insets and the
+  keyboard, without a browser cookie banner in native apps. Viewport updates
+  coalesce per frame and undo late iOS page pans after keyboard animations.
+
 - **Keep a native folder selection when chat settings close.** Pairing and folder
   approval now finish for the original chat even if the settings panel closes
   while a native dialog is open, instead of dropping the choice and using Cloud.

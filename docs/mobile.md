@@ -77,6 +77,12 @@ while the app is locked.
 - **Pages move like the phone's own.** A page opened slides in from the trailing
   edge and one gone back to from the leading edge. Reduced motion turns it off.
 
+The sign-in form and chat fit the visible area above the keyboard, including
+the status bar and home indicator. Touch controls keep a full tap target even
+when their icon is small; actions such as copying and dismissing tips remain
+visible without hovering. Native sign-in is not covered by the browser cookie
+banner.
+
 ## Without a network
 
 The phone app, the desktop app and the console added to a home screen keep a copy

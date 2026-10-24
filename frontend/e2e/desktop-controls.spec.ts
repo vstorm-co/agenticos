@@ -109,9 +109,11 @@ test.describe("desktop pointer controls", () => {
     await expect(dialog).toBeHidden();
   });
 
-  test("keeps buttons reachable across desktop pages and after scrolling", async ({ page }) => {
-    test.setTimeout(60_000); // Sixteen page layouts, each loading real data.
-    for (const width of [1440, 900]) {
+  for (const width of [1440, 900]) {
+    test(`keeps buttons reachable across desktop pages and after scrolling at ${width}px`, async ({
+      page,
+    }) => {
+      test.setTimeout(60_000); // Eight layouts with real data; keep each width independently bounded.
       await page.setViewportSize({ width, height: width === 900 ? 640 : 1000 });
       for (const [path, api] of [
         ["/agents", "/api/agents"],
@@ -137,8 +139,8 @@ test.describe("desktop pointer controls", () => {
         await expectReachableButtons(page);
         console.log(`${width}px ${path}: ${count} visible button elements checked`);
       }
-    }
-  });
+    });
+  }
 
   test("closes a recorded run from the center of its X button", async ({ page }) => {
     const listing = page.waitForResponse(

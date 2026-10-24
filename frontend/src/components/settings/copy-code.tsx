@@ -16,14 +16,14 @@ export function CopyCode({ code }: { code: string }) {
   }
 
   return (
-    <div className="bg-muted relative rounded-lg">
+    <div className="bg-muted touch:min-h-14 relative rounded-lg">
       <pre className="overflow-x-auto px-3 py-2.5 pr-20 font-mono text-xs leading-relaxed whitespace-pre">
         {code}
       </pre>
       <button
         type="button"
         onClick={copy}
-        className="text-muted-foreground hover:text-foreground bg-background absolute top-1.5 right-1.5 inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs"
+        className="text-muted-foreground hover:text-foreground bg-background touch:min-h-11 touch:min-w-11 absolute top-1.5 right-1.5 inline-flex h-7 touch-manipulation items-center gap-1 rounded-md border px-2 text-xs"
       >
         {copied ? (
           <Check className="h-3.5 w-3.5" aria-hidden />

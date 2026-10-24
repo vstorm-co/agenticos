@@ -1,5 +1,5 @@
 ---
-source_sha: "2cdd1d63b902"
+source_sha: "078036b6a50b"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -84,6 +84,12 @@ mensaje nuevo. Con la app bloqueada no se adjunta nada.
 - **Las páginas se mueven como las del móvil.** Una página abierta entra desde el
   borde final y una a la que se vuelve, desde el inicial. Reducir el movimiento lo
   desactiva.
+
+El formulario de acceso y el chat se ajustan al área visible sobre el teclado,
+incluidas la barra de estado y la zona de gestos. Los controles táctiles mantienen
+un área de pulsación amplia aunque el icono sea pequeño; copiar y ocultar consejos
+siguen disponibles sin pasar el puntero. El aviso de cookies del navegador no
+tapa el acceso en la aplicación nativa.
 
 ## Sin red { #without-a-network }
 

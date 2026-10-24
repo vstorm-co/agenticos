@@ -1,5 +1,5 @@
 ---
-source_sha: "2cdd1d63b902"
+source_sha: "078036b6a50b"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -85,6 +85,12 @@ Solange die App gesperrt ist, wird nichts angehängt.
 - **Seiten bewegen sich wie die des Telefons.** Eine geöffnete Seite gleitet von der
   hinteren Kante herein, eine, zu der man zurückgeht, von der vorderen. Reduzierte
   Bewegung schaltet das ab.
+
+Anmeldeformular und Chat passen in den sichtbaren Bereich über der Tastatur,
+einschließlich Statusleiste und Gestenanzeige. Touch-Bedienelemente behalten auch
+bei kleinen Symbolen eine ausreichend große Trefferfläche; Kopieren und
+Ausblenden von Tipps bleiben ohne Mauszeiger sichtbar. Das native Anmeldeformular
+wird nicht vom Cookie-Banner des Browsers verdeckt.
 
 ## Ohne Netz { #without-a-network }
 
