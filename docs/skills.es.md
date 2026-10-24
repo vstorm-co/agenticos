@@ -1,5 +1,5 @@
 ---
-source_sha: "5de889685e53"
+source_sha: "9432053d80da"
 ---
 
 # Skills { #skills }
@@ -197,10 +197,15 @@ Tres turnos de una conversación refinando el mismo skill dejan **una** propuest
 no tres. A un revisor al que se le hace la misma pregunta tres veces se le ha
 dado más trabajo, no más información.
 
+Un cambio registra la versión del skill para la que se escribió: en un run, la
+versión que ese run recibió, y un turno posterior que reescribe el cambio
+registra la suya. Apply lo rechaza si alguien ha cambiado el skill desde
+entonces, así que una edición hecha mientras el cambio esperaba no se
+sobrescribe. Compara los dos y edita el skill a mano, o vuelve a pedirlo.
+
 El [asistente de autoría](authoring.md#skills) propone cambios a skills de la
-misma manera, con su justificación y los runs en los que se apoya. Su cambio
-registra la versión del skill para la que se escribió, y Apply lo rechaza si
-alguien ha cambiado el skill desde entonces.
+misma manera, con su justificación y los runs en los que se apoya, y Apply los
+rechaza de la misma manera.
 
 Cada cambio dice, junto a **Apply**, qué versiones publicadas de agents leen el
 skill, qué suites de evals pone en cola aplicarlo y qué guardianas lo comprueban

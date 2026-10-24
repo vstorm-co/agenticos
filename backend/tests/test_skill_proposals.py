@@ -50,8 +50,9 @@ def _proposal(**overrides: object) -> MagicMock:
         content="Ask for the receipt.",
         resources={},
         status=ProposalStatus.PENDING.value,
-        base_version=None,
+        base_version=3,
         revision=1,
+        created_at=datetime(2026, 10, 1, tzinfo=UTC),
     )
     row.name = "refunds"
     for key, value in overrides.items():
@@ -64,6 +65,7 @@ def _change(**overrides: object) -> SkillChange:
     fields: dict[str, object] = {
         "name": "refunds",
         "skill_id": uuid.uuid4(),
+        "base_version": 3,
         "description": "How refunds work now.",
         "content": "Ask for the receipt.",
         "resources": {},
@@ -86,6 +88,8 @@ def _service(monkeypatch) -> SkillProposalService:
     service.skills.create = AsyncMock(return_value=skill)
     service.skills.update = AsyncMock(return_value=skill)
     service.skills.put_resources = AsyncMock(return_value=[])
+    service.skills.get = AsyncMock(return_value=MagicMock(version=3, updated_at=None))
+    monkeypatch.setattr(skill_repo, "lock", AsyncMock())
     monkeypatch.setattr(skill_proposal_repo, "decide_if", AsyncMock(side_effect=_decided))
     # Who may decide a proposal is the integration tests' question; here everybody may.
     monkeypatch.setattr(skill_repo, "get", AsyncMock(return_value=MagicMock()))
@@ -128,6 +132,7 @@ class TestRecordingWhatARunWrote:
         )
 
         assert len(recorded) == 1
+        assert created.call_args.kwargs["base_version"] == 3
         service.skills.update.assert_not_called()
         service.skills.create.assert_not_called()
 
@@ -144,9 +149,12 @@ class TestRecordingWhatARunWrote:
         created = AsyncMock()
         monkeypatch.setattr(skill_proposal_repo, "create", created)
 
-        await service.record(_ctx(), [_change()], agent_id=uuid.uuid4(), conversation_id=None)
+        await service.record(
+            _ctx(), [_change(base_version=5)], agent_id=uuid.uuid4(), conversation_id=None
+        )
 
         replaced.assert_awaited_once()
+        assert replaced.call_args.kwargs["base_version"] == 5
         created.assert_not_called()
 
     async def test_a_proposal_decided_meanwhile_is_left_alone_and_a_new_one_made(self, monkeypatch):
@@ -242,6 +250,36 @@ class TestApplying:
             await service.apply(_ctx(), proposal.id, _DECISION)
 
         service.skills.update.assert_not_called()
+
+    async def test_a_change_without_a_version_refuses_once_the_skill_was_written_since(
+        self, monkeypatch
+    ):
+        """A workspace change recorded before proposals kept a version has only its age."""
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=None)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        service.skills.get = AsyncMock(
+            return_value=MagicMock(version=7, updated_at=datetime(2026, 10, 2, tzinfo=UTC))
+        )
+
+        with pytest.raises(ConcurrentChangeError, match="changed since"):
+            await service.apply(_ctx(), proposal.id, _DECISION)
+
+        service.skills.update.assert_not_called()
+
+    async def test_a_change_without_a_version_applies_onto_a_skill_untouched_since(
+        self, monkeypatch
+    ):
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=None)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        service.skills.get = AsyncMock(
+            return_value=MagicMock(version=7, updated_at=datetime(2026, 9, 30, tzinfo=UTC))
+        )
+
+        decided = await service.apply(_ctx(), proposal.id, _DECISION)
+
+        assert decided.status == ProposalStatus.APPLIED.value
 
     async def test_the_resources_are_written_too(self, monkeypatch):
         """A skill whose script did not come with it is a skill that no longer

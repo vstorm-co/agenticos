@@ -1,5 +1,5 @@
 ---
-source_sha: "5de889685e53"
+source_sha: "9432053d80da"
 ---
 
 # Skills { #skills }
@@ -203,10 +203,16 @@ Drei Runden einer Unterhaltung, die denselben Skill verfeinern, hinterlassen
 **einen** Vorschlag, nicht drei. Wer dreimal dieselbe Frage gestellt bekommt, hat
 mehr Arbeit bekommen statt mehr Information.
 
+Eine Änderung hält fest, für welche Version des Skills sie geschrieben wurde:
+bei einem Run die Version, die dieser Run bekommen hat, und ein späterer Turn,
+der die Änderung überschreibt, hält seine eigene fest. Apply lehnt sie ab, sobald
+jemand den Skill seitdem geändert hat, sodass eine Bearbeitung, die während des
+Wartens entstand, nicht überschrieben wird. Vergleiche beide und bearbeite den
+Skill von Hand, oder frage erneut.
+
 Der [Authoring-Assistent](authoring.md#skills) schlägt Skill-Änderungen auf
-dieselbe Weise vor, mit seiner Begründung und den Runs, auf die sie sich stützt.
-Seine Änderung hält fest, für welche Version des Skills sie geschrieben wurde,
-und Apply lehnt sie ab, sobald jemand den Skill seitdem geändert hat.
+dieselbe Weise vor, mit seiner Begründung und den Runs, auf die sie sich stützt,
+und Apply lehnt sie auf dieselbe Weise ab.
 
 Jede Änderung sagt neben **Apply**, welche veröffentlichten Agent-Versionen den
 Skill lesen, welche Eval-Suites ihr Anwenden in die Warteschlange stellt und

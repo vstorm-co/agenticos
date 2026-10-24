@@ -92,6 +92,9 @@ class SkillChange:
     skill_id: Any | None
     """The stored skill this edits, or `None` for one the agent created."""
 
+    base_version: int | None
+    """The version of the skill the agent was given, or `None` for one it created."""
+
     description: str
     content: str
     resources: dict[str, str]
@@ -109,6 +112,8 @@ class MaterialisedSkills:
     written: dict[str, str] = field(default_factory=dict)
     #: `directory name -> skill id`, for attributing a change back to a row.
     owners: dict[str, Any] = field(default_factory=dict)
+    #: `directory name -> skill version` written, so a change applies only onto it.
+    versions: dict[str, int] = field(default_factory=dict)
 
 
 def skill_dir(name: str) -> str:
@@ -149,6 +154,7 @@ async def materialise(
     state = MaterialisedSkills()
     for skill in skills:
         state.owners[skill.name] = skill.id
+        state.versions[skill.name] = skill.version
         files = {
             f"{skill_dir(skill.name)}/{BODY_FILE}": render_body(skill, (bodies or {}).get(skill.id))
         }
@@ -201,7 +207,7 @@ async def collect_changes(workspace: Workspace, state: MaterialisedSkills) -> li
             path: content for path, content in state.written.items() if _skill_of(path) == name
         }:
             continue
-        change = _to_change(name, files, state.owners.get(name))
+        change = _to_change(name, files, state.owners.get(name), state.versions.get(name))
         if change is not None:
             changes.append(change)
     return changes
@@ -255,7 +261,9 @@ def _skill_of(path: str) -> str | None:
     return parts[0] if len(parts) == 2 else None
 
 
-def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillChange | None:
+def _to_change(
+    name: str, files: dict[str, str], skill_id: Any | None, base_version: int | None
+) -> SkillChange | None:
     """One skill's files as a proposal, or `None` if they are not a skill.
 
     A directory with no `SKILL.md` is refused rather than filled in: the body is
@@ -279,6 +287,7 @@ def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillC
     return SkillChange(
         name=name,
         skill_id=skill_id,
+        base_version=base_version,
         description=str(frontmatter.get("description") or ""),
         content=instructions.strip(),
         resources={

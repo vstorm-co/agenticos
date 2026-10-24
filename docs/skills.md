@@ -185,9 +185,14 @@ Three turns of one conversation refining the same skill leave **one** proposal, 
 three. A reviewer asked the same question three times has been given more work
 rather than more information.
 
+A change records the version of the skill it was written against: for a run, the
+version that run was given, and a later turn that rewrites the change records its
+own. Apply refuses it once somebody has changed the skill since, so an edit made
+while the change waited is not overwritten. Compare the two and edit the skill by
+hand, or ask again.
+
 The [authoring assistant](authoring.md#skills) proposes skill changes the same way,
-with its rationale and the runs behind it. Its change records the skill version it
-was written against, and Apply refuses it once somebody has changed the skill since.
+with its rationale and the runs behind it, and Apply refuses them the same way.
 
 Each change says, beside **Apply**, which agents' published versions read the
 skill, which eval suites applying it queues and which guards check it only at

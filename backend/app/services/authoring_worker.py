@@ -557,6 +557,7 @@ class AuthoringRun:
             "content": content,
             "resources": {},
             "conversation_id": None,
+            "base_version": skill.version,
         }
         proposal_row = await skill_proposal_repo.replace_pending(
             self.db,
@@ -577,7 +578,6 @@ class AuthoringRun:
             self.db,
             proposal=proposal_row,
             values={
-                "base_version": skill.version,
                 "rationale": proposal.rationale,
                 "evidence": kept,
                 "evidence_dropped": dropped,

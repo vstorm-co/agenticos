@@ -1,5 +1,5 @@
 ---
-source_sha: "5de889685e53"
+source_sha: "9432053d80da"
 ---
 
 # Skille { #skills }
@@ -192,10 +192,15 @@ Trzy tury jednej rozmowy dopracowujące ten sam skill zostawiają **jedną**
 propozycję, nie trzy. Recenzent zapytany trzy razy o to samo dostał więcej pracy,
 a nie więcej informacji.
 
+Zmiana zapisuje wersję skilla, dla której powstała: przy runie jest to wersja,
+którą ten run dostał, a późniejsza tura, która ją nadpisuje, zapisuje swoją. Apply
+ją odrzuca, jeśli ktoś w międzyczasie zmienił skill, więc edycja zrobiona, gdy
+zmiana czekała, nie zostaje nadpisana. Porównaj obie wersje i popraw skill
+ręcznie albo poproś jeszcze raz.
+
 [Asystent tworzenia](authoring.md#skills) proponuje zmiany skilli w ten sam
-sposób, razem z uzasadnieniem i runami, na których się opiera. Jego zmiana
-zapisuje wersję skilla, dla której powstała, a Apply ją odrzuca, jeśli ktoś w
-międzyczasie zmienił skill.
+sposób, razem z uzasadnieniem i runami, na których się opiera, a Apply odrzuca
+je tak samo.
 
 Każda zmiana mówi, obok **Apply**, opublikowane wersje których agentów czytają
 skill, które suity evali ustawi w kolejce jej zastosowanie i którzy strażnicy

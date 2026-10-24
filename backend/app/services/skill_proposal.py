@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.repositories import skill_proposal_repo, skill_repo
 from app.schemas.resource_usage import ProposalDecision
@@ -73,6 +74,7 @@ class SkillProposalService:
                 content=change.content,
                 resources=change.resources,
                 conversation_id=conversation_id,
+                base_version=change.base_version,
             )
             if rewritten is not None:
                 recorded.append(rewritten)
@@ -88,6 +90,7 @@ class SkillProposalService:
                     description=change.description,
                     content=change.content,
                     resources=change.resources,
+                    base_version=change.base_version,
                 )
             )
         if recorded:
@@ -213,9 +216,9 @@ class SkillProposalService:
         one wins. It goes live at once for every agent whose served version reads
         the skill: their suites are queued with the edit, their owners notified.
 
-        A proposal that records the version it was written against applies only
-        while the skill is still at it: a body reviewed against v3 must not
-        silently replace a v4 somebody wrote meanwhile.
+        A proposal applies only while the skill is still at the version it was
+        written against: a body reviewed against v3 must not silently replace a v4
+        somebody wrote meanwhile.
 
         Raises:
             AlreadyExistsError: If it was already decided.
@@ -226,17 +229,17 @@ class SkillProposalService:
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
 
-        if proposal.skill_id is not None and proposal.base_version is not None:
+        if proposal.skill_id is not None:
             current = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
             # Locking re-reads the row into `current`: every edit writes the skill
             # row, so an edit or a second apply committed meanwhile is seen, not overwritten.
             await skill_repo.lock(self.db, current.id)
-            if current.version != proposal.base_version:
+            if _moved_since(proposal, current):
                 raise ConcurrentChangeError(
                     message=(
                         f"'{current.name}' changed since this was proposed "
-                        f"(v{proposal.base_version}, now v{current.version}). Compare the two "
-                        "and edit the skill by hand, or ask the assistant again."
+                        f"(now v{current.version}). Compare the two and edit the skill "
+                        "by hand, or ask again."
                     ),
                     details={
                         "proposal_id": proposal.id,
@@ -359,6 +362,17 @@ class SkillProposalService:
             )
         if proposal.revision != revision:
             raise _changed(proposal)
+
+
+def _moved_since(proposal: SkillProposal, skill: Skill) -> bool:
+    """Whether the skill is no longer what the proposal was written against.
+
+    A workspace change recorded before proposals kept a version has only its age to
+    go by, so any write to the skill after it was proposed counts as moving it.
+    """
+    if proposal.base_version is not None:
+        return skill.version != proposal.base_version
+    return skill.updated_at is not None and skill.updated_at > proposal.created_at
 
 
 def _changed(proposal: SkillProposal) -> ConcurrentChangeError:
