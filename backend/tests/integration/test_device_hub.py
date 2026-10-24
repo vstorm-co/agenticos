@@ -192,7 +192,11 @@ async def test_a_stopped_run_tells_the_app_to_stop_its_call(redis: RedisClient) 
         await app.leaves()
 
 
-@pytest.mark.parametrize("frame", ['{"type": "launch"}', "not json", "x" * (17 * 2**20)])
+@pytest.mark.parametrize(
+    "frame",
+    ['{"type": "launch"}', "not json", "x" * (17 * 2**20)],
+    ids=["unknown-operation", "not-json", "oversized-frame"],
+)
 async def test_a_frame_the_protocol_does_not_know_closes_the_socket(
     redis: RedisClient, frame: str
 ) -> None:
