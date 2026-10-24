@@ -112,7 +112,7 @@ def _agents(*agents: Any) -> AsyncMock:
     """
     rows = {agent.id: agent for agent in agents}
 
-    async def get(_db_session, agent_id, *, organization_id):
+    async def get(_db_session, agent_id, *, organization_id, for_update=False):
         return rows.get(agent_id)
 
     mock = AsyncMock(side_effect=get)

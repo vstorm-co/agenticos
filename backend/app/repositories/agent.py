@@ -89,10 +89,16 @@ async def existing_ids_locked(
     return set(result.scalars().all())
 
 
-async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:
-    result = await db.execute(
-        select(Agent).where(Agent.id == agent_id, Agent.organization_id == organization_id)
-    )
+async def get(
+    db: AsyncSession, agent_id: UUID, *, organization_id: UUID, for_update: bool = False
+) -> Agent | None:
+    statement = select(Agent).where(Agent.id == agent_id, Agent.organization_id == organization_id)
+    if for_update:
+        # Re-read after waiting, without blocking new runs' foreign-key key-share locks.
+        statement = statement.with_for_update(key_share=True).execution_options(
+            populate_existing=True
+        )
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

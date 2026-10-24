@@ -194,6 +194,9 @@ class AssistantService:
         if not profiles:
             return agent
         installer = await self._installer(organization_id)
+        agent = await self.registry.get(installer, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
+        if agent.current_version_id is not None:
+            return agent
         spec = AgentSpec.model_validate(agent.draft_spec)
         if spec.model_profile_id is None:
             spec = spec.model_copy(update={"model_profile_id": profiles[0].id})

@@ -816,7 +816,12 @@ class AgentRegistryService:
         self.db = db
 
     async def get(
-        self, ctx: AuthContext, agent_id: UUID, *, perm: Perm = Perm.AGENTS_VIEW
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        perm: Perm = Perm.AGENTS_VIEW,
+        for_update: bool = False,
     ) -> Agent:
         """Fetch an agent the caller may reach, or report it as missing.
 
@@ -829,6 +834,14 @@ class AgentRegistryService:
         allowed = await resolve_access(self.db, ctx, agent, perm, resource_type=AGENT)
         if not allowed:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
+        if for_update:
+            agent = await agent_repo.get(
+                self.db, agent_id, organization_id=ctx.organization_id, for_update=True
+            )
+            if agent is None or not await resolve_access(
+                self.db, ctx, agent, perm, resource_type=AGENT
+            ):
+                raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         if perm not in _READ_PERMS and not ctx.has(Perm.ORG_SETTINGS):
             await self._refuse_the_assistant(agent)
         return agent
@@ -1445,7 +1458,7 @@ class AgentRegistryService:
         must be saveable, or the Builder becomes a form you cannot leave.
         Validation is publish's job.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         spec = _without_unselectable(spec)
         return await agent_repo.update(
             self.db,
@@ -2279,8 +2292,12 @@ class AgentRegistryService:
     async def publish(
         self, ctx: AuthContext, agent_id: UUID, *, note: str | None = None
     ) -> AgentVersion:
-        """Validate the draft and freeze it as the version that runs."""
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        """Validate and freeze one locked draft; saves and promotions wait for its commit.
+
+        The agent lock also serializes MAX(version)+1 allocation with rollback.
+        A save waiting behind this publication retains its newer draft afterwards.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
 
@@ -2442,7 +2459,7 @@ class AgentRegistryService:
         History stays linear: the timeline shows that a rollback happened rather
         than pretending the bad version never existed.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         source = await agent_repo.get_version(
             self.db, to_version_id, organization_id=ctx.organization_id
         )
@@ -2495,7 +2512,7 @@ class AgentRegistryService:
         What people mean by "delete an agent" is almost always this: stop it,
         keep the trail. Real deletion is a separate, deliberate act.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
             # Archived, it would still read as ready in the corner and refuse every
             # run; switching it off is the way to retire it.
@@ -2528,7 +2545,7 @@ class AgentRegistryService:
             BadRequestError: If the agent is not archived. Silently succeeding
                 would make "restore" look like it did something.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         if agent.status != AgentStatus.ARCHIVED.value:
             raise BadRequestError(
                 message=f"Agent '{agent.name}' is not archived",
@@ -2677,14 +2694,14 @@ class AgentRegistryService:
             BadRequestError: `draft_only`, and the agent is somebody else's or was
                 published.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
-        if draft_only:
-            await self.db.refresh(agent, with_for_update=True)
-            if agent.owner_user_id != ctx.subject_id or agent.current_version_id is not None:
-                raise BadRequestError(
-                    message="Only a never-published draft you created can be undone",
-                    details={"agent_id": agent.id},
-                )
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        if draft_only and (
+            agent.owner_user_id != ctx.subject_id or agent.current_version_id is not None
+        ):
+            raise BadRequestError(
+                message="Only a never-published draft you created can be undone",
+                details={"agent_id": agent.id},
+            )
         # The agent's triggers go with it by CASCADE, which would silently discard
         # the provider webhook ids their auto-registered hooks are removable by -
         # so the provider side is swept first, best-effort. Imported locally:
@@ -3038,7 +3055,7 @@ class AgentRegistryService:
             BadRequestError: If no agent may bind such a capability, or the
                 agent would not publish with it.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         definition = get_capability(capability_id)
         if not definition.selectable:
             raise refused_field(

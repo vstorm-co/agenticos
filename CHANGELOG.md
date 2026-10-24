@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Serialize draft saves, publish/rollback version allocation and environment
+  changes per agent. Preserve edits waiting behind a publication, refresh
+  serving pointers after lock waits and allow new runs to start during
+  publication validation.
+
 - Use effective per-resource edit access for context, skill and vault controls.
   Honor explicit edit grants and hide write actions on private resources
   shared read-only, while keeping collection creation gated by its permission.
