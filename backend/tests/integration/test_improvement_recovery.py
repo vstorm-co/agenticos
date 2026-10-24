@@ -144,3 +144,35 @@ async def test_only_a_running_measurement_without_progress_can_stall(
         ("failed", "stalled") if running else ("running", None)
     )
     assert child.status == ("cancelled" if running else "queued")
+
+
+async def test_a_deleted_proposal_request_fails_the_parent_without_a_new_paid_request(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, _, session = await _started(db)
+    await _until_child(db, ctx, session.id)
+    service = ImprovementPipelineService(db)
+    before = await service.read(ctx, agent.id, session.id)
+    with patch(
+        "app.services.improvement_pipeline.authoring_repo.get_request",
+        AsyncMock(return_value=None),
+    ):
+        await service.advance(session.id, ctx.organization_id)
+    stopped = await service.read(ctx, agent.id, session.id)
+    assert (stopped.status, stopped.stop_reason) == ("failed", "proposal")
+    assert stopped.iterations[0].authoring_request_id == before.iterations[0].authoring_request_id
+
+
+async def test_a_waiting_session_without_a_selected_round_makes_no_authoring_decision(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, ready = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, ready.id)
+    assert row is not None
+    row.best_iteration_id = None
+    await db.flush()
+    before = dict(agent.draft_spec)
+    service = ImprovementPipelineService(db)
+    await service.advance(ready.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, ready.id)).status == "ready"
+    assert agent.draft_spec == before

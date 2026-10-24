@@ -19,3 +19,10 @@ def test_repeating_a_case_cannot_charge_for_the_same_question_twice() -> None:
 def test_rubric_tags_must_fit_the_stored_case_tag_contract(tag: str) -> None:
     with pytest.raises(ValidationError, match="criterion tag"):
         RubricCriterion(name="Accuracy", description="Facts match", tags=[tag])
+
+
+@pytest.mark.parametrize("details", [None, [], "old audit record", {"stage": 3}])
+def test_legacy_audit_details_do_not_become_fabricated_step_names(details: object) -> None:
+    from app.services.improvement_pipeline import ImprovementPipelineService
+
+    assert ImprovementPipelineService._event_detail(details, "stage") is None
