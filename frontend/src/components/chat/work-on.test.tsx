@@ -83,7 +83,7 @@ it("keeps local service choices when the approved folder changes", async () => {
 it("applies local service choices to this conversation only", async () => {
   const user = userEvent.setup();
   render(<WorkOn />);
-  await user.selectOptions(screen.getByRole("combobox"), "");
+  await user.selectOptions(screen.getByRole("combobox", { name: "Model for this chat" }), "");
   for (const checkbox of screen.getAllByRole("checkbox")) await user.click(checkbox);
   expect(useWorkOnStore.getState().targetFor("chat")).toEqual({
     folder: "/first",
@@ -97,10 +97,15 @@ it("applies local service choices to this conversation only", async () => {
 
 it("selects an offered mode when this computer cannot sandbox shell commands", async () => {
   render(<WorkOn />);
-  expect(screen.getByRole("button", { name: "Read only" })).toHaveAttribute("aria-pressed", "true");
+  const access = screen.getByRole("combobox", { name: "Folder access" });
+  expect(access).toHaveValue("read_only");
+  expect(access).toHaveAccessibleDescription(
+    "Agents read files here; nothing is written and no command runs.",
+  );
   await userEvent.click(screen.getByRole("button", { name: /Choose a folder/ }));
   expect(pick).toHaveBeenCalledWith("read_only", expect.any(Object));
-  await userEvent.click(screen.getByRole("button", { name: "Full access" }));
+  await userEvent.selectOptions(access, "full_access");
+  expect(access).toHaveAccessibleDescription("Commands run as you, and each one asks you first.");
   await userEvent.click(screen.getByRole("button", { name: /Choose a folder/ }));
   expect(pick).toHaveBeenLastCalledWith("full_access", expect.any(Object));
 });

@@ -1172,6 +1172,7 @@
         "offline": "Dieser Computer ist gerade nicht verbunden; ein Lauf wartet, bis er zurück ist.",
         "folders": "Ordner",
         "pick": "Ordner wählen…",
+        "folderAccess": "Ordnerzugriff",
         "pickFailed": "Dieser Ordner konnte nicht hinzugefügt werden.",
         "revoke": "Agenten nicht mehr in {folder} arbeiten lassen",
         "mode": {

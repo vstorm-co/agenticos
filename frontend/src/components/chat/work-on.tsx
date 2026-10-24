@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Cloud, FolderOpen, Laptop, X } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { ChevronDown, Cloud, FolderOpen, Laptop, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -14,6 +14,7 @@ import { isDesktopShell } from "@/lib/desktop/shell";
 import { useShell } from "@/hooks/use-shell";
 import type { LocalMode } from "@/lib/desktop/commands";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { useConversationStore } from "@/stores";
 import { useWorkOnStore } from "@/stores/work-on-store";
 
@@ -37,6 +38,7 @@ export function WorkOn() {
 
 function ComputerWorkOn() {
   const t = useTranslations("chat.controls.workOn");
+  const modeHintId = useId();
   const { data: device } = useDeviceStatus();
   const { link } = useDeviceLink();
   const { state, pick, revoke } = useLocalFolders();
@@ -80,7 +82,11 @@ function ComputerWorkOn() {
   return (
     <div className="border-foreground/10 mt-4 border-t pt-4">
       <p className="text-muted-foreground mb-3 text-xs leading-relaxed">{t("title")}</p>
-      <div role="radiogroup" aria-label={t("title")} className="grid grid-cols-2 gap-1">
+      <div
+        role="radiogroup"
+        aria-label={t("title")}
+        className="bg-foreground/[0.04] grid grid-cols-2 gap-1 rounded-xl p-1"
+      >
         {(
           [
             { key: "cloud", icon: Cloud, active: !onComputer, onClick: chooseCloud },
@@ -101,14 +107,14 @@ function ComputerWorkOn() {
             aria-busy={key === "computer" && link.isPending}
             onClick={onClick}
             className={cn(
-              "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors",
+              "focus-visible:ring-ring inline-flex min-h-9 min-w-0 items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none",
               active
-                ? "bg-foreground/[0.06] text-foreground"
+                ? "bg-background text-foreground shadow-sm"
                 : "text-foreground/70 hover:bg-foreground/[0.04]",
               "disabled:cursor-wait disabled:opacity-45",
             )}
           >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
+            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
             {t(key === "computer" && link.isPending ? "linking" : key)}
           </button>
         ))}
@@ -237,26 +243,39 @@ function ComputerWorkOn() {
                 ))}
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-1 pt-1">
-            {modes.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={selectedMode === mode}
-                onClick={() => setNewMode(mode)}
-                title={t(`modeHint.${mode}`)}
-                className={cn(
-                  "rounded-lg px-2 py-1 text-xs transition-colors",
-                  selectedMode === mode
-                    ? "bg-foreground/[0.06] text-foreground"
-                    : "text-muted-foreground hover:bg-foreground/[0.04]",
-                )}
-              >
-                {t(`mode.${mode}`)}
-              </button>
-            ))}
-            <button
+          <div className="border-foreground/10 space-y-3 border-t pt-3">
+            <label className="block space-y-1.5">
+              <span className="text-muted-foreground text-xs font-medium">{t("folderAccess")}</span>
+              <span className="relative block">
+                <select
+                  value={selectedMode}
+                  disabled={modes.length === 0 || pick.isPending}
+                  onChange={(event) => {
+                    const mode = modes.find((mode) => mode === event.target.value);
+                    if (mode) setNewMode(mode);
+                  }}
+                  className="border-foreground/12 bg-background text-foreground focus-visible:ring-ring h-9 w-full appearance-none rounded-lg border pr-8 pl-3 text-xs focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                  aria-describedby={modeHintId}
+                >
+                  {modes.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {t(`mode.${mode}`)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-3.5 w-3.5 -translate-y-1/2"
+                  aria-hidden
+                />
+              </span>
+            </label>
+            <p id={modeHintId} className="text-muted-foreground text-xs leading-relaxed">
+              {t(`modeHint.${selectedMode}`)}
+            </p>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               disabled={pick.isPending || modes.length === 0}
               onClick={() =>
                 pick.mutate(selectedMode, {
@@ -270,11 +289,11 @@ function ComputerWorkOn() {
                   },
                 })
               }
-              className="text-foreground hover:bg-foreground/[0.04] ml-auto inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium"
+              className="w-full justify-center"
             >
-              <FolderOpen className="h-3.5 w-3.5" aria-hidden />
+              <FolderOpen aria-hidden />
               {t("pick")}
-            </button>
+            </Button>
           </div>
         </div>
       )}

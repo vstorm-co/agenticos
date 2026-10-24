@@ -1172,6 +1172,7 @@
         "offline": "This computer is not connected right now; a run waits for it to come back.",
         "folders": "Folders",
         "pick": "Choose a folder…",
+        "folderAccess": "Folder access",
         "pickFailed": "That folder could not be added.",
         "revoke": "Stop letting agents work in {folder}",
         "mode": {

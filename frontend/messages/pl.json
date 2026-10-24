@@ -1172,6 +1172,7 @@
         "offline": "Ten komputer nie jest teraz połączony; uruchomienie poczeka, aż wróci.",
         "folders": "Foldery",
         "pick": "Wybierz folder…",
+        "folderAccess": "Dostęp do folderu",
         "pickFailed": "Nie udało się dodać tego folderu.",
         "revoke": "Zabroń agentom pracy w {folder}",
         "mode": {

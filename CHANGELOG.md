@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Clearer desktop work location controls.** Cloud and This computer share a
+  segmented selector; folder access has a labelled dropdown and explanation,
+  followed by a full-width folder picker.
+
 - **Switch servers from the console sidebar.** Change server opens the native
   connection form directly, including when the sidebar is collapsed.
 - **Link a desktop from the chat.** Choosing This computer under Work on now
