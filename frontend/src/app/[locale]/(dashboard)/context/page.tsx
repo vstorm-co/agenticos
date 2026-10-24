@@ -106,7 +106,12 @@ export default function ContextPage() {
 
   const [selected, setSelected] = useState<ContextFileSummary | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ContextFileSummary | null>(null);
-  const { file, save } = useContextFile(selected?.id ?? null);
+  const {
+    file,
+    error: fileError,
+    refetch: refetchFile,
+    save,
+  } = useContextFile(selected?.id ?? null);
   const [createOpen, setCreateOpen] = useState(false);
   // Files somebody dropped, oldest first. Each one opens the create dialog
   // prefilled and is taken off the queue once it has been created, because the
@@ -343,7 +348,12 @@ export default function ContextPage() {
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
               <DialogDescription>{t("nameHowItIsReferred")}</DialogDescription>
             </DialogHeader>
-            {file === undefined ? (
+            {fileError ? (
+              <ErrorState
+                description={getErrorMessage(fileError, tErrors)}
+                cta={{ label: tc("retry"), onClick: () => void refetchFile() }}
+              />
+            ) : file === undefined ? (
               <LoadingState variant="skeleton-panel" rows={2} />
             ) : (
               <ContextEditor

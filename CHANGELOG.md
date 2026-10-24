@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show failed context-detail, retention-policy, environment and watch reads
+  with retry controls instead of endless loading or misleading empty states.
+
 - Serialize first-account bootstrap across password and OAuth signup so only
   one account gets deployment-administrator authority. Grant that authority
   to the first OAuth account and recheck the signup policy after contention.

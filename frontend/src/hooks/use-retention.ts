@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 import {
   getRetention,
@@ -14,6 +14,8 @@ import { qk } from "@/lib/query-keys";
 interface UseRetentionResult {
   policy: RetentionPolicy | undefined;
   isLoading: boolean;
+  error: Error | null;
+  refetch: UseQueryResult<RetentionPolicy>["refetch"];
   isSaving: boolean;
   save: (days: RetentionDays) => Promise<void>;
 }
@@ -29,7 +31,7 @@ export function useRetention(orgId: string): UseRetentionResult {
   const queryClient = useQueryClient();
   const queryKey = qk.organizations.retention(orgId);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () => getRetention(orgId),
   });
@@ -49,5 +51,5 @@ export function useRetention(orgId: string): UseRetentionResult {
     [mutation],
   );
 
-  return { policy: data, isLoading, isSaving: mutation.isPending, save };
+  return { policy: data, isLoading, error, refetch, isSaving: mutation.isPending, save };
 }

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -55,4 +55,15 @@ describe("useWatchPresets", () => {
     expect(result.current).toEqual([]);
     await waitFor(() => expect(result.current).toEqual([{ key: "github-reviews" }]));
   });
+});
+
+it("keeps a failed list distinguishable from an empty list and retries", async () => {
+  const error = new Error("unavailable");
+  api.listWatches.mockRejectedValueOnce(error).mockResolvedValue([]);
+  const { result } = renderHook(() => useWatches(), { wrapper });
+  await waitFor(() => expect(result.current.error).toBe(error));
+  await act(async () => {
+    await result.current.refetch();
+  });
+  await waitFor(() => expect(result.current.error).toBeNull());
 });

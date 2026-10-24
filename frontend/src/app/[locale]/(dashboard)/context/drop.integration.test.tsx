@@ -175,3 +175,33 @@ describe("dropping files on the context page", () => {
     expect(screen.queryByDisplayValue("one")).toBeNull();
   });
 });
+
+it("recovers the context editor when its detail query fails", async () => {
+  const summary = {
+    id: "c1",
+    name: "refunds",
+    description: null,
+    format: "md",
+    mode: "inject",
+    enabled: true,
+    visibility: "org",
+    size_bytes: 10,
+    excerpt: "",
+  };
+  let failed = true;
+  get.mockImplementation(async (path: string) => {
+    if (path.startsWith("/context?")) return { items: [summary], total: 1 };
+    if (path === "/context/c1") {
+      if (failed) throw new Error("unavailable");
+      return { ...summary, content: "# Refunds", owner_user_id: null };
+    }
+    return { items: [], total: 0 };
+  });
+  await mount();
+  await userEvent.click(await screen.findByText("refunds"));
+  const retry = await screen.findByRole("button", { name: "Retry" });
+  failed = false;
+  await userEvent.click(retry);
+  expect(await screen.findByLabelText(/source/i)).toHaveValue("# Refunds");
+  expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+});
