@@ -643,6 +643,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bound table export pages by decoded JSON bytes, serialize exports per organization
+  and rate-limit their starts. Redact echoed MCP credentials, share one image-attachment
+  byte ceiling and normalize workflow filenames before persistence.
+- Preserve current app-admin authority for unattended workflow admissions; reject
+  JSONB-incompatible run inputs, keep missing join keys unmatched and support CSV
+  fields above Python's implicit parser limit with typed parsing failures.
+
 - Preserve numeric workflow settings, including exponent notation and sub-minute
   deadlines; validate field limits before saving and support keyboard submission.
 

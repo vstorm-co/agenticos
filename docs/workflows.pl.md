@@ -1,5 +1,5 @@
 ---
-source_sha: "47c7a245a893"
+source_sha: "8db3c8fd2dd9"
 ---
 
 # Workflows { #workflows }
@@ -900,6 +900,12 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
 - **Skróty należą do kanwy.** Działają, gdy fokus jest na kanwie, a kliknięcie w dowolnym
   jej miejscu — w krok, pustą kanwę, połączenie — go tam zatrzymuje. Fokus w ustawieniach kroku lub w wyborze kroków zostawia klawisze tamtym polom, więc kliknij kanwę, zanim
   ich użyjesz.
+
+Załączniki obrazów agenta mają wspólny limit 20 MB, sprawdzany przed odczytem
+każdego pliku, również dla powtórzonych referencji. Wyniki MCP usuwają nagłówki
+uwierzytelnienia i poświadczenia z tekstu oraz zagnieżdżonych danych. Nazwy plików
+są normalizowane przed zapisem, z zachowaniem rozszerzeń i limitu 255 znaków. Pola
+CSV mieszczą się w limicie bajtów kroku, do 50 MB; odmowy parsera mają jawny typ.
 
 ## Podsumowanie { #recap }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "52b4f8f96f1f"
+source_sha: "9a3d4cbc2dcf"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -316,6 +316,12 @@ zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywra
 razem z jej wartościami.
 
 ### Import i eksport { #import-and-export }
+
+Eksport odczytuje najwyżej 4 MiB rozwiniętego JSON rekordów na stronę (albo jeden
+rekord), maksymalnie 500 rekordów naraz. Organizacja może przesyłać jeden eksport
+jednocześnie i rozpoczynać dziesięć na minutę. Kolejne żądania zwracają `429` z
+`Retry-After`; ponów je po tym czasie. Bez Redis limit rozpoczęć zachowuje minimum
+w każdym procesie; baza nadal wymusza jeden eksport na organizację naraz.
 
 **Export**, w menu **…** obok **Share**, zapisuje to, co pokazuje strona, jako plik CSV: rekordy pasujące do filtrów
 i wyszukiwania, w kolejności siatki, w jej widocznych kolumnach. `POST

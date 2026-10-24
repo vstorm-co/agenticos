@@ -108,3 +108,23 @@ def test_a_filter_that_stopped_fitting_since_publish_validated_it_is_refused() -
     assert _checked_filters([score], [RecordFilter(column_id=score.id, op="gt", value=7)]) == [
         {"column_id": str(score.id), "op": "gt", "value": 7}
     ]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("active", [None, False])
+async def test_background_authority_refuses_a_user_lost_after_membership_read(monkeypatch, active):
+    import importlib
+    from types import SimpleNamespace
+
+    module = importlib.import_module("app.services.virtual_tables.triggers")
+    monkeypatch.setattr(
+        module.member_repo, "get_active", AsyncMock(return_value=SimpleNamespace(role="viewer"))
+    )
+    user = None if active is None else SimpleNamespace(is_active=False, is_app_admin=True)
+    monkeypatch.setattr(module.user_repo, "get_by_id", AsyncMock(return_value=user))
+    exposure = SimpleNamespace(
+        execution_principal_user_id=uuid.uuid4(), organization_id=uuid.uuid4()
+    )
+    assert (
+        await module.TableTriggerConsumer(MagicMock())._fire_context(exposure, MagicMock()) is None
+    )

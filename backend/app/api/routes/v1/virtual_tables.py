@@ -377,7 +377,17 @@ async def create_records(
     return await service.create_records(ctx, table_id, data)
 
 
-@router.post("/{table_id}/records/export", responses={**_REFUSALS, **_TOO_LARGE})
+@router.post(
+    "/{table_id}/records/export",
+    responses={
+        **_REFUSALS,
+        **_TOO_LARGE,
+        429: {
+            "model": ErrorEnvelope,
+            "description": "An export is running or its rate limit is spent; see Retry-After",
+        },
+    },
+)
 async def export_records(
     table_id: UUID, query: RecordExportQuery, service: StreamingVirtualTableSvc, ctx: Auth
 ) -> Any:
@@ -387,6 +397,8 @@ async def export_records(
     `true` or `false`, and an empty cell as nothing. A text cell a spreadsheet would
     read as a formula is written with a leading `'`. More than 100,000 matching
     records are refused with `EXPORT_TOO_LARGE` (413): narrow them with a filter.
+    Reads are bounded by decoded JSON bytes. One export per organization may
+    stream at once, with ten starts per minute; other starts receive 429 and Retry-After.
     """
     export = await service.export_records(ctx, table_id, query)
     return StreamingResponse(

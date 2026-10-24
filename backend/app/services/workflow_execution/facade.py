@@ -115,6 +115,19 @@ def causes_public(run: WorkflowRun) -> bool:
     return run.public_origin or run.triggered_by in dispatcher.PUBLIC_TRIGGERS
 
 
+def _check_jsonb_strings(value: object) -> None:
+    if isinstance(value, str):
+        if "\x00" in value or any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+            raise ValueError("Input strings must be representable in PostgreSQL JSONB")
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            _check_jsonb_strings(key)
+            _check_jsonb_strings(item)
+    elif isinstance(value, list | tuple):
+        for item in value:
+            _check_jsonb_strings(item)
+
+
 def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
     """`run_input` as a run stores it, refused when it is over the size limit.
 
@@ -123,7 +136,17 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
             compact JSON.
     """
     payload = run_input or {}
-    size = len(json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode())
+    try:
+        _check_jsonb_strings(payload)
+        size = len(
+            json.dumps(payload, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+        )
+    except (ValueError, TypeError, RecursionError) as exc:
+        raise WorkflowRunInputInvalidError(
+            problems=[
+                {"field": "input", "message": "Use valid JSON without NUL or unpaired surrogates"}
+            ]
+        ) from exc
     if size > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:
         raise WorkflowRunInputTooLargeError(limit=settings.WORKFLOW_RUN_MAX_INPUT_BYTES, size=size)
     return payload

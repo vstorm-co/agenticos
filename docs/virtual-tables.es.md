@@ -1,5 +1,5 @@
 ---
-source_sha: "52b4f8f96f1f"
+source_sha: "9a3d4cbc2dcf"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -318,6 +318,13 @@ En **Columns**, **Required** hace que una columna necesite un valor, y una colum
 archivada pasa a **Archived columns**, donde **Restore** la devuelve con sus valores.
 
 ### Importar y exportar { #import-and-export }
+
+Las exportaciones leen como máximo 4 MiB de JSON descomprimido por página (o un
+registro), con hasta 500 registros por página. Una organización puede transmitir
+una exportación a la vez e iniciar diez por minuto. Las solicitudes adicionales
+reciben `429` con `Retry-After`; vuelve a intentarlo después. El límite de inicios
+se mantiene por proceso sin Redis; la base de datos sigue imponiendo una
+exportación simultánea por organización.
 
 **Export**, bajo **…** junto a **Share**, guarda lo que muestra la página como un archivo CSV: los registros que
 coinciden con los filtros y la búsqueda, en el orden de la cuadrícula, con sus columnas

@@ -1,5 +1,5 @@
 ---
-source_sha: "47c7a245a893"
+source_sha: "8db3c8fd2dd9"
 ---
 
 # Workflows { #workflows }
@@ -922,6 +922,13 @@ Copiar y pegar tienen tres límites:
   hacer clic en cualquier parte de él — un paso, el lienzo vacío, una conexión — lo
   mantiene ahí. Con el foco en los ajustes de un paso o en el selector de pasos, las teclas son de
   esos campos, así que haz clic en el lienzo antes de pulsarlas.
+
+Los adjuntos de imagen de un agente comparten un límite de 20 MB, comprobado
+antes de cargar cada archivo, incluidas referencias repetidas. Los resultados MCP
+eliminan cabeceras de autenticación y credenciales del texto y de los datos
+anidados. Los nombres se normalizan antes de guardarlos, conservando extensiones
+dentro de 255 caracteres. Los campos CSV pueden usar el límite del paso, hasta
+50 MB; los rechazos del analizador tienen un tipo explícito.
 
 ## Resumen { #recap }
 

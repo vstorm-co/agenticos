@@ -1028,3 +1028,30 @@ async def test_call_admission_refuses_a_parent_that_disappeared_or_stopped(paren
             ),
         )
     admit.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"value": "\x00"},
+        {"nested": [{"\x00key": "value"}]},
+        {"value": "\ud800"},
+        {"value": float("nan")},
+        {"value": float("inf")},
+        {"value": object()},
+    ],
+)
+def test_input_rejects_values_postgres_jsonb_cannot_store(payload):
+    from app.services.workflow_execution.facade import _checked_input
+
+    with pytest.raises(WorkflowRunInputInvalidError) as refused:
+        _checked_input(payload)
+    assert refused.value.status_code == 422
+
+
+def test_input_accepts_literal_escape_text_and_multilingual_strings():
+    from app.services.workflow_execution.facade import _checked_input
+
+    payload = {"value": "literal \\u0000 and 日本語", "tuple": (True, 42)}
+    assert _checked_input(payload) == payload

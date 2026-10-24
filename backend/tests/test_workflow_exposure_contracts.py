@@ -86,3 +86,21 @@ async def test_a_runs_files_are_listed_from_what_the_query_answers():
     assert await workflow_file_repo.list_for_run(
         db, workflow_run_id=uuid.uuid4(), organization_id=uuid.uuid4()
     ) == [row]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("active", [None, False])
+async def test_background_authority_refuses_a_user_lost_after_membership_read(monkeypatch, active):
+    import importlib
+    from types import SimpleNamespace
+
+    module = importlib.import_module("app.services.workflow_exposure")
+    monkeypatch.setattr(
+        module.member_repo, "get_active", AsyncMock(return_value=SimpleNamespace(role="viewer"))
+    )
+    user = None if active is None else SimpleNamespace(is_active=False, is_app_admin=True)
+    monkeypatch.setattr(module.user_repo, "get_by_id", AsyncMock(return_value=user))
+    exposure = SimpleNamespace(
+        execution_principal_user_id=uuid.uuid4(), organization_id=uuid.uuid4()
+    )
+    assert await module.WorkflowExposureService(MagicMock())._fire_context(exposure) is None

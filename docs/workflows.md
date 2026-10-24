@@ -871,6 +871,12 @@ Copy and paste have three limits:
   clicking anywhere in it — a step, empty canvas, a connection — keeps it there. Focus in a step's settings or the step picker keeps the keys for those fields, so click
   the canvas before pressing them.
 
+Agent image attachments share a 20 MB byte ceiling, checked before each file
+is loaded, including repeated references. MCP results redact resolved authentication
+headers and credentials from text and nested data. Workflow filenames are normalized
+centrally before storage, preserving extensions within 255 characters. CSV fields
+can use the step’s configured file byte limit, up to 50 MB; parser refusals are typed.
+
 ## Recap
 
 - A workflow is a **draft you edit and a published, immutable version that

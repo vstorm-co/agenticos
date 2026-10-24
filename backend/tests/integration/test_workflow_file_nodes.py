@@ -921,3 +921,51 @@ async def test_an_organization_key_cannot_import_a_person_started_runs_file(
     async with source.factory() as db:
         with pytest.raises(GraphValidationError, match="not accessible"):
             await validate_graph(db, ctx, graph)
+
+
+@pytest.mark.parametrize("filename", ["x" * 251 + ".csv"])
+async def test_file_nodes_normalize_names_before_postgres(engine, storage, filename):
+    run, seeded = await _run_on(
+        engine,
+        storage,
+        _one_step("convert.csv_to_json"),
+        b"a\n1\n",
+        content_type="text/csv",
+        filename=filename,
+    )
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    async with seeded.factory() as db:
+        saved = await db.get(WorkflowFile, uuid.UUID(run.output["structured"]["file"]["file_id"]))
+        assert saved is not None and saved.filename is not None
+        assert len(saved.filename) <= 255 and "\x00" not in saved.filename
+        assert saved.filename.endswith(".json")
+
+
+async def test_explicit_file_names_with_nul_are_normalized_before_storage(engine, storage):
+    from app.db.models.workflow_run import NodeRun
+    from app.services.workflow_execution import context
+    from app.workflows import files
+
+    step = _node("convert.text_to_file", {"filename": "valid.txt"})
+    seeded = await seed_run(engine, _chain(step, bindings=[_literal(step, "text", "hello")]))
+    async with seeded.factory() as db:
+        node_run_id = (
+            (await db.execute(select(NodeRun.id).where(NodeRun.workflow_run_id == seeded.run.id)))
+            .scalars()
+            .first()
+        )
+        assert node_run_id is not None
+    dispatch = context.DispatchContext(
+        organization_id=seeded.org.id,
+        workflow_run_id=seeded.run.id,
+        node_run_id=node_run_id,
+        node_instance_id=step.id,
+        attempt_no=1,
+        auth=seeded.ctx,
+        resumed_agent_run_id=None,
+    )
+    with context.dispatching_as(dispatch):
+        ref = await files.save(b"hello", content_type="text/plain", filename="name\x00.txt")
+    async with seeded.factory() as db:
+        saved = await db.get(WorkflowFile, ref.file_id)
+        assert saved is not None and saved.filename == "name.txt"

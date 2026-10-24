@@ -2026,3 +2026,27 @@ class TestGmail:
         with patch.object(service.runs, "admit_pinned", AsyncMock(side_effect=too_large)):
             assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
         assert await _runs(db) == []
+
+
+@pytest.mark.security
+async def test_background_exposure_rechecks_current_app_admin_authority(db, tenant):
+    owner, org, workflow = tenant
+    owner.is_app_admin = True
+    member = (
+        await db.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == org.id, OrganizationMember.user_id == owner.id
+            )
+        )
+    ).scalar_one()
+    member.role = "viewer"
+    admin = AuthContext(user_id=owner.id, organization_id=org.id, role="viewer", is_app_admin=True)
+    exposure_id = await _schedule(db, admin, workflow)
+    exposure = await db.get(WorkflowExposure, exposure_id)
+    assert exposure is not None
+    service = WorkflowExposureService(db)
+    allowed = await service._fire_context(exposure)
+    assert allowed is not None and allowed[0].is_app_admin
+    owner.is_app_admin = False
+    await db.flush()
+    assert await service._fire_context(exposure) is None

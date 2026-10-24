@@ -1284,3 +1284,39 @@ class TestChangesAndDeletions:
         assert (
             trigger.watched_column_ids == revision.watched_column_ids == [str(world.column("VIP"))]
         )
+
+
+@pytest.mark.security
+async def test_table_trigger_rechecks_current_app_admin_authority(world):
+    workflow = await world.workflow()
+    async with world.factory() as db:
+        user = await db.get(User, world.owner.id)
+        assert user is not None
+        user.is_app_admin = True
+        await db.execute(
+            update(OrganizationMember)
+            .where(
+                OrganizationMember.organization_id == world.org.id,
+                OrganizationMember.user_id == user.id,
+            )
+            .values(role="viewer")
+        )
+        await db.commit()
+    admin = AuthContext(
+        user_id=world.owner.id, organization_id=world.org.id, role="viewer", is_app_admin=True
+    )
+    await world.trigger(workflow, ctx=admin)
+    trigger = await world.trigger_of(workflow)
+    async with world.factory() as db:
+        table = await triggers.virtual_table_repo.get_table(
+            db, world.leads.id, organization_id=world.org.id
+        )
+        assert table is not None
+        consumer = TableTriggerConsumer(db)
+        allowed = await consumer._fire_context(trigger, table)
+        assert allowed is not None and allowed[0].is_app_admin
+        user = await db.get(User, world.owner.id)
+        assert user is not None
+        user.is_app_admin = False
+        await db.flush()
+        assert await consumer._fire_context(trigger, table) is None

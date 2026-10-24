@@ -46,6 +46,7 @@ from app.db.models.workflow_exposure import (
 from app.db.models.workflow_run import WorkflowRunStatus, WorkflowRunTrigger
 from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import member_repo
+from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_exposure as workflow_exposure_repo
 from app.repositories import workflow_run as workflow_run_repo
@@ -1156,12 +1157,16 @@ class WorkflowExposureService:
         )
         if membership is None:
             return None
+        user = await user_repo.get_by_id(self.db, exposure.execution_principal_user_id)
+        if user is None or not user.is_active:
+            return None
         # Only to admit the run: each step's own context is built when it is
         # dispatched, from the principal the run row records.
         ctx = AuthContext(
             user_id=exposure.execution_principal_user_id,
             organization_id=exposure.organization_id,
             role=membership.role,
+            is_app_admin=user.is_app_admin,
         )
         workflow = await workflow_repo.get(
             self.db, exposure.workflow_id, organization_id=exposure.organization_id

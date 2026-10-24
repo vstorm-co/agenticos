@@ -45,6 +45,7 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunTrigger
 from app.repositories import member_repo, virtual_table_repo
+from app.repositories import user as user_repo
 from app.repositories import virtual_table_trigger as trigger_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
@@ -661,10 +662,14 @@ class TableTriggerConsumer:
         )
         if membership is None:
             return None
+        user = await user_repo.get_by_id(self.db, trigger.execution_principal_user_id)
+        if user is None or not user.is_active:
+            return None
         ctx = AuthContext(
             user_id=trigger.execution_principal_user_id,
             organization_id=trigger.organization_id,
             role=membership.role,
+            is_app_admin=user.is_app_admin,
         )
         workflow = await workflow_repo.get(
             self.db, trigger.workflow_id, organization_id=trigger.organization_id

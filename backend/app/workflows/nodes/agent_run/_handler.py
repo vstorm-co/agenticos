@@ -264,8 +264,9 @@ async def _images(refs: tuple[FileRef, ...]) -> list[BinaryContent] | Failed:
     step cannot show fails here rather than being dropped without a word.
     """
     images: list[BinaryContent] = []
+    remaining = MAX_ATTACHMENT_BYTES
     for ref in refs:
-        stored = await files.load(ref, max_bytes=MAX_ATTACHMENT_BYTES)
+        stored = await files.load(ref, max_bytes=remaining)
         if isinstance(stored, Failed):
             return stored
         if stored.content_type not in _IMAGE_TYPES:
@@ -275,6 +276,7 @@ async def _images(refs: tuple[FileRef, ...]) -> list[BinaryContent] | Failed:
                 "extract a document's text with an Extract text step first",
                 content_type=stored.content_type,
             )
+        remaining -= len(stored.data)
         images.append(BinaryContent(data=stored.data, media_type=stored.content_type))
     return images
 

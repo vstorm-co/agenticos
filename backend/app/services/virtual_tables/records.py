@@ -36,9 +36,11 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     ExportTooLargeError,
     NotFoundError,
+    RateLimitError,
 )
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, try_hold_name
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
 from app.repositories import virtual_table_repo
 from app.repositories import virtual_table_trigger as trigger_repo
@@ -64,6 +66,7 @@ from app.schemas.virtual_table import (
     RecordUpdate,
     RecordUpsert,
 )
+from app.services import rate_limit
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables import quotas
 from app.services.virtual_tables._base import Operations
@@ -312,6 +315,9 @@ def _search(columns: list[ColumnDef], term: str | None) -> SearchClause | None:
         options=tuple(entry for entry in options if entry[2]),
     )
 
+
+EXPORT_MAX_BYTES = 4 * 1024 * 1024
+"""Decoded JSON bytes per export page; row count alone cannot bound memory."""
 
 EXPORT_BATCH = 500
 """Records an export reads at a time while it writes the CSV."""
@@ -882,6 +888,24 @@ class RecordOperations(Operations):
                 details={"limit": MAX_COUNT},
             )
 
+        decision = await rate_limit.consume_with_local_floor(
+            surface="table_export",
+            caller=f"org:{ctx.organization_id}",
+            limit=rate_limit.Limit(attempts=10),
+        )
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many table exports. Wait and try again.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )
+        if not await try_hold_name(
+            self.db, LockScope.VIRTUAL_TABLE_EXPORT_PER_ORG, str(ctx.organization_id)
+        ):
+            raise RateLimitError(
+                message="This organization already has an export in progress.",
+                details={"retry_after_seconds": 1},
+            )
+
         async def lines() -> AsyncIterator[str]:
             # A byte-order mark, so a spreadsheet reads the file as UTF-8.
             yield "\ufeff" + _csv_line([_neutralized(column.label) for column in chosen])
@@ -896,15 +920,16 @@ class RecordOperations(Operations):
                     sort=sort,
                     skip=skip,
                     limit=EXPORT_BATCH,
+                    max_bytes=EXPORT_MAX_BYTES,
                 )
                 read = await read_through(
                     self.db, ctx, columns, [RecordRead.model_validate(row) for row in rows]
                 )
                 for record in read:
                     yield _csv_line([_export_cell(column, record) for column in chosen])
-                if len(rows) < EXPORT_BATCH:
+                if not rows:
                     return
-                skip += EXPORT_BATCH
+                skip += len(rows)
 
         name = re.sub(r"[^A-Za-z0-9._-]+", "-", table.name).strip("-") or "table"
         return RecordExport(filename=f"{name}.csv", lines=lines())

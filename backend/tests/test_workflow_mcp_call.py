@@ -65,7 +65,9 @@ class _Server:
             last_tools=[{"name": "find_lead"}, {"name": "create_lead"}],
         )
     )
-    headers: dict[str, str] | None = field(default_factory=lambda: {"Authorization": "Bearer t"})
+    headers: dict[str, str] | None = field(
+        default_factory=lambda: {"Authorization": "Bearer fixture-credential-9382"}
+    )
     tools: list[Tool] = field(
         default_factory=lambda: [
             _tool("find_lead", read_only=True),
@@ -160,7 +162,9 @@ async def test_a_read_only_tool_is_called_with_its_arguments_and_answers(server)
         text="Lead 42", structured={"id": 42}, is_error=False
     )
     assert server.calls == [("find_lead", {"email": "a@b.co"})]
-    assert server.opened_with == [("https://mcp.example.com/mcp", {"Authorization": "Bearer t"})]
+    assert server.opened_with == [
+        ("https://mcp.example.com/mcp", {"Authorization": "Bearer fixture-credential-9382"})
+    ]
     assert server.asked == []
 
 
@@ -424,3 +428,65 @@ async def test_an_ineligible_named_approver_fails_before_parking(
     result = await _run(_config("create_lead", approval=approval, approvers=(APPROVER,)))
     assert isinstance(result, Failed) and result.error.code == "APPROVER_UNAVAILABLE"
     assert server.asked == [] and server.notified == [] and server.calls == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("scheme", ["Bearer", "Basic", "X-Api-Key"])
+async def test_credentials_are_removed_from_text_and_nested_tool_data(server, scheme):
+    import base64
+    from urllib.parse import quote
+
+    token = "sensitive+/credential=42"
+    value = (
+        "Bearer " + token
+        if scheme == "Bearer"
+        else "Basic " + base64.b64encode(("user:" + token).encode()).decode()
+        if scheme == "Basic"
+        else token
+    )
+    server.headers = {"Authorization" if scheme != "X-Api-Key" else scheme: value}
+    server.result = CallToolResult(
+        content=[
+            TextContent(
+                type="text",
+                text=f"Header: {value}; token: {token}; encoded: {quote(token, safe='')}",
+            )
+        ],
+        structured_content={token: {"items": [value, token, True, 42, None]}},
+    )
+    result = await _run(_config())
+    assert isinstance(result, Completed)
+    serialized = result.output.model_dump_json()
+    assert token not in serialized and value not in serialized
+    assert quote(token, safe="") not in serialized
+    assert "[redacted]" in result.output.text
+    assert result.output.structured == {
+        "[redacted]": {"items": ["[redacted]", "[redacted]", True, 42, None]}
+    }
+
+
+@pytest.mark.parametrize("header", ["Basic not-base64!", "Basic /w==", "Basic dXNlcg==", "Bearer "])
+async def test_malformed_basic_headers_do_not_break_result_redaction(server, header):
+    server.headers = {"Authorization": header, "Empty": ""}
+    result = await _run(_config())
+    assert isinstance(result, Completed)
+
+
+async def test_non_json_structured_tool_data_is_a_typed_refusal(server):
+    server.result = CallToolResult(content=[], structured_content={"bad": object()})
+    result = await _run(_config())
+    assert isinstance(result, Failed) and result.error.code == "MCP_RESULT_INVALID"
+
+
+@pytest.mark.security
+async def test_a_credential_crossing_the_text_cap_is_scrubbed_before_truncation(
+    server, monkeypatch
+):
+    token = "credential-crossing-the-boundary"
+    server.headers = {"Authorization": "Bearer " + token}
+    monkeypatch.setattr(node, "MAX_TEXT", 40)
+    server.result = CallToolResult(content=[TextContent(type="text", text="x" * 12 + token)])
+    result = await _run(_config())
+    assert isinstance(result, Completed)
+    assert token[:-5] not in result.output.text
+    assert result.output.text == "x" * 12 + "[redacted]"

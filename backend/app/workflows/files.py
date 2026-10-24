@@ -171,6 +171,18 @@ async def open_stream(ref: FileRef) -> tuple[StoredFile, AsyncIterator[bytes]] |
     return StoredFile(data=b"", content_type=row.content_type, filename=row.filename), chunks
 
 
+def normalized_filename(filename: str | None) -> str | None:
+    """Keep a JSONB-safe basename and its extension inside the database's 255 characters."""
+    if filename is None:
+        return None
+    name = filename.replace("\x00", "").encode("utf-8", errors="replace").decode()
+    name = name.replace("\\", "/").rsplit("/", 1)[-1] or "file"
+    stem, dot, suffix = name.rpartition(".")
+    if dot and stem and len(suffix) < 32:
+        return stem[: 254 - len(suffix)] + dot + suffix
+    return name[:255]
+
+
 async def save(data: bytes, *, content_type: str, filename: str | None) -> FileRef:
     """Store `data` as a new file of this run, made by this step, and name it.
 
@@ -198,7 +210,7 @@ async def save(data: bytes, *, content_type: str, filename: str | None) -> FileR
                 storage_path=storage_path,
                 content_type=content_type,
                 byte_size=len(data),
-                filename=filename,
+                filename=normalized_filename(filename),
             )
     except BaseException:
         await delete_files_best_effort([storage_path])

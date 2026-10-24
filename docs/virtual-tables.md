@@ -301,6 +301,12 @@ it back with its values.
 
 ### Import and export { #import-and-export }
 
+Exports read at most 4 MiB of decoded record JSON per page (or one record),
+with at most 500 records per page. An organization can stream one export at a
+time and start ten per minute. Further requests return `429` with `Retry-After`;
+retry after that interval. Without Redis, the start-rate limit keeps a per-process
+floor; the database still enforces one concurrent export per organization.
+
 **Export**, under **…** beside **Share**, saves what the page shows as a CSV file: the records the filters and search
 match, in the grid's order, under its visible columns. `POST
 /tables/{id}/records/export` does the same for a caller, with the same filters,

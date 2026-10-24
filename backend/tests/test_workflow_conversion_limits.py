@@ -176,3 +176,41 @@ async def test_text_extraction_reports_a_pdf_character_limit_without_losing_its_
     )
     assert isinstance(result, Failed) and result.error.code == "TEXT_TOO_LONG"
     assert result.error.details["max_chars"] == 10
+
+
+def test_a_csv_field_larger_than_pythons_default_parser_ceiling_is_supported():
+    import json
+
+    from app.workflows.nodes.convert_csv_to_json._handler import _convert
+
+    value = "x" * 150_000
+    data, count = _convert(("field\n" + value + "\n").encode(), 200_000)
+    assert count == 1 and json.loads(data) == [{"field": value}]
+
+
+def test_csv_parser_errors_are_typed_refusals(monkeypatch):
+    def broken(_text):
+        raise _files.csv.Error("parser refused")
+
+    monkeypatch.setattr(_files.csv, "reader", broken)
+    with pytest.raises(_files.ParseError, match="parser could not"):
+        _files.csv_rows("field\nvalue\n")
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        (None, None),
+        (".txt", ".txt"),
+        ("stem." + "x" * 40, "stem." + "x" * 40),
+        ("path/name\x00.txt", "name.txt"),
+        ("\x00", "file"),
+        ("a" * 255 + ".json", "a" * 250 + ".json"),
+        ("a" * 260, "a" * 255),
+        ("name\ud800.txt", "name?.txt"),
+    ],
+)
+def test_every_workflow_file_name_fits_the_database(name, expected):
+    from app.workflows.files import normalized_filename
+
+    assert normalized_filename(name) == expected

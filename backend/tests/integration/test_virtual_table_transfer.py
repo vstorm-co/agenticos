@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import func, select
@@ -313,3 +314,46 @@ async def test_a_batch_record_whose_external_id_is_taken_in_a_race_is_reported_a
     )
 
     assert (result.created, [failure.code for failure in result.failed]) == (0, ["ALREADY_EXISTS"])
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("byte_budget", [1000, 5000])
+async def test_export_pages_are_bounded_by_uncompressed_json_bytes(db, monkeypatch, byte_budget):
+    service, ctx, table = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Large", columns=[column("Customer", "long_text")])
+    )
+    customer = cid(table, "Customer")
+    for _ in range(3):
+        await service.create_record(ctx, table.id, RecordCreate(values={customer: "x" * 4000}))
+    monkeypatch.setattr(records_module, "EXPORT_MAX_BYTES", byte_budget)
+    original = records_module.virtual_table_repo.list_records
+    page_sizes: list[int] = []
+
+    async def tracked(*args, **kwargs):
+        rows = await original(*args, **kwargs)
+        page_sizes.append(len(rows))
+        return rows
+
+    monkeypatch.setattr(records_module.virtual_table_repo, "list_records", tracked)
+    result = await _csv(service, ctx, table)
+    assert len(result.splitlines()) == 4
+    assert page_sizes == [1, 1, 1, 0]
+
+
+@pytest.mark.security
+async def test_export_refuses_rate_and_concurrency_limits_before_streaming(db, monkeypatch):
+    from app.core.exceptions import RateLimitError
+    from app.services import rate_limit
+
+    service, ctx, table = await _setup(db)
+    consume = AsyncMock(return_value=rate_limit.Decision(False, 37))
+    monkeypatch.setattr(records_module.rate_limit, "consume_with_local_floor", consume)
+    with pytest.raises(RateLimitError) as refused:
+        await service.export_records(ctx, table.id, RecordExportQuery())
+    assert refused.value.details["retry_after_seconds"] == 37
+    consume.return_value = rate_limit.Decision(True, 0)
+    monkeypatch.setattr(records_module, "try_hold_name", AsyncMock(return_value=False))
+    with pytest.raises(RateLimitError) as busy:
+        await service.export_records(ctx, table.id, RecordExportQuery())
+    assert busy.value.details["retry_after_seconds"] == 1

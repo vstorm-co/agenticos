@@ -30,7 +30,7 @@ vi.mock("@/hooks/use-memory", () => ({
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
   // The tables panel lists the organization's tables; `tables-section` covers it.
-  useTables: () => ({
+  useAllTables: () => ({
     tables: [{ id: "t-1", name: "Leads", description: null }],
     isLoading: false,
   }),

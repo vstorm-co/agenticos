@@ -1,5 +1,5 @@
 ---
-source_sha: "47c7a245a893"
+source_sha: "8db3c8fd2dd9"
 ---
 
 # Workflows { #workflows }
@@ -978,6 +978,13 @@ Kopieren und Einfügen haben drei Grenzen:
   Zeichenfläche liegt, und ein Klick irgendwo darin — auf einen Schritt, die leere
   Fläche, eine Verbindung — hält ihn dort. Liegt der Fokus in den Einstellungen eines Schritts oder in der Schrittauswahl, bleiben die Tasten diesen Feldern, klicken Sie also die
   Zeichenfläche an, bevor Sie sie drücken.
+
+Bildanhänge eines Agenten teilen sich ein Limit von 20 MB, geprüft vor jedem
+Dateizugriff, auch bei wiederholten Referenzen. MCP-Ergebnisse entfernen
+Authentifizierungsheader und Zugangsdaten aus Text und verschachtelten Daten.
+Dateinamen werden vor dem Speichern auf höchstens 255 Zeichen normalisiert,
+Erweiterungen bleiben erhalten. CSV-Felder können das konfigurierte Dateilimit
+bis 50 MB nutzen; Parserablehnungen haben einen definierten Fehlertyp.
 
 ## Zusammenfassung { #recap }
 

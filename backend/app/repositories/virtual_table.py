@@ -771,6 +771,7 @@ async def list_records(
     skip: int,
     limit: int,
     search: SearchClause | None = None,
+    max_bytes: int | None = None,
 ) -> list[VirtualTableRecord]:
     """A page of records, in the total order of :func:`_order`."""
     query = (
@@ -780,6 +781,32 @@ async def list_records(
         .offset(skip)
         .limit(limit)
     )
+    if max_bytes is not None:
+        # Text bytes bound the decoded JSON, unlike pg_column_size on compressed
+        # TOAST values. Only IDs, positions and sizes are buffered in this page.
+        page = (
+            select(
+                VirtualTableRecord.id,
+                func.row_number().over(order_by=_order(sort)).label("position"),
+                (func.octet_length(cast(VirtualTableRecord.values, Text)) + 256).label("bytes"),
+            )
+            .where(_matching(table_id, organization_id, filters, search))
+            .order_by(*_order(sort))
+            .offset(skip)
+            .limit(limit)
+            .cte("export_page")
+        )
+        bounded = select(
+            page.c.id,
+            page.c.position,
+            func.sum(page.c.bytes).over(order_by=page.c.position).label("total_bytes"),
+        ).subquery()
+        query = (
+            select(VirtualTableRecord)
+            .join(bounded, bounded.c.id == VirtualTableRecord.id)
+            .where(or_(bounded.c.total_bytes <= max_bytes, bounded.c.position == skip + 1))
+            .order_by(bounded.c.position)
+        )
     result = await db.execute(query)
     return list(result.scalars().all())
 

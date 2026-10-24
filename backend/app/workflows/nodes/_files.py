@@ -15,6 +15,11 @@ JSON = "application/json"
 TEXT = "text/plain"
 
 
+# csv's process-global parser setting must not be temporarily changed around
+# concurrent conversions. This is the largest supported input; each step checks
+# its own byte ceiling before parsing.
+csv.field_size_limit(50_000_000)
+
 MAX_CSV_ROWS = 10_000
 MAX_CSV_COLUMNS = 1_000
 MAX_CSV_CELLS = 1_000_000
@@ -32,6 +37,13 @@ def utf8(data: bytes) -> str:
 
 
 def csv_rows(text: str) -> tuple[dict[str, str], ...]:
+    try:
+        return _csv_rows(text)
+    except csv.Error as exc:
+        raise ParseError("The CSV parser could not read this file") from exc
+
+
+def _csv_rows(text: str) -> tuple[dict[str, str], ...]:
     """Header-keyed rows, refused when a row has more or fewer fields than the header."""
     reader = csv.reader(io.StringIO(text))
     try:

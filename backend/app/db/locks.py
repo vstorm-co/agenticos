@@ -85,6 +85,8 @@ class LockScope(IntEnum):
     WORKFLOW_RUN_CHAIN = 16
     #: Record writes and their retained copies share one per-organization byte ceiling.
     VIRTUAL_TABLE_STORAGE_PER_ORG = 17
+    #: One streaming table export per organization, held until its response ends.
+    VIRTUAL_TABLE_EXPORT_PER_ORG = 18
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.

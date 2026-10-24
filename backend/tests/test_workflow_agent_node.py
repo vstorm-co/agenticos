@@ -334,3 +334,26 @@ async def test_a_catalog_agent_is_bounded_by_the_workflows_remaining_funds(runne
         )
     assert isinstance(result, Completed)
     assert runner.execute.await_args.kwargs["run_limit_usd"] == Decimal("0.125")
+
+
+@pytest.mark.security
+async def test_attachment_list_has_one_byte_budget_even_for_repeated_refs(monkeypatch):
+    from app.workflows import files
+    from app.workflows.contracts.io import FileRef
+
+    monkeypatch.setattr(agent_node, "MAX_ATTACHMENT_BYTES", 6)
+    reads: list[int] = []
+
+    async def load(_ref: FileRef, *, max_bytes: int):
+        if max_bytes < 4:
+            return files.failed("FILE_TOO_LARGE", "Past the remaining attachment budget")
+        reads.append(max_bytes)
+        return files.StoredFile(data=b"1234", content_type="image/png", filename=None)
+
+    loader = AsyncMock(side_effect=load)
+    monkeypatch.setattr(files, "load", loader)
+    ref = FileRef(file_id=uuid.uuid4(), content_type="image/png", byte_size=1)
+    result = await agent_node._images((ref, ref))
+    assert isinstance(result, Failed) and result.error.code == "FILE_TOO_LARGE"
+    assert reads == [6]
+    assert [call.kwargs["max_bytes"] for call in loader.call_args_list] == [6, 2]

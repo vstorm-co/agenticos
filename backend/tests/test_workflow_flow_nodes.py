@@ -121,3 +121,13 @@ class TestCombine:
         assert isinstance(result, Failed) and result.error.code == "COMBINE_NEEDS_OBJECTS"
         with pytest.raises(ValidationError, match="the field to match by"):
             DataCombineConfig(mode="by_key")
+
+
+async def test_a_missing_join_key_does_not_match_an_explicit_null():
+    result = await combine(
+        DataCombineConfig(mode="by_key", key="id"),
+        DataCombineInput(
+            first=[{"name": "missing"}, {"id": None}], second=[{"id": None, "matched": True}]
+        ),
+    )
+    assert _output(result)["items"] == [{"name": "missing"}, {"id": None, "matched": True}]

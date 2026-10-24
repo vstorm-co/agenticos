@@ -1,5 +1,5 @@
 ---
-source_sha: "52b4f8f96f1f"
+source_sha: "9a3d4cbc2dcf"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -340,6 +340,13 @@ wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
 zurückbringt.
 
 ### Import und Export { #import-and-export }
+
+Exporte lesen höchstens 4 MiB des entpackten Datensatz-JSON pro Seite (oder
+einen Datensatz), mit maximal 500 Datensätzen pro Seite. Eine Organisation kann
+einen Export gleichzeitig übertragen und zehn pro Minute starten. Weitere
+Anfragen erhalten `429` mit `Retry-After`; danach erneut versuchen. Die Startbegrenzung
+bleibt bei ausgefallenem Redis pro Prozess erhalten; die Datenbank erzwingt
+weiterhin einen gleichzeitigen Export pro Organisation.
 
 **Export**, unter **…** neben **Share**, speichert, was die Seite zeigt, als CSV-Datei: die Datensätze, die Filter und
 Suche treffen, in der Reihenfolge des Rasters, unter seinen sichtbaren Spalten. `POST

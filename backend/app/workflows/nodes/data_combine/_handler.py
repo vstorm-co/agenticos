@@ -76,5 +76,8 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         items = [{**one, **other} for one, other in zip(left, right, strict=False)]
     else:
         by_key = {other.get(combine.key): other for other in right if combine.key in other}
-        items = [{**one, **by_key.get(one.get(combine.key), {})} for one in left]
+        items = [
+            {**one, **by_key.get(one[combine.key], {})} if combine.key in one else one
+            for one in left
+        ]
     return Completed[DataCombineOutput](output=DataCombineOutput(items=items))

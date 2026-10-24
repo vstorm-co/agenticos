@@ -19,12 +19,15 @@ retry: MCP has no idempotency key to send, so the step is at least once.
 """
 
 import asyncio
+import base64
+import binascii
 import hashlib
 import json
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+from urllib.parse import quote, quote_plus
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.mcp import carries_base_exception, mcp_session, probe_error_message
@@ -40,6 +43,9 @@ from app.services.mcp_connection import resolve_auth_headers
 from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
+
+if TYPE_CHECKING:
+    from mcp.types import CallToolResult
 
 MAX_TEXT = 100_000
 """The most of a tool's text answer a step keeps - a page, not a dump."""
@@ -171,7 +177,47 @@ def _failed(code: str, message: str, **details: str) -> Failed:
     return Failed(error=WorkflowError(code=code, message=message, details=dict(details)))
 
 
-def _answer(result: Any) -> McpCallOutput | Failed:
+def _credential_forms(headers: dict[str, str]) -> tuple[str, ...]:
+    forms: set[str] = set()
+    for value in headers.values():
+        if not value:
+            continue
+        forms.add(value)
+        scheme, _, credential = value.partition(" ")
+        if scheme.lower() in {"bearer", "basic"} and credential:
+            forms.add(credential)
+            if scheme.lower() == "basic":
+                try:
+                    decoded = base64.b64decode(credential, validate=True).decode()
+                except binascii.Error, UnicodeDecodeError:
+                    continue
+                forms.add(decoded)
+                password = decoded.partition(":")[2]
+                if password:
+                    forms.add(password)
+    forms |= {quote(value, safe="") for value in forms} | {
+        quote_plus(value, safe="") for value in forms
+    }
+    return tuple(sorted(forms, key=len, reverse=True))
+
+
+def _scrub_text(text: str, forms: tuple[str, ...]) -> str:
+    for value in forms:
+        text = text.replace(value, "[redacted]")
+    return text
+
+
+def _scrub_data(value: JsonValue, forms: tuple[str, ...]) -> JsonValue:
+    if isinstance(value, str):
+        return _scrub_text(value, forms)
+    if isinstance(value, list):
+        return [_scrub_data(item, forms) for item in value]
+    if isinstance(value, dict):
+        return {_scrub_text(key, forms): _scrub_data(item, forms) for key, item in value.items()}
+    return value
+
+
+def _answer(result: CallToolResult, forms: tuple[str, ...] = ()) -> McpCallOutput | Failed:
     """A `CallToolResult` as the step's output: its text parts, its data, its error flag.
 
     Text is joined only up to `MAX_TEXT`, so a server's gigabyte of parts costs no more
@@ -186,7 +232,10 @@ def _answer(result: Any) -> McpCallOutput | Failed:
         if size >= MAX_TEXT:
             break
         if isinstance(part, TextContent):
-            pieces.append(part.text[:MAX_TEXT])
+            # Look beyond the display boundary before truncating, so a token
+            # crossing it cannot leave an almost-complete credential behind.
+            lookahead = max((len(value) for value in forms), default=0)
+            pieces.append(_scrub_text(part.text[: MAX_TEXT + lookahead], forms)[:MAX_TEXT])
             size += len(pieces[-1]) + 2
     structured = result.structured_content
     if isinstance(structured, dict) and (
@@ -197,9 +246,13 @@ def _answer(result: Any) -> McpCallOutput | Failed:
             f"The tool's structured answer is larger than {MAX_STRUCTURED_BYTES} bytes",
             limit_bytes=str(MAX_STRUCTURED_BYTES),
         )
+    try:
+        scrubbed = _scrub_data(TypeAdapter(JsonValue).validate_python(structured), forms)
+    except ValidationError:
+        return _failed("MCP_RESULT_INVALID", "The tool's structured answer is not JSON")
     return McpCallOutput(
-        text="\n\n".join(pieces)[:MAX_TEXT],
-        structured=structured if isinstance(structured, dict) else None,
+        text=_scrub_text("\n\n".join(pieces)[:MAX_TEXT], forms),
+        structured=scrubbed if isinstance(scrubbed, dict) else None,
         is_error=bool(result.is_error),
     )
 
@@ -240,7 +293,7 @@ async def _call(
             "The server asked for more before answering, which a workflow cannot give",
             tool=config.tool,
         )
-    return _answer(result)
+    return _answer(result, _credential_forms(headers))
 
 
 async def _ask(
