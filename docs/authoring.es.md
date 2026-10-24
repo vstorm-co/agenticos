@@ -1,5 +1,5 @@
 ---
-source_sha: "0e9485534ad3"
+source_sha: "ffa69beed973"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -283,6 +283,8 @@ antes de escribir nada.
 
 En el dashboard, la línea de gasto indica aparte lo que costó el asistente **en
 mejoras**, separado de lo que costaron los evals.
+
+La retención de actividad conserva el coste total de los runs pagados eliminados de una sesión, sin conservar preguntas ni respuestas. Eliminar actividad antigua no restablece el límite de gasto. Las comprobaciones nuevas y los reintentos se suman al importe conservado; la cancelación mantiene visibles los costes ya incurridos.
 
 ## Acceso { #access }
 

@@ -241,4 +241,9 @@ async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Dec
         )
     )
     assert value is not None, "a coalesced cost aggregate always has a value"
-    return value
+    archived = await db.scalar(
+        select(ImprovementRun.archived_cost_usd).where(
+            ImprovementRun.id == run_id, ImprovementRun.organization_id == organization_id
+        )
+    )
+    return value + (archived or Decimal(0))

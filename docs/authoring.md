@@ -264,6 +264,8 @@ before anything is written.
 On the dashboard, the spend line names what the assistant cost **on
 improvements**, apart from what evals cost.
 
+Activity retention keeps the combined cost of a session’s deleted paid runs, without keeping their questions or answers. Removing old activity never restores the spending limit. New checks and retries add to that retained amount; cancellation still leaves already incurred costs visible.
+
 ## Access { #access }
 
 | To | You need |

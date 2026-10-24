@@ -1,5 +1,5 @@
 ---
-source_sha: "0e9485534ad3"
+source_sha: "ffa69beed973"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -291,6 +291,8 @@ Organisation bleibt, wird abgelehnt, bevor etwas gespeichert wird.
 
 Auf dem Dashboard nennt die Ausgabenzeile, was der Assistent **für
 Verbesserungen** gekostet hat, getrennt von den Kosten der Evals.
+
+Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter Runs einer Sitzung, ohne Fragen oder Antworten aufzubewahren. Das Entfernen alter Aktivität stellt kein Ausgabenlimit wieder her. Neue Prüfungen und Wiederholungen zählen zu diesem Betrag; auch nach einem Abbruch bleiben entstandene Kosten sichtbar.
 
 ## Zugriff { #access }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0e9485534ad3"
+source_sha: "ffa69beed973"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -277,6 +277,8 @@ organizacji, jest odrzucane, zanim cokolwiek zostanie zapisane.
 
 Na dashboardzie linia wydatków podaje osobno, ile asystent kosztował **na
 ulepszenia**, niezależnie od kosztu ewaluacji.
+
+Retencja aktywności zachowuje łączny koszt usuniętych płatnych runów sesji, bez przechowywania pytań i odpowiedzi. Usuwanie starych aktywności nie przywraca dostępnego limitu wydatków. Nowe sprawdzenia i ponowienia doliczają się do zachowanej kwoty; anulowanie nadal pozostawia widoczne poniesione koszty.
 
 ## Dostęp { #access }
 

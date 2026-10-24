@@ -224,6 +224,10 @@ class ImprovementRun(Base):
     estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     budget_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     spent_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    archived_cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal(0), server_default="0"
+    )
+    """Cost of paid root runs already removed by activity retention; no evidence text."""
     best_iteration_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("improvement_iterations.id", ondelete="SET NULL", use_alter=True),
@@ -261,6 +265,7 @@ class ImprovementRun(Base):
             "estimate_usd >= 0 AND budget_usd >= 0 AND spent_usd >= 0",
             name="ck_improvement_run_money",
         ),
+        CheckConstraint("archived_cost_usd >= 0", name="ck_improvement_run_archived_cost"),
         CheckConstraint(
             "(suite_id IS NULL) = (suite_hash IS NULL)", name="ck_improvement_run_suite_pin"
         ),
