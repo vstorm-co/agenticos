@@ -154,17 +154,18 @@ class DroppedHunk(TypedDict):
 class VerdictDetail(TypedDict, total=False):
     """The counts behind a round's verdict - never a question's or an answer's text."""
 
-    fixed: int
+    fixed: int | None
     crashed: int
     gradable_holdout: int
     minimum_holdout: int
     missing_holdout: int
-    broken: int
+    broken: int | None
     incomplete: int
     ungraded: int
     candidate_pass_rate: float | None
     baseline_pass_rate: float | None
     suite: str | None
+    reason: str | None
 
 
 class ImprovementRun(Base):

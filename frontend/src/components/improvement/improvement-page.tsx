@@ -15,6 +15,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { useOrgStore } from "@/stores/org-store";
 import { Perm } from "@/types/permissions";
+import { ContinueSession } from "./continue-session";
 import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
 import { RoundResults, RoundHistory } from "./round-results";
@@ -276,6 +277,16 @@ function Session({
           {t("selectionNeedsCheck")}
         </p>
       )}
+      {(step === "result" || session.status === "failed" || session.stop_reason === "budget") && (
+        <ContinueSession
+          session={session}
+          onStarted={() => {
+            setSelected(null);
+            setDraftSelection(null);
+            setConfirm(false);
+          }}
+        />
+      )}
       <WizardNav
         backLabel={t("previousStep")}
         backIsStep={STEPS.indexOf(step) > 0}
@@ -300,20 +311,6 @@ function Session({
             {t("accept")}
           </Button>
         )}
-        {session.status === "failed" &&
-          ["proposing", "evaluating"].includes(session.stage ?? "") && (
-            <Button
-              disabled={actions.retry.isPending}
-              onClick={() =>
-                void act(async () => {
-                  await actions.retry.mutateAsync();
-                  setSelected(null);
-                })
-              }
-            >
-              {t("retryStep")}
-            </Button>
-          )}
         {active && (
           <Button
             variant="outline"

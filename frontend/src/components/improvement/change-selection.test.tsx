@@ -110,3 +110,12 @@ it("shows decided hunks without offering them for another check", () => {
     screen.queryByRole("button", { name: "Estimate checking selected changes" }),
   ).not.toBeInTheDocument();
 });
+
+it("keeps another request identity's measured changes readable without restarting its paid work", () => {
+  render(<Form session={{ ...SESSION, can_restart: false }} />);
+  expect(screen.getByRole("checkbox", { name: "Include change 1 in the test" })).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: "Estimate checking selected changes" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText(/original account and credentials/)).toBeInTheDocument();
+});

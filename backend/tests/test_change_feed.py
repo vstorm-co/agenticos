@@ -582,3 +582,30 @@ class TestTheTab:
         event = change_for(method="POST", path=f"{V1}/kb", path_params={}, origin=origin, body=b"")
 
         assert event is not None and event.origin_tab == "tab-1"
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "estimate",
+        "{run_id}/knowledge/estimate",
+        "{run_id}/continue/estimate",
+        "{run_id}/rounds/1/selection/estimate",
+        "{run_id}/rounds/1/attribution/estimate",
+    ],
+)
+def test_improvement_quotes_do_not_announce_a_write(suffix):
+    agent_id, run_id = str(uuid.uuid4()), str(uuid.uuid4())
+    path = f"/agents/{agent_id}/improvements/{suffix.format(run_id=run_id)}"
+    assert _change("POST", path, {"agent_id": agent_id, "run_id": run_id, "number": 1}) is None
+
+
+@pytest.mark.parametrize("action", ["continue", "discard"])
+def test_improvement_decisions_announce_the_agent_after_commit(action):
+    agent, run = uuid.uuid4(), uuid.uuid4()
+    event = _change(
+        "POST",
+        f"/agents/{agent}/improvements/{run}/{action}",
+        {"agent_id": str(agent), "run_id": str(run)},
+    )
+    assert event is not None and event.resource == "agent" and event.id == agent

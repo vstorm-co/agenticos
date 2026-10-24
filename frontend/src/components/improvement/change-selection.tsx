@@ -37,7 +37,8 @@ export function ChangeSelection({
     round: round.candidate_spec_hash,
   });
   const quote = quoted?.key === key ? quoted.quote : null;
-  const canSelect = session.status === "ready" || session.status === "stopped";
+  const canSelect =
+    session.can_restart !== false && (session.status === "ready" || session.status === "stopped");
   async function act(action: () => Promise<void>) {
     setError(null);
     try {
@@ -73,6 +74,9 @@ export function ChangeSelection({
           <ChangePreview hunk={hunk} />
         </div>
       ))}
+      {session.can_restart === false && (
+        <p className="text-muted-foreground text-sm">{t("paidRestartOwner")}</p>
+      )}
       {canSelect && (
         <div className="space-y-3 rounded-xl border p-4">
           <p className="text-muted-foreground text-sm">{t("selectionBody")}</p>

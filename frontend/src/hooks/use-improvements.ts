@@ -6,6 +6,7 @@ import type { EvalRun } from "@/types/eval-runs";
 import { qk } from "@/lib/query-keys";
 import type {
   AttributionEstimate,
+  ContinuationEstimate,
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
   Improvement,
@@ -123,6 +124,24 @@ export function useImprovement(agentId: string, runId: string) {
       }),
     onSuccess: refresh,
   });
+  const estimateContinuation = useMutation({
+    mutationFn: (budget: string) =>
+      apiClient.post<ContinuationEstimate>(`${base}/continue/estimate`, { budget_usd: budget }),
+  });
+  const continueSession = useMutation({
+    mutationFn: (quote: ContinuationEstimate) =>
+      apiClient.post<Improvement>(`${base}/continue`, {
+        confirmed: true,
+        budget_usd: quote.budget_usd,
+        estimate_usd: quote.total_usd,
+        candidate_hash: quote.candidate_hash,
+      }),
+    onSuccess: refresh,
+  });
+  const discard = useMutation({
+    mutationFn: () => apiClient.post<Improvement>(`${base}/discard`, { confirmed: true }),
+    onSuccess: refresh,
+  });
   const finish = useMutation({
     mutationFn: (body: { confirmed: true; publish: boolean; automatic_check: boolean }) =>
       apiClient.post<{ session: Improvement; version_id: string | null; version: number | null }>(
@@ -132,6 +151,9 @@ export function useImprovement(agentId: string, runId: string) {
     onSuccess: refresh,
   });
   return {
+    estimateContinuation,
+    continueSession,
+    discard,
     estimateKnowledge,
     checkKnowledge,
     estimateSelection,

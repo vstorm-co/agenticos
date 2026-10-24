@@ -10,6 +10,10 @@ from app.schemas.eval_run import EvalRunRead
 from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
+    ContinuationConsent,
+    ContinuationEstimate,
+    ImprovementContinue,
+    ImprovementDiscard,
     ImprovementEstimate,
     ImprovementEvidence,
     ImprovementFinish,
@@ -170,3 +174,27 @@ async def finish_improvement(
 ) -> Any:
     """Accept the checked round and optionally publish after explicit human confirmation."""
     return await service.finish(ctx, agent_id, run_id, data)
+
+
+@router.post("/{run_id}/continue/estimate", response_model=ContinuationEstimate)
+async def estimate_continuation(
+    agent_id: UUID, run_id: UUID, data: ImprovementContinue, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Estimate a complete continuation without spending or changing the limit."""
+    return await service.estimate_continuation(ctx, agent_id, run_id, data)
+
+
+@router.post("/{run_id}/continue", response_model=ImprovementRead)
+async def continue_improvement(
+    agent_id: UUID, run_id: UUID, data: ContinuationConsent, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Confirm a fresh continuation price and spending limit, within the session's round cap."""
+    return await service.continue_run(ctx, agent_id, run_id, data)
+
+
+@router.post("/{run_id}/discard", response_model=ImprovementRead)
+async def discard_improvement(
+    agent_id: UUID, run_id: UUID, data: ImprovementDiscard, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Explicitly discard pending session proposals, never applied changes or published versions."""
+    return await service.discard(ctx, agent_id, run_id, data)

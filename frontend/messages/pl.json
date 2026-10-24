@@ -10662,6 +10662,19 @@
       "needs_you": "Wymaga decyzji",
       "skipped": "Pominięto",
       "pending": "Jeszcze nie rozpoczęto"
-    }
+    },
+    "paidRestartOwner": "Płatną pracę może wznowić tylko autor sesji, korzystając z pierwotnego konta i poświadczeń. Inni redaktorzy mogą przejrzeć wyniki lub uruchomić własną sesję.",
+    "improveAgain": "Popraw ponownie",
+    "raiseBudgetContinue": "Zwiększ limit i kontynuuj",
+    "continuationBody": "Przed wydaniem kolejnych środków przejrzyj pełną wycenę kontynuacji. Źródła, pytania testowe i limit rund pozostają te same. Nic nie zostanie przyjęte ani opublikowane.",
+    "estimateContinuation": "Wyceń kontynuację sesji",
+    "continuationQuote": "Runda {number} z {max}: do {cost} za całą pozostałą pracę (szacunek).",
+    "continuationUnaffordable": "Wycena nie mieści się w wybranym limicie lub dostępnym budżecie. Zwiększ limit i wyceń ponownie.",
+    "confirmContinuation": "Potwierdź wycenę i kontynuuj",
+    "continuationStopped": "Nie można tu rozpocząć kolejnej płatnej rundy. Przejrzyj istniejącą rundę, usuń przyczynę zatrzymania albo rozpocznij nową sesję.",
+    "discard": "Odrzuć",
+    "discardTitle": "Odrzucić sugestie z tej sesji?",
+    "discardBody": "Odrzucone zostaną tylko oczekujące sugestie z tej sesji. Zastosowane zmiany i inne oczekujące propozycje zostaną zachowane.",
+    "confirmDiscard": "Odrzuć oczekujące sugestie"
   }
 }

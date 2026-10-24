@@ -10762,6 +10762,19 @@
       "needs_you": "Ihre Entscheidung",
       "skipped": "Übersprungen",
       "pending": "Noch nicht begonnen"
-    }
+    },
+    "paidRestartOwner": "Nur der Anfragende kann mit dem ursprünglichen Konto und den ursprünglichen Anmeldedaten kostenpflichtige Arbeit neu starten. Andere Bearbeiter können Ergebnisse prüfen oder eine eigene Sitzung starten.",
+    "improveAgain": "Erneut verbessern",
+    "raiseBudgetContinue": "Limit erhöhen und fortfahren",
+    "continuationBody": "Prüfen Sie vor weiteren Ausgaben die vollständige Fortsetzungsschätzung. Quellen, Testfragen und Rundenlimit bleiben gleich. Nichts wird angenommen oder veröffentlicht.",
+    "estimateContinuation": "Fortsetzung der Sitzung schätzen",
+    "continuationQuote": "Runde {number} von {max}: bis zu {cost} für die gesamte verbleibende Arbeit (Schätzung).",
+    "continuationUnaffordable": "Diese Schätzung passt nicht zum gewählten Limit oder verfügbaren Budget. Erhöhen Sie das Limit und lassen Sie erneut schätzen.",
+    "confirmContinuation": "Schätzung bestätigen und fortfahren",
+    "continuationStopped": "Hier kann keine weitere kostenpflichtige Runde beginnen. Prüfen Sie eine vorhandene Runde, beheben Sie den Stoppgrund oder starten Sie eine neue Sitzung.",
+    "discard": "Verwerfen",
+    "discardTitle": "Vorschläge dieser Sitzung verwerfen?",
+    "discardBody": "Nur ausstehende Vorschläge dieser Sitzung werden verworfen. Angewendete Änderungen und andere ausstehende Vorschläge bleiben erhalten.",
+    "confirmDiscard": "Ausstehende Vorschläge verwerfen"
   }
 }

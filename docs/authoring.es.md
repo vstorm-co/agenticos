@@ -1,5 +1,5 @@
 ---
-source_sha: "2690172f722d"
+source_sha: "aa9f5b0c2017"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -333,7 +333,7 @@ Los candidatos previos no sustituyen las sugerencias pendientes de una persona
 mientras se comprueban. Una notificación lleva al creador a la sesión lista o
 detenida.
 
-Las sesiones realizan como máximo tres rondas. Una regresión o un resultado sin cambios inicia otra propuesta solo si su previsión completa cabe en el presupuesto restante. Dos rondas sin cambios, dos inconclusas, un candidato ya probado o el límite de rondas detienen el ciclo con un motivo registrado. Las respuestas de entrenamiento antes y después informan la siguiente ronda; el contenido de control sigue oculto. Los costes se separan por ronda. La mejor ronda medida prioriza mejoras, menos fallos nuevos y luego mayor éxito decidido.
+Las sesiones realizan como máximo tres rondas. Una regresión o un resultado sin cambios inicia otra propuesta solo si su previsión completa cabe en el presupuesto restante. Dos rondas sin cambios, una comparación inconclusa y su repetición, un candidato ya probado o el límite de rondas detienen el ciclo con un motivo registrado. Las respuestas de entrenamiento antes y después informan la siguiente ronda; el contenido de control sigue oculto. Los costes se separan por ronda. La mejor ronda medida prioriza mejoras, menos fallos nuevos y luego mayor éxito decidido.
 
 Tras finalizar, `/{run_id}/rounds/{number}/select` convierte una ronda medida en la propuesta pendiente, comprobando de nuevo la base y el acceso. La atribución opcional usa `.../attribution/estimate` y `.../attribution`. Iniciarla requiere `confirmed: true` y el importe revisado `estimate_usd`; se rechaza una nueva estimación superior. Prueba cada cambio pendiente por separado frente a la misma base y preguntas fijadas. El coste cuenta para el presupuesto de la sesión. La atribución no acepta, publica ni sustituye el veredicto conjunto de la ronda.
 
@@ -350,6 +350,8 @@ Un fallo del clasificador se muestra y conserva las conversaciones fuente. Una s
 Una decisión humana y su retirada recalculan la ronda medida actual en la misma transacción que los resultados del test y de las comprobaciones automáticas. Se conservan la ronda seleccionada y su coste. Las mediciones anteriores y las pruebas individuales no reemplazan el veredicto conjunto actual. Una revisión no inicia llamadas al modelo, publicaciones ni cambios de entorno. Si el solicitante original ya no puede leer la comparación, la ronda queda inconclusa en vez de conservar un resultado favorable. Los eventos del dataset actualizan las vistas de pruebas, comprobaciones, sesión y entorno.
 
 La barra distingue el trabajo terminado, en curso, pendiente de su decisión, omitido y aún no iniciado. Seleccione cualquier paso para inspeccionarlo; esto no inicia una acción de pago. Al abrir de nuevo la sesión aparece el trabajo actual, mientras cada paso conserva su estado. En el teléfono, el paso actual y su estado aparecen debajo de los indicadores.
+
+Elija **Mejorar de nuevo** para otra ronda o **Aumentar el límite y continuar** si un paso no cabía en el presupuesto. Antes de gastar más se muestran una estimación completa nueva y una confirmación; fuentes, preguntas fijadas y límite de rondas no cambian. Un paso fallido se reintenta en la misma ronda. Una prueba reanudada reserva solo las mediciones pendientes y la repetición inconclusa disponible. Reiniciar trabajo de pago exige el solicitante y la identidad de clave API originales, con permisos actuales verificados. **Descartar** confirma solo las propuestas pendientes de esta sesión. Conserva otros lotes y rechaza deshacer cambios aplicados. Las estimaciones no anuncian escrituras; las decisiones confirmadas actualizan las vistas abiertas.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 

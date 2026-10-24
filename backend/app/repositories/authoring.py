@@ -740,3 +740,47 @@ async def train_answers(
         .limit(limit)
     )
     return [TrainAnswer(run, case, score, attempt, arm) for run, case, score, attempt, arm in rows]
+
+
+async def improvement_has_applied_changes(
+    db: AsyncSession, *, organization_id: UUID, run_id: UUID
+) -> bool:
+    return bool(
+        await db.scalar(
+            select(SpecProposalHunk.id)
+            .join(SpecProposalBatch, SpecProposalBatch.id == SpecProposalHunk.batch_id)
+            .where(
+                SpecProposalBatch.organization_id == organization_id,
+                SpecProposalBatch.improvement_run_id == run_id,
+                SpecProposalHunk.organization_id == organization_id,
+                SpecProposalHunk.status == HunkStatus.ACCEPTED.value,
+            )
+            .limit(1)
+        )
+    )
+
+
+async def dismiss_improvement_batches(
+    db: AsyncSession, *, organization_id: UUID, run_id: UUID
+) -> None:
+    """Discard pending proposals of this session, leaving other batches and applied hunks alone."""
+    batches = select(SpecProposalBatch.id).where(
+        SpecProposalBatch.organization_id == organization_id,
+        SpecProposalBatch.improvement_run_id == run_id,
+        SpecProposalBatch.status.in_([BatchStatus.OPEN.value, BatchStatus.CANDIDATE.value]),
+    )
+    await db.execute(
+        update(SpecProposalHunk)
+        .where(
+            SpecProposalHunk.organization_id == organization_id,
+            SpecProposalHunk.batch_id.in_(batches),
+            SpecProposalHunk.status == HunkStatus.PENDING.value,
+        )
+        .values(status=HunkStatus.DISMISSED.value)
+    )
+    await db.execute(
+        update(SpecProposalBatch)
+        .where(SpecProposalBatch.id.in_(batches))
+        .values(status=BatchStatus.SUPERSEDED.value)
+    )
+    await db.flush()

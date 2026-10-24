@@ -50,6 +50,8 @@ export interface ImprovementIteration {
   ended_at: string | null;
 }
 export interface Improvement {
+  can_restart?: boolean;
+  can_discard?: boolean;
   id: string;
   agent_id: string;
   created_by_user_id: string | null;
@@ -125,6 +127,15 @@ export interface ImprovementEvidence {
 export interface SelectionEstimate {
   suggestions: number;
   total_usd: string;
+  affordable: boolean;
+  candidate_hash: string;
+}
+
+export interface ContinuationEstimate {
+  mode: "next_round" | "resume" | "retry";
+  number: number;
+  total_usd: string;
+  budget_usd: string;
   affordable: boolean;
   candidate_hash: string;
 }

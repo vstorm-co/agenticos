@@ -7,9 +7,10 @@ transition without repeating a model call. Nothing here accepts or publishes.
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic_ai.usage import RunUsage
@@ -42,6 +43,7 @@ from app.db.models.improvement import (
     ImprovementRun,
     ImprovementVerdict,
     StopReason,
+    VerdictDetail,
 )
 from app.db.models.improvement import (
     ImprovementStage as Stage,
@@ -74,6 +76,10 @@ from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
+    ContinuationConsent,
+    ContinuationEstimate,
+    ImprovementContinue,
+    ImprovementDiscard,
     ImprovementEstimate,
     ImprovementEvent,
     ImprovementEvidence,
@@ -173,6 +179,14 @@ class SelectionPlan:
     session: ImprovementRun
     iteration: ImprovementIteration
     quote: SelectionEstimate
+
+
+@dataclass(frozen=True)
+class ContinuationPlan:
+    session: ImprovementRun
+    iteration: ImprovementIteration
+    inputs: Inputs
+    quote: ContinuationEstimate
 
 
 class ImprovementPipelineService:
@@ -421,6 +435,7 @@ class ImprovementPipelineService:
         target: ImprovementTarget,
         *,
         include_knowledge: bool = True,
+        improvement_run_id: UUID | None = None,
     ) -> ImprovementEstimate:
         proposal = await self.authoring.estimate_agent(
             ctx,
@@ -429,6 +444,7 @@ class ImprovementPipelineService:
                 window_days=target.window_days, improver_agent_id=target.improver_agent_id
             ),
             evidence_dataset_id=inputs.request.dataset_id,
+            improvement_run_id=improvement_run_id,
         )
         draft = AgentSpec.model_validate(inputs.agent.draft_spec)
         check = await self.evals.estimate(
@@ -444,19 +460,17 @@ class ImprovementPipelineService:
         full_eval = check.total_usd + check.rerun_ceiling_usd
         # Each round may need one repeat of an inconclusive comparison.
         per_round = proposal.estimate_usd + full_eval * (1 + rules.INCONCLUSIVE_RERUNS)
-        ids, messages, sources = await self._knowledge_sources(
-            ctx,
-            inputs.agent,
-            dataset_id=inputs.request.dataset_id,
-            window_days=target.window_days,
-        )
-        knowledge = (
-            await KnowledgeGapService(self.db).improvement_estimate(
+        knowledge = Decimal(0)
+        if include_knowledge:
+            ids, messages, sources = await self._knowledge_sources(
+                ctx,
+                inputs.agent,
+                dataset_id=inputs.request.dataset_id,
+                window_days=target.window_days,
+            )
+            knowledge = await KnowledgeGapService(self.db).improvement_estimate(
                 ctx, ids, messages, source_run_ids=sources
             )
-            if include_knowledge
-            else Decimal(0)
-        )
         total = per_round * target.max_iterations + knowledge
         org_left = await self.evals._org_left(ctx)
         return ImprovementEstimate(
@@ -665,6 +679,10 @@ class ImprovementPipelineService:
             self.db, run.id, organization_id=ctx.organization_id
         )
         result = ImprovementRead.model_validate(run)
+        result.can_restart = (
+            ctx.user_id == run.created_by_user_id and ctx.api_key_id == run.created_by_api_key_id
+        )
+        result.can_discard = ctx.user_id == run.created_by_user_id or ctx.has(Perm.ORG_SETTINGS)
         result.spent_usd = await improvement_repo.spent(
             self.db, run.id, organization_id=run.organization_id
         )
@@ -790,6 +808,13 @@ class ImprovementPipelineService:
             version=None if version is None else version.version,
         )
 
+    @staticmethod
+    def _require_requester(ctx: AuthContext, run: ImprovementRun) -> None:
+        if ctx.user_id != run.created_by_user_id or ctx.api_key_id != run.created_by_api_key_id:
+            raise AuthorizationError(
+                message="Use the session requester's original account and credentials for paid restarts, or start a new session"
+            )
+
     async def retry(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         """Retry a failed paid step only after a person's explicit request.
 
@@ -800,6 +825,7 @@ class ImprovementPipelineService:
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
         run = await self._row(ctx, agent_id, run_id, lock=True)
+        self._require_requester(ctx, run)
         if Status(run.status).active:
             return await self._read(ctx, run)
         if run.status != Status.FAILED or run.stage not in {Stage.PROPOSING, Stage.EVALUATING}:
@@ -855,6 +881,304 @@ class ImprovementPipelineService:
         await self._audit(run, "retried", actor_user_id=ctx.subject_id)
         if Status(run.status).active:
             await self._move(run, rules.Transition(Status.RUNNING, Stage(run.stage)))
+        return await self._read(ctx, run)
+
+    async def _assert_idle(self, run: ImprovementRun, rounds: list[ImprovementIteration]) -> None:
+        if await improvement_repo.has_active_check(
+            self.db, run.id, organization_id=run.organization_id
+        ):
+            raise ConcurrentChangeError(message="Wait for the current checks to finish")
+        for iteration in rounds:
+            if iteration.authoring_request_id:
+                request = await authoring_repo.get_request(
+                    self.db, iteration.authoring_request_id, organization_id=run.organization_id
+                )
+                if request is not None and request.status in {"queued", "running"}:
+                    raise ConcurrentChangeError(message="Wait for the current proposal to finish")
+            for job_id in (iteration.classify_job_id, iteration.draft_job_id):
+                job = await background_job_repo.get(self.db, job_id) if job_id else None
+                if job and job.organization_id != run.organization_id:
+                    raise NotFoundError(message="Knowledge step not found")
+                if job and job.status in {"queued", "running"}:
+                    raise ConcurrentChangeError(
+                        message="Wait for the current knowledge step to finish"
+                    )
+
+    async def _continuation_plan(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ImprovementContinue
+    ) -> ContinuationPlan:
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        self._require_requester(ctx, run)
+        if run.status not in {Status.READY, Status.STOPPED, Status.FAILED}:
+            raise BadRequestError(message="This session cannot be continued")
+        inputs = await self._current_inputs(ctx, run)
+        rounds = await improvement_repo.list_iterations(
+            self.db, organization_id=ctx.organization_id, run_id=run.id
+        )
+        current = next((item for item in rounds if item.number == run.iteration), None)
+        if current is None:
+            raise NotFoundError(message="The current improvement round is no longer available")
+        await self._assert_idle(run, rounds)
+        mode: Literal["next_round", "resume", "retry"]
+        number = current.number
+        if (
+            run.status == Status.STOPPED
+            and run.stop_reason == StopReason.BUDGET
+            and run.stage in {Stage.CLASSIFYING, Stage.DRAFTING, Stage.PROPOSING, Stage.EVALUATING}
+        ):
+            mode = "resume"
+        elif run.status == Status.FAILED and run.stage in {Stage.PROPOSING, Stage.EVALUATING}:
+            mode = "retry"
+        elif current.verdict is not None and run.status in {Status.READY, Status.STOPPED}:
+            measured = [
+                rules.RoundResult(
+                    item.number,
+                    ImprovementVerdict(item.verdict),
+                    (item.verdict_detail or {}).get("broken") or 0,
+                    (item.verdict_detail or {}).get("candidate_pass_rate"),
+                )
+                for item in rounds
+                if item.verdict
+            ]
+            if (
+                current.verdict == ImprovementVerdict.INCONCLUSIVE
+                or run.stop_reason in {StopReason.REPEAT_CANDIDATE, StopReason.INCONCLUSIVE}
+                or rules.round_stop(measured, maximum=run.max_iterations) is not None
+            ):
+                raise BadRequestError(
+                    message="The session reached its round or no-progress limit; review the result or start a new session"
+                )
+            deferred = next(
+                (
+                    item
+                    for item in rounds
+                    if item.number > current.number
+                    and item.batch_id is not None
+                    and item.authoring_request_id is None
+                    and not item.eval_run_ids
+                ),
+                None,
+            )
+            number = deferred.number if deferred else max(item.number for item in rounds) + 1
+            if number > run.max_iterations:
+                raise BadRequestError(message="The session reached its round limit")
+            mode = "next_round"
+        else:
+            raise BadRequestError(
+                message="This step needs a new session or a review decision before it can continue"
+            )
+        target = ImprovementTarget(
+            dataset_id=run.dataset_id if run.suite_id is None else None,
+            suite_id=run.suite_id,
+            window_days=run.window_days,
+            improver_agent_id=run.improver_agent_id,
+            max_iterations=1,
+        )
+        if mode != "next_round" and run.stage == Stage.EVALUATING:
+            if current.batch_id is None:
+                raise NotFoundError(message="The candidate is no longer available")
+            projected, _ = await self._candidate(inputs.agent, run, current)
+            assert current.batch_id is not None
+            batch = await authoring_repo.get_batch(
+                self.db, current.batch_id, organization_id=run.organization_id
+            )
+            if batch is None:
+                raise NotFoundError(message="The candidate is no longer available")
+            skills = await self.authoring.projected_skills(
+                ctx, batch.id, hunk_ids=current.included_hunk_ids
+            )
+            if spec_hash(projected, skills) != current.candidate_spec_hash:
+                raise ConcurrentChangeError(
+                    message="The pending suggestions changed; restore them or start a new session before continuing"
+                )
+            check = await self.evals.estimate(
+                ctx,
+                agent_id,
+                self._eval_request(inputs, run),
+                candidate_spec=projected,
+                candidate_skills=skills,
+                baseline_spec=AgentSpec.model_validate(inputs.agent.draft_spec),
+                scoring=DatasetScoring.model_validate(run.pinned_scoring),
+                exclude_conversations=batch.evidence_conversation_ids,
+                judge_version_id=run.judge_version_id,
+                judge_pinned=True,
+            )
+            completed = await improvement_repo.completed_checks(
+                self.db, current.eval_run_ids, organization_id=ctx.organization_id
+            )
+            repeats = max(0, rules.INCONCLUSIVE_RERUNS - completed)
+            total = (check.total_usd + check.rerun_ceiling_usd) * (1 + repeats)
+            forecast_affordable = check.affordable
+        else:
+            forecast = await self._estimate(
+                ctx,
+                replace(inputs, request=self._eval_request(inputs, run)),
+                target,
+                include_knowledge=False,
+                improvement_run_id=run.id,
+            )
+            total = forecast.total_usd
+            forecast_affordable = forecast.affordable and forecast.reason is None
+        if mode == "resume" and run.stage in {Stage.CLASSIFYING, Stage.DRAFTING}:
+            ids, messages, sources = await self._knowledge_sources(
+                ctx, inputs.agent, run_id=run.id, dataset_id=run.dataset_id
+            )
+            total += await KnowledgeGapService(self.db).improvement_estimate(
+                ctx,
+                ids,
+                messages,
+                source_run_ids=sources,
+                stage="all" if run.stage == Stage.CLASSIFYING else "draft",
+            )
+        spent = await improvement_repo.spent(self.db, run.id, organization_id=ctx.organization_id)
+        org_left = await self.evals._org_left(ctx)
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "run": str(run.id),
+                    "base": run.base_draft_hash,
+                    "dataset_version": run.dataset_version,
+                    "number": number,
+                    "mode": mode,
+                    "stage": run.stage,
+                    "budget": str(data.budget_usd.quantize(Decimal("0.000001"))),
+                    "rounds": [
+                        (
+                            item.number,
+                            item.candidate_spec_hash,
+                            item.verdict,
+                            item.verdict_detail,
+                            [str(check_id) for check_id in item.eval_run_ids],
+                        )
+                        for item in rounds
+                    ],
+                },
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        return ContinuationPlan(
+            run,
+            current,
+            inputs,
+            ContinuationEstimate(
+                mode=mode,
+                number=number,
+                total_usd=total,
+                budget_usd=data.budget_usd,
+                candidate_hash=fingerprint,
+                affordable=forecast_affordable
+                and spent + total <= data.budget_usd
+                and (org_left is None or total <= org_left),
+            ),
+        )
+
+    async def estimate_continuation(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ImprovementContinue
+    ) -> ContinuationEstimate:
+        """Quote a complete next round or a resumed step without changing the session."""
+        return (await self._continuation_plan(ctx, agent_id, run_id, data)).quote
+
+    async def continue_run(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ContinuationConsent
+    ) -> ImprovementRead:
+        """Continue only on fresh consent, preserving source pins, history and hard limits."""
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
+            raise NotFoundError(message="Agent not found")
+        existing = await self._row(ctx, agent_id, run_id, lock=True)
+        self._require_requester(ctx, existing)
+        if Status(existing.status).active:
+            return await self._read(ctx, existing)
+        plan = await self._continuation_plan(ctx, agent_id, run_id, data)
+        run, iteration, quote = plan.session, plan.iteration, plan.quote
+        if data.candidate_hash != quote.candidate_hash or data.estimate_usd != quote.total_usd:
+            raise ConcurrentChangeError(
+                message="The continuation estimate or inputs changed; review them again"
+            )
+        if not quote.affordable:
+            raise PaymentRequiredError(
+                message="The full continuation estimate exceeds the spending limit or available budget"
+            )
+        other = await improvement_repo.get_active(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
+        if other is not None:
+            raise self._already_running(other)
+        stage = Stage.PROPOSING if quote.mode == "next_round" else Stage(run.stage)
+        if quote.mode == "next_round":
+            following = await improvement_repo.get_iteration(
+                self.db, organization_id=ctx.organization_id, run_id=run.id, number=quote.number
+            )
+            if following is None:
+                await improvement_repo.create_iteration(
+                    self.db, organization_id=ctx.organization_id, run_id=run.id, number=quote.number
+                )
+        elif stage == Stage.PROPOSING:
+            await improvement_repo.update_iteration(
+                self.db, iteration=iteration, values={"authoring_request_id": None}
+            )
+        elif stage in {Stage.CLASSIFYING, Stage.DRAFTING}:
+            await improvement_repo.update_iteration(
+                self.db,
+                iteration=iteration,
+                values={"classify_job_id" if stage == Stage.CLASSIFYING else "draft_job_id": None},
+            )
+        await improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={"iteration": quote.number, "budget_usd": data.budget_usd, "error": None},
+        )
+        await self._audit(
+            run,
+            "continuation_confirmed",
+            actor_user_id=ctx.subject_id,
+            step_estimate_usd=quote.total_usd,
+            quote_hash=quote.candidate_hash,
+        )
+        await self._move(run, rules.Transition(Status.RUNNING, stage))
+        if stage == Stage.EVALUATING:
+            await self._evaluate(ctx, plan.inputs, run, iteration, force_new=True)
+        return await self._read(ctx, run)
+
+    async def discard(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ImprovementDiscard
+    ) -> ImprovementRead:
+        """Dismiss only this session's pending suggestions; never undo an applied change."""
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
+            raise NotFoundError(message="Agent not found")
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        if ctx.user_id != run.created_by_user_id and not ctx.has(Perm.ORG_SETTINGS):
+            raise AuthorizationError(
+                message="Only the creator or an organization administrator can discard this session"
+            )
+        if run.status == Status.REJECTED:
+            return await self._read(ctx, run)
+        if Status(run.status).active or run.status in {Status.ACCEPTED, Status.PUBLISHED}:
+            raise BadRequestError(
+                message="Stop running work first; applied changes need the normal undo or version history"
+            )
+        rounds = await improvement_repo.list_iterations(
+            self.db, organization_id=ctx.organization_id, run_id=run.id
+        )
+        await self._assert_idle(run, rounds)
+        if await authoring_repo.improvement_has_applied_changes(
+            self.db, organization_id=ctx.organization_id, run_id=run.id
+        ):
+            raise BadRequestError(
+                message="Some suggestions were already applied; use the agent's undo or version history"
+            )
+        await authoring_repo.dismiss_improvement_batches(
+            self.db, organization_id=ctx.organization_id, run_id=run.id
+        )
+        await self._audit(run, "discarded", actor_user_id=ctx.subject_id)
+        await self._move(
+            run, rules.Transition(Status.REJECTED, Stage(run.stage) if run.stage else None)
+        )
         return await self._read(ctx, run)
 
     async def _stop_children(self, run: ImprovementRun) -> None:
@@ -976,7 +1300,13 @@ class ImprovementPipelineService:
             await self._audit(run, status.value)
 
     async def _audit(
-        self, run: ImprovementRun, action: str, *, actor_user_id: UUID | None = None
+        self,
+        run: ImprovementRun,
+        action: str,
+        *,
+        actor_user_id: UUID | None = None,
+        step_estimate_usd: Decimal | None = None,
+        quote_hash: str | None = None,
     ) -> None:
         await record_audit(
             self.db,
@@ -996,6 +1326,12 @@ class ImprovementPipelineService:
                 "dataset_id": str(run.dataset_id),
                 "dataset_version": run.dataset_version,
                 "max_iterations": run.max_iterations,
+                **(
+                    {"step_estimate_usd": str(step_estimate_usd)}
+                    if step_estimate_usd is not None
+                    else {}
+                ),
+                **({"quote_hash": quote_hash} if quote_hash is not None else {}),
             },
         )
 
@@ -1046,6 +1382,9 @@ class ImprovementPipelineService:
             raise BadRequestError(
                 message="The improvement session stopped", details={"reason": "stopped"}
             )
+        await self._current_inputs(ctx, run)
+
+    async def _current_inputs(self, ctx: AuthContext, run: ImprovementRun) -> Inputs:
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
         if organization is None or not organization.ai_assistance_enabled:
             raise AuthorizationError(message="AI assistance is disabled")
@@ -1068,6 +1407,7 @@ class ImprovementPipelineService:
             raise ConcurrentChangeError(
                 message="The improvement session is stale", details={"reason": "stale"}
             )
+        return inputs
 
     async def advance(self, run_id: UUID, organization_id: UUID) -> None:
         run = await improvement_repo.get_run(
@@ -1606,7 +1946,7 @@ class ImprovementPipelineService:
         )
 
     @staticmethod
-    def _result_detail(result: rules.CheckResult) -> dict[str, int | float | str | None]:
+    def _result_detail(result: rules.CheckResult) -> VerdictDetail:
         return {
             "reason": None,
             "broken": result.regressions_confirmed,
@@ -1659,7 +1999,7 @@ class ImprovementPipelineService:
                     result = None
                 if result is None:
                     verdict = ImprovementVerdict.INCONCLUSIVE
-                    detail: dict[str, int | float | str | None] = {
+                    detail: VerdictDetail = {
                         "fixed": None,
                         "broken": None,
                         "candidate_pass_rate": None,
@@ -1731,7 +2071,7 @@ class ImprovementPipelineService:
             rules.RoundResult(
                 item.number,
                 ImprovementVerdict(item.verdict),
-                (item.verdict_detail or {}).get("broken", 0),
+                (item.verdict_detail or {}).get("broken") or 0,
                 (item.verdict_detail or {}).get("candidate_pass_rate"),
             )
             for item in rounds
@@ -1750,7 +2090,11 @@ class ImprovementPipelineService:
         # Archived measurements mark a person's selected recheck; only the
         # initial automatic measurement may propose another round on its own.
         if verdict != ImprovementVerdict.BETTER and not iteration.previous_eval_run_ids:
-            reason = rules.round_stop(results, maximum=run.max_iterations)
+            reason = (
+                StopReason.INCONCLUSIVE
+                if verdict == ImprovementVerdict.INCONCLUSIVE
+                else rules.round_stop(results, maximum=run.max_iterations)
+            )
             if reason is None:
                 target = ImprovementTarget(
                     dataset_id=run.dataset_id if run.suite_id is None else None,
@@ -1759,7 +2103,13 @@ class ImprovementPipelineService:
                     improver_agent_id=run.improver_agent_id,
                     max_iterations=1,
                 )
-                estimate = await self._estimate(ctx, inputs, target, include_knowledge=False)
+                estimate = await self._estimate(
+                    ctx,
+                    replace(inputs, request=self._eval_request(inputs, run)),
+                    target,
+                    include_knowledge=False,
+                    improvement_run_id=run.id,
+                )
                 if not estimate.affordable or not rules.affordable(
                     spent=spent, step_estimate=estimate.total_usd, budget=run.budget_usd
                 ):
@@ -2204,6 +2554,7 @@ class ImprovementPipelineService:
         if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
             raise NotFoundError(message="Agent not found")
         existing = await self._row(ctx, agent_id, run_id, lock=True)
+        self._require_requester(ctx, existing)
         if Status(existing.status).active:
             current = await improvement_repo.get_iteration(
                 self.db, organization_id=ctx.organization_id, run_id=run_id, number=number
@@ -2265,7 +2616,13 @@ class ImprovementPipelineService:
                 "error": None,
             },
         )
-        await self._audit(run, "selection_confirmed", actor_user_id=ctx.subject_id)
+        await self._audit(
+            run,
+            "selection_confirmed",
+            actor_user_id=ctx.subject_id,
+            step_estimate_usd=quote.total_usd,
+            quote_hash=quote.candidate_hash,
+        )
         await self._move(run, rules.Transition(Status.RUNNING, Stage.EVALUATING))
         return await self._read(ctx, run)
 

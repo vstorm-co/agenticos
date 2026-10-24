@@ -10879,6 +10879,19 @@
       "needs_you": "Needs you",
       "skipped": "Skipped",
       "pending": "Not started"
-    }
+    },
+    "paidRestartOwner": "Only the session requester using the original account and credentials can restart paid work. Other editors can review the results or start their own session.",
+    "improveAgain": "Improve again",
+    "raiseBudgetContinue": "Raise the limit and continue",
+    "continuationBody": "Review the complete continuation estimate before spending more. The same sources, test questions and round limit stay in place. Nothing is accepted or published.",
+    "estimateContinuation": "Estimate continuing the session",
+    "continuationQuote": "Round {number} of {max}: up to {cost} for the complete remaining work (estimate).",
+    "continuationUnaffordable": "This estimate does not fit the selected limit or available budget. Raise the limit and estimate again.",
+    "confirmContinuation": "Confirm the estimate and continue",
+    "continuationStopped": "No further paid round can start here. Review an existing round, resolve the stop reason, or start a new session.",
+    "discard": "Discard",
+    "discardTitle": "Discard this session’s suggestions?",
+    "discardBody": "This dismisses only the pending suggestions from this session. Applied changes and other waiting proposals are kept.",
+    "confirmDiscard": "Discard pending suggestions"
   }
 }

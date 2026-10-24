@@ -139,6 +139,11 @@ _FEEDS = (
     _Feed("/agents/{agent_id}/triggers/{trigger_id}/run", None),
     _Feed("/agents/{agent_id}/triggers", "trigger", "agent_id"),
     # An estimate writes nothing.
+    _Feed("/agents/{agent_id}/improvements/estimate", None),
+    _Feed("/agents/{agent_id}/improvements/{run_id}/knowledge/estimate", None),
+    _Feed("/agents/{agent_id}/improvements/{run_id}/continue/estimate", None),
+    _Feed("/agents/{agent_id}/improvements/{run_id}/rounds/{number}/selection/estimate", None),
+    _Feed("/agents/{agent_id}/improvements/{run_id}/rounds/{number}/attribution/estimate", None),
     _Feed("/agents/{agent_id}/eval-runs/estimate", None),
     _Feed("/agents/{agent_id}/eval-runs", "eval_run", "agent_id"),
     _Feed("/agents/{agent_id}/eval-suites/estimate", None),

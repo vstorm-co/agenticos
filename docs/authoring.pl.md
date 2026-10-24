@@ -1,5 +1,5 @@
 ---
-source_sha: "2690172f722d"
+source_sha: "aa9f5b0c2017"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -327,7 +327,7 @@ pakietem sugestii. Sesja nigdy nie akceptuje, nie publikuje ani nie promuje zmia
 Wcześniejsze kandydaty nie zastępują sugestii oczekujących na decyzję człowieka.
 Powiadomienie twórcy prowadzi do gotowej lub zatrzymanej sesji.
 
-Sesja wykonuje najwyżej trzy rundy. Regresja albo brak zmiany uruchamia następną propozycję tylko wtedy, gdy jej pełny kosztorys mieści się w pozostałym budżecie. Dwie rundy bez zmiany, dwie nierozstrzygnięte, wcześniej sprawdzony kandydat albo limit rund zatrzymują pętlę z zapisanym powodem. Odpowiedzi treningowe przed zmianą i po niej zasilają kolejną rundę; materiał kontrolny pozostaje ukryty. Koszty rund są osobne, a wybór najlepszej preferuje poprawę, mniej nowych błędów, następnie wyższą skuteczność po rozstrzygnięciu.
+Sesja wykonuje najwyżej trzy rundy. Regresja albo brak zmiany uruchamia następną propozycję tylko wtedy, gdy jej pełny kosztorys mieści się w pozostałym budżecie. Dwie rundy bez zmiany, nierozstrzygnięte porównanie i jego powtórzenie, wcześniej sprawdzony kandydat albo limit rund zatrzymują pętlę z zapisanym powodem. Odpowiedzi treningowe przed zmianą i po niej zasilają kolejną rundę; materiał kontrolny pozostaje ukryty. Koszty rund są osobne, a wybór najlepszej preferuje poprawę, mniej nowych błędów, następnie wyższą skuteczność po rozstrzygnięciu.
 
 Po zakończeniu `/{run_id}/rounds/{number}/select` ustawia zmierzoną rundę jako oczekującą propozycję, po sprawdzeniu aktualności bazy i dostępu. Opcjonalne przypisanie skutków do zmian ma akcje `.../attribution/estimate` i `.../attribution`. Uruchomienie wymaga `confirmed: true` i przejrzanej kwoty `estimate_usd`; wyższa świeża wycena jest odrzucana. Każdą oczekującą zmianę sprawdza osobno względem tej samej bazy i przypiętych pytań. Koszt obciąża budżet sesji. Nie przyjmuje ani nie publikuje zmian i nie zastępuje łącznego werdyktu rundy.
 
@@ -341,9 +341,11 @@ Szacunek sesji obejmuje klasyfikację złych odpowiedzi z rozmów względem edyt
 
 Błąd klasyfikatora jest widoczny, a rozmowy źródłowe pozostają dostępne. Sesja wymagająca tylko wiedzy kończy się szkicami do przejrzenia, bez pustej wersji agenta. Sprawdzenie szkicu nadal wymaga własnej wyceny i potwierdzenia; dodanie treści pozostaje osobną decyzją człowieka.
 
-Ręczna ocena i jej cofnięcie przeliczają aktualnie zmierzoną rundę w tej samej transakcji co wynik testu i automatycznego sprawdzenia. Wybrana runda i koszt pozostają bez zmian. Starsze pomiary oraz sprawdzenia pojedynczych sugestii nie zastępują aktualnego wspólnego werdyktu. Review nie uruchamia nowego modelu, publikacji ani przeniesienia środowiska. Jeżeli autor sesji nie może już odczytać porównania, runda staje się nierozstrzygnięta zamiast zachować zielony wynik. Zdarzenia datasetu odświeżają widoki testów, automatycznych sprawdzeń, sesji i środowisk.
+Ręczna ocena i jej cofnięcie przeliczają aktualnie zmierzoną rundę w tej samej transakcji co wynik testu i automatycznego sprawdzenia. Wybrana runda i koszt pozostają bez zmian. Starsze pomiary oraz sprawdzenia pojedynczych sugestii nie zastępują aktualnego wspólnego werdyktu. Przegląd nie uruchamia nowego modelu, publikacji ani przeniesienia środowiska. Jeżeli autor sesji nie może już odczytać porównania, runda staje się nierozstrzygnięta zamiast zachować zielony wynik. Zdarzenia datasetu odświeżają widoki testów, automatycznych sprawdzeń, sesji i środowisk.
 
 Pasek kroków rozróżnia pracę gotową, trwającą, wymagającą decyzji, pominiętą i jeszcze nierozpoczętą. Wybierz krok, aby go obejrzeć; nie uruchamia to płatnej akcji. Ponowne otwarcie sesji pokazuje aktualną pracę, a pasek zachowuje stan każdego kroku. Na telefonie nazwa bieżącego kroku i jego status są widoczne pod znacznikami.
+
+Wybierz **Popraw ponownie**, aby rozpocząć następną rundę, lub **Zwiększ limit i kontynuuj**, gdy zabrakło budżetu. Kolejne wydatki poprzedza pełna nowa wycena i potwierdzenie; źródła, przypięte pytania i limit rund pozostają bez zmian. Ponowienie nieudanego kroku pozostaje w tej samej rundzie. Wznowiony test rezerwuje tylko pozostałe pomiary, wraz z niewykorzystanym powtórzeniem nierozstrzygniętego porównania. Płatne wznowienie wymaga pierwotnego autora i tożsamości klucza API, z ponowną kontrolą aktualnych uprawnień. **Odrzuć** potwierdza odrzucenie wyłącznie oczekujących propozycji tej sesji. Nie zmienia innych zestawów i nie cofa zastosowanych zmian. Wycena nie ogłasza zapisu; potwierdzone decyzje odświeżają otwarte widoki agenta.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

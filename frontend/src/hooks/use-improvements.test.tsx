@@ -131,3 +131,32 @@ it("binds selected checks to their choices, complete price and candidate hash", 
     candidate_hash: "hash",
   });
 });
+
+it("requires the continuation quote and confirms discarding explicitly", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready" });
+  const quote = {
+    mode: "next_round" as const,
+    number: 2,
+    total_usd: "0.04",
+    budget_usd: "1",
+    affordable: true,
+    candidate_hash: "hash",
+  };
+  vi.mocked(apiClient.post).mockResolvedValue(quote);
+  const { result } = renderHook(() => useImprovement("a1", "s1"), { wrapper });
+  await result.current.estimateContinuation.mutateAsync("1");
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/continue/estimate", {
+    budget_usd: "1",
+  });
+  await result.current.continueSession.mutateAsync(quote);
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/continue", {
+    confirmed: true,
+    budget_usd: "1",
+    estimate_usd: "0.04",
+    candidate_hash: "hash",
+  });
+  await result.current.discard.mutateAsync();
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/discard", {
+    confirmed: true,
+  });
+});

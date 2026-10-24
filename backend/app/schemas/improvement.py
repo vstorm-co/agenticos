@@ -78,6 +78,8 @@ class ImprovementEvent(BaseSchema):
 
 
 class ImprovementRead(BaseSchema):
+    can_restart: bool = False
+    can_discard: bool = False
     improver_agent_id: UUID | None = None
 
     id: UUID
@@ -102,6 +104,29 @@ class ImprovementRead(BaseSchema):
     iterations: list[ImprovementIterationRead] = Field(default_factory=list)
     timeline: list[ImprovementEvent] = Field(default_factory=list)
     knowledge_eval_run_ids: list[UUID] = Field(default_factory=list)
+
+
+class ImprovementContinue(BaseSchema):
+    budget_usd: Decimal = Field(gt=0, max_digits=12, decimal_places=6)
+
+
+class ContinuationEstimate(BaseSchema):
+    mode: Literal["next_round", "resume", "retry"]
+    number: int
+    total_usd: Decimal
+    budget_usd: Decimal
+    affordable: bool
+    candidate_hash: str
+
+
+class ContinuationConsent(ImprovementContinue):
+    confirmed: Literal[True]
+    estimate_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
+    candidate_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class ImprovementDiscard(BaseSchema):
+    confirmed: Literal[True]
 
 
 class AttributionEstimate(BaseSchema):

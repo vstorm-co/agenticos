@@ -6,6 +6,9 @@ import { ImprovementPage } from "./improvement-page";
 import { hunk } from "@/test-utils/authoring";
 import type { Hunk } from "@/types/authoring";
 const actions = vi.hoisted(() => ({
+  estimateContinuation: { mutateAsync: vi.fn(), isPending: false },
+  continueSession: { mutateAsync: vi.fn(), isPending: false },
+  discard: { mutateAsync: vi.fn(), isPending: false },
   estimateSelection: { mutateAsync: vi.fn(), isPending: false },
   checkSelection: { mutateAsync: vi.fn(), isPending: false },
   cancel: { mutateAsync: vi.fn(), isPending: false },
@@ -175,7 +178,21 @@ it("stops running work and explicitly retries a failed step", async () => {
   await userEvent.click(
     screen.getByRole("button", { name: "Retry this step within the spending limit" }),
   );
-  expect(actions.retry.mutateAsync).toHaveBeenCalled();
+  expect(actions.retry.mutateAsync).not.toHaveBeenCalled();
+  const quote = {
+    mode: "retry",
+    number: 1,
+    total_usd: "0.02",
+    budget_usd: "1",
+    affordable: true,
+    candidate_hash: "hash",
+  };
+  actions.estimateContinuation.mutateAsync.mockResolvedValue(quote);
+  await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Confirm the estimate and continue" }),
+  );
+  expect(actions.continueSession.mutateAsync).toHaveBeenCalledWith(quote);
 });
 
 vi.mock("./session-inputs", () => ({

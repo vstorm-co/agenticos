@@ -1,5 +1,5 @@
 ---
-source_sha: "2690172f722d"
+source_sha: "aa9f5b0c2017"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -343,7 +343,7 @@ Frühere Kandidaten ersetzen während der Prüfung keine wartenden menschlichen
 Vorschläge. Eine Benachrichtigung führt den Ersteller zur fertigen oder gestoppten
 Sitzung.
 
-Sitzungen führen höchstens drei Runden aus. Eine Regression oder ein unverändertes Ergebnis startet nur dann einen weiteren Vorschlag, wenn dessen vollständige Schätzung ins Restbudget passt. Zwei unveränderte Runden, zwei unentschiedene Runden, ein bereits getesteter Kandidat oder das Rundenlimit stoppen die Schleife mit gespeichertem Grund. Trainingsantworten vor und nach der Änderung informieren die nächste Runde; Kontrolldaten bleiben verborgen. Rundenkosten sind getrennt. Die beste gemessene Runde bevorzugt Verbesserung, weniger neue Fehler, dann höhere entschiedene Erfolgsquote.
+Sitzungen führen höchstens drei Runden aus. Eine Regression oder ein unverändertes Ergebnis startet nur dann einen weiteren Vorschlag, wenn dessen vollständige Schätzung ins Restbudget passt. Zwei unveränderte Runden, ein unentschiedener Vergleich samt Wiederholung, ein bereits getesteter Kandidat oder das Rundenlimit stoppen die Schleife mit gespeichertem Grund. Trainingsantworten vor und nach der Änderung informieren die nächste Runde; Kontrolldaten bleiben verborgen. Rundenkosten sind getrennt. Die beste gemessene Runde bevorzugt Verbesserung, weniger neue Fehler, dann höhere entschiedene Erfolgsquote.
 
 Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum wartenden Kandidaten, nach erneuter Prüfung von Basis und Zugriff. Die optionale Zuordnung von Wirkungen zu Änderungen nutzt `.../attribution/estimate` und `.../attribution`. Der Start verlangt `confirmed: true` und die geprüfte Summe `estimate_usd`; eine höhere neue Schätzung wird abgelehnt. Jede wartende Änderung wird einzeln gegen dieselbe Basis und fixierte Fragen getestet. Die Kosten belasten das Sitzungsbudget. Die Zuordnung akzeptiert oder veröffentlicht nichts und ersetzt nicht das gemeinsame Rundenurteil.
 
@@ -360,6 +360,8 @@ Ein Klassifizierungsfehler wird angezeigt; Quellgespräche bleiben verfügbar. E
 Eine menschliche Bewertung und ihr Widerruf berechnen die aktuell gemessene Runde in derselben Transaktion wie Test- und Prüfergebnisse neu. Die ausgewählte Runde und ihre Kosten bleiben bestehen. Frühere Messungen und Einzelprüfungen ersetzen nicht das aktuelle Gesamturteil. Eine Prüfung startet keinen neuen Modellaufruf, keine Veröffentlichung und keinen Umgebungswechsel. Darf der ursprüngliche Anfragende den Vergleich nicht mehr lesen, wird die Runde unentschieden, statt ein grünes Urteil zu behalten. Live-Dataset-Ereignisse aktualisieren Test-, Prüfungs-, Sitzungs- und Umgebungsansichten.
 
 Die Schrittleiste unterscheidet erledigte, laufende, entscheidungsbedürftige, übersprungene und noch nicht begonnene Arbeit. Wählen Sie einen Schritt zur Ansicht; dies startet keine kostenpflichtige Aktion. Beim erneuten Öffnen erscheint die aktuelle Arbeit, während jeder Schritt seinen Zustand behält. Auf dem Telefon stehen der aktuelle Schritt und sein Status unter den Markierungen.
+
+Wählen Sie **Erneut verbessern** für eine weitere Runde oder **Limit erhöhen und fortfahren**, wenn ein Schritt das Budget überschritten hätte. Vor weiteren Ausgaben stehen eine neue vollständige Schätzung und Bestätigung; Quellen, festgelegte Fragen und Rundenlimit bleiben gleich. Ein fehlgeschlagener Schritt wird in derselben Runde wiederholt. Eine fortgesetzte Prüfung reserviert nur verbleibende Messungen samt noch möglicher Wiederholung. Kostenpflichtige Neustarts erfordern den ursprünglichen Anfragenden und dieselbe API-Schlüsselidentität mit erneut geprüften aktuellen Rechten. **Verwerfen** bestätigt nur ausstehende Vorschläge dieser Sitzung. Andere Vorschläge bleiben bestehen; angewendete Änderungen werden nicht rückgängig gemacht. Schätzungen melden keine Änderung; bestätigte Entscheidungen aktualisieren offene Agentenansichten.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 
