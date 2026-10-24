@@ -22,6 +22,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TypedDict
 
+from pydantic import JsonValue
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -152,6 +153,7 @@ class VerdictDetail(TypedDict, total=False):
     """The counts behind a round's verdict - never a question's or an answer's text."""
 
     fixed: int
+    crashed: int
     broken: int
     incomplete: int
     ungraded: int
@@ -199,6 +201,10 @@ class ImprovementRun(Base):
     dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
     suite_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    pinned_scoring: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+    judge_version_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     # A suite is edited in place, so its id alone would let a session be judged
     # against a bar other than the one it started with.
     suite_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)

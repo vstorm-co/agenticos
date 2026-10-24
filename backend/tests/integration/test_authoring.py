@@ -287,6 +287,7 @@ class Improver:
     async def execute(self, runner: Any, ctx: AuthContext, agent_id: Any, prompt: str, **kw: Any):
         self.prompts.append(prompt)
         run = AgentRun(
+            improvement_run_id=kw["isolation"].improvement_run_id if kw.get("isolation") else None,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
             user_id=ctx.user_id,

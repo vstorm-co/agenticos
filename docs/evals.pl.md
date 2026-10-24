@@ -1,5 +1,5 @@
 ---
-source_sha: "07fd123e7c37"
+source_sha: "bb280a768e14"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -159,21 +159,21 @@ odpowiedzi nic nie kosztują, a szacunek wskazuje run, z którego pochodzą.
 
 ### Budżet, który zostaje { #the-budget-it-leaves }
 
-Ewaluacja wydaje z tych samych miesięcznych budżetów co ruch produkcyjny: z
-limitu agenta i z limitu organizacji. Nie ma osobnego budżetu na ewaluacje. Duży dataset
-może więc zostawić produkcję bez budżetu do końca miesiąca, dlatego szacunek
-pokazuje, ile każdy limit zachowa po wydaniu sumy przez run:
-`agent_after_usd` i `org_after_usd`.
+Ewaluacja korzysta z istniejących miesięcznych budżetów agenta i organizacji.
+Szacunek pokazuje kwoty pozostające po pełnym przewidywanym wydatku jako
+`agent_after_usd` i `org_after_usd`. Start zwraca `402`, gdy pierwszy przebieg
+wraz z `rerun_ceiling_usd` przekracza którykolwiek budżet. Limit powtórek obejmuje
+zmianę wyniku każdego przypadku, wszystkie próby potwierdzające, sędziego i
+powtórzenia baseline'u, także użytego ponownie. Rzeczywisty koszt może się różnić.
+Każde żądanie do modelu nadal podlega budżetom miesięcznym; wyczerpanie budżetu
+kończy run jako `budget_exceeded`.
 
-Uruchomienie jest odrzucane z `402`, zanim cokolwiek zostanie zapisane, gdy suma
-przekracza to, co zostało w którymkolwiek limicie. Powtórki potwierdzające
-(niżej) nie wchodzą do tego sprawdzenia, bo dotyczą tylko przypadków, które się
-odwróciły; szacunek pokazuje, ile najwyżej mogą dodać - gdy odwróci się każdy
-przypadek, powtórzony po każdej stronie, łącznie z wykorzystanym baseline'em -
-jako `rerun_ceiling_usd`, który run zachowuje, żeby run, który wydał więcej, niż szacowano, mówił
-dlaczego. Każdy przypadek i tak jest sprawdzany względem obu limitów przed
-każdym żądaniem do modelu, jak każdy run, a przypadek, który trafi na limit,
-zatrzymuje cały run ewaluacji jako `budget_exceeded`.
+Próg szacowanego wydatku zestawu także obejmuje powtórzenia i obie strony
+porównania. Pierwszy szacunek publikacji uwzględnia istniejącą wersję jako
+baseline następnej publikacji, nawet gdy jest tylko jedna wersja. Ten próg
+wyłącznie decyduje o starcie; nie zatrzymuje trwającej ewaluacji. Każdy dodatni
+wzrost kosztu zaliczonego przypadku lub opóźnienia od zera przekracza każdy
+limit procentowy.
 
 ### Co jest odrzucane { #what-is-refused }
 

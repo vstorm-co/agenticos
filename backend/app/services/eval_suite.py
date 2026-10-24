@@ -935,16 +935,16 @@ class EvalSuiteService:
         previous = await agent_repo.version_before(
             self.db, agent_id=agent.id, number=version.version, organization_id=ctx.organization_id
         )
-        paired = (
-            await self.evals.estimate(
-                ctx,
-                agent.id,
-                request.model_copy(
-                    update={"paired_baseline": True, "baseline_version": previous.version}
-                ),
-            )
-            if previous is not None
-            else None
+        # For the first publish, today's only version is tomorrow's baseline.
+        paired = await self.evals.estimate(
+            ctx,
+            agent.id,
+            request.model_copy(
+                update={
+                    "paired_baseline": True,
+                    "baseline_version": (previous or version).version,
+                }
+            ),
         )
         fires = (
             fires_per_month(data.schedule, now=datetime.now(UTC))
@@ -955,7 +955,7 @@ class EvalSuiteService:
             run=run,
             paired_run=paired,
             fires_per_month=fires,
-            monthly_usd=None if fires is None else run.total_usd * fires,
+            monthly_usd=None if fires is None else (run.total_usd + run.rerun_ceiling_usd) * fires,
         )
 
     async def run_now(
@@ -1125,8 +1125,9 @@ class EvalSuiteService:
             judge_version_id=suite.pinned_judge_version_id,
             judge_pinned=pin_of(suite) is not None,
         )
-        if estimate.total_usd > suite.max_run_usd:
-            raise _OverCap(estimate.total_usd, suite.max_run_usd)
+        full_estimate = estimate.total_usd + estimate.rerun_ceiling_usd
+        if full_estimate > suite.max_run_usd:
+            raise _OverCap(full_estimate, suite.max_run_usd)
 
     async def version_published(
         self, ctx: AuthContext, *, agent: Agent, version: AgentVersion

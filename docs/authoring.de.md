@@ -1,5 +1,5 @@
 ---
-source_sha: "9c566eba1b2b"
+source_sha: "33dae331e228"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -309,3 +309,27 @@ Context-Datei lehnt der Server ab,
 und die Konsole zeigt sie deaktiviert mit einem Link zum Schalter. Bereits
 wartende Vorschläge lassen sich weiterhin annehmen, verwerfen und rückgängig
 machen, und ein Eval Run, der keinen Bewerter braucht, läuft weiterhin.
+
+## Verbesserungssitzungen im Hintergrund { #background-improvement-sessions }
+
+Die API koordiniert Verbesserungen im Hintergrund. Senden Sie zunächst Dataset
+oder Suite und Rundengrenze an `/agents/{agent_id}/improvements/estimate`, danach
+dasselbe Ziel mit `budget_usd` an `/agents/{agent_id}/improvements`. Die gesamte
+Schätzung enthält Vorschläge, beide Eval-Seiten, Richter, bestätigende Versuche
+und eine Wiederholung eines unentschiedenen Vergleichs je Runde. Ein bezahlter
+Schritt startet nur, wenn seine volle Schätzung ins verbleibende Sitzungsbudget
+passt. Ein begonnener Schritt darf enden; tatsächliche Kosten bleiben auch nach
+einem Abbruch sichtbar.
+
+Die Sammlung oder einzelne Sitzung zeigt gespeicherte Schritte, Aufgaben-IDs,
+Urteile und Kosten. Ersteller oder Organisationsadministratoren können
+`/{run_id}/cancel` in dieser Sammlung aufrufen. Der Worker prüft vor jedem Schritt
+die aktuellen Rechte des Erstellers, Entwurf, letzte Veröffentlichung, Bewertung
+und Suite-Pin. Geänderte Eingaben machen die Sitzung veraltet; verlorene Rechte
+stoppen sie. Pro Agent darf nur eine Sitzung laufen.
+
+Eine geprüfte Verbesserung endet bei `ready`: Ihr Kandidat wird zum wartenden
+Vorschlagspaket. Die Sitzung übernimmt, veröffentlicht oder befördert nichts.
+Frühere Kandidaten ersetzen während der Prüfung keine wartenden menschlichen
+Vorschläge. Eine Benachrichtigung führt den Ersteller zur fertigen oder gestoppten
+Sitzung.

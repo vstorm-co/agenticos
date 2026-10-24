@@ -381,6 +381,7 @@ class AuthoringService:
         body: AuthoringStart,
         *,
         excluded_message_ids: Sequence[UUID] = (),
+        improvement_run_id: UUID | None = None,
     ) -> AuthoringRequestRead:
         """Queue an Improve or Verify on an agent, after the same checks its estimate makes.
 
@@ -399,6 +400,7 @@ class AuthoringService:
             ctx,
             estimate,
             body,
+            improvement_run_id=improvement_run_id,
             target=AuthoringTarget.AGENT,
             agent_id=agent_id,
             skill_id=None,
@@ -445,6 +447,7 @@ class AuthoringService:
         skill_id: UUID | None,
         context_id: UUID | None = None,
         excluded_message_ids: Sequence[UUID] = (),
+        improvement_run_id: UUID | None = None,
     ) -> AuthoringRequestRead:
         if estimate.reason == "no_draft_change":
             raise BadRequestError(
@@ -480,6 +483,7 @@ class AuthoringService:
             estimate_usd=estimate.estimate_usd,
             window_days=body.window_days,
             excluded_message_ids=excluded_message_ids,
+            improvement_run_id=improvement_run_id,
         )
         await record_audit(
             self.db,

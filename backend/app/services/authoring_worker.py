@@ -381,7 +381,11 @@ class AuthoringRun:
     async def _ask[T: BaseModel](self, prompt: str, output_type: type[T]) -> T:
         try:
             result = await self.runner.run(
-                self.ctx, key=IMPROVER.key, prompt=prompt, output_type=output_type
+                self.ctx,
+                key=IMPROVER.key,
+                prompt=prompt,
+                output_type=output_type,
+                improvement_run_id=self.request.improvement_run_id,
             )
         except (SystemAgentRunError, SystemAgentOutputError) as exc:
             # The call was made and priced even though it gave no answer.
@@ -845,6 +849,38 @@ class AuthoringRun:
         """
         started = self.request.started_at or self.request.created_at
         await self._serialize(agent_id)
+        if self.request.improvement_run_id is not None:
+            from app.db.models.improvement import ImprovementStatus
+            from app.repositories import improvement_repo
+
+            session = await improvement_repo.get_run(
+                self.db, self.request.improvement_run_id, organization_id=self.ctx.organization_id
+            )
+            if session is None or not ImprovementStatus(session.status).active:
+                raise Stopped("The improvement session stopped.")
+            previous = await authoring_repo.batch_for_request(
+                self.db, self.request.id, organization_id=self.ctx.organization_id
+            )
+            if previous is not None:
+                return len(
+                    await authoring_repo.list_hunks(
+                        self.db, organization_id=self.ctx.organization_id, batch_id=previous.id
+                    )
+                )
+            batch = await authoring_repo.create_batch(
+                self.db,
+                organization_id=self.ctx.organization_id,
+                agent_id=agent_id,
+                request_id=self.request.id,
+                source_started_at=started,
+                expected_effect=expected_effect,
+                evidence_conversation_ids=pack.conversation_ids,
+                improvement_run_id=session.id,
+            )
+            await authoring_repo.add_hunks(
+                self.db, organization_id=self.ctx.organization_id, batch_id=batch.id, hunks=hunks
+            )
+            return len(hunks)
         current = await authoring_repo.get_open_batch(
             self.db, organization_id=self.ctx.organization_id, agent_id=agent_id, lock=True
         )

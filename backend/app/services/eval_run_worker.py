@@ -66,6 +66,7 @@ from app.repositories import (
     intercepted_tool_call_repo,
     personal_data_repo,
 )
+from app.schemas.eval_run import ProposalCheckRecord
 from app.schemas.scoring import DatasetScoring
 from app.services.access import AGENT, DATASET, resolve_access
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
@@ -460,6 +461,13 @@ class EvalRunWorker:
                     isolation=RunIsolation(
                         recording=await self._recording(db, ctx, run, revision),
                         live_reads=run.live_reads,
+                        improvement_run_id=(
+                            None
+                            if run.proposal_check is None
+                            else ProposalCheckRecord.model_validate(
+                                run.proposal_check
+                            ).improvement_run_id
+                        ),
                     ),
                     candidate=_candidate(arm),
                     model_profile_id=arm.model_profile_id,
@@ -536,6 +544,13 @@ class EvalRunWorker:
                     eval_run_id=run.id,
                     judge_version_id=run.judge_version_id,
                     judge_pinned=run.judge_pinned,
+                    improvement_run_id=(
+                        None
+                        if run.proposal_check is None
+                        else ProposalCheckRecord.model_validate(
+                            run.proposal_check
+                        ).improvement_run_id
+                    ),
                     # What deserves a person is sent once the reruns are in.
                     enqueue_review=False,
                 )
@@ -778,8 +793,6 @@ class EvalRunWorker:
             new = [
                 EvalRunCase(
                     eval_run_id=run.id,
-                    judge_version_id=run.judge_version_id,
-                    judge_pinned=run.judge_pinned,
                     arm_id=arm_id,
                     case_id=case_id,
                     case_revision_id=first.case_revision_id,

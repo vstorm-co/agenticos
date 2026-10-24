@@ -4808,7 +4808,7 @@
       },
       "routines-watches": {
         "title": "Was Ihre Konten beobachtet",
-        "body": "Beobachtungen lesen Ihre eigenen verbundenen Konten nach Zeitplan - Reviews, die auf Sie warten, Ihnen zugewiesene Issues - und legen Neues in Ihren Posteingang. Jede Zeile sagt, wann zuletzt geprüft wurde und wie viel vom Gefundenen noch wartet."
+        "body": "Beobachtungen lesen Ihre eigenen verbundenen Konten nach Zeitplan - Prüfungen, die auf Sie warten, Ihnen zugewiesene Issues - und legen Neues in Ihren Posteingang. Jede Zeile sagt, wann zuletzt geprüft wurde und wie viel vom Gefundenen noch wartet."
       },
       "agent-starters": {
         "title": "Erste Nachrichten",
@@ -6003,7 +6003,7 @@
         "role": "Ihre Rolle",
         "rolePlaceholder": "Vertriebsleitung",
         "about": "Woran Sie arbeiten",
-        "aboutPlaceholder": "Großkunden in Skandinavien; wöchentlicher Pipeline-Review mit dem CFO.",
+        "aboutPlaceholder": "Großkunden in Skandinavien; wöchentlicher Pipeline-Prüfung mit dem CFO.",
         "timeZone": "Zeitzone",
         "save": "Speichern",
         "saved": "Gespeichert - Ihre Agents wissen es ab der nächsten Nachricht.",
@@ -9724,7 +9724,9 @@
         "invalid": "Beide Seiten wurden unterschiedlich bewertet und lassen sich nicht vergleichen.",
         "ungraded": "{count, plural, =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}, daher kann die Suite für dieses Ergebnis nicht einstehen.",
         "incomplete": "{count, plural, =1 {1 Fall ließ} other {# Fälle ließen}} sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert - daher kann die Suite für dieses Ergebnis nicht einstehen.",
-        "crashed": "Der Run des Agenten ist bei {count, plural, =1 {1 Fall} other {# Fällen}} gescheitert; ein gescheiterter Run lässt die Suite durchfallen."
+        "crashed": "Der Run des Agenten ist bei {count, plural, =1 {1 Fall} other {# Fällen}} gescheitert; ein gescheiterter Run lässt die Suite durchfallen.",
+        "costFromZero": "Die Kosten pro bestandenem Fall stiegen von null und überschreiten jede Prozentgrenze.",
+        "latencyFromZero": "Die p95-Latenz stieg von null und überschreitet jede Prozentgrenze."
       },
       "skip": {
         "budget": "Er würde mehr kosten, als das Budget in diesem Monat noch hat.",
@@ -9790,8 +9792,8 @@
         "efficiencyHint": "Optionale Grenzen gegenüber der Baseline. Leer wird nichts geprüft.",
         "costRise": "Kosten pro bestandenem Fall dürfen steigen um (%)",
         "p95Rise": "p95-Latenz darf steigen um (%)",
-        "maxRunUsd": "Lauf überspringen, wenn geschätzt über ($)",
-        "maxRunUsdHint": "Geplante Läufe starten, ohne dass jemand zusieht. Ein höher geschätzter Lauf wird übersprungen, und du wirst benachrichtigt.",
+        "maxRunUsd": "Lauf überspringen, wenn die Gesamtschätzung über ($) liegt",
+        "maxRunUsdHint": "Enthält Wiederholungen und die vorherige Version. Die tatsächlichen Kosten können abweichen; ein laufender Test wird nicht gestoppt.",
         "description": "Notiz",
         "estimateRun": "Ein Lauf: etwa {amount} für {count, plural, =1 {1 Fall} other {# Fälle}}.",
         "estimatePaired": "Bei Veröffentlichung oder Promotion läuft die vorherige Version daneben: etwa {amount}.",

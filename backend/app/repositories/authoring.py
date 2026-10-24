@@ -42,10 +42,12 @@ async def create_request(
     estimate_usd: Decimal,
     window_days: int,
     excluded_message_ids: Sequence[UUID] = (),
+    improvement_run_id: UUID | None = None,
 ) -> AuthoringRequest:
     request = AuthoringRequest(
         organization_id=organization_id,
         kind=kind,
+        improvement_run_id=improvement_run_id,
         target=target,
         agent_id=agent_id,
         skill_id=skill_id,
@@ -204,13 +206,15 @@ async def create_batch(
     source_started_at: datetime,
     expected_effect: str,
     evidence_conversation_ids: Sequence[UUID],
+    improvement_run_id: UUID | None = None,
 ) -> SpecProposalBatch:
     batch = SpecProposalBatch(
         organization_id=organization_id,
         agent_id=agent_id,
         request_id=request_id,
         source_started_at=source_started_at,
-        status=BatchStatus.OPEN.value,
+        status=BatchStatus.CANDIDATE.value if improvement_run_id else BatchStatus.OPEN.value,
+        improvement_run_id=improvement_run_id,
         expected_effect=expected_effect,
         evidence_conversation_ids=list(evidence_conversation_ids),
     )
@@ -537,3 +541,43 @@ async def evidence_runs(
             )
         )
     return rows
+
+
+async def batch_for_request(
+    db: AsyncSession, request_id: UUID, *, organization_id: UUID
+) -> SpecProposalBatch | None:
+    result = await db.execute(
+        select(SpecProposalBatch).where(
+            SpecProposalBatch.request_id == request_id,
+            SpecProposalBatch.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def split_candidate(
+    db: AsyncSession,
+    *,
+    batch: SpecProposalBatch,
+    hunks: Sequence[SpecProposalHunk],
+) -> SpecProposalBatch:
+    """Keep changes that must be measured separately in another private candidate.
+
+    The source request still names its original batch. The split is attributed
+    through the shared improvement run, so lookup by request remains unique.
+    """
+    separate = await create_batch(
+        db,
+        organization_id=batch.organization_id,
+        agent_id=batch.agent_id,
+        request_id=None,
+        source_started_at=batch.source_started_at,
+        expected_effect=batch.expected_effect,
+        evidence_conversation_ids=batch.evidence_conversation_ids,
+        improvement_run_id=batch.improvement_run_id,
+    )
+    for position, hunk in enumerate(hunks):
+        hunk.batch_id = separate.id
+        hunk.position = position
+    await db.flush()
+    return separate

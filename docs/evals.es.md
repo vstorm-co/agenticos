@@ -1,5 +1,5 @@
 ---
-source_sha: "07fd123e7c37"
+source_sha: "bb280a768e14"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -149,21 +149,21 @@ respuestas no cuestan nada y la estimación nombra el run del que provienen.
 
 ### El budget que deja { #the-budget-it-leaves }
 
-Un eval gasta de los mismos budgets mensuales que el tráfico real: el límite
-del agent y el de la organización. No hay un budget aparte para evals. Un
-dataset grande puede por tanto dejar la producción sin budget el resto del mes,
-así que la estimación muestra lo que conserva cada límite una vez que el run ha
-gastado su total: `agent_after_usd` y `org_after_usd`.
+Una evaluación usa los presupuestos mensuales existentes del agente y de la
+organización. La estimación muestra lo que quedaría tras el gasto total previsto
+como `agent_after_usd` y `org_after_usd`. El inicio devuelve `402` si la primera
+pasada más `rerun_ceiling_usd` supera cualquiera de los presupuestos. El límite
+incluye todos los intentos de confirmación, el juez y las repeticiones del
+baseline, también cuando se reutiliza. El coste real puede variar. Cada petición
+al modelo sigue sujeta a los presupuestos mensuales; agotarlos termina el run
+como `budget_exceeded`.
 
-Iniciarlo se rechaza con `402` antes de escribir nada cuando el total supera lo
-que le queda a cualquiera de los dos límites. Las repeticiones de confirmación
-(más abajo) no entran en esa comprobación, porque solo afectan a los casos que
-cambian; la estimación muestra lo máximo que pueden añadir - todo caso
-cambiado, repetido en cada lado, baseline reutilizado incluido - como
-`rerun_ceiling_usd`, que el run conserva para que un run que gastó más de lo
-estimado diga por qué. Cada caso se sigue comprobando contra ambos límites antes
-de cada petición al modelo, como cualquier run, y un caso que choca con un
-límite detiene todo el eval run como `budget_exceeded`.
+El límite de gasto estimado de una suite también incluye repeticiones y ambos
+lados cuando se comparan. La primera estimación de publicación incluye la versión
+existente como baseline de la siguiente publicación, incluso si solo hay una.
+Este límite solo decide si se inicia; no detiene una evaluación en curso.
+Cualquier aumento positivo de coste por caso aprobado o latencia desde cero
+supera cualquier límite porcentual.
 
 ### Qué se rechaza { #what-is-refused }
 

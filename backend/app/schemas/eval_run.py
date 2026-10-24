@@ -52,6 +52,7 @@ class ProposalCheckRecord(BaseSchema):
     base_version: int | None
     on_draft: bool = False
     suggestions: int = Field(ge=1)
+    improvement_run_id: UUID | None = None
 
 
 class EvalRunRequest(BaseSchema):

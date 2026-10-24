@@ -1,5 +1,5 @@
 ---
-source_sha: "07fd123e7c37"
+source_sha: "bb280a768e14"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -167,21 +167,22 @@ nennt den Run, aus dem sie stammen.
 
 ### Das verbleibende Budget { #the-budget-it-leaves }
 
-Ein Eval zahlt aus denselben Monatsbudgets wie der Live-Verkehr: dem Limit des
-Agents und dem der Organisation. Ein eigenes Eval-Budget gibt es nicht. Ein
-großes Dataset kann die Produktion daher für den Rest des Monats ohne Budget
-lassen, deshalb zeigt die Schätzung, was jedes Limit behält, nachdem der Run
-seine Summe ausgegeben hat: `agent_after_usd` und `org_after_usd`.
+Ein Eval nutzt die bestehenden Monatsbudgets des Agents und der Organisation.
+Die Schätzung zeigt die verbleibenden Beträge nach dem vollständigen erwarteten
+Aufwand als `agent_after_usd` und `org_after_usd`. Der Start wird mit `402`
+abgelehnt, wenn erster Durchlauf plus `rerun_ceiling_usd` eines der Budgets
+übersteigt. Die Obergrenze enthält alle bestätigenden Versuche bei geänderten
+Ergebnissen, den Richter und Wiederholungen der Baseline, auch bei einer
+wiederverwendeten Baseline. Tatsächliche Kosten können abweichen. Jede
+Modellanfrage unterliegt weiterhin den Monatsbudgets; ein erschöpftes Budget
+beendet den Run als `budget_exceeded`.
 
-Der Start wird mit `402` abgelehnt, bevor etwas geschrieben wird, wenn die Summe
-höher ist als das, was einem der beiden Limits bleibt. Bestätigungsläufe (unten)
-zählen bei dieser Prüfung nicht, weil sie nur Fälle betreffen, die kippen; die
-Schätzung zeigt, wie viel sie höchstens hinzufügen können - jeder Fall kippt
-und wird auf jeder Seite wiederholt, eine wiederverwendete Baseline
-eingeschlossen - als `rerun_ceiling_usd`, den der Run behält, damit ein Run, der mehr als seine
-Schätzung ausgegeben hat, sagt, warum. Jeder Fall wird trotzdem vor jeder
-Modellanfrage gegen beide Limits geprüft, wie jeder Run, und ein Fall, der an
-ein Limit stößt, stoppt den ganzen Eval-Run als `budget_exceeded`.
+Auch die geschätzte Ausgabengrenze einer Suite enthält Wiederholungen und bei
+Paaren beide Seiten. Die erste Veröffentlichungsschätzung enthält die bestehende
+Version als Baseline der nächsten Veröffentlichung, selbst bei nur einer Version.
+Diese Grenze entscheidet nur über den Start; sie stoppt keinen laufenden Test.
+Jeder positive Kosten- oder Latenzanstieg von einer Baseline von null überschreitet
+jede Prozentgrenze.
 
 ### Was abgelehnt wird { #what-is-refused }
 

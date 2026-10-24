@@ -35,6 +35,7 @@ const HELD = "bg-warning/10 text-warning";
 
 /** What each kind of event looks like: its icon, and the tint that says how it went. */
 const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
+  improvement_finished: { icon: Sparkles, tone: NEUTRAL },
   run_completed: { icon: CheckCircle2, tone: GOOD },
   run_failed: { icon: AlertCircle, tone: BAD },
   approval_requested: { icon: ShieldCheck, tone: HELD },

@@ -22,6 +22,7 @@ crash needs no baseline and no minimum to be a defect.
 """
 
 from decimal import Decimal
+from math import inf, isinf
 
 from app.db.models.eval_suite import EvalSuiteResultStatus
 from app.schemas.eval_run import ArmSummaryRead, EvalComparisonRead
@@ -30,7 +31,11 @@ from app.schemas.eval_suite import EvalSuiteThreshold, ThresholdReason
 
 def rise(candidate: Decimal | float | None, baseline: Decimal | float | None) -> float | None:
     """How much larger the candidate is than the baseline, as a fraction of it."""
-    if candidate is None or baseline is None or baseline <= 0:
+    if candidate is None or baseline is None:
+        return None
+    if baseline == 0:
+        return inf if candidate > 0 else 0.0
+    if baseline < 0:
         return None
     return float(candidate) / float(baseline) - 1
 
@@ -104,7 +109,12 @@ def judge(
             grew = rise(candidate, baseline)
             if ceiling is not None and grew is not None and grew > ceiling:
                 (open_cases if provisional else reasons).append(
-                    ThresholdReason(code=code, value=round(grew, 4), limit=ceiling)
+                    ThresholdReason(
+                        code=code,
+                        value=None if isinf(grew) else round(grew, 4),
+                        limit=ceiling,
+                        detail="zero_baseline" if isinf(grew) else None,
+                    )
                 )
     if reasons:
         return EvalSuiteResultStatus.FAILED, reasons

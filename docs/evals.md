@@ -140,20 +140,21 @@ cost nothing and the estimate names the run they come from.
 
 ### The budget it leaves { #the-budget-it-leaves }
 
-An eval spends from the same monthly budgets as live traffic: the agent's cap
-and the organization's. There is no separate eval budget. A large dataset can
-therefore leave production without budget for the rest of the month, so the
-estimate shows what each cap keeps once the run has spent its total:
-`agent_after_usd` and `org_after_usd`.
+An eval spends from the agent's and organization's existing monthly budgets. The estimate
+reports their remaining amounts after the full exposure as `agent_after_usd` and
+`org_after_usd`. Starting refuses with `402` when the first pass plus
+`rerun_ceiling_usd` exceeds either budget. The ceiling includes every case
+flipping, all confirming attempts, the judge and baseline reruns, including a
+reused baseline. Actual spending can differ from this estimate. Each model
+request still observes the monthly budgets; exhausting one ends the eval as
+`budget_exceeded`.
 
-Starting refuses with `402` before anything is written when the total is more
-than either cap has left. Confirmation reruns (below) are not part of that
-check, because they only happen to cases that flip; the estimate shows the most
-they can add - every case flipping, rerun on every side, a reused baseline
-included - as `rerun_ceiling_usd`, which the run keeps so a run that spent
-past its estimate says why. Every case is still checked against both
-caps before each model request, as any run is, and a case that runs into a cap
-stops the whole eval run as `budget_exceeded`.
+A suite's estimated spend cap also includes confirming reruns and both sides
+when paired. Its first publish estimate includes the existing version as the
+next publication's baseline even when only one version exists. This estimate
+cap only decides whether to start; it never stops an eval already in progress.
+A cost-per-pass or latency percentage ceiling is exceeded by any positive
+increase from a zero baseline.
 
 ### What is refused { #what-is-refused }
 

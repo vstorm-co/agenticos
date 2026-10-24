@@ -904,6 +904,34 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def improvement_finished(
+        self, *, agent: Agent, run_id: UUID, user_id: UUID | None, status: str, reason: str | None
+    ) -> None:
+        """A terminal pipeline result, once; no evidence text is put in the notification."""
+        if user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=agent.organization_id, user_ids=[user_id]
+        )
+        path = self._link(f"/agents/{agent.id}?improvement={run_id}", agent.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.IMPROVEMENT_FINISHED,
+            occurrence_id=str(run_id),
+            summary=f"Improvement of {agent.name}: {status}" + (f" ({reason})" if reason else ""),
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "status": status,
+                "reason": reason,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=agent.organization_id,
+            use_savepoint=True,
+        )
+
     async def eval_suite_failed(
         self, suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent
     ) -> None:
@@ -1594,8 +1622,12 @@ def _reason_text(reason: ThresholdReason) -> str:
                 else f"{int(value)} cases break reproducibly"
             )
         case "cost_per_pass_rise":
+            if reason.detail == "zero_baseline":
+                return "cost per passed case rose from zero, exceeding every percentage ceiling"
             return f"cost per passed case rose {value:.0%}"
         case "p95_rise":
+            if reason.detail == "zero_baseline":
+                return "p95 latency rose from zero, exceeding every percentage ceiling"
             return f"p95 latency rose {value:.0%}"
         case "ungraded":
             return f"{int(value)} case(s) nothing grades"

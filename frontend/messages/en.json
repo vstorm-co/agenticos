@@ -9841,7 +9841,9 @@
         "invalid": "The two sides were graded differently, so they cannot be compared.",
         "ungraded": "{count, plural, =1 {1 case has nothing that grades it} other {# cases have nothing that grades them}}, so the suite cannot vouch for this result.",
         "incomplete": "{count, plural, =1 {1 case} other {# cases}} could not be decided - the provider or a scorer failed on them - so the suite cannot vouch for this result.",
-        "crashed": "The agent's run failed on {count, plural, =1 {1 case} other {# cases}}; a failed run fails the suite."
+        "crashed": "The agent's run failed on {count, plural, =1 {1 case} other {# cases}}; a failed run fails the suite.",
+        "costFromZero": "Cost per passed case rose from zero, exceeding every percentage ceiling.",
+        "latencyFromZero": "p95 latency rose from zero, exceeding every percentage ceiling."
       },
       "skip": {
         "budget": "It would cost more than the budget has left this month.",
@@ -9907,8 +9909,8 @@
         "efficiencyHint": "Optional ceilings against the baseline. Left empty, nothing is checked.",
         "costRise": "Cost per passed case may rise by (%)",
         "p95Rise": "p95 latency may rise by (%)",
-        "maxRunUsd": "Skip a run estimated above ($)",
-        "maxRunUsdHint": "Scheduled runs start with nobody watching. A run estimated higher is skipped and you are told.",
+        "maxRunUsd": "Skip a run whose full estimate is above ($)",
+        "maxRunUsdHint": "Includes reruns and the previous version. The actual cost can differ; a running eval is not stopped by this cap.",
         "description": "Note",
         "estimateRun": "One run: about {amount} for {count, plural, =1 {1 case} other {# cases}}.",
         "estimatePaired": "On publish or promotion the previous version runs beside it: about {amount}.",

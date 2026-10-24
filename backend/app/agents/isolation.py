@@ -246,6 +246,7 @@ class RunIsolation:
     recording: ToolRecording | None = None
     live_reads: bool = False
     intercepted: list[InterceptedCall] = field(default_factory=list)
+    improvement_run_id: UUID | None = None
 
 
 def _blocked_notice(name: str) -> str:

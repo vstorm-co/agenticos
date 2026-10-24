@@ -1,5 +1,5 @@
 ---
-source_sha: "9c566eba1b2b"
+source_sha: "33dae331e228"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -297,3 +297,26 @@ asistente no se ejecuta: el servidor rechaza Mejorar, Verificar y mejorar un
 skill o un archivo de contexto, y la consola los muestra desactivados con un enlace al interruptor. Las
 sugerencias que ya esperan se pueden seguir aceptando, descartando y deshaciendo,
 y un eval run que no necesita juez sigue ejecutándose.
+
+## Sesiones de mejora en segundo plano { #background-improvement-sessions }
+
+La API coordina mejoras en segundo plano. Envía primero un dataset o suite y el
+límite de rondas a `/agents/{agent_id}/improvements/estimate`, y después el mismo
+objetivo con `budget_usd` a `/agents/{agent_id}/improvements`. La estimación total
+incluye propuestas, ambos lados de la evaluación, juez, intentos de confirmación
+y una repetición de una comparación inconclusa por ronda. Cada paso de pago solo
+empieza si su estimación completa cabe en el presupuesto restante. Un paso ya
+iniciado puede terminar; el coste real sigue visible incluso tras cancelar.
+
+La colección o sesión muestra los pasos guardados, identificadores de tareas,
+veredictos y costes. El creador o un administrador puede enviar una petición a
+`/{run_id}/cancel` dentro de la colección. El worker comprueba antes de cada paso
+los permisos actuales del creador, borrador, última publicación, puntuación y
+versión fijada de la suite. Los cambios invalidan la sesión; perder permisos la
+detiene. Solo puede ejecutarse una sesión por agente.
+
+Una mejora comprobada termina en `ready` y su candidato se convierte en el paquete
+de sugerencias pendiente. La sesión nunca acepta, publica ni promueve cambios.
+Los candidatos previos no sustituyen las sugerencias pendientes de una persona
+mientras se comprueban. Una notificación lleva al creador a la sesión lista o
+detenida.

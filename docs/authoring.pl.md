@@ -1,5 +1,5 @@
 ---
-source_sha: "9c566eba1b2b"
+source_sha: "33dae331e228"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -294,3 +294,25 @@ serwer, a konsola
 pokazuje je jako wyłączone z linkiem do przełącznika. Sugestie, które już
 czekają, nadal można przyjmować, odrzucać i cofać, a run ewaluacji, który nie
 potrzebuje sędziego, nadal działa.
+
+## Sesje poprawiania w tle { #background-improvement-sessions }
+
+API koordynuje poprawianie agenta w tle. Najpierw wyślij dataset lub zestaw i limit
+rund do `/agents/{agent_id}/improvements/estimate`, następnie ten sam cel wraz z
+`budget_usd` do `/agents/{agent_id}/improvements`. Łączny szacunek obejmuje propozycje,
+obie strony ewaluacji, sędziego, powtórki potwierdzające i jedno powtórzenie
+nierozstrzygniętego porównania na rundę. Płatny krok rusza tylko wtedy, gdy jego
+pełny szacunek mieści się w pozostałym budżecie sesji. Rozpoczęty krok może się
+dokończyć, a rzeczywiste koszty pozostają widoczne także po anulowaniu.
+
+Odczyt kolekcji lub sesji pokazuje zapisaną historię, identyfikatory zadań, werdykty
+i koszty. Twórca lub administrator organizacji może wysłać żądanie do
+`/{run_id}/cancel` w tej kolekcji. Worker przed przejściem sprawdza aktualne
+uprawnienia twórcy, wersję roboczą, ostatnią publikację, ocenianie i przypięcie zestawu.
+Zmiana danych unieważnia sesję; utrata uprawnień ją zatrzymuje. Dla jednego agenta
+może działać tylko jedna sesja.
+
+Sprawdzona poprawa kończy się stanem `ready`, a kandydat staje się oczekującym
+pakietem sugestii. Sesja nigdy nie akceptuje, nie publikuje ani nie promuje zmian.
+Wcześniejsze kandydaty nie zastępują sugestii oczekujących na decyzję człowieka.
+Powiadomienie twórcy prowadzi do gotowej lub zatrzymanej sesji.

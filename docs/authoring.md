@@ -278,3 +278,25 @@ Improve, Verify and Improve on a skill or a context file are refused by the serv
 shows them disabled with a link to the switch. Suggestions already waiting can
 still be accepted, dismissed and undone, and an eval run that needs no judge
 still runs.
+
+## Background improvement sessions { #background-improvement-sessions }
+
+The API can coordinate an improvement in the background. First post a dataset
+or suite and round limit to `/agents/{agent_id}/improvements/estimate`, then post
+the same target with `budget_usd` to `/agents/{agent_id}/improvements`. The combined
+estimate includes proposals, both eval sides, the judge, confirming reruns and
+one repeat of an inconclusive comparison per round. Each paid step starts only
+when its full estimate fits the remaining session budget. A started child is
+allowed to finish, and actual costs remain visible even after cancellation.
+
+Read the collection or an individual session to follow its stored timeline,
+child IDs, verdicts and costs. The creator or an organization administrator can
+post to `/{run_id}/cancel` under the same collection. The worker checks the
+creator's current permissions, draft, latest publication, scoring and suite pin
+before each transition. Changed inputs make the session stale; lost authority
+stops it. Only one session can run for an agent at a time.
+
+A checked improvement ends at `ready`, where its candidate becomes the waiting
+suggestion batch. It never accepts, publishes or promotes. Earlier candidate
+batches leave a person's waiting suggestions alone while checks run. A creator
+notification links to the session when it becomes ready or stops.

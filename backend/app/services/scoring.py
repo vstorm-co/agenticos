@@ -506,6 +506,7 @@ class ScoringService:
         eval_run_id: UUID | None = None,
         judge_version_id: UUID | None = None,
         judge_pinned: bool = False,
+        improvement_run_id: UUID | None = None,
     ) -> CaseScore:
         """Run every configured scorer on one answer to one case, and keep the score.
 
@@ -533,6 +534,7 @@ class ScoringService:
             config,
             judge_version_id=judge_version_id,
             judge_pinned=judge_pinned,
+            improvement_run_id=improvement_run_id,
         )
         results = evaluation.results
         if not results:
@@ -780,6 +782,7 @@ class ScoringService:
         *,
         judge_version_id: UUID | None = None,
         judge_pinned: bool = False,
+        improvement_run_id: UUID | None = None,
     ) -> Evaluation:
         """Every configured scorer's result for one answer, without keeping them.
 
@@ -815,6 +818,7 @@ class ScoringService:
             scoring,
             judge_version_id=judge_version_id,
             judge_pinned=judge_pinned,
+            improvement_run_id=improvement_run_id,
         )
         return Evaluation([*results, *judging.results], judging.judge)
 
@@ -828,6 +832,7 @@ class ScoringService:
         *,
         judge_version_id: UUID | None = None,
         judge_pinned: bool = False,
+        improvement_run_id: UUID | None = None,
     ) -> Evaluation:
         if judge_pinned and judge_version_id is None:
             return Evaluation(
@@ -846,6 +851,7 @@ class ScoringService:
                 output_type=JudgeVerdict,
                 agent_id=scoring.judge.agent_id,
                 version_id=judge_version_id,
+                improvement_run_id=improvement_run_id,
             )
         except AiAssistanceDisabledError as exc:
             skipped = not_graded(

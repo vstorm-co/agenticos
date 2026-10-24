@@ -1160,10 +1160,14 @@ class EvalRunService:
             agent_remaining_usd=agent_left,
             org_remaining_usd=org_left,
             # The judge bills to its own agent; only the organization pays both.
-            agent_after_usd=None if agent_left is None else agent_left - arms_usd,
-            org_after_usd=None if org_left is None else org_left - total,
-            affordable=(agent_left is None or arms_usd <= agent_left)
-            and (org_left is None or total <= org_left),
+            agent_after_usd=None
+            if agent_left is None
+            else agent_left - arms_usd - rerun_per_case * cases * plan.reruns,
+            org_after_usd=None if org_left is None else org_left - total - rerun_ceiling,
+            affordable=(
+                agent_left is None or arms_usd + rerun_per_case * cases * plan.reruns <= agent_left
+            )
+            and (org_left is None or total + rerun_ceiling <= org_left),
             ungraded_cases=plan.ungraded,
             missing_baseline_version=plan.missing_baseline,
         )

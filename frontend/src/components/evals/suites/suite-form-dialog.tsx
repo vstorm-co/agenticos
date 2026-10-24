@@ -176,13 +176,24 @@ export function SuiteFormDialog({
           <div className="bg-muted/50 space-y-1 rounded-lg p-3 text-sm">
             <p>
               {t("estimateRun", {
-                amount: usd(priced.run.total_usd, locale),
+                amount: usd(
+                  String(Number(priced.run.total_usd) + Number(priced.run.rerun_ceiling_usd)),
+                  locale,
+                ),
                 count: priced.run.cases,
               })}
             </p>
             {priced.paired_run && (
               <p className="text-muted-foreground text-xs">
-                {t("estimatePaired", { amount: usd(priced.paired_run.total_usd, locale) })}
+                {t("estimatePaired", {
+                  amount: usd(
+                    String(
+                      Number(priced.paired_run.total_usd) +
+                        Number(priced.paired_run.rerun_ceiling_usd),
+                    ),
+                    locale,
+                  ),
+                })}
               </p>
             )}
             {priced.monthly_usd !== null && priced.fires_per_month !== null && (

@@ -101,9 +101,9 @@ def test_a_check_that_did_not_measure_everything_is_inconclusive(result: CheckRe
     ],
     ids=["confirmed-regression", "failed-suite"],
 )
-def test_what_is_known_to_break_outweighs_what_went_unmeasured(result: CheckResult) -> None:
-    """A known break is never rerun as inconclusive: zero tolerance for confirmed regressions."""
-    assert judge(result) is ImprovementVerdict.REGRESSION
+def test_partial_measurement_keeps_an_automatic_session_inconclusive(result: CheckResult) -> None:
+    """A partial check never lets an automatic session select its candidate."""
+    assert judge(result) is ImprovementVerdict.INCONCLUSIVE
 
 
 def test_an_invalid_comparison_says_nothing_even_about_regressions() -> None:
@@ -509,3 +509,7 @@ def test_after_drafting_the_agents_faults_are_next_or_the_session_ends(
     status, agent_answers, move
 ) -> None:
     assert after_drafting(status, agent_answers=agent_answers) == move
+
+
+def test_a_crashed_candidate_is_inconclusive_even_with_fixes() -> None:
+    assert judge(replace(_BETTER, crashed=1)) is ImprovementVerdict.INCONCLUSIVE

@@ -191,7 +191,7 @@ describe("EvalSuitesCard", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Passed · 100%")).toBeInTheDocument();
-    expect(screen.getByText("a dataset you cannot see · staging")).toBeInTheDocument();
+    expect(screen.getByText("a dataset you cannot see · staging · serves v7")).toBeInTheDocument();
     expect(screen.getByText("Only when run by hand")).toBeInTheDocument();
     expect(screen.getByText("Did not run")).toBeInTheDocument();
     expect(screen.getByText("Paused: its owner left")).toBeInTheDocument();
@@ -466,7 +466,7 @@ describe("SuiteFormDialog", () => {
         run: { ...ESTIMATE, ungraded_cases: 2 },
         paired_run: ESTIMATE,
         fires_per_month: 30,
-        monthly_usd: "6.00",
+        monthly_usd: "9.00",
       },
     });
     const dialog = await openNew();
@@ -483,7 +483,7 @@ describe("SuiteFormDialog", () => {
       environment_id: null,
       schedule: { cron: "0 6 * * *", timezone: expect.any(String) },
     });
-    expect(within(dialog).getByText("One run: about $0.20 for 4 cases.")).toBeInTheDocument();
+    expect(within(dialog).getByText("One run: about $0.30 for 4 cases.")).toBeInTheDocument();
     expect(within(dialog).getByText(/previous version runs beside it/)).toBeInTheDocument();
     expect(
       within(dialog).getByText(
@@ -491,7 +491,7 @@ describe("SuiteFormDialog", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByText("The schedule: 30 runs in 30 days, about $6.00."),
+      within(dialog).getByText("The schedule: 30 runs in 30 days, about $9.00."),
     ).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Create suite" }));
@@ -536,7 +536,10 @@ describe("SuiteFormDialog", () => {
       "20",
     );
     await userEvent.type(within(dialog).getByLabelText("p95 latency may rise by (%)"), "50");
-    await userEvent.type(within(dialog).getByLabelText("Skip a run estimated above ($)"), "2");
+    await userEvent.type(
+      within(dialog).getByLabelText("Skip a run whose full estimate is above ($)"),
+      "2",
+    );
     await userEvent.type(within(dialog).getByLabelText("Note"), "Checked weekly");
     await userEvent.type(within(dialog).getByLabelText("Name"), "Weekly");
     await userEvent.click(within(dialog).getByRole("combobox", { name: "Dataset" }));

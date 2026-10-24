@@ -3305,6 +3305,7 @@ class AgentRunnerService:
                 # naming the current one would credit its answers to something it
                 # did not run.
                 agent_version_id=version_id,
+                improvement_run_id=isolation.improvement_run_id if isolation else None,
                 user_id=ctx.user_id,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 key_scopes=(

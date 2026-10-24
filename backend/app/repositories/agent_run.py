@@ -68,9 +68,11 @@ async def create_run(
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
     key_scopes: list[str] | None = None,
+    improvement_run_id: UUID | None = None,
 ) -> AgentRun:
     run = AgentRun(
         key_scopes=key_scopes,
+        improvement_run_id=improvement_run_id,
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,

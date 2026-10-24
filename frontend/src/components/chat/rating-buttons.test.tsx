@@ -39,6 +39,11 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => datasets.granted.includes(perm) }),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
+  useDatasetSource: () => ({
+    data: { private_to_other: false, owner_name: null },
+    isLoading: false,
+    error: null,
+  }),
   // The server's `editable` filter, as the listing applies it.
   useDatasets: (query: { editable?: boolean }) => {
     const rows = query.editable

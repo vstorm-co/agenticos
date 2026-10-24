@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Add durable background improvement sessions with paired candidate checks, an
+  audit timeline, cancellation, creator notifications and actual child costs.
+- Check eval and suite spend limits against confirming reruns and both sides;
+  treat a positive cost or latency increase from zero as exceeding every
+  percentage ceiling.
+
 ### Fixed
 
 - **Dataset access no longer exposes private source conversations.** Case reads,

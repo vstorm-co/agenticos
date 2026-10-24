@@ -109,6 +109,13 @@ class RunAgent(Payload):
     """The request's fingerprint: an idempotent retry must send the same one."""
 
 
+class AdvanceImprovement(Payload):
+    """One short, restartable transition; paid work runs in its own child job."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
 class RunEval(Payload):
     """One eval run, answered, scored and compared case by case."""
 
@@ -425,6 +432,16 @@ CLEANUP_EXTERNAL_STATE = Task(
     priority=Priority.SCHEDULED,
 )
 
+ADVANCE_IMPROVEMENT = Task(
+    kind="advance-improvement",
+    payload_type=AdvanceImprovement,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_IMPROVEMENTS = _sweep("sweep-improvements")
+
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
 DELIVER_NOTIFICATIONS = _sweep("deliver-notifications")
@@ -463,6 +480,8 @@ TASKS: dict[str, TaskKind] = {
         RUN_AGENT,
         RUN_EVAL,
         RUN_AUTHORING,
+        ADVANCE_IMPROVEMENT,
+        SWEEP_IMPROVEMENTS,
         CLASSIFY_GAPS,
         DRAFT_GAPS,
         GENERATE_CASES,

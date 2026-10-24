@@ -120,7 +120,7 @@ describe("the dataset page across an organization switch", () => {
 
     await act(async () => useOrgStore.getState().setActiveOrgId(GLOBEX));
 
-    expect(await screen.findByText("Dataset not found")).toBeInTheDocument();
+    expect(await screen.findByText("Resource unavailable")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "refunds" })).toBeNull();
   });
 });

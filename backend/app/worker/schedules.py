@@ -83,6 +83,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule("reap-voice-calls", jobs.REAP_VOICE_CALLS, _MINUTE),
     # Schedule, start and settle the eval suites.
     Schedule("check-eval-suites", jobs.CHECK_EVAL_SUITES, _MINUTE),
+    Schedule("sweep-improvements", jobs.SWEEP_IMPROVEMENTS, _MINUTE),
     # Fail the eval runs whose worker went silent, freeing the eval slots they hold.
     Schedule("reap-abandoned-evals", jobs.REAP_ABANDONED_EVALS, _MINUTE),
     # A run whose process died stops beating; a chat says "Working" over it

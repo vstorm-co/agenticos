@@ -52,7 +52,7 @@ from app.db.models.user import User
 from app.repositories import agent_environment_repo, eval_suite_repo
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
-from app.schemas.eval_run import ArmSummaryRead
+from app.schemas.eval_run import ArmSummaryRead, EvalRunRequest
 from app.schemas.eval_suite import (
     EvalSuiteCreate,
     EvalSuiteEstimateRequest,
@@ -201,6 +201,7 @@ class Model:
         candidate = kw["candidate"]
         started = datetime.now(UTC)
         run = AgentRun(
+            improvement_run_id=kw["isolation"].improvement_run_id if kw.get("isolation") else None,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
             agent_version_id=candidate.version_id
@@ -1028,7 +1029,7 @@ async def test_the_estimate_prices_a_run_a_paired_run_and_a_month(db) -> None:
     assert estimate.run.cases == 4
     assert estimate.paired_run is not None and len(estimate.paired_run.arms) == 2
     assert estimate.fires_per_month == 30
-    assert estimate.monthly_usd == estimate.run.total_usd * 30
+    assert estimate.monthly_usd == (estimate.run.total_usd + estimate.run.rerun_ceiling_usd) * 30
     assert version.version == 1
 
 
@@ -1657,7 +1658,7 @@ async def test_a_run_due_while_the_suite_is_running_waits_for_it_to_settle(db) -
     assert await service.start_due(now=due + timedelta(seconds=1)) == 1
 
 
-@pytest.mark.parametrize(("ceiling", "paired"), [("0.05", False), ("0.10", True)])
+@pytest.mark.parametrize(("ceiling", "paired"), [("0.15", False), ("0.30", True)])
 async def test_after_an_incomparable_result_a_pair_runs_only_within_the_suites_ceiling(
     db, ceiling: str, paired: bool
 ) -> None:
@@ -1686,7 +1687,7 @@ async def test_after_an_incomparable_result_a_pair_runs_only_within_the_suites_c
     await _sweep(db, Model(db), now=day)
     with patch.object(EvalRunService, "compare", new=judged_anew):
         await _sweep(db, Model(db), now=day + timedelta(days=1))
-    # A cent a case by now: one side is $0.04, the pair $0.08. Graded anew, the
+    # A cent a case: with reruns one side is $0.12, the pair $0.24. Graded anew, the
     # earlier answers cannot stand in for the pair's second side.
     suite.max_run_usd = Decimal(ceiling)
     await db.flush()
@@ -1829,3 +1830,31 @@ async def test_a_concurrent_suite_name_conflict_is_a_409_and_preserves_the_trans
     with pytest.raises(AlreadyExistsError, match="suite with this name"):
         await service.update(ctx, agent.id, other.id, EvalSuiteUpdate(name=data.name))
     assert (await service.get(ctx, agent.id, first.id)).name == data.name
+
+
+async def test_suite_cap_includes_confirming_reruns(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    estimate = await service.evals.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    assert estimate.rerun_ceiling_usd > 0
+    suite = await service.create(
+        ctx, agent.id, _suite_data(dataset, max_run_usd=estimate.total_usd)
+    )
+    with pytest.raises(BadRequestError) as refused:
+        await service.run_now(ctx, agent.id, suite.id)
+    assert refused.value.details["reason"] == "over_cost_cap"
+    assert not await _results(db, suite.id)
+
+
+async def test_first_suite_estimate_includes_the_only_published_version(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    estimate = await EvalSuiteService(db).estimate(
+        ctx, agent.id, EvalSuiteEstimateRequest(dataset_id=dataset.id)
+    )
+    assert estimate.paired_run is not None
+    assert len(estimate.paired_run.arms) == 2
+    assert estimate.paired_run.total_usd == 2 * estimate.run.total_usd

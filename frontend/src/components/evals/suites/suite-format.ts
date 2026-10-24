@@ -142,8 +142,10 @@ export function reasonText(reason: ThresholdReason, t: Translate, locale: string
     case "regressions":
       return t("reason.regressions", { count: reason.value ?? 0, limit: reason.limit ?? 0 });
     case "cost_per_pass_rise":
+      if (reason.detail === "zero_baseline") return t("reason.costFromZero");
       return t("reason.costRise", { value: share(reason.value), limit: share(reason.limit) });
     case "p95_rise":
+      if (reason.detail === "zero_baseline") return t("reason.latencyFromZero");
       return t("reason.p95Rise", { value: share(reason.value), limit: share(reason.limit) });
     case "invalid_comparison":
       return t("reason.invalid");

@@ -188,11 +188,12 @@ def test_a_ceiling_crossed_while_a_case_is_undecided_waits_for_it() -> None:
     assert [r.code for r in reasons] == ["incomplete", "cost_per_pass_rise"]
 
 
-def test_a_rise_needs_both_sides_and_a_positive_baseline() -> None:
+def test_a_rise_needs_both_sides_and_handles_a_free_baseline() -> None:
     assert rise(Decimal("0.3"), Decimal("0.2")) == pytest.approx(0.5)
     assert rise(None, Decimal("0.2")) is None
     assert rise(Decimal("0.3"), None) is None
-    assert rise(Decimal("0.3"), Decimal("0")) is None
+    assert rise(Decimal("0.3"), Decimal("0")) == float("inf")
+    assert rise(Decimal("0"), Decimal("0")) == 0
 
 
 def test_a_schedule_must_fire_in_a_known_zone() -> None:
@@ -360,3 +361,17 @@ def test_a_first_measurement_without_a_minimum_sets_a_baseline_not_a_pass(rate: 
         EvalSuiteThreshold(), _summary(pass_rate=rate), _comparison(baseline=False)
     )
     assert (status, reasons) == (EvalSuiteResultStatus.BASELINE_SET, [])
+
+
+@pytest.mark.parametrize("ceiling", [0, 0.2, 100])
+def test_paid_candidate_against_free_baseline_exceeds_every_ceiling(ceiling: float) -> None:
+    status, reasons = judge(
+        EvalSuiteThreshold(max_cost_per_pass_rise=ceiling),
+        _summary(),
+        _comparison(baseline_summary=_summary(cost_per_pass_usd=Decimal(0))),
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert reasons[0].code == "cost_per_pass_rise"
+    assert reasons[0].detail == "zero_baseline"
+    assert reasons[0].value is None
+    assert "Infinity" not in reasons[0].model_dump_json()

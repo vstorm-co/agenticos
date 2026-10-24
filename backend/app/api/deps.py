@@ -1890,3 +1890,13 @@ def prefers_async(
 
 
 PrefersAsync = Annotated[bool, Depends(prefers_async)]
+
+
+from app.services.improvement_pipeline import ImprovementPipelineService
+
+
+def get_improvement_service(db: DBSession) -> ImprovementPipelineService:
+    return ImprovementPipelineService(db)
+
+
+ImprovementSvc = Annotated[ImprovementPipelineService, Depends(get_improvement_service)]

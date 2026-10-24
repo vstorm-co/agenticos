@@ -113,6 +113,7 @@ class SystemAgentRunner:
         agent_id: UUID | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
+        improvement_run_id: UUID | None = None,
     ) -> SystemAgentResult[T]:
         """Run system agent `key` on `prompt` as the caller, and validate its answer.
 
@@ -156,7 +157,7 @@ class SystemAgentRunner:
             f"{prompt}\n\n{output_contract(output_type)}",
             surface=RunSurface.EVAL,
             model_profile_id=model_profile_id,
-            isolation=RunIsolation(),
+            isolation=RunIsolation(improvement_run_id=improvement_run_id),
             candidate=None if version_id is None else PublishedCandidate(version_id=version_id),
         )
         if run.status != RunStatus.COMPLETED.value:

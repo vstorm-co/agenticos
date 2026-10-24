@@ -4,9 +4,10 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.improvement import (
     ACTIVE_STATUSES,
     WAITING_STATUSES,
@@ -212,3 +213,32 @@ async def update_iteration(
     await db.flush()
     await db.refresh(iteration)
     return iteration
+
+
+async def timeline(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID
+) -> list[AppAdminAuditLog]:
+    rows = await db.scalars(
+        select(AppAdminAuditLog)
+        .where(
+            AppAdminAuditLog.organization_id == organization_id,
+            AppAdminAuditLog.target_type == "improvement",
+            AppAdminAuditLog.target_id == str(run_id),
+        )
+        .order_by(AppAdminAuditLog.seq)
+    )
+    return list(rows)
+
+
+async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Decimal:
+    from app.db.models.agent_run import AgentRun
+
+    value = await db.scalar(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.improvement_run_id == run_id,
+            AgentRun.parent_run_id.is_(None),
+        )
+    )
+    assert value is not None, "a coalesced cost aggregate always has a value"
+    return value

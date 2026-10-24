@@ -4695,7 +4695,7 @@
       },
       "routines-watches": {
         "title": "Co obserwuje twoje konta",
-        "body": "Obserwacje czytają twoje własne połączone konta według harmonogramu - review czekające na ciebie, przypisane ci issues - i wrzucają to, co nowe, do twojego inboksu. Każdy wiersz mówi, kiedy ostatnio sprawdzała i ile z tego, co znalazła, wciąż czeka."
+        "body": "Obserwacje czytają twoje własne połączone konta według harmonogramu - przeglądy czekające na ciebie, przypisane ci issues - i wrzucają to, co nowe, do twojego inboksu. Każdy wiersz mówi, kiedy ostatnio sprawdzała i ile z tego, co znalazła, wciąż czeka."
       },
       "agent-starters": {
         "title": "Pierwsze wiadomości",
@@ -9013,7 +9013,9 @@
         "invalid": "Obie strony oceniono inaczej, więc nie da się ich porównać.",
         "ungraded": "{count, plural, one {# przypadek nie ma czym go ocenić} few {# przypadki nie mają czym ich ocenić} many {# przypadków nie ma czym ich ocenić} other {# przypadku nie ma czym ocenić}}, więc suita nie może ręczyć za ten wynik.",
         "incomplete": "{count, plural, one {# przypadku} few {# przypadków} many {# przypadków} other {# przypadku}} nie dało się rozstrzygnąć - zawiódł provider albo scorer - więc suita nie może ręczyć za ten wynik.",
-        "crashed": "Run agenta nie powiódł się na {count, plural, one {# przypadku} few {# przypadkach} many {# przypadkach} other {# przypadku}}; nieudany run oblewa suitę."
+        "crashed": "Run agenta nie powiódł się na {count, plural, one {# przypadku} few {# przypadkach} many {# przypadkach} other {# przypadku}}; nieudany run oblewa suitę.",
+        "costFromZero": "Koszt poprawnego przypadku wzrósł od zera, przekraczając każdy limit procentowy.",
+        "latencyFromZero": "Opóźnienie p95 wzrosło od zera, przekraczając każdy limit procentowy."
       },
       "skip": {
         "budget": "Kosztowałaby więcej, niż zostało w budżecie w tym miesiącu.",
@@ -9079,8 +9081,8 @@
         "efficiencyHint": "Opcjonalne limity względem baseline'u. Puste pola niczego nie sprawdzają.",
         "costRise": "Koszt na zaliczony przypadek może wzrosnąć o (%)",
         "p95Rise": "Opóźnienie p95 może wzrosnąć o (%)",
-        "maxRunUsd": "Pomiń run szacowany powyżej ($)",
-        "maxRunUsdHint": "Runy z harmonogramu startują bez nikogo przy ekranie. Run o wyższym szacunku zostanie pominięty, a Ty dostaniesz wiadomość.",
+        "maxRunUsd": "Pomiń uruchomienie z pełnym szacunkiem powyżej ($)",
+        "maxRunUsdHint": "Uwzględnia powtórzenia i poprzednią wersję. Rzeczywisty koszt może się różnić; limit nie zatrzymuje trwającej ewaluacji.",
         "description": "Notatka",
         "estimateRun": "Jeden run: około {amount} za {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}.",
         "estimatePaired": "Przy publikacji albo promocji obok działa poprzednia wersja: około {amount}.",
