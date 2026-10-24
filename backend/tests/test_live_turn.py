@@ -336,6 +336,8 @@ class TestKeepingATurn:
         turn = await _begin()
         await live_turn.publish(turn, "text_delta", {"content": "1"})
 
+        await live_turn.publish(turn, "message_saved", {"message_id": "saved"})
+
         async def ended_while_subscribing() -> None:
             await live_turn.end(turn)
 
@@ -349,9 +351,29 @@ class TestKeepingATurn:
         try:
             await live_turn.publish(turn, "model_request_start", {})
             await live_turn.publish(turn, "text_delta", {"content": "Already answered"})
+            await live_turn.publish(turn, "message_saved", {"message_id": "saved"})
             await live_turn.publish(turn, "complete", {"conversation_id": CONVERSATION})
             assert [kind for kind, _ in await _followed()] == [live_turn.END]
             assert await live_turn.live_token(CONVERSATION) is None
+        finally:
+            await live_turn.end(turn)
+
+    @pytest.mark.parametrize("terminal", ["error", "complete"])
+    async def test_an_unsaved_outcome_remains_available_to_a_follower(
+        self, store: _Store, terminal: str
+    ) -> None:
+        turn = await _begin()
+        try:
+            await live_turn.publish(turn, "text_delta", {"content": "Not yet saved"})
+            await live_turn.publish(turn, terminal, {"message": "The request was refused"})
+
+            async def end_after_subscribing() -> None:
+                await live_turn.end(turn)
+
+            store.on_subscribe = end_after_subscribing
+            frames = await _followed()
+            assert [kind for kind, _ in frames] == ["text_delta", terminal, live_turn.END]
+            assert frames[0][1]["content"] == "Not yet saved"
         finally:
             await live_turn.end(turn)
 
