@@ -1508,6 +1508,12 @@ function ChatUI({
                             !!(pendingQuestions && pendingQuestions.length)
                           }
                           isProcessing={isProcessing}
+                          canStop={
+                            isProcessing ||
+                            !!pendingApproval ||
+                            !!pendingQuestions?.length ||
+                            !!pendingConnection
+                          }
                           onStop={onStop}
                           slashContext={slashContext}
                           commands={slashCommands}

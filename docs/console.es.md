@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "912065ca372b"
 ---
 
 # La consola { #the-console }
@@ -436,6 +436,13 @@ un navegador en cualquier sitio solo para ti, antes de que un agent lo necesite:
 sesión, devuélvelo con la casilla marcada y la sesión se guarda igual. Necesita el
 navegador de inicio de sesión del despliegue
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Detener una ejecución en espera.** El botón **Stop** sigue disponible mientras el
+agente espera una respuesta, una aprobación o la conexión de una cuenta. También
+funciona al recargar una pregunta o aprobación pendiente. Detenerla cierra las llamadas
+pendientes sin reanudar el modelo y conserva el coste registrado. Puedes detener tus
+propias ejecuciones; quienes pueden aprobar también pueden detener una ejecución
+pendiente de aprobación. Si falla, la tarjeta sigue disponible para volver a intentarlo.
 
 ### Dictado { #dictation }
 

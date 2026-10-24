@@ -1915,6 +1915,7 @@ export function useChat(options: UseChatOptions = {}) {
     setIsProcessing(false);
     setPendingApproval(null);
     setPendingQuestions(null);
+    setParkedQuestion(null);
     setPendingConnection(null);
     awaitingConnectionRef.current = false;
     setDelegations(closeOpenDelegations);
@@ -1928,11 +1929,62 @@ export function useChat(options: UseChatOptions = {}) {
     if (followingRef.current !== null) {
       followingRef.current = null;
       sendMessage({ type: "unfollow" });
-    } else {
-      sendMessage({ type: "stop" });
+      endTurnLocally();
+      return;
     }
+    const parked = parkedQuestion ?? pendingApproval;
+    if (parked) {
+      const conversation = activeConversationId;
+      const tenant = queueBelongsTo.current;
+      const account = useAuthStore.getState().user?.id;
+      void (async () => {
+        try {
+          await apiClient.post(`/runs/${parked.runId}/cancel`);
+          if (
+            panelsBelongTo.current !== conversation ||
+            queueBelongsTo.current !== tenant ||
+            useAuthStore.getState().user?.id !== account
+          )
+            return;
+          for (const message of chatApi.getState().messages) {
+            if (message.runId !== parked.runId) continue;
+            for (const call of message.toolCalls ?? []) {
+              if (call.status === "awaiting_answer" || call.status === "awaiting_approval") {
+                updateToolCallPart(message.id, call.id, { status: "unfinished" });
+              }
+            }
+            updateMessage(message.id, (current) => ({
+              ...current,
+              wasStopped: true,
+              isStreaming: false,
+            }));
+          }
+          endTurnLocally();
+        } catch (error) {
+          if (
+            panelsBelongTo.current === conversation &&
+            queueBelongsTo.current === tenant &&
+            useAuthStore.getState().user?.id === account
+          ) {
+            toast.error(getErrorMessage(error, tErrors));
+          }
+        }
+      })();
+      return;
+    }
+    sendMessage({ type: "stop" });
     endTurnLocally();
-  }, [sendMessage, endTurnLocally]);
+  }, [
+    sendMessage,
+    endTurnLocally,
+    parkedQuestion,
+    pendingApproval,
+    activeConversationId,
+    chatApi,
+    updateToolCallPart,
+    updateMessage,
+    tErrors,
+  ]);
 
   const acknowledgeDetachedTurn = useCallback(() => {
     setDetachedThreads((threads) => {

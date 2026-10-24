@@ -408,6 +408,13 @@ you alone, before an agent needs it: sign in, hand it back with the box ticked, 
 is kept the same way. It needs the deployment's sign-in browser
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
 
+**Stopping a waiting run.** The composer keeps **Stop** available while the agent waits
+for your answer, an approval or an account connection. It also works after you reload a
+parked question or approval. Stopping a parked run closes its pending calls without
+asking the model to continue and preserves the cost already recorded. You can stop your
+own run; approval deciders can also stop a run awaiting approval. If stopping fails, the
+card stays available so you can try again.
+
 ### Dictation
 
 The microphone sits beside Send for every agent, and in the `+` menu. It turns

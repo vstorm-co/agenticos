@@ -18,7 +18,7 @@ from app.api.deps import (
     RunExportSvc,
     require,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.responses import csv_response
 from app.api.routes.v1._chat_file_bytes import chat_file_response
 from app.api.routes.v1._run_results import run_result
@@ -443,6 +443,17 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     it.
     """
     return await run_result(service, ctx, await service.resume(ctx, run_id))
+
+
+@router.post("/runs/{run_id}/cancel", status_code=204, response_model=None, openapi_extra=INTERNAL)
+async def cancel_parked_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+    """Stop a run waiting for a question or approval, without resuming it.
+
+    Console sessions only. The initiating person can stop their run; an approval
+    decider can stop one waiting on approval. Completed and running runs are
+    refused. Spend is preserved, pending calls are closed and the stop is audited.
+    """
+    await service.cancel_parked(ctx, run_id)
 
 
 @router.get("/runs/{run_id}/questions", response_model=list[ParkedQuestion])

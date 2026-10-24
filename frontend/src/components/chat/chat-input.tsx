@@ -130,7 +130,9 @@ interface ChatInputProps {
   hints?: boolean;
   disabled?: boolean;
   isProcessing?: boolean;
-  /** When set, a stop control replaces the send button while processing. */
+  /** A live or parked run can be stopped even while the composer is disabled. */
+  canStop?: boolean;
+  /** When set, a stop control replaces the send button for a stoppable run. */
   onStop?: () => void;
   /** Local actions for slash commands. Wire from <ChatContainer>. */
   slashContext?: SlashCommandContext;
@@ -220,6 +222,7 @@ export function ChatInput({
   onSend,
   disabled,
   isProcessing,
+  canStop = isProcessing,
   onStop,
   slashContext,
   commands,
@@ -859,7 +862,7 @@ export function ChatInput({
             )}
           </Button>
 
-          {isProcessing && onStop ? (
+          {canStop && onStop ? (
             <Button
               type="button"
               size="icon"
