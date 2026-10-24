@@ -1,5 +1,5 @@
 ---
-source_sha: "40175252cdca"
+source_sha: "7a2d9e84d16e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -166,6 +166,8 @@ sagt es. Eine Operation, die die App mitten im Run getrennt vorfindet - Deckel z
 Netz gewechselt -, wartet bis zu fünf Minuten auf ihre Rückkehr in derselben
 Sitzung und macht dann weiter. Solange eine Operation eines Runs läuft, sagt der
 Tray, dass ein Agent auf diesem Computer arbeitet.
+
+Der Server prüft die Sitzung vor jeder lokalen Operation. Widerrufene oder abgelaufene Sitzungen verweigern neue Arbeit; der Heartbeat schließt auch inaktive Verbindungen. Laufende Operationen werden beim Schließen der Desktop-Verbindung abgebrochen.
 
 ## Der Bildschirm { #the-screen }
 

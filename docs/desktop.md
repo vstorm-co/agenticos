@@ -152,6 +152,8 @@ that finds the app gone mid-run - a closed lid, a changed network - waits up to 
 minutes for it to come back on the same session, then carries on. While a run's
 operation is in flight, the tray says an agent is working on this computer.
 
+The server checks the sign-in before forwarding each local operation. Revoked or expired sessions refuse new work; the heartbeat also closes idle connections. Operations already in progress are cancelled when the desktop socket closes.
+
 ## The screen
 
 [Computer use](reference/capabilities.md) can drive this computer's own screen. In

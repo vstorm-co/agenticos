@@ -8,6 +8,7 @@ with a scripted socket standing in for the desktop app.
 import contextlib
 import json
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -35,6 +36,11 @@ async def redis() -> AsyncGenerator[RedisClient]:
     yield client
     device_hub.configure(None)
     await client.close()
+
+
+@pytest.fixture(autouse=True)
+def live_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    _session_is(monkeypatch, active=True)
 
 
 class _App:
@@ -252,12 +258,19 @@ async def test_a_computer_disconnected_from_devices_stops_taking_calls(
     assert not await _connected(user_id, session_id)
 
 
-def _session_is(monkeypatch: pytest.MonkeyPatch, *, active: bool) -> None:
+def _session_is(monkeypatch: pytest.MonkeyPatch, *, active: bool, expired: bool = False) -> None:
     @contextlib.asynccontextmanager
     async def no_db() -> AsyncGenerator[object]:
         yield object()
 
     monkeypatch.setattr(_hub, "get_db_context", no_db)
     monkeypatch.setattr(
-        _hub.session_repo, "get_by_id", AsyncMock(return_value=SimpleNamespace(is_active=active))
+        _hub.session_repo,
+        "get_by_id",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                is_active=active,
+                expires_at=datetime.now(UTC) + timedelta(days=-1 if expired else 1),
+            )
+        ),
     )

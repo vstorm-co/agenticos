@@ -1,5 +1,5 @@
 ---
-source_sha: "40175252cdca"
+source_sha: "7a2d9e84d16e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -158,6 +158,8 @@ bez połączenia, czeka na nią do dziesięciu minut, a czat o tym mówi. Operac
 która zastanie aplikację rozłączoną w trakcie runa - zamknięta klapa, zmiana sieci
 - czeka do pięciu minut na jej powrót w tej samej sesji, a potem idzie dalej. Gdy
 operacja runa jest w toku, zasobnik mówi, że agent pracuje na tym komputerze.
+
+Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana lub wygasła sesja odmawia nowej pracy; heartbeat zamyka też bezczynne połączenia. Operacje już w toku są anulowane po zamknięciu połączenia desktopu.
 
 ## Ekran { #the-screen }
 

@@ -20,11 +20,12 @@ import contextlib
 import logging
 import secrets
 from collections.abc import AsyncGenerator, Mapping
+from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import UUID
 
 import anyio
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 from redis.asyncio.client import PubSub
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +51,7 @@ from app.services.device_hub.exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+_server_frame = TypeAdapter(Call | Cancel)
 
 PRESENCE_TTL_SECONDS = 90
 """How long a device stays listed after its host last vouched for it."""
@@ -265,7 +267,7 @@ async def serve(websocket: Socket, *, user_id: UUID, session_id: UUID, platform:
             _subscribed(redis, _inbox(session_id)) as inbox,
             anyio.create_task_group() as tasks,
         ):
-            tasks.start_soon(_relay, inbox, websocket)
+            tasks.start_soon(_relay, redis, inbox, websocket, device)
             tasks.start_soon(_keep_listed, redis, device, websocket)
             await _read(websocket, redis, device)
             tasks.cancel_scope.cancel()
@@ -294,12 +296,16 @@ async def _keep_listed(redis: RedisClient, device: Device, websocket: Socket) ->
     """
     while True:
         await anyio.sleep(HEARTBEAT_SECONDS)
-        async with get_db_context() as db:
-            session = await session_repo.get_by_id(db, device.session_id)
-        if session is None or not session.is_active:
-            await websocket.close(code=4403, reason="This computer was disconnected")
-            raise _Disconnected
+        await _require_open_session(device, websocket)
         await _announce(redis, device)
+
+
+async def _require_open_session(device: Device, websocket: Socket) -> None:
+    async with get_db_context() as db:
+        session = await session_repo.get_by_id(db, device.session_id)
+    if session is None or not session.is_active or session.expires_at <= datetime.now(UTC):
+        await websocket.close(code=4403, reason="This computer was disconnected")
+        raise _Disconnected
 
 
 async def _withdraw(redis: RedisClient, device: Device) -> None:
@@ -310,9 +316,27 @@ async def _withdraw(redis: RedisClient, device: Device) -> None:
         await redis.raw.srem(_user_key(device.user_id), str(device.session_id))
 
 
-async def _relay(inbox: PubSub, websocket: Socket) -> None:
+async def _relay(redis: RedisClient, inbox: PubSub, websocket: Socket, device: Device) -> None:
     async for message in inbox.listen():
         data = message["data"]
+        frame = _server_frame.validate_json(data)
+        if isinstance(frame, Call):
+            # Presence lasts a heartbeat, but revocation must refuse a new
+            # operation immediately. Cancellation still reaches the app.
+            try:
+                await _require_open_session(device, websocket)
+            except _Disconnected:
+                await redis.raw.publish(
+                    _reply(frame.id),
+                    Result(
+                        type="result",
+                        id=frame.id,
+                        ok=False,
+                        error="Your computer was disconnected",
+                        kind="denied",
+                    ).model_dump_json(),
+                )
+                raise
         await websocket.send_text(data if isinstance(data, str) else data.decode())
 
 
@@ -360,6 +384,7 @@ async def admit(db: AsyncSession, *, auth_token: str, user_id: UUID) -> tuple[UU
         session is None
         or session.user_id != user_id
         or not session.is_active
+        or session.expires_at <= datetime.now(UTC)
         or session.impersonator_user_id is not None
         or session.app_platform not in DESKTOP_PLATFORMS
     ):

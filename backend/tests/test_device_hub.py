@@ -5,7 +5,9 @@ The routing itself is tested against a real Redis in
 """
 
 import contextlib
+import json
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -29,6 +31,7 @@ def _session(**overrides: Any) -> SimpleNamespace:
         "id": uuid4(),
         "user_id": uuid4(),
         "is_active": True,
+        "expires_at": datetime.now(UTC) + timedelta(days=1),
         "impersonator_user_id": None,
         "app_platform": "macos",
     }
@@ -58,6 +61,7 @@ class TestWhoMayConnectAComputer:
         [
             {"app_platform": None},  # a browser tab's session
             {"app_platform": "ios"},  # a phone runs nothing for an agent
+            {"expires_at": datetime.now(UTC) - timedelta(seconds=1)},
             {"is_active": False},  # signed out, or disconnected from Devices
             {"impersonator_user_id": uuid4()},  # an administrator standing in
         ],
@@ -165,3 +169,45 @@ class TestTheSocketRoute:
 @contextlib.asynccontextmanager
 async def _no_db() -> AsyncGenerator[MagicMock]:
     yield MagicMock()
+
+
+@pytest.mark.parametrize("state", ["active", "revoked", "expired", "missing"])
+async def test_each_operation_rechecks_the_session_before_reaching_the_computer(
+    monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    row = (
+        _session(
+            is_active=state != "revoked",
+            expires_at=datetime.now(UTC) + timedelta(days=-1 if state == "expired" else 1),
+        )
+        if state != "missing"
+        else None
+    )
+    read = AsyncMock(return_value=row)
+    monkeypatch.setattr(_hub, "get_db_context", _no_db)
+    monkeypatch.setattr(_hub.session_repo, "get_by_id", read)
+    device = _hub.Device(user_id=uuid4(), session_id=uuid4(), platform="macos")
+    call = _hub.Call(id="request", op="screen.capture", args={}).model_dump_json()
+    cancel = _hub.Cancel(id="request").model_dump_json()
+
+    async def frames() -> AsyncGenerator[dict[str, str]]:
+        yield {"data": call}
+        yield {"data": cancel}
+
+    inbox = MagicMock()
+    inbox.listen.side_effect = frames
+    redis = MagicMock()
+    redis.raw.publish = AsyncMock()
+    socket = MagicMock(send_text=AsyncMock(), close=AsyncMock())
+    if state == "active":
+        await _hub._relay(redis, inbox, socket, device)
+        assert [entry.args[0] for entry in socket.send_text.await_args_list] == [call, cancel]
+        socket.close.assert_not_awaited()
+    else:
+        with pytest.raises(_hub._Disconnected):
+            await _hub._relay(redis, inbox, socket, device)
+        socket.send_text.assert_not_awaited()
+        socket.close.assert_awaited_once_with(code=4403, reason="This computer was disconnected")
+        answer = json.loads(redis.raw.publish.call_args.args[1])
+        assert answer["id"] == "request" and answer["ok"] is False
+    read.assert_awaited_once()

@@ -1,5 +1,5 @@
 ---
-source_sha: "40175252cdca"
+source_sha: "7a2d9e84d16e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -159,6 +159,8 @@ encuentra la app desconectada a mitad del run - tapa cerrada, red cambiada -
 espera hasta cinco minutos a que vuelva en la misma sesión y luego sigue. Mientras
 una operación de un run está en curso, la bandeja dice que un agent trabaja en este
 ordenador.
+
+El servidor comprueba la sesión antes de reenviar cada operación local. Las sesiones revocadas o caducadas rechazan trabajo nuevo; el heartbeat también cierra conexiones inactivas. Las operaciones en curso se cancelan al cerrar el socket del escritorio.
 
 ## La pantalla { #the-screen }
 
