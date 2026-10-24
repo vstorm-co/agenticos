@@ -308,8 +308,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       // await it - a mount effect - may be gone, with its window, when it resumes.
       // A scoped chat owns no part of the address: `?id=` is the main chat's thread.
       const urlId = scoped ? null : new URLSearchParams(window.location.search).get("id");
+      const stillAddressed = () =>
+        scoped || new URLSearchParams(window.location.search).get("id") === urlId;
       await invalidateLists();
-      if (!stillCurrent()) return;
+      if (!stillCurrent() || !stillAddressed()) return;
       if (urlId && conversationApi.getState().currentConversationId !== urlId) {
         const selectedBefore = conversationApi.getState().currentConversationId;
         const stillSelected = () =>
@@ -319,7 +321,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
             `/conversations/${encodeURIComponent(urlId)}/messages`,
             { signal },
           );
-          if (!stillCurrent() || !stillSelected()) return;
+          if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
           clearMessages();
           setCurrentConversationId(urlId);
           setCurrentMessages(msgs.items, msgs.cost);
@@ -327,8 +329,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           // The failure belongs to whoever asked. A refusal answering after
           // somebody else has signed in says nothing about the conversation they
           // are looking at, and clearing the id would close it under them.
-          if (!stillCurrent() || !stillSelected()) return;
+          if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
           // Not accessible (deleted, no permission) - clear the stale id
+          clearMessages();
+          setCurrentMessages([]);
           setCurrentConversationId(null);
         }
       }

@@ -460,6 +460,44 @@ describe("the conversation named in the address bar", () => {
     expect(useConversationStore.getState().currentMessages).toEqual([]);
   });
 
+  it.each(["new chat", "A to C to A"])(
+    "does not reopen a delayed deep link after choosing %s",
+    async (choice) => {
+      window.history.replaceState({}, "", "/chat?id=c-9");
+      if (choice !== "new chat") useConversationStore.getState().setCurrentConversationId("c-1");
+      const result = await hook();
+      let finish!: (value: unknown) => void;
+      const pending = new Promise((resolve) => {
+        finish = resolve;
+      });
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path === "/conversations/c-9/messages") return pending;
+        return { items: [], total: 0, cost: null };
+      });
+      const fetching = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages", {
+          signal: undefined,
+        }),
+      );
+      await act(async () => {
+        if (choice === "new chat") await result.current.startNewChat();
+        else {
+          await result.current.selectConversation("c-2");
+          await result.current.selectConversation("c-1");
+        }
+      });
+      await act(async () => {
+        finish({ items: [{ id: "late" }], cost: null });
+        await fetching;
+      });
+      expect(useConversationStore.getState().currentConversationId).toBe(
+        choice === "new chat" ? null : "c-1",
+      );
+      expect(useConversationStore.getState().currentMessages).toEqual([]);
+    },
+  );
+
   it("opens the one the link points at, and its messages", async () => {
     // A shared link has to win over whatever the store remembered.
     window.history.replaceState({}, "", "/chat?id=c-9");
@@ -480,6 +518,11 @@ describe("the conversation named in the address bar", () => {
     // A deleted conversation, or one belonging to somebody else.
     window.history.replaceState({}, "", "/chat?id=c-gone");
     const result = await hook();
+    await act(async () => result.current.selectConversation("c-old"));
+    window.history.replaceState({}, "", "/chat?id=c-gone");
+    useConversationStore.setState({
+      currentCost: { input_tokens: 1, output_tokens: 2, cost_usd: "4.00", cost_is_partial: false },
+    });
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
       if (path.includes("/messages")) throw new Error("404");
       return { items: [], total: 0 };
@@ -490,6 +533,8 @@ describe("the conversation named in the address bar", () => {
     });
 
     expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+    expect(useConversationStore.getState().currentCost).toBeNull();
   });
 
   it("drops a linked thread that arrives after somebody else has signed in", async () => {
