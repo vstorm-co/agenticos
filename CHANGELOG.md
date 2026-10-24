@@ -21,9 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Update FastMCP to 4.1.2, filelock to 4.2.1 and Pydantic AI harness to
-  0.59.0 to address the dependency audit advisories. Pydantic AI and its graph
-  package resolve to 2.59.0 for the harness and the web-fetch security fix.
+- Update FastMCP to 4.1.2, filelock to 4.2.1, virtualenv to 21.14.13 and
+  Pydantic AI harness to 0.59.0 to address the dependency audit advisories.
+  Pydantic AI and its graph package resolve to 2.59.0 for the harness and the
+  web-fetch security fix.
   Update the frontend tooling lock to zod 4.6.6 and undici 8.12.2 for its
   validation and HTTP decoding advisories.
 
