@@ -1,5 +1,5 @@
 ---
-source_sha: "361fd8f44a02"
+source_sha: "47c7a245a893"
 ---
 
 # Workflows { #workflows }
@@ -516,6 +516,11 @@ límites propios de cada paso - el techo de coste de un paso de agente entre ell
   muestra el gasto del mes frente a él.
 
 Por la API, `PUT /api/v1/workflows/{id}/settings` los reemplaza.
+
+La retención elimina el contenido y los archivos de las ejecuciones, pero
+conserva los importes y las fechas de admisión para el cálculo del presupuesto
+mensual. Eliminar el historial no repone el presupuesto mensual del workflow.
+Los costes eliminados antes de introducir este registro no se pueden reconstruir.
 
 ## Ejecutar un workflow { #running-a-workflow }
 

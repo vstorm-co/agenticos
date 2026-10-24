@@ -1,5 +1,5 @@
 ---
-source_sha: "361fd8f44a02"
+source_sha: "47c7a245a893"
 ---
 
 # Workflows { #workflows }
@@ -551,6 +551,11 @@ eigenen Grenzen jedes Schritts - darunter die Kostenobergrenze eines Agentenschr
   Monats im Vergleich dazu.
 
 Über die API ersetzt sie `PUT /api/v1/workflows/{id}/settings`.
+
+Die Aufbewahrungsregel entfernt Inhalte und Dateien der Läufe, bewahrt aber
+Beträge und Aufnahmezeitpunkte für die monatliche Budgetabrechnung auf. Das
+Löschen der Historie füllt das Monatsbudget des Workflows nicht wieder auf.
+Zuvor gelöschte Kosten können nicht rekonstruiert werden.
 
 ## Einen Workflow ausführen { #running-a-workflow }
 

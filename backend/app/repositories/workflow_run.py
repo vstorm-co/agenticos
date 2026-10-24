@@ -48,6 +48,7 @@ from app.db.models.workflow_run import (
     WaitingReason,
     WorkflowEvent,
     WorkflowNodeSpend,
+    WorkflowRetainedSpend,
     WorkflowRun,
     WorkflowRunStatus,
 )
@@ -374,19 +375,30 @@ async def count_live_runs(
 async def spent_since(
     db: AsyncSession, *, organization_id: UUID, workflow_id: UUID, since: datetime
 ) -> Decimal:
-    """What one workflow's runs admitted since `since` have spent, every mode."""
-    return Decimal(
-        await db.scalar(
-            select(
-                func.coalesce(func.sum(WorkflowRun.spent_cost + WorkflowRun.child_cost), 0)
-            ).where(
-                WorkflowRun.organization_id == organization_id,
-                WorkflowRun.workflow_id == workflow_id,
-                WorkflowRun.created_at >= since,
-            )
+    """Spend admitted since `since`, including content-free retained accounting.
+
+    Both sums share one statement snapshot: a retention transaction moves a fee
+    between the two tables atomically, so admission never sees it twice or loses it.
+    """
+    live = (
+        select(func.coalesce(func.sum(WorkflowRun.spent_cost + WorkflowRun.child_cost), 0))
+        .where(
+            WorkflowRun.organization_id == organization_id,
+            WorkflowRun.workflow_id == workflow_id,
+            WorkflowRun.created_at >= since,
         )
-        or 0
+        .scalar_subquery()
     )
+    retained = (
+        select(func.coalesce(func.sum(WorkflowRetainedSpend.cost_usd), 0))
+        .where(
+            WorkflowRetainedSpend.organization_id == organization_id,
+            WorkflowRetainedSpend.workflow_id == workflow_id,
+            WorkflowRetainedSpend.admitted_at >= since,
+        )
+        .scalar_subquery()
+    )
+    return Decimal(await db.scalar(select(live + retained)) or 0)
 
 
 async def run_figures(
@@ -1477,7 +1489,32 @@ async def take_expired_runs(
     paths: dict[UUID, list[str]] = {run_id: [] for run_id in run_ids}
     for run_id, storage_path in files.all():
         paths[run_id].append(storage_path)
-    await db.execute(sql_delete(WorkflowRun).where(WorkflowRun.id.in_(run_ids)))
+    removed = (
+        sql_delete(WorkflowRun)
+        .where(WorkflowRun.id.in_(run_ids))
+        .returning(
+            WorkflowRun.id,
+            WorkflowRun.organization_id,
+            WorkflowRun.workflow_id,
+            WorkflowRun.created_at,
+            (WorkflowRun.spent_cost + WorkflowRun.child_cost).label("cost_usd"),
+        )
+        .cte("removed_runs")
+    )
+    # Only rows actually deleted are archived, even when sweepers overlap. This
+    # statement and the deletion commit together; no content survives retention.
+    await db.execute(
+        insert(WorkflowRetainedSpend).from_select(
+            ["run_id", "organization_id", "workflow_id", "admitted_at", "cost_usd"],
+            select(
+                removed.c.id,
+                removed.c.organization_id,
+                removed.c.workflow_id,
+                removed.c.created_at,
+                removed.c.cost_usd,
+            ).where(removed.c.cost_usd > 0),
+        )
+    )
     await db.flush()
     return list(paths.items())
 

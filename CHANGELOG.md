@@ -643,6 +643,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve monthly workflow budget accounting when history retention removes paid
+  runs. Only amounts and admission times survive, with deletion and accounting
+  committed atomically; history cleanup no longer replenishes the budget.
+
 - Workflow retry refuses missing successful outputs, cyclic ancestry and deleted
   called-run history instead of repeating effects. Called-run cancellation,
   budget and revoked-principal failures retain their non-bypassable outcome.

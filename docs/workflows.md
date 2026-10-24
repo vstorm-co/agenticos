@@ -487,6 +487,11 @@ an agent step's cost ceiling among them:
 
 Over the API, `PUT /api/v1/workflows/{id}/settings` replaces them.
 
+History retention removes run contents and files, but retains content-free amounts
+and admission timestamps for monthly budget accounting. Deleting history cannot
+replenish the workflow’s monthly budget. Fees deleted before this accounting was
+introduced cannot be reconstructed.
+
 ## Running a workflow { #running-a-workflow }
 
 **Run** in the editor's header tests the draft at once - `Ctrl`/`Cmd` + `Enter` does

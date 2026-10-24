@@ -687,7 +687,7 @@ class TestApprovingAnAudienceRequest:
         group = Group(organization_id=world.org.id, name="Sales")
         db.add(group)
         await db.flush()
-        request = await self._asked(world, bea, ann)
+        await self._asked(world, bea, ann)
         await SharingService(db).share_with_group(
             bea,
             await _page(world),

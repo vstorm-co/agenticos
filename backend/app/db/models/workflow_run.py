@@ -711,3 +711,36 @@ class WorkflowNodeSpend(Base, TimestampMixin):
     )
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     cost_is_partial: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class WorkflowRetainedSpend(Base, TimestampMixin):
+    """Content-free monthly accounting for runs removed by history retention.
+
+    Keep the original admission timestamp and inclusive cost, matching the live
+    run calculation. The run UUID is an idempotency key, without a run foreign key.
+    Deleting the workflow or organization removes its accounting too.
+    """
+
+    __tablename__ = "workflow_retained_spend"
+    __table_args__ = (
+        Index(
+            "ix_workflow_retained_spend_org_workflow_admitted",
+            "organization_id",
+            "workflow_id",
+            "admitted_at",
+        ),
+        Index("ix_workflow_retained_spend_workflow", "workflow_id"),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    admitted_at: Mapped[datetime] = mapped_column(SADateTime(timezone=True), nullable=False)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(13, 6), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<WorkflowRetainedSpend(run={self.run_id}, cost={self.cost_usd})>"

@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
@@ -14,7 +14,14 @@ from app.core.permissions import AuthContext
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_exposure import WorkflowExposure
-from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRun, WorkflowRunMode
+from app.db.models.workflow_run import (
+    NodeAttempt,
+    NodeRun,
+    WorkflowRetainedSpend,
+    WorkflowRun,
+    WorkflowRunMode,
+)
+from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import WorkflowPublish, WorkflowSettings
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import (
@@ -131,6 +138,79 @@ class TestTheMonthlyBudget:
                 await _start(db, owner, workflow, mode)
         assert refused.value.status_code == 402
         assert refused.value.details == {"budget_usd": "1.0", "spent_usd": "1.000000"}
+
+    async def test_retention_does_not_replenish_the_monthly_budget(self, db, owner):
+        workflow = await _published(db, owner, monthly_budget_usd=1.0, keep_succeeded_runs=False)
+        run = await _start(db, owner, workflow)
+        now = datetime.now(UTC)
+        await db.execute(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == run.id)
+            .values(
+                spent_cost=Decimal("0.4"),
+                child_cost=Decimal("0.6"),
+                status="succeeded",
+                ended_at=now - timedelta(days=2),
+            )
+        )
+        assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == [(run.id, [])]
+        assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == []
+        with pytest.raises(WorkflowBudgetReachedError):
+            await _start(db, owner, workflow)
+
+    async def test_retained_spend_is_scoped_by_workflow_tenant_and_admission_month(self, db, owner):
+        workflow = await _published(db, owner, monthly_budget_usd=1.0)
+        other = await _published(db, owner)
+        now = datetime.now(UTC)
+        last_month = now.replace(day=1) - timedelta(days=1)
+        db.add_all(
+            [
+                WorkflowRetainedSpend(
+                    run_id=uuid.uuid4(),
+                    organization_id=owner.organization_id,
+                    workflow_id=workflow.id,
+                    admitted_at=last_month,
+                    cost_usd=Decimal("5"),
+                ),
+                WorkflowRetainedSpend(
+                    run_id=uuid.uuid4(),
+                    organization_id=owner.organization_id,
+                    workflow_id=other.id,
+                    admitted_at=now,
+                    cost_usd=Decimal("7"),
+                ),
+            ]
+        )
+        await db.flush()
+        assert (await _start(db, owner, workflow)).id is not None
+        assert (
+            await workflow_run_repo.spent_since(
+                db, organization_id=uuid.uuid4(), workflow_id=other.id, since=last_month
+            )
+            == 0
+        )
+
+    async def test_retention_and_accounting_roll_back_together(self, db, owner):
+        workflow = await _published(db, owner, keep_succeeded_runs=False)
+        run = await _start(db, owner, workflow)
+        now = datetime.now(UTC)
+        await db.execute(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == run.id)
+            .values(spent_cost=Decimal("1"), status="succeeded", ended_at=now - timedelta(days=2))
+        )
+        async with db.begin_nested() as transaction:
+            assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10)
+            assert await db.scalar(select(func.count()).select_from(WorkflowRetainedSpend)) == 1
+            await transaction.rollback()
+        assert await db.get(WorkflowRun, run.id) is not None
+        assert await db.scalar(select(func.count()).select_from(WorkflowRetainedSpend)) == 0
+        assert await workflow_run_repo.spent_since(
+            db,
+            organization_id=owner.organization_id,
+            workflow_id=workflow.id,
+            since=now.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+        ) == Decimal("1")
 
     async def test_last_months_spend_is_not_this_months(self, db, owner):
         workflow = await _published(db, owner, monthly_budget_usd=1.0)

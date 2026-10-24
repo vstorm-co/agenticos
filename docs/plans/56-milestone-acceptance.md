@@ -164,8 +164,10 @@ milestone's initial happy paths:
   stacks its canvas and summary in a narrow panel using existing design tokens.
 
 New schema changes are `0217_workflow_api_key_authority.py`,
-`0218_workflow_child_cost.py` and `0219_workflow_node_spend.py`. The latter does not
-invent costs for historical provider usage that was never recorded.
+`0218_workflow_child_cost.py`, `0219_workflow_node_spend.py` and
+`0220_workflow_retained_spend.py`. Content-free retained accounting preserves the
+workflow monthly limit when run history is cleaned up. These changes cannot
+reconstruct historical fees that were never recorded or were already deleted.
 
 Selected evidence: `test_workflow_calls.py`, `test_workflow_knowledge_node.py`,
 `test_workflow_journeys.py`, `test_workflow_run_retry.py`,

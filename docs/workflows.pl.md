@@ -1,5 +1,5 @@
 ---
-source_sha: "361fd8f44a02"
+source_sha: "47c7a245a893"
 ---
 
 # Workflows { #workflows }
@@ -499,6 +499,11 @@ limitami każdego kroku - w tym pułapem kosztu kroku agenta:
   wydatki miesiąca na tle budżetu.
 
 Przez API zastępuje je `PUT /api/v1/workflows/{id}/settings`.
+
+Retencja usuwa treść i pliki przebiegów, lecz zachowuje kwoty oraz czas przyjęcia
+przebiegu na potrzeby miesięcznego rozliczenia budżetu. Usunięcie historii nie
+odnawia miesięcznego budżetu workflow. Kosztów usuniętych przed wprowadzeniem
+tego rozliczenia nie można odtworzyć.
 
 ## Uruchamianie workflow { #running-a-workflow }
 
