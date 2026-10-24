@@ -344,8 +344,8 @@ async def _start(
             )
         if bound.filters_dropped:
             return (
-                f"Binding {name}: a filter of view {view!r} names a column that is no longer "
-                "live, so the view matches more than it was saved to. Fix the view, or name "
+                f"Binding {name}: a filter of view {view!r} no longer fits the table schema, "
+                "so the view matches more than it was saved to. Fix the view, or name "
                 "the `table` with `filters`."
             )
         table_id = bound.table_id

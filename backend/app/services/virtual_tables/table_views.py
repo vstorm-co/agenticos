@@ -163,9 +163,9 @@ class BoundView:
     columns: list[ColumnDef]
     """The columns of the table's current schema version, archived ones included."""
     config: TableViewConfig
-    """The view's config with every reference to a column that is no longer live dropped."""
+    """The view's config with unavailable or type-incompatible clauses dropped."""
     filters_dropped: bool
-    """Whether a stored filter named a column that is no longer live, so the view now matches more."""
+    """Whether a stored filter was dropped, so the view now matches more records."""
 
 
 def _view_not_found(view_id: UUID) -> NotFoundError:

@@ -305,7 +305,7 @@ class TestFromAView:
         check = await world.one(BindingRequest(view=view.id, fields={"customer": "Customer"}))
 
         assert check.problem == (
-            "Binding tickets: a filter of view 'Open' names a column that is no longer live, "
+            "Binding tickets: a filter of view 'Open' no longer fits the table schema, "
             "so the view matches more than it was saved to. Fix the view, or name the `table` "
             "with `filters`."
         )
@@ -825,7 +825,11 @@ class TestTheRequest:
         check = await world.one(BindingRequest(view="Open", fields={"customer": "Customer"}))
 
         assert check.problem is not None
-        assert check.problem.startswith("Binding tickets: the view's filter on Quantity: ")
+        assert check.problem == (
+            "Binding tickets: a filter of view 'Open' no longer fits the table schema, "
+            "so the view matches more than it was saved to. Fix the view, or name "
+            "the `table` with `filters`."
+        )
 
     async def test_a_query_takes_at_most_twenty_filters_the_view_s_included(self, db):
         world = await _world(db)
