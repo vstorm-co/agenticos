@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Retain conversations with unfinished runs and purge one locked batch of
+  conversation rows and files. Commit durable file-cleanup jobs with retention
+  deletes, and isolate each retention class so a SQL failure cannot abort
+  the remaining classes or unlink files whose row deletion rolled back.
+
 - Erase mem0 memory using the SDK's supported user identifier. Include draft
   and retained version destinations, clear all owners when clearing an agent,
   and report unavailable credentials or incomplete erasure as failures.
