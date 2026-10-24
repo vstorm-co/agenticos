@@ -245,7 +245,7 @@ Rozmowa trzyma swój socket do pięćdziesięciu minut, więc commituje tam, gdz
   zostanie wywołany. Wiersze zatwierdzeń, heartbeat i sprzątanie rozmów
   głosowych potrzebują tych wierszy czytelnych z innych sesji; odmowa przed tym
   punktem wycofuje wszystko, więc odrzucona rozmowa nie zostawia niczego
-  w Activity.
+  w **Aktywności** (Activity).
 - Każda zapisana tura, każdy 15-sekundowy heartbeat i każdy zapis zatwierdzenia
   otwiera własną sesję `get_db_context()` i tam commituje, nigdy na wspólnej
   sesji runu — tura jest trwała w chwili, gdy zostanie wypowiedziana, a awaria
@@ -822,7 +822,7 @@ Cztery konsekwencje, które warto znać:
 **Nie ma już sposobu, by przeczytać rozmowę w poprzek tenantów.** Wartownik, który
 kiedyś to zapisywał (`UNSCOPED`), miał dokładnie jednego wywołującego,
 `/admin/conversations/{id}`, i oba odeszły razem z przeglądarką rozmów
-obejmującą cały deployment — Activity odpowiada na „co się stało” kosztem,
+obejmującą cały deployment — Aktywność odpowiada na „co się stało” kosztem,
 modelem, trace'em i tym, co obok podano modelowi, a to jest pytanie, do którego
 tamten ekran był używany. To, co z niego zostało, to
 `GET /admin/conversations?user_id=`: wątki jednego wskazanego konta, wypisywane

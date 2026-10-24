@@ -532,7 +532,7 @@ agent*, wraz z pracą delegatów:
 | Pytanie | Odpowiedź |
 |---|---|
 | `GET /runs` | Runy, które ktoś uruchomił. `parent_run_id IS NULL` |
-| `GET /runs?agent_id=<id>&include_delegations=true` | Własna historia jednego agenta. O to pytają panel Recent runs w Builderze i `?agent=` na Activity, bo wiersze delegata to jedyny zapis tego, co on sam zrobił |
+| `GET /runs?agent_id=<id>&include_delegations=true` | Własna historia jednego agenta. O to pytają panel Recent runs w Builderze i `?agent=` na stronie **Aktywność** (Activity), bo wiersze delegata to jedyny zapis tego, co on sam zrobił |
 | `GET /runs?parent_run_id=<id>` | Co ten run zdelegował — zapytanie, dla którego istnieje `agent_runs_parent_run_id_idx`. Ma pierwszeństwo przed `include_delegations` |
 | `GET /runs/<id>` | Jeden run, zdelegowany albo nie. Tu ląduje link z transkryptu |
 | `GET /runs/<id>/transcript` | Tury tego runa, po kolei — to, co widok szczegółów runa rysuje jako kroki. Autoryzowane, nie posiadane (niżej) |
@@ -606,7 +606,7 @@ odpowiada na pytanie „dlaczego mój agent nie kończy”; dziś nic to nie zmi
 delegacja jest zapisywana do bazy już jako zakończona i dlatego nigdy nie
 parkuje.
 
-Ostatnie dwa to `?run=<id>` na stronie Activity: jeden run, delegacje pod nim,
+Ostatnie dwa to `?run=<id>` na stronie Aktywność: jeden run, delegacje pod nim,
 każda z plakietką id zadania, które niosły jej ramki `subagent_*`, oraz link w
 górę do runa, na który delegacja została zaksięgowana. Panel delegacji w czacie
 linkuje tam z `run_id`, które niesie jego ramka terminalna — i właśnie dlatego ta
@@ -752,7 +752,7 @@ jednego: `ORDER BY` składane z query stringa to powierzchnia do wstrzyknięcia.
 
 **Każdy z nich podróżuje w URL-u**, i to właśnie pozwala karcie na dashboardzie
 przekazać czytelnika do swoich własnych wierszy:
-`/runs?surface=mattermost&period=30d` otwiera Activity z już ustawionym filtrem i
+`/runs?surface=mattermost&period=30d` otwiera Aktywność z już ustawionym filtrem i
 z licznikiem zgodnym z kartą, która podlinkowała. Do #768 były stanem lokalnym,
 więc liczba p95 była jedyną liczbą na dashboardzie, która potrafiła dosięgnąć
 stojących za nią runów, a trzy karty nie niosły żadnego linku — nie było niczego
@@ -794,7 +794,7 @@ organizacji.
 To, jak długo trwa *wciąż działający* run, jest osobnym pytaniem i żadne z tych
 uporządkowań na nie nie odpowiada.
 
-Activity pokazuje ten czas trwania na trzy sposoby i wszystkie trzy prowadzą do
+Aktywność pokazuje ten czas trwania na trzy sposoby i wszystkie trzy prowadzą do
 tego samego zapytania:
 
 - Nagłówek kolumny **Took** jest kontrolką sortowania — tak jak nagłówek Started
@@ -838,7 +838,7 @@ własnych rozmów członka, ta sama reguła zakresu i to samo słownictwo okien 
 `GET /stats/usage` (zobacz [Uprawnienia](permissions.md)). Same liczniki —
 komentarze zostają za szczegółami runa, powyżej.
 
-Trzy liczby Activity nad zakładkami pozostają liczbami organizacji, łącznie z
+Trzy liczby Aktywności nad zakładkami pozostają liczbami organizacji, łącznie z
 licznikiem runów, nawet gdy tabela pod nimi jest zawężona do jednego agenta.
 Licznik per agent obok miesiąca organizacji byłby dwoma pytaniami pod jedną
 etykietą — a to licznik per agent jest tym, który włącza delegacje.
@@ -918,7 +918,7 @@ które route'y listujące odpowiadać nie muszą:
 - **Dane osobowe.** Każdy eksport wysyła dokładnie tę tożsamość, którą jego
   zakładka już pokazuje. Tabela runów pokazuje `user_id` i żadnego nazwiska, więc
   eksport runów wysyła samo id — CSV z tym, kto co uruchomił, z rozwiązanymi
-  nazwiskami to ta tabela per osoba, której odmówiła decyzja 3 projektu Activity,
+  nazwiskami to ta tabela per osoba, której odmówiła decyzja 3 projektu Aktywności,
   przybywająca jako plik do pobrania. Kolejka zatwierdzeń rozwiązuje już na
   ekranie adresy e-mail osoby wyzwalającej i decydującej, więc eksport
   zatwierdzeń je zachowuje.
@@ -1122,7 +1122,7 @@ Cztery właściwości, które warto znać:
   `APPROVAL_EXPIRY_HOURS`**, a stojący za nim run zostaje rozliczony, zamiast
   zostać zaparkowanym na zawsze. Status to `expired` z nullowym
   `decided_by_user_id`, i to właśnie odróżnia wygaśnięcie od odrzucenia w śladzie
-  odpowiedzialności. Strona Activity dalej pokazuje **wiek** najstarszego
+  odpowiedzialności. Strona Aktywność dalej pokazuje **wiek** najstarszego
   oczekiwania, bo kolejka mieszcząca się w swoim oknie wygasania to ta, na której
   ktoś jeszcze może zadziałać.
 - **`required` działa na dowolnej capability**, nie tylko na tych ze skutkami
@@ -1279,7 +1279,7 @@ Drugi stan, którego nic wewnątrz procesu nigdy nie rozstrzygnie.
 
 Wiersz runa jest commitowany jako `running`, zanim zostanie zawołany jego model
 ([#12][12-issue]), więc worker zabity w środku runa — OOM, wdrożenie, które nie
-drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Activity na
+drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Aktywności na
 zawsze i blokujący każdy harmonogram, dla którego triggera był podlinkowanym
 runem.
 
@@ -1495,7 +1495,7 @@ już się nie rozwiązuje.
 ### Alert linkuje tam, gdzie jest decyzja { #an-alert-links-to-where-the-decision-is }
 
 **Mail o zatwierdzeniach otwiera kolejkę** — `/runs?tab=approvals`, zakładkę
-Approvals na Activity, która jest jedyną powierzchnią niosącą Approve i Reject.
+Approvals w Aktywności, która jest jedyną powierzchnią niosącą Approve i Reject.
 Kiedyś otwierał `/agents/{id}`, czyli Buildera: jedno zdanie prozy o wywołaniach
 narzędzi trafiających do kolejki i żadnej kolejki. Więc ten jeden e-mail, którego
 całym celem jest *ktoś musi zdecydować, teraz*, lądował o jedno wyszukiwanie od
@@ -1516,8 +1516,8 @@ raportuje, edytuje się właśnie tam.
 zaparkowanego wywołania obejmują tego, kto uruchomił run, a builder uruchamiający
 własnego agenta z czatu jest zwyczajnym inicjatorem — więc alert rutynowo
 docierał do kogoś, komu platforma by odmówiła. Dostawał **„waiting on your
-approval”** z przyciskiem **Review the request**, klikał go, a Activity nie
-rysowało żadnej zakładki Approvals: odmowa przybywała jako nieobecna zakładka, a
+approval”** z przyciskiem **Review the request**, klikał go, a Aktywność nie
+rysowała żadnej zakładki Approvals: odmowa przybywała jako nieobecna zakładka, a
 nie jako zdanie.
 
 Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
@@ -1626,7 +1626,7 @@ zaliczony. Werdykty ludzi pozostają dostępne.
 Te funkcje działają jako [sędziowie](concepts.md#system-agents). Każdy run jest
 zwykłym runem: przed każdym wywołaniem modelu jest sprawdzany względem własnego
 miesięcznego budżetu sędziego i budżetu organizacji, jego koszt jest zapisywany,
-a on sam jest widoczny w Activity pod powierzchnią `eval`. Sędzia startuje z
+a on sam jest widoczny w Aktywności pod powierzchnią `eval`. Sędzia startuje z
 własnym budżetem - $5 miesięcznie - który można zmienić jak budżet każdego
 agenta.
 
@@ -1643,7 +1643,7 @@ wydatki pochodzą więc tylko z funkcji opisanych wyżej.
 
 ## Pominięcia promocji { #promotion-overrides }
 
-Środowisko [strzeżone przez suity evali](environments.md#guarding-a-promotion-with-evals)
+Środowisko [strzeżone przez suity ewaluacji](environments.md#guarding-a-promotion-with-evals)
 przyjmuje wersję dopiero, gdy przejdą na niej. Promocja z ich pominięciem to
 **pominięcie**: wymaga `promotions:override` - mają je owner i admin, a można je
 dać roli własnej - od osoby zalogowanej jako ona sama, nie od klucza API ani

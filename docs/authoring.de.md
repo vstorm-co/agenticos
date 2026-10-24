@@ -11,14 +11,14 @@ Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an d
 Anweisungen eines Agents vor, an den Namen und Beschreibungen seiner Tools, an
 seiner [Konfiguration](#configuration) und an den Skills und Context-Dateien, die
 er nutzt. Er ändert nie etwas von sich aus: Jeder Vorschlag
-wartet auf einen Menschen, ein angenommener landet im [Draft](concepts.md), und
-nichts erreicht irgendwen, bevor der Draft veröffentlicht ist.
+wartet auf einen Menschen, ein angenommener landet im [Entwurf](concepts.md), und
+nichts erreicht irgendwen, bevor der Entwurf veröffentlicht ist.
 
 Er tut drei Dinge:
 
 - Einen Agent **verbessern**: Änderungen aus seinen negativ bewerteten und
   fehlgeschlagenen Runs vorschlagen.
-- Ihre eigenen Änderungen **prüfen**: den Draft mit der Version, auf der er
+- Ihre eigenen Änderungen **prüfen**: den Entwurf mit der Version, auf der er
   beruht - der zuletzt veröffentlichten -, anhand derselben Belege vergleichen und
   sagen, was die Änderungen verbessern, riskieren und entfernt haben.
 - **Einen Skill** oder **eine Context-Datei verbessern**: einen neuen Inhalt aus
@@ -27,7 +27,7 @@ Er tut drei Dinge:
 Der Assistent ist ein eigener [System-Agent](datasets.md#judge), aufgeführt mit
 den übrigen System-Agents der Organisation. Seine Anweisungen lassen sich wie die
 jedes Agents bearbeiten, und seine Runs sind gewöhnliche Runs: budgetiert,
-bepreist und in Activity aufgeführt.
+bepreist und in **Aktivität** (Activity) aufgeführt.
 
 ## Was er liest { #what-it-reads }
 
@@ -70,27 +70,27 @@ Befunds, damit der Leser beurteilen kann, ob sie sie stützen. Ein Befund, die
 
 ## Vorschläge { #suggestions }
 
-Verbessern und Prüfen öffnen die **Assistentenleiste** auf dem Build-Tab des
-Agents. Jeder Vorschlag zeigt die Passage, die er ändert, in ihrem Umfeld, die
+Verbessern und Prüfen öffnen die **Assistentenleiste** auf dem Tab **Bauen**
+(Build) des Agents. Jeder Vorschlag zeigt die Passage, die er ändert, in ihrem Umfeld, die
 Begründung und die Belege, und über jeden wird einzeln entschieden:
 
 | Aktion | Was passiert |
 |---|---|
-| **Annehmen** | Die Änderung wird in den Draft geschrieben. Nichts wird veröffentlicht. |
+| **Annehmen** | Die Änderung wird in den Entwurf geschrieben. Nichts wird veröffentlicht. |
 | **Bearbeiten** | Ihre eigene Formulierung wird statt des Vorschlags angenommen. |
 | **Verwerfen** | Festgehalten; eine spätere Anfrage schlägt es nicht wieder vor. |
-| **Rückgängig** | Kehrt die Entscheidung um, solange sie noch zum Draft passt. |
+| **Rückgängig** | Kehrt die Entscheidung um, solange sie noch zum Entwurf passt. |
 
 Ein Vorschlag verankert sich daran, wo seine Passage stand und was sie umgab,
 nicht am Text allein, sodass eine Zeile, die zweimal vorkommt, dort geändert
-wird, wo es gemeint war. Hat sich der Draft weiterbewegt - die Passage wurde
+wird, wo es gemeint war. Hat sich der Entwurf weiterbewegt - die Passage wurde
 entfernt oder eine Tool-Beschreibung von Hand geändert -, sagt der Vorschlag, dass
-er **nicht mehr zum Draft passt**, und lässt sich nur verwerfen. Rückgängig
+er **nicht mehr zum Entwurf passt**, und lässt sich nur verwerfen. Rückgängig
 verweigert sich ebenso, wenn der angenommene Text danach von Hand bearbeitet
 wurde: Es würde diese Änderung verwerfen.
 
 Ein neueres Verbessern ersetzt die wartenden Vorschläge; Prüfen fügt seine
-stattdessen hinzu. Das Veröffentlichen des Drafts schließt sie: Ihre
+stattdessen hinzu. Das Veröffentlichen des Entwurfs schließt sie: Ihre
 Entscheidungen sind endgültig, und die Leiste behält sie als Protokoll.
 
 Eine Änderung, die der Assistent vorschlägt und die sich nicht speichern lässt,
@@ -100,24 +100,24 @@ verschwindet nicht stillschweigend. Die Leiste führt sie unter **vorgeschlagene
 hat kein solches Tool, die Einstellung darf der Assistent nicht ändern. Der
 Worker protokolliert dieselben Gründe. Eine Stelle, die mit begradigten
 Anführungszeichen, ohne Backticks oder mit zusammengezogenen Zeilen kopiert
-wurde, findet trotzdem den Text des Drafts.
+wurde, findet trotzdem den Text des Entwurfs.
 
 ### Mit Evals prüfen { #check-with-evals }
 
-**Mit Evals prüfen** führt ein [Dataset](datasets.md) gegen die Basis des Drafts
-aus - die zuletzt veröffentlichte Version - mit allen wartenden Vorschlägen
-angewendet, neben dieser Version im selben
+**Mit Evals prüfen** führt ein [Dataset](datasets.md) gegen die Basis des
+Entwurfs aus - die zuletzt veröffentlichte Version - mit allen wartenden
+Vorschlägen angewendet, neben dieser Version im selben
 [Eval Run](evals.md#a-baseline-in-the-same-run). Ein Wächter kann die Produktion
 auf einer älteren Version halten; die Prüfung misst nie gegen sie, sodass das,
 was die neueste Version geändert hat, auf beiden Seiten steht und nie einem
-Vorschlag angelastet wird. Hat sich der Draft von seiner Basis entfernt - durch
-eigene Änderungen oder früher angenommene Vorschläge -, ist der Draft selbst die
+Vorschlag angelastet wird. Hat sich der Entwurf von seiner Basis entfernt - durch
+eigene Änderungen oder früher angenommene Vorschläge -, ist der Entwurf selbst die
 Baseline, frisch ausgeführt statt aus einem früheren Run übernommen, sodass die
 Vorschläge der einzige Unterschied sind; die Schätzung berechnet auch diese Seite
-mit ein. Die Seiten heißen, was sie sind, im Dialog und am Run: "v2 + 1
-Vorschlag" gegen "v2" oder "Draft + 2 Vorschläge" gegen "Draft". Durch die
-Prüfung wird nichts angenommen, und der Draft ändert sich nicht. Solange ein
-wartender Vorschlag nicht mehr zum Draft passt oder mit einem anderen
+mit ein. Die Seiten heißen, was sie sind, im Dialog und am Run: „v2 + 1
+Vorschlag“ gegen „v2“ oder „Entwurf + 2 Vorschläge“ gegen „Entwurf“. Durch die
+Prüfung wird nichts angenommen, und der Entwurf ändert sich nicht. Solange ein
+wartender Vorschlag nicht mehr zum Entwurf passt oder mit einem anderen
 kollidiert, wird die Prüfung abgelehnt, bis er angenommen oder verworfen ist:
 Der Run misst genau das, was wartet.
 
@@ -130,8 +130,8 @@ Run und neben der Prüfung in der Leiste, so formuliert wie die eigenen Ergebnis
 der Suite.
 
 Die Leiste fasst jede abgeschlossene Prüfung in einem Satz zusammen, der auf
-ihren Run verlinkt - "audit-smoke würde nicht bestehen: macht „Do you ship to
-Canada?“ kaputt" oder was sie auf dem Dataset kaputt gemacht und behoben hat.
+ihren Run verlinkt - „audit-smoke würde nicht bestehen: verschlechtert »Do you
+ship to Canada?«“ oder was sie auf dem Dataset verschlechtert und behoben hat.
 
 Die Prüfung ist keiner der Runs der Suite: Sie steht in keinem Verlauf,
 benachrichtigt niemanden, und Annehmen richtet sich nach dem Urteil des Runs
@@ -143,14 +143,15 @@ weggelassen, und der Run nennt ihre Zahl: Eine Änderung wird nie an den Daten
 gemessen, an die sie angepasst wurde. Ein Dataset, das nur aus solchen Fällen
 besteht, wird abgelehnt.
 
-Eine Prüfung zählt als Test des Drafts, sobald der Draft genau das ist, was sie
-geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
+Eine Prüfung zählt als Test des Entwurfs, sobald der Entwurf genau das ist, was
+sie geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
 sodass der Veröffentlichungsdialog ihr Urteil meldet; nach einer weiteren
-Änderung sagt er, dass dieser Test veraltet ist. Eine Prüfung, die am Draft
-selbst gemessen wurde, zählt nie: Sie sagt nichts über den Draft gegenüber der
+Änderung sagt er, dass dieser Test veraltet ist. Eine Prüfung, die am Entwurf
+selbst gemessen wurde, zählt nie: Sie sagt nichts über den Entwurf gegenüber der
 veröffentlichten Version, die er ersetzen würde. Eine Prüfung schickt von sich aus
-nichts in die [Review-Warteschlange](datasets.md#review) eines Datasets, da
-nichts angenommen wurde; ihre Run-Seite sagt das neben **Send failed to review**.
+nichts zur [Prüfung](datasets.md#review) eines Datasets, da nichts angenommen
+wurde; ihre Run-Seite sagt das neben **Nicht bestandene Fälle zur Prüfung
+senden** (Send failed cases to review).
 
 Jeder Vorschlag nennt die Wirkung, die er erwartet. Die Leiste zeigt sie neben
 den Eval Runs, die die Vorschläge geprüft haben, sodass Sie die Vorhersage mit
@@ -269,7 +270,7 @@ sich seitdem geändert hat - bei einer Skill-Änderung wie bei einer Datei.
 Der Dialog zum Anlegen bietet an, den Agent zu beschreiben, statt das Formular
 auszufüllen. Die Beschreibung geht an den [Architekten](console.md#the-assistant),
 der Agents entwirft und fragt, bevor er einen anlegt; das Ergebnis ist ein
-gewöhnlicher Draft.
+gewöhnlicher Entwurf.
 
 ## Kosten und Budget { #cost-and-budget }
 

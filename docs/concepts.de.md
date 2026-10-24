@@ -242,7 +242,7 @@ Approval parkt ihn gleich, das Audit-Protokoll benennt ihn gleich.
 
 Er ist mit der Oberfläche `schedule` gestempelt, sodass *wie wird dieser Agent
 genutzt* einen unbeaufsichtigten Run von dem einer Person unterscheiden kann.
-Jedes Auslösen ist ein eigener Run in Activity, und seine Antworten sammeln sich
+Jedes Auslösen ist ein eigener Run in **Aktivität** (Activity), und seine Antworten sammeln sich
 in einer Run-Log-Unterhaltung, die der Trigger einmal eröffnet — sofort, sobald
 der Trigger angelegt ist, sodass er ein anklickbarer Eintrag ist, bevor er je
 ausgelöst hat.

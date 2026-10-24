@@ -203,7 +203,7 @@ Wissens fehlgeschlagen sind, sollten jetzt bestehen.
 
 **Fehlenden Inhalt entwerfen** in einem geöffneten Thema bittet ein Modell, die
 Passage oder den FAQ-Eintrag zu schreiben, der der Wissensbasis fehlt. Das ist
-ein Run des **Knowledge gap drafter**, eines
+ein Run des **Lücken-Entwerfers** (Knowledge gap drafter), eines
 [System-Agents](concepts.md#system-agents), den jede Organisation hat. Er sieht
 die 20 neuesten Fragen des Themas: was jede Person gefragt hat, wonach der Agent
 gesucht und was er gefunden hat, welche Antwort die Person bekam und jeden
@@ -247,14 +247,14 @@ Organisation die [KI-Unterstützung](governance.md#ai-assistance) ausgeschaltet
 hat, und das ist sie, bis jemand mit `org:settings` sie einschaltet; bis dahin
 sagt das Thema es, mit einem Link zum Schalter für den, der ihn ändern darf. Vor
 dem Modellaufruf werden das Budget des Entwerfers und das der
-Organisation geprüft, und seine Kosten erscheinen in Activity. Das Gruppieren
+Organisation geprüft, und seine Kosten erscheinen in **Aktivität** (Activity). Das Gruppieren
 von Fragen zu Themen lässt kein Modell etwas schreiben und läuft deshalb
 unabhängig vom Schalter.
 
 ## Zugriff { #access }
 
 Ein Thema besteht aus den Fragen von Menschen, daher braucht das Lesen von
-Lücken `runs:view`, die Berechtigung, die in Activity jeden Run der
+Lücken `runs:view`, die Berechtigung, die in **Aktivität** jeden Run der
 Organisation liest. Ein Mitglied ohne sie sieht weder den Tab noch das Widget,
 und die API verweigert ihm den Zugriff.
 

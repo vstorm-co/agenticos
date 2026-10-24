@@ -1,7 +1,7 @@
 ---
 source_sha: "b668fac0818b"
 title: "Eval-Runs"
-description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
+description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
 
 # Eval-Runs { #eval-runs }
@@ -14,7 +14,7 @@ wirklich hat: Hat diese Änderung den Agent besser gemacht, schlechter oder
 keines von beidem - und was hat es gekostet?
 
 Ein Run besteht aus vier Entscheidungen: der **Agent** und was davon läuft
-(eine veröffentlichte Version oder der Draft in seinem aktuellen Stand), die
+(eine veröffentlichte Version oder der Entwurf in seinem aktuellen Stand), die
 **Dataset-Version**, die **Umgebung**, deren Testverbindungen die Fälle nutzen,
 und optional **mehrere Modelle** nebeneinander. Im selben Run kann außerdem
 eine **Baseline** laufen - eine frühere Version -, damit beide Seiten am selben
@@ -24,8 +24,8 @@ Tag auf denselben Provider treffen.
 
 Der Tab **Evals** eines Agents öffnet mit einem Liniendiagramm seiner
 Bestehensquote Run für Run, der älteste links, eine Linie pro Dataset, jede mit
-eigener Strichart. Ein Punkt ist rot, wo der Run Fälle kaputt gemacht hat, grün,
-wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Draft; der
+eigener Strichart. Ein Punkt ist rot, wo der Run Fälle verschlechtert hat, grün,
+wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Entwurf; der
 Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run.
 
 Die Achse benennt jeden Punkt danach, was lief und wann - mit der Uhrzeit für
@@ -34,46 +34,49 @@ unter dem Diagramm ein Bereich, der mit den letzten 12 öffnet; zieh seine Griff
 oder verschieb sie mit den Pfeiltasten, um mehr oder weniger zu sehen.
 
 Darunter stehen seine Runs, nach Dataset gruppiert, jeder mit dem, was gegen was
-getestet wurde, seinem Urteil (Breaks 2, Worse overall · 4 broke, First result,
-Pending) und der Bestehensquote jedes Modells, mit der Quote der ersten
+getestet wurde, seinem Urteil (Verschlechtert 2, Insgesamt schlechter ·
+4 verschlechtert, Erstes Ergebnis, Läuft) und der Bestehensquote jedes Modells, mit der Quote der ersten
 Antworten beim Darüberfahren.
 
-**Run evals** öffnet den Startdialog mit der naheliegenden Antwort: der Draft
-gegen die Live-Version, wenn sich der Draft von ihr unterscheidet, die
-Live-Version allein, wenn nicht, und der Draft allein bei einem Agent, den
-niemand veröffentlicht hat. Das Dataset, auf dem der Agent zuletzt gemessen
-wurde - oder das einzige, das es gibt -, ist bereits ausgewählt; Umgebung,
-Aufzeichnungen und Wiederholungen liegen unter **Advanced**. Die Kosten werden
-berechnet, sobald die Felder feststehen, und sagen, was die Antworten bewertet
-und was die Budgets des Agents und der Organisation danach behalten; der Run
-startet erst über den Button, der den Betrag nennt. **Draft differs from vN**
-auf der Seite des Agents - vN ist die zuletzt veröffentlichte Version, und wenn
-die Wächter der Produktion sie auf einer älteren halten, sagt ein zweites Badge,
-auf welcher, etwa "Produktion auf v1 (wartet auf Evals)" - trägt einen Button
-**Test draft**, der denselben Dialog öffnet. Der Veröffentlichungsdialog sagt,
-was der letzte Run des Drafts ergeben hat - eine
+**Evals starten** (Run evals) öffnet den Startdialog mit der naheliegenden
+Antwort: der Entwurf gegen die Live-Version, wenn sich der Entwurf von ihr
+unterscheidet, die Live-Version allein, wenn nicht, und der Entwurf allein bei
+einem Agent, den niemand veröffentlicht hat. Das Dataset, auf dem der Agent
+zuletzt gemessen wurde - oder das einzige, das es gibt -, ist bereits
+ausgewählt; Umgebung, Aufzeichnungen und Wiederholungen liegen unter
+**Erweitert** (Advanced). Die Kosten werden berechnet, sobald die Felder
+feststehen, und sagen, was die Antworten bewertet und was die Budgets des
+Agents und der Organisation danach behalten; der Run startet erst über den
+Button, der den Betrag nennt. **Entwurf weicht von vN ab**
+(Draft differs from vN) auf der Seite des Agents - vN ist die zuletzt
+veröffentlichte Version, und wenn die Wächter der Produktion sie auf einer
+älteren halten, sagt ein zweites Badge, auf welcher, etwa „Produktion auf v1
+(wartet auf Evals)“ - trägt einen Button **Entwurf testen** (Test draft), der
+denselben Dialog öffnet. Der Veröffentlichungsdialog sagt, was der letzte Run
+des Entwurfs ergeben hat - eine
 [Prüfung der Vorschläge des Assistenten](authoring.md#check-with-evals) zählt,
 sobald sie angenommen sind -, oder dass er seit seiner letzten Änderung nicht
 getestet wurde, oder dass sein Test veraltet ist, ohne die Veröffentlichung
 aufzuhalten.
 
 Die Seite eines Runs öffnet mit seinem Urteil in wenigen Sätzen - die Fälle,
-die der Kandidat jedes Mal kaputt macht oder behebt, wenn er sie gestellt
+die der Kandidat jedes Mal verschlechtert oder behebt, wenn er sie gestellt
 bekommt, einer davon zitiert mit der Zahl der Versuche, die es wiederholt
 haben, ob er insgesamt besser oder schlechter ist, wenn die bestätigten
 Änderungen das entscheiden können, und die Bestehensquote vorher und nachher -
 und mit dem, was als Nächstes zu tun ist: sehen, was sich zwischen den beiden
 Versionen geändert hat (History öffnet auf diesem Vergleich, gegen den
-getesteten Spec statt den jetzigen Draft), die kaputtgegangenen Fälle zeigen,
-zurück zu Build gehen oder den Draft veröffentlichen.
+getesteten Spec statt den jetzigen Entwurf), die verschlechterten Fälle zeigen,
+zurück zum Tab Bauen gehen oder den Entwurf veröffentlichen.
 
 Publish ist nur dann die Hauptaktion, wenn keine Regression bestätigt wurde und
 kein Fall des Kandidaten unbeantwortet oder unbewertet blieb, und der Run eines
-seitdem geänderten Drafts bietet stattdessen **Test again** an. Solange der Run
+seitdem geänderten Entwurfs bietet stattdessen **Erneut testen** (Test again)
+an. Solange der Run
 antwortet, sagt die Seite, wie viele erste Antworten vorliegen, und der
-Vergleich wartet auf beide Seiten. Antworten, die der Judge nicht bewerten
+Vergleich wartet auf beide Seiten. Antworten, die der Bewerter nicht bewerten
 konnte, sagen, warum, und zählen weder als bestanden noch als nicht bestanden,
-und **Grade again** im Kopfbereich bewertet sie erneut, ohne den Agent zu
+und **Erneut bewerten** (Grade again) im Kopfbereich bewertet sie erneut, ohne den Agent zu
 fragen, für jeden, der das Dataset laufen lassen darf.
 
 Unter dem Urteil stehen die Seiten nebeneinander, wie die beiden abschneiden,
@@ -90,12 +93,12 @@ Judge gescheitert ist, eine pro Fall und Agent - und sagt, wie viele
 (`routed_to_review`).
 Eine [Prüfung des Vorschlags des Assistenten](authoring.md#check-with-evals)
 schickt von sich aus nichts, da nichts angenommen wurde. Ein übersprungener
-Judge schickt nichts: Seine Antworten warten auf der Seite des Runs auf
-**Grade again**. Wird das Senden abgelehnt, endet der Run trotzdem, und seine
-Seite sagt, warum (`routing_error`).
+Bewerter schickt nichts: Seine Antworten warten auf der Seite des Runs auf
+**Erneut bewerten** (Grade again). Wird das Senden abgelehnt, endet der Run
+trotzdem, und seine Seite sagt, warum (`routing_error`).
 
-**Send failed to review** schickt die übrigen nicht bestandenen Antworten einer
-Seite, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
+**Nicht bestandene Fälle zur Prüfung senden** (Send failed cases to review)
+schickt die übrigen nicht bestandenen Antworten einer Seite, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
 Bewertung eine Person überstimmt hat, wird als korrigiert markiert.
 
 In beiden Fällen nimmt eine Antwort den Platz einer älteren, noch wartenden
@@ -105,19 +108,22 @@ die älter ist als die wartende, wird nicht gesendet. Die Antwort eines anderen
 Agents auf den Fall wartet daneben.
 
 Der eigene Tab **Evals** eines Datasets listet jeden darauf gemessenen Agent,
-jeden mit seinem Verlauf und seinen Runs, und **Run evals** in seinem
-Kopfbereich öffnet den Startdialog auf dem Dataset und fragt, welcher Agent
-getestet werden soll.
+jeden mit seinem Verlauf und seinen Runs, und **Evals starten** (Run evals) in
+seinem Kopfbereich öffnet den Startdialog auf dem Dataset und fragt, welcher
+Agent getestet werden soll.
 
-Die Karte **Eval runs** im Dashboard listet die neuesten Runs der Organisation
-mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die Bewertung durch
-den Judge bleiben aus jeder anderen Dashboard-Zahl heraus, und Activity blendet
-sie aus, außer ihr Oberflächenfilter verlangt jede Oberfläche oder nur Evals.
-Die Liste in Activity zeigt, was jedem Run gestellt wurde - seine erste
-Nutzernachricht oder die Frage des Eval-Falls und beim Run des Judges das, was
-er bewertet hat -, damit sich ein Run wiederfinden und zu einem Fall machen
-lässt. Ein Eval-Fall öffnet dort seinen Eval-Run auf diesem Fall, und **See
-what the model saw** eines Falls öffnet, was sein Modell bekommen hat.
+Die Karte **Eval-Runs** (Eval runs) im Dashboard listet die neuesten Runs der
+Organisation mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die
+Bewertung durch den Bewerter bleiben aus jeder anderen Dashboard-Zahl heraus,
+und **Aktivität** (Activity) blendet sie aus, außer ihr Oberflächenfilter
+verlangt jede Oberfläche oder nur Evals.
+
+Die Liste in **Aktivität** zeigt, was jedem Run gestellt wurde - seine erste
+Nutzernachricht oder die Frage des Eval-Falls und beim Run des Bewerters das,
+was er bewertet hat -, damit sich ein Run wiederfinden und zu einem Fall machen
+lässt. Ein Eval-Fall öffnet dort seinen Eval-Run auf diesem Fall, und
+**Sehen, was das Modell sah** (See what the model saw) eines Falls öffnet, was
+sein Modell bekommen hat.
 
 **Alle ansehen** auf der Karte öffnet **Eval-Runs** unter `/evals`: jeden
 Eval-Run, den Sie sehen dürfen, über alle Agents, der neueste zuerst,
@@ -139,20 +145,20 @@ Der Body nennt das Dataset (`dataset_id`, `dataset_version`), den Kandidaten
 die `environment_id`, die zu vergleichenden `model_profile_ids` und
 `paired_baseline`. Die Schätzung ist der durchschnittliche Preis eines Runs des
 Agents auf jedem Modell, gemessen an seinen letzten abgeschlossenen Runs, mal
-die Zahl der Fälle, plus ein Judge-Aufruf pro Fall, wenn ein Judge das Dataset
-bewertet und AI assistance eingeschaltet ist.
+die Zahl der Fälle, plus ein Aufruf des Bewerters pro Fall, wenn ein Bewerter
+das Dataset bewertet und die KI-Unterstützung eingeschaltet ist.
 
-AI assistance ist für eine Organisation ausgeschaltet, bis jemand mit
-`org:settings` es einschaltet. Solange es aus ist, läuft der Judge nicht: Ein
-Fall wird durch seine Checks und erwarteten Tool-Aufrufe entschieden, die
-Kriterien des Judges werden als übersprungen erfasst, und die Schätzung
-enthält keinen Judge.
+Die KI-Unterstützung ist für eine Organisation ausgeschaltet, bis jemand mit
+`org:settings` sie einschaltet. Solange sie aus ist, läuft der Bewerter nicht:
+Ein Fall wird durch seine Checks und erwarteten Tool-Aufrufe entschieden, die
+Kriterien des Bewerters werden als übersprungen erfasst, und die Schätzung
+enthält keinen Bewerter.
 
 Ein Agent ohne Historie auf einem Modell wird als typischer Fall geschätzt -
 `EVAL_FALLBACK_INPUT_TOKENS` hinein, `EVAL_FALLBACK_OUTPUT_TOKENS` heraus - zum
 eigenen Preis des Modells, oder mit `EVAL_FALLBACK_CASE_COST_USD` bei einem
 Modell ohne bekannten Preis, und die Schätzung sagt, dass es eine grobe Annahme
-ist (`basis: "fallback"`). Ein Judge ohne Historie wird genauso bepreist, auf
+ist (`basis: "fallback"`). Ein Bewerter ohne Historie wird genauso bepreist, auf
 dem Modell, das sein veröffentlichter Spec nennt; die Schätzung warnt, wenn das
 das getestete Modell ist, und die Seite eines Runs, wenn es das war. Die Kosten
 der Baseline gehören zur Summe, außer eine aktuelle passende Baseline wird
@@ -183,14 +189,14 @@ Ein Run, der niemandem etwas sagen könnte, wird abgelehnt, bevor er geschätzt
 wird:
 
 - eine Dataset-Version ohne Fälle;
-- ein Scoring ohne erforderlichen Bewerter, der irgendeinen Fall der Version
+- ein Scoring ohne erforderlichen Scorer, der irgendeinen Fall der Version
   entscheiden könnte - kein anwendbarer Check, kein erwarteter Tool-Aufruf und
-  kein Judge. Ist der Judge der einzige Bewerter und AI assistance
-  ausgeschaltet, sagt die Ablehnung das: Der Judge braucht AI assistance, das
-  für diese Organisation ausgeschaltet ist, also schalte es in den Einstellungen
-  der Organisation ein oder füge einen Check hinzu;
+  kein Bewerter. Entscheidet nur der Bewerter und ist die KI-Unterstützung
+  ausgeschaltet, sagt die Ablehnung das: Der Bewerter braucht die
+  KI-Unterstützung, die für diese Organisation ausgeschaltet ist, also schalte
+  sie in den Einstellungen der Organisation ein oder füge einen Check hinzu;
 - ein Agent, der nie veröffentlicht wurde, für den eine Version verlangt wird -
-  starte stattdessen seinen Draft;
+  starte stattdessen seinen Entwurf;
 - eine Baseline für eine erste Version, vor der es nichts gibt.
 
 Eine Version, in der nur einige Fälle nichts haben, das sie bewertet, läuft
@@ -201,7 +207,7 @@ has nothing to grade it. The result will be inconclusive.“
 ### Vorschläge prüfen { #checking-suggestions }
 
 Der [Authoring-Assistent](authoring.md#check-with-evals) startet Eval Runs, um zu
-prüfen, was er vorschlägt: den Draft mit den wartenden Vorschlägen, neben der
+prüfen, was er vorschlägt: den Entwurf mit den wartenden Vorschlägen, neben der
 veröffentlichten Version. Ein solcher Run lässt die Fälle aus den Gesprächen weg,
 aus denen die Vorschläge stammen, und nennt ihre Zahl, sodass eine kleinere
 Stichprobe als das Dataset sich selbst erklärt.
@@ -232,16 +238,16 @@ Aufzeichnung passt, bekommt das aufgezeichnete Ergebnis, einer, der nicht
 passt, wird zurückgehalten und als abweichend markiert. Ein Fall ohne
 verwendbare Aufzeichnung läuft isoliert ohne sie.
 
-### Ein Draft zählt nie als Version { #a-draft-is-never-counted-as-a-version }
+### Ein Entwurf zählt nie als Version { #a-draft-is-never-counted-as-a-version }
 
-Ein Draft läuft über denselben Weg, mit zwei Unterschieden. Er wird zuerst
+Ein Entwurf läuft über denselben Weg, mit zwei Unterschieden. Er wird zuerst
 gegen den eigenen Zugriff der startenden Person geprüft - alles, was eine
-Veröffentlichung prüfen würde -, weil ein Draft beim Speichern nie validiert
+Veröffentlichung prüfen würde -, weil ein Entwurf beim Speichern nie validiert
 wurde. Und seine Runs werden keiner Version zugeordnet: Sie erscheinen nicht in
 der Nutzung einer Version, und die Zahlen einer Version enthalten nie Antworten
-ihres Drafts.
+ihres Entwurfs.
 
-Der Draft wird beim Start des Runs kopiert, sodass jeder Fall auf denselben
+Der Entwurf wird beim Start des Runs kopiert, sodass jeder Fall auf denselben
 Inhalt antwortet, auch wenn jemand weiter bearbeitet.
 
 ## Ausführen und abbrechen { #running-and-cancelling }
@@ -331,9 +337,9 @@ Regression wie jede andere, gezeigt mit ihrem Fehler.
 Eine Antwort, bei der der Judge gescheitert ist oder die er übersprungen hat, ist **nicht bewertet**: Der Run listet diese
 Bewertungen als `ungraded_score_ids`, und sie erneut zu bewerten
 (`POST /api/v1/datasets/{id}/scores/rescore`) liest die im Versuch behaltene
-Antwort, statt den Agent zu fragen. Das Urteil einer Person in der
-[Review-Warteschlange](datasets.md#review) ersetzt für diesen Fall das Ergebnis
-der Bewerter, und die Zahlen des Runs folgen ihm.
+Antwort, statt den Agent zu fragen. Das Urteil einer Person bei der
+[Prüfung](datasets.md#review) ersetzt für diesen Fall das Ergebnis der Scorer,
+und die Zahlen des Runs folgen ihm.
 
 Ein abgeschlossener Run behält Urteil, Zählungen und Bestehensquoten seines
 ersten Kandidaten als `outcome`, sodass eine Liste sie liest, ohne jeden Run
@@ -351,14 +357,14 @@ GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baselin
 GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents:edit
 ```
 
-`?draft=current` behält die Runs, die den Draft in seinem jetzigen Stand
+`?draft=current` behält die Runs, die den Entwurf in seinem jetzigen Stand
 getestet haben - denselben Spec, gleich in welcher Reihenfolge seine Schlüssel
 gespeichert wurden, darunter eine Prüfung von Vorschlägen, die inzwischen
 angenommen sind -, und genau das liest der Veröffentlichungsdialog.
 `?draft=earlier` behält die Runs, die seit der Veröffentlichung der neuesten
-Version einen anderen Draft getestet haben - eine Prüfung erst, wenn einer ihrer
-Vorschläge angenommen wurde: den Test, von dem sich der Draft entfernt hat. Eine
-Prüfung, die am Draft selbst gemessen wurde, zählt in keinem von beiden.
+Version einen anderen Entwurf getestet haben - eine Prüfung erst, wenn einer ihrer
+Vorschläge angenommen wurde: den Test, von dem sich der Entwurf entfernt hat. Eine
+Prüfung, die am Entwurf selbst gemessen wurde, zählt in keinem von beiden.
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
 
@@ -403,7 +409,7 @@ gemessen an den Antworten der letzten Woche, kann am Provider liegen, nicht am
 Agent.
 
 Ein abgeschlossener Baseline-Arm ersetzt einen neuen Lauf nur, wenn Version,
-Dataset-Version, Modell, Scoring und Judge übereinstimmen, er in derselben
+Dataset-Version, Modell, Scoring und Bewerter übereinstimmen, er in derselben
 Umgebung mit denselben `from_recordings` und `live_reads` lief und er
 innerhalb von `EVAL_BASELINE_CACHE_HOURS` fertig wurde. Der Run nennt den Run, den er
 wiederverwendet hat. Nur seine ersten Antworten werden wiederverwendet: Ein Fall,
@@ -452,8 +458,8 @@ auseinanderliegen.
 ### Was das Urteil sagt { #what-the-verdict-says }
 
 Das Urteil beruht nur auf den bestätigten Kippfällen. Eine bestätigte
-Regression macht den Kandidaten `worse` - ein Fall, den er jedes Mal kaputt
-macht, ist Grund genug, nicht zu veröffentlichen -, nur bestätigte Behebungen
+Regression macht den Kandidaten `worse` - ein Fall, den er jedes Mal
+verschlechtert, ist Grund genug, nicht zu veröffentlichen -, nur bestätigte Behebungen
 machen ihn `better`, beides macht ihn `mixed`, und gar kein bestätigter
 Kippfall ist `no_difference`. Jeder Kippfall nennt die Frage des Falls.
 
@@ -468,19 +474,20 @@ das Urteil einer Person über diese Antwort geht beidem vor -, sodass sie mit
 den bestätigten Kippfällen übereinstimmt. Die eigene Quote der ersten
 Antworten wird daneben als `first_pass_rate` behalten.
 
-### Ein anderer Judge macht den Vergleich ungültig { #a-different-judge-invalidates-the-comparison }
+### Ein anderer Bewerter macht den Vergleich ungültig { #a-different-judge-invalidates-the-comparison }
 
-Jede Bewertung hält den [Judge fest, der sie vergeben hat](datasets.md#judge):
+Jede Bewertung hält den [Bewerter fest, der sie vergeben hat](datasets.md#judge):
 sein Modell, seine Version, einen Fingerabdruck der Rubrik und die Version des
-eigenen Prompts des Judges. Wurden die beiden Seiten mit unterschiedlichen
-Scoring-Einstellungen bewertet oder von einem anderen Judge, Modell, einer
+eigenen Prompts des Bewerters. Wurden die beiden Seiten mit unterschiedlichen
+Scoring-Einstellungen bewertet oder von einem anderen Bewerter, Modell, einer
 anderen Rubrik oder einem anderen Prompt, ist der Vergleich `invalid` und gibt
 kein Urteil - ein Kippen sagt dann etwas über die Bewertung, nicht über den
-Agent. Eine Baseline, die unter einem früheren Judge-Prompt bewertet wurde, sagt
-das und wird nicht als zwischengespeicherte Baseline wiederverwendet.
+Agent. Eine Baseline, die unter einem früheren Prompt des Bewerters bewertet
+wurde, sagt das und wird nicht als zwischengespeicherte Baseline
+wiederverwendet.
 
-Ein Run, dessen Judge sich änderte, während seine Fälle bewertet wurden, ist
-ebenfalls `invalid`: Ein Fall, dessen Versuche Bewertungen zweier Judges tragen,
+Ein Run, dessen Bewerter sich änderte, während seine Fälle bewertet wurden, ist
+ebenfalls `invalid`: Ein Fall, dessen Versuche Bewertungen zweier Bewerter tragen,
 entscheidet sich nach dem, der mehr davon bewertet hat.
 
 ### Zwei Achsen, Qualität zuerst { #two-axes-quality-first }
@@ -506,7 +513,7 @@ Schwelle, die jedes Ergebnis erfüllen muss, und läuft dann selbstständig. Die
 Karte **Suites** steht im Evals-Tab eines Agents unter den Runs: das Dataset
 jeder Suite, wann sie läuft, ihre Schwelle und wie sie zuletzt abschnitt.
 Geöffnet listet eine Suite jedes Ergebnis, warum es nicht bestand, die
-gebrochenen Fälle und einen Link zum Eval-Run dahinter; die Seite dieses Runs
+verschlechterten Fälle und einen Link zum Eval-Run dahinter; die Seite dieses Runs
 nennt die Suite, die ihn gestartet hat.
 
 ### Wann eine Suite läuft { #when-a-suite-runs }
@@ -584,13 +591,13 @@ fehlgeschlagen ist, ist ein Fehler.
 
 Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
 kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
-der Judge es bewerten könnte und die KI-Unterstützung aus ist, oder wenn es
+der Bewerter es bewerten könnte und die KI-Unterstützung aus ist, oder wenn es
 keine veröffentlichte Version zum Prüfen gibt.
 
 Geplante Läufe und Läufe nach
 einer Abhängigkeit werden mit dem letzten bestandenen Lauf der Suite auf
 derselben Version verglichen - dem letzten als gut bekannten Stand, sodass ein
-gebrochener Fall gebrochen bleibt, bis ihn jemand behebt - und messen so die
+verschlechterter Fall verschlechtert bleibt, bis ihn jemand behebt - und messen so die
 Drift; eine Veröffentlichung oder Promotion lässt ihre Baseline im selben Run
 laufen. Nach einem Ergebnis, das sich mit diesem Lauf nicht vergleichen ließ -
 weil sich die Bewertung seitdem geändert hat -, lässt der nächste die Version
@@ -623,7 +630,7 @@ erst fortsetzen, wenn jemand wieder eine Umgebung für sie wählt.
 
 Der Eigentümer wird benachrichtigt, wenn ein Ergebnis nicht besteht, ohne
 Ergebnis bleibt oder nicht läuft - einmal pro Serie solcher Ergebnisse auf einer
-Version, mit den gebrochenen oder unbewerteten Fällen -, im Benachrichtigungscenter und per E-Mail, wenn er sie
+Version, mit den verschlechterten oder unbewerteten Fällen -, im Benachrichtigungscenter und per E-Mail, wenn er sie
 eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
 
 ## Einstellungen { #settings }

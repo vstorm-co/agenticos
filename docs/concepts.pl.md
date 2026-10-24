@@ -224,7 +224,7 @@ parkuje go tak samo, ślad audytowy nazywa go tak samo.
 
 Jest stemplowany powierzchnią `schedule`, więc pytanie *jak ten agent jest
 używany* potrafi odróżnić run bez nadzoru od runa człowieka. Każde odpalenie to
-osobny run w Activity, a jego odpowiedzi zbierają się w jednej rozmowie będącej
+osobny run w **Aktywności** (Activity), a jego odpowiedzi zbierają się w jednej rozmowie będącej
 dziennikiem runów, którą trigger otwiera raz — zawczasu, w momencie utworzenia
 triggera, więc jest klikalną pozycją, zanim jeszcze kiedykolwiek się odpali.
 

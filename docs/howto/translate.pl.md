@@ -1,5 +1,5 @@
 ---
-source_sha: "01842b2510fe"
+source_sha: "85e967e18444"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -243,7 +243,9 @@ Zakładka Ewaluacje agenta, dataset i werdykt runu ewaluacji nazywają każde z
 tych pojęć w jeden sposób, a zdanie, które wymienia zakładkę, nazywa ją tak jak
 ona sama. Trzymają je katalogi konsoli, a `frontend/messages/eval-terms.test.ts`
 odrzuca w przestrzeniach ewaluacji mieszane formy, które zastąpiły. Strona, która
-cytuje jeden z tych ekranów, używa tego samego słowa.
+cytuje jeden z tych ekranów, używa tego samego słowa, a
+`scripts/check_docs_glossary.py` pilnuje tego na polskich i niemieckich stronach
+o nich w `make lint`, z tych samych wzorców w `frontend/messages/eval-terms.json`.
 
 | English | Polish | German | Spanish |
 |---|---|---|---|
@@ -257,6 +259,8 @@ cytuje jeden z tych ekranów, używa tego samego słowa.
 | the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
 
 Wersja robocza nadal nigdy nie jest wersją opublikowaną: para published / draft z
 sekcji [Terminologia, która musi być dokładna](#terminology-that-has-to-be-exact)

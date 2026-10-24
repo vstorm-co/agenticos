@@ -5798,7 +5798,7 @@
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
       "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
       "prefEvalSuiteFailed": "Eine Eval-Suite hat nicht bestanden",
-      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen.",
+      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den verschlechterten Fällen.",
       "prefPromotionOverridden": "Eine Promotion ging an ihren Evals vorbei",
       "prefPromotionOverriddenTrigger": "Eine Version kam in eine Umgebung, vorbei an einer Ihrer Eval-Suites, die auf ihr nicht bestanden hatte. Nennt die Suites und die Begründung.",
       "prefSharedChangeApplied": "Eine Änderung gilt jetzt für deinen Agent",
@@ -9626,7 +9626,7 @@
       "blocked": {
         "check_first": "Ein Modellwechsel wird angenommen, wenn er sich auszahlt. Führe zuerst Mit Evals prüfen für diese Vorschläge aus.",
         "inconclusive": "Die letzte Prüfung dieses Modells hat Fälle offen gelassen. Bewerte die offenen Antworten oder prüfe erneut.",
-        "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen.",
+        "regression": "Die letzte Prüfung dieses Modells hat Fälle verschlechtert, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen.",
         "crashed": "Der Run des Agenten ist in der letzten Prüfung dieses Modells bei Fällen gescheitert. Behebe, was gescheitert ist, und prüfe erneut.",
         "check_outdated": "Die Prüfung ist veraltet: Der Entwurf oder die darauf wartenden Vorschläge haben sich seitdem geändert. Führe eine neue Prüfung aus."
       },
@@ -9660,7 +9660,7 @@
       "unreadFindings": "Was die Prüfung auf {name} ergeben hat, ließ sich nicht lesen. Öffne den Run oder versuche es erneut.",
       "suite": "{name} {status, select, passed {würde bestehen} failed {würde nicht bestehen} other {wäre unentschieden}}: {findings}",
       "dataset": "Auf {name}: {findings}",
-      "breaks": "macht {cases}{more, plural, =0 {} =1 { und 1 weiteren Fall} other { und # weitere Fälle}} kaputt{fixed, plural, =0 {} =1 { und behebt 1 Fall} other { und behebt # Fälle}}",
+      "breaks": "verschlechtert {cases}{more, plural, =0 {} =1 { und 1 weiteren Fall} other { und # weitere Fälle}}{fixed, plural, =0 {} =1 { und behebt 1 Fall} other { und behebt # Fälle}}",
       "fixes": "{count, plural, =1 {behebt 1 Fall} other {behebt # Fälle}}",
       "noChange": "keine reproduzierbare Änderung",
       "invalid": "die beiden Seiten lassen sich nicht vergleichen",

@@ -1,19 +1,19 @@
 ---
-source_sha: "b668fac0818b"
-title: "Eval runy"
-description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
+source_sha: "a3f93e8b9e08"
+title: "Runy ewaluacji"
+description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
 
-# Eval runy { #eval-runs }
+# Runy ewaluacji { #eval-runs }
 
-**Eval run** sprawia, że agent odpowiada na każdy przypadek wersji
+**Run ewaluacji** sprawia, że agent odpowiada na każdy przypadek wersji
 [datasetu](datasets.md), ocenia każdą odpowiedź tak, jak mówi
 [ocenianie](datasets.md#scoring) datasetu, i zachowuje to, co się stało.
 Odpowiada na pytanie, które naprawdę ma osoba edytująca agenta: czy ta zmiana
 poprawiła agenta, pogorszyła go, czy nic nie zmieniła - i ile to kosztowało.
 
 Run składa się z czterech wyborów: **agent** i to, co z niego się uruchamia
-(opublikowana wersja albo draft w obecnym stanie), **wersja datasetu**,
+(opublikowana wersja albo wersja robocza w obecnym stanie), **wersja datasetu**,
 **środowisko**, którego testowych połączeń używają przypadki, i opcjonalnie
 **kilka modeli** obok siebie. W tym samym runie może też działać **baseline** -
 wcześniejsza wersja - żeby obie strony trafiły na tego samego providera tego
@@ -21,10 +21,10 @@ samego dnia.
 
 ## W konsoli { #in-the-console }
 
-Zakładka **Evals** agenta otwiera się wykresem liniowym jego odsetka zaliczeń
+Zakładka **Ewaluacje** (Evals) agenta otwiera się wykresem liniowym jego odsetka zaliczeń
 run po runie, od najstarszego po lewej, z linią na każdy dataset, każdą z inną
 kreską. Punkt jest czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawił,
-bursztynowy, gdy zrobił jedno i drugie, a pusty dla draftu; najechanie na punkt
+bursztynowy, gdy zrobił jedno i drugie, a pusty dla wersji roboczej; najechanie na punkt
 mówi, co uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run.
 
 Oś podpisuje każdy punkt tym, co uruchomiono i kiedy - godziną dla dzisiejszego
@@ -33,41 +33,45 @@ otwarty na ostatnich 12; przeciągnij jego uchwyty albo przesuń je strzałkami,
 żeby zobaczyć więcej lub mniej.
 
 Pod wykresem są jego runy, pogrupowane po datasecie, każdy z tym, co testowano
-względem czego, z werdyktem (Breaks 2, Worse overall · 4 broke, First result,
-Pending) i odsetkiem zaliczeń każdego modelu, a po najechaniu kursorem - z
-odsetkiem pierwszych odpowiedzi.
+względem czego, z werdyktem - **Psuje: 2** (Breaks 2), **Gorszy ogólnie ·
+zepsute: 4** (Worse overall · 4 broke), **Pierwszy wynik** (First result) albo
+**W toku** (Pending) - i odsetkiem zaliczeń każdego modelu, a po najechaniu
+kursorem - z odsetkiem pierwszych odpowiedzi.
 
-**Run evals** otwiera dialog startu od razu na oczywistej odpowiedzi: draft
-względem bieżącej opublikowanej wersji, gdy draft się od niej różni, sama
-opublikowana wersja, gdy się nie różni, i sam draft dla agenta, którego nikt
-nie opublikował. Dataset, na którym agent był ostatnio mierzony - albo jedyny,
-jaki istnieje - jest już wybrany; środowisko, nagrania i powtórki są pod
-**Advanced**. Koszt jest wyliczany, gdy pola się ustalą, i mówi, co ocenia
-odpowiedzi oraz ile zostanie potem w budżecie agenta i organizacji; run
-startuje dopiero z przycisku, który podaje tę kwotę. **Draft differs from vN**
-na stronie agenta - vN to najnowsza opublikowana wersja, a gdy strażnicy
-produkcji trzymają ją na starszej, drugi znaczek mówi na której, na przykład
-"produkcja na v1 (czeka na evale)" - ma przycisk **Test draft**, który otwiera
-ten sam dialog. Dialog publikacji mówi, co znalazł ostatni run draftu -
-[sprawdzenie sugestii asystenta](authoring.md#check-with-evals) liczy się, gdy
-zostaną przyjęte - albo że draftu nie testowano od jego ostatniej zmiany, albo
-że test, który miał, jest nieaktualny, nie wstrzymując publikacji.
+**Uruchom ewaluację** (Run evals) otwiera dialog startu od razu na oczywistej
+odpowiedzi: wersja robocza względem bieżącej opublikowanej wersji, gdy się od
+niej różni, sama opublikowana wersja, gdy się nie różni, i sama wersja robocza
+dla agenta, którego nikt nie opublikował. Dataset, na którym agent był ostatnio
+mierzony - albo jedyny, jaki istnieje - jest już wybrany; środowisko, nagrania
+i powtórki są pod **Zaawansowane** (Advanced). Koszt jest wyliczany, gdy pola
+się ustalą, i mówi, co ocenia odpowiedzi oraz ile zostanie potem w budżecie
+agenta i organizacji; run startuje dopiero z przycisku, który podaje tę kwotę.
+**Wersja robocza różni się od vN** (Draft differs from vN) na stronie agenta -
+vN to najnowsza opublikowana wersja, a gdy strażnicy produkcji trzymają ją na
+starszej, drugi znaczek mówi na której, na przykład „produkcja na v1 (czeka na
+ewaluacje)” - ma przycisk **Przetestuj wersję roboczą** (Test draft), który
+otwiera ten sam dialog. Dialog publikacji mówi, co znalazł ostatni run wersji
+roboczej - [sprawdzenie sugestii asystenta](authoring.md#check-with-evals)
+liczy się, gdy zostaną przyjęte - albo że nie testowano jej od ostatniej
+zmiany, albo że test, który miała, jest nieaktualny, nie wstrzymując publikacji.
 
 Strona runa otwiera się jego werdyktem w kilku zdaniach - przypadki, które
 kandydat psuje albo naprawia za każdym razem, gdy jest o nie pytany, jeden z
 nich zacytowany z liczbą prób, które to powtórzyły, czy ogólnie jest lepszy,
 czy gorszy, gdy potwierdzone zmiany pozwalają to stwierdzić, i odsetek zaliczeń
 przed i po - razem z tym, co zrobić dalej: zobaczyć, co zmieniło się między
-obiema wersjami (History otwiera się na tym porównaniu, względem speca, który
-run testował, a nie draftu w jego obecnym stanie), pokazać przypadki, które się
-zepsuły, wrócić do Build albo opublikować draft.
+obiema wersjami (**Historia** (History) otwiera się na tym porównaniu, względem
+speca, który run testował, a nie wersji roboczej w jej obecnym stanie), pokazać
+przypadki, które się zepsuły, wrócić do zakładki **Budowa** (Build) albo
+opublikować wersję roboczą.
 
-Publish jest główną akcją tylko wtedy, gdy nie potwierdzono żadnej regresji i
-żaden przypadek kandydata nie został bez odpowiedzi ani bez oceny, a run draftu,
-który od tego czasu się zmienił, proponuje zamiast tego **Test again**. Gdy run
-odpowiada, strona mówi, ile pierwszych odpowiedzi już jest, a porównanie czeka
-na obie strony. Odpowiedzi, których sędzia nie zdołał ocenić, mówią dlaczego i
-nie liczą się ani jako zaliczone, ani jako niezaliczone, a **Grade again** w
+**Opublikuj** (Publish) jest główną akcją tylko wtedy, gdy nie potwierdzono
+żadnej regresji i żaden przypadek kandydata nie został bez odpowiedzi ani bez
+oceny, a run wersji roboczej, która od tego czasu się zmieniła, proponuje
+zamiast tego **Testuj ponownie** (Test again). Gdy run odpowiada, strona mówi,
+ile pierwszych odpowiedzi już jest, a porównanie czeka na obie strony.
+Odpowiedzi, których sędzia nie zdołał ocenić, mówią dlaczego i nie liczą się ani
+jako zaliczone, ani jako niezaliczone, a **Oceń ponownie** (Grade again) w
 nagłówku ocenia je ponownie bez pytania agenta, dla każdego, kto może uruchamiać
 dataset.
 
@@ -84,10 +88,13 @@ odpowiedź, przy której ocenie jego sędzia zawiódł, po jednej na przypadek i
 agenta - i podaje, ile ich jest (`routed_to_review`).
 [Sprawdzenie propozycji asystenta](authoring.md#check-with-evals) samo z siebie
 nie wysyła nic, bo nic nie zostało przyjęte. Pominięty sędzia nie wysyła nic:
-jego odpowiedzi czekają na stronie runu na **Grade again**. Gdy wysyłka zostanie
-odrzucona, run i tak się kończy, a jego strona mówi dlaczego (`routing_error`). **Send failed to review** wysyła
-resztę niezaliczonych odpowiedzi jednej strony, dla każdego, kto może edytować
-dataset, a przypadek, którego ocenę osoba uchyliła, jest oznaczany jako
+jego odpowiedzi czekają na stronie runu na **Oceń ponownie**. Gdy wysyłka
+zostanie odrzucona, run i tak się kończy, a jego strona mówi dlaczego
+(`routing_error`). **Wyślij niezaliczone przypadki do przeglądu**
+(Send failed cases to review) wysyła resztę niezaliczonych odpowiedzi jednej
+strony, dla każdego, kto może edytować dataset, a przypadek, którego ocenę osoba
+uchyliła,
+jest oznaczany jako
 poprawiony.
 
 W obu przypadkach odpowiedź zajmuje miejsce starszej odpowiedzi tego samego
@@ -96,18 +103,19 @@ podaje, ile ich było, jako `routed_replacing` - a odpowiedź starsza od
 czekającej nie jest wysyłana. Odpowiedź innego agenta na ten przypadek czeka
 obok.
 
-Własna zakładka **Evals** datasetu wymienia każdego mierzonego na nim agenta,
-każdego ze swoim trendem i runami, a **Run evals** w jego nagłówku otwiera
-dialog startu na tym datasecie i pyta, którego agenta testować.
+Własna zakładka **Ewaluacje** datasetu wymienia każdego mierzonego na nim
+agenta, każdego ze swoim trendem i runami, a **Uruchom ewaluację** w jego
+nagłówku otwiera dialog startu na tym datasecie i pyta, którego agenta testować.
 
-Karta **Eval runs** na dashboardzie wymienia ostatnie runy organizacji z ich
-agentem i werdyktem. Przypadki evala i ocenianie sędziego nie wchodzą do żadnej
-innej liczby na dashboardzie, a Activity je ukrywa, chyba że jej filtr
-powierzchni prosi o wszystkie powierzchnie albo tylko o evale. Lista Activity
-pokazuje, o co zapytano każdy run - jego pierwszą wiadomość użytkownika albo
-pytanie przypadku evala, a dla runa sędziego to, co ocenił - żeby run dało się
-znowu znaleźć i zrobić z niego przypadek. Przypadek evala otwiera tam swój eval
-run na tym przypadku, a **See what the model saw** przypadku otwiera to, co
+Karta **Runy ewaluacji** (Eval runs) na dashboardzie wymienia ostatnie runy
+organizacji z ich agentem i werdyktem. Przypadki ewaluacji i ocenianie sędziego
+nie wchodzą do żadnej innej liczby na dashboardzie, a **Aktywność** (Activity)
+je ukrywa, chyba że jej filtr powierzchni prosi o wszystkie powierzchnie albo
+tylko o ewaluacje. Lista Aktywności pokazuje, o co zapytano każdy run - jego
+pierwszą wiadomość użytkownika albo pytanie przypadku ewaluacji, a dla runa
+sędziego to, co ocenił - żeby run dało się znowu znaleźć i zrobić z niego
+przypadek. Przypadek ewaluacji otwiera tam swój run ewaluacji na tym przypadku,
+a **Zobacz, co widział model** (See what the model saw) przypadku otwiera to, co
 dostał jego model.
 
 **Zobacz wszystko** na tej karcie otwiera **Runy ewaluacji** pod `/evals`: każdy
@@ -130,9 +138,9 @@ Body wskazuje dataset (`dataset_id`, `dataset_version`), kandydata
 `environment_id`, `model_profile_ids` do porównania oraz `paired_baseline`.
 Szacunek to średni koszt runa agenta na każdym modelu, liczony z jego ostatnich
 zakończonych runów, razy liczba przypadków, plus jedno wywołanie sędziego na
-przypadek, gdy dataset ocenia sędzia, a AI assistance jest włączone.
+przypadek, gdy dataset ocenia sędzia, a wsparcie AI jest włączone.
 
-AI assistance jest wyłączone w organizacji, dopóki ktoś z `org:settings` go
+Wsparcie AI jest wyłączone w organizacji, dopóki ktoś z `org:settings` je
 nie włączy. Gdy jest wyłączone, sędzia nie działa: przypadek rozstrzygają jego
 checki i oczekiwane wywołania narzędzi, kryteria sędziego są zapisywane jako
 pominięte, a szacunek nie liczy sędziego.
@@ -149,8 +157,8 @@ odpowiedzi nic nie kosztują, a szacunek wskazuje run, z którego pochodzą.
 
 ### Budżet, który zostaje { #the-budget-it-leaves }
 
-Eval wydaje z tych samych miesięcznych budżetów co ruch produkcyjny: z limitu
-agenta i z limitu organizacji. Nie ma osobnego budżetu na evale. Duży dataset
+Ewaluacja wydaje z tych samych miesięcznych budżetów co ruch produkcyjny: z
+limitu agenta i z limitu organizacji. Nie ma osobnego budżetu na ewaluacje. Duży dataset
 może więc zostawić produkcję bez budżetu do końca miesiąca, dlatego szacunek
 pokazuje, ile każdy limit zachowa po wydaniu sumy przez run:
 `agent_after_usd` i `org_after_usd`.
@@ -163,7 +171,7 @@ przypadek, powtórzony po każdej stronie, łącznie z wykorzystanym baseline'em
 jako `rerun_ceiling_usd`, który run zachowuje, żeby run, który wydał więcej, niż szacowano, mówił
 dlaczego. Każdy przypadek i tak jest sprawdzany względem obu limitów przed
 każdym żądaniem do modelu, jak każdy run, a przypadek, który trafi na limit,
-zatrzymuje cały eval run jako `budget_exceeded`.
+zatrzymuje cały run ewaluacji jako `budget_exceeded`.
 
 ### Co jest odrzucane { #what-is-refused }
 
@@ -173,12 +181,12 @@ oszacowany:
 - wersja datasetu bez przypadków;
 - ocenianie bez wymaganego oceniającego, który mógłby rozstrzygnąć którykolwiek
   przypadek wersji - bez checku do zastosowania, bez oczekiwanego wywołania
-  narzędzia i bez sędziego. Gdy sędzia jest jedynym oceniającym, a AI assistance
-  jest wyłączone, odmowa to mówi: sędzia potrzebuje AI assistance, które jest w
+  narzędzia i bez sędziego. Gdy sędzia jest jedynym oceniającym, a wsparcie AI
+  jest wyłączone, odmowa to mówi: sędzia potrzebuje wsparcia AI, które jest w
   tej organizacji wyłączone, więc włącz je w ustawieniach organizacji albo dodaj
   check;
 - agent, który nigdy nie został opublikowany, a poproszono o wersję - uruchom
-  zamiast tego jego draft;
+  zamiast tego jego wersję roboczą;
 - baseline dla pierwszej wersji, przed którą nic nie ma.
 
 Wersja, w której tylko część przypadków nie ma czym ich ocenić, nadal się
@@ -188,8 +196,9 @@ inconclusive.”
 
 ### Sprawdzanie sugestii { #checking-suggestions }
 
-[Asystent tworzenia](authoring.md#check-with-evals) uruchamia eval runy, żeby
-sprawdzić to, co sugeruje: draft z naniesionymi oczekującymi sugestiami, obok
+[Asystent tworzenia](authoring.md#check-with-evals) uruchamia runy ewaluacji, żeby
+sprawdzić to, co sugeruje: wersję roboczą z naniesionymi oczekującymi
+sugestiami, obok
 opublikowanej wersji. Taki run pomija przypadki wzięte z rozmów, z których
 wzięły się sugestie, i podaje ich liczbę, więc próba mniejsza od datasetu sama
 wyjaśnia, skąd się wzięła.
@@ -199,11 +208,11 @@ wyjaśnia, skąd się wzięła.
 Każdy przypadek to zwykły run agenta z powierzchnią `eval`. Jest sprawdzany
 względem budżetów przed każdym żądaniem do modelu, a jego koszt jest
 zapisywany. Nie wchodzi do liczb użycia na dashboardzie, które liczą tylko
-produkcję i podają koszt ruchu evali obok (`cost.eval_usd`), a historia runów
-go pomija, gdy się o to poprosi (`?exclude_surface=eval`). Odczyt pojedynczego
-runa wskazuje eval run i przypadek, na który odpowiadał (`eval_case`),
-czytającemu, który może widzieć dataset. Działa jako osoba, która uruchomiła
-eval, z jej obecną rolą, i nie czyta ani nie zapisuje jej osobistej pamięci.
+produkcję i podają obok koszt ruchu ewaluacji (`cost.eval_usd`), a historia
+runów go pomija, gdy się o to poprosi (`?exclude_surface=eval`). Odczyt
+pojedynczego runa wskazuje run ewaluacji i przypadek, na który odpowiadał
+(`eval_case`), czytającemu, który może widzieć dataset. Działa jako osoba, która
+uruchomiła ewaluację, z jej obecną rolą, i nie czyta ani nie zapisuje jej osobistej pamięci.
 
 Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
 narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o
@@ -217,22 +226,23 @@ którego pochodzi (`from_recordings`): wywołanie zgodne z nagraniem dostaje
 nagrany wynik, a niezgodne jest wstrzymywane i oznaczane jako rozbieżne.
 Przypadek bez użytecznego nagrania działa w izolacji bez niego.
 
-### Draft nigdy nie liczy się jako wersja { #a-draft-is-never-counted-as-a-version }
+### Wersja robocza nigdy nie liczy się jako wersja { #a-draft-is-never-counted-as-a-version }
 
-Draft przechodzi tą samą ścieżką, z dwiema różnicami. Najpierw jest sprawdzany
-względem własnego dostępu osoby uruchamiającej - wszystkiego, co sprawdziłaby
-publikacja - bo draft nigdy nie był walidowany przy zapisie. A jego runy nie są
-przypisywane do żadnej wersji: nie pojawiają się w użyciu wersji, a liczby
-wersji nigdy nie obejmują odpowiedzi, których udzielił jej draft.
+Wersja robocza przechodzi tą samą ścieżką, z dwiema różnicami. Najpierw jest
+sprawdzana względem własnego dostępu osoby uruchamiającej - wszystkiego, co
+sprawdziłaby publikacja - bo wersja robocza nigdy nie była walidowana przy
+zapisie. A jej runy nie są przypisywane do żadnej wersji: nie pojawiają się w
+użyciu wersji, a liczby wersji nigdy nie obejmują odpowiedzi, których udzieliła
+wersja robocza.
 
-Draft jest kopiowany przy starcie runa, więc każdy przypadek odpowiada na tę
+Wersja robocza jest kopiowana przy starcie runa, więc każdy przypadek odpowiada na tę
 samą treść, nawet jeśli ktoś dalej edytuje.
 
 ## Działanie i anulowanie { #running-and-cancelling }
 
 Run wykonuje się w tle, jako osobne zadanie workera, więc przetrwa restart API.
 Przypadki działają po kilka naraz: najwyżej `EVAL_RUN_CONCURRENCY` na run i
-najwyżej `EVAL_ORG_CONCURRENCY` we wszystkich eval runach organizacji, więc
+najwyżej `EVAL_ORG_CONCURRENCY` we wszystkich runach ewaluacji organizacji, więc
 dataset z 500 przypadkami nie zajmie wszystkich żądań, na które provider
 pozwala organizacji.
 
@@ -331,13 +341,13 @@ GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baselin
 GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents:edit
 ```
 
-`?draft=current` zostawia runy, które testowały draft w obecnym stanie - ten
-sam spec, niezależnie od kolejności, w jakiej zapisano jego klucze, a wśród
+`?draft=current` zostawia runy, które testowały wersję roboczą w obecnym stanie -
+ten sam spec, niezależnie od kolejności, w jakiej zapisano jego klucze, a wśród
 nich sprawdzenie sugestii, które potem przyjęto - i to właśnie czyta dialog
-publikacji. `?draft=earlier` zostawia runy, które testowały inny draft od
-opublikowania najnowszej wersji - sprawdzenie dopiero wtedy, gdy przyjęto którąś
-z jego sugestii: test, od którego draft już odszedł. Sprawdzenie mierzone
-względem samego draftu nie liczy się w żadnym z nich.
+publikacji. `?draft=earlier` zostawia runy, które testowały inną wersję roboczą
+od opublikowania najnowszej wersji - sprawdzenie dopiero wtedy, gdy przyjęto
+którąś z jego sugestii: test, od którego wersja robocza już odeszła. Sprawdzenie
+mierzone względem samej wersji roboczej nie liczy się w żadnym z nich.
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 
@@ -371,7 +381,7 @@ tak [suita evali](#suites) sprawdzająca codziennie tę samą wersję widzi dryf
 ### Baseline w tym samym runie { #a-baseline-in-the-same-run }
 
 Gdy od wyniku zależy decyzja - bramka promocji, proponowana zmiana sprawdzana
-evalami, porównanie modeli - baseline działa **w tym samym runie**
+ewaluacją, porównanie modeli - baseline działa **w tym samym runie**
 (`paired_baseline`, a zawsze dla `purpose: "gate"`). Providerzy zmieniają się
 z dnia na dzień, a regresja zmierzona względem odpowiedzi z zeszłego tygodnia
 może być winą providera, nie agenta.
@@ -470,12 +480,12 @@ porównywane.
 
 ## Suity { #suites }
 
-**Suita** to eval run, o którego uruchomieniu nikt nie musi pamiętać. Wskazuje
+**Suita** to run ewaluacji, o którego uruchomieniu nikt nie musi pamiętać. Wskazuje
 agenta, dataset, środowisko, którego wersję sprawdza, i próg, który musi spełnić
 każdy wynik, a potem działa sama. Karta **Suity** stoi pod runami na zakładce
-Evale agenta: dataset każdej suity, kiedy się uruchamia, jej próg i jak ostatnio
+**Ewaluacje** agenta: dataset każdej suity, kiedy się uruchamia, jej próg i jak ostatnio
 wypadła. Po otwarciu suita pokazuje każdy wynik, powód, dla którego nie
-przeszedł, przypadki, które się zepsuły, i link do eval runa za nim; strona tego
+przeszedł, przypadki, które się zepsuły, i link do runa ewaluacji za nim; strona tego
 runa podaje suitę, która go uruchomiła.
 
 ### Kiedy suita się uruchamia { #when-a-suite-runs }
@@ -489,7 +499,7 @@ Dowolne połączenie:
   zmiany w bazie wiedzy. Uruchomienie pominięte, gdy worker nie działał,
   odbywa się raz.
 - **Po publikacji** - każda nowa wersja, z poprzednią wersją uruchomioną obok
-  w tym samym eval runie.
+  w tym samym runie ewaluacji.
 - **Po promocji** - wersja wypromowana na środowisko suity (domyślne, gdy
   suita żadnego nie wskazuje), porównana z wersją, którą zastąpiła.
 - **Po zmianie zależności** - edycja skilla albo pliku kontekstowego, z którego
@@ -503,7 +513,7 @@ Dowolne połączenie:
 
 Suita czekająca na sprawdzenie wersji wchłania następny trigger dla tej samej
 wersji, więc publikacja, a po niej promocja tej wersji, to jeden run. Suita
-prowadzi jeden eval run naraz; zmiana, która przyjdzie w trakcie, czeka na
+prowadzi jeden run ewaluacji naraz; zmiana, która przyjdzie w trakcie, czeka na
 następny. Wstrzymana suita nie uruchamia się ani z żadnego triggera, ani
 ręcznie.
 
@@ -545,7 +555,7 @@ Ponowna publikacja sędziego zmienia sposób oceniania, więc
 następny wynik każdej suity, którą ocenia, będzie raz bez rozstrzygnięcia, a jej
 właściciel dostanie wiadomość. Odsetek zaliczonych poniżej minimum oblewa
 wynik niezależnie od porównania: minimum nie potrzebuje baseline'u. Wynik, którego
-eval run anulowano, też jest bez rozstrzygnięcia i mówi o tym; wynik runu, który
+run ewaluacji anulowano, też jest bez rozstrzygnięcia i mówi o tym; wynik runu, który
 skończył się błędem, jest błędem.
 
 Wynik **nie został uruchomiony**, gdy

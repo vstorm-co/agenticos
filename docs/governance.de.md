@@ -571,7 +571,7 @@ zeigt, was *dieser Agent* getan hat, die Arbeit seiner Delegates eingeschlossen:
 | Frage | Antwort |
 |---|---|
 | `GET /runs` | Runs, die jemand gestartet hat. `parent_run_id IS NULL` |
-| `GET /runs?agent_id=<id>&include_delegations=true` | Die eigene Historie eines Agents. Das fragen das Panel Recent runs im Builder und `?agent=` in Activity, denn die Zeilen eines Delegates sind der einzige Datensatz darüber, was er selbst getan hat |
+| `GET /runs?agent_id=<id>&include_delegations=true` | Die eigene Historie eines Agents. Das fragen das Panel Recent runs im Builder und `?agent=` in **Aktivität** (Activity), denn die Zeilen eines Delegates sind der einzige Datensatz darüber, was er selbst getan hat |
 | `GET /runs?parent_run_id=<id>` | Was dieser Run delegiert hat — die Abfrage, für die `agent_runs_parent_run_id_idx` existiert. Hat Vorrang vor `include_delegations` |
 | `GET /runs/<id>` | Ein Run, delegiert oder nicht. Wo ein Link aus einem Transkript landet |
 | `GET /runs/<id>/transcript` | Die Turns dieses Runs, der Reihe nach - was eine Run-Detailansicht als Schritte rendert. Autorisiert, nicht besessen (unten) |
@@ -646,7 +646,7 @@ steckengebliebener Parent, und diese Karte beantwortet „warum wird mein Agent
 nicht fertig"; heute ändert das nichts, denn eine Delegation wird bereits fertig
 in die Datenbank geschrieben und parkt daher nie.
 
-Die letzten beiden sind `?run=<id>` auf der Activity-Seite: ein Run, die
+Die letzten beiden sind `?run=<id>` auf der Seite **Aktivität** (Activity): ein Run, die
 Delegationen darunter jeweils mit der Task-Id abgezeichnet, die ihre
 `subagent_*`-Frames trugen, und ein Link hinauf zu dem Run, dem eine Delegation
 berechnet wurde. Ein Delegationspanel in einem Chat verlinkt mit der `run_id`
@@ -805,7 +805,7 @@ Angriffsfläche für Injection.
 
 **Jeder Einzelne davon reist in der URL**, und das ist es, was eine
 Dashboard-Karte an ihre eigenen Zeilen übergeben lässt:
-`/runs?surface=mattermost&period=30d` öffnet Activity mit der bereits gesetzten
+`/runs?surface=mattermost&period=30d` öffnet **Aktivität** (Activity) mit der bereits gesetzten
 Facette und einer Zählung, die zu der Karte passt, die verlinkt hat. Bis #768
 waren sie lokaler State, sodass die p95-Zahl die einzige Zahl auf dem Dashboard
 war, die die Runs dahinter erreichen konnte, und drei Karten überhaupt keinen
@@ -847,7 +847,7 @@ leichteste in der Organisation.
 Wie lange ein *noch laufender* Run schon läuft, ist eine andere Frage, und keine
 dieser Ordnungen beantwortet sie.
 
-Activity zeigt diese Dauer auf drei Wegen, und alle drei führen zu derselben
+**Aktivität** (Activity) zeigt diese Dauer auf drei Wegen, und alle drei führen zu derselben
 Abfrage:
 
 - Die Spaltenüberschrift **Took** ist ein Sortier-Bedienelement — wie die
@@ -897,7 +897,7 @@ Scope-Regel und dasselbe Fenster-Vokabular wie `GET /stats/usage` (siehe
 [Berechtigungen](permissions.md)). Nur Zählungen — die Kommentare bleiben hinter
 dem Run-Detail oben.
 
-Die drei Zahlen in Activity über den Tabs bleiben die der Organisation,
+Die drei Zahlen in **Aktivität** (Activity) über den Tabs bleiben die der Organisation,
 einschließlich der Run-Zählung, auch wenn die Tabelle darunter auf einen Agent
 eingeengt ist. Eine Zählung je Agent neben dem Monat der Organisation wären zwei
 Fragen unter einem Etikett — und die Zählung je Agent ist diejenige, die
@@ -982,7 +982,7 @@ sechs Fragen, die die Listen-Routen nicht beantworten müssen:
   Tab ohnehin zeigt. Die Run-Tabelle zeigt eine `user_id` und keinen Namen, also
   liefert der Run-Export allein die Id — eine CSV, wer was ausgeführt hat, mit
   aufgelösten Namen, ist die Tabelle je Person, die Entscheidung 3 des
-  Activity-Designs abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
+  Designs für **Aktivität** (Activity) abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
   die auslösenden und entscheidenden E-Mail-Adressen auf dem Bildschirm bereits
   auf, also behält der Freigabe-Export sie.
 - **Audit.** Jeder Export schreibt einen `audit_log`-Eintrag — ein privilegierter
@@ -1200,7 +1200,7 @@ Vier Eigenschaften, die man kennen sollte:
   `APPROVAL_EXPIRY_HOURS` überschreitet**, und der Run dahinter wird beendet statt
   für immer geparkt zu bleiben. Der Status ist `expired` mit einem
   `decided_by_user_id` von null, und das ist es, was in der Verantwortungsspur
-  einen Ablauf von einer Zurückweisung unterscheidet. Die Activity-Seite zeigt
+  einen Ablauf von einer Zurückweisung unterscheidet. Die Seite **Aktivität** (Activity) zeigt
   weiterhin das **Alter** der ältesten Wartezeit, denn eine Queue innerhalb ihres
   Ablauffensters ist die, auf der jemand noch handeln kann.
 - **`required` funktioniert auf jeder Capability**, nicht nur auf
@@ -1364,7 +1364,7 @@ Der andere Zustand, den nichts im Prozess je auflösen wird.
 Die Zeile eines Runs wird als `running` committet, bevor sein Modell aufgerufen
 wird ([#12][12-issue]), sodass ein Worker, der mitten im Run getötet wird — OOM,
 ein Deploy, der nicht drainiert —, eine dauerhafte Zeile hinterlässt, die nichts
-mehr zu Ende bringt: für immer in Activity, und sie blockiert jeden Zeitplan, für
+mehr zu Ende bringt: für immer in **Aktivität** (Activity), und sie blockiert jeden Zeitplan, für
 dessen Trigger sie der verknüpfte Run war.
 
 Ein stündlicher Sweep beendet alles, was jenseits von
@@ -1595,7 +1595,7 @@ Id sich nicht mehr auflöst.
 ### Ein Alert verlinkt dorthin, wo die Entscheidung ist { #an-alert-links-to-where-the-decision-is }
 
 **Freigabe-Post öffnet die Queue** — `/runs?tab=approvals`, den Approvals-Tab von
-Activity, die einzige Oberfläche, die Approve und Reject trägt. Früher öffnete sie
+**Aktivität** (Activity), die einzige Oberfläche, die Approve und Reject trägt. Früher öffnete sie
 `/agents/{id}`, den Builder: ein Satz Prosa darüber, dass Tool-Aufrufe eine Queue
 erreichen, und keine Queue. Also landete die eine E-Mail, deren ganzer Zweck
 *jemand muss jetzt entscheiden* ist, eine Suche von der Entscheidung entfernt,
@@ -1617,7 +1617,7 @@ Publikum für einen geparkten Aufruf schließt ein, wer den Run gestartet hat, u
 ein Builder, der seinen eigenen Agent aus dem Chat startet, ist der gewöhnliche
 Initiator — der Alert erreichte also regelmäßig jemanden, den die Plattform
 ablehnen würde. Sie bekamen **„waiting on your approval"** mit einer Schaltfläche
-**Review the request**, folgten ihr, und Activity zeichnete überhaupt keinen
+**Review the request**, folgten ihr, und **Aktivität** (Activity) zeichnete überhaupt keinen
 Approvals-Tab: Die Ablehnung kam als abwesender Tab an statt als Satz.
 
 Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitten:
@@ -1728,7 +1728,7 @@ unbewertet statt bestanden. Urteile von Menschen bleiben verfügbar.
 Diese Funktionen laufen als [Bewerter](concepts.md#system-agents). Jeder Run
 ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene
 Monatsbudget des Bewerters und das der Organisation geprüft, seine Kosten werden
-aufgezeichnet, und er wird in Activity unter der Oberfläche `eval` aufgeführt.
+aufgezeichnet, und er wird in **Aktivität** (Activity) unter der Oberfläche `eval` aufgeführt.
 Ein Bewerter startet mit einem eigenen Budget - 5 $ im Monat -, das sich wie das
 jedes Agents ändern lässt.
 

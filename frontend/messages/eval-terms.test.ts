@@ -1,44 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import de from "./de.json";
+import terms from "./eval-terms.json";
 import pl from "./pl.json";
 
 /**
  * That the eval screens say one word for one thing in Polish and German.
  *
- * The words are the glossary in `docs/howto/translate.md`, and they are the ones
+ * The forms refused are in `eval-terms.json`, which `scripts/check_docs_glossary.py`
+ * reads too for the pages about the same screens. The words are the glossary in
+ * `docs/howto/translate.md`, and they are the ones
  * the tabs already wear, so a sentence naming a tab names it as the tab does. Each
  * pattern is a form that reads as a second word for a glossary term - "case'ów"
  * for "przypadków", "Evale" for "Ewaluacje", "Draft" for "Entwurf". The product's
  * own nouns - agent, dataset, run, skill - stay English and are not matched.
  */
-
-/**
- * The namespaces an eval screen reads, the authoring assistant's card among them,
- * and the ones naming the same things elsewhere: settings, the job pools, MCP
- * trust, templates, delegation, context files and channels.
- */
-const SCOPE = [
-  "evals.",
-  "authoring.",
-  "mcp.",
-  "pages.settings.",
-  "pages.backgroundJobs.",
-  "pages.channels.",
-  "agentTemplates.",
-  "steps.",
-  "chat.delegation.",
-  "context.",
-  "datasets.",
-  "promotionGate.",
-  "pages.runs.",
-  "pages.agents.",
-  "agents.",
-  "triggers.",
-  "knowledgeGaps.",
-  "dashboard.widgets.",
-  "onboarding.",
-];
 
 interface Mixed {
   pattern: RegExp;
@@ -49,73 +25,30 @@ interface Mixed {
   within?: string[];
 }
 
-/**
- * Where Polish "szkic" would name an unpublished version - an agent's spec, or a
- * file that has none - which is "wersja robocza". A text written for somebody to
- * accept - a knowledge gap's content, a generated case - stays "szkic", and
- * German says "Entwurf" for both.
- */
-const AGENT_DRAFTS = [
-  "agents.",
-  "agentTemplates.",
-  "steps.agents-templates.",
-  "chat.delegation.",
-  "context.savingReachesEveryAgent",
-  "pages.agents.",
-  "evals.",
-  "authoring.",
-  "promotionGate.",
-  "datasets.scoring.",
-  "onboarding.offer.test-change.",
-  "onboarding.steps.agent-",
-  "onboarding.steps.agents-templates.",
-  "onboarding.steps.flow-agent-",
-  "onboarding.steps.flow-test-",
-];
+/** The namespaces an eval screen reads, and the ones naming the same things elsewhere. */
+const SCOPE: string[] = terms.scope;
 
 const MIXED: Record<"pl" | "de", Mixed[]> = {
-  pl: [
-    { pattern: /case'|\bcase\w*/i, use: "przypadek" },
-    { pattern: /\beval\w*/i, use: "ewaluacja, zakładka Ewaluacje" },
-    { pattern: /\breview\w*/i, use: "przegląd" },
-    { pattern: /\bdraf(t\w*|cie)\b/i, use: "wersja robocza albo szkic" },
-    {
-      pattern: /\bszkic\w*/i,
-      use: "wersja robocza",
-      within: AGENT_DRAFTS,
-      except: ["agents.drafterKind"],
-    },
-    { pattern: /\bjudge\w*/i, use: "sędzia" },
-    // The Builder is the page's name and a role's; the tab is Budowa.
-    { pattern: /\bbuild\b/i, use: "Budowa" },
-    { pattern: /\bactivity\b/i, use: "Aktywność" },
-    { pattern: /\bpublish\b/i, use: "Opublikuj" },
-    { pattern: /asystent\w* AI/i, use: "wsparcie AI" },
-  ],
-  de: [
-    // A prefix as well as a word, so a compound - "Case-Generator" - is caught too.
-    { pattern: /\bcase/i, use: "Fall" },
-    { pattern: /\bdraft/i, use: "Entwurf" },
-    { pattern: /\benvironment/i, use: "Umgebung" },
-    { pattern: /\bjudge/i, use: "Bewerter" },
-    // A run's Reviewer is a person who approves its tool calls, not the review queue.
-    { pattern: /\breview(?!er)/i, use: "Prüfung" },
-    // The Builder is the page's name and a role's, and a build step is a build step.
-    { pattern: /\bbuild\b(?!-Schritt)/i, use: "Bauen" },
-    { pattern: /\bactivity/i, use: "Aktivität" },
-    // What a verdict says of cases; a page that looks broken may still read "kaputt".
-    {
-      pattern: /kaputt/i,
-      use: "verschlechtert",
-      within: [
-        "evals.",
-        "onboarding.offer.test-change.",
-        "onboarding.steps.eval-",
-        "onboarding.steps.flow-test-",
-      ],
-    },
-  ],
+  pl: terms.mixed.pl.map(compile),
+  de: terms.mixed.de.map(compile),
 };
+
+function compile({
+  pattern,
+  ...rest
+}: {
+  pattern: string;
+  use: string;
+  except?: string[];
+  within?: string[];
+}): Mixed {
+  return {
+    pattern: new RegExp(pattern, "i"),
+    use: rest.use,
+    except: rest.except,
+    within: rest.within,
+  };
+}
 
 type Catalog = { [key: string]: string | Catalog };
 
