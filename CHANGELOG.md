@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Link a desktop from the chat.** Choosing This computer under Work on now
+  offers native pairing and folder selection without a detour through Settings.
 - **A more comfortable console on desktop and phone.** Search is labelled above
   navigation, touch controls are larger, table headings and form feedback are
   easier to read, and dashboard figures adapt to the widget's width. Dialogs fit

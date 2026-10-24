@@ -1,5 +1,5 @@
 ---
-source_sha: "7a2d9e84d16e"
+source_sha: "459003712c58"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -121,12 +121,13 @@ może pracować w folderze na komputerze, na którym działa aplikacja, zamiast 
 chmurze. Narzędzia agenta do plików i powłoki - listowanie, czytanie, zapis,
 edycja, uruchamianie - sięgają tego folderu przez aplikację.
 
-**Połącz komputer raz.** **Ustawienia → Aplikacja desktopowa → Ten komputer →
-Pozwól agentom tu pracować** daje aplikacji własną sesję dla tego komputera, po
-tym jak natywne okno poprosi cię o potwierdzenie, i trzyma jej refresh token w
-systemowym pęku kluczy. Aplikacja trzyma wtedy jedno wychodzące połączenie
-WebSocket do device huba serwera (`/api/v1/ws/device`); nic nie nasłuchuje na
-komputerze. **Rozłącz** kończy tę sesję.
+**Połącz komputer raz.** W ustawieniach czatu wybierz **Pracuj na → Ten komputer**,
+aby połączyć go bezpośrednio. Potwierdź w natywnym oknie, a potem wybierz folder i
+tryb dostępu w tym samym panelu. **Ustawienia → Aplikacja desktopowa → Ten komputer
+→ Pozwól agentom tu pracować** oferuje tę samą akcję łączenia. Aplikacja dostaje
+własną sesję dla tego komputera i przechowuje jej refresh token w systemowym pęku
+kluczy. Trzyma jedno wychodzące połączenie WebSocket do device huba serwera
+(`/api/v1/ws/device`); nic nie nasłuchuje na komputerze. **Rozłącz** kończy tę sesję.
 
 **Wybierz to dla czatu.** W aplikacji desktopowej ustawienia czatu oferują
 **Pracuj na (Work on): Chmura / Ten komputer**. Wybranie tego komputera prosi o

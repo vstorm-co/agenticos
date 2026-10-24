@@ -114,12 +114,13 @@ The one thing a browser cannot do: a chat whose agent has a sandbox can work in 
 folder on the computer the app runs on instead of in the cloud. The agent's file
 and shell tools - list, read, write, edit, run - reach that folder through the app.
 
-**Link the computer once.** **Settings → Desktop app → This computer → Let agents
-work here** gives the app a session of its own for this computer, after a native
-dialog asks you to confirm, and keeps its refresh token in the system keychain. The
-app then holds one outbound WebSocket to the server's device hub
-(`/api/v1/ws/device`); nothing listens on the computer. **Unlink** ends that
-session.
+**Link the computer once.** In the chat settings, choose **Work on → This computer**
+to link it directly. Confirm in the native dialog, then choose a folder and its
+access mode in the same panel. **Settings → Desktop app → This computer → Let
+agents work here** offers the same linking action. The app gets its own session
+for this computer and keeps its refresh token in the system keychain. It holds one
+outbound WebSocket to the server's device hub (`/api/v1/ws/device`); nothing listens
+on the computer. **Unlink** ends that session.
 
 **Choose it per chat.** In the desktop app the chat's settings offer **Work on:
 Cloud / This computer**. Choosing this computer asks for a folder in the native

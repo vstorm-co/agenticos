@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { Cloud, FolderOpen, Laptop, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { useDeviceStatus, useLocalFolders, useLocalServices } from "@/hooks/use-desktop";
+import {
+  useDeviceLink,
+  useDeviceStatus,
+  useLocalFolders,
+  useLocalServices,
+} from "@/hooks/use-desktop";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useShell } from "@/hooks/use-shell";
 import type { LocalMode } from "@/lib/desktop/commands";
@@ -33,6 +38,7 @@ export function WorkOn() {
 function ComputerWorkOn() {
   const t = useTranslations("chat.controls.workOn");
   const { data: device } = useDeviceStatus();
+  const { link } = useDeviceLink();
   const { state, pick, revoke } = useLocalFolders();
   const services = useLocalServices().state.data ?? [];
   const conversationId = useConversationStore((store) => store.currentConversationId);
@@ -59,6 +65,18 @@ function ComputerWorkOn() {
     setTarget(conversationId, null);
   };
 
+  const chooseComputer = () => {
+    if (linked) {
+      setChoosingFor(conversationId);
+      return;
+    }
+    link.mutate(undefined, {
+      onSuccess: (status) => {
+        if (status.linked) setChoosingFor(conversationId);
+      },
+    });
+  };
+
   return (
     <div className="border-foreground/10 mt-4 border-t pt-4">
       <p className="text-muted-foreground mb-3 text-xs leading-relaxed">{t("title")}</p>
@@ -70,7 +88,7 @@ function ComputerWorkOn() {
               key: "computer",
               icon: Laptop,
               active: onComputer,
-              onClick: () => setChoosingFor(conversationId),
+              onClick: chooseComputer,
             },
           ] as const
         ).map(({ key, icon: Icon, active, onClick }) => (
@@ -79,18 +97,19 @@ function ComputerWorkOn() {
             type="button"
             role="radio"
             aria-checked={active}
-            disabled={key === "computer" && !linked}
+            disabled={link.isPending || (key === "computer" && device === undefined)}
+            aria-busy={key === "computer" && link.isPending}
             onClick={onClick}
             className={cn(
               "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors",
               active
                 ? "bg-foreground/[0.06] text-foreground"
                 : "text-foreground/70 hover:bg-foreground/[0.04]",
-              key === "computer" && !linked && "cursor-not-allowed opacity-45",
+              "disabled:cursor-wait disabled:opacity-45",
             )}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden />
-            {t(key)}
+            {t(key === "computer" && link.isPending ? "linking" : key)}
           </button>
         ))}
       </div>

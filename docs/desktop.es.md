@@ -1,5 +1,5 @@
 ---
-source_sha: "7a2d9e84d16e"
+source_sha: "459003712c58"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -121,12 +121,14 @@ trabajar en una carpeta del ordenador donde corre la app, en vez de en la nube.
 Las herramientas de archivos y shell del agent - listar, leer, escribir, editar,
 ejecutar - llegan a esa carpeta a través de la app.
 
-**Vincula el ordenador una vez.** **Ajustes → App de escritorio → Este ordenador →
-Dejar que los agents trabajen aquí** da a la app una sesión propia para este
-ordenador, tras pedirte confirmación en un diálogo nativo, y guarda su refresh
-token en el llavero del sistema. La app mantiene entonces una conexión WebSocket
-saliente al device hub del servidor (`/api/v1/ws/device`); nada escucha en el
-ordenador. **Desvincular** termina esa sesión.
+**Vincula el ordenador una vez.** En los ajustes del chat, elige
+**Trabajar en → Este ordenador** para vincularlo directamente. Confirma en el
+diálogo nativo y luego elige una carpeta y su modo de acceso en el mismo panel.
+**Ajustes → App de escritorio → Este ordenador → Dejar que los agents trabajen
+aquí** ofrece la misma acción. La app obtiene una sesión propia para este
+ordenador y guarda su refresh token en el llavero del sistema. Mantiene una
+conexión WebSocket saliente al device hub del servidor (`/api/v1/ws/device`);
+nada escucha en el ordenador. **Desvincular** termina esa sesión.
 
 **Elígelo por chat.** En la app de escritorio los ajustes del chat ofrecen
 **Trabajar en (Work on): Nube / Este ordenador**. Elegir este ordenador pide una

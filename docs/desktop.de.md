@@ -1,5 +1,5 @@
 ---
-source_sha: "7a2d9e84d16e"
+source_sha: "459003712c58"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -127,12 +127,14 @@ kann statt in der Cloud in einem Ordner auf dem Computer arbeiten, auf dem die A
 läuft. Die Datei- und Shell-Werkzeuge des Agents - auflisten, lesen, schreiben,
 bearbeiten, ausführen - erreichen diesen Ordner über die App.
 
-**Den Computer einmal verknüpfen.** **Einstellungen → Desktop-App → Dieser Computer
-→ Agents hier arbeiten lassen** gibt der App eine eigene Sitzung für diesen
-Computer, nachdem ein nativer Dialog Sie um Bestätigung gebeten hat, und hält ihr
-Refresh-Token im Schlüsselbund des Systems. Die App hält dann eine ausgehende
-WebSocket-Verbindung zum Device-Hub des Servers (`/api/v1/ws/device`); auf dem
-Computer lauscht nichts. **Trennen** beendet diese Sitzung.
+**Den Computer einmal verknüpfen.** Wählen Sie in den Chat-Einstellungen
+**Arbeiten auf → Dieser Computer**, um ihn direkt zu verknüpfen. Bestätigen Sie im
+nativen Dialog und wählen Sie anschließend im selben Bereich einen Ordner und
+seinen Zugriffsmodus. **Einstellungen → Desktop-App → Dieser Computer → Agents
+hier arbeiten lassen** bietet dieselbe Aktion. Die App erhält eine eigene Sitzung
+für diesen Computer und speichert ihr Refresh-Token im Schlüsselbund des Systems.
+Sie hält eine ausgehende WebSocket-Verbindung zum Device-Hub des Servers
+(`/api/v1/ws/device`); auf dem Computer lauscht nichts. **Trennen** beendet die Sitzung.
 
 **Pro Chat wählen.** In der Desktop-App bieten die Einstellungen eines Chats
 **Arbeiten auf (Work on): Cloud / Diesem Computer**. Die Wahl dieses Computers

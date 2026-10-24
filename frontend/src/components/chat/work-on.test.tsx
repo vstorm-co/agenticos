@@ -3,16 +3,31 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useConversationStore } from "@/stores";
 import { useWorkOnStore } from "@/stores/work-on-store";
+import type { DeviceStatus } from "@/lib/desktop/commands";
 import { WorkOn } from "./work-on";
 
 const pick = vi.hoisted(() => vi.fn());
 const modeState = vi.hoisted(() => ({ ready: true }));
+const deviceState = vi.hoisted(() => ({
+  linked: true,
+  connected: true,
+  pending: false,
+  ready: true,
+}));
+const link = vi.hoisted(() =>
+  vi.fn<(value: undefined, options: { onSuccess: (status: DeviceStatus) => void }) => void>(),
+);
 
 vi.mock("@/hooks/use-shell", () => ({
   useShell: () => ({ platform: "macos", window: "main", version: "0.2.0", vibrancy: false }),
 }));
 vi.mock("@/hooks/use-desktop", () => ({
-  useDeviceStatus: () => ({ data: { linked: true, connected: true } }),
+  useDeviceStatus: () => ({
+    data: deviceState.ready
+      ? { linked: deviceState.linked, connected: deviceState.connected }
+      : undefined,
+  }),
+  useDeviceLink: () => ({ link: { mutate: link, isPending: deviceState.pending } }),
   useLocalFolders: () => ({
     state: {
       data: {
@@ -37,6 +52,8 @@ vi.mock("@/hooks/use-desktop", () => ({
 }));
 beforeEach(() => {
   pick.mockClear();
+  link.mockReset();
+  Object.assign(deviceState, { linked: true, connected: true, pending: false, ready: true });
   modeState.ready = true;
   useConversationStore.setState({ currentConversationId: "chat" });
   useWorkOnStore.setState({
@@ -95,4 +112,80 @@ it("waits for native access modes before granting another folder", async () => {
   expect(choose).toBeDisabled();
   await userEvent.click(choose);
   expect(pick).not.toHaveBeenCalled();
+});
+
+it("links from This computer and offers folders only after native confirmation", async () => {
+  deviceState.linked = false;
+  useWorkOnStore.getState().set("chat", null);
+  const view = render(<WorkOn />);
+  expect(link).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
+  expect(link).toHaveBeenCalledOnce();
+  expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.queryByRole("button", { name: /Choose a folder/ })).not.toBeInTheDocument();
+
+  deviceState.linked = true;
+  link.mock.calls[0]?.[1].onSuccess({ linked: true, connected: false });
+  view.rerender(<WorkOn />);
+  expect(screen.getByRole("radio", { name: "This computer" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  expect(screen.getByRole("button", { name: /Choose a folder/ })).toBeEnabled();
+  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
+  expect(pick).not.toHaveBeenCalled();
+});
+
+it("keeps Cloud selected when linking is refused or fails", async () => {
+  deviceState.linked = false;
+  useWorkOnStore.getState().set("chat", null);
+  render(<WorkOn />);
+  await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
+  link.mock.calls[0]?.[1].onSuccess({ linked: false, connected: false });
+  expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
+  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
+  expect(pick).not.toHaveBeenCalled();
+});
+
+it("prevents another link while waiting for confirmation", async () => {
+  deviceState.linked = false;
+  deviceState.pending = true;
+  useWorkOnStore.getState().set("chat", null);
+  render(<WorkOn />);
+  const computer = screen.getByRole("radio", { name: "Linking…" });
+  expect(computer).toBeDisabled();
+  expect(computer).toHaveAttribute("aria-busy", "true");
+  expect(screen.getByRole("radio", { name: "Cloud" })).toBeDisabled();
+  await userEvent.click(computer);
+  expect(link).not.toHaveBeenCalled();
+});
+
+it("does not pair until the native device status has loaded", async () => {
+  deviceState.ready = false;
+  render(<WorkOn />);
+  const computer = screen.getByRole("radio", { name: "This computer" });
+  expect(computer).toBeDisabled();
+  await userEvent.click(computer);
+  expect(link).not.toHaveBeenCalled();
+});
+
+it("selects an already linked computer without pairing again", async () => {
+  useWorkOnStore.getState().set("chat", null);
+  render(<WorkOn />);
+  await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
+  expect(screen.getByRole("button", { name: /Choose a folder/ })).toBeEnabled();
+  expect(link).not.toHaveBeenCalled();
+});
+
+it("does not switch another conversation to the computer when pairing finishes", async () => {
+  deviceState.linked = false;
+  useWorkOnStore.getState().set("chat", null);
+  const view = render(<WorkOn />);
+  await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
+  useConversationStore.setState({ currentConversationId: "other" });
+  deviceState.linked = true;
+  link.mock.calls[0]?.[1].onSuccess({ linked: true, connected: false });
+  view.rerender(<WorkOn />);
+  expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
+  expect(useWorkOnStore.getState().targetFor("other")).toBeNull();
 });
