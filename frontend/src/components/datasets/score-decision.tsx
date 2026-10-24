@@ -13,6 +13,7 @@ export type Verdict = { passed: boolean | null; note: string | null };
 interface ScoreDecisionProps {
   /** The decision on record, if somebody made one. */
   decided: boolean | null;
+  compact?: boolean;
   caseTags?: string[];
   note: string | null;
   onVerdict?: (verdict: Verdict) => void;
@@ -26,6 +27,7 @@ interface ScoreDecisionProps {
 /** A person's review decision on a score, with the note that says why. */
 export function ScoreDecision({
   decided,
+  compact = false,
   caseTags = [],
   note,
   onVerdict,
@@ -41,8 +43,8 @@ export function ScoreDecision({
   return (
     <footer className={cn("space-y-2 border-t pt-3", busy && "opacity-60")}>
       <p className="text-xs font-medium">{t("decision")}</p>
-      {!onVerdict && note && <p className="text-sm">{note}</p>}
-      {onVerdict && (
+      {(!onVerdict || compact) && note && <p className="text-sm">{note}</p>}
+      {onVerdict && !compact && (
         <>
           <Textarea
             value={written}
@@ -65,6 +67,11 @@ export function ScoreDecision({
             )}
           </div>
         </>
+      )}
+      {compact && decided !== null && onVerdict && (
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => decide(null)}>
+          {t("withdrawVerdict")}
+        </Button>
       )}
       {onNoteToCriterion && note && (
         <div className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">

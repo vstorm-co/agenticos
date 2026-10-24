@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { EnvironmentConnections } from "@/components/agents/environment-connections";
+import { EnvironmentGuardStatus } from "@/components/agents/environment-guard-status";
 import { EnvironmentGuards } from "@/components/agents/environment-guards";
 import { useGuardedPromotion } from "@/components/agents/promotion-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -223,13 +224,15 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                     environment.guard_suite_ids.length > 0 &&
                     environment.behind_by > 0 &&
                     newest && (
-                      <button
-                        type="button"
-                        className="text-warning underline underline-offset-2"
-                        onClick={() => promotion.request(environment.id, newest.id)}
-                      >
-                        {tGate("waiting", { version: newest.version })}
-                      </button>
+                      <EnvironmentGuardStatus
+                        agentId={agentId}
+                        environmentId={environment.id}
+                        versionId={newest.id}
+                        version={newest.version}
+                        servedVersion={environment.version}
+                        canReadRuns={can(Perm.runsView)}
+                        onPromote={() => promotion.request(environment.id, newest.id)}
+                      />
                     )}
                 </div>
               </div>

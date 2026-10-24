@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
+import { ROUTES } from "@/lib/constants";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -62,7 +65,8 @@ function GuardDetail({ guard }: { guard: PromotionGuard }) {
   const locale = useLocale();
   const result = guard.result;
   const told =
-    result && (guard.state === result.status || result.status === "baseline_set")
+    result &&
+    (guard.state === result.status || result.status === "baseline_set" || guard.state === "stale")
       ? resultReasons(result, tSuites, locale)
       : [];
   const lines =
@@ -72,9 +76,11 @@ function GuardDetail({ guard }: { guard: PromotionGuard }) {
             ? tSuites(`paused.${guard.paused_reason}`)
             : tSuites("paused.byPerson"),
         ]
-      : told.length > 0
-        ? told
-        : [t(`hint.${guard.state}`)];
+      : guard.state === "stale"
+        ? [t("hint.stale"), ...told]
+        : told.length > 0
+          ? told
+          : [t(`hint.${guard.state}`)];
   return (
     <ul className="text-muted-foreground space-y-0.5 text-xs">
       {lines.map((line) => (
@@ -160,6 +166,17 @@ export function PromotionDialog({
                     <Badge variant={STATE_TONE[guard.state]}>{t(`state.${guard.state}`)}</Badge>
                   </div>
                   <GuardDetail guard={guard} />
+                  {guard.result?.summary?.review && (
+                    <ReviewReevaluationNote review={guard.result.summary.review} />
+                  )}
+                  {guard.result?.eval_run_id && (
+                    <Link
+                      className="text-xs underline underline-offset-4"
+                      href={`${ROUTES.AGENTS}/${agentId}/evals/${guard.result.eval_run_id}`}
+                    >
+                      {t("openRun")}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

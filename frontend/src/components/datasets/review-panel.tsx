@@ -16,7 +16,9 @@ import { Perm } from "@/types/permissions";
 import type { CaseScore } from "@/types/scoring";
 import { ReviewFilters, type ReviewFilter } from "./review-filters";
 import { ReviewGroupHeading } from "./review-group";
-import { ScoreCard, type Verdict } from "./score-card";
+import type { Verdict } from "./score-card";
+import { ReviewQueueRow } from "./review-queue-row";
+import { useOrgStore } from "@/stores/org-store";
 
 const OPENING: ReviewFilter = { pending: true, outcome: null, agentId: null, tag: null };
 
@@ -35,6 +37,14 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const [filter, setFilter] = useState<ReviewFilter>(OPENING);
   const [page, setPage] = useState(0);
   const { pending, ...narrowed } = filter;
+  const orgId = useOrgStore((state) => state.activeOrgId);
+  const scope = JSON.stringify([orgId, dataset.id, page, filter]);
+  const [kept, setKept] = useState<{
+    scope: string;
+    order: string[];
+    scores: Record<string, CaseScore>;
+  }>({ scope, order: [], scores: {} });
+  if (kept.scope !== scope) setKept({ scope, order: [], scores: {} });
   const scores = useScores(dataset.id, {
     pending,
     ...narrowed,
@@ -49,10 +59,25 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   // Scoring again reads the answer back from its run; `can_run` already holds `runs:view`.
   const canRescore = dataset.can_run;
   const toCriterion = useNoteToCriterion(dataset);
-  const pageCount = Math.max(1, Math.ceil(scores.total / PAGE_SIZE));
+  const currentKept = kept.scope === scope ? kept : { order: [], scores: {} };
+  const visible = new Map(scores.scores.map((score) => [score.id, score]));
+  for (const score of Object.values(currentKept.scores)) {
+    const fresh = visible.get(score.id);
+    // A new privacy mask takes precedence over the locally retained decision.
+    if (!fresh?.case_masked && !fresh?.answer_hidden) visible.set(score.id, score);
+  }
+  const ids = [...new Set([...currentKept.order, ...scores.scores.map((score) => score.id)])];
+  const visibleScores = ids
+    .map((id) => visible.get(id))
+    .filter((score): score is CaseScore => score !== undefined);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(scores.total / PAGE_SIZE),
+    Object.keys(currentKept.scores).length ? page + 1 : 1,
+  );
   // A decision takes the last score off the last page of the queue; step back to
   // the page that still exists, the adjust-state-while-rendering way.
-  if (!scores.isLoading && page >= pageCount) setPage(pageCount - 1);
+  if (!scores.isLoading && !scores.verdict.isPending && page >= pageCount) setPage(pageCount - 1);
   const busy =
     scores.verdict.isPending ||
     scores.review.isPending ||
@@ -62,13 +87,18 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
 
   const decide = async (score: CaseScore, verdict: Verdict) => {
     try {
-      await scores.verdict.mutateAsync({ scoreId: score.id, ...verdict });
+      const decided = await scores.verdict.mutateAsync({ scoreId: score.id, ...verdict });
+      setKept((before) =>
+        before.scope !== scope
+          ? before
+          : {
+              ...before,
+              order: before.order.length ? before.order : visibleScores.map((item) => item.id),
+              scores: { ...before.scores, [decided.id]: decided },
+            },
+      );
       const undo = () =>
-        void scores.verdict.mutateAsync({
-          scoreId: score.id,
-          passed: score.human_passed,
-          note: score.human_note,
-        });
+        void decide(decided, { passed: score.human_passed, note: score.human_note });
       toast.success(verdict.passed === null ? t("verdictWithdrawn") : t("verdictSaved"), {
         action: { label: t("undo"), onClick: undo },
       });
@@ -142,7 +172,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
           description={getErrorMessage(scores.error, tErrors)}
           cta={{ label: tc("retry"), onClick: () => void scores.refetch() }}
         />
-      ) : scores.scores.length === 0 ? (
+      ) : visibleScores.length === 0 ? (
         <ListCardEmpty
           icon={ClipboardCheck}
           title={pending ? t("nothingAwaitingReview") : t("noScores")}
@@ -150,22 +180,27 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
         />
       ) : (
         <div className="space-y-6">
-          {groupScores(scores.scores).map((group, index) => (
+          {groupScores(visibleScores).map((group, index) => (
             <section key={`${group.key}:${index}`} className="space-y-3">
               <ReviewGroupHeading
                 group={group}
                 busy={busy}
                 linksRuns={linksRuns}
                 onWithdraw={
-                  canDecide && pending
-                    ? () => void withdraw(group.scores.map((score) => score.id))
+                  canDecide && pending && group.scores.some((score) => score.human_passed === null)
+                    ? () =>
+                        void withdraw(
+                          group.scores
+                            .filter((score) => score.human_passed === null)
+                            .map((score) => score.id),
+                        )
                     : undefined
                 }
                 onRescore={canRescore ? (ids) => void rescore(ids) : undefined}
               />
               {group.scores.map((score) => (
-                <ScoreCard
-                  key={score.id}
+                <ReviewQueueRow
+                  key={`${score.id}:${score.reviewed_at ?? "undecided"}`}
                   score={score}
                   busy={busy}
                   linksRuns={linksRuns}

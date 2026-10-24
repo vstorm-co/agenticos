@@ -58,6 +58,7 @@ class NotificationEventType(enum.StrEnum):
     SUGGESTION = "suggestion"
     FINDING = "finding"
     IMPROVEMENT_FINISHED = "improvement_finished"
+    EVAL_SUITE_REEVALUATED = "eval_suite_reevaluated"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -152,7 +153,7 @@ class Notification(Base, TimestampMixin):
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
             "'background_task_paused', 'eval_suite_failed', 'promotion_overridden', "
-            "'shared_change_applied', 'capability_requested', 'suggestion', 'finding', 'improvement_finished')",
+            "'shared_change_applied', 'capability_requested', 'suggestion', 'finding', 'improvement_finished', 'eval_suite_reevaluated')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

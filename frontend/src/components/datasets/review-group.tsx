@@ -72,7 +72,9 @@ export function ReviewGroupHeading({
           disabled={busy}
           onClick={onWithdraw}
         >
-          {t("withdrawGroup", { count: group.scores.length })}
+          {t("withdrawGroup", {
+            count: group.scores.filter((score) => score.human_passed === null).length,
+          })}
         </Button>
       )}
     </div>

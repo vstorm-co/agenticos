@@ -56,6 +56,7 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   mcp_server_recovered: { icon: Plug, tone: GOOD },
   background_task_paused: { icon: PauseCircle, tone: BAD },
   eval_suite_failed: { icon: ListChecks, tone: BAD },
+  eval_suite_reevaluated: { icon: ListChecks, tone: NEUTRAL },
   promotion_overridden: { icon: ShieldAlert, tone: BAD },
   shared_change_applied: { icon: GitPullRequest, tone: HELD },
   // Somebody asked for a capability one of your agents lacks (#2301).

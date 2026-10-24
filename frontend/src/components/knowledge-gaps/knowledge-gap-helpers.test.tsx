@@ -61,3 +61,12 @@ describe("knowledge-base helper choices", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
+
+it("closes without writing when the choices are canceled", async () => {
+  const save = vi.fn();
+  render(<KnowledgeGapHelpers kb={kb} onSave={save} />);
+  await userEvent.click(screen.getByRole("button", { name: "AI helpers" }));
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(save).not.toHaveBeenCalled();
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -127,6 +128,7 @@ function ResultRow({ agentId, result }: { agentId: string; result: EvalSuiteResu
           </Button>
         )}
       </div>
+      {summary?.review && <ReviewReevaluationNote review={summary.review} />}
       {summary && summary.pass_rate !== null && (
         <p className="text-muted-foreground text-xs">
           {t("passRate", {

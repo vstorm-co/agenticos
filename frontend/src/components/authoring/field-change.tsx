@@ -82,12 +82,10 @@ export function FieldDiff({
   hunk,
   editing,
   onEdit,
-}: {
-  hunk: Hunk;
-  /** The person's own value while they edit it, as typed. */
-  editing: string | null;
-  onEdit: (text: string) => void;
-}) {
+}: { hunk: Hunk } & (
+  | { editing: null; onEdit?: (text: string) => void }
+  | { editing: string; onEdit: (text: string) => void }
+)) {
   const t = useTranslations("authoring.field");
   const names = hunk.names;
   const after = hunk.status === "accepted" ? hunk.accepted_value : hunk.new_value;

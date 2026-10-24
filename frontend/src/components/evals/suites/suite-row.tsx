@@ -1,5 +1,6 @@
 "use client";
 
+import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { useState } from "react";
 import { ListChecks, Pause, Pencil, Play, Trash2, Zap } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -84,6 +85,7 @@ export function SuiteRow({ suite, canManage }: { suite: EvalSuite; canManage: bo
           </span>
         )}
       </div>
+      {last?.summary?.review && <ReviewReevaluationNote review={last.summary.review} />}
       {canManage && (
         <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
           <Button

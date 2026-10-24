@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Lock } from "lucide-react";
@@ -113,6 +114,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {t("back")}
       </Link>
+      {run.review && <ReviewReevaluationNote review={run.review} />}
       <VerdictHeader
         agentId={agentId}
         run={run}

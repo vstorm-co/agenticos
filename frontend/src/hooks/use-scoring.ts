@@ -91,6 +91,10 @@ export function useScoreRun() {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: qk.datasets.allScores(datasetId) }),
         queryClient.invalidateQueries({ queryKey: qk.datasets.allReviewQueue() }),
+        queryClient.invalidateQueries({ queryKey: qk.evalRuns.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.evalSuites.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.environments.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.notifications.all() }),
       ]),
   });
 }
@@ -158,6 +162,10 @@ export function useScores(
       Promise.all([
         queryClient.invalidateQueries({ queryKey: qk.datasets.allScores(datasetId) }),
         queryClient.invalidateQueries({ queryKey: qk.datasets.allReviewQueue() }),
+        queryClient.invalidateQueries({ queryKey: qk.evalRuns.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.evalSuites.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.environments.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.notifications.all() }),
       ]),
     [queryClient, datasetId],
   );

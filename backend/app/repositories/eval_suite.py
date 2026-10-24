@@ -398,7 +398,7 @@ async def settled_on_version(
     baseline_version: int,
     organization_id: UUID,
 ) -> dict[UUID, tuple[EvalSuiteResult, int | None, str | None, UUID | None, bool | None]]:
-    """Each suite's last settled result on this agent version beside this baseline,
+    """Prefer this baseline; retain the latest older-baseline result as stale evidence,
     with the number of the dataset version its eval run read and the scoring it
     was graded under - none when it never started one."""
     if not suite_ids:
@@ -417,10 +417,13 @@ async def settled_on_version(
             EvalSuiteResult.suite_id.in_(suite_ids),
             EvalSuiteResult.organization_id == organization_id,
             EvalSuiteResult.agent_version_id == version_id,
-            EvalSuiteResult.baseline_version_number == baseline_version,
             EvalSuiteResult.status.in_(_SETTLED),
         )
-        .order_by(EvalSuiteResult.suite_id, EvalSuiteResult.settled_at.desc())
+        .order_by(
+            EvalSuiteResult.suite_id,
+            (EvalSuiteResult.baseline_version_number == baseline_version).is_(True).desc(),
+            EvalSuiteResult.settled_at.desc(),
+        )
         .ext(distinct_on(EvalSuiteResult.suite_id))
     )
     return {
@@ -512,3 +515,22 @@ async def names(
         )
     )
     return dict(result.tuples().all())
+
+
+async def results_for_runs(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> list[EvalSuiteResult]:
+    """Settled results affected by a review, including comparisons using an older baseline."""
+    if not run_ids:
+        return []
+    rows = await db.scalars(
+        select(EvalSuiteResult)
+        .where(
+            EvalSuiteResult.organization_id == organization_id,
+            EvalSuiteResult.eval_run_id.in_(run_ids),
+            EvalSuiteResult.status.in_(_SETTLED),
+        )
+        .order_by(EvalSuiteResult.id)
+        .with_for_update()
+    )
+    return list(rows)

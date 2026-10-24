@@ -1,5 +1,5 @@
 ---
-source_sha: "da6e26954426"
+source_sha: "f425ee5ad348"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -204,6 +204,10 @@ Nieznane środowisko zwraca 404. Równoległe tworzenie lub zmiana nazwy suity n
 Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%). Sprawdzenia sugestii i sesje poprawy mierzą wyłącznie przypadki kontrolne i wymagają co najmniej pięciu pytań z możliwością oceny. Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
 
 Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejne rundy mogą uczyć się na wynikach treningowych tej wersji, ale nowe rozmowy i przypadki nie zmieniają próby kontrolnej.
+
+Decyzja człowieka i **Wycofaj decyzję** unieważniają zależne porównania runów i przeliczają zapisane wyniki suit w tej samej transakcji. Run, suita, bramka środowiska i dialog promocji pokazują poprawiony werdykt oraz osobę, która go przejrzała. Audyt zapisuje poprzednie i nowe statusy oraz liczby; zmiana werdyktu suity wysyła nowe powiadomienie. Nazwy osób są odczytywane z aktualnego członkostwa organizacji, bez kopiowania do zachowanych wyników.
+
+Wynik pozytywny uzyskany przez przegląd pozwala na ręczną promocję. Nigdy sam nie promuje ani nie przesuwa środowiska śledzącego publikacje, także podczas okresowego uzgadniania. Wiersz środowiska pokazuje rzeczywisty błędny albo poprawiony wynik bramki i link do sprawdzenia. Wcześniejszy wynik na innych pytaniach, ocenianiu, progach lub wobec innej obsługiwanej wersji pozostaje widoczny jako **Nieaktualny**, z linkiem do runu, zamiast **Niesprawdzony**.
 
 ## Jako co działa każdy przypadek { #what-each-case-runs-as }
 

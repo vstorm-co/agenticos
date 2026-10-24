@@ -72,3 +72,20 @@ describe("SuggestionList", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 });
+
+it("describes linked evidence instead of displaying raw run identities in the expected effect", () => {
+  const id = "467abd40-2539-49d3-b239-2c960f7b7b07";
+  render(
+    <SuggestionList
+      agentId="agent-1"
+      busy={false}
+      onDecide={vi.fn()}
+      batch={batch({
+        expected_effect: `Improve run ${id}`,
+        hunks: [hunk({ evidence: [{ run_id: id, quote: "Wrong" }] })],
+      })}
+    />,
+  );
+  expect(screen.getByText(/Proposed to address problems in 1 source answer/)).toBeInTheDocument();
+  expect(screen.queryByText(`Improve run ${id}`)).not.toBeInTheDocument();
+});

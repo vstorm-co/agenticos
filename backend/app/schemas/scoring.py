@@ -40,6 +40,17 @@ ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
 ScoreOutcome = Literal["failed", "not_graded", "passed"]
 
 
+class ReviewReevaluation(BaseSchema):
+    """An explicit human re-evaluation; names are resolved at read time, never retained."""
+
+    by_user_id: UUID | None
+    by_name: str | None = None
+    at: datetime
+    previous_verdict: str | None = None
+    verdict: str | None = None
+    undo: bool = False
+
+
 class TextCheck(BaseSchema):
     """A rule on the answer's text, or on one value inside a JSON answer.
 

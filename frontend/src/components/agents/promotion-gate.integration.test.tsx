@@ -433,10 +433,33 @@ describe("an environment's guards", () => {
     serve([environment({ tracks_latest: true })]);
     render(<EnvironmentsPanel agentId={AGENT_ID} canManage />, { wrapper });
 
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Waiting for its evals on v2" }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "Review promotion" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+  it("keeps the old failed result visible as out of date and links the exact check", async () => {
+    current = gate({
+      guards: [
+        guard({
+          state: "stale",
+          result: suiteResult({
+            status: "failed",
+            eval_run_id: "old-failure",
+            summary: suiteSummary({
+              pass_rate: 0.67,
+              reasons: [{ code: "pass_rate_below", value: 0.67, limit: 0.8, detail: null }],
+            }),
+          }),
+        }),
+      ],
+    });
+    const dialog = await openGate();
+    expect(within(dialog).getByText("Out of date")).toBeInTheDocument();
+    expect(within(dialog).getByText(/67%/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Open the check" })).toHaveAttribute(
+      "href",
+      "/agents/a1/evals/old-failure",
+    );
+    expect(within(dialog).queryByText("Has not run on this version yet.")).not.toBeInTheDocument();
   });
 });

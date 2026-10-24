@@ -932,6 +932,40 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def eval_suite_reevaluated(
+        self, suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent
+    ) -> None:
+        """A changed verdict after human review; no automatic promotion or answer text."""
+        summary = EvalSuiteSummary.model_validate(result.summary) if result.summary else None
+        if summary is None or summary.review is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db,
+            organization_id=suite.organization_id,
+            user_ids=[suite.owner_user_id] if suite.owner_user_id else [],
+        )
+        if not recipients:
+            return
+        review = summary.review
+        path = self._link(f"/agents/{agent.id}/evals/{result.eval_run_id}", suite.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.EVAL_SUITE_REEVALUATED,
+            occurrence_id=f"{result.id}:{review.at.isoformat()}",
+            summary=f"{suite.name} on {agent.name}: {review.previous_verdict} → {result.status} after review. Promotion requires a person.",
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "suite_name": suite.name,
+                "status": result.status,
+                "run_url": absolute_context_url(path),
+                "app_name": settings.PROJECT_NAME,
+            },
+            organization_id=suite.organization_id,
+            use_savepoint=True,
+        )
+
     async def eval_suite_failed(
         self, suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent
     ) -> None:

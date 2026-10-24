@@ -1,5 +1,5 @@
 ---
-source_sha: "da6e26954426"
+source_sha: "f425ee5ad348"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -196,6 +196,10 @@ Cada caso tiene una asignación fija a entrenamiento o control, conservada entre
 Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto normalizado y la identidad del run de origen, incluso si se introducen a mano o se generan. Bajo el mínimo, la sesión se detiene con `no_data` e indica cuántas preguntas añadir. El run identifica ambas partes y las copias excluidas. Las suites normales y las puertas de promoción siguen contando todos los casos.
 
 Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Las rondas posteriores pueden aprender de sus resultados de entrenamiento; nuevos chats y casos no cambian la muestra de control.
+
+Una decisión humana y **Retirar decisión** invalidan comparaciones dependientes y recalculan resultados guardados de suites en la misma transacción. El run, la suite, la puerta del entorno y el diálogo de promoción muestran el veredicto corregido y quién lo revisó. La auditoría registra estados y cantidades anteriores y nuevos; un cambio de veredicto envía otra notificación. Los nombres se resuelven desde la pertenencia actual a la organización, sin copiarlos a resultados retenidos.
+
+Un resultado positivo obtenido mediante revisión permite una promoción explícita. Nunca promociona ni mueve automáticamente un entorno que sigue publicaciones, tampoco durante la conciliación periódica. La fila del entorno muestra el resultado real fallido o corregido de la guardiana y enlaza su comprobación. Un resultado previo con otras preguntas, evaluación, umbrales o versión base servida sigue visible como **Desactualizado**, con enlace al run, en lugar de **Sin comprobar**.
 
 ## Cómo se ejecuta cada caso { #what-each-case-runs-as }
 

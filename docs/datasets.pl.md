@@ -1,5 +1,5 @@
 ---
-source_sha: "27cab4b835cd"
+source_sha: "5371bde768f7"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -534,6 +534,8 @@ przełączenie sędziego wymaga najpierw potwierdzenia, a karta Sędzia mówi, �
 wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
 
 ### Przegląd { #review }
+
+Przegląd otwiera zwięzłą listę; rozwiń odpowiedź, aby obejrzeć materiał źródłowy i oceny. Decyzje to **Odpowiedź jest poprawna (sędzia się pomylił)** oraz **Odpowiedź jest błędna**. Po zapisie wiersz pozostaje na miejscu, zwinięty, z obowiązującą oceną i przeliczonym wynikiem runu lub suity, jeśli można je odczytać. Notatkę można zmienić w kryterium bez przechodzenia do wszystkich wyników, a decyzję wycofać w tym samym miejscu.
 
 Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła

@@ -13,6 +13,7 @@ from app.db.models.eval_suite import EvalSuiteResultStatus, EvalSuiteTrigger
 from app.schemas.base import BaseSchema
 from app.schemas.eval_run import EvalRunEstimate, OverallLiteral, VerdictLiteral
 from app.schemas.eval_threshold import EvalSuiteThreshold, ThresholdReason
+from app.schemas.scoring import ReviewReevaluation
 
 FailingKind = Literal["regression", "failed", "ungraded", "incomplete"]
 DependencyKind = Literal["skill", "knowledge_base", "context"]
@@ -128,6 +129,7 @@ class FailingCase(BaseSchema):
 class EvalSuiteSummary(BaseSchema):
     """How the eval run behind a result came out, as the threshold read it."""
 
+    review: ReviewReevaluation | None = None
     pass_rate: float | None
     first_pass_rate: float | None
     cases: int

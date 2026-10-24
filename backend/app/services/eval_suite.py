@@ -98,7 +98,7 @@ from app.schemas.eval_suite import (
     FailingCase,
     FailingKind,
 )
-from app.schemas.scoring import DatasetScoring
+from app.schemas.scoring import DatasetScoring, ReviewReevaluation
 from app.services import change_feed
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import AgentRegistryService, delegation_binding
@@ -395,7 +395,10 @@ class EvalSuiteService:
             ctx, [row.dataset_id for row in rows if row.dataset_id is not None]
         )
         return EvalSuiteResultList(
-            items=[self.result_read(row, cases_visible=row.dataset_id in readable) for row in rows],
+            items=[
+                await self.result_read(row, cases_visible=row.dataset_id in readable)
+                for row in rows
+            ],
             total=total,
         )
 
@@ -500,12 +503,12 @@ class EvalSuiteService:
                         judge_version_id=judge.current_version_id if judge else None,
                     ),
                     last_result=(
-                        self.result_read(last, cases_visible=last.dataset_id in readable)
+                        await self.result_read(last, cases_visible=last.dataset_id in readable)
                         if last
                         else None
                     ),
                     open_result=(
-                        self.result_read(now, cases_visible=now.dataset_id in readable)
+                        await self.result_read(now, cases_visible=now.dataset_id in readable)
                         if now
                         else None
                     ),
@@ -515,13 +518,16 @@ class EvalSuiteService:
             )
         return reads
 
-    @staticmethod
-    def result_read(result: EvalSuiteResult, *, cases_visible: bool) -> EvalSuiteResultRead:
+    async def result_read(
+        self, result: EvalSuiteResult, *, cases_visible: bool
+    ) -> EvalSuiteResultRead:
         """A result as a reader sees it: the failing cases' questions only for one who
         may open the dataset they come from."""
         summary = (
             EvalSuiteSummary.model_validate(result.summary) if result.summary is not None else None
         )
+        if summary is not None and summary.review is not None:
+            summary.review = await self.evals.named_review(result.organization_id, summary.review)
         if summary is not None and not cases_visible:
             summary = summary.model_copy(update={"failing_cases": []})
         return EvalSuiteResultRead(
@@ -982,7 +988,7 @@ class EvalSuiteService:
         result = await self._run_by_hand(
             ctx, agent, suite, version, trigger=EvalSuiteTrigger.MANUAL, baseline_version=None
         )
-        return self.result_read(result, cases_visible=True)
+        return await self.result_read(result, cases_visible=True)
 
     async def run_on_version(
         self,
@@ -1652,7 +1658,9 @@ class EvalSuiteService:
             settled += 1
         return settled
 
-    async def _settle(self, result: EvalSuiteResult, *, now: datetime) -> None:
+    async def _settle(
+        self, result: EvalSuiteResult, *, now: datetime, after_review: bool = False
+    ) -> None:
         org = result.organization_id
         run = (
             await eval_run_repo.get(self.db, result.eval_run_id, organization_id=org)
@@ -1734,7 +1742,12 @@ class EvalSuiteService:
         if uncompared:
             summary = summary.model_copy(update={"message": NOT_COMPARED_MESSAGE})
         await self._finish(
-            result, status, summary=summary, reason=result.reason if uncompared else None, now=now
+            result,
+            status,
+            summary=summary,
+            reason=result.reason if uncompared else None,
+            now=now,
+            after_review=after_review,
         )
 
     async def _failing(
@@ -1813,6 +1826,7 @@ class EvalSuiteService:
         reason: str | None = None,
         message: str | None = None,
         summary: EvalSuiteSummary | None = None,
+        after_review: bool = False,
     ) -> None:
         """Settle a result, and tell the owner when it opens a run of failures."""
         previous = await eval_suite_repo.previous_settled(
@@ -1841,7 +1855,7 @@ class EvalSuiteService:
                 "status": status.value,
                 "reason": reason,
                 "summary": None if summary is None else summary.model_dump(mode="json"),
-                "settled_at": now,
+                "settled_at": result.settled_at if after_review else now,
                 "alerting_since_id": alerting_since,
             },
         )
@@ -1849,10 +1863,16 @@ class EvalSuiteService:
             self.db, result.suite_id, organization_id=result.organization_id
         )
         assert suite is not None, "a result goes with its suite"
-        if status is EvalSuiteResultStatus.PASSED and result.agent_version_id is not None:
+        if (
+            not after_review
+            and status is EvalSuiteResultStatus.PASSED
+            and result.agent_version_id is not None
+        ):
             await self._follow(suite, result)
         passed_alone = status is EvalSuiteResultStatus.PASSED and reason == NOT_COMPARED
-        if (alerting_since is not None and alerting_since == result.id) or passed_alone:
+        if not after_review and (
+            (alerting_since is not None and alerting_since == result.id) or passed_alone
+        ):
             from app.services.notifications import NotificationService
 
             agent = await agent_repo.get(
@@ -1958,3 +1978,80 @@ class EvalSuiteService:
             ),
             name=f"eval-suite-announce:{suite.id}",
         )
+
+    async def recompute_after_review(
+        self, ctx: AuthContext, run_ids: list[UUID], *, undo: bool
+    ) -> None:
+        """Recompute stored suite results in the decision's transaction, without promotion.
+
+        Cached run outcomes were invalidated first, including dependent comparisons.
+        The suite's existing reader still supplies evaluation authority; the reviewer
+        is recorded as the actor, without gaining access to the agent's answers.
+        """
+        now = datetime.now(UTC)
+        annotation = ReviewReevaluation(by_user_id=ctx.subject_id, at=now, undo=undo)
+        metadata = annotation.model_dump(mode="json", exclude={"by_name"})
+        for run_id in sorted(run_ids):
+            run = await eval_run_repo.get(self.db, run_id, organization_id=ctx.organization_id)
+            if run is not None:
+                await eval_run_repo.update_run(
+                    self.db, run=run, values={"review_metadata": metadata}
+                )
+        for result in await eval_suite_repo.results_for_runs(
+            self.db, run_ids, organization_id=ctx.organization_id
+        ):
+            previous = result.status
+            previous_summary = result.summary
+            await self._settle(result, now=now, after_review=True)
+            review = annotation.model_copy(
+                update={"previous_verdict": previous, "verdict": result.status}
+            )
+            summary = (
+                EvalSuiteSummary.model_validate(result.summary)
+                if result.summary
+                else EvalSuiteSummary(pass_rate=None, first_pass_rate=None, cases=0)
+            )
+            summary.review = review
+            await eval_suite_repo.update_result(
+                self.db,
+                result=result,
+                values={
+                    "summary": summary.model_dump(mode="json", exclude={"review": {"by_name"}})
+                },
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="eval_suite.result_reevaluated",
+                target_type="eval_suite_result",
+                target_id=str(result.id),
+                details={
+                    "eval_run_id": str(result.eval_run_id),
+                    "previous_status": previous,
+                    "status": result.status,
+                    "undo": undo,
+                    "previous_pass_rate": None
+                    if previous_summary is None
+                    else previous_summary.get("pass_rate"),
+                    "summary": {
+                        "pass_rate": summary.pass_rate,
+                        "regressions_confirmed": summary.regressions_confirmed,
+                    },
+                },
+            )
+            suite = await eval_suite_repo.get(
+                self.db, result.suite_id, organization_id=ctx.organization_id
+            )
+            if suite is not None:
+                self._announce(suite)
+                if previous != result.status:
+                    from app.services.notifications import NotificationService
+
+                    agent = await agent_repo.get(
+                        self.db, suite.agent_id, organization_id=ctx.organization_id
+                    )
+                    if agent is not None:
+                        await NotificationService(self.db).eval_suite_reevaluated(
+                            suite, result, agent=agent
+                        )

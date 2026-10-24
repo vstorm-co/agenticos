@@ -138,6 +138,18 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     channels: ["in_app", "email"],
   },
   {
+    eventType: "improvement_finished",
+    words: "prefImprovementFinished",
+    icon: Sparkles,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "eval_suite_reevaluated",
+    words: "prefSuiteReevaluated",
+    icon: ListChecks,
+    channels: ["in_app", "email"],
+  },
+  {
     eventType: "eval_suite_failed",
     words: "prefEvalSuiteFailed",
     icon: ListChecks,

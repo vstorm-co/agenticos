@@ -135,7 +135,7 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "Findings from your watches - In-app" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(39);
+    expect(screen.getAllByRole("switch")).toHaveLength(43);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {
@@ -259,5 +259,18 @@ describe("the notifications settings page", () => {
     ]) {
       expect(screen.queryByText(absent)).toBeNull();
     }
+  });
+  it("offers both channels for improvement completion and reviewed suite verdicts", async () => {
+    setPreference.mockResolvedValue(undefined);
+    render(<NotificationsSettingsPage />);
+    expect(
+      screen.getByRole("switch", { name: "Improvement session finished - Email" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Suite result re-evaluated - In-app" }),
+    );
+    await waitFor(() =>
+      expect(setPreference).toHaveBeenCalledWith("eval_suite_reevaluated", "in_app", false),
+    );
   });
 });

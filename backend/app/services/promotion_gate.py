@@ -75,6 +75,7 @@ def guard_state(
     *,
     dataset_version: int,
     scoring_hash: str,
+    baseline_version: int | None = None,
 ) -> tuple[GuardState, EvalSuiteResult | None]:
     """Where one guard stands on a version, and the result that says so.
 
@@ -95,6 +96,7 @@ def guard_state(
         result, number, hashed, judge_version, pinned = settled
         current = (
             result.dataset_id == suite.dataset_id
+            and (baseline_version is None or result.baseline_version_number == baseline_version)
             and result.threshold == threshold_of(suite).model_dump(mode="json")
             and number in (None, dataset_version)
             and hashed in (None, scoring_hash)
@@ -183,6 +185,7 @@ class PromotionGateService:
                 waiting.get(suite.id),
                 dataset_version=dataset_version,
                 scoring_hash=scoring_hash(scoring),
+                baseline_version=serving.version,
             )
             states.append((suite, state, result))
         suites_service = EvalSuiteService(self.db)
@@ -200,7 +203,9 @@ class PromotionGateService:
                 state=state,
                 paused_reason=None if suite.is_active else suite.paused_reason,
                 result=(
-                    suites_service.result_read(result, cases_visible=result.dataset_id in readable)
+                    await suites_service.result_read(
+                        result, cases_visible=result.dataset_id in readable
+                    )
                     if result is not None
                     else None
                 ),
@@ -452,7 +457,14 @@ class PromotionGateService:
         if serving.version >= version.version:
             return False
         gate = await self.check(None, agent=agent, environment=environment, version=version)
-        if not gate.passing:
+        if not gate.passing or any(
+            guard.result is not None
+            and guard.result.summary is not None
+            and guard.result.summary.review is not None
+            for guard in gate.guards
+        ):
+            # A human corrected grading; only an explicit promotion may use it.
+            # The periodic reconcile must respect the same boundary as immediate follow.
             return False
         replaced = environment.version_id
         environment = await agent_environment_repo.update(

@@ -185,6 +185,10 @@ Each case has a fixed train or holdout assignment, preserved across dataset vers
 
 An improvement session pins its dataset version and chat evidence identities. Later rounds may learn from that version's training results, but new chats and new dataset cases cannot change its control sample.
 
+A human decision and **Undo** invalidate dependent run comparisons and recompute the stored suite results in the same transaction. The run, suite, environment guard and promotion dialog show the corrected verdict and who reviewed it. Audit entries record previous and new statuses and counts; a changed suite verdict sends a new notification. Reviewer names are resolved from current organization membership rather than copied into retained results.
+
+A pass obtained through review permits an explicit promotion. It never promotes or moves a following environment automatically, including during the periodic reconciliation. The environment row shows the actual failed or corrected guard result and links to its check. An earlier result on different questions, grading, thresholds or a different serving baseline stays visible as **Out of date**, with its run link, rather than becoming **Not checked**.
+
 ## What each case runs as { #what-each-case-runs-as }
 
 Every case is an ordinary agent run with the surface `eval`. It is checked

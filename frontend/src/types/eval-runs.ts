@@ -1,3 +1,4 @@
+import type { ReviewReevaluation } from "./scoring";
 /**
  * Eval runs - an agent answering every case of a dataset version, and how the
  * result compares with a baseline.
@@ -176,6 +177,7 @@ export interface EvalOutcome {
 }
 
 export interface EvalRun {
+  review?: ReviewReevaluation | null;
   id: string;
   agent_id: string;
   dataset_id: string;

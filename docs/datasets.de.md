@@ -1,5 +1,5 @@
 ---
-source_sha: "27cab4b835cd"
+source_sha: "5371bde768f7"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -570,6 +570,8 @@ sagt, dass sich die vorher bewerteten Scores nicht mit den danach bewerteten
 vergleichen lassen.
 
 ### Prüfung { #review }
+
+Die Prüfung beginnt als kompakte Liste; klappen Sie eine Antwort auf, um Belege und Bewertungen zu lesen. Die Entscheidungen heißen **Antwort ist richtig (der Bewerter lag falsch)** und **Antwort ist falsch**. Nach dem Speichern bleibt die Zeile eingeklappt an ihrer Stelle, mit wirksamem Urteil und aktualisiertem Run- oder Suite-Ergebnis, soweit lesbar. Die Notiz kann ohne Wechsel zu allen Ergebnissen zum Kriterium werden; auch die Entscheidung lässt sich dort zurücknehmen.
 
 Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
 schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,

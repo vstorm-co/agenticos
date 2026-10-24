@@ -6029,7 +6029,11 @@
       "prefCapabilityRequested": "Eine Capability angefragt",
       "prefCapabilityRequestedTrigger": "Jemand hat eine Capability angefragt, die einem Ihrer Agents fehlt. An den Besitzer des Agents, einmal pro Person und Capability.",
       "prefFinding": "Funde Ihrer Beobachtungen",
-      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest."
+      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest.",
+      "prefImprovementFinished": "Verbesserungssitzung beendet",
+      "prefImprovementFinishedTrigger": "Eine von Ihnen gestartete Verbesserungssitzung ist prüfbereit oder wurde gestoppt.",
+      "prefSuiteReevaluated": "Suite-Ergebnis neu bewertet",
+      "prefSuiteReevaluatedTrigger": "Eine menschliche Prüfung hat das Urteil Ihrer Suite geändert. Die Beförderung bleibt eine menschliche Entscheidung."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -7692,8 +7696,8 @@
       "judgeRun": "Run des Bewerters",
       "verdictNote": "Notiz",
       "verdictNotePlaceholder": "Warum, für die nächste Person, die das liest (optional)",
-      "markPassed": "Als bestanden markieren",
-      "markFailed": "Als nicht bestanden markieren",
+      "markPassed": "Antwort ist richtig (der Bewerter lag falsch)",
+      "markFailed": "Antwort ist falsch",
       "withdrawVerdict": "Entscheidung zurückziehen",
       "verdictSaved": "Entscheidung gespeichert",
       "verdictWithdrawn": "Entscheidung zurückgezogen",
@@ -7850,7 +7854,24 @@
       "criterionCoverage": "Gilt für {count} von {total} Fällen",
       "noteForTag": "für Fälle mit Tag {tag}",
       "noteAddedToTags": "Die Notiz ist jetzt ein Bewerterkriterium für Fälle mit den Tags {tags}.",
-      "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können"
+      "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können",
+      "countsAsPassed": "Zählt als bestanden.",
+      "countsAsFailed": "Zählt als fehlgeschlagen.",
+      "reviewEffect": {
+        "unavailable": "Der aktualisierte Run konnte nicht gelesen werden. Öffnen Sie die Prüfung erneut.",
+        "refreshing": "Ergebnis wird aktualisiert…",
+        "run": "Run: {verdict}",
+        "suite": "{name}: {status} nach Prüfung",
+        "verdict": {
+          "better": "besser",
+          "worse": "schlechter",
+          "mixed": "gemischt",
+          "no_difference": "keine reproduzierbare Änderung",
+          "invalid": "unentschieden"
+        },
+        "notCompared": "Run: Es wurde kein Basisvergleich angefordert.",
+        "didNotComplete": "Der Run wurde nicht abgeschlossen. Öffnen Sie die Prüfung für den Grund."
+      }
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
@@ -9865,6 +9886,11 @@
       "body": "Nur zurückgehaltene Fragen entscheiden das Urteil dieses Vorschlags. Trainingsergebnisse stehen für die nächste Verbesserung bereit. Suiten und Beförderungsschranken bewerten weiterhin jede Frage.",
       "excluded": "{count, plural, one {# Frage wird} other {# Fragen werden}} vom Urteil ausgeschlossen, weil sie Trainingsfragen oder Vorschlagsbelege wiederholen.",
       "needed": "Fügen Sie {count, plural, one {# weitere bewertbare zurückgehaltene Frage} other {# weitere bewertbare zurückgehaltene Fragen}} hinzu, um eine Änderung zu messen."
+    },
+    "reviewReevaluation": {
+      "by": "Nach Prüfung durch {name} neu bewertet · {date}",
+      "undone": "Nach Rücknahme der Prüfung durch {name} neu bewertet · {date}",
+      "reviewer": "eine prüfende Person"
     }
   },
   "remoteAgents": {
@@ -10293,13 +10319,19 @@
     "storeGuards": "Wächter speichern",
     "guardsReadOnly": "Zum Ändern braucht es die Berechtigung, Promotionen zu übergehen.",
     "guardedBy": "{count, plural, =1 {Von 1 Suite bewacht} other {Von # Suites bewacht}}",
-    "waiting": "Wartet auf seine Evals auf v{version}",
     "guardsFor": "Eval-Suites, die {name} bewachen",
     "overriddenOn": "Auf {name} übergangen",
     "overrideDetail": "{who} hat sie an {suites} vorbei promotet: {reason}",
     "someoneWhoLeft": "Jemand, der gegangen ist",
     "readFailed": "Die Evals, die diese Umgebung bewachen, konnten nicht gelesen werden.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "openRun": "Prüfung öffnen",
+    "staysOn": "Bleibt auf v{version}",
+    "readyToPromote": "v{version} ist für eine manuelle Beförderung bereit",
+    "readStatus": "Wächterergebnisse lesen",
+    "guardStatus": "{name}: {status}",
+    "reviewPromotion": "Beförderung prüfen",
+    "loading": "Wächterergebnisse werden gelesen…"
   },
   "attention": {
     "badge": "Braucht Aufmerksamkeit",

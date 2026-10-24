@@ -505,6 +505,8 @@ before will not compare with the ones graded after.
 
 ### Review { #review }
 
+Review starts as a compact list; expand an answer to inspect its evidence and grading. The decisions say **Answer is fine (the judge was wrong)** and **Answer is wrong**. After saving, the row stays in its place, collapsed, with the effective outcome and updated run/suite result where readable. Its note can become a criterion without switching to All results, and the decision can be withdrawn there.
+
 A score waits in the **review queue** when somebody sends it there, or an eval
 run does. Once it has rerun what flipped, an eval run sends the regressions it
 confirmed and the answers the judge failed on with an error - not one it

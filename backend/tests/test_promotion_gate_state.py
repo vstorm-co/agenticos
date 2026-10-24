@@ -175,3 +175,17 @@ def test_a_pass_from_another_or_unpinned_judge_cannot_open_the_gate(
         dataset_version=3,
         scoring_hash=_SCORING,
     ) == ("stale", passed)
+
+
+def test_a_result_beside_an_older_serving_version_is_stale_and_keeps_its_run() -> None:
+    suite = _suite()
+    failed = _result(suite, "failed")
+    failed.baseline_version_number = 1
+    assert guard_state(
+        suite,
+        (failed, 3, _SCORING, None, True),
+        None,
+        dataset_version=3,
+        scoring_hash=_SCORING,
+        baseline_version=2,
+    ) == ("stale", failed)

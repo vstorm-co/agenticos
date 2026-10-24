@@ -1,3 +1,4 @@
+import type { ReviewReevaluation } from "./scoring";
 /**
  * Eval suites - a dataset an agent is held to, run on a schedule and on the
  * changes that matter, and each time it ran.
@@ -57,6 +58,7 @@ export interface FailingCase {
 }
 
 export interface EvalSuiteSummary {
+  review?: ReviewReevaluation | null;
   pass_rate: number | null;
   first_pass_rate: number | null;
   cases: number;

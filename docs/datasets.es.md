@@ -1,5 +1,5 @@
 ---
-source_sha: "27cab4b835cd"
+source_sha: "5371bde768f7"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -544,6 +544,8 @@ Judge avisa de que las puntuaciones calificadas antes no serán comparables con
 las calificadas después.
 
 ### Revisión { #review }
+
+La revisión empieza como lista compacta; expanda una respuesta para leer evidencia y evaluación. Las decisiones distinguen una respuesta correcta de una incorrecta. Tras guardar, la fila permanece contraída en su lugar, con el resultado efectivo y los resultados actualizados del run o suite cuando son accesibles. La nota puede convertirse en criterio sin cambiar a todos los resultados, y la decisión puede retirarse allí.
 
 Una puntuación espera en la **cola de revisión** cuando alguien la envía allí, o
 lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval

@@ -5916,7 +5916,11 @@
       "prefCapabilityRequested": "Prośba o capability",
       "prefCapabilityRequestedTrigger": "Ktoś poprosił o capability, której brakuje jednemu z twoich agentów. Do właściciela agenta, raz na osobę i capability.",
       "prefFinding": "Znaleziska twoich obserwacji",
-      "prefFindingTrigger": "Coś, o czym obserwacja miała dać znać od razu, i poranny briefing reszty."
+      "prefFindingTrigger": "Coś, o czym obserwacja miała dać znać od razu, i poranny briefing reszty.",
+      "prefImprovementFinished": "Sesja poprawy zakończona",
+      "prefImprovementFinishedTrigger": "Rozpoczęta przez Ciebie sesja poprawy jest gotowa do przeglądu albo została zatrzymana.",
+      "prefSuiteReevaluated": "Przeliczono wynik suity",
+      "prefSuiteReevaluatedTrigger": "Przegląd człowieka zmienił werdykt Twojej suity. Promocja nadal wymaga działania człowieka."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -7582,8 +7586,8 @@
       "judgeRun": "Run sędziego",
       "verdictNote": "Notatka",
       "verdictNotePlaceholder": "Dlaczego, dla kolejnej osoby, która to przeczyta (opcjonalnie)",
-      "markPassed": "Oznacz jako zaliczony",
-      "markFailed": "Oznacz jako niezaliczony",
+      "markPassed": "Odpowiedź jest poprawna (sędzia się pomylił)",
+      "markFailed": "Odpowiedź jest błędna",
       "withdrawVerdict": "Wycofaj decyzję",
       "verdictSaved": "Zapisano decyzję",
       "verdictWithdrawn": "Wycofano decyzję",
@@ -7740,7 +7744,24 @@
       "criterionCoverage": "Dotyczy {count} z {total} przypadków",
       "noteForTag": "dla przypadków z tagiem {tag}",
       "noteAddedToTags": "Notatka jest teraz kryterium sędziego dla przypadków z tagami {tags}.",
-      "maskedConversation": "Z rozmowy, do której nie masz dostępu"
+      "maskedConversation": "Z rozmowy, do której nie masz dostępu",
+      "countsAsPassed": "Liczy się jako poprawna.",
+      "countsAsFailed": "Liczy się jako błędna.",
+      "reviewEffect": {
+        "unavailable": "Nie udało się odczytać przeliczonego runu. Otwórz sprawdzenie, aby ponowić.",
+        "refreshing": "Odświeżanie wyniku…",
+        "run": "Run: {verdict}",
+        "suite": "{name}: {status} po przeglądzie",
+        "verdict": {
+          "better": "lepiej",
+          "worse": "gorzej",
+          "mixed": "wynik mieszany",
+          "no_difference": "brak powtarzalnej zmiany",
+          "invalid": "nierozstrzygnięty"
+        },
+        "notCompared": "Run: nie zamówiono porównania z bazą.",
+        "didNotComplete": "Run nie zakończył się poprawnie. Otwórz sprawdzenie, aby poznać powód."
+      }
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",
@@ -9154,6 +9175,11 @@
       "body": "O werdykcie tej propozycji decydują tylko pytania kontrolne. Wyniki części uczącej mogą posłużyć do kolejnej poprawy. Zestawy i bramki promocji nadal oceniają wszystkie pytania.",
       "excluded": "{count, plural, one {# pytanie wykluczone} few {# pytania wykluczone} many {# pytań wykluczonych} other {# pytania wykluczone}} z werdyktu, ponieważ powtarzają pytania treningowe lub materiał źródłowy sugestii.",
       "needed": "Dodaj {count, plural, one {# ocenialne pytanie kontrolne} few {# ocenialne pytania kontrolne} many {# ocenialnych pytań kontrolnych} other {# ocenialnego pytania kontrolnego}}, aby zmierzyć zmianę."
+    },
+    "reviewReevaluation": {
+      "by": "Przeliczono po przeglądzie: {name} · {date}",
+      "undone": "Przeliczono po wycofaniu decyzji: {name} · {date}",
+      "reviewer": "osoba przeglądająca"
     }
   },
   "steps": {
@@ -10193,13 +10219,19 @@
     "storeGuards": "Zapisz strażników",
     "guardsReadOnly": "Zmiana wymaga uprawnienia do pomijania bramki promocji.",
     "guardedBy": "{count, plural, one {Strzeżone przez 1 suitę} few {Strzeżone przez # suity} other {Strzeżone przez # suit}}",
-    "waiting": "Czeka na ewaluacje na v{version}",
     "guardsFor": "Suity ewaluacji strzegące {name}",
     "overriddenOn": "Pominięto ewaluacje na {name}",
     "overrideDetail": "{who} wypromował(a) ją z pominięciem {suites}: {reason}",
     "someoneWhoLeft": "Osoba, która odeszła",
     "readFailed": "Nie udało się odczytać ewaluacji strzegących tego środowiska.",
-    "retry": "Spróbuj ponownie"
+    "retry": "Spróbuj ponownie",
+    "openRun": "Otwórz sprawdzenie",
+    "staysOn": "Pozostaje na v{version}",
+    "readyToPromote": "v{version} jest gotowa do ręcznej promocji",
+    "readStatus": "Odczytaj wyniki bramek",
+    "guardStatus": "{name}: {status}",
+    "reviewPromotion": "Przejrzyj promocję",
+    "loading": "Odczytywanie wyników bramek…"
   },
   "attention": {
     "badge": "Wymaga uwagi",

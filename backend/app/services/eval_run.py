@@ -78,6 +78,7 @@ from app.repositories import (
     dataset_repo,
     eval_run_repo,
     eval_suite_repo,
+    member_repo,
     organization_repo,
 )
 from app.repositories.eval_run import RunExecution
@@ -107,7 +108,7 @@ from app.schemas.eval_run import (
     RoutingErrorRead,
 )
 from app.schemas.eval_threshold import EvalSuiteCheck, EvalSuiteCheckRead
-from app.schemas.scoring import CaseScoreRead, DatasetScoring
+from app.schemas.scoring import CaseScoreRead, DatasetScoring, ReviewReevaluation
 from app.services import authoring_hunks
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import (
@@ -1840,6 +1841,7 @@ class EvalRunService:
                     agent_id=run.agent_id,
                     dataset_id=run.dataset_id,
                     dataset_name=dataset.name if dataset else "",
+                    review=await self.named_review(run.organization_id, run.review_metadata),
                     dataset_version=numbers.get(run.dataset_version_id, 0),
                     environment_id=run.environment_id,
                     status=EvalRunStatus(run.status),
@@ -2572,6 +2574,17 @@ class EvalRunService:
                 pin = {**score.judge, "prompt_version": score.judge.get("prompt_version") or 1}
                 pins[attempt.case_id].add(json.dumps(pin, sort_keys=True))
         return pins
+
+    async def named_review(self, organization_id: UUID, value: object) -> ReviewReevaluation | None:
+        if value is None:
+            return None
+        review = ReviewReevaluation.model_validate(value)
+        if review.by_user_id is not None:
+            names = await member_repo.get_names_for_users(
+                self.db, organization_id=organization_id, user_ids=[review.by_user_id]
+            )
+            review.by_name = names.get(review.by_user_id)
+        return review
 
 
 @dataclass(frozen=True)

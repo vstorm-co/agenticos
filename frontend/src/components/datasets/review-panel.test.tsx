@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +6,7 @@ import { DEFAULT_SCORING } from "@/lib/scoring";
 import { caseScore } from "@/test-utils/scores";
 import type { Dataset } from "@/types/datasets";
 import type { CaseScore } from "@/types/scoring";
+import { useOrgStore } from "@/stores/org-store";
 import { ReviewPanel } from "./review-panel";
 
 type Query = { pending: boolean; limit?: number; [filter: string]: unknown };
@@ -50,6 +51,8 @@ vi.mock("@/hooks/use-permissions", () => ({
       (perm !== "datasets:run" || state.canRun) && (perm !== "runs:view" || state.canViewRuns),
   }),
 }));
+vi.mock("@/hooks/use-eval-runs", () => ({ useEvalRun: () => ({ run: null, error: null }) }));
+vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 import { toast } from "sonner";
 
@@ -90,6 +93,7 @@ function dataset(overrides: Partial<Dataset> = {}): Dataset {
 const listed = () => state.calls.filter(([, query]) => query.limit !== 1).at(-1)?.[1];
 
 beforeEach(() => {
+  useOrgStore.setState({ activeOrgId: null });
   vi.clearAllMocks();
   state.answer = {};
   state.otherTotal = 0;
@@ -154,7 +158,7 @@ describe("ReviewPanel", () => {
     expect(screen.queryByRole("combobox", { name: "Tag" })).toBeNull();
   });
 
-  it("puts each eval run's scores under a heading linking the run, in the order they were graded", () => {
+  it("puts each eval run's scores under a heading linking the run, in the order they were graded", async () => {
     state.answer = {
       scores: [
         caseScore({
@@ -178,6 +182,8 @@ describe("ReviewPanel", () => {
       total: 3,
     };
     render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
+    for (const summary of document.querySelectorAll("details > summary"))
+      await userEvent.click(summary);
 
     const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
     expect(headings).toEqual([
@@ -257,10 +263,18 @@ describe("ReviewPanel", () => {
 
   it("records a decision and a withdrawal, each with an undo that puts back what was", async () => {
     state.answer = { scores: [{ ...SCORE, human_passed: true, human_note: "ok" }], total: 1 };
-    state.verdict.mockResolvedValue({});
+    state.verdict
+      .mockResolvedValueOnce({
+        ...SCORE,
+        human_passed: false,
+        human_note: "ok",
+        reviewed_at: "2026-10-24T12:00:00Z",
+      })
+      .mockResolvedValueOnce({ ...SCORE, human_passed: null, human_note: null });
     render(<ReviewPanel dataset={dataset()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Mark failed" }));
+    await userEvent.click(screen.getByText(SCORE.question));
+    await userEvent.click(screen.getByRole("button", { name: "Answer is wrong" }));
     await userEvent.click(screen.getByRole("button", { name: "Withdraw decision" }));
 
     await waitFor(() =>
@@ -284,7 +298,10 @@ describe("ReviewPanel", () => {
     state.review.mockRejectedValue(new Error("Gone"));
     render(<ReviewPanel dataset={dataset()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Mark passed" }));
+    await userEvent.click(screen.getByText(SCORE.question));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Gone"));
@@ -295,6 +312,8 @@ describe("ReviewPanel", () => {
     state.answer = { scores: [SCORE], total: 1 };
     state.review.mockResolvedValue({ ...SCORE, review_state: "pending" });
     render(<ReviewPanel dataset={dataset()} />);
+    for (const summary of document.querySelectorAll("details > summary"))
+      await userEvent.click(summary);
 
     await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
 
@@ -306,6 +325,8 @@ describe("ReviewPanel", () => {
     state.answer = { scores: [SCORE], total: 1 };
     state.review.mockResolvedValue({ ...SCORE, review_state: "none" });
     render(<ReviewPanel dataset={dataset()} />);
+    for (const summary of document.querySelectorAll("details > summary"))
+      await userEvent.click(summary);
 
     await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
 
@@ -321,7 +342,9 @@ describe("ReviewPanel", () => {
     state.answer = { scores: [SCORE], total: 1 };
     render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
 
-    expect(screen.queryByRole("button", { name: "Mark passed" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "Send to review" })).toBeNull();
   });
 
@@ -347,6 +370,8 @@ describe("ReviewPanel", () => {
       .mockResolvedValueOnce({ rescored: [], kept: ["a"] })
       .mockRejectedValueOnce(new Error("Gone"));
     render(<ReviewPanel dataset={dataset()} />);
+    for (const summary of document.querySelectorAll("details > summary"))
+      await userEvent.click(summary);
 
     expect(
       screen.getAllByText(/The judge answered in a form that could not be read\./),
@@ -375,7 +400,7 @@ describe("ReviewPanel", () => {
       { canRun: true, canViewRuns: false },
       false,
     ],
-  ])("offers no scoring again to somebody who may not %s", (_who, perms, canRunIt) => {
+  ])("offers no scoring again to somebody who may not %s", async (_who, perms, canRunIt) => {
     Object.assign(state, perms);
     state.answer = {
       scores: [
@@ -385,19 +410,23 @@ describe("ReviewPanel", () => {
       total: 2,
     };
     render(<ReviewPanel dataset={dataset({ can_run: canRunIt })} />);
+    for (const summary of document.querySelectorAll("details > summary"))
+      await userEvent.click(summary);
 
     expect(screen.getAllByText(/budget is spent/)).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /again/ })).toBeNull();
     expect(screen.queryByText(/Fix the cause/)).toBeNull();
   });
 
-  it("offers scoring again to who may run this dataset by a grant alone", () => {
+  it("offers scoring again to who may run this dataset by a grant alone", async () => {
     Object.assign(state, { canRun: false, canViewRuns: true });
     state.answer = {
       scores: [caseScore({ id: "a", unscored_reason: "judge_budget" })],
       total: 1,
     };
     render(<ReviewPanel dataset={dataset({ can_run: true })} />);
+    for (const summary of document.querySelectorAll("details > summary"))
+      await userEvent.click(summary);
 
     expect(screen.getByRole("button", { name: "Score again" })).toBeInTheDocument();
   });
@@ -461,4 +490,78 @@ it("turns a reviewed note into a criterion limited to the case's tag", async () 
   expect(toast.success).toHaveBeenCalledWith(
     "The note is now a judge criterion for cases tagged refund.",
   );
+});
+
+it("retains a newly decided answer in place, collapsed with its effect and criterion offer", async () => {
+  const waiting = caseScore({ review_state: "pending", passed: false, outcome: false });
+  state.answer = { scores: [waiting], total: 1 };
+  state.verdict.mockResolvedValueOnce({
+    ...waiting,
+    human_passed: true,
+    human_note: "Cite the policy",
+    review_state: "done",
+    outcome: true,
+    reviewed_at: "2026-10-24T12:00:00Z",
+  });
+  const { rerender } = render(<ReviewPanel dataset={dataset()} />);
+  expect(
+    screen.queryByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+  ).not.toBeInTheDocument();
+  await userEvent.click(screen.getByText(waiting.question));
+  await userEvent.type(screen.getByRole("textbox"), "Cite the policy");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent("Counts as passed.");
+  state.answer = { scores: [], total: 0 };
+  rerender(<ReviewPanel dataset={dataset()} />);
+  expect(screen.getByText(waiting.question)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "for this case" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "for every case" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Withdraw decision" })).toBeInTheDocument();
+  expect(screen.queryByText("Nothing is waiting for a decision")).not.toBeInTheDocument();
+  // A later server-side privacy mask must win over the retained local decision.
+  state.answer = {
+    scores: [
+      {
+        ...waiting,
+        case_masked: true,
+        question: "",
+        answer_hidden: true,
+        answer: null,
+        human_note: null,
+      },
+    ],
+    total: 1,
+  };
+  rerender(<ReviewPanel dataset={dataset()} />);
+  expect(screen.queryByText(waiting.question)).not.toBeInTheDocument();
+  expect(screen.queryByText("Cite the policy")).not.toBeInTheDocument();
+});
+
+it("does not restore a decided answer after switching organizations while its request is pending", async () => {
+  const waiting = caseScore({ review_state: "pending", passed: false, outcome: false });
+  state.answer = { scores: [waiting], total: 1 };
+  let finish: (value: CaseScore) => void = () => {};
+  state.verdict.mockImplementationOnce(
+    () =>
+      new Promise<CaseScore>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(<ReviewPanel dataset={dataset()} />);
+  await userEvent.click(screen.getByText(waiting.question));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+  );
+  state.answer = { scores: [], total: 0 };
+  await act(async () => {
+    useOrgStore.setState({ activeOrgId: "next-org" });
+  });
+  await act(async () => {
+    finish({ ...waiting, human_passed: true, human_note: "Previous organization note" });
+  });
+  expect(screen.queryByText(waiting.question)).not.toBeInTheDocument();
+  expect(screen.queryByText("Previous organization note")).not.toBeInTheDocument();
+  expect(screen.queryByText("Counts as passed.")).not.toBeInTheDocument();
 });

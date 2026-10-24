@@ -18,7 +18,7 @@ from app.db.models.eval_suite import EvalSuiteTrigger
 from app.schemas.base import BaseSchema
 from app.schemas.dataset import StoredCaseContent
 from app.schemas.eval_threshold import EvalSuiteCheckRead
-from app.schemas.scoring import CaseScoreRead
+from app.schemas.scoring import CaseScoreRead, ReviewReevaluation
 
 CallOutcomeLiteral = Literal["executed", "blocked", "replayed", "divergent"]
 FlipLiteral = Literal["regression", "fixed", "unchanged", "incomplete"]
@@ -322,6 +322,7 @@ class EvalRunRead(BaseSchema):
     agent_id: UUID
     dataset_id: UUID
     dataset_name: str
+    review: ReviewReevaluation | None = None
     dataset_version: int
     environment_id: UUID | None
     status: EvalRunStatus

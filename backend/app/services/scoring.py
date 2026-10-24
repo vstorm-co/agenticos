@@ -1152,9 +1152,12 @@ class ScoringService:
         if not decided:
             await self.route_to_review(ctx, dataset_id=dataset_id, score_ids=[score.id])
         if score.eval_run_id is not None:
-            await eval_run_repo.forget_outcomes(
+            affected = await eval_run_repo.forget_outcomes(
                 self.db, [score.eval_run_id], organization_id=ctx.organization_id
             )
+            from app.services.eval_suite import EvalSuiteService
+
+            await EvalSuiteService(self.db).recompute_after_review(ctx, affected, undo=not decided)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

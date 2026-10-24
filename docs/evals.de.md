@@ -1,5 +1,5 @@
 ---
-source_sha: "da6e26954426"
+source_sha: "f425ee5ad348"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -214,6 +214,10 @@ Eine unbekannte Umgebung liefert 404. Gleichzeitiges Erstellen oder Umbenennen v
 Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen und Verbesserungssitzungen messen ausschließlich Kontrollfälle und benötigen mindestens fünf bewertbare Fragen. Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
 
 Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Spätere Runden können aus den Trainingsergebnissen dieser Version lernen; neue Chats und Fälle ändern die Kontrollstichprobe nicht.
+
+Eine menschliche Entscheidung und **Entscheidung zurücknehmen** verwerfen abhängige Run-Vergleiche und berechnen gespeicherte Suite-Ergebnisse in derselben Transaktion neu. Run, Suite, Umgebungsschranke und Beförderungsdialog zeigen das korrigierte Urteil und die prüfende Person. Das Audit hält alte und neue Zustände sowie Zählwerte fest; ein geändertes Suite-Urteil erzeugt eine neue Benachrichtigung. Namen werden aus der aktuellen Organisationsmitgliedschaft aufgelöst und nicht in aufbewahrte Ergebnisse kopiert.
+
+Ein durch Prüfung erzielter Erfolg erlaubt eine ausdrückliche Beförderung. Er befördert oder verschiebt niemals automatisch eine folgende Umgebung, auch nicht beim periodischen Abgleich. Die Umgebungszeile zeigt das tatsächliche fehlgeschlagene oder korrigierte Wächterergebnis und verlinkt die Prüfung. Ein früheres Ergebnis mit anderen Fragen, Bewertungen, Schwellen oder einer anderen bereitgestellten Vergleichsversion bleibt als **Veraltet** mit Run-Link sichtbar, statt **Nicht geprüft** zu werden.
 
 ## Als was jeder Fall läuft { #what-each-case-runs-as }
 

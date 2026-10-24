@@ -264,10 +264,10 @@ async def reviewed_since(
 
 async def forget_outcomes(
     db: AsyncSession, eval_run_ids: Sequence[UUID], *, organization_id: UUID
-) -> None:
+) -> list[UUID]:
     """Drop the kept verdict of these runs and of every run measured against one."""
     ids = [str(run_id) for run_id in eval_run_ids]
-    await db.execute(
+    result = await db.execute(
         update(EvalRun)
         .where(
             EvalRun.organization_id == organization_id,
@@ -277,8 +277,11 @@ async def forget_outcomes(
             ),
         )
         .values(outcome=None, outcome_at=None)
+        .returning(EvalRun.id)
         .execution_options(synchronize_session="fetch")
     )
+
+    return list(result.scalars().all())
 
 
 async def list_recent(

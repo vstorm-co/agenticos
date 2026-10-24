@@ -11,6 +11,7 @@ import {
   useDatasetCases,
   useDatasets,
   useDatasetVersions,
+  useDatasetSource,
 } from "./use-datasets";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -328,4 +329,13 @@ describe("useAddToDataset", () => {
       with_history: false,
     });
   });
+});
+
+it("checks whether a source answer is private before copying it", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ private_to_other: true, owner_name: "Ada" });
+  const { result } = renderHook(() => useDatasetSource("message-1", true), { wrapper });
+  await waitFor(() =>
+    expect(result.current.data).toEqual({ private_to_other: true, owner_name: "Ada" }),
+  );
+  expect(apiClient.get).toHaveBeenCalledWith("/datasets/messages/message-1/source");
 });

@@ -26,7 +26,7 @@ GuardState = Literal[
 `passed` is the only state that lets the version through. `failed`,
 `inconclusive`, `skipped` and `error` are its last result there; `checking` is a
 run waiting or going; `stale` is a result over another dataset version or
-threshold than the suite holds now; `unchecked` is no result at all; `paused` is
+threshold than the suite holds now, or beside another serving baseline; `unchecked` is no result at all; `paused` is
 a suite that will not produce one until it is resumed; `unpinned` is a guard
 not pinned to a dataset version yet - set up before guards were pinned, on a
 dataset that had none - which holds every version back until somebody who may

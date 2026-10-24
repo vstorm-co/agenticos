@@ -16,6 +16,20 @@ vi.mock("@/hooks/use-case-generation", () => ({
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({ agents: [{ id: "a1", name: "Support clerk" }] }),
+  useAgentsOfKind: () => ({
+    agents: [
+      {
+        id: "generator",
+        name: "Selected generator",
+        system_key: null,
+        status: "published",
+        current_version_id: "v1",
+        published_model: null,
+      },
+    ],
+    isLoading: false,
+    error: null,
+  }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => granted.perms.includes(perm) }),
@@ -155,4 +169,19 @@ describe("GenerateCasesDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+});
+
+it("discards the old quote when its generator changes", async () => {
+  estimate.mutateAsync.mockResolvedValue(ESTIMATE);
+  mount();
+  await chooseAgent();
+  await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+  await userEvent.click(screen.getByText("Case generator"));
+  await userEvent.click(screen.getByRole("combobox", { name: "Run with" }));
+  await userEvent.click(screen.getByRole("option", { name: "Selected generator" }));
+  expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+  expect(estimate.mutateAsync).toHaveBeenLastCalledWith(
+    expect.objectContaining({ generator_agent_id: "generator" }),
+  );
 });

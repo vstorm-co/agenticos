@@ -104,7 +104,7 @@ export function AuthoringResultDialog({
           )}
           {changes.length > 0 && effect && <p className="text-sm">{effect}</p>}
           {changes.map((hunk) => (
-            <ChangePreview key={hunk.id} hunk={hunk} />
+            <ChangePreview key={hunk.id} hunk={hunk} quotes={canReadRuns} />
           ))}
           <RejectedChanges report={request.report} />
           {changes.length === 0 && !request.report?.rejected?.length && (
@@ -124,7 +124,7 @@ export function AuthoringResultDialog({
   );
 }
 
-export function ChangePreview({ hunk }: { hunk: Hunk }) {
+export function ChangePreview({ hunk, quotes = true }: { hunk: Hunk; quotes?: boolean }) {
   const t = useTranslations("authoring.result");
   const ts = useTranslations("authoring.suggestion");
   const kind =
@@ -153,7 +153,7 @@ export function ChangePreview({ hunk }: { hunk: Hunk }) {
         {!hunk.applies && <Badge variant="warning">{ts("stale")}</Badge>}
       </div>
       {hunk.kind === "spec_field" ? (
-        <FieldDiff hunk={hunk} editing={null} onEdit={() => {}} />
+        <FieldDiff hunk={hunk} editing={null} />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {[
@@ -175,7 +175,10 @@ export function ChangePreview({ hunk }: { hunk: Hunk }) {
       </div>
       <div>
         <h4 className="mb-1 text-xs font-medium">{t("basedOn")}</h4>
-        <EvidenceList items={hunk.evidence} dropped={hunk.evidence_dropped} />
+        <EvidenceList
+          items={quotes ? hunk.evidence : hunk.evidence.map((item) => ({ ...item, quote: null }))}
+          dropped={hunk.evidence_dropped}
+        />
       </div>
     </article>
   );

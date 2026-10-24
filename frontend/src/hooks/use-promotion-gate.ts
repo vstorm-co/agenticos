@@ -28,6 +28,8 @@ export function usePromotionGate(
         params: { version_id: versionId },
       }),
     enabled,
+    refetchInterval: (current) =>
+      current.state.data?.guards.some((guard) => guard.state === "checking") ? 3_000 : false,
   });
   return { gate: data, isLoading, error, refetch };
 }

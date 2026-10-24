@@ -191,3 +191,46 @@ describe("criterionNameFrom", () => {
     expect(criterionNameFrom("Polite", ["Polite", "Polite 2"])).toBe("Polite 3");
   });
 });
+
+it("counts grading coverage from each question's tag group and preserves unscoped criteria", () => {
+  const stats = {
+    with_reference: 0,
+    with_counter_example: 0,
+    with_tool_calls: 0,
+    with_checks: 0,
+    by_source: { manual: 3, import: 0, conversation: 0, synthetic: 0 },
+    top_tags: [],
+    expectation_mix: [],
+  };
+  const groups = [
+    { tags: ["billing"], cases: 2, checks: false, tool_calls: false, reference: false },
+    { tags: ["returns"], cases: 1, checks: false, tool_calls: false, reference: false },
+  ];
+  const judged = {
+    ...DEFAULT_SCORING,
+    judge: {
+      ...DEFAULT_SCORING.judge,
+      enabled: true,
+      criteria: [
+        { name: "policy", description: "Follow policy", required: true, tags: ["returns"] },
+      ],
+    },
+  };
+  expect(ungradedCases(judged, { ...stats, tag_groups: groups }, 0)).toBe(2);
+  const unscoped = {
+    ...judged,
+    judge: {
+      ...judged.judge,
+      criteria: [{ name: "policy", description: "Follow policy", required: true, tags: [] }],
+    },
+  };
+  expect(ungradedCases(unscoped, stats, 0)).toBe(0);
+  expect(ungradedCases(unscoped, { ...stats, tag_groups: groups }, 0)).toBe(0);
+  expect(
+    ungradedCases(
+      { ...judged, reference: { enabled: true, required: true } },
+      { ...stats, tag_groups: [{ ...groups[0]!, reference: true }, groups[1]!] },
+      0,
+    ),
+  ).toBe(0);
+});

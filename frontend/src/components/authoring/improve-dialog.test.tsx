@@ -5,6 +5,23 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthoringEstimate } from "@/types/authoring";
 import { ImproveDialog } from "./improve-dialog";
 
+vi.mock("@/hooks/use-agents", () => ({
+  useAgentsOfKind: () => ({
+    agents: [
+      {
+        id: "helper",
+        name: "Selected helper",
+        system_key: null,
+        status: "published",
+        current_version_id: "v1",
+        published_model: null,
+      },
+    ],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 function quote(overrides: Partial<AuthoringEstimate> = {}): AuthoringEstimate {
   return {
     runs: 22,
@@ -113,5 +130,28 @@ describe("ImproveDialog", () => {
     resolve(quote());
     await Promise.resolve();
     expect(screen.queryByText(/It will read/)).toBeNull();
+  });
+});
+
+it("re-estimates after changing the improver and starts with the selected helper", async () => {
+  const estimate = vi.fn().mockResolvedValue(quote());
+  const start = vi.fn().mockResolvedValue({});
+  render(<ImproveDialog kind="improve" estimate={estimate} start={start} onOpenChange={vi.fn()} />);
+  await screen.findByText(/It will read/);
+  await userEvent.click(screen.getByText("Authoring assistant"));
+  await userEvent.click(screen.getByRole("combobox", { name: "Run with" }));
+  await userEvent.click(screen.getByRole("option", { name: "Selected helper" }));
+  await waitFor(() =>
+    expect(estimate).toHaveBeenLastCalledWith({
+      kind: "improve",
+      window_days: 30,
+      improver_agent_id: "helper",
+    }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Start" }));
+  expect(start).toHaveBeenCalledWith({
+    kind: "improve",
+    window_days: 30,
+    improver_agent_id: "helper",
   });
 });

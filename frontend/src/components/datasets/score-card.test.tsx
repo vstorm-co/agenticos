@@ -364,8 +364,10 @@ describe("ScoreCard", () => {
     render(<ScoreCard score={score()} onVerdict={onVerdict} />);
 
     await userEvent.type(screen.getByRole("textbox", { name: "Note" }), "Fine by policy");
-    await userEvent.click(screen.getByRole("button", { name: "Mark passed" }));
-    await userEvent.click(screen.getByRole("button", { name: "Mark failed" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Answer is wrong" }));
 
     expect(onVerdict).toHaveBeenNthCalledWith(1, { passed: true, note: "Fine by policy" });
     expect(onVerdict).toHaveBeenNthCalledWith(2, { passed: false, note: "Fine by policy" });
@@ -379,7 +381,7 @@ describe("ScoreCard", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Withdraw decision" }));
     await userEvent.clear(screen.getByRole("textbox", { name: "Note" }));
-    await userEvent.click(screen.getByRole("button", { name: "Mark failed" }));
+    await userEvent.click(screen.getByRole("button", { name: "Answer is wrong" }));
 
     expect(onVerdict).toHaveBeenNthCalledWith(1, { passed: null, note: null });
     expect(onVerdict).toHaveBeenNthCalledWith(2, { passed: false, note: null });
@@ -388,8 +390,10 @@ describe("ScoreCard", () => {
   it("holds the decision while one is being saved", () => {
     render(<ScoreCard score={score()} onVerdict={vi.fn()} busy />);
 
-    expect(screen.getByRole("button", { name: "Mark passed" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Mark failed" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Answer is wrong" })).toBeDisabled();
   });
 
   it("offers review only for a score not already waiting", async () => {

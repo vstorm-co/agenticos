@@ -160,3 +160,12 @@ export interface ReviewQueue {
   total: number;
   datasets: PendingDataset[];
 }
+
+export interface ReviewReevaluation {
+  by_user_id: string | null;
+  by_name: string | null;
+  at: string;
+  previous_verdict: string | null;
+  verdict: string | null;
+  undo: boolean;
+}

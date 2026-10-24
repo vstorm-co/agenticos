@@ -6147,7 +6147,11 @@
       "prefCapabilityRequested": "A capability asked for",
       "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability.",
       "prefFinding": "Findings from your watches",
-      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest."
+      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest.",
+      "prefImprovementFinished": "Improvement session finished",
+      "prefImprovementFinishedTrigger": "An improvement session you started is ready to review or stopped.",
+      "prefSuiteReevaluated": "Suite result re-evaluated",
+      "prefSuiteReevaluatedTrigger": "A human review changed the verdict of a suite you own. Promotion still requires a person."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -7809,8 +7813,8 @@
       "judgeRun": "Judge's run",
       "verdictNote": "Note",
       "verdictNotePlaceholder": "Why, for whoever reads this next (optional)",
-      "markPassed": "Mark passed",
-      "markFailed": "Mark failed",
+      "markPassed": "Answer is fine (the judge was wrong)",
+      "markFailed": "Answer is wrong",
       "withdrawVerdict": "Withdraw decision",
       "verdictSaved": "Decision saved",
       "verdictWithdrawn": "Decision withdrawn",
@@ -7967,7 +7971,24 @@
       "criterionCoverage": "Applies to {count} of {total} cases",
       "noteForTag": "for cases tagged {tag}",
       "noteAddedToTags": "The note is now a judge criterion for cases tagged {tags}.",
-      "maskedConversation": "From a conversation you cannot open"
+      "maskedConversation": "From a conversation you cannot open",
+      "countsAsPassed": "Counts as passed.",
+      "countsAsFailed": "Counts as failed.",
+      "reviewEffect": {
+        "unavailable": "The updated run could not be read. Open its check to retry.",
+        "refreshing": "Refreshing the result…",
+        "run": "Run: {verdict}",
+        "suite": "{name}: {status} after review",
+        "verdict": {
+          "better": "better",
+          "worse": "worse",
+          "mixed": "mixed",
+          "no_difference": "no reproducible change",
+          "invalid": "inconclusive"
+        },
+        "notCompared": "Run: no baseline comparison was requested.",
+        "didNotComplete": "The run did not complete. Open its check for the reason."
+      }
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
@@ -9982,6 +10003,11 @@
       "body": "Only held-out questions decide this proposal’s verdict. Training results remain available for the next improvement. Suites and promotion guards still evaluate every question.",
       "excluded": "{count, plural, one {# question is} other {# questions are}} excluded from the verdict because they repeat training questions or proposal evidence.",
       "needed": "Add {count, plural, one {# more gradable held-out question} other {# more gradable held-out questions}} to measure a change."
+    },
+    "reviewReevaluation": {
+      "by": "Re-evaluated after review by {name} · {date}",
+      "undone": "Re-evaluated after review was undone by {name} · {date}",
+      "reviewer": "a reviewer"
     }
   },
   "remoteAgents": {
@@ -10410,13 +10436,19 @@
     "storeGuards": "Save guards",
     "guardsReadOnly": "Changing these needs permission to override promotions.",
     "guardedBy": "{count, plural, =1 {Guarded by 1 suite} other {Guarded by # suites}}",
-    "waiting": "Waiting for its evals on v{version}",
     "guardsFor": "Eval suites guarding {name}",
     "overriddenOn": "Overridden on {name}",
     "overrideDetail": "{who} promoted it past {suites}: {reason}",
     "someoneWhoLeft": "Someone who has left",
     "readFailed": "Could not read the evals guarding this environment.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "openRun": "Open the check",
+    "staysOn": "Stays on v{version}",
+    "readyToPromote": "v{version} is ready for a person to promote",
+    "readStatus": "Read guard results",
+    "guardStatus": "{name}: {status}",
+    "reviewPromotion": "Review promotion",
+    "loading": "Reading guard results…"
   },
   "attention": {
     "badge": "Needs attention",
