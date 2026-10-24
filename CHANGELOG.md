@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Serialize first-account bootstrap across password and OAuth signup so only
+  one account gets deployment-administrator authority. Grant that authority
+  to the first OAuth account and recheck the signup policy after contention.
+
 - Heartbeat proactive model runs while they execute, meter each response,
   and durably settle consumed tokens on failure or cancellation, including
   repeated cancellation during terminal persistence.

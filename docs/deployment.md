@@ -159,11 +159,11 @@ to `invite_only` and invites them.
 
 Three more things about this that are easy to get wrong, and were:
 
-**The first user is always admitted.** A fresh installation has no accounts, so
-its administrator does not exist yet; a closed deployment that also refuses the
-person who would open it is one nobody can enter, with no console to fix it from.
-`register` already promotes that first account to `is_app_admin`, and the policy
-defers to the same fact.
+**The first user is always admitted.** A fresh installation has no accounts.
+The first committed account becomes the deployment administrator (`is_app_admin`),
+whether created with a password or OAuth. A transaction lock gives this exception
+to only one concurrent signup. A later signup must satisfy the configured policy;
+if the first signup rolls back, another can claim bootstrap authority.
 
 **`invite_only` exists because closing registration would otherwise break
 invitations.** `InvitationService.accept` requires an existing signed-in user, so

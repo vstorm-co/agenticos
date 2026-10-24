@@ -120,6 +120,7 @@ class TestUserServicePostgresql:
             patch("app.services.user.OrganizationService") as mock_org_svc,
             patch("app.services.user.get_email_service") as mock_email,
         ):
+            mock_repo.claim_first_account = AsyncMock(return_value=False)
             mock_repo.get_by_email = AsyncMock(return_value=None)
             mock_repo.create = AsyncMock(return_value=mock_user)
             mock_org_svc.return_value.settle_new_account = AsyncMock()

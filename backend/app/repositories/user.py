@@ -7,9 +7,24 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.locks import LockScope, hold_name
 from app.db.models.conversation import Conversation
 from app.db.models.user import User
 from app.repositories._search import contains_ci
+
+
+async def claim_first_account(db: AsyncSession) -> bool:
+    """Claim first-account admission until the caller commits or rolls back.
+
+    Ordinary sign-ups never wait on the bootstrap lock. Fresh-install contenders
+    re-read after acquiring it, so only the account actually created first gets
+    the policy exception and deployment-administrator authority.
+    """
+    exists = select(select(User.id).exists())
+    if await db.scalar(exists):
+        return False
+    await hold_name(db, LockScope.ACCOUNT_BOOTSTRAP, "deployment")
+    return not await db.scalar(exists)
 
 
 async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:

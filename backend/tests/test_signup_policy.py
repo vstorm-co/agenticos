@@ -509,6 +509,7 @@ class TestBothPathsThatMintAnAccountAreGated:
             patch("app.services.user.DeploymentSettingsService"),
         ):
             repo.get_by_email = AsyncMock(return_value=None)
+            repo.claim_first_account = AsyncMock(return_value=False)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
             orgs.return_value.settle_new_account = AsyncMock()
 
@@ -524,6 +525,7 @@ class TestBothPathsThatMintAnAccountAreGated:
         service, _checked, patch = self._service(monkeypatch, refuse=True)
         with patch("app.services.user.user_repo") as repo:
             repo.get_by_email = AsyncMock(return_value=None)
+            repo.claim_first_account = AsyncMock(return_value=False)
             repo.create = AsyncMock()
 
             with pytest.raises(AuthorizationError):
@@ -556,6 +558,7 @@ class TestBothPathsThatMintAnAccountAreGated:
         ):
             repo.get_by_oauth = AsyncMock(return_value=None)
             repo.get_by_email = AsyncMock(return_value=None)
+            repo.claim_first_account = AsyncMock(return_value=False)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
             orgs.return_value.settle_new_account = AsyncMock()
 
@@ -587,6 +590,7 @@ class TestBothPathsThatMintAnAccountAreGated:
         ):
             repo.get_by_oauth = AsyncMock(return_value=None)
             repo.get_by_email = AsyncMock(return_value=None)
+            repo.claim_first_account = AsyncMock(return_value=False)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
             orgs.return_value.settle_new_account = AsyncMock()
 
@@ -611,6 +615,7 @@ class TestBothPathsThatMintAnAccountAreGated:
         with patch("app.services.user.user_repo") as repo:
             repo.get_by_oauth = AsyncMock(return_value=None)
             repo.get_by_email = AsyncMock(return_value=None)
+            repo.claim_first_account = AsyncMock(return_value=False)
             repo.create = AsyncMock()
 
             with pytest.raises(AuthorizationError):
@@ -783,6 +788,7 @@ class TestTheTokenReachesThePolicyFromTheRequest:
             patch("app.services.user.DeploymentSettingsService"),
         ):
             repo.get_by_email = AsyncMock(return_value=None)
+            repo.claim_first_account = AsyncMock(return_value=False)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
             orgs.return_value.settle_new_account = AsyncMock()
 
@@ -817,6 +823,7 @@ class TestTheTokenReachesThePolicyFromTheRequest:
             patch("app.services.user.DeploymentSettingsService"),
         ):
             repo.get_by_email = AsyncMock(return_value=None)
+            repo.claim_first_account = AsyncMock(return_value=False)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
             orgs.return_value.settle_new_account = AsyncMock()
 
@@ -882,3 +889,17 @@ class TestWhatAdmittedTheAccount:
             mock_db_session, email="ada@acme.com", is_first_user=False, admitted_by_directory=True
         )
         assert admitted == "invitation"
+
+
+@pytest.mark.parametrize("seen", [[True], [False, False], [False, True]])
+async def test_bootstrap_claim_rechecks_under_the_lock_only_when_installation_is_empty(
+    seen: list[bool],
+) -> None:
+    from unittest.mock import patch
+
+    from app.repositories import user_repo
+
+    db = MagicMock(scalar=AsyncMock(side_effect=seen))
+    with patch("app.repositories.user.hold_name", AsyncMock()) as locked:
+        assert await user_repo.claim_first_account(db) is (not seen[-1])
+    assert locked.await_count == (0 if seen[0] else 1)

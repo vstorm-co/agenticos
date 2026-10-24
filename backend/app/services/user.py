@@ -5,7 +5,6 @@ import secrets
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,8 +91,7 @@ class UserService:
         self._vector_store = vector_store
 
     async def _is_first_user(self) -> bool:
-        count = (await self.db.execute(select(func.count()).select_from(User))).scalar_one()
-        return count == 0
+        return await user_repo.claim_first_account(self.db)
 
     async def get_by_id(self, user_id: UUID) -> User:
         user = await user_repo.get_by_id(self.db, user_id)
@@ -317,10 +315,11 @@ class UserService:
         # simply a check inside `register`: a deployment with Google sign-in and a
         # closed sign-up form is not closed at all if this branch is ungated, and
         # nothing about the OAuth callback looks like a registration.
+        is_first_user = await self._is_first_user()
         admission = await check_may_register(
             self.db,
             email=email,
-            is_first_user=await self._is_first_user(),
+            is_first_user=is_first_user,
             invitation_token=invitation_token,
             admitted_by_directory=admitted_by_directory,
         )
@@ -332,6 +331,7 @@ class UserService:
             full_name=full_name,
             oauth_provider=provider,
             oauth_id=provider_id,
+            is_app_admin=is_first_user,
         )
         await OrganizationService(self.db).settle_new_account(
             user.id,
