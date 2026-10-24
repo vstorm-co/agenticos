@@ -76,7 +76,8 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
-def no_project_recovery_copies(monkeypatch):
+def no_project_recovery_copies(monkeypatch, mock_db_session):
+    mock_db_session.begin_nested = MagicMock(return_value=MagicMock())
     monkeypatch.setattr(workspace_repo, "project_recovery_candidates", AsyncMock(return_value=[]))
 
 

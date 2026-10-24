@@ -308,8 +308,6 @@ async def mock_db_session() -> AsyncGenerator[AsyncMock]:
     mock.commit = AsyncMock()
     mock.rollback = AsyncMock()
     mock.close = AsyncMock()
-    # begin_nested() returns an async transaction context, not a coroutine.
-    mock.begin_nested = MagicMock(return_value=MagicMock())
     # A real session's `info` is a plain dict, and it is where `spawn_after_commit`
     # queues work for after the commit. Left as an `AsyncMock`, `setdefault` answers
     # a coroutine and any service deferring work raises inside the mock rather than
