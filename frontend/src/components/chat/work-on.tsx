@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { ChevronDown, Cloud, FolderOpen, Laptop, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -16,7 +17,7 @@ import type { LocalMode } from "@/lib/desktop/commands";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useConversationStore } from "@/stores";
-import { useWorkOnStore } from "@/stores/work-on-store";
+import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
 
 /** The last part of a path, which is what a person recognises a folder by. */
 function folderName(path: string): string {
@@ -54,18 +55,32 @@ function ComputerWorkOn() {
   const selectedMode =
     target?.mode ?? (modes.includes("workspace_write") ? "workspace_write" : "read_only");
 
-  const chooseFolder = (mode: LocalMode) => {
-    pick.mutate(mode, {
-      onSuccess: (grant) => {
-        if (grant)
-          setTarget(conversationId, {
-            ...target,
-            folder: grant.path,
-            mode: grant.mode,
-          });
-      },
-    });
-  };
+  // Mutation-level callbacks survive the popover unmounting while a native
+  // dialog has focus. Per-call mutate callbacks are dropped on unmount.
+  const selection = useMutation({
+    mutationFn: async (choice: {
+      mode: LocalMode;
+      linked: boolean;
+      conversationId: string | null;
+      target: LocalTarget | null;
+    }) => {
+      if (!choice.linked) {
+        const status = await link.mutateAsync();
+        if (!status.linked) return null;
+      }
+      return pick.mutateAsync(choice.mode);
+    },
+    onSuccess: (grant, choice) => {
+      if (grant)
+        setTarget(choice.conversationId, {
+          ...choice.target,
+          folder: grant.path,
+          mode: grant.mode,
+        });
+    },
+  });
+  const chooseFolder = (mode: LocalMode) =>
+    selection.mutate({ mode, linked, conversationId, target });
 
   const chooseCloud = () => {
     setTarget(conversationId, null);
@@ -73,15 +88,7 @@ function ComputerWorkOn() {
 
   const chooseComputer = () => {
     if (onComputer) return;
-    if (linked) {
-      chooseFolder(selectedMode);
-      return;
-    }
-    link.mutate(undefined, {
-      onSuccess: (status) => {
-        if (status.linked) chooseFolder(selectedMode);
-      },
-    });
+    chooseFolder(selectedMode);
   };
 
   return (
@@ -111,6 +118,7 @@ function ComputerWorkOn() {
             disabled={
               link.isPending ||
               pick.isPending ||
+              selection.isPending ||
               (key === "computer" && (device === undefined || modes.length === 0))
             }
             aria-busy={key === "computer" && link.isPending}

@@ -279,6 +279,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Keep a native folder selection when chat settings close.** Pairing and folder
+  approval now finish for the original chat even if the settings panel closes
+  while a native dialog is open, instead of dropping the choice and using Cloud.
+
 - **Native controls above opened apps.** The macOS app viewer reserves a title-bar
   row, keeping the traffic lights clear of the back button and app title while
   leaving browser viewers edge to edge.
