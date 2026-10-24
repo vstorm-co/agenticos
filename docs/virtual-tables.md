@@ -306,6 +306,9 @@ with at most 500 records per page. An organization can stream one export at a
 time and start ten per minute. Further requests return `429` with `Retry-After`;
 retry after that interval. Without Redis, the start-rate limit keeps a per-process
 floor; the database still enforces one concurrent export per organization.
+One server cursor keeps the export’s record snapshot stable, prefetching at most
+four records. It closes on completion or cancellation; later pages do not rescan
+earlier records.
 
 **Export**, under **…** beside **Share**, saves what the page shows as a CSV file: the records the filters and search
 match, in the grid's order, under its visible columns. `POST

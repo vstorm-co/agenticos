@@ -1,5 +1,5 @@
 ---
-source_sha: "9a3d4cbc2dcf"
+source_sha: "87e2e024cd58"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -347,6 +347,9 @@ einen Export gleichzeitig übertragen und zehn pro Minute starten. Weitere
 Anfragen erhalten `429` mit `Retry-After`; danach erneut versuchen. Die Startbegrenzung
 bleibt bei ausgefallenem Redis pro Prozess erhalten; die Datenbank erzwingt
 weiterhin einen gleichzeitigen Export pro Organisation.
+Ein Servercursor hält den Datensatz-Snapshot des Exports stabil und lädt höchstens
+vier Datensätze vorab. Er schließt nach Abschluss oder Abbruch; spätere Seiten
+durchlaufen frühere Datensätze nicht erneut.
 
 **Export**, unter **…** neben **Share**, speichert, was die Seite zeigt, als CSV-Datei: die Datensätze, die Filter und
 Suche treffen, in der Reihenfolge des Rasters, unter seinen sichtbaren Spalten. `POST

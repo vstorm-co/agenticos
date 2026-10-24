@@ -16,7 +16,7 @@ of a duplicate) and :func:`claim_receipt` (a retried operation key claims the sa
 row). A caller that loses the race gets `None` and reads the winner.
 """
 
-from collections.abc import Collection, Sequence
+from collections.abc import AsyncGenerator, Collection, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -771,7 +771,6 @@ async def list_records(
     skip: int,
     limit: int,
     search: SearchClause | None = None,
-    max_bytes: int | None = None,
 ) -> list[VirtualTableRecord]:
     """A page of records, in the total order of :func:`_order`."""
     query = (
@@ -781,34 +780,52 @@ async def list_records(
         .offset(skip)
         .limit(limit)
     )
-    if max_bytes is not None:
-        # Text bytes bound the decoded JSON, unlike pg_column_size on compressed
-        # TOAST values. Only IDs, positions and sizes are buffered in this page.
-        page = (
-            select(
-                VirtualTableRecord.id,
-                func.row_number().over(order_by=_order(sort)).label("position"),
-                (func.octet_length(cast(VirtualTableRecord.values, Text)) + 256).label("bytes"),
-            )
-            .where(_matching(table_id, organization_id, filters, search))
-            .order_by(*_order(sort))
-            .offset(skip)
-            .limit(limit)
-            .cte("export_page")
-        )
-        bounded = select(
-            page.c.id,
-            page.c.position,
-            func.sum(page.c.bytes).over(order_by=page.c.position).label("total_bytes"),
-        ).subquery()
-        query = (
-            select(VirtualTableRecord)
-            .join(bounded, bounded.c.id == VirtualTableRecord.id)
-            .where(or_(bounded.c.total_bytes <= max_bytes, bounded.c.position == skip + 1))
-            .order_by(bounded.c.position)
-        )
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+async def stream_export_records(
+    db: AsyncSession,
+    *,
+    table_id: UUID,
+    organization_id: UUID,
+    filters: list[FilterClause],
+    sort: SortClause,
+    search: SearchClause | None,
+    max_records: int,
+    batch_records: int,
+    batch_bytes: int,
+) -> AsyncGenerator[list[VirtualTableRecord]]:
+    """Read one ordered snapshot, with bounded driver prefetch and output batches.
+
+    Four records per cursor fetch bound raw prefetch at four times the record
+    byte ceiling. Sizes are measured before TOAST compression. Avoid OFFSET:
+    small byte-bounded pages must not re-scan and re-size preceding rows.
+    """
+    result = await db.stream(
+        select(
+            VirtualTableRecord,
+            (func.octet_length(cast(VirtualTableRecord.values, Text)) + 256).label("bytes"),
+        )
+        .where(_matching(table_id, organization_id, filters, search))
+        .order_by(*_order(sort))
+        .limit(max_records)
+        .execution_options(yield_per=4)
+    )
+    batch: list[VirtualTableRecord] = []
+    size = 0
+    try:
+        async for record, record_bytes in result:
+            if batch and (len(batch) >= batch_records or size + record_bytes > batch_bytes):
+                yield batch
+                batch = []
+                size = 0
+            batch.append(record)
+            size += record_bytes
+        if batch:
+            yield batch
+    finally:
+        await result.close()
 
 
 class RecordCells(NamedTuple):

@@ -1,5 +1,5 @@
 ---
-source_sha: "9a3d4cbc2dcf"
+source_sha: "87e2e024cd58"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -322,6 +322,9 @@ rekord), maksymalnie 500 rekordów naraz. Organizacja może przesyłać jeden ek
 jednocześnie i rozpoczynać dziesięć na minutę. Kolejne żądania zwracają `429` z
 `Retry-After`; ponów je po tym czasie. Bez Redis limit rozpoczęć zachowuje minimum
 w każdym procesie; baza nadal wymusza jeden eksport na organizację naraz.
+Jeden kursor serwera utrzymuje spójny snapshot rekordów eksportu, pobierając z
+wyprzedzeniem najwyżej cztery rekordy. Zamyka się po zakończeniu lub anulowaniu;
+kolejne strony nie skanują ponownie wcześniejszych rekordów.
 
 **Export**, w menu **…** obok **Share**, zapisuje to, co pokazuje strona, jako plik CSV: rekordy pasujące do filtrów
 i wyszukiwania, w kolejności siatki, w jej widocznych kolumnach. `POST

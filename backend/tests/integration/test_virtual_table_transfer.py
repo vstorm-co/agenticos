@@ -327,18 +327,18 @@ async def test_export_pages_are_bounded_by_uncompressed_json_bytes(db, monkeypat
     for _ in range(3):
         await service.create_record(ctx, table.id, RecordCreate(values={customer: "x" * 4000}))
     monkeypatch.setattr(records_module, "EXPORT_MAX_BYTES", byte_budget)
-    original = records_module.virtual_table_repo.list_records
+    original = records_module.virtual_table_repo.stream_export_records
     page_sizes: list[int] = []
 
     async def tracked(*args, **kwargs):
-        rows = await original(*args, **kwargs)
-        page_sizes.append(len(rows))
-        return rows
+        async for rows in original(*args, **kwargs):
+            page_sizes.append(len(rows))
+            yield rows
 
-    monkeypatch.setattr(records_module.virtual_table_repo, "list_records", tracked)
+    monkeypatch.setattr(records_module.virtual_table_repo, "stream_export_records", tracked)
     result = await _csv(service, ctx, table)
     assert len(result.splitlines()) == 4
-    assert page_sizes == [1, 1, 1, 0]
+    assert page_sizes == [1, 1, 1]
 
 
 @pytest.mark.security
@@ -357,3 +357,60 @@ async def test_export_refuses_rate_and_concurrency_limits_before_streaming(db, m
     with pytest.raises(RateLimitError) as busy:
         await service.export_records(ctx, table.id, RecordExportQuery())
     assert busy.value.details["retry_after_seconds"] == 1
+
+
+@pytest.mark.parametrize("empty", [True, False])
+async def test_export_owns_one_cursor_and_closes_it_on_finish_or_early_close(
+    db, monkeypatch, empty
+):
+    service, ctx, table = await _setup(db)
+    if not empty:
+        customer = cid(table, "Customer")
+        for i in range(5):
+            await service.create_record(ctx, table.id, RecordCreate(values={customer: str(i)}))
+    monkeypatch.setattr(records_module, "EXPORT_BATCH", 1)
+    results = []
+    original = db.stream
+
+    async def opened(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        results.append(result)
+        return result
+
+    monkeypatch.setattr(db, "stream", opened)
+    export = await service.export_records(ctx, table.id, RecordExportQuery())
+    assert (await anext(export.lines)).startswith("\ufeff")
+    if empty:
+        assert [line async for line in export.lines] == []
+    else:
+        await anext(export.lines)
+        assert len(results) == 1 and not results[0].closed
+        await export.lines.aclose()
+    assert len(results) == 1 and results[0].closed
+
+
+async def test_export_cursor_keeps_one_record_snapshot_across_concurrent_edits(
+    db, engine, monkeypatch
+):
+    from sqlalchemy import update
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.models.virtual_table import VirtualTableRecord
+
+    service, ctx, table = await _setup(db)
+    customer = cid(table, "Customer")
+    for _ in range(5):
+        await service.create_record(ctx, table.id, RecordCreate(values={customer: "original"}))
+    await db.commit()
+    monkeypatch.setattr(records_module, "EXPORT_BATCH", 1)
+    export = await service.export_records(ctx, table.id, RecordExportQuery(columns=[customer]))
+    await anext(export.lines)
+    assert (await anext(export.lines)).strip() == "original"
+    async with async_sessionmaker(engine)() as other:
+        await other.execute(
+            update(VirtualTableRecord)
+            .where(VirtualTableRecord.table_id == table.id)
+            .values(values={customer: "changed"})
+        )
+        await other.commit()
+    assert [line.strip() async for line in export.lines] == ["original"] * 4

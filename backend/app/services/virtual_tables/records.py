@@ -19,7 +19,8 @@ import csv
 import io
 import json
 import re
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
+from contextlib import aclosing
 from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
@@ -332,7 +333,7 @@ class RecordExport:
     """A CSV export: what to call the file, and its lines as they are read."""
 
     filename: str
-    lines: AsyncIterator[str]
+    lines: AsyncGenerator[str]
 
 
 def _csv_line(cells: list[str]) -> str:
@@ -906,30 +907,28 @@ class RecordOperations(Operations):
                 details={"retry_after_seconds": 1},
             )
 
-        async def lines() -> AsyncIterator[str]:
+        async def lines() -> AsyncGenerator[str]:
             # A byte-order mark, so a spreadsheet reads the file as UTF-8.
             yield "\ufeff" + _csv_line([_neutralized(column.label) for column in chosen])
-            skip = 0
-            while True:
-                rows = await virtual_table_repo.list_records(
+            async with aclosing(
+                virtual_table_repo.stream_export_records(
                     self.db,
                     table_id=table.id,
                     organization_id=ctx.organization_id,
                     filters=filters,
                     search=search,
                     sort=sort,
-                    skip=skip,
-                    limit=EXPORT_BATCH,
-                    max_bytes=EXPORT_MAX_BYTES,
+                    max_records=MAX_COUNT,
+                    batch_records=EXPORT_BATCH,
+                    batch_bytes=EXPORT_MAX_BYTES,
                 )
-                read = await read_through(
-                    self.db, ctx, columns, [RecordRead.model_validate(row) for row in rows]
-                )
-                for record in read:
-                    yield _csv_line([_export_cell(column, record) for column in chosen])
-                if not rows:
-                    return
-                skip += len(rows)
+            ) as batches:
+                async for rows in batches:
+                    read = await read_through(
+                        self.db, ctx, columns, [RecordRead.model_validate(row) for row in rows]
+                    )
+                    for record in read:
+                        yield _csv_line([_export_cell(column, record) for column in chosen])
 
         name = re.sub(r"[^A-Za-z0-9._-]+", "-", table.name).strip("-") or "table"
         return RecordExport(filename=f"{name}.csv", lines=lines())

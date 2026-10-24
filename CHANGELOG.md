@@ -643,6 +643,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Stream table exports through one bounded cursor instead of rescanning byte-sized
+  pages. Concurrent edits cannot mix record snapshots; early close releases the cursor.
+
 - Bound table export pages by decoded JSON bytes, serialize exports per organization
   and rate-limit their starts. Redact echoed MCP credentials, share one image-attachment
   byte ceiling and normalize workflow filenames before persistence.

@@ -1,5 +1,5 @@
 ---
-source_sha: "9a3d4cbc2dcf"
+source_sha: "87e2e024cd58"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -325,6 +325,9 @@ una exportación a la vez e iniciar diez por minuto. Las solicitudes adicionales
 reciben `429` con `Retry-After`; vuelve a intentarlo después. El límite de inicios
 se mantiene por proceso sin Redis; la base de datos sigue imponiendo una
 exportación simultánea por organización.
+Un cursor del servidor mantiene estable la instantánea de registros y precarga
+como máximo cuatro registros. Se cierra al terminar o cancelar; las páginas
+posteriores no vuelven a recorrer registros anteriores.
 
 **Export**, bajo **…** junto a **Share**, guarda lo que muestra la página como un archivo CSV: los registros que
 coinciden con los filtros y la búsqueda, en el orden de la cuadrícula, con sus columnas
