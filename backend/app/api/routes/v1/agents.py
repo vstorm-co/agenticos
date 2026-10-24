@@ -38,6 +38,7 @@ from app.api.deps import (
     MentionSvc,
     MLSvc,
     PrefersAsync,
+    SystemAgentSvc,
     limit_agent_run,
     limit_dictation,
     require,
@@ -81,6 +82,7 @@ from app.schemas.agent import (
     PromptVariableRead,
     RunRequestRead,
     SpecialistPromote,
+    SystemAgentCreate,
     TemplateInstallRequest,
     TemplateInstallResult,
 )
@@ -276,7 +278,8 @@ async def list_agents(
             "`agent` for the agents people use, `judge` for the ones grading evals, "
             "`drafter` for the one drafting knowledge gaps' missing content, "
             "`generator` for the one drafting dataset cases, "
-            "`classifier` for the one reading answers for knowledge gaps"
+            "`classifier` for the one reading answers for knowledge gaps, "
+            "`improver` for the authoring assistant"
         ),
     ),
     category: Annotated[
@@ -325,6 +328,22 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         group_ids=data.group_ids,
         user_ids=data.user_ids,
     )
+
+
+@router.post(
+    "/system",
+    response_model=AgentRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def create_system_agent(data: SystemAgentCreate, service: SystemAgentSvc, ctx: Auth) -> Any:
+    """Create a system agent of the organization's own - today, a judge.
+
+    It starts from its kind's definition and publishes when the caller may
+    publish it. Every other kind is refused naming `kind`: the platform always
+    runs the organization's seeded one, so another would never run.
+    """
+    return await service.create_from_console(ctx, data)
 
 
 @router.post(

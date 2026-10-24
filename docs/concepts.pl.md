@@ -1,5 +1,5 @@
 ---
-source_sha: "cdfa3337e6c5"
+source_sha: "e7d1bbd43d1b"
 ---
 
 # Koncepcje { #concepts }
@@ -607,9 +607,10 @@ a dataset może dostać własnego sędziego.
 Agent systemowy należy do platformy, która go uruchamia, a nie jest agentem,
 którego używają ludzie. Agents pokazuje ich osobno, w zwiniętym pasie **Agenci
 systemowi** pod **Agenci**, pogrupowanych według rodzaju: najpierw **Sędziowie**
-- każda karta mówi, które datasety ocenia dany sędzia, a ten utworzony przez
-platformę jest oznaczony jako **Domyślny sędzia** - potem **Autor szkiców luk**, a na
-końcu **Klasyfikator luk**.
+- każda karta mówi, które datasety ocenia dany sędzia - potem **Autor szkiców
+luk**, a na końcu **Klasyfikator luk**. Agent każdego rodzaju utworzony przez
+platformę jest oznaczony jako domyślny dla tego rodzaju - **Domyślny sędzia**,
+**Domyślny generator przypadków** i tak dalej.
 Wybory agenta ich pomijają.
 
 Kto ma `agents:edit`, otwiera takiego agenta, żeby zmienić jego instrukcje,
@@ -619,6 +620,15 @@ datasety, które go wybrały, z włączonym ocenianiem albo bez - każdy rozwija
 na jego ostatnie oceny i runy ewaluacji, z których pochodzą - wraz z tym, jak
 często ludzie zgodzili się z nim w wynikach, które ocenił, a oni rozstrzygnęli,
 i nic więcej. Strony draftera i klasyfikatora zawierają to samo bez datasetów.
+
+**New agent** dodaje też agenta systemowego: wybierz **Agent systemowy**, potem
+**Sędzia** i nadaj mu nazwę (`POST /agents/system`). Startuje z definicji Eval
+judge - jego instrukcji, temperatury i budżetu - na pierwszym modelu
+organizacji, jest publikowany, gdy możesz publikować agentów, i pojawia się
+wśród **Sędziów**, żeby dataset mógł go wybrać na swojej zakładce Ocenianie.
+Pozostałe rodzaje są wymienione z opisem tego, co robią, ale nie da się ich
+dodać: platforma zawsze uruchamia własnego agenta organizacji, więc kolejny
+nigdy by nie zadziałał. Zamiast tego otwórz ten, który już jest.
 
 Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
 wysyłają powiadomienia o runie. Agent systemowy startuje z niewielkim własnym

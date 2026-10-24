@@ -584,8 +584,10 @@ something needs it, and a dataset may get a judge of its own.
 
 A system agent is the platform's to run, not an agent people use. Agents lists
 them apart, in a folded **System agents** band under **Agents**, grouped by
-kind: **Judges**, each card saying which datasets it grades and the seeded one
-marked **Default judge**, then the **Gap drafter** and, last, the **Gap classifier**.
+kind: **Judges**, each card saying which datasets it grades, then the **Gap
+drafter** and, last, the **Gap classifier**. The seeded agent of each kind is
+marked as that kind's default - **Default judge**, **Default case generator**
+and so on.
 Agent pickers leave them out.
 
 Whoever holds `agents:edit` opens one to change its instructions, model and
@@ -595,6 +597,14 @@ and the datasets that picked it, grading or not - each opening on its latest
 grades there and the eval runs they came from - with how often people agreed
 with it on the results it graded and they decided, and nothing else. The
 drafter's and the classifier's hold the same without the datasets.
+
+**New agent** adds a system agent too: choose **System agent**, pick **Judge**
+and name it (`POST /agents/system`). It starts from the Eval judge's
+definition - its instructions, temperature and budget - on the organization's
+first model, is published when you may publish agents, and is listed under
+**Judges** for a dataset to pick on its Grading tab. The other kinds are listed
+with what each does but cannot be added: the platform always runs the
+organization's own, so another would never run. Open that one instead.
 
 Its runs are budget-checked and recorded like any other, and send no run
 notification. A system agent starts with a small monthly budget of its own, so

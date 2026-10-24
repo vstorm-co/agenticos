@@ -51,6 +51,21 @@ export function useJudges({ enabled = true } = {}) {
   return useAgentsOfKind("judge", { enabled });
 }
 
+/** What New agent sends to add a system agent of the organization's own. */
+export interface SystemAgentCreate {
+  kind: SystemAgentKind;
+  name: string;
+}
+
+/** Add a system agent - today, a judge - from its kind's definition. */
+export function useCreateSystemAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SystemAgentCreate) => apiClient.post<Agent>("/agents/system", data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+  });
+}
+
 /** The organization's system agents of one kind, which every other agent list leaves out. */
 export function useAgentsOfKind(kind: SystemAgentKind, { enabled = true } = {}) {
   const { data, isLoading, error } = useQuery({

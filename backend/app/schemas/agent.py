@@ -13,6 +13,7 @@ from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
 from app.db.models.agent import AgentKind
+from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
 from app.schemas.promotion_gate import PromotionOverrideRead
 from app.schemas.resource_grant import AudienceChoice
@@ -288,6 +289,22 @@ class AgentList(BaseSchema):
         default_factory=list,
         description="Every distinct tag on the agents the caller may list, the same way",
     )
+
+
+SystemAgentKindLiteral = Literal["judge", "drafter", "generator", "classifier", "improver"]
+
+
+class SystemAgentCreate(BaseSchema):
+    """A system agent of the organization's own, made from its kind's definition."""
+
+    kind: SystemAgentKindLiteral = Field(
+        description="Which kind of system agent; only `judge` can be added today"
+    )
+    name: str = Field(min_length=1, max_length=128)
+    model_profile_id: UUID | None = Field(
+        default=None, description="The model it runs on; the organization's oldest if omitted"
+    )
+    visibility: Visibility = Field(default=Visibility.ORG)
 
 
 class AgentCreate(AudienceChoice):

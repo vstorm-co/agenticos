@@ -17,7 +17,9 @@ from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER, JUDGE
 from app.core.exceptions import (
     AiAssistanceDisabledError,
+    AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     NotFoundError,
     SystemAgentUnavailableError,
 )
@@ -32,6 +34,7 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import agent_repo
+from app.schemas.agent import SystemAgentCreate
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.ai_assistance import AiAssistanceService
@@ -413,6 +416,77 @@ class TestADatasetsOwnJudge:
                 description="Grades refunds.",
                 instructions="Be strict.",
                 model_profile_id=theirs.id,
+            )
+
+
+class TestASystemAgentFromNewAgent:
+    async def test_a_judge_starts_from_its_definition_and_publishes(self, db) -> None:
+        organization, owner = await _organization(db)
+        oldest = await _profile(db, organization, label="Only", created_at=datetime.now(UTC))
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+
+        judge = await SystemAgentService(db).create_from_console(
+            ctx, SystemAgentCreate(kind="judge", name="Second opinion")
+        )
+
+        assert (judge.kind, judge.system_key, judge.status, judge.name) == (
+            AgentKind.JUDGE.value,
+            None,
+            AgentStatus.PUBLISHED.value,
+            "Second opinion",
+        )
+        version = await db.get(AgentVersion, judge.current_version_id)
+        assert version is not None
+        assert (version.spec["model_profile_id"], version.spec["instructions"]) == (
+            str(oldest.id),
+            JUDGE.instructions,
+        )
+        assert version.spec["description"] == JUDGE.description
+        assert version.spec["model_settings"]["temperature"] == JUDGE.temperature
+        assert version.spec["budget"]["monthly_usd"] == JUDGE.monthly_usd
+
+    async def test_a_member_who_may_not_publish_gets_a_draft(self, db) -> None:
+        organization, _ = await _organization(db)
+        await _profile(db, organization, label="Only", created_at=datetime.now(UTC))
+        member = await _user(db)
+        await _member(db, organization, member, OrgRoleName.MEMBER)
+        ctx = AuthContext(
+            user_id=member.id, organization_id=organization.id, role=OrgRoleName.MEMBER
+        )
+
+        judge = await SystemAgentService(db).create_from_console(
+            ctx, SystemAgentCreate(kind="judge", name="Mine")
+        )
+
+        assert (judge.kind, judge.status) == (AgentKind.JUDGE.value, AgentStatus.DRAFT.value)
+
+    @pytest.mark.parametrize("kind", ["generator", "drafter", "classifier", "improver"])
+    async def test_a_kind_that_would_never_run_is_refused_naming_kind(self, db, kind) -> None:
+        organization, owner = await _organization(db)
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+
+        with pytest.raises(BadRequestError) as refused:
+            await SystemAgentService(db).create_from_console(
+                ctx, SystemAgentCreate(kind=kind, name="Another")
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "kind"
+        assert "would never run" in refused.value.message
+        assert (await db.execute(select(Agent))).first() is None
+
+    async def test_a_taken_name_or_another_organization_s_model_is_refused(self, db) -> None:
+        organization, owner = await _organization(db)
+        other, _ = await _organization(db)
+        theirs = await _profile(db, other, label="Theirs", created_at=datetime.now(UTC))
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+        service = SystemAgentService(db)
+        await service.create_from_console(ctx, SystemAgentCreate(kind="judge", name="Grader"))
+
+        with pytest.raises(AlreadyExistsError):
+            await service.create_from_console(ctx, SystemAgentCreate(kind="judge", name="Grader"))
+        with pytest.raises(NotFoundError):
+            await service.create_from_console(
+                ctx, SystemAgentCreate(kind="judge", name="Other", model_profile_id=theirs.id)
             )
 
 

@@ -360,6 +360,27 @@
     "neverEdited": "never edited",
     "neverPublished": "Never published.",
     "newAgent": "New agent",
+    "newKindLabel": "What to create",
+    "newKindAgent": "Agent",
+    "newKindSystem": "System agent",
+    "systemKindLabel": "Kind of system agent",
+    "systemKind": {
+      "judge": "Judge",
+      "judgeBody": "Grades answers in evals against a dataset's criteria; a dataset can pick it as its own.",
+      "drafter": "Gap drafter",
+      "drafterBody": "Drafts the passage a knowledge base is missing, for a person to review.",
+      "generator": "Case generator",
+      "generatorBody": "Drafts test cases for a dataset from an agent's instructions, knowledge and chats.",
+      "classifier": "Gap classifier",
+      "classifierBody": "Reads answers and comments to tell missing knowledge from other mistakes.",
+      "improver": "Authoring assistant",
+      "improverBody": "Proposes changes to an agent from its ratings and run outcomes."
+    },
+    "systemKindLocked": "The platform runs one per organization, so another would never run. Change the organization's own instead.",
+    "systemKindOpenOwn": "Open it",
+    "systemRunsOn": "It runs on the organization's first model, which you change on its page. With no model set up yet, it waits as a draft.",
+    "systemNamePlaceholder": "Second opinion",
+    "systemStartsAs": "Published straight away if you may publish agents; otherwise a draft until someone who may publishes it. A draft judge grades nothing.",
     "newEnvironment": "New environment",
     "noCapabilityOrToolMatches": "No capability or tool matches “{query}”.",
     "noDelegatesYet": "No delegates yet. Only a published agent can be one - there is a version to pin.",
@@ -699,8 +720,18 @@
     "generatorKindHint": "It drafts test cases for a dataset from an agent, its knowledge base, real chats and red teaming; a person accepts or dismisses every draft.",
     "improverKind": "{count, plural, =1 {Authoring assistant (1)} other {Authoring assistants (#)}}",
     "improverKindHint": "It reads rated-down answers and failed runs and suggests changes to agents and skills, when somebody asks it to improve one.",
-    "defaultJudge": "Default judge",
-    "defaultJudgeHint": "Grades every dataset that has no judge of its own.",
+    "defaultBadge": {
+      "judge": "Default judge",
+      "judgeHint": "Grades every dataset that has no judge of its own.",
+      "drafter": "Default gap drafter",
+      "drafterHint": "Drafts what every knowledge base is missing.",
+      "generator": "Default case generator",
+      "generatorHint": "Drafts the cases every dataset asks for.",
+      "classifier": "Default gap classifier",
+      "classifierHint": "Reads the answers for every knowledge base's gaps.",
+      "improver": "Default authoring assistant",
+      "improverHint": "Proposes the improvements every agent is offered."
+    },
     "judgeUsedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
     "judgeUnused": "No dataset uses this judge yet.",
     "judgeDatasets": "Datasets",
@@ -4113,7 +4144,7 @@
       },
       "flow-agent-create": {
         "title": "Name your agent",
-        "body": "Choose New agent, give it a name and a short description, and create it. That opens the builder, where the rest of this happens. We'll move on as soon as it's created."
+        "body": "Choose New agent, keep Agent selected, give it a name and a short description, and create it. That opens the builder, where the rest of this happens. We'll move on as soon as it's created."
       },
       "flow-agent-instructions": {
         "title": "Write its instructions",
@@ -4602,7 +4633,7 @@
       },
       "agents-system": {
         "title": "System agents",
-        "body": "The agents the platform runs itself, grouped by what they do: the judges that grade eval answers and the drafter that writes what a knowledge gap is missing. Open one to change its instructions, model or budget; a dataset picks its judge on its Grading tab."
+        "body": "The agents the platform runs itself, grouped by what they do: the judges that grade eval answers, the case generator, the gap drafter and classifier, and the authoring assistant. Open one to change its instructions, model or budget; a dataset picks its judge on its Grading tab, and New agent adds another judge."
       },
       "dataset-judge": {
         "title": "The judge",

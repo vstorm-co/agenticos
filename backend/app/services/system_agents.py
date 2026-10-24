@@ -12,7 +12,8 @@ Without a profile it stays a draft, as any agent without a model does: a person
 picks the model and publishes it, and until then the features that use it say so.
 
 An organization may also create more agents of a definition's kind - a judge of
-a dataset's own (:meth:`SystemAgentService.create_judge`). Each starts from the
+a dataset's own (:meth:`SystemAgentService.create_judge`), or one from New agent
+(:meth:`SystemAgentService.create_from_console`). Each starts from the
 definition's budget, publishes the same way, and is isolated like the seeded one;
 only the seeded one carries the key.
 """
@@ -32,10 +33,12 @@ from app.core.exceptions import (
     NotFoundError,
     SystemAgentUnavailableError,
 )
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentKind
 from app.db.models.resource_grant import Visibility
 from app.repositories import agent_repo, credential_repo, member_repo
+from app.schemas.agent import SystemAgentCreate
 from app.services.access import AGENT, resolve_access
 from app.services.agent_registry import AgentRegistryService
 
@@ -202,12 +205,44 @@ class SystemAgentService:
     ) -> Agent:
         """A judge of the organization's own, created by the caller from the judge definition.
 
+        As :meth:`create_of_kind` creates one, with the prompt and description of
+        the dataset it grades.
+
+        Raises:
+            AlreadyExistsError: Another agent of the organization holds the name.
+            NotFoundError: `model_profile_id` is not one of the organization's models.
+        """
+        return await self.create_of_kind(
+            ctx,
+            JUDGE,
+            name=name,
+            visibility=visibility,
+            model_profile_id=model_profile_id,
+            description=description,
+            instructions=instructions,
+        )
+
+    async def create_of_kind(
+        self,
+        ctx: AuthContext,
+        definition: SystemAgentDef,
+        *,
+        name: str,
+        visibility: Visibility,
+        model_profile_id: UUID | None = None,
+        description: str | None = None,
+        instructions: str | None = None,
+    ) -> Agent:
+        """An agent of `definition`'s kind, created by the caller from the definition.
+
         It runs on `model_profile_id`, or on the organization's oldest model, at
-        the definition's temperature, and is as widely visible as `visibility` -
-        the dataset's it grades, whose name and description its prompt holds. It
-        publishes straight away when it has a model and the caller may publish
-        it - a draft otherwise, like the seeded judge, for somebody who may. The
-        caller has already been allowed to create agents.
+        the definition's temperature and budget, with its description and
+        instructions unless others are given, and is as widely visible as
+        `visibility`. It publishes straight away when it has a model and the
+        caller may publish it - a draft otherwise, like a seeded one, for
+        somebody who may. It never carries the definition's key: the seeded one
+        stays the organization's default. The caller has already been allowed to
+        create agents.
 
         Raises:
             AlreadyExistsError: Another agent of the organization holds the name.
@@ -230,20 +265,46 @@ class SystemAgentService:
             )
         spec = AgentSpec(
             name=name,
-            description=description,
-            instructions=instructions,
+            description=definition.description if description is None else description,
+            instructions=definition.instructions if instructions is None else instructions,
             model_profile_id=model_profile_id,
-            model_settings=ModelSettingsSpec(temperature=JUDGE.temperature),
-            budget=BudgetSpec(monthly_usd=JUDGE.monthly_usd),
+            model_settings=ModelSettingsSpec(temperature=definition.temperature),
+            budget=BudgetSpec(monthly_usd=definition.monthly_usd),
         )
         agent = await self.registry.create(ctx, spec, visibility=visibility)
         agent = await agent_repo.update(
-            self.db, agent=agent, update_data={"kind": AgentKind.JUDGE.value}
+            self.db, agent=agent, update_data={"kind": definition.kind.value}
         )
         publishes = model_profile_id is not None and await resolve_access(
             self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
         return await self._publish(ctx, agent, published=publishes, note="Created")
+
+    async def create_from_console(self, ctx: AuthContext, data: SystemAgentCreate) -> Agent:
+        """A system agent the caller picked in New agent: today, a judge.
+
+        A judge is picked where it is used - a dataset grades with its own - so a
+        second one does something. Every other kind always runs as the
+        organization's seeded one, so another would never run, and is refused.
+
+        Raises:
+            BadRequestError: Naming `kind`, for a kind that cannot be added.
+            AlreadyExistsError, NotFoundError: As :meth:`create_of_kind` does.
+        """
+        definition = next(d for d in SYSTEM_AGENTS if d.kind.value == data.kind)
+        if definition.kind is not AgentKind.JUDGE:
+            raise refused_field(
+                "kind",
+                f"Another {definition.name.lower()} would never run: the platform always "
+                "uses the organization's own.",
+            )
+        return await self.create_of_kind(
+            ctx,
+            definition,
+            name=data.name,
+            visibility=data.visibility,
+            model_profile_id=data.model_profile_id,
+        )
 
     async def _publish(
         self, ctx: AuthContext, agent: Agent, *, published: bool, note: str

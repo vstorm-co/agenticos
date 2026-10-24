@@ -30,6 +30,7 @@ import {
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
+import { isSystemAgent } from "@/lib/system-agents";
 import type { Agent } from "@/types/agents";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -168,9 +169,13 @@ export function AgentCard({
                     {tAttention("badge")}
                   </Badge>
                 )}
-                {agent.system_key && (
-                  <Badge variant="secondary" className="font-normal" title={t("defaultJudgeHint")}>
-                    {t("defaultJudge")}
+                {agent.system_key && agent.kind && isSystemAgent(agent.kind) && (
+                  <Badge
+                    variant="secondary"
+                    className="font-normal"
+                    title={t(`defaultBadge.${agent.kind}Hint`)}
+                  >
+                    {t(`defaultBadge.${agent.kind}`)}
                   </Badge>
                 )}
                 {(agent.channels ?? []).map((channel) => (

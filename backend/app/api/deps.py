@@ -675,6 +675,16 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
 
+from app.services.system_agents import SystemAgentService
+
+
+def get_system_agent_service(db: DBSession) -> SystemAgentService:
+    """Create SystemAgentService instance with database session."""
+    return SystemAgentService(db)
+
+
+SystemAgentSvc = Annotated[SystemAgentService, Depends(get_system_agent_service)]
+
 
 from app.services.knowledge_reach import KnowledgeReachService
 
