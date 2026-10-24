@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Sandbox launchers use Docker Desktop's VM socket group on macOS, retain the
+  socket group on Linux and respect explicit `DOCKER_GID` overrides (#2296).
+
 ## [1.16.0] - 2026-10-23
 
 ### Added
@@ -106,9 +111,6 @@ Two things are versioned separately from this file and worth knowing about:
   another name in the draft, and publish it.
 
 ### Fixed
-
-- Sandbox launchers use Docker Desktop's VM socket group on macOS, retain the
-  socket group on Linux and respect explicit `DOCKER_GID` overrides (#2296).
 
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
