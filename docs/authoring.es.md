@@ -1,5 +1,5 @@
 ---
-source_sha: "ca20d4a2f37f"
+source_sha: "b3157fa045a8"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -69,6 +69,10 @@ Verificar nombra la línea de la edición a la que se refiere, y esa línea tien
 que formar parte de la edición. La barra muestra esa línea encima de las citas
 del hallazgo, para que el lector juzgue si la respaldan. Un hallazgo de que la
 edición está respaldada sin ninguna cita que se pueda comprobar no se muestra.
+
+Cuando termina una solicitud de mejora con el Builder abierto, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Los cambios muestran antes y después en paralelo, con justificación y evidencia enlazada. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
+
+Tras completar una comprobación, las personas con `runs:view` pueden comparar respuestas de ambos lados en el diálogo y abrir la comprobación completa. Antes, el diálogo propone ejecutarla. Un agente sin chats valorados ni evidencia de entrenamiento muestra una línea compacta del asistente sobre sus instrucciones.
 
 ## Sugerencias { #suggestions }
 

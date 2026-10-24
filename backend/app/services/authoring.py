@@ -649,7 +649,11 @@ class AuthoringService:
             None,
         )
         quotes = ctx.has(Perm.RUNS_VIEW)
+        has_evidence = None
+        if quotes and not requests and batch is None:
+            has_evidence = bool((await self.evidence.for_agent(ctx, agent.id, window_days=30)).runs)
         return AgentAuthoringRead(
+            has_evidence=has_evidence,
             batch=None if batch is None else await self._batch(ctx, agent, batch),
             latest=None if not requests else self._request(requests[0], quotes=quotes),
             verify=None if verify is None else self._request(verify, quotes=quotes),

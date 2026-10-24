@@ -371,6 +371,7 @@ class AgentAuthoringRead(BaseSchema):
         verify: The newest finished Verify, whose findings the verify card shows.
     """
 
+    has_evidence: bool | None = None
     batch: BatchRead | None
     latest: AuthoringRequestRead | None
     verify: AuthoringRequestRead | None

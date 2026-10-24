@@ -46,7 +46,7 @@ export interface AuthoringRequest {
   cost_usd: string;
   run_ids: string[];
   window_days: number;
-  evidence: { runs?: number; rated_down?: number };
+  evidence: { runs?: number; rated_down?: number; problem_answers?: number };
   report: {
     summary?: string;
     expected_effect?: string;
@@ -196,6 +196,7 @@ export interface SuggestionBatch {
 }
 
 export interface AgentAuthoring {
+  has_evidence?: boolean | null;
   batch: SuggestionBatch | null;
   latest: AuthoringRequest | null;
   verify: AuthoringRequest | null;

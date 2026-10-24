@@ -1,5 +1,5 @@
 ---
-source_sha: "ca20d4a2f37f"
+source_sha: "b3157fa045a8"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -71,6 +71,10 @@ nennt ein Befund von Prüfen die Zeile der Änderung, um die es geht, und diese
 Zeile muss Teil der Änderung sein. Die Leiste zeigt sie über den Zitaten des
 Befunds, damit der Leser beurteilen kann, ob sie sie stützen. Ein Befund, die
 Änderung sei belegt, dem kein prüfbares Zitat bleibt, wird nicht gezeigt.
+
+Endet eine Verbesserungsanfrage bei geöffnetem Builder, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Änderungen zeigen Vorher und Nachher nebeneinander mit Begründung und verlinkten Belegen. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
+
+Nach einer abgeschlossenen Prüfung können Leser mit `runs:view` Antworten beider Seiten im Dialog vergleichen und die vollständige Prüfung öffnen. Vorher fordert der Dialog zum Prüfen auf. Ohne bewertete Chats oder Trainingsbelege erscheint der Assistent als kompakte Zeile über den Anweisungen.
 
 ## Vorschläge { #suggestions }
 

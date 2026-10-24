@@ -1,5 +1,5 @@
 ---
-source_sha: "ca20d4a2f37f"
+source_sha: "b3157fa045a8"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -69,6 +69,10 @@ wskazuje linię edycji, której dotyczy, a ta linia musi być częścią edycji.
 pokazuje ją nad cytatami ustalenia, żeby czytelnik ocenił, czy go popierają.
 Ustalenie, że edycja ma poparcie, któremu nie został żaden cytat do sprawdzenia,
 nie jest pokazywane.
+
+Gdy żądanie poprawy kończy się przy otwartym Builderze, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Zmiany pokazują tekst przed poprawą i po niej obok siebie, z uzasadnieniem i linkami do materiału źródłowego. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
+
+Po zakończeniu sprawdzenia osoby z `runs:view` mogą porównać odpowiedzi obu stron w dialogu i otworzyć pełne sprawdzenie. Wcześniej dialog proponuje jego uruchomienie. Agent bez ocenionych rozmów ani materiału treningowego ma nad instrukcjami zwięzły wiersz asystenta.
 
 ## Sugestie { #suggestions }
 

@@ -24,6 +24,7 @@ import { ImproveDialog } from "./improve-dialog";
 import { SuggestionList } from "./suggestion-list";
 import { RejectedChanges } from "./rejected-changes";
 import { VerifyReport } from "./verify-report";
+import { AuthoringResultNotice } from "./result-dialog";
 
 /**
  * The authoring assistant on the Build tab: ask it to improve the agent or to
@@ -77,6 +78,7 @@ export function AssistantStrip({
   // Until the latest request is known, a click could start a second one beside it.
   const unknown = assistant.isLoading || assistant.error !== null;
   const off = enabled === false;
+  const compact = authoring?.has_evidence === false && batch === null && latest === null;
 
   async function onDecide(hunk: Hunk, decision: HunkDecision) {
     if (!(await persist())) return;
@@ -147,34 +149,44 @@ export function AssistantStrip({
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {off && orgId !== null && <AiOffNotice orgId={orgId} />}
-        {latest?.status === "failed" && (
-          <p role="alert" className="text-destructive text-sm">
-            {latest.error}
-          </p>
-        )}
-        {!working && batch === null && latest === null && (
-          <p className="text-muted-foreground text-sm">{t("empty")}</p>
-        )}
-        {batch !== null && (
-          <SuggestionList
-            batch={batch}
-            agentId={agentId}
-            busy={decide.isPending}
-            onDecide={onDecide}
-          />
-        )}
-        {latest?.status === "completed" && <RejectedChanges report={latest.report} />}
-        {authoring?.verify?.report?.findings !== undefined && (
-          <details>
-            <summary className="cursor-pointer text-sm font-medium">{t("verifyReport")}</summary>
-            <div className="pt-3">
-              <VerifyReport findings={authoring.verify.report.findings} />
-            </div>
-          </details>
-        )}
-      </CardContent>
+      {!compact && (
+        <CardContent className="space-y-4">
+          {off && orgId !== null && <AiOffNotice orgId={orgId} />}
+          {latest?.status === "failed" && (
+            <p role="alert" className="text-destructive text-sm">
+              {latest.error}
+            </p>
+          )}
+          {!working && batch === null && latest === null && (
+            <p className="text-muted-foreground text-sm">{t("empty")}</p>
+          )}
+          {batch !== null && (
+            <SuggestionList
+              batch={batch}
+              agentId={agentId}
+              busy={decide.isPending}
+              onDecide={onDecide}
+            />
+          )}
+          {latest !== null && (
+            <AuthoringResultNotice
+              key={`${orgId}:${agentId}:${latest.id}`}
+              request={latest}
+              batch={batch}
+              canReadRuns={canAsk}
+            />
+          )}
+          {latest?.status === "completed" && <RejectedChanges report={latest.report} />}
+          {authoring?.verify?.report?.findings !== undefined && (
+            <details>
+              <summary className="cursor-pointer text-sm font-medium">{t("verifyReport")}</summary>
+              <div className="pt-3">
+                <VerifyReport findings={authoring.verify.report.findings} />
+              </div>
+            </details>
+          )}
+        </CardContent>
+      )}
       {asking !== null && (
         <ImproveDialog
           kind={asking}

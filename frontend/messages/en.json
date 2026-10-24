@@ -10203,7 +10203,8 @@
         "published": "These suggestions were decided into a version that is now published."
       },
       "expected": "Expected effect:",
-      "checks": "Checked with evals:"
+      "checks": "Checked with evals:",
+      "fromEvidence": "Proposed to address problems in {count, plural, one {# source answer} other {# source answers}}. See the linked evidence below."
     },
     "checkResult": {
       "running": "Checking on {name}…",
@@ -10345,6 +10346,28 @@
       "atPromotion": "{suites} {count, plural, =1 {checks} other {check}} it at the next promotion.",
       "suites": "{count, plural, =1 {1 eval suite} other {# eval suites}}",
       "nowhere": "No published agent reads it yet, so applying it changes no answers today."
+    },
+    "result": {
+      "open": "Review result",
+      "title": "Suggested improvements",
+      "counts": "Reviewed {reviewed, plural, one {# source answer} other {# source answers}}. Proposed {proposed, plural, one {# change} other {# changes}}; {recorded, plural, one {# is ready to review} other {# are ready to review}}.",
+      "empty": "The assistant found nothing it could apply.",
+      "nothingToPlace": "Try adding rated answers or training examples, then ask again. No changes were made.",
+      "checkFirst": "Run a check to see how it would answer.",
+      "close": "Back to the agent",
+      "configuration": "Configuration",
+      "before": "Before",
+      "after": "After",
+      "emptyPassage": "No text",
+      "why": "Why",
+      "basedOn": "Based on",
+      "unavailable": "The checked answers could not be read. Open the check to retry.",
+      "loading": "Reading the checked answers…",
+      "answers": "Answers on test questions",
+      "noAnswer": "No answer was recorded.",
+      "more": "{count, plural, one {# more question in the full check} other {# more questions in the full check}}",
+      "allAnswers": "Open the full check",
+      "problems": "{count, plural, one {# problem answer found in the source evidence} other {# problem answers found in the source evidence}}"
     }
   },
   "promotionGate": {

@@ -298,3 +298,16 @@ describe("AssistantStrip", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/agents/agent-1/evals/eval-9"));
   });
 });
+
+it("keeps the assistant to one line for an agent without learning evidence", () => {
+  state.authoring = agentAuthoring({
+    batch: null,
+    latest: null,
+    verify: null,
+    has_evidence: false,
+  });
+  strip();
+  expect(screen.getByRole("button", { name: "Improve" })).toBeInTheDocument();
+  expect(screen.queryByText("No suggestions yet")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("suggestion")).not.toBeInTheDocument();
+});

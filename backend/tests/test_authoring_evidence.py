@@ -61,6 +61,8 @@ class TestPack:
 
         assert summary == {
             "runs": 3,
+            "problem_answers": 1,
+            "source_run_ids": [str(run.run_id) for run in pack.runs],
             "rated_down": 1,
             "rated_up": 1,
             "commented": 1,

@@ -1725,3 +1725,16 @@ class TestARequestStartedWithAnApiKey:
         )
         assert request is not None
         assert (request.status, request.error) == ("failed", KEY_GONE)
+
+
+async def test_new_agent_reports_no_learning_evidence_without_running_a_model(db):
+    ctx = await _owner(db)
+    agent = await _clerk(db, ctx)
+    service = AuthoringService(db)
+    empty = await service.for_agent(ctx, agent.id)
+    assert empty.has_evidence is False and empty.latest is None and empty.batch is None
+    await _rated(db, ctx, agent)
+    ready = await service.for_agent(ctx, agent.id)
+    assert ready.has_evidence is True
+    with _without_runs_view():
+        assert (await service.for_agent(ctx, agent.id)).has_evidence is None

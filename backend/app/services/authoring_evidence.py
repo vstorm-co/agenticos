@@ -123,6 +123,10 @@ class EvidencePack:
         """The counts the assistant strip shows, and the conversations a check leaves out."""
         return {
             "runs": len(self.runs),
+            "problem_answers": sum(
+                run.rating < 0 or run.status not in {"completed", "train_eval_reviewed"}
+                for run in self.runs
+            ),
             "source_run_ids": [str(run.run_id) for run in self.runs],
             "rated_down": sum(1 for run in self.runs if run.rating < 0),
             "rated_up": sum(1 for run in self.runs if run.rating > 0),
@@ -278,6 +282,8 @@ class EvidenceService:
         )
         if dataset_id is not None:
             candidates = [item for item in candidates if item.id == dataset_id]
+        if not candidates:
+            return [], ""
         allowed = await accessible_ids(
             self.db,
             ctx,

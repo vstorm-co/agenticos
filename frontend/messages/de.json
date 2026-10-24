@@ -10086,7 +10086,8 @@
         "published": "Über diese Vorschläge wurde in einer Version entschieden, die jetzt veröffentlicht ist."
       },
       "expected": "Erwartete Wirkung:",
-      "checks": "Mit Evals geprüft:"
+      "checks": "Mit Evals geprüft:",
+      "fromEvidence": "Der Vorschlag behandelt Probleme in {count, plural, one {# Quellantwort} other {# Quellantworten}}. Die Belege sind unten verlinkt."
     },
     "checkResult": {
       "running": "Prüfung auf {name} läuft…",
@@ -10228,6 +10229,28 @@
       "atPromotion": "{suites} {count, plural, =1 {prüft} other {prüfen}} es bei der nächsten Promotion.",
       "suites": "{count, plural, =1 {1 Eval-Suite} other {# Eval-Suites}}",
       "nowhere": "Noch liest ihn kein veröffentlichter Agent, das Anwenden ändert heute also keine Antworten."
+    },
+    "result": {
+      "open": "Ergebnis ansehen",
+      "title": "Vorgeschlagene Verbesserungen",
+      "counts": "{reviewed, plural, one {# Quellantwort geprüft} other {# Quellantworten geprüft}}. {proposed, plural, one {# Änderung vorgeschlagen} other {# Änderungen vorgeschlagen}}; {recorded} zur Prüfung bereit.",
+      "empty": "Der Assistent hat nichts gefunden, das er anwenden konnte.",
+      "nothingToPlace": "Fügen Sie bewertete Antworten oder Trainingsbeispiele hinzu und versuchen Sie es erneut. Es wurde nichts geändert.",
+      "checkFirst": "Starten Sie eine Prüfung, um die geänderten Antworten zu sehen.",
+      "close": "Zurück zum Agent",
+      "configuration": "Konfiguration",
+      "before": "Vorher",
+      "after": "Nachher",
+      "emptyPassage": "Kein Text",
+      "why": "Warum",
+      "basedOn": "Belege",
+      "unavailable": "Die geprüften Antworten konnten nicht gelesen werden. Öffnen Sie die Prüfung für einen neuen Versuch.",
+      "loading": "Geprüfte Antworten werden gelesen…",
+      "answers": "Antworten auf Testfragen",
+      "noAnswer": "Keine Antwort gespeichert.",
+      "more": "{count, plural, one {# weitere Frage in der vollständigen Prüfung} other {# weitere Fragen in der vollständigen Prüfung}}",
+      "allAnswers": "Vollständige Prüfung öffnen",
+      "problems": "{count, plural, one {# problematische Antwort in den Quellbelegen gefunden} other {# problematische Antworten in den Quellbelegen gefunden}}"
     }
   },
   "promotionGate": {

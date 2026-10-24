@@ -23,14 +23,17 @@ export function TextDiff({
   /** Text after the passage, shown unchanged. */
   trailing?: string;
 }) {
-  const lines = useMemo(
-    () => diffLines(`${context}${before}${trailing}`, `${context}${after}${trailing}`),
-    [before, after, context, trailing],
-  );
+  const lines = useMemo(() => diffLines(before, after), [before, after]);
   return (
     <div className="overflow-auto rounded-md border">
       <table className="w-full border-collapse font-mono text-xs leading-5">
         <tbody>
+          {context && (
+            <tr className="text-muted-foreground">
+              <td />
+              <td className="py-0.5 pr-2 whitespace-pre-wrap">{context}</td>
+            </tr>
+          )}
           {lines.map((line, index) => (
             <tr
               key={`${line.kind}-${index}`}
@@ -47,6 +50,12 @@ export function TextDiff({
               <td className="w-full py-0.5 pr-2 whitespace-pre-wrap">{line.text}</td>
             </tr>
           ))}
+          {trailing && (
+            <tr className="text-muted-foreground">
+              <td />
+              <td className="py-0.5 pr-2 whitespace-pre-wrap">{trailing}</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

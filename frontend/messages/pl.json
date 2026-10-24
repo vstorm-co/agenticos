@@ -9986,7 +9986,8 @@
         "published": "Decyzje o tych sugestiach trafiły do wersji, która jest już opublikowana."
       },
       "expected": "Oczekiwany efekt:",
-      "checks": "Sprawdzone w ewaluacji:"
+      "checks": "Sprawdzone w ewaluacji:",
+      "fromEvidence": "Propozycja dotyczy problemów w {count, plural, one {# odpowiedzi źródłowej} few {# odpowiedziach źródłowych} many {# odpowiedziach źródłowych} other {# odpowiedzi źródłowej}}. Linki do materiału źródłowego znajdują się poniżej."
     },
     "checkResult": {
       "running": "Trwa sprawdzanie na {name}…",
@@ -10128,6 +10129,28 @@
       "atPromotion": "{suites} {named, select, yes {{count, plural, one {sprawdzi} other {sprawdzą}}} other {{count, plural, one {sprawdzi} few {sprawdzą} many {sprawdzi} other {sprawdzi}}}} to przy następnej promocji.",
       "suites": "{count, plural, one {# suita ewaluacji} few {# suity ewaluacji} many {# suit ewaluacji} other {# suity ewaluacji}}",
       "nowhere": "Żaden opublikowany agent jeszcze go nie czyta, więc zastosowanie nie zmieni dziś żadnych odpowiedzi."
+    },
+    "result": {
+      "open": "Zobacz wynik",
+      "title": "Proponowane poprawki",
+      "counts": "Przejrzano {reviewed, plural, one {# odpowiedź źródłową} few {# odpowiedzi źródłowe} many {# odpowiedzi źródłowych} other {# odpowiedzi źródłowej}}. Zaproponowano {proposed, plural, one {# zmianę} few {# zmiany} many {# zmian} other {# zmiany}}; do przeglądu: {recorded}.",
+      "empty": "Asystent nie znalazł niczego, co mógłby zastosować.",
+      "nothingToPlace": "Dodaj ocenione odpowiedzi lub przykłady treningowe i spróbuj ponownie. Nie wprowadzono zmian.",
+      "checkFirst": "Uruchom sprawdzenie, aby zobaczyć, jak agent odpowie.",
+      "close": "Wróć do agenta",
+      "configuration": "Konfiguracja",
+      "before": "Przed",
+      "after": "Po",
+      "emptyPassage": "Brak tekstu",
+      "why": "Dlaczego",
+      "basedOn": "Na podstawie",
+      "unavailable": "Nie udało się odczytać sprawdzonych odpowiedzi. Otwórz sprawdzenie, aby ponowić odczyt.",
+      "loading": "Odczytywanie sprawdzonych odpowiedzi…",
+      "answers": "Odpowiedzi na pytania testowe",
+      "noAnswer": "Nie zapisano odpowiedzi.",
+      "more": "{count, plural, one {Jeszcze # pytanie w pełnym sprawdzeniu} few {Jeszcze # pytania w pełnym sprawdzeniu} many {Jeszcze # pytań w pełnym sprawdzeniu} other {Jeszcze # pytania w pełnym sprawdzeniu}}",
+      "allAnswers": "Otwórz pełne sprawdzenie",
+      "problems": "{count, plural, one {# błędna odpowiedź w materiale źródłowym} few {# błędne odpowiedzi w materiale źródłowym} many {# błędnych odpowiedzi w materiale źródłowym} other {# błędnej odpowiedzi w materiale źródłowym}}"
     }
   },
   "promotionGate": {

@@ -66,6 +66,10 @@ that line above the finding's quotes, for the reader to judge whether they back
 it. A finding that the edit is supported, left with no quote that could be
 checked, is not shown.
 
+When an Improve request finishes while the Builder is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. Changes show before and after side by side, with their rationale and linked evidence. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
+
+After a check completes, readers with `runs:view` can compare answers from both arms in the dialog and open the full check. Before a check, it asks you to run one. An agent with no rated chat or training evidence has a compact assistant line above its instructions.
+
 ## Suggestions { #suggestions }
 
 Improve and Verify open the **assistant strip** on the agent's Build tab. Each

@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { expectedEffect } from "@/lib/authoring-text";
 import type { Hunk, HunkDecision, SuggestionBatch } from "@/types/authoring";
 import { CheckResults } from "./check-result";
 import { SuggestionCard } from "./suggestion-card";
@@ -27,15 +28,16 @@ export function SuggestionList({
 }) {
   const t = useTranslations("authoring.batch");
   const open = batch.status === "open";
+  const effect = expectedEffect(batch, (count) => t("fromEvidence", { count }));
   const ordered = [...batch.hunks].sort(
     (a, b) => Number(a.status !== "pending") - Number(b.status !== "pending"),
   );
   return (
     <div className="space-y-3">
       {!open && <p className="text-muted-foreground text-sm">{t(`closed.${batch.status}`)}</p>}
-      {batch.expected_effect !== "" && (
+      {effect !== "" && (
         <p className="text-sm">
-          <span className="font-medium">{t("expected")}</span> {batch.expected_effect}
+          <span className="font-medium">{t("expected")}</span> {effect}
         </p>
       )}
       {batch.check_eval_run_ids.length > 0 && (
