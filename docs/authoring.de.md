@@ -1,5 +1,5 @@
 ---
-source_sha: "109914d1eca5"
+source_sha: "1440cbfd57d8"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -378,3 +378,5 @@ Wähle **Prüfen, ob die Suche sie findet**, um A mit B über ein reines Such-Ov
 Eine neue Korrektur gilt nur als nachgewiesen, wenn der Entwurf jede bestätigende Kandidatenantwort über das endgültige Suchergebnis erreicht hat. Andernfalls ist das Ergebnis nicht schlüssig, auch wenn die Antwort gut bewertet wurde; tatsächliche Antworten und Bewertungen bleiben sichtbar. Ein ignorierter Toolfehler macht einen Suchfehler nicht zum Erfolg. Die Schätzung umfasst zusätzliche Embedding-Suchen und Bestätigungswiederholungen. Nicht verfügbare oder nicht bepreiste Modelle verhindern die Prüfung vor kostenpflichtiger Arbeit. Ein Mensch muss weiterhin Fakten prüfen und das Dokument ausdrücklich hinzufügen.
 
 Manuelle Tests und die Erstellung von Testfragen benachrichtigen die anfordernde Person nach Abschluss, auch bei Fehlern. Erneute Jobzustellungen erzeugen keine doppelten Meldungen. Untergeordnete Tests einer Testsuite oder Verbesserungssitzung verwenden deren übergeordnete Benachrichtigung. Die Einstellungen stehen unter **Einstellungen → Benachrichtigungen**. Offene Test- und Datensatzseiten werden nach dem Speichern des Ergebnisses über den Änderungsstrom aktualisiert.
+
+Der Schritt Verstehen zeigt eine begrenzte Quellenstichprobe, die gespeicherte Ursache, Antwort, Bewertungskommentare und einen Gesprächslink. Unbekannte Ursachen bleiben ausdrücklich unklassifiziert. Der Schritt Testfragen liest die angeheftete Fragenversion der Sitzung und kennzeichnet Trainingsfragen sowie zurückgehaltene Fragen. Heute zeigt die Ausgangsmessung erst nach einem erfolgreich abgeschlossenen Test; teilweise oder fehlgeschlagene Tests gelten nicht als gemessener Ausgangswert. Quellenansichten erfordern `runs:view`, prüfen den aktuellen Zugriff auf Wissensbasen und entfernen Zugangsdaten aus jedem Textfeld.

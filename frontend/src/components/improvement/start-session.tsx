@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
+import { StartSignals } from "./session-inputs";
 import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { usd } from "@/components/evals/format";
 import { useDatasets } from "@/hooks/use-datasets";
@@ -58,6 +59,7 @@ export function StartSession({ agentId }: { agentId: string }) {
   return (
     <div className="space-y-6" data-tour="improvement-start">
       <p className="text-muted-foreground max-w-2xl text-sm">{t("intro")}</p>
+      <StartSignals agentId={agentId} datasetId={target} />
       {sessions.error && <p role="alert">{getErrorMessage(sessions.error, tErrors)}</p>}
       {sessions.sessions.map((session) => (
         <Link

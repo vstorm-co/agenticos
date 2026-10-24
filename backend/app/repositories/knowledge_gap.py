@@ -1264,3 +1264,23 @@ async def topics_of_answers(
         )
     )
     return list(result.scalars().all())
+
+
+async def answers_for_runs(
+    db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
+) -> dict[UUID, UUID]:
+    """The latest assistant message for each authorized run, within its tenant."""
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(Message.run_id, Message.id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.id.in_(run_ids),
+            Message.role == "assistant",
+        )
+        .distinct(Message.run_id)
+        .order_by(Message.run_id, Message.created_at.desc(), Message.id.desc())
+    )
+    return {run_id: message_id for run_id, message_id in result.all() if run_id is not None}

@@ -319,7 +319,12 @@ def _sessions(db: AsyncSession):
 @pytest.fixture(autouse=True)
 def _environment():
     """No real model or dispatch; the improver's model check always passes."""
+
+    def dropped(_db, coro, *, name):
+        coro.close()
+
     with (
+        patch("app.services.notifications.spawn_after_commit", side_effect=dropped),
         patch.object(SystemAgentRunner, "_require_model", new=AsyncMock()),
         patch.object(
             ModelProfileService,

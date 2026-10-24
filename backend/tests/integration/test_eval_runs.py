@@ -307,7 +307,12 @@ def _sessions(db: AsyncSession):
 @pytest.fixture(autouse=True)
 def _environment():
     """No real model, no dispatch, one drainer - the session is shared, so serial."""
+
+    def dropped(_db, coro, *, name):
+        coro.close()
+
     with (
+        patch("app.services.notifications.spawn_after_commit", side_effect=dropped),
         patch.object(
             ModelProfileService,
             "resolve",

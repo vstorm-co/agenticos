@@ -54,6 +54,7 @@ from app.repositories import (
     authoring_repo,
     dataset_repo,
     improvement_repo,
+    knowledge_base_repo,
     knowledge_gap_repo,
     organization_repo,
 )
@@ -71,6 +72,8 @@ from app.schemas.improvement import (
     AttributionEstimate,
     ImprovementEstimate,
     ImprovementEvent,
+    ImprovementEvidence,
+    ImprovementEvidenceItem,
     ImprovementFinish,
     ImprovementFinished,
     ImprovementIterationRead,
@@ -87,8 +90,10 @@ from app.services import improvement_states as rules
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
+from app.services.authoring_evidence import MAX_EVIDENCE_RUNS
 from app.services.background_jobs import enqueue
-from app.services.dataset import DatasetService
+from app.services.collection_access import readable_kb
+from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
@@ -346,6 +351,83 @@ class ImprovementPipelineService:
         if row is None or row.agent_id != agent_id:
             raise NotFoundError(message="Improvement session not found")
         return row
+
+    async def evidence(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        run_id: UUID | None = None,
+        dataset_id: UUID | None = None,
+    ) -> ImprovementEvidence:
+        """The bounded, current-readable source examples, never paid classification.
+
+        Sessions use their frozen chat identities and dataset version. Deleted
+        or erased sources disappear; a knowledge-base verdict is shown only
+        while that base remains readable. Unknown means no usable recorded
+        classification, rather than an inferred knowledge gap.
+        """
+        agent = await self.registry.get(ctx, agent_id)
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(message="Reading improvement evidence needs runs:view")
+        if run_id is not None:
+            await self._row(ctx, agent_id, run_id)
+            pack = await self.authoring.evidence.for_improvement(ctx, run_id)
+        else:
+            if dataset_id is not None:
+                await DatasetService(self.db).get(ctx, dataset_id, perm=Perm.DATASETS_RUN)
+            pack = await self.authoring.evidence.for_agent(
+                ctx, agent_id, window_days=30, dataset_id=dataset_id
+            )
+        pack = await self.authoring.evidence.forget_erased(pack)
+        bases = await knowledge_base_repo.get_by_ids(
+            self.db, AgentSpec.model_validate(agent.draft_spec).collection_ids
+        )
+        readable = [
+            kb.id
+            for kb in bases.values()
+            if kb.organization_id == ctx.organization_id and await readable_kb(self.db, ctx, kb)
+        ]
+        messages = await knowledge_gap_repo.answers_for_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            run_ids=[item.run_id for item in pack.runs if item.evidence_kind == "chat"],
+        )
+        causes = await KnowledgeGapService(self.db).causes(ctx, readable, list(messages.values()))
+        items: list[ImprovementEvidenceItem] = []
+        for item in pack.runs:
+            cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
+            items.append(
+                ImprovementEvidenceItem(
+                    run_id=item.run_id,
+                    conversation_id=item.conversation_id,
+                    kind=item.evidence_kind,
+                    status=item.status,
+                    rating=item.rating,
+                    question=redact_credentials(item.prompt)[0],
+                    answer=redact_credentials(item.answer)[0],
+                    comments=[
+                        text
+                        for comment in item.comments
+                        if (text := redact_credentials(comment)[0]) is not None
+                    ],
+                    branch=(
+                        "agent"
+                        if item.evidence_kind == "train_eval"
+                        else "not_a_problem"
+                        if item.rating > 0
+                        else cause.branch
+                        if cause
+                        else "unknown"
+                    ),
+                    reason=redact_credentials(cause.reason)[0] if cause else None,
+                )
+            )
+        return ImprovementEvidence(
+            items=items,
+            sample_limit=MAX_EVIDENCE_RUNS,
+            training_failures=sum(item.status == "train_eval_failure" for item in pack.runs),
+        )
 
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         await self.registry.get(ctx, agent_id)

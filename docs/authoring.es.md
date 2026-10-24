@@ -1,5 +1,5 @@
 ---
-source_sha: "109914d1eca5"
+source_sha: "1440cbfd57d8"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -368,3 +368,5 @@ Elige **Comprobar si la búsqueda lo encuentra** para comparar A con B mediante 
 Una nueva corrección solo se considera demostrada si el borrador llegó a cada respuesta confirmatoria del candidato a través del resultado final de búsqueda. En caso contrario, el resultado no es concluyente, aunque la respuesta obtenga buena puntuación; se conservan las respuestas y evaluaciones reales. Ignorar un error de herramienta no convierte un fallo de búsqueda en éxito. La estimación incluye búsquedas adicionales de embeddings y repeticiones confirmatorias. Un modelo no disponible o sin precio conocido impide empezar trabajo de pago. Una persona debe seguir verificando los hechos y añadir expresamente el documento.
 
 Las pruebas manuales y la generación de preguntas notifican a quien las inició cuando terminan, también si fallan. Repetir la entrega del trabajo no duplica el aviso. Las pruebas subordinadas de una suite o sesión de mejora utilizan la notificación del proceso principal. Las preferencias están en **Configuración → Notificaciones**. Las páginas abiertas de pruebas y conjuntos de datos se actualizan mediante el flujo de cambios tras confirmar el resultado.
+
+El paso Comprender muestra una muestra limitada de fuentes, la causa registrada, la respuesta, los comentarios de evaluación y un enlace a la conversación. Las causas desconocidas permanecen explícitamente sin clasificar. El paso Preguntas de prueba lee la versión fijada de la sesión e identifica las preguntas de entrenamiento y reservadas. Hoy muestra la referencia solo después de completar correctamente la prueba; una ejecución parcial o fallida no se presenta como una medición de referencia. La vista de fuentes requiere `runs:view`, comprueba el acceso actual a las bases de conocimiento y oculta credenciales en todos los campos de texto.

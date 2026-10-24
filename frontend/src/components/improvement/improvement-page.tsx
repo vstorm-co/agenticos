@@ -19,6 +19,7 @@ import type { Improvement } from "@/types/improvement";
 import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
 import { RoundResults } from "./round-results";
+import { Understand, TestQuestions, Today } from "./session-inputs";
 
 const STEPS = ["understand", "testSet", "today", "changes", "check", "result", "accept"] as const;
 type Step = (typeof STEPS)[number];
@@ -165,26 +166,9 @@ function Session({
         </p>
       )}
       {session.stop_reason && <p className="text-sm">{t(`stop.${session.stop_reason}`)}</p>}
-      {(step === "understand" || step === "testSet" || step === "today") && (
-        <section className="space-y-3 rounded-xl border p-6">
-          <h2 className="font-medium">{t(`steps.${step}`)}</h2>
-          <p className="text-muted-foreground text-sm">{t(`explain.${step}`)}</p>
-          <Link className="text-sm underline" href={`/datasets/${session.dataset_id}`}>
-            {t("reviewQuestions")}
-          </Link>
-          {session.iterations
-            .flatMap((r) => r.eval_run_ids)
-            .map((id) => (
-              <Link
-                key={id}
-                className="block text-sm underline"
-                href={`/agents/${agentId}/evals/${id}`}
-              >
-                {t("openCheck")}
-              </Link>
-            ))}
-        </section>
-      )}
+      {step === "understand" && <Understand session={session} />}
+      {step === "testSet" && <TestQuestions session={session} />}
+      {step === "today" && <Today session={session} />}
       {step === "changes" && (
         <section className="space-y-4" data-tour="improvement-changes">
           {selectedBatch?.hunks.length ? (

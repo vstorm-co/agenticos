@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
-import { useImprovement, useImprovements } from "./use-improvements";
+import { useImprovement, useImprovements, useImprovementEvidence } from "./use-improvements";
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
 let client: QueryClient;
 function wrapper({ children }: { children: ReactNode }) {
@@ -86,4 +86,29 @@ it("keeps draft testing separate and sends consent for the quoted draft and sele
   await result.current.checkKnowledge.mutateAsync(consent);
   expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/knowledge", consent);
   expect(invalidation).toHaveBeenCalledWith({ queryKey: ["improvements"] });
+});
+
+it("separates the free preview from pinned session evidence", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [], sample_limit: 20, training_failures: 0 });
+  const view = renderHook<
+    ReturnType<typeof useImprovementEvidence>,
+    { sessionId: string | null; datasetId: string | null }
+  >(
+    ({ sessionId, datasetId }: { sessionId: string | null; datasetId: string | null }) =>
+      useImprovementEvidence("a1", { sessionId, datasetId, live: false }),
+    {
+      wrapper,
+      initialProps: { sessionId: null, datasetId: "d1" },
+    },
+  );
+  await waitFor(() => expect(view.result.current.evidence?.sample_limit).toBe(20));
+  expect(apiClient.get).toHaveBeenLastCalledWith("/agents/a1/improvements/preview", {
+    params: { dataset_id: "d1" },
+  });
+  view.rerender({ sessionId: "s1", datasetId: "d2" });
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/evidence", {
+      params: {},
+    }),
+  );
 });

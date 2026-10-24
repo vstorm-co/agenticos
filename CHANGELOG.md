@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Show pinned source examples, recorded causes, question versions and completed baseline results in the improvement wizard, with explicit loading and refusal states.
+
 - Notify requesters when manual tests or test-question generation finish, including failed jobs, and refresh open eval pages through the live change feed.
 
 - Measure a knowledge draft separately from agent changes using run-only context or retrieval,

@@ -10,6 +10,7 @@ import type {
   KnowledgeCheckTarget,
   Improvement,
   ImprovementEstimate,
+  ImprovementEvidence,
   ImprovementTarget,
 } from "@/types/improvement";
 
@@ -118,5 +119,32 @@ export function useImprovement(agentId: string, runId: string) {
     selectRound,
     estimateAttribution,
     attribute,
+  };
+}
+
+export function useImprovementEvidence(
+  agentId: string,
+  {
+    sessionId = null,
+    datasetId = null,
+    live = false,
+  }: { sessionId?: string | null; datasetId?: string | null; live?: boolean } = {},
+) {
+  const query = useQuery({
+    queryKey: qk.improvements.evidence(agentId, sessionId, datasetId),
+    queryFn: () =>
+      apiClient.get<ImprovementEvidence>(
+        sessionId
+          ? `/agents/${agentId}/improvements/${sessionId}/evidence`
+          : `/agents/${agentId}/improvements/preview`,
+        { params: !sessionId && datasetId ? { dataset_id: datasetId } : {} },
+      ),
+    refetchInterval: live ? 3000 : false,
+  });
+  return {
+    evidence: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

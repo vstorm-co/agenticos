@@ -175,3 +175,10 @@ it("stops running work and explicitly retries a failed step", async () => {
   );
   expect(actions.retry.mutateAsync).toHaveBeenCalled();
 });
+
+vi.mock("./session-inputs", () => ({
+  StartSignals: () => null,
+  Understand: () => <p>Source examples fixture</p>,
+  TestQuestions: () => <p>Pinned questions fixture</p>,
+  Today: () => <p>Baseline fixture</p>,
+}));

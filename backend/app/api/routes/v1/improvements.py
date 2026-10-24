@@ -11,6 +11,7 @@ from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
     ImprovementEstimate,
+    ImprovementEvidence,
     ImprovementFinish,
     ImprovementFinished,
     ImprovementRead,
@@ -67,6 +68,22 @@ async def start_improvement(
 async def list_improvements(agent_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
     """Recent sessions, with evidence-free progress visible to readers of the agent."""
     return await service.list_for_agent(ctx, agent_id)
+
+
+@router.get("/preview", response_model=ImprovementEvidence)
+async def preview_improvement_evidence(
+    agent_id: UUID, service: ImprovementSvc, ctx: Auth, dataset_id: UUID | None = None
+) -> Any:
+    """Read a bounded source preview without spending or starting a session."""
+    return await service.evidence(ctx, agent_id, dataset_id=dataset_id)
+
+
+@router.get("/{run_id}/evidence", response_model=ImprovementEvidence)
+async def read_improvement_evidence(
+    agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Current-readable examples from the session's frozen inputs and recorded causes."""
+    return await service.evidence(ctx, agent_id, run_id=run_id)
 
 
 @router.get("/{run_id}", response_model=ImprovementRead)

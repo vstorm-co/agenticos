@@ -15,6 +15,7 @@ from app.db.models.improvement import (
     StopReason,
 )
 from app.schemas.base import BaseSchema
+from app.schemas.knowledge_gap import CauseBranch
 
 
 class ImprovementTarget(BaseSchema):
@@ -146,3 +147,22 @@ class KnowledgeCheckConsent(KnowledgeCheckTarget):
     confirmed: Literal[True]
     estimate_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
     draft_hash: str = Field(min_length=64, max_length=64)
+
+
+class ImprovementEvidenceItem(BaseSchema):
+    run_id: UUID
+    conversation_id: UUID | None
+    kind: Literal["chat", "train_eval"]
+    status: str
+    rating: int
+    question: str | None
+    answer: str | None
+    comments: list[str]
+    branch: CauseBranch
+    reason: str | None = None
+
+
+class ImprovementEvidence(BaseSchema):
+    items: list[ImprovementEvidenceItem]
+    sample_limit: int
+    training_failures: int

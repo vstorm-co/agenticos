@@ -100,3 +100,21 @@ export interface KnowledgeCheckEstimate {
   draft_hash: string;
   reason: string | null;
 }
+
+export interface ImprovementEvidenceItem {
+  run_id: string;
+  conversation_id: string | null;
+  kind: "chat" | "train_eval";
+  status: string;
+  rating: number;
+  question: string | null;
+  answer: string | null;
+  comments: string[];
+  branch: "agent" | "missing_knowledge" | "not_a_problem" | "unknown";
+  reason: string | null;
+}
+export interface ImprovementEvidence {
+  items: ImprovementEvidenceItem[];
+  sample_limit: number;
+  training_failures: number;
+}

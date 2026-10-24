@@ -81,3 +81,10 @@ it("requires a price and another confirmation before writing questions", async (
   await userEvent.click(screen.getByRole("button", { name: "Confirm and write questions" }));
   await waitFor(() => expect(state.write).toHaveBeenCalledWith({ more: 12 }));
 });
+
+vi.mock("./session-inputs", () => ({
+  StartSignals: () => null,
+  Understand: () => <p>Source examples fixture</p>,
+  TestQuestions: () => <p>Pinned questions fixture</p>,
+  Today: () => <p>Baseline fixture</p>,
+}));
