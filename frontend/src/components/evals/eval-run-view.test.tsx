@@ -811,6 +811,7 @@ describe("EvalRunView", () => {
       ...state.run,
       run: evalRun({
         status: "running",
+        paired: true,
         first_done: 1,
         attempts_done: 1,
         error: "A case ran into a budget.",
