@@ -2141,6 +2141,15 @@ class TestOAuthTokens:
         assert result.refresh_token.get_secret_value() == "keep-me"
         assert result.expires_at is None
 
+    def test_a_zero_lifetime_grant_is_not_treated_as_non_expiring(self, monkeypatch):
+        monkeypatch.setattr(mcp_connection_service, "_now_epoch", lambda: 1000.0)
+        payload = _apply_token(
+            _base_payload(refresh_token="rotate"),
+            OAuthToken(access_token="already-expired", expires_in=0),
+        )
+        assert payload.expires_at == 1000.0
+        assert not mcp_connection_service._token_is_fresh(payload)
+
     def test_an_oauth_payload_does_not_print_its_tokens(self):
         """The one reader that could log a payload whole catches `Exception` and
         names only the connection; masking the credentials makes the guarantee

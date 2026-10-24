@@ -209,7 +209,9 @@ def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload
             "refresh_token": (
                 SecretStr(token.refresh_token) if token.refresh_token else payload.refresh_token
             ),
-            "expires_at": (_now_epoch() + token.expires_in) if token.expires_in else None,
+            "expires_at": (
+                _now_epoch() + token.expires_in if token.expires_in is not None else None
+            ),
             "scope": token.scope or payload.scope,
             "code_verifier": None,
         }

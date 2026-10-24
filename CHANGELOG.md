@@ -27,8 +27,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Bound scheduled MCP health checks to 64 oldest-first servers and eight simultaneous probes; advance unauthorized accounts so they cannot starve the queue; use a separate indexed health clock so OAuth renewal cannot postpone probes.
 
-### Fixed
-
 - Serialize draft saves, publish/rollback version allocation and environment
   changes per agent. Preserve edits waiting behind a publication, refresh
   serving pointers after lock waits and allow new runs to start during
@@ -124,6 +122,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Keep Stop available while chat waits on a question, approval or account
   connection, including reloaded parked runs. Cancelling a parked run closes
   pending calls without continuing the model and preserves its recorded spend.
+
+- Treat OAuth grants with `expires_in=0` as already expired so they can be refreshed instead of reused indefinitely.
 
 ## [1.16.0] - 2026-10-23
 
