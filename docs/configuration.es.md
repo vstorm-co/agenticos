@@ -1,5 +1,5 @@
 ---
-source_sha: "f21a1ae0c738"
+source_sha: "b5f78592a932"
 ---
 
 # Configuración { #configuration }
@@ -540,6 +540,7 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 | `WORKFLOW_RETRY_CEILING` | `3` | El máximo de intentos fallidos o interrumpidos de un nodo: los que fallaron y los que cortó la muerte de un worker. Un intento que espera - una aprobación, o un backoff que pidió el nodo - no cuenta, así que solo el plazo, el budget o una cancelación del run limitan cuántas veces espera un nodo |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | La espera antes del primer reintento de un nodo; la espera antes de cada reintento posterior se duplica |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Lo más que puede crecer una sola espera. Estos tres se aplican a un nodo cuya `policy.retry` no fija los suyos |
+| `WORKFLOW_NODE_MAX_OUTPUT_BYTES` | `10485760` | JSON UTF-8 compacto del resultado del intento, salida y respuesta webhook en conjunto. El exceso da `NODE_OUTPUT_TOO_LARGE` sin reintento automático; se conservan los costes. Split out comprueba un máximo de 10 000 elementos expandidos y bytes proyectados conservadores antes de copiarlos |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | La lista más larga que recorre un `control.foreach`. Una más larga hace fallar el bucle con `FOREACH_TOO_MANY_ITEMS` en lugar de truncarse |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | La lista más grande que congela un bucle, como JSON. Una mayor hace fallar el bucle con `FOREACH_LIST_TOO_LARGE` |
 | `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Últimos resultados yield y errores no gestionados, más el coste de la colección, medidos antes de cargar el JSON. Las colecciones mayores fallan con `FOREACH_OUTPUT_TOO_LARGE`; devuelve valores menores o referencias a archivos |

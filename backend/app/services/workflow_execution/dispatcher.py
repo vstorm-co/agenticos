@@ -108,6 +108,7 @@ from app.workflows.contracts.io import (
     output_refs,
     target_path,
 )
+from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 from app.workflows.contracts.policy import ERROR_PORT, RetryPolicy
 from app.workflows.contracts.results import (
     Completed,
@@ -1324,16 +1325,27 @@ def _attempt_status(result: NodeResult) -> str:
 
 def _persistable_outcome(outcome: HandlerOutcome) -> tuple[HandlerOutcome, dict[str, JsonValue]]:
     """An invalid output is a terminal, non-retryable failure; incurred fees survive."""
+    code = "INVALID_NODE_OUTPUT"
+    message = "The node returned data PostgreSQL JSONB cannot store"
     try:
         serialized: dict[str, JsonValue] = outcome.result.model_dump(mode="json")
         jsonb_value_fits(serialized)
         jsonb_value_fits(outcome.run_output)
         jsonb_value_fits(outcome.webhook_response)
+        remaining = settings.WORKFLOW_NODE_MAX_OUTPUT_BYTES
+        try:
+            for payload in (serialized, outcome.run_output, outcome.webhook_response):
+                if payload is not None:
+                    remaining -= json_byte_size(payload, limit=remaining)
+        except PayloadTooLarge:
+            code = "NODE_OUTPUT_TOO_LARGE"
+            message = "The node exceeded the inline output byte limit; return file references"
+            raise
     except ValueError, TypeError, RecursionError:
         failed = Failed(
             error=WorkflowError(
-                code="INVALID_NODE_OUTPUT",
-                message="The node returned data PostgreSQL JSONB cannot store",
+                code=code,
+                message=message,
                 retryable=False,
             )
         )

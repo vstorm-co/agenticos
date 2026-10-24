@@ -39,7 +39,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowGraphUnresolvableError,
     WorkflowParentStoppedError,
 )
-from app.workflows._registry import REGISTRY, register
+from app.workflows._registry import REGISTRY, load_builtins, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef, TableIORef
 from app.workflows.contracts.policy import NodePolicy
@@ -335,6 +335,7 @@ class TestResolveIO:
         assert config_obj.message == "original"
 
     def test_an_open_object_is_assembled_from_its_keys(self):
+        load_builtins()
         definition = REGISTRY["mcp.call"][1]
         node = _node_instance(
             "mcp.call", config={"connection_id": str(uuid.uuid4()), "tool": "find_lead"}
@@ -3034,3 +3035,36 @@ async def test_loop_output_budget_is_checked_before_loading_results(repo, event_
         await dispatcher._close_loop(object(), run=run, graph=graph, loop_run=loop_run, count=3)
     repo.get_latest_attempts.assert_not_called()
     assert fail.await_args.kwargs["error"].code == "FOREACH_OUTPUT_TOO_LARGE"
+
+
+@pytest.mark.parametrize("field", ["result", "run_output", "webhook_response"])
+def test_oversized_terminal_outputs_fail_without_retry_or_lost_fees(monkeypatch, field):
+    monkeypatch.setattr(dispatcher.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 1000)
+    outcome = dispatcher.HandlerOutcome(
+        result=Completed[_EchoOutput](
+            output=_EchoOutput(echoed="a" * 1000 if field == "result" else "ok")
+        ),
+        cost=Decimal("0.25"),
+        cost_is_partial=True,
+        run_output={"text": "a" * 1000} if field == "run_output" else None,
+        webhook_response={"body": "a" * 1000} if field == "webhook_response" else None,
+    )
+    safe, stored = dispatcher._persistable_outcome(outcome)
+    assert isinstance(safe.result, Failed) and safe.result.error.code == "NODE_OUTPUT_TOO_LARGE"
+    assert not safe.result.error.retryable
+    assert safe.cost == Decimal("0.25") and safe.cost_is_partial
+    assert safe.run_output is None and safe.webhook_response is None
+    assert stored["status"] == "failed"
+
+
+def test_node_output_budget_counts_all_persisted_payloads_together(monkeypatch):
+    outcome = dispatcher.HandlerOutcome(
+        result=Completed[_EchoOutput](output=_EchoOutput(echoed="ok")),
+        run_output={"text": "x" * 500},
+        webhook_response={"body": "x" * 500},
+    )
+    monkeypatch.setattr(dispatcher.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 1100)
+    assert dispatcher._persistable_outcome(outcome)[0] is outcome
+    monkeypatch.setattr(dispatcher.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 1000)
+    safe, _ = dispatcher._persistable_outcome(outcome)
+    assert isinstance(safe.result, Failed) and safe.result.error.code == "NODE_OUTPUT_TOO_LARGE"

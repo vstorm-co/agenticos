@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Bound inline workflow outcomes to a configurable 10 MiB total and refuse Split out
+  expansion above 10,000 items or projected bytes before copying repeated fields.
+  Oversized terminal outcomes preserve fees and never automatically replay effects.
+
 - **Organization-key access to Virtual Tables and workflow runs.** External
   clients use the shared table routes with scoped organization keys, including
   receipt-backed writes, revision checks and bounded column selection. Workflow

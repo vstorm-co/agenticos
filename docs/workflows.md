@@ -893,6 +893,8 @@ A handler result that cannot be stored becomes `INVALID_NODE_OUTPUT`, with no
 automatic retry and with incurred fees retained. An external action may already
 have completed, so inspect it before manually repeating the node.
 
+Inline node outcomes share `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (10 MiB by default), including the attempt result, run output and webhook response together. Larger outcomes fail with `NODE_OUTPUT_TOO_LARGE`, retain fees and do not retry automatically. Split out checks its expanded count (at most 10,000) before copying items, and conservatively bounds repeated fields by projected bytes; exceeding either bound returns `SPLIT_OUTPUT_TOO_LARGE`. Use file references for larger data.
+
 ## Recap
 
 - A workflow is a **draft you edit and a published, immutable version that

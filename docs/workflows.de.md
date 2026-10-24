@@ -1,5 +1,5 @@
 ---
-source_sha: "3384b8071684"
+source_sha: "1c8da8a2ed22"
 ---
 
 # Workflows { #workflows }
@@ -1003,6 +1003,8 @@ PostgreSQL JSONB darstellbar sein. Ein nicht speicherbares Knotenergebnis wird
 `INVALID_NODE_OUTPUT`, ohne automatische Wiederholung und mit erhaltenen Kosten.
 Eine externe Aktion kann bereits abgeschlossen sein; vor manueller Wiederholung
 prüfen.
+
+Inline-Ergebnisse teilen `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (standardmäßig 10 MiB): Versuchsergebnis, Run-Ausgabe und Webhook-Antwort zusammen. Größere Ergebnisse scheitern mit `NODE_OUTPUT_TOO_LARGE`; Kosten bleiben erhalten, automatische Wiederholung entfällt. Split out prüft die expandierte Anzahl (höchstens 10.000) vor dem Kopieren und schätzt wiederholte Felder konservativ in Bytes. Eine Überschreitung ergibt `SPLIT_OUTPUT_TOO_LARGE`. Für größere Daten Dateiverweise verwenden.
 
 ## Zusammenfassung { #recap }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "f21a1ae0c738"
+source_sha: "b5f78592a932"
 ---
 
 # Konfiguracja { #configuration }
@@ -528,6 +528,7 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 | `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba nieudanych lub przerwanych prób węzła: prób zakończonych błędem i prób przerwanych śmiercią workera. Próba, która czeka - na zatwierdzenie albo na backoff, o który poprosił węzeł - się nie liczy, więc to, jak często węzeł czeka, ogranicza tylko termin runa, jego budżet albo anulowanie |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie. Te trzy ustawienia dotyczą węzła, którego `policy.retry` nie ustala własnych |
+| `WORKFLOW_NODE_MAX_OUTPUT_BYTES` | `10485760` | Łączny kompaktowy JSON UTF-8 wyniku próby, wyjścia runa i odpowiedzi webhooka. Przekroczenie daje `NODE_OUTPUT_TOO_LARGE` bez automatycznego retry, z zachowaniem kosztu. Split out sprawdza limit 10 000 rozwiniętych elementów i konserwatywny rozmiar przed kopiowaniem |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Najdłuższa lista, po której iteruje `control.foreach`. Dłuższa kończy pętlę błędem `FOREACH_TOO_MANY_ITEMS` zamiast zostać przycięta |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Największa lista, jaką pętla zamraża, jako JSON. Większa kończy pętlę błędem `FOREACH_LIST_TOO_LARGE` |
 | `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Najnowsze wyniki yield i nieobsłużone błędy wraz z narzutem kolekcji, mierzone przed pobraniem JSON. Większa kolekcja kończy się `FOREACH_OUTPUT_TOO_LARGE`; zwracaj mniejsze wartości lub referencje plików |

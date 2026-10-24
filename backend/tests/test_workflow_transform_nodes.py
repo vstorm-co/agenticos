@@ -276,3 +276,41 @@ async def test_summaries_do_not_overwrite_group_identifiers():
     )
     assert isinstance(result, Failed) and result.error.code == "SUMMARY_KEY_COLLISION"
     assert result.error.details == {"keys": ["sum_price"]}
+
+
+@pytest.mark.security
+async def test_split_counts_nested_items_before_copying_fields(monkeypatch):
+    from unittest.mock import Mock
+
+    copy = Mock(side_effect=AssertionError("Expansion must be refused before copying"))
+    monkeypatch.setattr(steps, "without", copy)
+    config = steps.SplitOutConfig(field="nested.items")
+    result = await steps.split_out(config, _in([{"nested": {"items": [0] * 10_001}}]))
+    assert isinstance(result, Failed) and result.error.code == "SPLIT_OUTPUT_TOO_LARGE"
+    copy.assert_not_called()
+
+
+@pytest.mark.parametrize("element", [0, {"value": "x"}])
+async def test_split_bounds_repeated_base_fields_before_materializing_all_items(
+    monkeypatch, element
+):
+    monkeypatch.setattr(steps.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 1000)
+    result = await steps.split_out(
+        steps.SplitOutConfig(field="items"),
+        _in([{"body": "a" * 500, "items": [element] * 3}]),
+    )
+    assert isinstance(result, Failed) and result.error.code == "SPLIT_OUTPUT_TOO_LARGE"
+
+
+async def test_split_counts_missing_fields_and_keeps_the_exact_item_ceiling():
+    config = steps.SplitOutConfig(field="items", keep_other_fields=False)
+    result = await steps.split_out(config, _in([{"items": [0] * 9999}, {"other": 1}]))
+    assert len(_items(result)) == 10_000
+    refused = await steps.split_out(config, _in([{"items": [0] * 10_000}, {"other": 1}]))
+    assert isinstance(refused, Failed) and refused.error.code == "SPLIT_OUTPUT_TOO_LARGE"
+
+
+async def test_split_checks_unexpanded_items_against_the_byte_limit(monkeypatch):
+    monkeypatch.setattr(steps.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 100)
+    result = await steps.split_out(steps.SplitOutConfig(field="items"), _in([{"large": "x" * 100}]))
+    assert isinstance(result, Failed) and result.error.code == "SPLIT_OUTPUT_TOO_LARGE"

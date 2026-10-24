@@ -1,5 +1,5 @@
 ---
-source_sha: "3384b8071684"
+source_sha: "1c8da8a2ed22"
 ---
 
 # Workflows { #workflows }
@@ -945,6 +945,8 @@ Las entradas, configuraciones de borrador y resultados fijados deben poder
 representarse en JSONB de PostgreSQL. Un resultado no almacenable produce
 `INVALID_NODE_OUTPUT`, sin reintento automático y conservando los costes. Una
 acción externa puede haberse completado; compruébala antes de repetir el nodo.
+
+Los resultados en línea comparten `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (10 MiB por defecto): resultado del intento, salida y respuesta webhook juntos. El exceso da `NODE_OUTPUT_TOO_LARGE`, conserva costes y no se reintenta automáticamente. Split out comprueba el número expandido (máximo 10 000) antes de copiar y estima conservadoramente los bytes de campos repetidos. El exceso da `SPLIT_OUTPUT_TOO_LARGE`. Para datos mayores, usa referencias a archivos.
 
 ## Resumen { #recap }
 

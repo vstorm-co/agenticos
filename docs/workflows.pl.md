@@ -1,5 +1,5 @@
 ---
-source_sha: "3384b8071684"
+source_sha: "1c8da8a2ed22"
 ---
 
 # Workflows { #workflows }
@@ -922,6 +922,8 @@ Wejścia przebiegów, konfiguracje draftów i przypięte wyniki muszą mieścić
 w formacie JSONB PostgreSQL. Niezapisywalny wynik węzła daje `INVALID_NODE_OUTPUT`,
 bez automatycznego ponowienia i z zachowaniem poniesionych kosztów. Zewnętrzna
 operacja mogła już się zakończyć; sprawdź ją przed ręcznym powtórzeniem węzła.
+
+Wyniki węzła mają wspólny limit `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (domyślnie 10 MiB): wynik próby, wyjście runa i odpowiedź webhooka łącznie. Przekroczenie daje `NODE_OUTPUT_TOO_LARGE`, zachowuje koszty i nie uruchamia automatycznego retry. Split out sprawdza liczbę po rozwinięciu (maks. 10 000) przed kopiowaniem oraz konserwatywnie szacuje rozmiar powielonych pól. Przekroczenie daje `SPLIT_OUTPUT_TOO_LARGE`. Większe dane przekazuj przez referencje plików.
 
 ## Podsumowanie { #recap }
 

@@ -877,6 +877,9 @@ class Settings(BaseSettings):
     WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
     WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)
 
+    # Inline attempt, run and webhook payloads share one encoded byte budget.
+    WORKFLOW_NODE_MAX_OUTPUT_BYTES: int = Field(default=10_485_760, gt=0)
+
     # What one `control.foreach` may iterate. The list is frozen into the
     # loop's first attempt before any iteration starts, so it is bounded in
     # count and in stored size - a longer list is refused, never truncated.

@@ -969,7 +969,12 @@ async def test_cumulative_loop_outputs_are_bounded_before_materialization(engine
 
 
 @pytest.mark.parametrize("guarantee", ["idempotent", "at_least_once"])
-async def test_invalid_terminal_json_is_recorded_without_repeating_effects(engine, guarantee):
+@pytest.mark.parametrize("error", ["INVALID_NODE_OUTPUT", "NODE_OUTPUT_TOO_LARGE"])
+async def test_invalid_terminal_json_is_recorded_without_repeating_effects(
+    engine, guarantee, error, monkeypatch
+):
+    monkeypatch.setattr(dispatcher.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 1000)
+
     class Output(BaseModel):
         text: str
 
@@ -978,7 +983,9 @@ async def test_invalid_terminal_json_is_recorded_without_repeating_effects(engin
     async def invalid(_config: BaseModel | None, _input: BaseModel | None) -> NodeResult:
         calls.append("effect")
         context.report_cost(Decimal("0.25"))
-        return Completed[Output](output=Output(text="invalid\x00"))
+        return Completed[Output](
+            output=Output(text="invalid\x00" if error == "INVALID_NODE_OUTPUT" else "x" * 1001)
+        )
 
     name = "test.invalid_terminal_json"
     definition = replace(
@@ -998,7 +1005,7 @@ async def test_invalid_terminal_json_is_recorded_without_repeating_effects(engin
         seeded = await _run(engine, graph)
         ended = await drive(seeded)
         assert ended.status == WorkflowRunStatus.FAILED.value
-        assert ended.error is not None and ended.error["code"] == "INVALID_NODE_OUTPUT"
+        assert ended.error is not None and ended.error["code"] == error
         assert ended.spent_cost == Decimal("0.25")
         assert calls == ["effect"]
     finally:

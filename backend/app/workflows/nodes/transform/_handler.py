@@ -25,11 +25,14 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.config import settings
 from app.services.workflow_execution import context
+from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 from app.workflows.nodes import _expr
 from app.workflows.nodes._transform import (
     FIELD_PATH,
+    MAX_ITEMS,
     MISSING,
     ItemsOutput,
     assign,
@@ -242,24 +245,60 @@ class SplitOutConfig(_Config):
     )
 
 
+def _split_output_too_large() -> Failed:
+    return Failed(
+        error=WorkflowError(
+            code="SPLIT_OUTPUT_TOO_LARGE",
+            message="Split out exceeds the inline output byte limit; keep fewer fields or use files",
+        )
+    )
+
+
 async def split_out(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
     """One item per element of a list field: an object element becomes the item,
     anything else sits under the field's own name. An item whose field is missing
     or not a list is kept as it is."""
     if not isinstance(config, SplitOutConfig):
         return _not_configured("Split out")
+    items = items_of(node_input)
+    # Count nested expansion without constructing any of its output dictionaries.
+    count = 0
+    for item in items:
+        elements = lookup(item, config.field)
+        count += len(elements) if isinstance(elements, list) else 1
+        if count > MAX_ITEMS:
+            return Failed(
+                error=WorkflowError(
+                    code="SPLIT_OUTPUT_TOO_LARGE",
+                    message=f"Split out produces at most {MAX_ITEMS} items",
+                )
+            )
     name = config.field.rsplit(".", 1)[-1]
     split: list[dict[str, Any]] = []
-    for item in items_of(node_input):
-        elements = lookup(item, config.field)
-        if not isinstance(elements, list):
-            split.append(item)
-            continue
-        base = without(item, config.field) if config.keep_other_fields else {}
-        for element in elements:
-            split.append(
-                {**base, **element} if isinstance(element, dict) else {**base, name: element}
-            )
+    limit = settings.WORKFLOW_NODE_MAX_OUTPUT_BYTES
+    # Include the completed-result envelope and commas. Projection is conservative
+    # when an object element overwrites a base field, so no expanded copy is needed.
+    size = len('{"status":"completed","output":{"items":[]}}') + max(0, count - 1)
+    try:
+        for item in items:
+            elements = lookup(item, config.field)
+            if not isinstance(elements, list):
+                size += json_byte_size(item, limit=limit - size)
+                split.append(item)
+                continue
+            base = without(item, config.field) if config.keep_other_fields else {}
+            base_size = json_byte_size(base, limit=limit - size)
+            for element in elements:
+                addition = element if isinstance(element, dict) else {name: element}
+                projected = base_size + json_byte_size(addition, limit=limit - size) - 2
+                if base and addition:
+                    projected += 1
+                if size + projected > limit:
+                    return _split_output_too_large()
+                size += projected
+                split.append({**base, **addition})
+    except PayloadTooLarge:
+        return _split_output_too_large()
     return _items(split)
 
 
