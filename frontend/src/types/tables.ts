@@ -213,6 +213,8 @@ export interface RecordSort {
 }
 
 export interface RecordQuery {
+  /** Return only these live columns; null returns all, [] returns metadata only. */
+  columns?: string[] | null;
   filters?: RecordFilter[];
   /** Text to find in any live text column or select option label, ignoring case. */
   search?: string | null;

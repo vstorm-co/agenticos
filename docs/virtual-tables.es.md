@@ -1,5 +1,5 @@
 ---
-source_sha: "863f2bbf1772"
+source_sha: "ec953111912b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -15,6 +15,25 @@ un único servicio, `VirtualTableService`, de modo que la consola, las herramien
 agent, los nodos de workflow y la API pública comparten las mismas reglas. Esta página
 describe el servicio y sus rutas HTTP bajo `/api/v1/tables`; el documento OpenAPI es su
 contrato.
+
+## Clientes externos { #external-clients }
+
+Las claves de API de la organización se aceptan en `/api/v1/tables`. Envía
+`Authorization: Bearer aos_…`; la organización procede de la clave. Leer requiere
+`tables:view`, escribir registros y esquemas `tables:edit`, y crear una tabla
+`tables:create`. Se aplican tanto el acceso actual del emisor como los permisos de
+la clave. El historial y los recibos identifican al emisor; la clave no amplía su
+acceso. Una tabla inaccesible responde `404`, un permiso de colección ausente `403`,
+una revisión obsoleta `409`, y una consulta o registro no válido `422`. Repetir una
+escritura con el mismo `Idempotency-Key` y cuerpo devuelve el resultado original
+sin otro evento de creación.
+
+`POST /api/v1/tables/{id}/records/query` acepta `columns` (hasta 100 IDs de columnas
+activas) además de filtros, orden, skip y limit. Solo esas celdas y etiquetas de enlaces
+llegan a la respuesta. `null` conserva el registro completo; `[]` devuelve solo
+metadatos. Las columnas calculadas se evalúan antes de la proyección, sin tener que
+seleccionar sus dependencias. Los mismos registros aparecen inmediatamente en la
+consola; el trigger de la tabla se ejecuta de forma asíncrona sin retrasar el CRUD.
 
 ## Cómo se construye una tabla { #how-a-table-is-built }
 
@@ -699,13 +718,5 @@ integración que escribe, filtra y ordena un registro del tipo nuevo.
 
 ## Aún no construido { #not-built-yet }
 
-- **Un principal para las claves de API.** El acceso, los recibos y el historial nombran
-  a un usuario autenticado. Cómo actúa una clave de API sobre una tabla en la API externa
-  está aún por acordar.
-- Crear o borrar registros desde la consola. Los agents llegan a las tablas a través de
-  la [capability Tables](reference/capabilities.md#tables), y los workflows a través de
-  los [nodos de tablas](reference/workflow-nodes.md#virtual-tables).
-- Un trigger al actualizar o borrar un registro. Los [triggers](#triggers) solo se
-  inician al crear.
 - Reanudar desde la consola un run que se detuvo como **Needs attention**. Se puede
   cancelar e iniciar un run nuevo.

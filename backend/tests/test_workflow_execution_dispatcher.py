@@ -15,6 +15,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, create_autospec, patch
 import pytest
 from pydantic import BaseModel
 
+from app.core.exceptions import AuthenticationError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import WorkflowVersion
 from app.db.models.workflow_run import (
@@ -422,6 +423,54 @@ class TestPrincipalContext:
             user.return_value = _principal()
             member.return_value = MagicMock(role="member")
             yield {"user": user, "member": member, "workflow": workflow, "access": access}
+
+    async def test_a_keys_current_context_is_intersected_with_its_admitted_ceiling(self, lookups):
+        run = _run(execution_api_key_id=uuid.uuid4(), key_scopes=["workflows:run", "removed:scope"])
+        current = AuthContext(
+            user_id=run.execution_principal_user_id,
+            organization_id=run.organization_id,
+            role="owner",
+            api_key_id=run.execution_api_key_id,
+            key_scopes=frozenset({Perm.WORKFLOWS_RUN, Perm.TABLES_EDIT}),
+        )
+        with patch(
+            f"{DISPATCHER_PATH}.ApiKeyService.context_for_key", new=AsyncMock(return_value=current)
+        ) as load:
+            auth = await _REAL_PRINCIPAL_CONTEXT(object(), run)
+        load.assert_awaited_once_with(run.execution_api_key_id, organization_id=run.organization_id)
+        assert auth.api_key_id == run.execution_api_key_id
+        assert auth.key_scopes == frozenset({Perm.WORKFLOWS_RUN})
+        assert not auth.has(Perm.TABLES_EDIT)
+
+    async def test_a_stored_scope_ceiling_also_narrows_a_session_context(self, lookups):
+        run = _run(key_scopes=["workflows:run"])
+        auth = await _REAL_PRINCIPAL_CONTEXT(object(), run)
+        assert auth.key_scopes == frozenset({Perm.WORKFLOWS_RUN})
+
+    async def test_a_missing_or_revoked_key_refuses_queued_work(self, lookups):
+        run = _run(execution_api_key_id=uuid.uuid4())
+        with (
+            patch(
+                f"{DISPATCHER_PATH}.ApiKeyService.context_for_key",
+                new=AsyncMock(side_effect=AuthenticationError()),
+            ),
+            pytest.raises(PrincipalRevokedError),
+        ):
+            await _REAL_PRINCIPAL_CONTEXT(object(), run)
+
+    async def test_a_key_for_another_principal_is_refused(self, lookups):
+        run = _run(execution_api_key_id=uuid.uuid4())
+        current = AuthContext(
+            user_id=uuid.uuid4(), organization_id=run.organization_id, role="owner"
+        )
+        with (
+            patch(
+                f"{DISPATCHER_PATH}.ApiKeyService.context_for_key",
+                new=AsyncMock(return_value=current),
+            ),
+            pytest.raises(PrincipalRevokedError),
+        ):
+            await _REAL_PRINCIPAL_CONTEXT(object(), run)
 
     async def test_an_entitled_member_acts_with_their_current_role(self, lookups):
         run = _run()

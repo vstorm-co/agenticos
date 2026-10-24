@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.agents.spec import AgentSpec
 from app.api import deps
 from app.core.config import settings
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent_run import AgentRun
@@ -54,9 +54,11 @@ from app.db.models.workflow_run import (
     WorkflowRunTrigger,
 )
 from app.main import app
+from app.schemas.api_key import ApiKeyCreate
 from app.schemas.virtual_table import ColumnInput, ColumnTypeName, TableCreate, TableRead
 from app.schemas.workflow import WorkflowCreate, WorkflowDraftUpdate, WorkflowPublish
 from app.services.agent_registry import AgentRegistryService
+from app.services.api_key import ApiKeyService
 from app.services.file_storage import LocalFileStorage
 from app.services.rag.models import SearchResult
 from app.services.virtual_tables.facade import VirtualTableService
@@ -501,7 +503,19 @@ async def _lead_pipeline(world: _World) -> _LeadPipeline:
 
 
 @asynccontextmanager
-async def _api(world: _World, redis: MagicMock) -> AsyncIterator[AsyncClient]:
+async def _api(
+    world: _World,
+    redis: MagicMock,
+    *,
+    scopes: tuple[Perm, ...] = (Perm.TABLES_VIEW, Perm.TABLES_EDIT),
+) -> AsyncIterator[AsyncClient]:
+    async with world.factory() as db:
+        issued = await ApiKeyService(db).create(
+            world.ctx,
+            ApiKeyCreate(name="journey client", scopes=list(scopes)),
+        )
+        await db.commit()
+
     async def session() -> AsyncGenerator[AsyncSession]:
         async with world.factory() as opened:
             try:
@@ -512,10 +526,13 @@ async def _api(world: _World, redis: MagicMock) -> AsyncIterator[AsyncClient]:
                 raise
 
     app.dependency_overrides[deps.get_db_session] = session
-    app.dependency_overrides[deps.get_auth_context] = lambda: world.ctx
     app.dependency_overrides[deps.get_redis] = lambda: redis
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {issued.key}"},
+        ) as client:
             yield client
     finally:
         app.dependency_overrides.clear()
@@ -527,7 +544,16 @@ async def _post_lead(world: _World, pipeline: _LeadPipeline, redis: MagicMock) -
         created = await client.post(
             f"{settings.API_V1_STR}/tables/{pipeline.leads.id}/records",
             json={"values": {str(email): "ada@example.com"}},
+            headers={"Idempotency-Key": "lead-delivery"},
         )
+        replayed = await client.post(
+            f"{settings.API_V1_STR}/tables/{pipeline.leads.id}/records",
+            json={"values": {str(email): "ada@example.com"}},
+            headers={"Idempotency-Key": "lead-delivery"},
+        )
+        assert replayed.status_code == 201, replayed.text
+        assert replayed.json() == created.json()
+        assert replayed.headers["Idempotent-Replayed"] == "true"
     assert created.status_code == 201, created.text
     return uuid.UUID(created.json()["id"])
 
@@ -854,3 +880,44 @@ async def test_a_member_who_loses_access_halfway_stops_the_journey_before_the_wr
     assert (await _lead(world, record_id)).revision == 1
     assert await _told(world) == []
     assert json.dumps(run.error or {}).find("ada@example.com") == -1
+
+
+@pytest.mark.parametrize("revoked", [False, True])
+async def test_a_key_started_workflow_keeps_its_scope_ceiling_and_stops_after_revocation(
+    world: _World, mock_redis: MagicMock, revoked: bool
+) -> None:
+    entry, output = _node("core.input"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, output),
+        edges=(_edge(entry, output),),
+        bindings=(_literal(output, "text", "Finished through the public API"),),
+    )
+    workflow_id = await world.workflow(graph, "External workflow")
+    scopes = (Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_RUN)
+    async with _api(world, mock_redis, scopes=scopes) as client:
+        started = await client.post(
+            f"{settings.API_V1_STR}/workflow-runs", json={"workflow_id": str(workflow_id)}
+        )
+        assert started.status_code == 201, started.text
+        run_id = uuid.UUID(started.json()["id"])
+        run = await world.run(run_id)
+        assert run.execution_api_key_id is not None
+        assert run.public_origin is True
+        assert set(run.key_scopes or []) == {scope.value for scope in scopes}
+        async with world.factory() as db:
+            auth = await dispatcher._principal_context(db, run)
+            assert auth.key_scopes == frozenset(scopes)
+            assert not auth.has(Perm.TABLES_EDIT)
+            if revoked:
+                await ApiKeyService(db).revoke(world.ctx, run.execution_api_key_id)
+                await db.commit()
+        final = await drive(await world.seeded(run_id, graph))
+        if revoked:
+            assert final.status == WorkflowRunStatus.FAILED.value
+            assert final.error is not None and final.error["code"] == "PRINCIPAL_REVOKED"
+        else:
+            assert final.status == WorkflowRunStatus.SUCCEEDED.value, final.error
+            read = await client.get(f"{settings.API_V1_STR}/workflow-runs/{run_id}")
+            assert read.status_code == 200, read.text
+            assert read.json()["output"]["text"] == "Finished through the public API"

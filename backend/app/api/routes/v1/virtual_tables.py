@@ -54,6 +54,7 @@ from app.api.deps import (
     limit_table_write,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._path_convertors import ANYTEXT
 from app.api.routes.v1._table_responses import answer
 from app.core.permissions import Perm
@@ -82,7 +83,7 @@ from app.schemas.virtual_table import (
     TableUpdate,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 IdempotencyKey = Annotated[
     OperationKey | None,

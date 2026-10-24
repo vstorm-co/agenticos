@@ -1,5 +1,5 @@
 ---
-source_sha: "656b5d0b956d"
+source_sha: "4caa2283c880"
 ---
 
 # La API HTTP { #the-http-api }
@@ -277,6 +277,15 @@ filtro y la página — las opciones que ofrece un menú de filtro. Un agent pri
 no puedes ver no aporta ninguna.
 
 ## Ejecutar un workflow { #running-a-workflow }
+
+Las claves de API de la organización pueden iniciar runs y leer su estado, grafo,
+pasos, archivos y eventos en `/api/v1/workflow-runs`. Iniciar requiere `workflows:run`,
+leer también `workflows:view`, y probar un borrador `workflows:edit`. El worker conserva
+el límite de permisos admitido y comprueba la clave y el emisor antes de cada paso,
+incluso tras una aprobación o espera. Revocar, caducar o eliminar la clave detiene
+trabajo nuevo con `PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
+Los runs iniciados con clave no acceden al estado personal del emisor. Editar un
+workflow sigue requiriendo una sesión.
 
 ```bash
 curl -X POST "$BASE/api/v1/workflow-runs" \

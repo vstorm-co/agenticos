@@ -25,6 +25,7 @@ from app.api.deps import (
     limit_workflow_run,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -41,7 +42,7 @@ from app.schemas.workflow_run import (
     WorkflowRunStart,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 resume_router = APIRouter()
 
 

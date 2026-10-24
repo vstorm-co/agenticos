@@ -406,6 +406,11 @@ class RecordSort(_Request):
 
 
 class RecordQuery(_Request):
+    columns: list[UUID] | None = Field(
+        default=None,
+        max_length=MAX_COLUMNS,
+        description="Return only these live columns in values and links; null returns all columns.",
+    )
     filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
     search: SearchTerm | None = Field(
         default=None,

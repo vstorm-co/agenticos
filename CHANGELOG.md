@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Organization-key access to Virtual Tables and workflow runs.** External
+  clients use the shared table routes with scoped organization keys, including
+  receipt-backed writes, revision checks and bounded column selection. Workflow
+  workers retain the key's admitted scopes, recheck its current authority before
+  every step and stop after revocation, expiry or deletion; key-started chains
+  cannot reach the issuer's personal state. Workflow authoring remains session-only.
 - **A page can start a workflow, as the person viewing it, after they confirm.**
   An agent declares up to five actions when it publishes - workflows its Workflows
   capability binds that start from Manual or API request and that the person behind

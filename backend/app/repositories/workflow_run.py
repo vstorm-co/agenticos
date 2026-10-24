@@ -69,6 +69,8 @@ async def create_run(
     impersonated: bool = False,
     source_artifact_id: UUID | None = None,
     source_version_number: int | None = None,
+    execution_api_key_id: UUID | None = None,
+    key_scopes: list[str] | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -90,6 +92,8 @@ async def create_run(
         source_artifact_id=source_artifact_id,
         source_version_number=source_version_number,
         execution_principal_user_id=execution_principal_user_id,
+        execution_api_key_id=execution_api_key_id,
+        key_scopes=key_scopes,
         budget_limit=budget_limit,
         node_count=node_count,
         deadline_at=deadline_at,

@@ -475,6 +475,7 @@ class WorkflowExecutionService:
             source_version_number=source_version_number,
             public_origin=(
                 public_origin
+                or ctx.api_key_id is not None
                 or triggered_by in dispatcher.PUBLIC_TRIGGERS
                 or (causation is not None and causation.public_origin)
             ),
@@ -486,6 +487,10 @@ class WorkflowExecutionService:
                 or (causation is not None and causation.impersonated)
             ),
             execution_principal_user_id=ctx.subject_id,
+            execution_api_key_id=ctx.api_key_id,
+            key_scopes=(
+                None if ctx.key_scopes is None else sorted(scope.value for scope in ctx.key_scopes)
+            ),
             budget_limit=budget_limit,
             node_count=len(graph.nodes),
             deadline_at=deadline_at,

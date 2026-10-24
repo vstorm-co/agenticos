@@ -1,5 +1,5 @@
 ---
-source_sha: "863f2bbf1772"
+source_sha: "ec953111912b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -15,6 +15,25 @@ Schreibzugriff läuft über einen einzigen Service, `VirtualTableService`, sodas
 Konsole, Agent-Tools, Workflow-Knoten und die öffentliche API dieselben Regeln teilen.
 Diese Seite beschreibt den Service und seine HTTP-Routen unter `/api/v1/tables`; das
 OpenAPI-Dokument ist ihr Vertrag.
+
+## Externe Clients { #external-clients }
+
+Organisations-API-Keys werden auf `/api/v1/tables` akzeptiert. Senden Sie
+`Authorization: Bearer aos_…`; die Organisation kommt vom Key. Lesen erfordert
+`tables:view`, Datensatz- und Schemaänderungen `tables:edit`, das Anlegen einer Tabelle
+`tables:create`. Sowohl der aktuelle Zugriff des Ausstellers als auch die Scopes des
+Keys gelten. Historie und Quittungen nennen den Aussteller; der Key erweitert dessen
+Zugriff nicht. Eine unzugängliche Tabelle antwortet `404`, eine fehlende
+Sammlungsberechtigung `403`, eine veraltete Revision `409`, eine ungültige Abfrage
+oder ein ungültiger Datensatz `422`. Eine Wiederholung mit demselben
+`Idempotency-Key` und Inhalt liefert das ursprüngliche Ergebnis ohne weiteres Created-Ereignis.
+
+`POST /api/v1/tables/{id}/records/query` akzeptiert `columns` (bis zu 100 IDs aktiver
+Spalten) neben Filtern, Sortierung, skip und limit. Nur diese Zellen und Link-Labels
+erreichen die Antwort. `null` behält den ganzen Datensatz; `[]` liefert nur Metadaten.
+Berechnete Spalten werden vor der Projektion ausgewertet; ihre Abhängigkeiten müssen
+nicht ausgewählt sein. Dieselben Datensätze erscheinen sofort in der Konsole; die
+asynchrone Ausführung des Tabellen-Triggers verzögert die CRUD-Antwort nicht.
 
 ## Wie eine Tabelle aufgebaut ist { #how-a-table-is-built }
 
@@ -747,13 +766,5 @@ Integrationstest, der einen Datensatz des neuen Typs schreibt, filtert und sorti
 
 ## Noch nicht gebaut { #not-built-yet }
 
-- **Ein Principal für API-Keys.** Zugriff, Quittungen und Historie nennen einen
-  angemeldeten Benutzer. Wie ein API-Key für die externe API auf eine Tabelle wirkt,
-  muss noch abgestimmt werden.
-- Das Erstellen und Löschen von Datensätzen in der Konsole. Agents erreichen Tabellen
-  über die [Tables-Capability](reference/capabilities.md#tables), Workflows über die
-  [Tabellen-Knoten](reference/workflow-nodes.md#virtual-tables).
-- Ein Trigger auf das Ändern oder Löschen eines Datensatzes. [Trigger](#triggers)
-  starten nur beim Anlegen.
 - Einen Run, der als **Braucht Aufmerksamkeit** angehalten hat, in der Konsole
   fortsetzen. Er lässt sich abbrechen und ein neuer Run starten.

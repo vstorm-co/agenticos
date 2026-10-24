@@ -11,6 +11,24 @@ the database catalog. Every read and write goes through one service,
 API share the same rules. This page describes the service and its HTTP routes
 under `/api/v1/tables`; the OpenAPI document is the contract for them.
 
+## External clients { #external-clients }
+
+Organization API keys are accepted on `/api/v1/tables`. Send
+`Authorization: Bearer aos_…`; the organization comes from the key. Reads need
+`tables:view`, record and schema writes need `tables:edit`, and creating a table
+needs `tables:create`. The issuer's current access and the key's scopes both apply.
+Receipts and history name the issuer; a key cannot widen their access. An inaccessible
+table answers `404`, a missing collection permission `403`, a stale revision `409`,
+and an invalid query or record `422`. Retrying a record write with the same
+`Idempotency-Key` and body returns its original outcome without another created event.
+
+`POST /api/v1/tables/{id}/records/query` accepts `columns` (up to 100 live column
+IDs) alongside filters, sort, skip and limit. Only those cells and link labels reach
+the response. `null` keeps the full record; `[]` returns metadata only. Computed
+columns are evaluated before projection, so their dependencies need not be selected.
+The same records immediately appear in the console; table-trigger dispatch is
+asynchronous and never delays the CRUD response.
+
 ## How a table is built { #how-a-table-is-built }
 
 | Part | What it is | Identity |
@@ -661,11 +679,5 @@ test that writes, filters and sorts a record of the new type.
 
 ## Not built yet { #not-built-yet }
 
-- **A principal for API keys.** Access, receipts and history all name a signed-in
-  user. How an API key acts on a table for the external API is still to be agreed.
-- Creating or deleting a record from the console. Agents reach tables through the
-  [Tables capability](reference/capabilities.md#tables), and workflows through the
-  [table nodes](reference/workflow-nodes.md#virtual-tables).
-- A trigger on a record's update or delete. [Triggers](#triggers) start on a create only.
 - Resuming a run that stopped as **Needs attention** from the console. It can be
   cancelled, and a new run started.

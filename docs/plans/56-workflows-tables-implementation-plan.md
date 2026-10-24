@@ -1,5 +1,8 @@
 # Workflows + Virtual Tables: implementation plan
 
+Historical design and estimates from September 2026. For implementation status,
+see the [2026-10-24 acceptance map](56-milestone-acceptance.md).
+
 Master plan for #56 and its thirteen delivery issues (#1781–#1793), covering
 current status, the full dependency graph, the recommended build order, and
 where each issue's design document lives. Rebuilt 2026-09-22 against the

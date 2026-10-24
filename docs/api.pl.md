@@ -1,5 +1,5 @@
 ---
-source_sha: "656b5d0b956d"
+source_sha: "4caa2283c880"
 ---
 
 # API HTTP { #the-http-api }
@@ -265,6 +265,15 @@ które możesz wylistować, niezależnie od filtra i strony — wybory, które p
 filtra. Prywatny agent, którego nie widzisz, nie dodaje żadnej.
 
 ## Uruchamianie workflowu { #running-a-workflow }
+
+Klucze API organizacji mogą uruchamiać runy i odczytywać ich stan, graf, kroki,
+pliki oraz zdarzenia przez `/api/v1/workflow-runs`. Start wymaga `workflows:run`,
+odczyt także `workflows:view`, a test draftu `workflows:edit`. Worker zachowuje zakres
+klucza z chwili przyjęcia runu i sprawdza klucz oraz wystawcę przed każdym krokiem,
+także po zatwierdzeniu lub oczekiwaniu. Unieważnienie, wygaśnięcie albo usunięcie
+klucza zatrzymuje nową pracę z `PRINCIPAL_REVOKED`; wznowienie nigdy nie dostaje pełnej
+roli wystawcy. Run uruchomiony kluczem nie ma dostępu do osobistego stanu wystawcy.
+Edycja workflow nadal wymaga sesji.
 
 ```bash
 curl -X POST "$BASE/api/v1/workflow-runs" \

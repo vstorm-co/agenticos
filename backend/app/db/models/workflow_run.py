@@ -259,6 +259,12 @@ class WorkflowRun(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # No SET NULL foreign key: deleting a key must refuse its queued work, never
+    # turn it into a session run with the issuer's unrestricted authority.
+    execution_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    key_scopes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     budget_limit: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     # The run's graph node count, stamped at creation. It is the run's worst-case
     # node work, and the admission quota (#1907) sums it over live runs to bound

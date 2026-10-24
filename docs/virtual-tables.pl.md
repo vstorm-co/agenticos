@@ -1,5 +1,5 @@
 ---
-source_sha: "863f2bbf1772"
+source_sha: "ec953111912b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -14,6 +14,24 @@ tabeli kosztuje jeden wiersz, zmiana nazwy kolumny nie zmienia żadnego rekordu,
 przez jeden serwis, `VirtualTableService`, więc konsola, narzędzia agenta, węzły
 workflow i publiczne API mają te same reguły. Ta strona opisuje serwis i jego trasy
 HTTP pod `/api/v1/tables`; dokument OpenAPI jest ich kontraktem.
+
+## Klienci zewnętrzni { #external-clients }
+
+Klucze API organizacji działają na `/api/v1/tables`. Wyślij
+`Authorization: Bearer aos_…`; organizacja pochodzi z klucza. Odczyt wymaga
+`tables:view`, zapis rekordów i schematu `tables:edit`, a utworzenie tabeli
+`tables:create`. Obowiązują zarówno bieżący dostęp wystawcy, jak i zakres klucza.
+Historia i potwierdzenia wskazują wystawcę; klucz nie rozszerza jego dostępu.
+Niedostępna tabela zwraca `404`, brak uprawnienia kolekcji `403`, stara rewizja `409`,
+a nieprawidłowe zapytanie lub rekord `422`. Ponowiony zapis z tym samym
+`Idempotency-Key` i treścią zwraca pierwotny wynik bez kolejnego zdarzenia utworzenia.
+
+`POST /api/v1/tables/{id}/records/query` przyjmuje `columns` (do 100 identyfikatorów
+aktywnych kolumn) obok filtrów, sortowania, skip i limit. Odpowiedź zawiera tylko
+wybrane komórki i etykiety powiązań. `null` zachowuje cały rekord; `[]` zwraca tylko
+metadane. Kolumny obliczane są wyliczane przed projekcją, więc ich zależności nie
+muszą być wybrane. Te same rekordy od razu widać w konsoli; asynchroniczne uruchomienie
+wyzwalacza tabeli nie opóźnia odpowiedzi CRUD.
 
 ## Jak zbudowana jest tabela { #how-a-table-is-built }
 
@@ -695,13 +713,5 @@ integracyjnego, który zapisuje, filtruje i sortuje rekord nowego typu.
 
 ## Jeszcze nie zbudowane { #not-built-yet }
 
-- **Podmiot dla kluczy API.** Dostęp, potwierdzenia i historia wskazują zalogowanego
-  użytkownika. Jak klucz API działa na tabeli w zewnętrznym API, ma dopiero zostać
-  uzgodnione.
-- Tworzenie i usuwanie rekordów z konsoli. Agenci sięgają do tabel przez
-  [capability Tables](reference/capabilities.md#tables), a workflow przez
-  [węzły tabel](reference/workflow-nodes.md#virtual-tables).
-- Wyzwalacz na aktualizację albo usunięcie rekordu. [Wyzwalacze](#triggers) startują
-  tylko przy utworzeniu.
 - Wznowienie z konsoli runu, który zatrzymał się jako **Wymaga uwagi**. Można go
   anulować i uruchomić nowy run.

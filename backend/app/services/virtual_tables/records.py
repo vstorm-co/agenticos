@@ -587,6 +587,11 @@ class RecordOperations(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         columns = await self._columns(table)
         filters, sort = _clauses(columns, query)
+        selected = None if query.columns is None else {str(item) for item in query.columns}
+        if selected is not None:
+            live = {str(column.id) for column in columns if not column.archived}
+            if selected - live:
+                raise InvalidQueryError("columns", "Choose live columns of this table")
         rows = await virtual_table_repo.list_records(
             self.db,
             table_id=table.id,
@@ -597,13 +602,29 @@ class RecordOperations(Operations):
             skip=query.skip,
             limit=query.limit + 1,
         )
+        items = await read_through(
+            self.db,
+            ctx,
+            columns,
+            [RecordRead.model_validate(row) for row in rows[: query.limit]],
+        )
+        if selected is not None:
+            # Compute before projecting: a selected formula can depend on an omitted cell.
+            items = [
+                item.model_copy(
+                    update={
+                        "values": {
+                            key: value for key, value in item.values.items() if key in selected
+                        },
+                        "links": {
+                            key: value for key, value in item.links.items() if key in selected
+                        },
+                    }
+                )
+                for item in items
+            ]
         return RecordList(
-            items=await read_through(
-                self.db,
-                ctx,
-                columns,
-                [RecordRead.model_validate(row) for row in rows[: query.limit]],
-            ),
+            items=items,
             skip=query.skip,
             limit=query.limit,
             has_more=len(rows) > query.limit,

@@ -1,5 +1,5 @@
 ---
-source_sha: "656b5d0b956d"
+source_sha: "4caa2283c880"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -291,6 +291,15 @@ können, unabhängig von Filter und Seite — die Auswahl, die ein Filtermenü a
 Ein privater Agent, den Sie nicht sehen, trägt keines bei.
 
 ## Einen Workflow ausführen { #running-a-workflow }
+
+Organisations-API-Keys können Runs starten und Status, Graph, Schritte, Dateien
+und Ereignisse über `/api/v1/workflow-runs` lesen. Ein Start verlangt `workflows:run`,
+das Lesen zusätzlich `workflows:view`, ein Entwurfstest `workflows:edit`. Der Worker
+behält die beim Start zugelassenen Scopes und prüft Key und Aussteller vor jedem
+Schritt erneut, auch nach einer Freigabe oder Wartezeit. Widerruf, Ablauf oder
+Löschung stoppen neue Arbeit mit `PRINCIPAL_REVOKED`; eine Fortsetzung erhält nie
+die volle Rolle des Ausstellers. Key-Runs erreichen keine persönlichen Daten des
+Ausstellers. Das Bearbeiten eines Workflows verlangt weiterhin eine Sitzung.
 
 ```bash
 curl -X POST "$BASE/api/v1/workflow-runs" \
