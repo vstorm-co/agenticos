@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- New test-question identities use SHA-256 for their train/holdout allocation; existing stored assignments remain unchanged across edits and versions.
+
 - The improvement wizard keeps its publication link when reopened, names the next version, offers the first automatic check only when needed, and distinguishes failed or replaced suggestions from loading.
 
 ### Changed

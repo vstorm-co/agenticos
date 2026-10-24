@@ -391,3 +391,27 @@ async def test_queued_proposal_rechecks_session_pins_before_paying(db):
     request = (await AuthoringService(db).for_agent(ctx, agent.id)).latest
     assert request is not None and request.id == request_id and request.status == "failed"
     assert not improver.prompts
+
+
+async def test_a_legacy_stored_assignment_is_never_recomputed_by_the_new_allocator(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="Legacy partition"))
+    first = await service.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Legacy question", reference_answer="A reviewed answer"),
+    )
+    current = case_partition(first.case_id, Decimal("0.5"))
+    legacy = "train" if current == "holdout" else "holdout"
+    revision = await db.get(DatasetCase, first.id)
+    assert revision is not None
+    revision.improvement_partition = legacy
+    await db.flush()
+    edited = await service.update_case(
+        ctx, dataset.id, first.case_id, DatasetCaseUpdate(note="Edited after allocator upgrade")
+    )
+    assert edited.improvement_partition == legacy
+    assert (
+        await service.read_case(ctx, dataset.id, first.case_id, version=1)
+    ).improvement_partition == legacy

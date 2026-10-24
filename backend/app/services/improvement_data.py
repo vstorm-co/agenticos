@@ -18,10 +18,12 @@ _SPACE = re.compile(r"\s+")
 def case_partition(case_id: UUID, holdout_share: Decimal) -> CasePartitionLiteral:
     """Assign a new identity once. Edits copy the stored assignment instead.
 
-    MD5 is only a uniform partition here, never a security digest. Its first
-    eight hex digits match the PostgreSQL backfill without an extra extension.
+    SHA-256 provides a uniform bucket for new identities. Existing assignments,
+    including the `0196_improvement_holdout.py` backfill, are stored and copied
+    across revisions; changing the allocator must never move an existing case
+    between train and holdout.
     """
-    bucket = int(hashlib.md5(str(case_id).encode(), usedforsecurity=False).hexdigest()[:8], 16)
+    bucket = int(hashlib.sha256(str(case_id).encode()).hexdigest()[:8], 16)
     return "holdout" if Decimal(bucket) < holdout_share * (2**32) else "train"
 
 
