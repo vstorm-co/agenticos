@@ -141,3 +141,38 @@ async def test_pdf_image_conversion_maps_the_page_limit_to_a_controlled_refusal(
     )
     assert isinstance(result, Failed) and result.error.code == "DOCUMENT_TOO_LARGE"
     saved.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_text_extraction_reports_a_pdf_character_limit_without_losing_its_reason(monkeypatch):
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    from app.workflows import files
+    from app.workflows.contracts.io import FileRef
+    from app.workflows.contracts.results import Failed
+    from app.workflows.nodes.text_extract import _handler
+
+    monkeypatch.setattr(
+        files,
+        "load",
+        AsyncMock(
+            return_value=files.StoredFile(
+                data=b"pdf", content_type="application/pdf", filename="long.pdf"
+            )
+        ),
+    )
+
+    def too_long(_data, _source, _max_chars):
+        raise _documents.DocumentTextTooLong()
+
+    monkeypatch.setattr(_handler, "_extract", too_long)
+    result = await _handler.handle(
+        _handler.TextExtractConfig(max_chars=10),
+        _handler.TextExtractInput(
+            file=FileRef(file_id=uuid4(), content_type="application/pdf", byte_size=3)
+        ),
+    )
+    assert isinstance(result, Failed) and result.error.code == "TEXT_TOO_LONG"
+    assert result.error.details["max_chars"] == 10

@@ -121,12 +121,26 @@ def _answer(called: WorkflowRun, *, wait: bool) -> NodeResult:
             message=f"The workflow this step ran ended {called.status}: "
             + str(error.get("message", "no error was recorded")),
             details={"run_id": str(called.id), "code": error.get("code")},
+            bypassable=(
+                called.status
+                not in {WorkflowRunStatus.CANCELLED.value, WorkflowRunStatus.BUDGET_EXCEEDED.value}
+                and error.get("code") not in {"PRINCIPAL_REVOKED", "PARENT_RUN_STOPPED"}
+                and error.get("bypassable", True) is not False
+            ),
         )
     )
 
 
 def _refused(code: str, message: str, **details: object) -> Failed:
-    return Failed(error=WorkflowError(code=code, message=message, details=dict(details)))
+    return Failed(
+        error=WorkflowError(
+            code=code,
+            message=message,
+            details=dict(details),
+            bypassable=code
+            not in {"CALLED_WORKFLOW_HISTORY_UNAVAILABLE", "CALLED_WORKFLOW_STILL_RUNNING"},
+        )
+    )
 
 
 def _unavailable() -> Failed:
@@ -224,14 +238,13 @@ async def _previous_call(db: AsyncSession, caller: WorkflowRun) -> WorkflowRun |
             called = await workflow_run_repo.get_run_called_by(db, node_run_id=previous_node.id)
             if called is not None:
                 return called
-            attempt = await workflow_run_repo.get_latest_attempt(db, node_run_id=previous_node.id)
-            if attempt is not None and attempt.result:
-                error = attempt.result.get("error") or {}
-                if error.get("code") == "CALLED_WORKFLOW_FAILED":
-                    return _refused(
-                        "CALLED_WORKFLOW_HISTORY_UNAVAILABLE",
-                        "The original called run was deleted; its effects cannot be safely repeated",
-                    )
+            if await workflow_run_repo.call_history_requires_child(
+                db, organization_id=current.organization_id, node_run_id=previous_node.id
+            ):
+                return _refused(
+                    "CALLED_WORKFLOW_HISTORY_UNAVAILABLE",
+                    "The original called run was deleted; its effects cannot be safely repeated",
+                )
         previous = await workflow_run_repo.get_run(
             db, previous_id, organization_id=current.organization_id
         )
@@ -240,6 +253,10 @@ async def _previous_call(db: AsyncSession, caller: WorkflowRun) -> WorkflowRun |
                 "CALLED_WORKFLOW_HISTORY_UNAVAILABLE", "The original run is no longer available"
             )
         previous_id = previous.retry_of_run_id
+    if previous_id is not None:
+        return _refused(
+            "CALLED_WORKFLOW_HISTORY_UNAVAILABLE", "The original retry history contains a cycle"
+        )
     return None
 
 

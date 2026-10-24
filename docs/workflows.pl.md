@@ -1,5 +1,5 @@
 ---
-source_sha: "8321b14fa263"
+source_sha: "361fd8f44a02"
 ---
 
 # Workflows { #workflows }
@@ -781,6 +781,11 @@ nadal działa, trzeba go najpierw zakończyć lub zatrzymać. Pliki wynikowe są
 importowane do przebiegu nadrzędnego, a wznowienie oczekiwania ponownie sprawdza dostęp.
 
 Wykres dzienny i statystyki kroków przebiegu nadrzędnego także obejmują opłaty podprocesu.
+
+Odzyskiwanie zatrzymuje się, gdy udany krok utracił wynik albo wywołany przebieg
+usunięto lub jego historia ponowień zawiera cykl. Nie powtarza efektów, aby
+odtworzyć tę historię. Anulowanie podprocesu, wyczerpanie budżetu i odebranie
+uprawnień także pozostają błędami, których gałąź obsługi błędów nie może ukryć.
 
 ### Z agenta { #from-an-agent }
 

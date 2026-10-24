@@ -986,3 +986,45 @@ class TestNodeRunRead:
             cost=Decimal(0),
         )
         assert node_run_read(row, [parked, woken]).attempts == 1
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("parent_state", ["missing", "step_missing", "foreign", "cancelled"])
+async def test_call_admission_refuses_a_parent_that_disappeared_or_stopped(parent_state):
+    service = WorkflowExecutionService(MagicMock())
+    parent = _run_row(status="cancelled" if parent_state == "cancelled" else "running")
+    if parent_state == "foreign":
+        parent.organization_id = uuid.uuid4()
+    error = (
+        WorkflowRunAlreadyTerminalError if parent_state == "cancelled" else WorkflowNotRunnableError
+    )
+    with (
+        patch(
+            f"{FACADE_PATH}.workflow_run_repo.get_node_run_by_id",
+            new=AsyncMock(
+                return_value=None
+                if parent_state == "step_missing"
+                else MagicMock(workflow_run_id=parent.id)
+            ),
+        ),
+        patch(
+            f"{FACADE_PATH}.workflow_run_repo.get_run_by_id_for_update",
+            new=AsyncMock(return_value=None if parent_state == "missing" else parent),
+        ),
+        patch.object(service, "_admit", new=AsyncMock()) as admit,
+        pytest.raises(error),
+    ):
+        await service.admit_call(
+            _ctx(),
+            _workflow(),
+            _version(),
+            run_input={},
+            parent_node_run_id=uuid.uuid4(),
+            causation=Causation(
+                root_run_id=uuid.uuid4(),
+                causation_run_id=parent.id,
+                visited_trigger_ids=[],
+                depth=1,
+            ),
+        )
+    admit.assert_not_awaited()

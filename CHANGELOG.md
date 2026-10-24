@@ -643,6 +643,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Workflow retry refuses missing successful outputs, cyclic ancestry and deleted
+  called-run history instead of repeating effects. Called-run cancellation,
+  budget and revoked-principal failures retain their non-bypassable outcome.
+
 - Webhook test and live deliveries enforce body limits during streaming; bodyless
   HTTP statuses send an empty response. PDF image conversion checks its page
   ceiling before page enumeration. Rollups keep large averages finite and expose

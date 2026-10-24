@@ -1,5 +1,5 @@
 ---
-source_sha: "8321b14fa263"
+source_sha: "361fd8f44a02"
 ---
 
 # Workflows { #workflows }
@@ -853,6 +853,11 @@ Kind muss zuerst enden oder gestoppt werden. Ergebnisdateien werden ausdrücklic
 den Aufrufer importiert; beim Fortsetzen wird der Zugriff erneut geprüft.
 
 Tagesdiagramm und Schrittstatistiken des Aufrufers enthalten ebenfalls die Gebühren aufgerufener Läufe.
+
+Die Wiederherstellung stoppt bei fehlenden Ergebnissen erfolgreicher Schritte
+sowie gelöschten Aufrufen oder zyklischer Wiederholungshistorie. Effekte werden
+nicht wiederholt, um diese Historie zu ersetzen. Abbruch, ausgeschöpftes Budget
+und entzogene Berechtigungen des Kindes bleiben nicht umgehbare Fehler.
 
 ### Von einem Agenten { #from-an-agent }
 

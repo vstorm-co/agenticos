@@ -593,7 +593,7 @@ async def _reused_output(
     latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=original.id)
     output = latest.result.get("output") if latest is not None and latest.result else None
     if not isinstance(output, dict):
-        return None
+        raise InvalidBindingError(node_instance_id=node_run.node_instance_id, field="retry_output")
     await import_output_files(
         db,
         organization_id=run.organization_id,

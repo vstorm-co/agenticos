@@ -756,6 +756,11 @@ imported into the caller, and callee access is rechecked when a waiting call res
 
 The caller's daily chart and per-step statistics include called-run fees too.
 
+Recovery stops if a successful step has lost its output, or a called run has
+been deleted or has cyclic retry history. It does not repeat effects to recreate
+that history. Called-run cancellation, budget exhaustion and revoked authority
+also remain failures that an error branch cannot hide.
+
 ### From an agent { #from-an-agent }
 
 An agent with the [Workflows](reference/capabilities.md#workflows) capability

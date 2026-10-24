@@ -384,3 +384,19 @@ async def test_an_exhausted_organization_budget_refuses_a_decision_before_the_pr
     result = await _ask(yes_no, DecisionConfig.model_validate(BASE))
     assert isinstance(result, Failed) and result.error.code == "BUDGET_EXCEEDED"
     assert not result.error.bypassable and not model.asked
+
+
+async def test_cancelling_a_decision_preserves_cancellation_and_marks_unknown_fees_partial(
+    jev, monkeypatch
+):
+    import asyncio
+
+    jev(True)
+
+    async def cancelled(_messages, _info):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(_decide, "model_factory", lambda *_a: FunctionModel(cancelled))
+    with context.dispatching_as(_dispatch()) as scope, pytest.raises(asyncio.CancelledError):
+        await yes_no(DecisionConfig.model_validate(BASE), TEXT)
+    assert scope.cost == 0 and scope.cost_is_partial

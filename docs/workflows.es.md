@@ -1,5 +1,5 @@
 ---
-source_sha: "8321b14fa263"
+source_sha: "361fd8f44a02"
 ---
 
 # Workflows { #workflows }
@@ -805,6 +805,11 @@ fijada. Si ese hijo sigue activo, debe terminar o detenerse primero. Los archivo
 salida se importan explícitamente al llamador y el acceso se comprueba al reanudar.
 
 El gráfico diario y las estadísticas por paso del llamador también incluyen los cargos de las ejecuciones llamadas.
+
+La recuperación se detiene si falta la salida de un paso exitoso, se eliminó
+la ejecución llamada o su historial de reintentos es cíclico. No repite efectos
+para reconstruirlo. La cancelación, el presupuesto agotado y los permisos
+revocados del hijo siguen siendo fallos que una rama de error no puede ocultar.
 
 ### Desde un agente { #from-an-agent }
 

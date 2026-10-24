@@ -473,10 +473,13 @@ class TestPrincipalContext:
         ):
             await _REAL_PRINCIPAL_CONTEXT(object(), run)
 
-    async def test_a_called_run_rechecks_access_to_its_callers_workflow(self, lookups):
+    @pytest.mark.parametrize("gone", [False, True])
+    async def test_a_called_run_rechecks_access_to_its_callers_workflow(self, lookups, gone):
         parent = _run()
         run = _run(parent_node_run_id=uuid.uuid4())
         lookups["access"].side_effect = [True, False]
+        if gone:
+            lookups["workflow"].side_effect = [MagicMock(), None]
         with (
             patch(
                 f"{DISPATCHER_PATH}.workflow_run_repo.get_node_run_by_id",
@@ -2954,3 +2957,37 @@ class TestLoopsWithoutADatabase:
         }
         assert loop_run.status == NodeRunStatus.SUCCEEDED.value
         assert advance.await_args.kwargs["completed_node_instance_id"] == nodes["loop"].id
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("output", [None, [], "not-an-output"])
+async def test_a_successful_retry_step_with_lost_output_is_never_silently_reexecuted(repo, output):
+    from app.services.workflow_execution.exceptions import InvalidBindingError
+
+    run = _run(retry_of_run_id=uuid.uuid4())
+    step = _node_run(workflow_run_id=run.id, node_instance_id=uuid.uuid4())
+    original = _node_run(
+        workflow_run_id=run.retry_of_run_id,
+        node_instance_id=step.node_instance_id,
+        status="succeeded",
+    )
+    repo.get_node_run_by_identity.return_value = original
+    repo.get_latest_attempt.return_value = _attempt(
+        node_run_id=original.id, result={"output": output}
+    )
+    with pytest.raises(InvalidBindingError):
+        await dispatcher._reused_output(MagicMock(), run=run, node_run=step)
+
+
+@pytest.mark.parametrize("cycle", [False, True])
+async def test_cost_settlement_keeps_own_spend_when_parent_history_is_unavailable(repo, cycle):
+    run = _run(parent_node_run_id=uuid.uuid4())
+    repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+    repo.get_node_run_by_id.return_value = MagicMock(workflow_run_id=run.id) if cycle else None
+    repo.get_run_by_id_for_update.return_value = run
+    outcome = dispatcher.HandlerOutcome(
+        result=Completed[_EchoOutput](output=_EchoOutput(echoed="paid")), cost=Decimal("0.3")
+    )
+    result = await dispatcher._book_cost(MagicMock(), run=run, outcome=outcome)
+    assert result.spent_cost == Decimal("0.3")
+    assert repo.update_run.await_count == 1

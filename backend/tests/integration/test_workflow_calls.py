@@ -900,3 +900,42 @@ async def test_a_waiting_call_rechecks_access_before_returning_the_child_answer(
     assert ended.status == "failed"
     assert ended.error is not None and ended.error["code"] == "CALLED_WORKFLOW_UNAVAILABLE"
     assert ended.output is None
+
+
+@pytest.mark.security
+async def test_a_deleted_childs_wait_history_cannot_be_lost_by_retrying_the_caller(
+    engine: AsyncEngine,
+) -> None:
+    from sqlalchemy import delete
+
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    _ctx, callee, member = await _published_callee(engine, _callee())
+    graph, step = _caller(callee.id)
+    caller = await seed_run(engine, graph, member=member)
+    await drive(caller)
+    child = await _called_run(caller, step)
+    assert (await drive(child)).status == "succeeded"
+    async with caller.factory() as db:
+        service = WorkflowExecutionService(db)
+        await service.cancel(caller.ctx, caller.run.id)
+        await db.execute(delete(WorkflowRun).where(WorkflowRun.id == child.run.id))
+        retried = await service.retry(caller.ctx, caller.run.id)
+        await db.commit()
+        row = await db.get(WorkflowRun, retried.id)
+        assert row is not None
+        assert not await workflow_run_repo.call_history_requires_child(
+            db, organization_id=caller.org.id, node_run_id=uuid.uuid4()
+        )
+    retry = SeededRun(
+        run=row, graph=graph, principal=caller.principal, org=caller.org, factory=caller.factory
+    )
+    ended = await drive(retry)
+    assert ended.status == "failed"
+    assert ended.error is not None and ended.error["code"] == "CALLED_WORKFLOW_HISTORY_UNAVAILABLE"
+    async with caller.factory() as db:
+        assert not list(
+            (
+                await db.scalars(select(WorkflowRun).where(WorkflowRun.workflow_id == callee.id))
+            ).all()
+        )

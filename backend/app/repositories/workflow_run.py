@@ -856,6 +856,36 @@ async def get_attempt(db: AsyncSession, attempt_id: UUID) -> NodeAttempt | None:
     return result.scalar_one_or_none()
 
 
+async def call_history_requires_child(
+    db: AsyncSession, *, organization_id: UUID, node_run_id: UUID
+) -> bool:
+    """Whether any attempt completed a call or left its admission uncertain.
+
+    A later permission refusal must not hide an earlier wait. Query only an
+    existence flag, without loading potentially large historical result bodies.
+    """
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    NodeAttempt.organization_id == organization_id,
+                    NodeAttempt.node_run_id == node_run_id,
+                    or_(
+                        NodeAttempt.status.in_(
+                            [
+                                NodeAttemptStatus.COMPLETED.value,
+                                NodeAttemptStatus.IN_FLIGHT.value,
+                                NodeAttemptStatus.UNCERTAIN.value,
+                            ]
+                        ),
+                        NodeAttempt.result["error"]["code"].as_string() == "CALLED_WORKFLOW_FAILED",
+                    ),
+                )
+            )
+        )
+    )
+
+
 async def get_latest_attempt(db: AsyncSession, *, node_run_id: UUID) -> NodeAttempt | None:
     result = await db.execute(
         select(NodeAttempt)
