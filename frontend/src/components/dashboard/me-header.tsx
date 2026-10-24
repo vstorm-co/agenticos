@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useUsageStats } from "@/hooks";
+import { useWaitingOnMe } from "@/hooks/use-waiting-on-me";
 import { useAuthStore } from "@/stores";
 import type { Period } from "@/lib/dashboard/period";
 import { PageHeader } from "./page-header";
@@ -25,14 +26,16 @@ export function partOfDay(hour: number): "morning" | "afternoon" | "evening" {
 }
 
 /**
- * A person's own dashboard opens on them: the day, a greeting by name, and one
- * sentence of what happened in the period and what is waiting on them.
+ * A person's own dashboard opens on them: the day, a greeting by name, what
+ * happened in the period and everything waiting on them - their tool calls,
+ * answers sent to review, failing suites and the assistant's suggestions.
  *
  * "Dashboard" and a description of the page told a person nothing they did not
  * know; this line is the answer they opened it for, before any card. It reads
- * the same own-scope usage the cards below do, so it costs no request of its
- * own. The date and greeting are the browser's, not the server's: a greeting
- * rendered for the host's time zone says "good morning" at a reader's midnight.
+ * the same queries the cards below do, so beside them it costs no request of
+ * its own. The date and greeting are the browser's, not the server's: a
+ * greeting rendered for the host's time zone says "good morning" at a reader's
+ * midnight.
  */
 export function MeHeader({
   period,
@@ -55,7 +58,18 @@ export function MeHeader({
   const now = new Date();
   const name = firstName(user?.full_name, user?.email);
   const runs = usage?.total_runs ?? 0;
-  const waiting = usage?.pending_approvals ?? 0;
+  const others = useWaitingOnMe();
+  const waiting = (
+    [
+      ["approvals", usage?.pending_approvals ?? 0],
+      ["review", others.review],
+      ["suites", others.suites],
+      ["suggestions", others.suggestions],
+    ] as const
+  )
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => t(`waiting.${kind}`, { count }));
+  const bold = (chunks: ReactNode) => <span className="text-foreground font-medium">{chunks}</span>;
 
   return (
     <PageHeader
@@ -76,13 +90,19 @@ export function MeHeader({
         </span>
       }
       description={
-        usage
-          ? t.rich("summary", {
-              runs,
-              waiting,
-              b: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
-            })
-          : tPage("views.me.description")
+        usage ? (
+          <>
+            {t.rich("ran", { runs, b: bold })}{" "}
+            {waiting.length > 0
+              ? t.rich("waitingOn", {
+                  items: new Intl.ListFormat(locale, { type: "conjunction" }).format(waiting),
+                  b: bold,
+                })
+              : others.settled && t("nothingWaiting")}
+          </>
+        ) : (
+          tPage("views.me.description")
+        )
       }
       actions={actions}
     />

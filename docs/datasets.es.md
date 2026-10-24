@@ -1,5 +1,5 @@
 ---
-source_sha: "a992709fc3ca"
+source_sha: "2a87b6edd493"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -584,7 +584,8 @@ para todos los casos, en la rúbrica, lo que activa el juez.
 La tarjeta del dashboard **Waiting for review** muestra la cola de todos los
 datasets que puedes ver: cuántos resultados no aprobaron, no se calificaron o
 aprobaron, y en qué datasets, cada uno abriéndose en su pestaña Review. La
-tarjeta está en el panel por defecto.
+tarjeta está en el panel por defecto. Su **See all** abre la pestaña Review del
+dataset que más tiene esperando.
 
 La decisión de revisión de una persona se guarda junto a los resultados de los
 evaluadores y decide el resultado final. Nunca cambia lo que dijo el juez: las

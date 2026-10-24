@@ -2619,7 +2619,7 @@
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
         },
-        "waiting": "{count, plural, =1 {1 zu prüfen} other {# zu prüfen}}",
+        "toAccept": "{count, plural, =1 {1 Entwurf anzunehmen} other {# Entwürfe anzunehmen}}",
         "stat": {
           "reference": "{count, plural, =1 {1 Referenz} other {# Referenzen}}",
           "counter": "{count, plural, =1 {1 Gegenbeispiel} other {# Gegenbeispiele}}",
@@ -2732,7 +2732,6 @@
         "row": "{suite} · {agent}",
         "count": {
           "failing": "{count} nicht bestanden",
-          "inconclusive": "{count} ohne Ergebnis",
           "passing": "{count} bestanden",
           "waiting": "{count} warten auf den ersten Lauf",
           "paused": "{count} pausiert"
@@ -2746,8 +2745,9 @@
           "description": "Bitten Sie den Assistenten auf dem Tab Bauen eines Agents um Verbesserungen."
         },
         "counts": "{instructions, plural, =0 {} =1 {1 Änderung an Anweisungen} other {# Änderungen an Anweisungen}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 Tool-Änderung} other {# Tool-Änderungen}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 Einstellungsänderung} other {# Einstellungsänderungen}}}}",
-        "skills": "{count, plural, =1 {1 Skill-Änderung} other {# Skill-Änderungen}} zu prüfen",
-        "contexts": "{count, plural, =1 {1 Änderung an einer Kontextdatei} other {# Änderungen an Kontextdateien}} zu prüfen"
+        "skillChanges": "Skill · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
+        "contextChanges": "Kontextdatei · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
+        "newSkills": "{count, plural, =1 {1 neuer Skill vorgeschlagen} other {# neue Skills vorgeschlagen}}"
       }
     },
     "edit": {
@@ -2903,7 +2903,15 @@
       "morningNamed": "Guten Morgen, {name}",
       "afternoonNamed": "Guten Tag, {name}",
       "eveningNamed": "Guten Abend, {name}",
-      "summary": "Ihre Agents liefen in diesem Zeitraum <b>{runs, plural, =0 {gar nicht} =1 {einmal} other {#-mal}}</b>. {waiting, plural, =0 {Nichts wartet auf Sie.} =1 {<b>Ein Aufruf</b> wartet auf Sie.} other {<b># Aufrufe</b> warten auf Sie.}}"
+      "ran": "Ihre Agents liefen in diesem Zeitraum <b>{runs, plural, =0 {gar nicht} =1 {einmal} other {#-mal}}</b>.",
+      "nothingWaiting": "Nichts wartet auf Sie.",
+      "waitingOn": "Auf Sie warten: <b>{items}</b>.",
+      "waiting": {
+        "approvals": "{count, plural, =1 {1 Aufruf} other {# Aufrufe}}",
+        "review": "{count, plural, =1 {1 Antwort zur Prüfung} other {# Antworten zur Prüfung}}",
+        "suites": "{count, plural, =1 {1 durchgefallene Suite} other {# durchgefallene Suites}}",
+        "suggestions": "{count, plural, =1 {1 Vorschlag} other {# Vorschläge}}"
+      }
     },
     "discover": {
       "title": "AgenticOS entdecken",
@@ -4587,6 +4595,10 @@
       "agent-environment-guards": {
         "title": "Wächter",
         "body": "Nennen Sie die Eval-Suites, die eine Umgebung auf einer Version bestanden sehen will, bevor sie sie übernimmt. Eine Version, die sie nicht bestanden hat, wird zurückgehalten, und ein Übergehen braucht eine Begründung und die Berechtigung dazu."
+      },
+      "evals-all": {
+        "title": "Jeder Eval-Run",
+        "body": "Die Runs jedes Agents, den Sie sehen dürfen, der neueste zuerst. Jeder öffnet sich auf seinem Urteil; der Tab Evals eines Agents enthält dieselben Runs nur für diesen Agent."
       }
     },
     "chooseLanguage": "Sprache"
@@ -9350,7 +9362,18 @@
     "excludedEvidence": "{count, plural, =1 {1 Fall wurde} other {# Fälle wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
     "backToSuggestions": "Zurück zu den Vorschlägen",
     "backToSkillChange": "Zurück zur Skill-Änderung",
-    "backToContextChange": "Zurück zur Änderung der Kontextdatei"
+    "backToContextChange": "Zurück zur Änderung der Kontextdatei",
+    "all": {
+      "title": "Eval-Runs",
+      "description": "Jeder Eval-Run, den Sie sehen dürfen, über alle Agents, der neueste zuerst.",
+      "noAccess": "Sie können keine Eval-Runs sehen",
+      "noAccessBody": "Eval-Runs zu lesen erfordert die Berechtigung, Runs anzusehen. Fragen Sie einen Admin der Organisation.",
+      "empty": {
+        "title": "Noch keine Eval-Runs",
+        "body": "Ein Eval lässt einen Agent über die Fälle eines Datasets laufen und sagt, was eine Änderung mit ihnen gemacht hat - welche sich verschlechtert haben, welche behoben wurden. Starten Sie einen im Tab Evals eines Agents oder in einem Dataset.",
+        "cta": "Datasets öffnen"
+      }
+    }
   },
   "remoteAgents": {
     "title": "Remote Agents",

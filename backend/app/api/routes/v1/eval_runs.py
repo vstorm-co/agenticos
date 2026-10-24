@@ -87,10 +87,13 @@ async def list_dataset_eval_runs(
     dependencies=[Depends(require(Perm.RUNS_VIEW))],
 )
 async def recent_eval_runs(
-    service: EvalRunSvc, ctx: Auth, limit: int = Query(10, ge=1, le=50)
+    service: EvalRunSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=50),
 ) -> Any:
-    """The organization's latest runs the caller may read."""
-    return await service.recent(ctx, limit=limit)
+    """The organization's latest runs the caller may read, newest first, a page at a time."""
+    return await service.recent(ctx, skip=skip, limit=limit)
 
 
 @router.get("/eval-runs/{eval_run_id}", response_model=EvalRunRead)

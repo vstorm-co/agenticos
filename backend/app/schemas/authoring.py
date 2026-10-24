@@ -433,17 +433,29 @@ class AgentWaiting(BaseSchema):
     fields: int = 0
 
 
+class FileWaiting(BaseSchema):
+    """One skill or context file with changes waiting, and how many."""
+
+    id: UUID
+    name: str
+    changes: int
+
+
 class AuthoringWaiting(BaseSchema):
     """What the assistant proposed that the caller may decide and nobody has.
 
     Attributes:
         agents: Agents the caller may edit whose open batch has pending suggestions.
-        skills: Pending skill changes the assistant proposed, for a caller holding
-            `skills:edit`; zero otherwise.
-        contexts: Pending context file changes the assistant proposed, for a caller
-            holding `context:edit`; zero otherwise.
+        skills: Pending skill changes the assistant proposed that the caller may
+            decide: those on the skills in `skill_files`, and new skills for a
+            caller holding `skills:edit`.
+        contexts: Pending changes to the context files in `context_files`.
+        skill_files: The skills the caller may edit with changes waiting.
+        context_files: The context files the caller may edit with changes waiting.
     """
 
     agents: list[AgentWaiting]
     skills: int
     contexts: int = 0
+    skill_files: list[FileWaiting] = []
+    context_files: list[FileWaiting] = []

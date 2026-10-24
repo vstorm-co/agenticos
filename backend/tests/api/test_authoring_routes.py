@@ -203,6 +203,8 @@ async def test_what_waits_is_answered(client: OpenClient) -> None:
         "agents": [],
         "skills": 0,
         "contexts": 0,
+        "skill_files": [],
+        "context_files": [],
     }
 
 

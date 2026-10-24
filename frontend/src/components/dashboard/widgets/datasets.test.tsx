@@ -112,8 +112,8 @@ describe("DatasetsWidget", () => {
       ],
     });
     widget();
-    expect(screen.getByText("4 to review")).toBeInTheDocument();
-    expect(screen.queryByText("0 to review")).toBeNull();
+    expect(screen.getByText("4 drafts to accept")).toBeInTheDocument();
+    expect(screen.queryByText(/to review/)).toBeNull();
     expect(screen.getByRole("link", { name: /refunds/ })).toHaveAttribute(
       "href",
       "/datasets/d1?tab=generated",

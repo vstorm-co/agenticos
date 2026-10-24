@@ -1,5 +1,5 @@
 ---
-source_sha: "a992709fc3ca"
+source_sha: "2a87b6edd493"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -574,7 +574,8 @@ rubryce, co włącza sędziego.
 Karta pulpitu **Do przeglądu** pokazuje kolejkę ze wszystkich datasetów, które
 widzisz: ile wyników nie zaliczyło, było bez oceny albo zaliczyło, i w których
 datasetach, a każdy otwiera się w zakładce Przegląd. Karta jest domyślnie na
-pulpicie.
+pulpicie. **Zobacz wszystko** otwiera zakładkę Przegląd datasetu, w którym czeka
+najwięcej.
 
 Decyzja przeglądu osoby jest zapisywana obok wyników oceniaczy i rozstrzyga o
 rezultacie. Nigdy nie zmienia tego, co powiedział sędzia: oceny i uzasadnienia

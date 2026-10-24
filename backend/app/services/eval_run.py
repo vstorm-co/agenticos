@@ -1307,8 +1307,8 @@ class EvalRunService:
         )
         return EvalRunList(items=await self._reads(ctx, runs), total=total)
 
-    async def recent(self, ctx: AuthContext, *, limit: int = 10) -> EvalRunList:
-        """The organization's latest runs the caller may read - the dashboard's view."""
+    async def recent(self, ctx: AuthContext, *, skip: int = 0, limit: int = 10) -> EvalRunList:
+        """The organization's latest runs the caller may read, a page at a time."""
         if not ctx.has(Perm.RUNS_VIEW):
             return EvalRunList(items=[], total=0)
         agent_ids, dataset_ids = await eval_run_repo.referenced_ids(
@@ -1321,14 +1321,15 @@ class EvalRunService:
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
         )
         readable = await self._readable_datasets(ctx, dataset_ids)
-        runs = await eval_run_repo.list_recent(
+        runs, total = await eval_run_repo.list_recent(
             self.db,
             organization_id=ctx.organization_id,
             agent_ids=sorted(visible_agents),
             dataset_ids=sorted(readable),
+            skip=skip,
             limit=limit,
         )
-        return EvalRunList(items=await self._reads(ctx, runs), total=len(runs))
+        return EvalRunList(items=await self._reads(ctx, runs), total=total)
 
     async def case_link(self, ctx: AuthContext, agent_run_id: UUID) -> EvalCaseLinkRead | None:
         """The eval run and case an agent run answered - or, for the judge's run,

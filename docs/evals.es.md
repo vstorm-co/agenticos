@@ -1,5 +1,5 @@
 ---
-source_sha: "5cc2bcefa96b"
+source_sha: "9a2454fdfc40"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -109,6 +109,10 @@ primer mensaje de usuario, la pregunta del caso o, para el run del juez, lo que
 calificó -, para reencontrarlo y convertirlo en caso. Allí un caso de eval abre
 su eval run en ese caso, y su **See what the model saw**, lo que recibió el
 modelo.
+
+**See all** en la tarjeta abre **Eval runs**, en `/evals`: cada eval run que
+puedes ver, de todos los agents, el más reciente primero, por páginas. Si aún no
+hay ninguno, la página explica qué es un eval y dónde iniciarlo.
 
 ## Iniciar un run { #starting-a-run }
 

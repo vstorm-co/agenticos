@@ -28,10 +28,11 @@ beforeEach(() => {
 });
 
 describe("SuggestionsWidget", () => {
-  it("lists each agent with what waits, and the skill changes", () => {
+  it("lists each agent with what waits, each skill with its changes, and new skills", () => {
     state.waiting = {
       agents: [{ agent_id: "a1", name: "Clerk", instructions: 2, tools: 1 }],
       skills: 3,
+      skill_files: [{ id: "s1", name: "refunds", changes: 2 }],
     };
     widget();
     expect(screen.getByRole("link", { name: "Clerk" })).toHaveAttribute(
@@ -39,32 +40,38 @@ describe("SuggestionsWidget", () => {
       "/agents/a1?tab=build",
     );
     expect(screen.getByText("2 instruction changes · 1 tool change")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "3 skill changes to review" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "refunds" })).toHaveAttribute("href", "/skills");
+    expect(screen.getByText("Skill · 2 changes")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "1 new skill proposed" })).toHaveAttribute(
       "href",
       "/skills",
     );
   });
 
-  it("counts setting changes, and the context file changes", () => {
+  it("counts setting changes, and each context file's changes", () => {
     state.waiting = {
       agents: [{ agent_id: "a1", name: "Clerk", instructions: 1, tools: 0, fields: 2 }],
       skills: 0,
       contexts: 1,
+      context_files: [{ id: "c1", name: "returns.md", changes: 1 }],
     };
     widget();
     expect(screen.getByText("1 instruction change · 2 setting changes")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "1 context file change to review" })).toHaveAttribute(
-      "href",
-      "/context",
-    );
-    expect(screen.queryByRole("link", { name: /skill change/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "returns.md" })).toHaveAttribute("href", "/context");
+    expect(screen.getByText("Context file · 1 change")).toBeInTheDocument();
+    expect(screen.queryByText(/new skill/)).toBeNull();
   });
 
   it("is not empty while only a context file change waits", () => {
-    state.waiting = { agents: [], skills: 0, contexts: 2 };
+    state.waiting = {
+      agents: [],
+      skills: 0,
+      contexts: 2,
+      context_files: [{ id: "c1", name: "returns.md", changes: 2 }],
+    };
     widget();
     expect(screen.queryByText("Nothing waiting")).toBeNull();
-    expect(screen.getByRole("link", { name: "2 context file changes to review" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "returns.md" })).toBeVisible();
   });
 
   it("says nothing waits, and lists an agent with tool changes only", () => {

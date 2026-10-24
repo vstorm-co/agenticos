@@ -82,6 +82,8 @@ export interface EvalSuiteResult {
   baseline_version_number: number | null;
   environment_id: string | null;
   status: EvalSuiteResultStatus;
+  /** Anything but a pass: what tells the owner, and what makes a suite failing. */
+  alerting: boolean;
   /** A code the console words: `budget`, `over_cost_cap`, `ai_assistance_off`... */
   reason: string | null;
   due_at: string;

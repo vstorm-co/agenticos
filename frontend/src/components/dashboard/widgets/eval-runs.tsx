@@ -24,7 +24,7 @@ const COUNTED: EvalRunStatus[] = ["running", "completed", "failed", "budget_exce
  * stopped, and for each the agent, what was tested against what, its verdict
  * and its pass rate - one click from the run's own page.
  */
-export function EvalRunsWidget({ title, hint, options }: DashboardWidgetProps) {
+export function EvalRunsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.eval-runs");
   const { can } = usePermissions();
   const { runs, isLoading, error, refetch } = useRecentEvalRuns(SHOWN);
@@ -37,7 +37,7 @@ export function EvalRunsWidget({ title, hint, options }: DashboardWidgetProps) {
   })).filter(({ count }) => count > 0);
 
   return (
-    <WidgetFrame title={title} hint={hint} options={options}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

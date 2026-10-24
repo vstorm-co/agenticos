@@ -24,7 +24,7 @@ const PERIOD: Period = { preset: "30d", from: "2026-09-14", to: "2026-10-14" };
 function widget() {
   return render(
     <TooltipProvider>
-      <EvalRunsWidget title="Eval runs" hint="Latest" period={PERIOD} />
+      <EvalRunsWidget title="Eval runs" hint="Latest" period={PERIOD} seeAll="/evals" />
     </TooltipProvider>,
   );
 }
@@ -66,6 +66,7 @@ describe("EvalRunsWidget", () => {
     expect(screen.getByText("Breaks 2")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1 75%")).toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See all" })).toHaveAttribute("href", "/evals");
     // Activity lists each case's runs, not these: the card links only the runs themselves.
     expect(screen.queryByRole("link", { name: /Activity/ })).toBeNull();
   });

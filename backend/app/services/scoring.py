@@ -81,7 +81,13 @@ from app.schemas.scoring import (
     ScoreOutcome,
     ScorerResult,
 )
-from app.services.access import AGENT, DATASET, resolve_access, visible_resource_ids
+from app.services.access import (
+    AGENT,
+    DATASET,
+    accessible_ids,
+    resolve_access,
+    visible_resource_ids,
+)
 from app.services.agent_runner import AgentRunnerService
 from app.services.ai_assistance import AiAssistanceService
 from app.services.dataset import DatasetService
@@ -195,16 +201,23 @@ def _merged(kept: dict[str, Any], changed: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def _by_dataset(counts: list[tuple[UUID, str, bool | None, int]]) -> list[PendingDataset]:
+def _by_dataset(
+    counts: list[tuple[Dataset, bool | None, int]], *, editable: set[UUID]
+) -> list[PendingDataset]:
     """Each dataset's waiting scores by outcome, the dataset with the most first."""
     tallies: dict[UUID, dict[str, int]] = {}
     names: dict[UUID, str] = {}
-    for dataset_id, name, passed, count in counts:
-        names[dataset_id] = name
+    for dataset, passed, count in counts:
+        names[dataset.id] = dataset.name
         outcome = "unscored" if passed is None else "passed" if passed else "failed"
-        tallies.setdefault(dataset_id, {})[outcome] = count
+        tallies.setdefault(dataset.id, {})[outcome] = count
     datasets = [
-        PendingDataset(dataset_id=dataset_id, name=names[dataset_id], **tally)
+        PendingDataset(
+            dataset_id=dataset_id,
+            name=names[dataset_id],
+            can_edit=dataset_id in editable,
+            **tally,
+        )
         for dataset_id, tally in tallies.items()
     ]
     return sorted(datasets, key=lambda d: (-(d.failed + d.unscored + d.passed), d.name))
@@ -903,13 +916,17 @@ class ScoringService:
             shared_ids=shared_ids,
         )
         reads = await self._reads(ctx, [score for score, _ in items])
+        held = {dataset.id: dataset for dataset, _, _ in counts}
+        editable = await accessible_ids(
+            self.db, ctx, held.values(), Perm.DATASETS_EDIT, resource_type=DATASET
+        )
         return ReviewQueue(
             items=[
                 PendingScore(**read.model_dump(), dataset_name=name)
                 for read, (_, name) in zip(reads, items, strict=True)
             ],
             total=total,
-            datasets=_by_dataset(counts),
+            datasets=_by_dataset(counts, editable=editable),
         )
 
     async def judge_agreement(self, ctx: AuthContext, judge_id: UUID) -> JudgeAgreement:

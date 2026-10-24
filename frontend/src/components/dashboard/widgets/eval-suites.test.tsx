@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui";
 import type { Period } from "@/lib/dashboard/period";
 import { evalSuite, suiteResult } from "@/test-utils/eval-suites";
-import { EvalSuitesWidget, suiteState } from "./eval-suites";
+import { suiteState } from "@/components/evals/suites/suite-format";
+import { EvalSuitesWidget } from "./eval-suites";
 
 const visible = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useVisibleEvalSuites: () => visible.value }));
@@ -29,12 +30,13 @@ describe("suiteState", () => {
     expect(suiteState(evalSuite())).toBe("passing");
     expect(suiteState(evalSuite({ is_active: false }))).toBe("paused");
     expect(suiteState(evalSuite({ last_result: null }))).toBe("waiting");
-    for (const status of ["failed", "error", "skipped"] as const) {
+    // Anything the server marks alerting - what the owner is notified of - is failing.
+    for (const status of ["failed", "error", "skipped", "inconclusive"] as const) {
       expect(suiteState(evalSuite({ last_result: suiteResult({ status }) }))).toBe("failing");
     }
-    expect(suiteState(evalSuite({ last_result: suiteResult({ status: "inconclusive" }) }))).toBe(
-      "inconclusive",
-    );
+    for (const status of ["pending", "running"] as const) {
+      expect(suiteState(evalSuite({ last_result: suiteResult({ status }) }))).toBe("waiting");
+    }
   });
 });
 

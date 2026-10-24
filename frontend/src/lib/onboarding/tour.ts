@@ -502,6 +502,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "datasets-list",
     permission: Perm.datasetsView,
   },
+  // Every eval run across agents, reached from the dashboard's Eval runs card.
+  {
+    id: "evals-all",
+    page: ROUTES.EVALS,
+    target: "evals-all",
+    permission: Perm.runsView,
+  },
   // One dataset: writing a case, having the generator draft some, and the drafts
   // waiting for a decision - the last only while some wait.
   {

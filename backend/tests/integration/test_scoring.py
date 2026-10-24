@@ -2426,6 +2426,24 @@ class TestRefusals:
         assert (hidden.total, hidden.datasets) == (0, [])
         assert (await ScoringService(db).review_queue(tenant.ctx)).total == 1
 
+    async def test_the_queue_says_which_datasets_the_caller_may_decide(self, db, judge) -> None:
+        """A Member sees an organization's dataset and may edit only their own."""
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(
+            db, tenant, scoring=DatasetScoring(review=ReviewScorer(select="all")), visibility="org"
+        )
+        run = await _scored_run(db, tenant)
+        await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        member = await _join(db, tenant, OrgRoleName.MEMBER)
+
+        seen = await ScoringService(db).review_queue(member)
+        owned = await ScoringService(db).review_queue(tenant.ctx)
+
+        assert [(d.dataset_id, d.can_edit) for d in seen.datasets] == [(dataset.id, False)]
+        assert [(d.dataset_id, d.can_edit) for d in owned.datasets] == [(dataset.id, True)]
+
     async def test_a_case_the_version_does_not_hold_is_not_found(self, db, judge) -> None:
         tenant = await _tenant(db)
         dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())

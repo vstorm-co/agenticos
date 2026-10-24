@@ -258,23 +258,29 @@ async def test_listing_narrows_to_the_datasets_the_reader_may_see(db) -> None:
     hidden, none = await eval_run_repo.list_for_agent(
         db, agent.id, organization_id=ctx.organization_id, dataset_ids=[uuid.uuid4()]
     )
-    recent = await eval_run_repo.list_recent(
+    recent, counted = await eval_run_repo.list_recent(
         db,
         organization_id=ctx.organization_id,
         agent_ids=[agent.id],
         dataset_ids=[dataset.id],
         limit=5,
     )
+    past, still = await eval_run_repo.list_recent(
+        db,
+        organization_id=ctx.organization_id,
+        agent_ids=[agent.id],
+        dataset_ids=[dataset.id],
+        skip=1,
+        limit=5,
+    )
 
     assert total == 1 and len(visible) == 1
     assert (hidden, none) == ([], 0)
-    assert [run.id for run in recent] == [visible[0].id]
-    assert (
-        await eval_run_repo.list_recent(
-            db, organization_id=ctx.organization_id, agent_ids=[], dataset_ids=[dataset.id], limit=5
-        )
-        == []
-    )
+    assert ([run.id for run in recent], counted) == ([visible[0].id], 1)
+    assert (past, still) == ([], 1)
+    assert await eval_run_repo.list_recent(
+        db, organization_id=ctx.organization_id, agent_ids=[], dataset_ids=[dataset.id], limit=5
+    ) == ([], 0)
 
 
 async def test_a_cached_baseline_ran_the_way_the_candidate_will(db) -> None:

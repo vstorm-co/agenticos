@@ -603,14 +603,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     seeAll: ROUTES.DATASETS,
   },
   // Eval results waiting for a verdict, gated on what `GET /datasets/review-queue`
-  // asks; the queue itself only holds datasets the reader may see.
+  // asks; the queue itself only holds datasets the reader may see. Its "See all"
+  // is the Review tab of the dataset holding the most, which the card works out.
   "review-queue": {
     id: "review-queue",
     gate: holds(Perm.datasetsView),
     defaultSpan: "s6",
     defaultRows: "r4",
     category: "workspace",
-    seeAll: ROUTES.DATASETS,
   },
   // The latest eval runs, gated on what `GET /eval-runs/recent` asks; the list
   // holds only runs over agents and datasets the reader may see.
@@ -620,6 +620,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r4",
     category: "workspace",
+    seeAll: ROUTES.EVALS,
   },
   // The organization's eval suites by how they last came out, gated on what
   // `GET /eval-suites` asks; it lists suites only on agents the reader may see.

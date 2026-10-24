@@ -216,6 +216,13 @@ export interface ProposalCheck {
   proposal_id?: string;
 }
 
+/** One skill or context file with changes waiting, and how many. */
+export interface FileWaiting {
+  id: string;
+  name: string;
+  changes: number;
+}
+
 export interface AuthoringWaiting {
   agents: {
     agent_id: string;
@@ -224,8 +231,11 @@ export interface AuthoringWaiting {
     tools: number;
     fields?: number;
   }[];
+  /** Changes on `skill_files`, and new skills proposed from nothing. */
   skills: number;
   contexts?: number;
+  skill_files?: FileWaiting[];
+  context_files?: FileWaiting[];
 }
 
 /** A context file change the assistant proposed, beside the file as it stands. */

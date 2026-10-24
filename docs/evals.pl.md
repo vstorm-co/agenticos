@@ -1,5 +1,5 @@
 ---
-source_sha: "5cc2bcefa96b"
+source_sha: "9a2454fdfc40"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -109,6 +109,11 @@ pytanie przypadku evala, a dla runa sędziego to, co ocenił - żeby run dało s
 znowu znaleźć i zrobić z niego przypadek. Przypadek evala otwiera tam swój eval
 run na tym przypadku, a **See what the model saw** przypadku otwiera to, co
 dostał jego model.
+
+**Zobacz wszystko** na tej karcie otwiera **Runy ewaluacji** pod `/evals`: każdy
+run ewaluacji, który możesz zobaczyć, ze wszystkich agentów, od najnowszego,
+stronami. Gdy żadnego nie ma, strona mówi, czym jest ewaluacja i gdzie ją
+uruchomić.
 
 ## Uruchamianie runa { #starting-a-run }
 

@@ -2619,7 +2619,7 @@
           "title": "No datasets yet",
           "description": "Test cases you collect for evals appear here."
         },
-        "waiting": "{count, plural, =1 {1 to review} other {# to review}}",
+        "toAccept": "{count, plural, =1 {1 draft to accept} other {# drafts to accept}}",
         "stat": {
           "reference": "{count, plural, =1 {1 reference} other {# references}}",
           "counter": "{count, plural, =1 {1 counter-example} other {# counter-examples}}",
@@ -2732,7 +2732,6 @@
         "row": "{suite} · {agent}",
         "count": {
           "failing": "{count} failing",
-          "inconclusive": "{count} inconclusive",
           "passing": "{count} passing",
           "waiting": "{count} waiting for a first run",
           "paused": "{count} paused"
@@ -2746,8 +2745,9 @@
           "description": "Ask the assistant to improve an agent from its Build tab."
         },
         "counts": "{instructions, plural, =0 {} =1 {1 instruction change} other {# instruction changes}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 tool change} other {# tool changes}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 setting change} other {# setting changes}}}}",
-        "skills": "{count, plural, =1 {1 skill change} other {# skill changes}} to review",
-        "contexts": "{count, plural, =1 {1 context file change} other {# context file changes}} to review"
+        "skillChanges": "Skill · {count, plural, =1 {1 change} other {# changes}}",
+        "contextChanges": "Context file · {count, plural, =1 {1 change} other {# changes}}",
+        "newSkills": "{count, plural, =1 {1 new skill proposed} other {# new skills proposed}}"
       }
     },
     "edit": {
@@ -2903,7 +2903,15 @@
       "morningNamed": "Good morning, {name}",
       "afternoonNamed": "Good afternoon, {name}",
       "eveningNamed": "Good evening, {name}",
-      "summary": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period. {waiting, plural, =0 {Nothing is waiting on you.} =1 {<b>One call</b> is waiting on you.} other {<b># calls</b> are waiting on you.}}"
+      "ran": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period.",
+      "nothingWaiting": "Nothing is waiting on you.",
+      "waitingOn": "Waiting on you: <b>{items}</b>.",
+      "waiting": {
+        "approvals": "{count, plural, =1 {1 call} other {# calls}}",
+        "review": "{count, plural, =1 {1 answer to review} other {# answers to review}}",
+        "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
+        "suggestions": "{count, plural, =1 {1 suggestion} other {# suggestions}}"
+      }
     },
     "discover": {
       "title": "Discover AgenticOS",
@@ -4705,6 +4713,10 @@
       "agent-environment-guards": {
         "title": "Guards",
         "body": "Name the eval suites an environment needs to pass on a version before it takes it. A version that has not passed them is held back, and an override needs a reason and the permission to give one."
+      },
+      "evals-all": {
+        "title": "Every eval run",
+        "body": "The runs of every agent you may see, newest first. Each opens on its verdict; an agent's Evals tab holds the same runs for that agent alone."
       }
     },
     "chooseLanguage": "Language"
@@ -9467,7 +9479,18 @@
     "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",
     "backToSuggestions": "Back to the suggestions",
     "backToSkillChange": "Back to the skill change",
-    "backToContextChange": "Back to the context file change"
+    "backToContextChange": "Back to the context file change",
+    "all": {
+      "title": "Eval runs",
+      "description": "Every eval run you may see, across agents, newest first.",
+      "noAccess": "You can't see eval runs",
+      "noAccessBody": "Reading eval runs needs permission to view runs. Ask an admin of the organization.",
+      "empty": {
+        "title": "No eval runs yet",
+        "body": "An eval runs an agent over the cases of a dataset and says what a change did to them - which broke, which were fixed. Start one from an agent's Evals tab or from a dataset.",
+        "cta": "Open datasets"
+      }
+    }
   },
   "remoteAgents": {
     "title": "Remote agents",

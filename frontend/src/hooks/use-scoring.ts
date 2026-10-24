@@ -226,10 +226,12 @@ export function useScores(
 export function useReviewQueue({
   skip = 0,
   limit = PAGE_SIZE,
-}: { skip?: number; limit?: number } = {}) {
+  enabled = true,
+}: { skip?: number; limit?: number; enabled?: boolean } = {}) {
   const query = useQuery({
     queryKey: qk.datasets.reviewQueue({ skip, limit }),
     queryFn: () => apiClient.get<ReviewQueue>(`/datasets/review-queue?skip=${skip}&limit=${limit}`),
+    enabled,
   });
   return {
     scores: query.data?.items ?? [],

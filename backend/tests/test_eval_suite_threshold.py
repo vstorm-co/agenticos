@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from app.db.models.eval_run import ArmRole, ArmSource
 from app.db.models.eval_suite import EvalSuiteResultStatus
 from app.schemas.eval_run import ArmSummaryRead, ComparisonSide, EvalComparisonRead
-from app.schemas.eval_suite import EvalSuiteSchedule, EvalSuiteThreshold
+from app.schemas.eval_suite import EvalSuiteResultRead, EvalSuiteSchedule, EvalSuiteThreshold
 from app.services.eval_suite import fires_per_month
 from app.services.eval_suite_threshold import judge, rise
 
@@ -343,3 +343,12 @@ def test_a_confirmed_regression_fails_whatever_else_went_ungraded() -> None:
     )
     assert status is EvalSuiteResultStatus.FAILED
     assert [r.code for r in reasons] == ["regressions"]
+
+
+@pytest.mark.parametrize("status", list(EvalSuiteResultStatus))
+def test_a_result_says_whether_it_alerts_as_its_status_does(status: EvalSuiteResultStatus) -> None:
+    """The dashboard reads `alerting` off the result rather than keeping its own list."""
+    read = EvalSuiteResultRead.model_construct(status=status)
+
+    assert read.alerting is status.alerting
+    assert "alerting" in EvalSuiteResultRead.model_json_schema(mode="serialization")["properties"]

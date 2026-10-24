@@ -2618,7 +2618,7 @@
           "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do ewaluacji."
         },
-        "waiting": "{count, plural, one {1 do przejrzenia} other {# do przejrzenia}}",
+        "toAccept": "{count, plural, one {1 szkic do akceptacji} few {# szkice do akceptacji} many {# szkiców do akceptacji} other {# szkicu do akceptacji}}",
         "stat": {
           "reference": "{count} z odpowiedzią wzorcową",
           "counter": "{count} z kontrprzykładem",
@@ -2731,7 +2731,6 @@
         "row": "{suite} · {agent}",
         "count": {
           "failing": "{count} nie przechodzi",
-          "inconclusive": "{count} bez rozstrzygnięcia",
           "passing": "{count} przechodzi",
           "waiting": "{count} czeka na pierwszy run",
           "paused": "{count} wstrzymanych"
@@ -2745,8 +2744,9 @@
           "description": "Poproś asystenta o ulepszenie agenta na jego zakładce Budowa."
         },
         "counts": "{instructions, plural, =0 {} one {# zmiana instrukcji} few {# zmiany instrukcji} many {# zmian instrukcji} other {# zmian instrukcji}}{tools, plural, =0 {} other { · {tools, plural, one {# zmiana narzędzia} few {# zmiany narzędzi} many {# zmian narzędzi} other {# zmian narzędzi}}}}{fields, plural, =0 {} other { · {fields, plural, one {# zmiana ustawień} few {# zmiany ustawień} many {# zmian ustawień} other {# zmian ustawień}}}}",
-        "skills": "{count, plural, one {1 zmiana skilla} few {# zmiany skilli} other {# zmian skilli}} do przejrzenia",
-        "contexts": "{count, plural, one {# zmiana pliku kontekstu} few {# zmiany plików kontekstu} many {# zmian plików kontekstu} other {# zmian plików kontekstu}} do przejrzenia"
+        "skillChanges": "Skill · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
+        "contextChanges": "Plik kontekstu · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
+        "newSkills": "{count, plural, one {1 zaproponowany nowy skill} few {# zaproponowane nowe skille} many {# zaproponowanych nowych skilli} other {# zaproponowanego nowego skilla}}"
       }
     },
     "edit": {
@@ -2902,7 +2902,15 @@
       "morningNamed": "Dzień dobry, {name}",
       "afternoonNamed": "Dzień dobry, {name}",
       "eveningNamed": "Dobry wieczór, {name}",
-      "summary": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie. {waiting, plural, =0 {Nic nie czeka na Ciebie.} =1 {<b>Jedno wywołanie</b> czeka na Ciebie.} few {<b># wywołania</b> czekają na Ciebie.} many {<b># wywołań</b> czeka na Ciebie.} other {<b># wywołań</b> czeka na Ciebie.}}"
+      "ran": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie.",
+      "nothingWaiting": "Nic nie czeka na Ciebie.",
+      "waitingOn": "Czeka na Ciebie: <b>{items}</b>.",
+      "waiting": {
+        "approvals": "{count, plural, one {1 wywołanie} few {# wywołania} many {# wywołań} other {# wywołania}}",
+        "review": "{count, plural, one {1 odpowiedź do przeglądu} few {# odpowiedzi do przeglądu} many {# odpowiedzi do przeglądu} other {# odpowiedzi do przeglądu}}",
+        "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
+        "suggestions": "{count, plural, one {1 sugestia} few {# sugestie} many {# sugestii} other {# sugestii}}"
+      }
     },
     "discover": {
       "title": "Odkryj AgenticOS",
@@ -4474,6 +4482,10 @@
       "agent-environment-guards": {
         "title": "Strażnicy",
         "body": "Wskaż suity ewaluacji, które muszą przejść na wersji, zanim środowisko ją przyjmie. Wersja, która ich nie przeszła, zostaje wstrzymana, a pominięcie wymaga powodu i uprawnienia."
+      },
+      "evals-all": {
+        "title": "Wszystkie runy ewaluacji",
+        "body": "Runy każdego agenta, którego możesz zobaczyć, od najnowszego. Każdy otwiera się na werdykcie; zakładka Ewaluacje agenta zawiera te same runy tylko dla niego."
       }
     },
     "chooseLanguage": "Język"
@@ -8717,7 +8729,18 @@
     "excludedEvidence": "{count, plural, one {Pominięto 1 przypadek} few {Pominięto # przypadki} other {Pominięto # przypadków}}: pochodzą z rozmów, z których wzięła się sprawdzana zmiana.",
     "backToSuggestions": "Wróć do sugestii",
     "backToSkillChange": "Wróć do zmiany skilla",
-    "backToContextChange": "Wróć do zmiany pliku kontekstu"
+    "backToContextChange": "Wróć do zmiany pliku kontekstu",
+    "all": {
+      "title": "Runy ewaluacji",
+      "description": "Każdy run ewaluacji, który możesz zobaczyć, ze wszystkich agentów, od najnowszego.",
+      "noAccess": "Nie widzisz runów ewaluacji",
+      "noAccessBody": "Czytanie runów ewaluacji wymaga uprawnienia do podglądu runów. Poproś administratora organizacji.",
+      "empty": {
+        "title": "Brak runów ewaluacji",
+        "body": "Ewaluacja uruchamia agenta na przypadkach z datasetu i mówi, co zmiana z nimi zrobiła - które się zepsuły, a które naprawiły. Uruchom ją z zakładki Ewaluacje agenta albo z datasetu.",
+        "cta": "Otwórz datasety"
+      }
+    }
   },
   "steps": {
     "skills-gallery": {

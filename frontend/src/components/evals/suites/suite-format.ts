@@ -24,6 +24,20 @@ export const RESULT_TONE: Record<
   error: "warning",
 };
 
+export type SuiteState = "failing" | "passing" | "waiting" | "paused";
+
+/**
+ * Where a suite stands, by its last result - a paused one is paused whatever it
+ * last did, and a result the server marks `alerting`, anything but a pass, is
+ * failing: the same rule its owner is notified by.
+ */
+export function suiteState(suite: EvalSuite): SuiteState {
+  if (!suite.is_active) return "paused";
+  if (suite.last_result?.alerting) return "failing";
+  if (suite.last_result?.status === "passed") return "passing";
+  return "waiting";
+}
+
 /** The repeat choices the form offers; `custom` takes a cron expression as it is. */
 export type ScheduleFrequency = "daily" | "weekdays" | "weekly" | "custom";
 

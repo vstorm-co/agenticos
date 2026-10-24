@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.context import ContextFile
 from app.db.models.context_proposal import ContextProposal
 from app.db.models.skill_proposal import ProposalStatus
 
@@ -51,14 +52,21 @@ async def list_for_organization(
     return list(result.scalars().all())
 
 
-async def count_pending(db: AsyncSession, *, organization_id: UUID) -> int:
+async def files_with_pending(
+    db: AsyncSession, *, organization_id: UUID
+) -> list[tuple[ContextFile, int]]:
+    """Every context file with proposed changes nobody has decided, and how many."""
     result = await db.execute(
-        select(func.count()).where(
+        select(ContextFile, func.count())
+        .join(ContextProposal, ContextProposal.context_id == ContextFile.id)
+        .where(
             ContextProposal.organization_id == organization_id,
             ContextProposal.status == ProposalStatus.PENDING.value,
         )
+        .group_by(ContextFile.id)
+        .order_by(ContextFile.name)
     )
-    return int(result.scalar_one())
+    return [(file, int(count)) for file, count in result.all()]
 
 
 async def create(
