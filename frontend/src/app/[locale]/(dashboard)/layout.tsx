@@ -91,22 +91,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Measured at 0px below the last card, at every width, in Chromium
                 151 and WebKit 26.5. The room under a page is declared once, on
                 `PageTransition`'s unconstrained branch, where it paints (#933). */}
-            <main
-              id="main"
-              tabIndex={-1}
-              className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 sm:px-6 sm:pt-8"
-            >
-              {/* Inside `main` rather than around the whole shell: a
-                  maintenance window still leaves the navigation and the account
-                  menu, because the administrator who has to end it reaches the
-                  settings page through them. */}
-              {/* The desktop app's window is dragged by the top of its content,
-                  as by a toolbar; nothing in a browser (`desktop.css`). */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {/* Reserve the drag surface outside the scrolling viewport. A
+                  sticky overlay intercepts header buttons and panel controls. */}
               <div aria-hidden className="window-drag-strip" data-tauri-drag-region />
-              <DeploymentGate>
-                <PageTransition>{children}</PageTransition>
-              </DeploymentGate>
-            </main>
+              <main
+                id="main"
+                tabIndex={-1}
+                className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 sm:px-6 sm:pt-8"
+              >
+                {/* Inside `main` rather than around the whole shell: a
+                    maintenance window still leaves the navigation and the account
+                    menu, because the administrator who has to end it reaches the
+                    settings page through them. */}
+                <DeploymentGate>
+                  <PageTransition>{children}</PageTransition>
+                </DeploymentGate>
+              </main>
+            </div>
           </div>
           {/* The one navigation on a phone too: the drawer holds every section,
               where a bottom bar repeated five of them and took a strip of the

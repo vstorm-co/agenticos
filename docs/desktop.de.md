@@ -1,5 +1,5 @@
 ---
-source_sha: "581c5abd1cab"
+source_sha: "7cd21d7d9766"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -84,6 +84,11 @@ Benachrichtigungen tragen Approve und Reject für eine wartende Freigabe, und Do
 oder Taskleiste zeigen, wie viele warten. **Einstellungen → Desktop-App** öffnet
 die App bei der Anmeldung, hält sie bei geschlossenem Fenster am Laufen und schaltet
 die Plakette an oder aus.
+
+Über dem Inhalt liegt eine eigene Zeile zum Ziehen des Fensters, außerhalb des
+Scrollbereichs. Seitenaktionen und Schließen-Schaltflächen bleiben dadurch
+anklickbar. Der Web-Architect bleibt am rechten Rand der Desktop-Konsole und
+fährt beim Darüberfahren aus; die Ecke bleibt für Kartenaktionen und Blobby frei.
 
 **Angeheftete Agents**: Die Seite eines Agents bietet „An Dock anheften“ (sonst an
 die Taskleiste). Ein angehefteter Agent steht im Dock-Menü und im Tray-Menü, einen

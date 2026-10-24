@@ -76,6 +76,11 @@ Reject for a waiting approval, and the Dock or taskbar shows how many are waitin
 **Settings → Desktop app** opens the app at login, keeps it running with the window
 closed, and turns the badge on or off.
 
+The top of the content has a reserved window-drag row outside its scroll area,
+so page actions and panel close buttons stay clickable. The web Architect launcher
+stays tucked into the desktop console's right edge and slides out on hover,
+leaving the corner free for card actions and native Blobby.
+
 **Pinned agents**: an agent's page offers Pin to Dock (Pin to taskbar elsewhere).
 A pinned agent is in the Dock's menu and the tray menu, one click from a new chat
 with it. A file dropped on the Dock icon, or on blobby, starts a chat with that

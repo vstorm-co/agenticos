@@ -274,6 +274,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Clickable desktop page actions and panel controls.** The window drag area
+  now has its own row outside the scrolling content, so it cannot cover New agent,
+  close buttons, tabs or other controls near the top of the window. The web
+  assistant stays at the desktop console’s edge instead of covering card actions.
+
 - **Start a fresh chat from Blobby.** New Chat in the desktop menus and the
   Blobby button now reset the active conversation, even while `/chat` is open.
 

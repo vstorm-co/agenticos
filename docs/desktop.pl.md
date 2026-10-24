@@ -1,5 +1,5 @@
 ---
-source_sha: "581c5abd1cab"
+source_sha: "7cd21d7d9766"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -80,6 +80,11 @@ zasobniku robi to samo na Windows i Linuksie. Natywne powiadomienia mają Approv
 Reject dla czekającej akceptacji, a Dock lub pasek zadań pokazuje, ile czeka.
 **Ustawienia → Aplikacja desktopowa** uruchamia aplikację przy logowaniu, trzyma
 ją przy zamkniętym oknie i włącza lub wyłącza licznik.
+
+Nad treścią jest osobny wiersz do przeciągania okna, poza obszarem przewijania,
+więc akcje stron i przyciski zamykania paneli pozostają klikalne. Webowy przycisk
+Architect jest schowany przy prawej krawędzi konsoli desktopowej i wysuwa się po
+najechaniu, zostawiając róg wolny dla akcji kart i natywnego Blobby.
 
 **Przypięte agenty**: strona agenta oferuje Przypnij do Docka (gdzie indziej do
 paska zadań). Przypięty agent jest w menu Docka i w menu zasobnika, jedno

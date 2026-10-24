@@ -110,26 +110,22 @@
   width: 5.25rem;
 }
 
-/* A strip along the top of the content the window is dragged by, as a
-   toolbar would be; shown only in the shell, invisible, under nothing. */
+/* A reserved title-bar row outside the content scrollport. It must never
+   overlay controls: sticky positioning inside a padded scroller puts the drag
+   region over page actions and over the close button of a run detail panel. */
 .window-drag-strip {
   display: none;
 }
 
-/* Sticky inside `#main`, which is the scroll container, and pulled up into its
-   top padding (`sm:pt-8`, always in effect: the window is never narrower than
-   900px) and out to its side padding, so it spans the top edge of the content
-   and takes no room of its own. It stays on top of whatever scrolls under it,
-   which is what a toolbar does. */
-:root[data-shell][data-shell-window="main"] .window-drag-strip {
+:root:is(
+    [data-shell="macos"],
+    [data-shell="windows"],
+    [data-shell="linux"]
+  )[data-shell-window="main"]
+  .window-drag-strip {
   display: block;
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 20;
   flex-shrink: 0;
   block-size: 1.75rem;
-  margin-block: -2rem 0.25rem;
-  margin-inline: -1.5rem;
 }
 
 /* --- Blobby and quick ask: pages that are a window's whole content -------- */

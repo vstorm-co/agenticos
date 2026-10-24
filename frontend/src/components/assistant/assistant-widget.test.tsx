@@ -133,6 +133,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   vi.restoreAllMocks();
   localStorage.clear();
@@ -140,6 +141,21 @@ afterEach(() => {
 });
 
 describe("the Architect widget", () => {
+  it("keeps the web launcher at the edge in the native desktop console", () => {
+    state.assistant = assistant();
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      window: "main",
+      version: "0.2.0",
+      vibrancy: false,
+    };
+    render(<AssistantWidget />);
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveAttribute(
+      "data-docked",
+      "true",
+    );
+  });
+
   it.each([
     ["there is no assistant", null],
     ["the person may not run agents", { can_use: false }],

@@ -1,5 +1,5 @@
 ---
-source_sha: "581c5abd1cab"
+source_sha: "7cd21d7d9766"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -82,6 +82,11 @@ notificaciones nativas llevan Approve y Reject para una aprobación pendiente, y
 Dock o la barra de tareas muestra cuántas esperan. **Ajustes → App de escritorio**
 abre la app al iniciar sesión, la mantiene con la ventana cerrada y activa o
 desactiva el contador.
+
+Encima del contenido hay una fila reservada para arrastrar la ventana, fuera del
+área desplazable. Las acciones de página y los botones de cierre siguen siendo
+pulsables. El botón web de Architect queda en el borde derecho de la consola y
+se despliega al pasar el puntero, dejando la esquina para las acciones y Blobby.
 
 **Agents fijados**: la página de un agent ofrece Fijar en el Dock (en la barra de
 tareas en otros sistemas). Un agent fijado está en el menú del Dock y en el de la
