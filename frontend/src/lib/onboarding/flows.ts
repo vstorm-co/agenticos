@@ -3,6 +3,7 @@ import {
   AGENT_BUILDER,
   DATASET_DETAIL,
   EVAL_RUN,
+  IMPROVEMENT,
   KB_DETAIL,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -38,7 +39,8 @@ export type FlowId =
   | "create-routine"
   | "create-dataset"
   | "explore-chat"
-  | "test-change";
+  | "test-change"
+  | "first-improvement";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -925,6 +927,33 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // carries a permission.
   // Offered at the end of the builder's own walk, where the reader is already in
   // an agent - so testing a change, not creating another agent, is what it ends on.
+  "first-improvement": {
+    id: "first-improvement",
+    permission: Perm.runsView,
+    steps: [
+      {
+        id: "flow-improvement-start",
+        page: IMPROVEMENT,
+        target: "improvement-start",
+        permission: Perm.runsView,
+        optional: true,
+      },
+      {
+        id: "flow-improvement-results",
+        page: IMPROVEMENT,
+        target: "improvement-results",
+        permission: Perm.runsView,
+        optional: true,
+      },
+      {
+        id: "flow-improvement-accept",
+        page: IMPROVEMENT,
+        target: "improvement-accept",
+        permission: Perm.runsView,
+        optional: true,
+      },
+    ],
+  },
   "test-change": {
     id: "test-change",
     permission: Perm.runsView,
@@ -1006,6 +1035,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
  */
 export function flowForPage(pageId: string): FlowId | null {
   switch (pageId) {
+    case IMPROVEMENT:
+      return "first-improvement";
     case ROUTES.CHAT:
       return "explore-chat";
     case ROUTES.AGENTS:

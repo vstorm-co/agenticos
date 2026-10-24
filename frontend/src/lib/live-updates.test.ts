@@ -35,6 +35,8 @@ describe("staleQueries", () => {
   it("refreshes the sharing panels with every row somebody can share", () => {
     expect(staleQueries(change("agent"))).toEqual([
       qk.agents.all(),
+      qk.improvements.all(),
+      qk.authoring.all(),
       qk.sharing.all(),
       qk.environments.all(),
       qk.runs.assistantSignals(ORG),

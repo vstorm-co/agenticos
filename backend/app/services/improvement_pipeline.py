@@ -49,15 +49,17 @@ from app.repositories import (
     improvement_repo,
     organization_repo,
 )
-from app.schemas.authoring import AuthoringStart, ProposalCheck
+from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
 from app.schemas.eval_run import EvalRunRequest, ProposalCheckRecord
-from app.schemas.eval_suite import EvalSuiteRead
+from app.schemas.eval_suite import EvalSuiteCreate, EvalSuiteRead
 from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
     ImprovementEstimate,
     ImprovementEvent,
+    ImprovementFinish,
+    ImprovementFinished,
     ImprovementIterationRead,
     ImprovementRead,
     ImprovementStart,
@@ -364,7 +366,7 @@ class ImprovementPipelineService:
             raise AuthorizationError(
                 message="Only the creator or an organization administrator can stop this session"
             )
-        if Status(run.status).active:
+        if Status(run.status).active or run.status in {Status.READY, Status.STOPPED}:
             # Cancellation must still work after the creator loses resource access.
             await self._stop_children(run)
             await self._move(
@@ -372,35 +374,182 @@ class ImprovementPipelineService:
             )
         return await self._read(ctx, run)
 
+    async def finish(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ImprovementFinish
+    ) -> ImprovementFinished:
+        """Accept the selected round and optionally publish, in one human-confirmed transaction.
+
+        Normal authoring and publish validation apply to the confirming person.
+        Guarded environments remain on their old version until their checks pass.
+        """
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        if run.status == Status.PUBLISHED:
+            raise ConcurrentChangeError(message="This session was already published")
+        if run.status != Status.READY:
+            raise BadRequestError(message="Select a checked round before accepting it")
+        await self.ensure_current(ctx, run.id, allow_finished=True)
+        rounds = await improvement_repo.list_iterations(
+            self.db, organization_id=run.organization_id, run_id=run.id
+        )
+        for item in rounds:
+            for child_id in item.attribution_eval_run_ids.values():
+                if not (await self.evals.get(ctx, UUID(child_id))).status.terminal:
+                    raise ConcurrentChangeError(
+                        message="Wait for the individual change checks to finish, or stop the session"
+                    )
+        selected = next((item for item in rounds if item.id == run.best_iteration_id), None)
+        if selected is None or selected.batch_id is None:
+            raise BadRequestError(message="No checked round is selected")
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
+        if batch is None or batch.id != selected.batch_id:
+            raise ConcurrentChangeError(message="The selected suggestions were replaced")
+        hunks = await authoring_repo.list_hunks(
+            self.db, organization_id=ctx.organization_id, batch_id=batch.id
+        )
+        agent = await self.authoring._editable(ctx, agent_id)
+        projected, skipped = authoring_hunks.projection(
+            AgentSpec.model_validate(agent.draft_spec), hunks
+        )
+        if skipped or spec_hash(projected) != selected.candidate_spec_hash:
+            raise ConcurrentChangeError(
+                message="The selected changes differ from the checked candidate; check them again"
+            )
+        for hunk in hunks:
+            if hunk.status == HunkStatus.PENDING:
+                await self.authoring.decide(ctx, agent_id, hunk.id, HunkDecision(action="accept"))
+        if data.automatic_check:
+            suites = await EvalSuiteService(self.db).list_for_agent(ctx, agent_id)
+            if not suites.items:
+                await EvalSuiteService(self.db).create(
+                    ctx,
+                    agent_id,
+                    EvalSuiteCreate(
+                        name="Improvement checks",
+                        dataset_id=run.dataset_id,
+                        on_publish=True,
+                        max_run_usd=run.budget_usd,
+                    ),
+                )
+        version = await self.registry.publish(ctx, agent_id) if data.publish else None
+        await improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={"status": Status.PUBLISHED.value if version else Status.ACCEPTED.value},
+        )
+        await self._audit(run, "published" if version else "accepted", actor_user_id=ctx.subject_id)
+        return ImprovementFinished(
+            session=await self._read(ctx, run),
+            version_id=None if version is None else version.id,
+            version=None if version is None else version.version,
+        )
+
+    async def retry(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
+        """Retry a failed paid step only after a person's explicit request.
+
+        The parent lock makes a repeated click idempotent. The old child remains
+        in Activity; its cost counts toward the same budget and the new child
+        is created in this transaction. No job retries a paid call implicitly.
+        """
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        if Status(run.status).active:
+            return await self._read(ctx, run)
+        if run.status != Status.FAILED or run.stage not in {Stage.PROPOSING, Stage.EVALUATING}:
+            raise BadRequestError(message="Only a failed proposal or test step can be retried")
+        other = await improvement_repo.get_active(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
+        if other is not None:
+            raise ConcurrentChangeError(message="Another improvement session is running")
+        iteration = await improvement_repo.get_iteration(
+            self.db, organization_id=ctx.organization_id, run_id=run.id, number=run.iteration
+        )
+        assert iteration is not None
+        # A refusal rolls this transaction back, including this temporary status.
+        await improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={
+                "status": Status.RUNNING.value,
+                "error": None,
+                "stop_reason": None,
+                "finished_at": None,
+            },
+        )
+        await self.ensure_current(ctx, run.id)
+        if run.stage == Stage.PROPOSING:
+            await improvement_repo.update_iteration(
+                self.db, iteration=iteration, values={"authoring_request_id": None}
+            )
+            await self._step(
+                ctx,
+                await self._inputs(
+                    ctx,
+                    agent_id,
+                    ImprovementTarget(
+                        dataset_id=run.dataset_id if run.suite_id is None else None,
+                        suite_id=run.suite_id,
+                    ),
+                ),
+                run,
+                iteration,
+            )
+        else:
+            inputs = await self._inputs(
+                ctx,
+                agent_id,
+                ImprovementTarget(
+                    dataset_id=run.dataset_id if run.suite_id is None else None,
+                    suite_id=run.suite_id,
+                ),
+            )
+            await self._evaluate(ctx, inputs, run, iteration, force_new=True)
+        await self._audit(run, "retried", actor_user_id=ctx.subject_id)
+        if Status(run.status).active:
+            await self._move(run, rules.Transition(Status.RUNNING, Stage(run.stage)))
+        return await self._read(ctx, run)
+
     async def _stop_children(self, run: ImprovementRun) -> None:
         from app.db.models.eval_run import EvalRunStatus
         from app.repositories import eval_run_repo
 
-        iteration = await improvement_repo.get_iteration(
-            self.db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+        iterations = await improvement_repo.list_iterations(
+            self.db, organization_id=run.organization_id, run_id=run.id
         )
-        if iteration is None:
-            return
-        if iteration.authoring_request_id is not None:
-            request = await authoring_repo.get_request(
-                self.db, iteration.authoring_request_id, organization_id=run.organization_id
-            )
-            if request is not None and request.status in {"queued", "running"}:
-                await authoring_repo.update_request(
-                    self.db,
-                    request=request,
-                    values={
-                        "status": AuthoringStatus.FAILED.value,
-                        "error": "The improvement session stopped.",
-                        "finished_at": datetime.now(UTC),
-                    },
+        for iteration in iterations:
+            if iteration.authoring_request_id is not None:
+                request = await authoring_repo.get_request(
+                    self.db, iteration.authoring_request_id, organization_id=run.organization_id
                 )
-        for run_id in iteration.eval_run_ids:
-            child = await eval_run_repo.get(self.db, run_id, organization_id=run.organization_id)
-            if child is not None and not EvalRunStatus(child.status).terminal:
-                await eval_run_repo.cancel_live(
-                    self.db, child.id, organization_id=run.organization_id, now=datetime.now(UTC)
+                if request is not None and request.status in {"queued", "running"}:
+                    await authoring_repo.update_request(
+                        self.db,
+                        request=request,
+                        values={
+                            "status": AuthoringStatus.FAILED.value,
+                            "error": "The improvement session stopped.",
+                            "finished_at": datetime.now(UTC),
+                        },
+                    )
+            for child_id in [
+                *iteration.eval_run_ids,
+                *(UUID(value) for value in iteration.attribution_eval_run_ids.values()),
+            ]:
+                child = await eval_run_repo.get(
+                    self.db, child_id, organization_id=run.organization_id
                 )
+                if child is not None and not EvalRunStatus(child.status).terminal:
+                    await eval_run_repo.cancel_live(
+                        self.db,
+                        child.id,
+                        organization_id=run.organization_id,
+                        now=datetime.now(UTC),
+                    )
 
     async def _queue(self, run: ImprovementRun) -> None:
         # State is part of dedupe: the current job may enqueue its successor.
@@ -430,12 +579,51 @@ class ImprovementPipelineService:
                     await self._queue(run)
                     count += 1
             after = rows[-1][0]
+        after = None
+        while rows := await improvement_repo.list_waiting(self.db, after=after):
+            for run_id, org_id in rows:
+                run = await improvement_repo.get_run(self.db, run_id, organization_id=org_id)
+                if run is not None:
+                    await self._queue(run)
+                    count += 1
+            after = rows[-1][0]
         return count
 
-    async def _audit(self, run: ImprovementRun, action: str) -> None:
+    async def _settle_decisions(self, run: ImprovementRun) -> None:
+        """Observe human decisions without acquiring an agent lock after the parent lock."""
+        rounds = await improvement_repo.list_iterations(
+            self.db, organization_id=run.organization_id, run_id=run.id
+        )
+        selected = next((item for item in rounds if item.id == run.best_iteration_id), None)
+        if selected is None or selected.batch_id is None:
+            return
+        batch = await authoring_repo.get_batch(
+            self.db, selected.batch_id, organization_id=run.organization_id
+        )
+        if batch is None or batch.status == BatchStatus.SUPERSEDED:
+            status = Status.REJECTED
+        else:
+            hunks = await authoring_repo.list_hunks(
+                self.db, organization_id=run.organization_id, batch_id=batch.id
+            )
+            accepted = any(h.status == HunkStatus.ACCEPTED for h in hunks)
+            pending = any(h.status == HunkStatus.PENDING for h in hunks)
+            if batch.status == BatchStatus.PUBLISHED:
+                status = Status.PUBLISHED if accepted else Status.REJECTED
+            elif pending:
+                status = Status.READY
+            else:
+                status = Status.ACCEPTED if accepted else Status.REJECTED
+        if run.status != status:
+            await improvement_repo.update_run(self.db, run=run, values={"status": status.value})
+            await self._audit(run, status.value)
+
+    async def _audit(
+        self, run: ImprovementRun, action: str, *, actor_user_id: UUID | None = None
+    ) -> None:
         await record_audit(
             self.db,
-            actor_user_id=run.created_by_user_id,
+            actor_user_id=actor_user_id or run.created_by_user_id,
             organization_id=run.organization_id,
             action=f"improvement.{action}",
             target_type="improvement",
@@ -478,7 +666,7 @@ class ImprovementPipelineService:
         )
         if transition.status.active:
             await self._queue(run)
-        else:
+        elif transition.status in {Status.READY, Status.STOPPED, Status.FAILED}:
             agent = await agent_repo.get(self.db, run.agent_id, organization_id=run.organization_id)
             if agent is not None and run.created_by_user_id is not None:
                 await NotificationService(self.db).improvement_finished(
@@ -528,7 +716,12 @@ class ImprovementPipelineService:
         run = await improvement_repo.get_run(
             self.db, run_id, organization_id=organization_id, lock=True
         )
-        if run is None or not Status(run.status).active:
+        if run is None:
+            return
+        if Status(run.status).waiting:
+            await self._settle_decisions(run)
+            return
+        if not Status(run.status).active:
             return
         try:
             ctx = await job_context(
@@ -884,9 +1077,15 @@ class ImprovementPipelineService:
         return inputs.request.model_copy(update={"dataset_version": run.dataset_version})
 
     async def _evaluate(
-        self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun, iteration: ImprovementIteration
+        self,
+        ctx: AuthContext,
+        inputs: Inputs,
+        run: ImprovementRun,
+        iteration: ImprovementIteration,
+        *,
+        force_new: bool = False,
     ) -> None:
-        if iteration.eval_run_ids:
+        if iteration.eval_run_ids and not force_new:
             child = await self.evals.get(ctx, iteration.eval_run_ids[-1])
             if not child.status.terminal:
                 from app.repositories import eval_run_repo

@@ -1036,6 +1036,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
           breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
           actions={
             <>
+              {canEdit && canViewRuns && !isSystem && (
+                <Button
+                  data-tour="agent-improve"
+                  onClick={() =>
+                    void (async () => {
+                      if (await persist()) router.push(`/agents/${id}/improve/new`);
+                    })()
+                  }
+                >
+                  {t("improveSession")}
+                </Button>
+              )}
               {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
                 Only a published agent has a version to run - the chat's own
@@ -1421,11 +1433,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <Button
               size="sm"
               onClick={() => {
-                setTab("availability");
+                router.push(`/agents/${id}/improve/new`);
                 setFirstPublished(false);
               }}
             >
-              {t("openAvailability")}
+              {t("setBaseline")}
             </Button>
             <IconButton aria-label={tc("dismiss")} onClick={() => setFirstPublished(false)}>
               <X />

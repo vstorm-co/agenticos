@@ -58,6 +58,7 @@ export default defineConfig({
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
         "src/components/authoring/**/*.tsx",
+        "src/components/improvement/**/*.tsx",
         // The sandbox cards only, not the whole widget directory: the twenty-seven
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.

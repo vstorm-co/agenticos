@@ -9,6 +9,11 @@ import { canonicalFacet } from "@/lib/agent-facets";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  improvements: {
+    all: () => ["improvements"] as const,
+    agent: (agentId: string) => ["improvements", agentId] as const,
+    detail: (agentId: string, runId: string) => ["improvements", agentId, runId] as const,
+  },
   auth: {
     me: () => ["auth", "me"] as const,
   },

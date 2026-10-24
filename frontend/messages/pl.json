@@ -3956,6 +3956,10 @@
       "test-change": {
         "title": "Przetestować zmianę przed publikacją?",
         "body": "Uruchom wersję roboczą na datasecie razem z wersją produkcyjną i przeczytaj werdykt: które przypadki się zepsuły, które naprawiły i czy warto publikować. Przeprowadzimy Cię przez to."
+      },
+      "first-improvement": {
+        "title": "Popraw",
+        "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
       }
     },
     "steps": {
@@ -4715,6 +4719,30 @@
       "inbox-filters": {
         "title": "Co przyszło do ciebie samo",
         "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
+      },
+      "improvement-start": {
+        "title": "Pytania",
+        "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
+      },
+      "improvement-results": {
+        "title": "Wynik",
+        "body": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku."
+      },
+      "improvement-accept": {
+        "title": "Akceptacja",
+        "body": "Zaakceptuj do draftu lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
+      },
+      "flow-improvement-start": {
+        "title": "Pytania",
+        "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
+      },
+      "flow-improvement-results": {
+        "title": "Wynik",
+        "body": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku."
+      },
+      "flow-improvement-accept": {
+        "title": "Akceptacja",
+        "body": "Zaakceptuj do draftu lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
       }
     },
     "chooseLanguage": "Język",
@@ -5098,8 +5126,7 @@
       "thisPlatformMcp": "AgenticOS (ta platforma)",
       "testPanelOpen": "Testuj",
       "testPanelShortcut": "Testuj obok Buildera (T)",
-      "firstPublishNext": "Działa już w czacie i przez API. Teraz wybierz, gdzie jeszcze ludzie mają do niego trafiać - widget na stronie, hostowana strona, Slack albo Telegram.",
-      "openAvailability": "Otwórz Availability",
+      "firstPublishNext": "Wyznacz punkt odniesienia: sprawdź tę wersję na kilku pytaniach i porównuj z nią przyszłe zmiany.",
       "inCategoryUse": "Kategorie już w użyciu",
       "inTagUse": "Tagi już w użyciu",
       "mcpToolLoad": "Te serwery MCP dają modelowi {count} narzędzi przy każdym zapytaniu - to około {tokens, number} tokenów, zanim ktokolwiek coś napisze, i więcej narzędzi, niż model dobrze rozróżnia. Wyszukiwanie narzędzi chowa je, dopóki agent nie poszuka konkretnego.",
@@ -5112,7 +5139,9 @@
       "draftAsTested": "Wersja robocza z chwili testu",
       "evals": "Ewaluacje",
       "agentsCount": "{count, plural, one {Agenci (#)} few {Agenci (#)} many {Agenci (#)} other {Agenci (#)}}",
-      "judgeDatasets": "Datasety"
+      "judgeDatasets": "Datasety",
+      "improveSession": "Popraw",
+      "setBaseline": "Wyznacz punkt odniesienia"
     },
     "auth": {
       "backSign": "Wróć do logowania",
@@ -10415,5 +10444,126 @@
       "role_pack": "Pakiet rutyn",
       "finding": "Obserwacja"
     }
+  },
+  "improvement": {
+    "title": "Popraw {name}",
+    "heading": "Popraw",
+    "intro": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji.",
+    "resume": "{date} · {status} — otwórz sesję",
+    "testSet": "Pytania testowe",
+    "chooseQuestions": "Wybierz pytania testowe",
+    "writeQuestions": "Napisz dla mnie pytania testowe",
+    "questionCost": "Możemy wykorzystać ocenione odpowiedzi i napisać więcej pytań. Najpierw sprawdź szacowany koszt.",
+    "estimateQuestions": "Oszacuj koszt napisania pytań",
+    "estimatedCost": "Szacowany koszt: {cost}",
+    "confirmQuestions": "Potwierdź i napisz pytania",
+    "questionsQueued": "Pytania są przygotowywane w tle.",
+    "reviewQuestions": "Przejrzyj pytania",
+    "baseline": "Sprawdź, jak agent odpowiada dzisiaj",
+    "estimate": "Oszacuj koszt sesji",
+    "sessionQuote": "Do {cost} (szacunkowo), {rounds} rund na {count} pytaniach.",
+    "evidence": "Na podstawie {count, plural, one {# odpowiedzi} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} z informacją zwrotną.",
+    "budget": "Limit wydatków sesji (USD)",
+    "start": "Zacznij poprawianie",
+    "working": "Praca trwa…",
+    "loading": "Ładowanie wyniku…",
+    "round": "Runda {number} z {max}",
+    "selected": "Wybrana runda",
+    "selectRound": "Użyj tej rundy",
+    "attributionBody": "Sprawdź każdą zmianę osobno, aby ustalić, które pytania poprawia lub psuje. Te dodatkowo płatne sprawdzenia wliczają się w limit sesji.",
+    "estimateAttribution": "Oszacuj koszt osobnych sprawdzeń",
+    "attributionQuote": "{count, plural, one {# sprawdzenie} few {# sprawdzenia} many {# sprawdzeń} other {# sprawdzenia}} · {cost} (szacunkowo)",
+    "confirmAttribution": "Potwierdź i sprawdź każdą zmianę",
+    "changeAttribution": "Wpływ zmiany {number}",
+    "causedBreak": "Ta zmiana zepsuła odpowiedź: {question}",
+    "causedFix": "Ta zmiana poprawiła odpowiedź: {question}",
+    "openCheck": "Otwórz pełne sprawdzenie",
+    "permission": "Poprawianie wymaga uprawnień do edycji tego agenta i przeglądania runów.",
+    "retryRead": "Spróbuj odczytać ponownie",
+    "stepsLabel": "Kroki poprawiania",
+    "stepStatus": "{step} · {status}",
+    "running": "W toku",
+    "needsYou": "Wymaga Twojej decyzji",
+    "done": "Gotowe",
+    "waiting": "Jeszcze nierozpoczęty",
+    "spend": "Wydano {spent} · limit {budget}",
+    "changesWorking": "Przygotowujemy zmiany. Możesz zamknąć tę stronę i wrócić później.",
+    "noChanges": "Nie ma tu dostępnych zmian. Przeczytaj wynik i powód zatrzymania lub otwórz agenta, aby go edytować.",
+    "background": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku.",
+    "acceptBody": "Zaakceptuj do draftu lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie.",
+    "automatic": "Sprawdzaj te pytania przy każdej publikacji, jeśli nie ma jeszcze automatycznego sprawdzenia.",
+    "confirmation": "Przejrzałem wybrane zmiany i chcę je zastosować.",
+    "keepDraft": "Zachowaj jako draft",
+    "publish": "Zaakceptuj i opublikuj",
+    "openAgent": "Otwórz agenta",
+    "accept": "Zaakceptuj te zmiany",
+    "retryStep": "Ponów ten krok w ramach limitu",
+    "stopAction": "Zatrzymaj sesję",
+    "close": "Zamknij i wróć później",
+    "steps": {
+      "understand": "Zrozumienie",
+      "testSet": "Pytania",
+      "today": "Dzisiaj",
+      "changes": "Zmiany",
+      "check": "Sprawdzenie",
+      "result": "Wynik",
+      "accept": "Akceptacja"
+    },
+    "explain": {
+      "understand": "Asystent korzysta z ocenionych rozmów i błędnych odpowiedzi treningowych. Pytania kontrolne pozostają osobno. Fakty w proponowanych dokumentach musi sprawdzić człowiek.",
+      "testSet": "Pytania i sposób oceniania są przypięte do tej sesji. Kolejne rundy korzystają z tych samych pytań.",
+      "today": "Otwórz ukończone sprawdzenie, aby zobaczyć odpowiedzi przed zmianami i po nich oraz uzasadnienia oceniającego."
+    },
+    "verdict": {
+      "better": "Lepiej: poprawia {fixed}, niczego nie psuje",
+      "regression": "Wynik mieszany lub gorszy: poprawia {fixed}, psuje {broken}",
+      "no_change": "Brak powtarzalnej zmiany",
+      "inconclusive": "Nie udało się wiarygodnie zmierzyć wyniku"
+    },
+    "status": {
+      "queued": "Oczekuje na rozpoczęcie",
+      "running": "Praca trwa",
+      "ready": "Gotowe do Twojego przeglądu",
+      "stopped": "Zatrzymano",
+      "failed": "Krok się nie powiódł",
+      "cancelled": "Anulowano",
+      "stale": "Punkt wyjścia się zmienił",
+      "accepted": "Zachowano jako draft",
+      "published": "Opublikowano",
+      "rejected": "Odrzucono"
+    },
+    "stop": {
+      "no_data": "Dodaj więcej osobnych pytań testowych lub informacji zwrotnych.",
+      "no_proposal": "Nie znaleziono zmian, które można zastosować.",
+      "budget": "Pełny kolejny krok przekracza pozostały limit wydatków.",
+      "inconclusive": "Nie udało się wiarygodnie ocenić wystarczającej liczby odpowiedzi.",
+      "regression": "Zmiany zepsuły odpowiedzi, które wcześniej były poprawne.",
+      "no_change": "Nie znaleziono powtarzalnej poprawy.",
+      "max_iterations": "Sesja osiągnęła limit rund.",
+      "repeat_candidate": "Asystent powtórzył już sprawdzoną propozycję.",
+      "permission": "Wymagany dostęp lub pomoc AI nie są już dostępne.",
+      "stale": "Draft, opublikowana wersja lub ocenianie się zmieniły. Rozpocznij nową sesję.",
+      "stalled": "Krok przestał robić postępy.",
+      "proposal": "Przygotowanie propozycji się nie powiodło.",
+      "eval": "Sprawdzenie się nie powiodło.",
+      "superseded": "Nowsze propozycje zastąpiły tę sesję.",
+      "knowledge_only": "Problemy wymagają uzupełnienia wiedzy. Przejrzyj proponowane dokumenty.",
+      "draft": "Przygotowanie brakującej wiedzy się nie powiodło."
+    },
+    "before": "Przed",
+    "after": "Po",
+    "unavailableAnswer": "Odpowiedź nie jest dostępna.",
+    "whichChange": "Która zmiana to spowodowała",
+    "notAttributed": "Nie sprawdzono osobno. Oszacuj koszt pojedynczych sprawdzeń poniżej.",
+    "attributionWorking": "Nadal sprawdzamy zmianę {number}…",
+    "attributionFailed": "Nie udało się odczytać sprawdzenia zmiany {number}.",
+    "changeBroke": "Zmiana {number}: nowy błąd",
+    "changeFixed": "Zmiana {number}: poprawiona odpowiedź",
+    "changeUnchanged": "Zmiana {number}: brak zmierzonej zmiany dla tego pytania",
+    "heldoutResult": "Pytania niewykorzystane do pisania zmian: {passed} z {total} obsłużonych poprawnie.",
+    "answerCost": "Koszt odpowiedzi: {before} przed → {after} po.",
+    "noChangedQuestions": "Nie ma zmienionych odpowiedzi do pokazania. Otwórz pełne sprawdzenie, aby zobaczyć pozostałe odpowiedzi.",
+    "previousStep": "Poprzedni krok",
+    "nextStep": "Następny krok"
   }
 }

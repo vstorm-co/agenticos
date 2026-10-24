@@ -4069,6 +4069,10 @@
       "test-change": {
         "title": "Eine Änderung testen, bevor sie live geht?",
         "body": "Lass den Entwurf auf einem Dataset gegen die Live-Version laufen und lies das Urteil: welche Fälle sich verschlechtert haben, welche behoben wurden und ob sich das Veröffentlichen lohnt. Wir führen dich durch."
+      },
+      "first-improvement": {
+        "title": "Verbessern",
+        "body": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam."
       }
     },
     "steps": {
@@ -4828,6 +4832,30 @@
       "inbox-filters": {
         "title": "Was von selbst zu Ihnen kam",
         "body": "Funde Ihrer Beobachtungen und die nächtlichen Vorschläge, Dringendes zuerst. Nach Herkunft filtern oder unter Erledigt einen abgelehnten zurückholen."
+      },
+      "improvement-start": {
+        "title": "Testfragen",
+        "body": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam."
+      },
+      "improvement-results": {
+        "title": "Ergebnis",
+        "body": "Die Prüfung läuft im Hintergrund. Sie können diese Seite schließen — wir benachrichtigen Sie, sobald das Ergebnis vorliegt."
+      },
+      "improvement-accept": {
+        "title": "Annehmen",
+        "body": "In den Draft übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht."
+      },
+      "flow-improvement-start": {
+        "title": "Testfragen",
+        "body": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam."
+      },
+      "flow-improvement-results": {
+        "title": "Ergebnis",
+        "body": "Die Prüfung läuft im Hintergrund. Sie können diese Seite schließen — wir benachrichtigen Sie, sobald das Ergebnis vorliegt."
+      },
+      "flow-improvement-accept": {
+        "title": "Annehmen",
+        "body": "In den Draft übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5214,8 +5242,7 @@
       "thisPlatformMcp": "AgenticOS (diese Plattform)",
       "testPanelOpen": "Testen",
       "testPanelShortcut": "Neben dem Builder testen (T)",
-      "firstPublishNext": "Er ist im Chat und über die API live. Wählen Sie als Nächstes, wo ihn die Leute sonst erreichen - ein Website-Widget, eine gehostete Seite, Slack oder Telegram.",
-      "openAvailability": "Availability öffnen",
+      "firstPublishNext": "Legen Sie einen Ausgangswert fest: Testen Sie diese Version mit einigen Fragen und vergleichen Sie künftige Änderungen damit.",
       "inCategoryUse": "Bereits verwendete Kategorien",
       "inTagUse": "Bereits verwendete Tags",
       "mcpToolLoad": "Diese MCP-Server geben dem Modell bei jeder Anfrage {count} Werkzeuge - etwa {tokens, number} Tokens, bevor jemand etwas schreibt, und mehr Werkzeuge, als ein Modell gut auseinanderhält. Die Tool-Suche hält sie zurück, bis der Agent eines nachschlägt.",
@@ -5225,7 +5252,9 @@
       "agentNameRequired": "Ein Agent braucht einen Namen.",
       "identity": "Name und Beschreibung",
       "identityHelp": "Wird mit dem Entwurf gespeichert. Eine Umbenennung behält das Handle @{slug}, Delegationen und Erwähnungen, die darauf zeigen, funktionieren also weiter.",
-      "draftAsTested": "Entwurf, wie der Run ihn getestet hat"
+      "draftAsTested": "Entwurf, wie der Run ihn getestet hat",
+      "improveSession": "Verbessern",
+      "setBaseline": "Ausgangswert festlegen"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -10515,5 +10544,126 @@
       "role_pack": "Routinenpaket",
       "finding": "Beobachtung"
     }
+  },
+  "improvement": {
+    "title": "{name} verbessern",
+    "heading": "Verbessern",
+    "intro": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam.",
+    "resume": "{date} · {status} — Sitzung öffnen",
+    "testSet": "Testfragen",
+    "chooseQuestions": "Testfragen auswählen",
+    "writeQuestions": "Testfragen für mich schreiben",
+    "questionCost": "Wir können bewertete Antworten übernehmen und weitere Fragen schreiben. Prüfen Sie zuerst die Kostenschätzung.",
+    "estimateQuestions": "Kosten für Fragen schätzen",
+    "estimatedCost": "Geschätzte Kosten: {cost}",
+    "confirmQuestions": "Bestätigen und Fragen schreiben",
+    "questionsQueued": "Die Fragen werden im Hintergrund vorbereitet.",
+    "reviewQuestions": "Fragen prüfen",
+    "baseline": "Heutige Antworten des Agenten testen",
+    "estimate": "Sitzungskosten schätzen",
+    "sessionQuote": "Bis zu {cost} (Schätzung), {rounds} Runden mit {count} Fragen.",
+    "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
+    "budget": "Ausgabenlimit der Sitzung (USD)",
+    "start": "Verbesserung starten",
+    "working": "In Bearbeitung…",
+    "loading": "Ergebnis wird geladen…",
+    "round": "Runde {number} von {max}",
+    "selected": "Ausgewählte Runde",
+    "selectRound": "Diese Runde verwenden",
+    "attributionBody": "Prüfen Sie jede Änderung einzeln, um ihre Wirkung auf die Fragen zu erkennen. Diese zusätzlichen kostenpflichtigen Prüfungen zählen zum Sitzungslimit.",
+    "estimateAttribution": "Einzelprüfungen schätzen",
+    "attributionQuote": "{count, plural, one {# Prüfung} other {# Prüfungen}} · {cost} (Schätzung)",
+    "confirmAttribution": "Bestätigen und jede Änderung prüfen",
+    "changeAttribution": "Wirkung der Änderung {number}",
+    "causedBreak": "Durch diese Änderung verschlechtert: {question}",
+    "causedFix": "Durch diese Änderung verbessert: {question}",
+    "openCheck": "Vollständige Prüfung öffnen",
+    "permission": "Zum Verbessern benötigen Sie Bearbeitungszugriff auf diesen Agenten und Leserechte für Runs.",
+    "retryRead": "Erneut laden",
+    "stepsLabel": "Verbesserungsschritte",
+    "stepStatus": "{step} · {status}",
+    "running": "In Bearbeitung",
+    "needsYou": "Ihre Entscheidung nötig",
+    "done": "Erledigt",
+    "waiting": "Noch nicht erreicht",
+    "spend": "{spent} ausgegeben · Limit {budget}",
+    "changesWorking": "Wir bereiten Änderungen vor. Sie können diese Seite schließen und später zurückkehren.",
+    "noChanges": "Hier sind keine Änderungen verfügbar. Lesen Sie das Ergebnis und den Abbruchgrund oder bearbeiten Sie den Agenten.",
+    "background": "Die Prüfung läuft im Hintergrund. Sie können diese Seite schließen — wir benachrichtigen Sie, sobald das Ergebnis vorliegt.",
+    "acceptBody": "In den Draft übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht.",
+    "automatic": "Diese Fragen bei jeder Veröffentlichung prüfen, falls noch keine automatische Prüfung besteht.",
+    "confirmation": "Ich habe die ausgewählten Änderungen geprüft und möchte sie anwenden.",
+    "keepDraft": "Als Draft behalten",
+    "publish": "Annehmen und veröffentlichen",
+    "openAgent": "Agent öffnen",
+    "accept": "Diese Änderungen annehmen",
+    "retryStep": "Schritt innerhalb des Limits wiederholen",
+    "stopAction": "Sitzung stoppen",
+    "close": "Schließen und später zurückkehren",
+    "steps": {
+      "understand": "Verstehen",
+      "testSet": "Testfragen",
+      "today": "Heute",
+      "changes": "Änderungen",
+      "check": "Prüfung",
+      "result": "Ergebnis",
+      "accept": "Annehmen"
+    },
+    "explain": {
+      "understand": "Der Assistent nutzt bewertete Gespräche und fehlgeschlagene Trainingsfragen. Zurückgehaltene Fragen bleiben getrennt. Fakten in vorgeschlagenen Dokumenten muss ein Mensch prüfen.",
+      "testSet": "Testfragen und Bewertung sind für diese Sitzung festgehalten. Weitere Runden nutzen dieselben Fragen.",
+      "today": "Öffnen Sie eine abgeschlossene Prüfung, um ursprüngliche und vorgeschlagene Antworten mit der Begründung der Bewertung zu vergleichen."
+    },
+    "verdict": {
+      "better": "Besser: verbessert {fixed}, verschlechtert nichts",
+      "regression": "Gemischt oder schlechter: verbessert {fixed}, verschlechtert {broken}",
+      "no_change": "Keine reproduzierbare Änderung",
+      "inconclusive": "Kein verlässlich messbares Ergebnis"
+    },
+    "status": {
+      "queued": "Wartet auf den Start",
+      "running": "In Bearbeitung",
+      "ready": "Bereit für Ihre Prüfung",
+      "stopped": "Gestoppt",
+      "failed": "Schritt fehlgeschlagen",
+      "cancelled": "Abgebrochen",
+      "stale": "Ausgangspunkt geändert",
+      "accepted": "Als Draft behalten",
+      "published": "Veröffentlicht",
+      "rejected": "Verworfen"
+    },
+    "stop": {
+      "no_data": "Fügen Sie weitere getrennte Testfragen oder Feedback hinzu.",
+      "no_proposal": "Keine anwendbaren Änderungen gefunden.",
+      "budget": "Der vollständige nächste Schritt überschreitet das verbleibende Limit.",
+      "inconclusive": "Nicht genügend Antworten konnten verlässlich bewertet werden.",
+      "regression": "Die Änderungen verschlechterten zuvor richtige Antworten.",
+      "no_change": "Keine reproduzierbare Verbesserung gefunden.",
+      "max_iterations": "Die Sitzung hat ihr Rundenlimit erreicht.",
+      "repeat_candidate": "Der Assistent wiederholte einen bereits geprüften Vorschlag.",
+      "permission": "Erforderlicher Zugriff oder KI-Unterstützung ist nicht mehr verfügbar.",
+      "stale": "Draft, veröffentlichte Version oder Bewertung wurden geändert. Starten Sie eine neue Sitzung.",
+      "stalled": "Ein Schritt macht keinen Fortschritt mehr.",
+      "proposal": "Der Vorschlagsschritt ist fehlgeschlagen.",
+      "eval": "Der Prüfschritt ist fehlgeschlagen.",
+      "superseded": "Neuere Vorschläge haben diese Sitzung ersetzt.",
+      "knowledge_only": "Die Probleme erfordern mehr Wissen. Prüfen Sie die vorgeschlagenen Dokumente.",
+      "draft": "Das Entwerfen fehlenden Wissens ist fehlgeschlagen."
+    },
+    "before": "Vorher",
+    "after": "Nachher",
+    "unavailableAnswer": "Keine Antwort verfügbar.",
+    "whichChange": "Welche Änderung war die Ursache",
+    "notAttributed": "Nicht einzeln geprüft. Schätzen Sie unten die Einzelprüfungen.",
+    "attributionWorking": "Änderung {number} wird noch geprüft…",
+    "attributionFailed": "Die Prüfung der Änderung {number} konnte nicht gelesen werden.",
+    "changeBroke": "Änderung {number}: neu verschlechtert",
+    "changeFixed": "Änderung {number}: neu verbessert",
+    "changeUnchanged": "Änderung {number}: keine gemessene Änderung für diese Frage",
+    "heldoutResult": "Fragen, die nicht zum Schreiben verwendet wurden: {passed} von {total} richtig beantwortet.",
+    "answerCost": "Kosten pro Antwort: {before} vorher → {after} nachher.",
+    "noChangedQuestions": "Keine veränderten Antworten anzuzeigen. Öffnen Sie die vollständige Prüfung für unveränderte oder unbewertete Antworten.",
+    "previousStep": "Vorheriger Schritt",
+    "nextStep": "Nächster Schritt"
   }
 }

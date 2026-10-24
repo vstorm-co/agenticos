@@ -4187,6 +4187,10 @@
       "test-change": {
         "title": "Test a change before it goes live?",
         "body": "Run the draft against the live version on a dataset and read the verdict: which cases broke, which were fixed, and whether it is worth publishing. We'll walk you through it."
+      },
+      "first-improvement": {
+        "title": "Improve",
+        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
       }
     },
     "steps": {
@@ -4946,6 +4950,30 @@
       "inbox-filters": {
         "title": "What came to you on its own",
         "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
+      },
+      "improvement-start": {
+        "title": "Test set",
+        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+      },
+      "improvement-results": {
+        "title": "Result",
+        "body": "Testing in the background. You can close this page — we’ll let you know when it is ready."
+      },
+      "improvement-accept": {
+        "title": "Accept",
+        "body": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes."
+      },
+      "flow-improvement-start": {
+        "title": "Test set",
+        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+      },
+      "flow-improvement-results": {
+        "title": "Result",
+        "body": "Testing in the background. You can close this page — we’ll let you know when it is ready."
+      },
+      "flow-improvement-accept": {
+        "title": "Accept",
+        "body": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes."
       }
     },
     "chooseLanguage": "Language",
@@ -5332,8 +5360,7 @@
       "thisPlatformMcp": "AgenticOS (this platform)",
       "testPanelOpen": "Test",
       "testPanelShortcut": "Test beside the Builder (T)",
-      "firstPublishNext": "It is live in chat and over the API. Next, choose where else people reach it - a website widget, a hosted page, Slack or Telegram.",
-      "openAvailability": "Open Availability",
+      "firstPublishNext": "Set a baseline: test this version on a few questions and check future changes against it.",
       "inCategoryUse": "Categories already in use",
       "inTagUse": "Tags already in use",
       "mcpToolLoad": "These MCP servers give the model {count} tools on every request - roughly {tokens, number} tokens before anyone types, and more tools than a model chooses between well. Tool search keeps them out of the way until the agent looks one up.",
@@ -5343,7 +5370,9 @@
       "agentNameRequired": "An agent needs a name.",
       "identity": "Name and description",
       "identityHelp": "Saved with the draft. Renaming keeps the handle @{slug}, so delegations and mentions wired to it keep working.",
-      "draftAsTested": "Draft as the run tested it"
+      "draftAsTested": "Draft as the run tested it",
+      "improveSession": "Improve",
+      "setBaseline": "Set a baseline"
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -10632,5 +10661,126 @@
       "role_pack": "Routine pack",
       "finding": "Watch"
     }
+  },
+  "improvement": {
+    "title": "Improve {name}",
+    "heading": "Improve",
+    "intro": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it.",
+    "resume": "{date} · {status} — open session",
+    "testSet": "Test questions",
+    "chooseQuestions": "Choose test questions",
+    "writeQuestions": "Write test questions for me",
+    "questionCost": "We can take rated answers and write more questions. Review the estimate before starting.",
+    "estimateQuestions": "Estimate writing questions",
+    "estimatedCost": "Estimated cost: {cost}",
+    "confirmQuestions": "Confirm and write questions",
+    "questionsQueued": "Questions are being prepared in the background.",
+    "reviewQuestions": "Review the questions",
+    "baseline": "Test how the agent answers today",
+    "estimate": "Estimate the session",
+    "sessionQuote": "Up to {cost} (estimate), {rounds} rounds on {count} questions.",
+    "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
+    "budget": "Session spending limit (USD)",
+    "start": "Start improving",
+    "working": "Still working…",
+    "loading": "Loading the result…",
+    "round": "Round {number} of {max}",
+    "selected": "Selected round",
+    "selectRound": "Use this round",
+    "attributionBody": "Test each change on its own to find which questions it fixes or breaks. These checks cost extra and count against this session’s limit.",
+    "estimateAttribution": "Estimate individual checks",
+    "attributionQuote": "{count, plural, one {# check} other {# checks}} · {cost} (estimate)",
+    "confirmAttribution": "Confirm and test each change",
+    "changeAttribution": "Effect of change {number}",
+    "causedBreak": "Newly broken by this change: {question}",
+    "causedFix": "Fixed by this change: {question}",
+    "openCheck": "Open the full check",
+    "permission": "Editing this agent and viewing runs are required to improve it.",
+    "retryRead": "Try reading again",
+    "stepsLabel": "Improvement steps",
+    "stepStatus": "{step} · {status}",
+    "running": "Running",
+    "needsYou": "Needs you",
+    "done": "Done",
+    "waiting": "Not reached",
+    "spend": "{spent} spent · {budget} limit",
+    "changesWorking": "We are preparing changes. You can close this page and return later.",
+    "noChanges": "No changes are available here. Read the result and stop reason, or open the agent to make an edit.",
+    "background": "Testing in the background. You can close this page — we’ll let you know when it is ready.",
+    "acceptBody": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes.",
+    "automatic": "Check these questions automatically on every publish, if no automatic check exists yet.",
+    "confirmation": "I have reviewed the selected changes and want to apply them.",
+    "keepDraft": "Keep as draft",
+    "publish": "Accept and publish",
+    "openAgent": "Open the agent",
+    "accept": "Accept these changes",
+    "retryStep": "Retry this step within the spending limit",
+    "stopAction": "Stop the session",
+    "close": "Close and return later",
+    "steps": {
+      "understand": "Understand",
+      "testSet": "Test set",
+      "today": "Today",
+      "changes": "Changes",
+      "check": "Check",
+      "result": "Result",
+      "accept": "Accept"
+    },
+    "explain": {
+      "understand": "The assistant uses rated conversations and failed training questions. Held-out questions stay separate. Knowledge drafts need a person to check their facts.",
+      "testSet": "These test questions and their grading are pinned for this session. Later rounds use the same questions.",
+      "today": "Open a completed check to see the original answers beside the proposed answers, with the grader’s reasons."
+    },
+    "verdict": {
+      "better": "Better: fixes {fixed}, breaks nothing",
+      "regression": "Mixed or worse: fixes {fixed}, breaks {broken}",
+      "no_change": "No reproducible change",
+      "inconclusive": "We could not measure a reliable result"
+    },
+    "status": {
+      "queued": "Waiting to start",
+      "running": "Working",
+      "ready": "Ready for your review",
+      "stopped": "Stopped",
+      "failed": "A step failed",
+      "cancelled": "Cancelled",
+      "stale": "The starting point changed",
+      "accepted": "Kept as draft",
+      "published": "Published",
+      "rejected": "Discarded"
+    },
+    "stop": {
+      "no_data": "Add more separate test questions or feedback before improving.",
+      "no_proposal": "No applicable changes were found.",
+      "budget": "The next complete step exceeds the remaining budget.",
+      "inconclusive": "We could not grade enough answers reliably.",
+      "regression": "The changes broke questions that worked before.",
+      "no_change": "No reproducible improvement was found.",
+      "max_iterations": "The session reached its round limit.",
+      "repeat_candidate": "The assistant repeated a candidate already checked.",
+      "permission": "Required access or AI assistance is no longer available.",
+      "stale": "The draft, published version or grading changed. Start a new session.",
+      "stalled": "A child step stopped making progress.",
+      "proposal": "The proposal step failed.",
+      "eval": "The test step failed.",
+      "superseded": "A newer set of suggestions replaced this one.",
+      "knowledge_only": "The problems need more knowledge. Review the proposed documents.",
+      "draft": "Drafting knowledge failed."
+    },
+    "before": "Before",
+    "after": "After",
+    "unavailableAnswer": "No answer is available.",
+    "whichChange": "Which change caused it",
+    "notAttributed": "Not tested separately. Estimate the individual checks below.",
+    "attributionWorking": "Still checking change {number}…",
+    "attributionFailed": "The check of change {number} could not be read.",
+    "changeBroke": "Change {number}: newly broken",
+    "changeFixed": "Change {number}: newly fixed",
+    "changeUnchanged": "Change {number}: no measured change for this question",
+    "heldoutResult": "Questions not used to write the changes: {passed} of {total} handled well.",
+    "answerCost": "Cost per answer: {before} before → {after} after.",
+    "noChangedQuestions": "No changed questions to show. Open the full check for unchanged or ungraded answers.",
+    "previousStep": "Previous step",
+    "nextStep": "Next step"
   }
 }

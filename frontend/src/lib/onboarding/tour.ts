@@ -16,6 +16,7 @@ export const AGENT_BUILDER = "agent-builder";
  * first-run walk, so nothing has to resolve a run to open.
  */
 export const EVAL_RUN = "eval-run";
+export const IMPROVEMENT = "improvement";
 
 /** The knowledge-base detail view, `/rag/<id>`, collapsed to one identity the same way. */
 export const KB_DETAIL = "kb-detail";
@@ -144,6 +145,27 @@ export interface TourStep {
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
+  {
+    id: "improvement-start",
+    page: IMPROVEMENT,
+    target: "improvement-start",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-results",
+    page: IMPROVEMENT,
+    target: "improvement-results",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-accept",
+    page: IMPROVEMENT,
+    target: "improvement-accept",
+    permission: Perm.runsView,
+    optional: true,
+  },
   { id: "welcome", inTour: true },
 
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
@@ -981,6 +1003,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
+  if (/^\/agents\/[^/]+\/improve\/[^/]+/.test(path)) return IMPROVEMENT;
   if (/^\/agents\/[^/]+\/evals\/[^/]+/.test(path)) return EVAL_RUN;
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;

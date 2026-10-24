@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Open resumable improvement sessions, compare rounds, confirm per-change
+  attribution costs, retry failed steps explicitly, and accept or publish checked
+  changes in one human-confirmed transaction.
+- Recompute eval, suite and promotion evidence after human review or undo, with
+  reviewer annotations and notifications, while requiring manual promotion.
+
 - Choose published system agents where they run: case generation, Improve and
   each knowledge base’s gap classifier and drafter. Create every selectable
   kind from New agent.

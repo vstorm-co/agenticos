@@ -73,7 +73,7 @@ async def _until_child(db: AsyncSession, ctx: AuthContext, run_id: UUID) -> None
         await ImprovementPipelineService(db).advance(run_id, ctx.organization_id)
 
 
-async def test_ready_proposal_survives_repeated_transitions_without_changing_the_agent(db):
+async def _ready_proposal(db):
     ctx, agent, _, read = await _started(db)
     original = AgentSpec.model_validate(agent.draft_spec)
     version = agent.current_version_id
@@ -143,6 +143,49 @@ async def test_ready_proposal_survives_repeated_transitions_without_changing_the
     assert notice is not None and "ready" in notice.summary
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).status == "ready"
+
+    return ctx, agent, ready
+
+
+async def test_ready_proposal_survives_repeated_transitions_without_changing_the_agent(db):
+    await _ready_proposal(db)
+
+
+async def test_confirmed_finish_accepts_and_publishes_through_normal_path(db):
+    from app.schemas.improvement import ImprovementFinish
+    from app.services.eval_suite import EvalSuiteService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    before = agent.current_version_id
+    result = await ImprovementPipelineService(db).finish(
+        ctx,
+        agent.id,
+        ready.id,
+        ImprovementFinish(confirmed=True, publish=True, automatic_check=True),
+    )
+    assert result.session.status == "published"
+    assert result.version_id is not None and result.version_id != before
+    assert "30 days" in AgentSpec.model_validate(agent.draft_spec).instructions
+    suites = await EvalSuiteService(db).list_for_agent(ctx, agent.id)
+    assert suites.total == 1
+    assert suites.items[0].on_publish
+    assert suites.items[0].threshold.max_confirmed_regressions == 0
+    with pytest.raises(ConcurrentChangeError):
+        await ImprovementPipelineService(db).finish(
+            ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True)
+        )
+
+
+async def test_keep_as_draft_never_publishes(db):
+    from app.schemas.improvement import ImprovementFinish
+
+    ctx, agent, ready = await _ready_proposal(db)
+    before = agent.current_version_id
+    result = await ImprovementPipelineService(db).finish(
+        ctx, agent.id, ready.id, ImprovementFinish(confirmed=True)
+    )
+    assert result.session.status == "accepted"
+    assert result.version_id is None and agent.current_version_id == before
 
 
 async def test_second_start_is_a_conflict_and_estimate_writes_nothing(db):
@@ -415,4 +458,81 @@ async def test_model_changes_get_a_candidate_of_their_own(db):
             db, organization_id=ctx.organization_id, agent_id=agent.id
         )
         is None
+    )
+
+
+async def test_failed_proposal_needs_explicit_retry_and_repeated_click_starts_one_child(db):
+    from app.db.models.authoring import AuthoringStatus
+
+    ctx, agent, _, read = await _started(db)
+    service = ImprovementPipelineService(db)
+    await _until_child(db, ctx, read.id)
+    first = await service.read(ctx, agent.id, read.id)
+    old_id = first.iterations[0].authoring_request_id
+    assert old_id is not None
+    request = await authoring_repo.get_request(db, old_id, organization_id=ctx.organization_id)
+    assert request is not None
+    await authoring_repo.update_request(
+        db, request=request, values={"status": AuthoringStatus.FAILED.value}
+    )
+    await service.advance(read.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, read.id)).status == "failed"
+    await service.advance(read.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, read.id)).iterations[0].authoring_request_id == old_id
+    retried = await service.retry(ctx, agent.id, read.id)
+    new_id = retried.iterations[0].authoring_request_id
+    assert new_id is not None and new_id != old_id
+    again = await service.retry(ctx, agent.id, read.id)
+    assert again.iterations[0].authoring_request_id == new_id
+    assert any(event.action == "improvement.retried" for event in again.timeline)
+
+
+async def test_waiting_session_tracks_human_accept_undo_dismiss_and_publish(db):
+    from app.db.models.authoring import BatchStatus, HunkStatus
+    from app.db.models.improvement import ImprovementStatus
+
+    ctx, agent, _, read = await _started(db)
+    service = ImprovementPipelineService(db)
+    await _until_child(db, ctx, read.id)
+    first = await service.read(ctx, agent.id, read.id)
+    request_id = first.iterations[0].authoring_request_id
+    assert request_id is not None
+    with _answering(Improver(db)):
+        await AuthoringWorker(request_id, ctx.organization_id, sessions=_sessions(db)).run()
+    batch = await authoring_repo.batch_for_request(
+        db, request_id, organization_id=ctx.organization_id
+    )
+    assert batch is not None
+    iteration = await improvement_repo.get_iteration(
+        db, organization_id=ctx.organization_id, run_id=read.id, number=1
+    )
+    assert iteration is not None
+    await improvement_repo.update_iteration(db, iteration=iteration, values={"batch_id": batch.id})
+    run = await improvement_repo.get_run(db, read.id, organization_id=ctx.organization_id)
+    assert run is not None
+    await improvement_repo.update_run(
+        db,
+        run=run,
+        values={"status": ImprovementStatus.READY.value, "best_iteration_id": iteration.id},
+    )
+    hunks = await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=batch.id
+    )
+    for hunk in hunks:
+        hunk.status = HunkStatus.ACCEPTED.value
+    await db.flush()
+    await service.advance(read.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, read.id)).status == "accepted"
+    hunks[0].status = HunkStatus.PENDING.value
+    await db.flush()
+    await service.advance(read.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, read.id)).status == "ready"
+    hunks[0].status = HunkStatus.ACCEPTED.value
+    batch.status = BatchStatus.PUBLISHED.value
+    await db.flush()
+    await service.advance(read.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, read.id)).status == "published"
+    assert any(
+        event.action == "improvement.published"
+        for event in (await service.read(ctx, agent.id, read.id)).timeline
     )

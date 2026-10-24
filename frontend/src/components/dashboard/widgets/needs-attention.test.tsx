@@ -20,8 +20,6 @@ vi.mock("@/hooks", () => ({
     return state;
   },
 }));
-const pointAt = vi.hoisted(() => vi.fn().mockResolvedValue(true));
-vi.mock("@/lib/assistant-highlight", () => ({ pointAt }));
 
 const PERIOD: Period = { preset: "30d", from: "2026-09-23", to: "2026-10-22" };
 
@@ -51,7 +49,6 @@ beforeEach(() => {
   state.error = null;
   state.refetch = vi.fn();
   state.asked = [];
-  pointAt.mockClear();
 });
 
 describe("NeedsAttentionWidget", () => {
@@ -68,9 +65,8 @@ describe("NeedsAttentionWidget", () => {
     expect(screen.getByText("2 failed runs")).toBeInTheDocument();
     const improve = screen.getAllByRole("link", { name: "Improve" });
     expect(improve).toHaveLength(1);
-    expect(improve[0]).toHaveAttribute("href", "/agents/a1?tab=build");
+    expect(improve[0]).toHaveAttribute("href", "/agents/a1/improve/new");
     await userEvent.click(improve[0]!);
-    expect(pointAt).toHaveBeenCalledWith("agent-assistant-strip");
   });
 
   it("offers no Improve on an agent the reader may not edit", () => {

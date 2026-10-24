@@ -109,3 +109,15 @@ class AttributionEstimate(BaseSchema):
 class AttributionConsent(BaseSchema):
     confirmed: Literal[True]
     estimate_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
+
+
+class ImprovementFinish(BaseSchema):
+    confirmed: Literal[True]
+    publish: bool = False
+    automatic_check: bool = False
+
+
+class ImprovementFinished(BaseSchema):
+    session: ImprovementRead
+    version_id: UUID | None = None
+    version: int | None = None

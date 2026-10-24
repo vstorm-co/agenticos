@@ -913,7 +913,7 @@ class NotificationService:
         recipients = await member_repo.list_member_ids_for(
             self.db, organization_id=agent.organization_id, user_ids=[user_id]
         )
-        path = self._link(f"/agents/{agent.id}?improvement={run_id}", agent.organization_id)
+        path = self._link(f"/agents/{agent.id}/improve/{run_id}", agent.organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.IMPROVEMENT_FINISHED,

@@ -10,6 +10,8 @@ from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
     ImprovementEstimate,
+    ImprovementFinish,
+    ImprovementFinished,
     ImprovementRead,
     ImprovementStart,
     ImprovementTarget,
@@ -79,3 +81,19 @@ async def start_improvement_attribution(
 ) -> Any:
     """Run isolated checks only with explicit consent to the current full estimate."""
     return await service.start_attribution(ctx, agent_id, run_id, number, data)
+
+
+@router.post("/{run_id}/retry", response_model=ImprovementRead)
+async def retry_improvement(
+    agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Explicitly retry a failed paid child, within the original session budget."""
+    return await service.retry(ctx, agent_id, run_id)
+
+
+@router.post("/{run_id}/finish", response_model=ImprovementFinished)
+async def finish_improvement(
+    agent_id: UUID, run_id: UUID, data: ImprovementFinish, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Accept the checked round and optionally publish after explicit human confirmation."""
+    return await service.finish(ctx, agent_id, run_id, data)

@@ -16,6 +16,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // whether there is an agent yet.
   agent: (orgId) => [
     qk.agents.all(),
+    qk.improvements.all(),
+    qk.authoring.all(),
     qk.sharing.all(),
     qk.environments.all(),
     qk.runs.assistantSignals(orgId),

@@ -217,18 +217,14 @@ describe("the first publish", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Publish" }));
   }
 
-  it("points at where else people can reach the agent, and opens it", async () => {
+  it("leads to setting a baseline after the first publish", async () => {
     await mount();
     await publish();
 
-    expect(await screen.findByText(/choose where else people reach it/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Open Availability" }));
+    expect(await screen.findByText(/Set a baseline: test this version/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Set a baseline" }));
 
-    expect(screen.getByRole("tab", { name: "Availability" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.queryByText(/choose where else people reach it/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Set a baseline: test this version/)).not.toBeInTheDocument();
   });
 
   it("says nothing of the kind on a later version", async () => {
@@ -236,7 +232,7 @@ describe("the first publish", () => {
     await mount();
     await publish();
 
-    expect(screen.queryByText(/choose where else people reach it/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Set a baseline: test this version/)).not.toBeInTheDocument();
   });
 });
 
