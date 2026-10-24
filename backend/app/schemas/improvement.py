@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -54,6 +55,7 @@ class ImprovementIterationRead(BaseSchema):
     batch_id: UUID | None
     eval_run_ids: list[UUID]
     candidate_spec_hash: str | None
+    attribution_eval_run_ids: dict[UUID, UUID] = Field(default_factory=dict)
     dropped_hunk_ids: list[UUID]
     dropped: list[DroppedHunk] = Field(default_factory=list)
     verdict: ImprovementVerdict | None
@@ -95,3 +97,15 @@ class ImprovementRead(BaseSchema):
     finished_at: datetime | None
     iterations: list[ImprovementIterationRead] = Field(default_factory=list)
     timeline: list[ImprovementEvent] = Field(default_factory=list)
+
+
+class AttributionEstimate(BaseSchema):
+    changes: int
+    total_usd: Decimal
+    affordable: bool
+    already_started: bool
+
+
+class AttributionConsent(BaseSchema):
+    confirmed: Literal[True]
+    estimate_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)

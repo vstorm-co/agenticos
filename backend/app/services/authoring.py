@@ -732,13 +732,18 @@ class AuthoringService:
             ran_model = True
             if candidate.spec_hash != wanted:
                 continue
-            if candidate.summary.crashed:
+            summary = (
+                (await evals.compare(ctx, run.id)).candidate_summary
+                if run.proposal_check is not None and run.proposal_check.measurement is not None
+                else candidate.summary
+            )
+            if summary.crashed:
                 return "crashed"
             if run.outcome is not None and (
                 run.outcome.regressions_confirmed or run.outcome.verdict in ("worse", "mixed")
             ):
                 return "regression"
-            undecided = candidate.summary.incomplete + candidate.summary.ungraded
+            undecided = summary.incomplete + summary.ungraded
             if undecided or run.outcome is None or run.outcome.verdict in (None, "invalid"):
                 return "inconclusive"
             return None

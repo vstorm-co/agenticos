@@ -341,6 +341,55 @@ def after_judging(
     return _stop(ImprovementStage.JUDGING, _STOPS[verdict])
 
 
+@dataclass(frozen=True)
+class RoundResult:
+    number: int
+    verdict: ImprovementVerdict
+    broken: int
+    pass_rate: float | None
+
+
+def best_round(rounds: list[RoundResult]) -> int | None:
+    """Prefer a measured improvement, then stability and settled success.
+
+    Inconclusive rounds are not evidence for selecting a candidate. Earlier
+    rounds win exact ties, so a costly repeat cannot displace the same result.
+    """
+    measured = [item for item in rounds if item.verdict != ImprovementVerdict.INCONCLUSIVE]
+    order = {
+        ImprovementVerdict.BETTER: 2,
+        ImprovementVerdict.NO_CHANGE: 1,
+        ImprovementVerdict.REGRESSION: 0,
+    }
+    best = max(
+        measured,
+        key=lambda item: (
+            order[item.verdict],
+            -item.broken,
+            item.pass_rate if item.pass_rate is not None else -1,
+            -item.number,
+        ),
+        default=None,
+    )
+    return None if best is None else best.number
+
+
+def round_stop(rounds: list[RoundResult], *, maximum: int) -> StopReason | None:
+    """Whether another proposal can add information after this round."""
+    latest = rounds[-1]
+    if latest.verdict == ImprovementVerdict.BETTER:
+        return None
+    if len(rounds) >= 2:
+        previous = rounds[-2]
+        if previous.verdict == latest.verdict == ImprovementVerdict.NO_CHANGE:
+            return StopReason.NO_CHANGE
+        if previous.verdict == latest.verdict == ImprovementVerdict.INCONCLUSIVE:
+            return StopReason.INCONCLUSIVE
+    if latest.number >= maximum:
+        return StopReason.MAX_ITERATIONS
+    return None
+
+
 def stalled(
     stage: ImprovementStage | None, *, waiting: bool, last_progress: datetime, now: datetime
 ) -> bool:

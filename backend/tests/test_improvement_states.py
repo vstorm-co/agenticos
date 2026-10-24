@@ -513,3 +513,42 @@ def test_after_drafting_the_agents_faults_are_next_or_the_session_ends(
 
 def test_a_crashed_candidate_is_inconclusive_even_with_fixes() -> None:
     assert judge(replace(_BETTER, crashed=1)) is ImprovementVerdict.INCONCLUSIVE
+
+
+def test_best_round_prefers_quality_stability_success_then_the_earlier_round() -> None:
+    from app.services.improvement_states import RoundResult, best_round
+
+    rounds = [
+        RoundResult(1, ImprovementVerdict.REGRESSION, 1, 0.9),
+        RoundResult(2, ImprovementVerdict.NO_CHANGE, 0, 0.8),
+        RoundResult(3, ImprovementVerdict.BETTER, 0, 0.9),
+    ]
+    assert best_round(rounds) == 3
+    assert best_round(rounds[:2]) == 2
+    assert best_round([*rounds, RoundResult(4, ImprovementVerdict.BETTER, 0, 0.9)]) == 3
+    assert best_round([RoundResult(1, ImprovementVerdict.INCONCLUSIVE, 0, None)]) is None
+
+
+@pytest.mark.parametrize(
+    ("verdicts", "maximum", "reason"),
+    [
+        (["regression"], 3, None),
+        (["no_change", "no_change"], 3, StopReason.NO_CHANGE),
+        (["inconclusive", "inconclusive"], 3, StopReason.INCONCLUSIVE),
+        (["regression", "no_change", "regression"], 3, StopReason.MAX_ITERATIONS),
+        (["better"], 1, None),
+    ],
+)
+def test_round_stop_conditions(verdicts, maximum, reason) -> None:
+    from app.services.improvement_states import RoundResult, round_stop
+
+    assert (
+        round_stop(
+            [
+                RoundResult(index + 1, ImprovementVerdict(verdict), 0, 0.8)
+                for index, verdict in enumerate(verdicts)
+            ],
+            maximum=maximum,
+        )
+        == reason
+    )

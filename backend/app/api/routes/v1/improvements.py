@@ -7,6 +7,8 @@ from fastapi import APIRouter, status
 
 from app.api.deps import Auth, ImprovementSvc
 from app.schemas.improvement import (
+    AttributionConsent,
+    AttributionEstimate,
     ImprovementEstimate,
     ImprovementRead,
     ImprovementStart,
@@ -48,3 +50,32 @@ async def read_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc
 async def stop_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
     """Stop new work and cancel children, as the creator or an organization administrator."""
     return await service.cancel(ctx, agent_id, run_id)
+
+
+@router.post("/{run_id}/rounds/{number}/select", response_model=ImprovementRead)
+async def select_improvement_round(
+    agent_id: UUID, run_id: UUID, number: int, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Show a measured round for a human decision, after rechecking access and base pins."""
+    return await service.select_round(ctx, agent_id, run_id, number)
+
+
+@router.post("/{run_id}/rounds/{number}/attribution/estimate", response_model=AttributionEstimate)
+async def estimate_improvement_attribution(
+    agent_id: UUID, run_id: UUID, number: int, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Estimate isolated paired checks for each change without starting paid work."""
+    return await service.estimate_attribution(ctx, agent_id, run_id, number)
+
+
+@router.post("/{run_id}/rounds/{number}/attribution", response_model=ImprovementRead)
+async def start_improvement_attribution(
+    agent_id: UUID,
+    run_id: UUID,
+    number: int,
+    data: AttributionConsent,
+    service: ImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Run isolated checks only with explicit consent to the current full estimate."""
+    return await service.start_attribution(ctx, agent_id, run_id, number, data)

@@ -54,6 +54,8 @@ from app.schemas.eval_run import EvalRunRequest, ProposalCheckRecord
 from app.schemas.eval_suite import EvalSuiteRead
 from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.improvement import (
+    AttributionConsent,
+    AttributionEstimate,
     ImprovementEstimate,
     ImprovementEvent,
     ImprovementIterationRead,
@@ -487,13 +489,21 @@ class ImprovementPipelineService:
                     reason=run.stop_reason,
                 )
 
-    async def ensure_current(self, ctx: AuthContext, run_id: UUID) -> None:
+    async def ensure_current(
+        self, ctx: AuthContext, run_id: UUID, *, allow_finished: bool = False
+    ) -> None:
         """Recheck a queued paid child's authority and pins just before it starts."""
         run = await improvement_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
-        if run is None or not Status(run.status).active:
+        if run is None or not (
+            Status(run.status).active
+            or (allow_finished and run.status in {Status.READY, Status.STOPPED})
+        ):
             raise BadRequestError(
                 message="The improvement session stopped", details={"reason": "stopped"}
             )
+        organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if organization is None or not organization.ai_assistance_enabled:
+            raise AuthorizationError(message="AI assistance is disabled")
         inputs = await self._inputs(
             ctx,
             run.agent_id,
@@ -686,6 +696,9 @@ class ImprovementPipelineService:
                 transition = rules.Transition(Status.RUNNING, Stage.PROPOSING)
             await self._move(run, transition)
         elif run.stage == Stage.PROPOSING:
+            if iteration.batch_id is not None and iteration.authoring_request_id is None:
+                await self._move(run, rules.Transition(Status.RUNNING, Stage.FILTERING))
+                return
             if iteration.authoring_request_id is None:
                 estimate = await self.authoring.estimate_agent(
                     ctx,
@@ -768,7 +781,21 @@ class ImprovementPipelineService:
             await improvement_repo.update_iteration(
                 self.db, iteration=iteration, values={"candidate_spec_hash": spec_hash(projected)}
             )
-            await self._move(run, rules.after_filtering(kept=kept))
+            previous = await improvement_repo.list_iterations(
+                self.db, organization_id=run.organization_id, run_id=run.id
+            )
+            repeated = any(
+                item.number < iteration.number
+                and item.eval_run_ids
+                and item.candidate_spec_hash == spec_hash(projected)
+                for item in previous
+            )
+            await self._move(
+                run,
+                rules.Transition(Status.STOPPED, Stage.FILTERING, StopReason.REPEAT_CANDIDATE)
+                if repeated
+                else rules.after_filtering(kept=kept),
+            )
         elif run.stage == Stage.EVALUATING:
             await self._evaluate(ctx, inputs, run, iteration)
         elif run.stage == Stage.JUDGING:
@@ -989,6 +1016,13 @@ class ImprovementPipelineService:
             suite=outcome,
         )
         verdict = rules.judge(result)
+        rounds = await improvement_repo.list_iterations(
+            self.db, organization_id=run.organization_id, run_id=run.id
+        )
+        spent = await improvement_repo.spent(self.db, run.id, organization_id=run.organization_id)
+        previous_cost = sum(
+            (item.cost_usd for item in rounds if item.number < iteration.number), Decimal(0)
+        )
         await improvement_repo.update_iteration(
             self.db,
             iteration=iteration,
@@ -1001,10 +1035,10 @@ class ImprovementPipelineService:
                     "ungraded": result.ungraded,
                     "incomplete": result.incomplete,
                     "crashed": result.crashed,
+                    "candidate_pass_rate": result.candidate_pass_rate,
+                    "baseline_pass_rate": result.baseline_pass_rate,
                 },
-                "cost_usd": await improvement_repo.spent(
-                    self.db, run.id, organization_id=run.organization_id
-                ),
+                "cost_usd": max(Decimal(0), spent - previous_cost),
                 "ended_at": datetime.now(UTC),
             },
         )
@@ -1018,25 +1052,247 @@ class ImprovementPipelineService:
             rerun_estimate=Decimal(0),
             budget=run.budget_usd,
         )
-        # The evaluating transition checks the actual fresh full estimate before paying.
-        if transition.status == Status.READY:
-            assert iteration.batch_id is not None
-            batch = await authoring_repo.get_batch(
-                self.db, iteration.batch_id, organization_id=run.organization_id
+        results = [
+            rules.RoundResult(
+                item.number,
+                ImprovementVerdict(item.verdict),
+                (item.verdict_detail or {}).get("broken", 0),
+                (item.verdict_detail or {}).get("candidate_pass_rate"),
             )
-            assert batch is not None
-            current = await authoring_repo.get_open_batch(
-                self.db, organization_id=run.organization_id, agent_id=run.agent_id, lock=True
-            )
-            if current is not None and current.source_started_at > run.created_at:
-                transition = rules.Transition(Status.STALE, Stage.JUDGING, StopReason.SUPERSEDED)
-            else:
-                if current is not None:
-                    await authoring_repo.close_batch(
-                        self.db, batch=current, status=BatchStatus.SUPERSEDED
-                    )
-                batch.status = BatchStatus.OPEN.value
-                await improvement_repo.update_run(
-                    self.db, run=run, values={"best_iteration_id": iteration.id}
+            for item in rounds
+            if item.verdict is not None and item.number <= iteration.number
+        ]
+        best_number = rules.best_round(results)
+        best = next((item for item in rounds if item.number == best_number), None)
+        await improvement_repo.update_run(
+            self.db, run=run, values={"best_iteration_id": None if best is None else best.id}
+        )
+        # A confirming rerun belongs to this round, before considering a new proposal.
+        if transition.status.active:
+            await self._move(run, transition)
+            return
+        if verdict != ImprovementVerdict.BETTER:
+            reason = rules.round_stop(results, maximum=run.max_iterations)
+            if reason is None:
+                target = ImprovementTarget(
+                    dataset_id=run.dataset_id if run.suite_id is None else None,
+                    suite_id=run.suite_id,
+                    window_days=run.window_days,
+                    improver_agent_id=run.improver_agent_id,
+                    max_iterations=1,
                 )
+                estimate = await self._estimate(ctx, inputs, target)
+                if not estimate.affordable or not rules.affordable(
+                    spent=spent, step_estimate=estimate.total_usd, budget=run.budget_usd
+                ):
+                    reason = StopReason.BUDGET
+            if reason is None:
+                following = next(
+                    (item for item in rounds if item.number == run.iteration + 1), None
+                )
+                if following is None:
+                    await improvement_repo.create_iteration(
+                        self.db,
+                        organization_id=run.organization_id,
+                        run_id=run.id,
+                        number=run.iteration + 1,
+                    )
+                await improvement_repo.update_run(
+                    self.db, run=run, values={"iteration": run.iteration + 1}
+                )
+                await self._move(run, rules.Transition(Status.RUNNING, Stage.PROPOSING))
+                return
+            transition = rules.Transition(Status.STOPPED, Stage.JUDGING, reason)
+        if transition.status == Status.READY:
+            transition = await self._expose(run, iteration)
         await self._move(run, transition)
+
+    async def _expose(
+        self, run: ImprovementRun, iteration: ImprovementIteration
+    ) -> rules.Transition:
+        assert iteration.batch_id is not None
+        batch = await authoring_repo.get_batch(
+            self.db, iteration.batch_id, organization_id=run.organization_id
+        )
+        if batch is None:
+            raise NotFoundError(message="The round's candidate is no longer available")
+        current = await authoring_repo.get_open_batch(
+            self.db, organization_id=run.organization_id, agent_id=run.agent_id, lock=True
+        )
+        if current is not None and current.id != batch.id:
+            if current.improvement_run_id != run.id and current.source_started_at > run.created_at:
+                return rules.Transition(Status.STALE, Stage.JUDGING, StopReason.SUPERSEDED)
+            await authoring_repo.close_batch(self.db, batch=current, status=BatchStatus.SUPERSEDED)
+        batch.status = BatchStatus.OPEN.value
+        batch.closed_at = None
+        batch.check_eval_run_ids = list(iteration.eval_run_ids)
+        await self.db.flush()
+        return rules.Transition(Status.READY, Stage.JUDGING)
+
+    async def select_round(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, number: int
+    ) -> ImprovementRead:
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        if run.status not in {Status.READY, Status.STOPPED}:
+            raise BadRequestError(message="Choose a round after the session finishes")
+        await self.ensure_current(ctx, run.id, allow_finished=True)
+        iteration = await improvement_repo.get_iteration(
+            self.db, organization_id=run.organization_id, run_id=run.id, number=number
+        )
+        if iteration is None or iteration.verdict is None or iteration.batch_id is None:
+            raise NotFoundError(message="A measured round is not available")
+        transition = await self._expose(run, iteration)
+        if transition.status == Status.READY:
+            await improvement_repo.update_run(
+                self.db, run=run, values={"best_iteration_id": iteration.id}
+            )
+        await self._audit(run, "round_selected")
+        await self._move(run, transition)
+        return await self._read(ctx, run)
+
+    async def _attribution_target(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, number: int
+    ) -> tuple[ImprovementRun, ImprovementIteration, Inputs]:
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        if run.status not in {Status.READY, Status.STOPPED}:
+            raise BadRequestError(message="Attribution is available after the session finishes")
+        await self.ensure_current(ctx, run_id, allow_finished=True)
+        iteration = await improvement_repo.get_iteration(
+            self.db, organization_id=run.organization_id, run_id=run.id, number=number
+        )
+        if iteration is None or iteration.batch_id is None or iteration.verdict is None:
+            raise NotFoundError(message="A measured round is not available")
+        inputs = await self._inputs(
+            ctx,
+            agent_id,
+            ImprovementTarget(
+                dataset_id=run.dataset_id if run.suite_id is None else None, suite_id=run.suite_id
+            ),
+        )
+        return run, iteration, inputs
+
+    async def _attribution_changes(
+        self, ctx: AuthContext, run: ImprovementRun, iteration: ImprovementIteration, inputs: Inputs
+    ) -> list[tuple[UUID, AgentSpec, Decimal]]:
+        assert iteration.batch_id is not None
+        baseline = AgentSpec.model_validate(inputs.agent.draft_spec)
+        hunks = await authoring_repo.list_hunks(
+            self.db, organization_id=run.organization_id, batch_id=iteration.batch_id
+        )
+        changes: list[tuple[UUID, AgentSpec, Decimal]] = []
+        for hunk in hunks:
+            if hunk.status != HunkStatus.PENDING.value:
+                continue
+            candidate, skipped = authoring_hunks.projection(baseline, [hunk])
+            if skipped:
+                raise ConcurrentChangeError(message="A change no longer applies to the base")
+            estimate = await self.evals.estimate(
+                ctx,
+                run.agent_id,
+                self._eval_request(inputs, run),
+                candidate_spec=candidate,
+                baseline_spec=baseline,
+                scoring=DatasetScoring.model_validate(run.pinned_scoring),
+                judge_version_id=run.judge_version_id,
+                judge_pinned=True,
+            )
+            changes.append((hunk.id, candidate, estimate.total_usd + estimate.rerun_ceiling_usd))
+        if not changes:
+            raise BadRequestError(message="No pending changes can be attributed")
+        return changes
+
+    async def estimate_attribution(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, number: int
+    ) -> AttributionEstimate:
+        run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, number)
+        if iteration.attribution_eval_run_ids:
+            return AttributionEstimate(
+                changes=len(iteration.attribution_eval_run_ids),
+                total_usd=Decimal(0),
+                affordable=True,
+                already_started=True,
+            )
+        changes = await self._attribution_changes(ctx, run, iteration, inputs)
+        total = sum((price for _, _, price in changes), Decimal(0))
+        spent = await improvement_repo.spent(self.db, run_id, organization_id=run.organization_id)
+        org_left = await self.evals._org_left(ctx)
+        return AttributionEstimate(
+            changes=len(changes),
+            total_usd=total,
+            affordable=rules.affordable(spent=spent, step_estimate=total, budget=run.budget_usd)
+            and (org_left is None or total <= org_left),
+            already_started=False,
+        )
+
+    async def start_attribution(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        run_id: UUID,
+        number: int,
+        consent: AttributionConsent,
+    ) -> ImprovementRead:
+        run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, number)
+        if iteration.attribution_eval_run_ids:
+            return await self._read(ctx, run)
+        # Pending paid attribution on another round reserves its whole ceiling.
+        rounds = await improvement_repo.list_iterations(
+            self.db, organization_id=run.organization_id, run_id=run.id
+        )
+        for other in rounds:
+            for child_id in other.attribution_eval_run_ids.values():
+                child = await self.evals.get(ctx, UUID(child_id))
+                if not child.status.terminal:
+                    raise ConcurrentChangeError(message="Another attribution is still running")
+        changes = await self._attribution_changes(ctx, run, iteration, inputs)
+        total = sum((price for _, _, price in changes), Decimal(0))
+        if total > consent.estimate_usd:
+            raise ConcurrentChangeError(
+                message="The attribution estimate changed; review it again",
+                details={"estimate_usd": str(total)},
+            )
+        spent = await improvement_repo.spent(self.db, run_id, organization_id=run.organization_id)
+        org_left = await self.evals._org_left(ctx)
+        if not rules.affordable(spent=spent, step_estimate=total, budget=run.budget_usd) or (
+            org_left is not None and total > org_left
+        ):
+            raise PaymentRequiredError(message="Attribution exceeds the remaining budget")
+        assert iteration.batch_id is not None
+        batch = await authoring_repo.get_batch(
+            self.db, iteration.batch_id, organization_id=run.organization_id
+        )
+        assert batch is not None
+        evidence_ids = list(
+            {*(run.chat_evidence_run_ids or []), *await self.authoring.evidence_run_ids(ctx, batch)}
+        )
+        ids: dict[str, str] = {}
+        for hunk_id, candidate, _ in changes:
+            child = await self.evals.start(
+                ctx,
+                run.agent_id,
+                self._eval_request(inputs, run),
+                candidate_spec=candidate,
+                baseline_spec=AgentSpec.model_validate(inputs.agent.draft_spec),
+                scoring=DatasetScoring.model_validate(run.pinned_scoring),
+                exclude_conversations=batch.evidence_conversation_ids,
+                judge_version_id=run.judge_version_id,
+                judge_pinned=True,
+                proposal_check=ProposalCheckRecord(
+                    kind="agent",
+                    base_version=None,
+                    on_draft=True,
+                    suggestions=1,
+                    improvement_run_id=run.id,
+                    evidence_run_ids=evidence_ids,
+                ),
+            )
+            ids[str(hunk_id)] = str(child.id)
+        await improvement_repo.update_iteration(
+            self.db, iteration=iteration, values={"attribution_eval_run_ids": ids}
+        )
+        await self._audit(run, "attribution_started")
+        return await self._read(ctx, run)

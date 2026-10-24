@@ -365,6 +365,17 @@ class EvalRunWorker:
         lost, or a key narrowed, in between must not leave the run spending on
         what its starter could no longer start.
         """
+        if run.proposal_check is not None:
+            parent_id = ProposalCheckRecord.model_validate(run.proposal_check).improvement_run_id
+            if parent_id is not None:
+                from app.services.improvement_pipeline import ImprovementPipelineService
+
+                try:
+                    await ImprovementPipelineService(db).ensure_current(
+                        ctx, parent_id, allow_finished=True
+                    )
+                except AppException:
+                    return False
         org = run.organization_id
         agent = await agent_repo.get(db, run.agent_id, organization_id=org)
         dataset = await dataset_repo.get(db, run.dataset_id, organization_id=org)

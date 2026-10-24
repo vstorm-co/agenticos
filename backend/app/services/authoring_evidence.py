@@ -297,6 +297,7 @@ class EvidenceService:
         seen: set[UUID] = set()
         outcomes: dict[UUID, dict[UUID, tuple[Outcome, tuple[Outcome, ...], tuple[str, ...]]]] = {}
         flips: dict[UUID, dict[UUID, str]] = {}
+        before: dict[UUID, dict[UUID, str]] = {}
         by_tag: dict[str, list[bool | None]] = {}
         by_criterion: dict[str, list[bool | None]] = {}
         fixed = broken = 0
@@ -339,6 +340,19 @@ class EvidenceService:
                     for case in comparison.cases
                     if case.confirmed and comparison.verdict != "invalid"
                 }
+                arms = await eval_run_repo.list_arms(
+                    self.db, [row.arm.eval_run_id], organization_id=ctx.organization_id
+                )
+                baseline_ids = {arm.id for arm in arms if arm.role == "baseline"}
+                before[row.arm.eval_run_id] = {
+                    attempt.case_id: attempt.answer
+                    for attempt in await eval_run_repo.list_cases(
+                        self.db, row.arm.eval_run_id, organization_id=ctx.organization_id
+                    )
+                    if attempt.arm_id in baseline_ids
+                    and attempt.attempt == 0
+                    and attempt.answer is not None
+                }
             flip = flips[row.arm.eval_run_id].get(row.case.case_id)
             fixed += flip == "fixed"
             broken += flip == "regression"
@@ -346,6 +360,9 @@ class EvidenceService:
             if settled is not False and not note and flip != "regression":
                 continue
             comments = [f"Review note: {_clip(note, _TURN_CHARS)}"] if note else []
+            baseline_answer = before[row.arm.eval_run_id].get(row.case.case_id)
+            if baseline_answer is not None:
+                comments.append(f"Baseline answer: {_clip(baseline_answer, _TURN_CHARS)}")
             if flip in {"fixed", "regression"}:
                 comments.append(f"Confirmed {flip} in a train-part eval")
             grade_text = "\n".join(

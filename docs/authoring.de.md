@@ -1,5 +1,5 @@
 ---
-source_sha: "c8580972cd6e"
+source_sha: "ca20d4a2f37f"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -50,7 +50,7 @@ Ein unbewerteter, erfolgreicher Run sagt nichts aus und wird nicht gelesen.
 Ebenso wenig ein Test aus dem Testpanel des Builders oder der Run eines
 Delegierten.
 
-**Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Review-Notizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
+**Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Prüfungsnotizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
 
 Gibt es mehr zu lesen, als in eine Anfrage passt, werden die Runs zuerst in
 Gruppen gelesen, und die Vorschläge entstehen aus dem, was jede Gruppe zeigte.
@@ -336,3 +336,7 @@ Vorschlagspaket. Die Sitzung übernimmt, veröffentlicht oder befördert nichts.
 Frühere Kandidaten ersetzen während der Prüfung keine wartenden menschlichen
 Vorschläge. Eine Benachrichtigung führt den Ersteller zur fertigen oder gestoppten
 Sitzung.
+
+Sitzungen führen höchstens drei Runden aus. Eine Regression oder ein unverändertes Ergebnis startet nur dann einen weiteren Vorschlag, wenn dessen vollständige Schätzung ins Restbudget passt. Zwei unveränderte Runden, zwei unentschiedene Runden, ein bereits getesteter Kandidat oder das Rundenlimit stoppen die Schleife mit gespeichertem Grund. Trainingsantworten vor und nach der Änderung informieren die nächste Runde; Kontrolldaten bleiben verborgen. Rundenkosten sind getrennt. Die beste gemessene Runde bevorzugt Verbesserung, weniger neue Fehler, dann höhere entschiedene Erfolgsquote.
+
+Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum wartenden Kandidaten, nach erneuter Prüfung von Basis und Zugriff. Die optionale Zuordnung von Wirkungen zu Änderungen nutzt `.../attribution/estimate` und `.../attribution`. Der Start verlangt `confirmed: true` und die geprüfte Summe `estimate_usd`; eine höhere neue Schätzung wird abgelehnt. Jede wartende Änderung wird einzeln gegen dieselbe Basis und fixierte Fragen getestet. Die Kosten belasten das Sitzungsbudget. Die Zuordnung akzeptiert oder veröffentlicht nichts und ersetzt nicht das gemeinsame Rundenurteil.

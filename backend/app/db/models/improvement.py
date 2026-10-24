@@ -106,6 +106,8 @@ class StopReason(StrEnum):
     INCONCLUSIVE = "inconclusive"
     REGRESSION = "regression"
     NO_CHANGE = "no_change"
+    MAX_ITERATIONS = "max_iterations"
+    REPEAT_CANDIDATE = "repeat_candidate"
     PERMISSION = "permission"
     STALE = "stale"
     STALLED = "stalled"
@@ -322,6 +324,9 @@ class ImprovementIteration(Base):
     # one is the one the verdict reads. An inconclusive check is run once more.
     eval_run_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
+    attribution_eval_run_ids: Mapped[dict[str, str]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
     )
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     verdict_detail: Mapped[VerdictDetail | None] = mapped_column(

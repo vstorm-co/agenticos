@@ -1,5 +1,5 @@
 ---
-source_sha: "c8580972cd6e"
+source_sha: "ca20d4a2f37f"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -326,3 +326,7 @@ de sugerencias pendiente. La sesión nunca acepta, publica ni promueve cambios.
 Los candidatos previos no sustituyen las sugerencias pendientes de una persona
 mientras se comprueban. Una notificación lleva al creador a la sesión lista o
 detenida.
+
+Las sesiones realizan como máximo tres rondas. Una regresión o un resultado sin cambios inicia otra propuesta solo si su previsión completa cabe en el presupuesto restante. Dos rondas sin cambios, dos inconclusas, un candidato ya probado o el límite de rondas detienen el ciclo con un motivo registrado. Las respuestas de entrenamiento antes y después informan la siguiente ronda; el contenido de control sigue oculto. Los costes se separan por ronda. La mejor ronda medida prioriza mejoras, menos fallos nuevos y luego mayor éxito decidido.
+
+Tras finalizar, `/{run_id}/rounds/{number}/select` convierte una ronda medida en la propuesta pendiente, comprobando de nuevo la base y el acceso. La atribución opcional usa `.../attribution/estimate` y `.../attribution`. Iniciarla requiere `confirmed: true` y el importe revisado `estimate_usd`; se rechaza una nueva estimación superior. Prueba cada cambio pendiente por separado frente a la misma base y preguntas fijadas. El coste cuenta para el presupuesto de la sesión. La atribución no acepta, publica ni sustituye el veredicto conjunto de la ronda.

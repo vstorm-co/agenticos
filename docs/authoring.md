@@ -304,3 +304,7 @@ A checked improvement ends at `ready`, where its candidate becomes the waiting
 suggestion batch. It never accepts, publishes or promotes. Earlier candidate
 batches leave a person's waiting suggestions alone while checks run. A creator
 notification links to the session when it becomes ready or stops.
+
+Sessions make at most three rounds. A regression or unchanged result starts another proposal only if its complete forecast fits the remaining budget. Two unchanged rounds, two inconclusive rounds, a previously tested candidate or the round limit stop the loop with a recorded reason. Training answers before and after inform the next round; holdout content remains hidden. Round costs are separate, and the best measured round prefers improvement, fewer newly broken questions, then higher settled success.
+
+After completion, `/{run_id}/rounds/{number}/select` makes a measured round the waiting candidate, after checking the current base and access. Optional attribution has its own `.../attribution/estimate` and `.../attribution` actions. Starting requires `confirmed: true` and the reviewed `estimate_usd`; a higher fresh estimate is refused. It tests each pending change alone against the same base and pinned questions. Costs count against the session budget. Attribution does not accept, publish or replace the round's combined verdict.
