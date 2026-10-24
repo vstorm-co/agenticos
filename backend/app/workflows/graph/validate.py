@@ -63,7 +63,8 @@ could not be expressed against at all.
 import json
 import types
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from itertools import islice
 from typing import Any, Union, get_args, get_origin
 from uuid import UUID
 
@@ -90,6 +91,7 @@ from app.workflows.contracts.io import (
     NodeOutputRef,
     TableIORef,
     TemplateValue,
+    file_refs,
     output_refs,
     target_path,
 )
@@ -540,6 +542,20 @@ async def _table_binding_problems(
     return problems
 
 
+def graph_file_refs(graph: WorkflowGraph) -> Iterator[tuple[str, FileRef]]:
+    """File imports named by direct bindings and recursively by pinned outputs."""
+    seen: set[UUID] = set()
+    for index, binding in enumerate(graph.bindings):
+        if isinstance(binding.source, FileRef) and binding.source.file_id not in seen:
+            seen.add(binding.source.file_id)
+            yield f"bindings.{index}", binding.source
+    for node in graph.nodes:
+        for ref in file_refs(node.pinned_output):
+            if ref.file_id not in seen:
+                seen.add(ref.file_id)
+                yield f"nodes.{node.id}.pinned_output", ref
+
+
 async def file_binding_problems(
     db: AsyncSession, ctx: AuthContext, graph: WorkflowGraph
 ) -> Problems:
@@ -551,12 +567,16 @@ async def file_binding_problems(
     otherwise be laundered into this one's imports, which a step then trusts.
     """
     problems: Problems = []
-    for index, binding in enumerate(graph.bindings):
-        if not isinstance(binding.source, FileRef):
-            continue
-        row = await workflow_file_repo.get(
-            db, binding.source.file_id, organization_id=ctx.organization_id
-        )
+    refs = list(islice(graph_file_refs(graph), settings.WORKFLOW_GRAPH_MAX_BINDINGS + 1))
+    if len(refs) > settings.WORKFLOW_GRAPH_MAX_BINDINGS:
+        return [
+            (
+                "files",
+                f"A graph imports at most {settings.WORKFLOW_GRAPH_MAX_BINDINGS} unique files",
+            )
+        ]
+    for field, ref in refs:
+        row = await workflow_file_repo.get(db, ref.file_id, organization_id=ctx.organization_id)
         run = (
             await workflow_run_repo.get_run(
                 db, row.workflow_run_id, organization_id=ctx.organization_id
@@ -576,7 +596,7 @@ async def file_binding_problems(
                 db, ctx, workflow, Perm.WORKFLOWS_VIEW, resource_type=WORKFLOW
             )
         ):
-            problems.append((f"bindings.{index}", "This file does not exist or is not accessible"))
+            problems.append((field, "This file does not exist or is not accessible"))
     return problems
 
 

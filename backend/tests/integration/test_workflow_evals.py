@@ -237,6 +237,35 @@ class TestTheCaseRequest:
 
 
 class TestTrying:
+    @pytest.mark.security
+    @pytest.mark.parametrize("precharged", [False, True])
+    async def test_every_case_spends_the_shared_run_allowance(
+        self, db, owner, workflow, precharged
+    ):
+        from app.services.rate_limit import Decision
+
+        service = WorkflowEvalService(db)
+        for name in ("First", "Second", "Third"):
+            await service.create_case(owner, workflow.id, ASK, _case(name))
+        run = await _run(db, owner, workflow)
+        start = _starting(run)
+        allowance = AsyncMock(
+            side_effect=([Decision(True, 0)] if not precharged else [])
+            + [Decision(False, 60), Decision(False, 60)]
+        )
+        with (
+            patch.object(service.runs, "start", start),
+            patch("app.services.workflow_evals.rate_limit.consume", allowance),
+        ):
+            tried = await service.try_cases(owner, workflow.id, ASK, first_case_charged=precharged)
+        assert start.await_count == 1 and allowance.await_count + int(precharged) == 3
+        assert [result.status for result in tried.results][1:] == ["refused", "refused"]
+        assert all(
+            call.kwargs["surface"] == "workflow_run"
+            and call.kwargs["caller"] == f"user:{owner.subject_id}"
+            for call in allowance.await_args_list
+        )
+
     async def test_each_case_is_tried_as_a_test_of_the_step_and_judged(self, db, owner, workflow):
         service = WorkflowEvalService(db)
         await service.create_case(owner, workflow.id, ASK, _case("Refund"))

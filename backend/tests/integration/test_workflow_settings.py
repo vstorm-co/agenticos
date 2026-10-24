@@ -774,3 +774,84 @@ async def test_api_keys_cannot_capture_the_issuers_authority_as_an_error_workflo
             key_ctx, source.id, WorkflowSettings(error_workflow_id=handler.id)
         )
     assert not source.settings.get("error_workflow_run_as")
+
+
+@pytest.mark.security
+async def test_retention_rechecks_imports_committed_after_its_candidate_query(engine, monkeypatch):
+    import asyncio
+
+    from app.db.locks import LockScope
+    from app.workflows.contracts.io import Binding, FileRef
+
+    source = await seed_run(engine, _graph("core.input"))
+    now = datetime.now(UTC)
+    file_id = uuid.uuid4()
+    async with source.factory() as db:
+        workflow = await db.get(Workflow, source.run.workflow_id)
+        assert workflow is not None
+        workflow.settings = {"run_retention_days": 1}
+        await workflow_run_repo.update_run(
+            db,
+            run=source.run,
+            update_data={"status": "succeeded", "ended_at": now - timedelta(days=3)},
+        )
+        db.add(
+            WorkflowFile(
+                id=file_id,
+                organization_id=source.org.id,
+                workflow_run_id=source.run.id,
+                storage_path="race/file",
+                content_type="text/plain",
+                byte_size=1,
+            )
+        )
+        await db.commit()
+    node = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="file.read",
+        definition_version=1,
+        config={},
+        layout=NodePosition(x=0, y=0),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=node.id,
+        nodes=(node,),
+        bindings=(
+            Binding(
+                target_node_id=node.id,
+                target_field="file",
+                source=FileRef(file_id=file_id, content_type="text/plain", byte_size=1),
+            ),
+        ),
+    )
+    consumer = await seed_run(engine, graph, member=(source.principal, source.org))
+    selected, proceed = asyncio.Event(), asyncio.Event()
+    original_lock = workflow_run_repo.hold_subject
+    async with source.factory() as sweep_db:
+
+        async def interleave(db, scope, organization_id):
+            if db is sweep_db and scope == LockScope.WORKFLOW_FILE_BYTES:
+                selected.set()
+                await proceed.wait()
+            await original_lock(db, scope, organization_id)
+
+        monkeypatch.setattr(workflow_run_repo, "hold_subject", interleave)
+
+        async def sweep():
+            taken = await workflow_run_repo.take_expired_runs(sweep_db, now=now, limit=10)
+            await sweep_db.commit()
+            return taken
+
+        async with asyncio.timeout(10):
+            async with asyncio.TaskGroup() as tasks:
+                task = tasks.create_task(sweep())
+                await selected.wait()
+                async with consumer.factory() as db:
+                    await WorkflowExecutionService(db).start(
+                        consumer.ctx, consumer.run.workflow_id, mode=WorkflowRunMode.TEST
+                    )
+                    await db.commit()
+                proceed.set()
+        assert task.result() == []
+    async with source.factory() as db:
+        assert await db.get(WorkflowFile, file_id) is not None

@@ -56,7 +56,7 @@ async def try_step_evals(
 ) -> Any:
     """Start a test run of the step for each case. A case whose run cannot start is
     recorded as refused, with the reason, and the rest still start."""
-    return await service.try_cases(ctx, workflow_id, node_id)
+    return await service.try_cases(ctx, workflow_id, node_id, first_case_charged=True)
 
 
 @router.get("/{workflow_id}/eval-runs/{eval_run_id}", response_model=EvalRunRead)

@@ -3348,6 +3348,7 @@ class TestResume:
         self,
         *,
         paused_state: dict,
+        run_limit_usd: Decimal | None = None,
         orphaned: bool = False,
         surface: RunSurface = RunSurface.API,
     ) -> MagicMock:
@@ -3394,7 +3395,7 @@ class TestResume:
             # through: the approver releasing a parked run is not its owner.
             self.resumed_run = run
             self.resumer = resumer
-            await service.resume(resumer, run.id)
+            await service.resume(resumer, run.id, run_limit_usd=run_limit_usd)
 
         return build
 
@@ -3446,6 +3447,19 @@ class TestResume:
         )
 
         assert build.call_args.kwargs["run_limit_usd"] == Decimal("0.75")
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("old", "new", "expected"), [(None, "3", "3"), ("10", "3", "3"), ("1", "3", "1")]
+    )
+    async def test_a_resume_may_tighten_but_never_widen_the_parked_ceiling(
+        self, old, new, expected
+    ):
+        build = await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}, "run_limit_usd": old},
+            run_limit_usd=Decimal(new),
+        )
+        assert build.call_args.kwargs["run_limit_usd"] == Decimal(expected)
 
     @pytest.mark.anyio
     async def test_a_run_parked_under_the_flags_old_name_still_speaks_as_its_owner(self):

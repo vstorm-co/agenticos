@@ -87,6 +87,8 @@ class LockScope(IntEnum):
     VIRTUAL_TABLE_STORAGE_PER_ORG = 17
     #: One streaming table export per organization, held until its response ends.
     VIRTUAL_TABLE_EXPORT_PER_ORG = 18
+    #: Cumulative inline results across retained runs, before run-row locks.
+    WORKFLOW_INLINE_RESULTS_PER_ORG = 19
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.
@@ -118,6 +120,19 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     """
     await db.execute(
         select(func.pg_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
+    )
+
+
+async def try_hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> bool:
+    """Take a transaction lock without waiting; maintenance can skip a busy tenant."""
+    return bool(
+        await db.scalar(
+            select(
+                func.pg_try_advisory_xact_lock(
+                    cast(scope.value, Integer), cast(_key(subject), Integer)
+                )
+            )
+        )
     )
 
 

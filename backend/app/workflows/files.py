@@ -17,12 +17,11 @@ import codecs
 import io
 import json
 import zipfile
-from collections.abc import AsyncGenerator, AsyncIterator, Iterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -41,7 +40,7 @@ from app.services.file_storage import (
 from app.services.file_upload import zip_has_too_many_members
 from app.services.workflow_execution import context
 from app.services.workflow_execution.exceptions import InvalidBindingError, WorkflowFileQuotaError
-from app.workflows.contracts.io import FileRef
+from app.workflows.contracts.io import FileRef, file_refs
 from app.workflows.contracts.results import Failed, WorkflowError
 
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -289,7 +288,8 @@ async def import_output_files(
     Verify ownership/imports at the source, rather than trusting a file id in
     JSON. References protect the producer from retention while consumers use it.
     """
-    for ref in {ref.file_id: ref for ref in _output_files(output)}.values():
+    await hold_subject(db, LockScope.WORKFLOW_FILE_BYTES, organization_id)
+    for ref in {ref.file_id: ref for ref in file_refs(output)}.values():
         source = await workflow_file_repo.get_for_run(
             db, ref.file_id, organization_id=organization_id, workflow_run_id=source_run_id
         )
@@ -308,22 +308,3 @@ async def import_output_files(
                 kind=ResourceRefKind.FILE.value,
                 ref=ref.model_dump(mode="json"),
             )
-
-
-def _output_files(value: object) -> Iterator[FileRef]:
-    """Find structurally valid file references, including nested/list outputs."""
-    if isinstance(value, dict):
-        if value.get("kind") == "file":
-            try:
-                ref = FileRef.model_validate(value)
-            except PydanticValidationError:
-                # Arbitrary structured answers can use `kind: file` for other data.
-                pass
-            else:
-                yield ref
-                return
-        for item in value.values():
-            yield from _output_files(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from _output_files(item)

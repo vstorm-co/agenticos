@@ -320,7 +320,14 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 before = await _cost_so_far(
                     db, current.resumed_agent_run_id, current.organization_id
                 )
-                segment = await runner.resume(current.auth, current.resumed_agent_run_id)
+                if current.budget_remaining is None:
+                    segment = await runner.resume(current.auth, current.resumed_agent_run_id)
+                else:
+                    segment = await runner.resume(
+                        current.auth,
+                        current.resumed_agent_run_id,
+                        run_limit_usd=before + current.budget_remaining,
+                    )
                 text, run, answer = segment.output, segment.run, segment.structured
             else:
                 before = Decimal(0)

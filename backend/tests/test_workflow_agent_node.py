@@ -357,3 +357,19 @@ async def test_attachment_list_has_one_byte_budget_even_for_repeated_refs(monkey
     assert isinstance(result, Failed) and result.error.code == "FILE_TOO_LARGE"
     assert reads == [6]
     assert [call.kwargs["max_bytes"] for call in loader.call_args_list] == [6, 2]
+
+
+@pytest.mark.security
+async def test_a_resumed_agent_uses_only_the_current_workflow_headroom(runner, monkeypatch):
+    prior = Decimal("2")
+    runner.resume.return_value = SimpleNamespace(
+        output="done", run=_run(RunStatus.COMPLETED, cost="2.25"), structured=None
+    )
+    monkeypatch.setattr(agent_node, "_cost_so_far", AsyncMock(return_value=prior))
+    current = dataclasses.replace(_dispatch(uuid.uuid4()), budget_remaining=Decimal("1"))
+    with context.dispatching_as(current):
+        result = await agent_node.handle(
+            AgentRunConfig.model_validate({"agent": _AGENT}), AgentRunInput(prompt="go")
+        )
+    assert isinstance(result, Completed)
+    assert runner.resume.await_args.kwargs["run_limit_usd"] == Decimal("3")

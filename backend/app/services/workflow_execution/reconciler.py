@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.locks import LockScope, try_hold_subject
 from app.db.models.workflow_run import DispatchOutbox, DispatchOutboxStatus, NodeAttemptStatus
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
@@ -92,6 +93,17 @@ class WorkflowReconcilerService:
         )
         resolved = 0
         for attempt in attempts:
+            # A retry exhausted inside a loop can synthesize its collected output.
+            # Match dispatch's tenant-before-row order without waiting on another
+            # tenant while this batch already holds locks from a previous one.
+            if not await try_hold_subject(
+                self.db, LockScope.WORKFLOW_FILE_BYTES, attempt.organization_id
+            ):
+                continue
+            if not await try_hold_subject(
+                self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, attempt.organization_id
+            ):
+                continue
             scanned = await workflow_run_repo.get_node_run_by_id(self.db, attempt.node_run_id)
             if scanned is None:
                 continue

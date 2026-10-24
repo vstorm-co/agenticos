@@ -3,7 +3,8 @@
 A stranger's address carries no identity, so every gate is checked again on each load,
 before anything is read: the link's key, expiry and password state, the organization's
 switch, the public and members' consents, the version the link serves and the owner.
-These prove each gate cuts the data and not the page, that the short cache and the
+Expiry cuts the page itself; the other live-data gates cut only its data. These
+prove that distinction, that the short cache and the
 page's allowance bound what the tables are asked, and that a stranger is told nothing
 of why and no record reaches a log.
 """
@@ -200,13 +201,14 @@ class TestEveryGateOnEveryLoad:
             await _load(page, token)
 
     @pytest.mark.security
-    async def test_an_expired_link_renders_the_page_without_data(self, db):
+    async def test_an_expired_link_refuses_the_whole_page_even_with_an_existing_token(self, db):
         page = await _public_page(db)
         token = await _mint(page)
         page.artifact.public_expires_at = datetime.now(UTC) - timedelta(seconds=1)
         await db.flush()
 
-        assert _initial(await _load(page, token)) == NOTHING
+        with pytest.raises(NotFoundError):
+            await _load(page, token)
 
     @pytest.mark.security
     async def test_a_password_set_after_the_mint_gives_no_data(self, db):

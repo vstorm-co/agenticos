@@ -1,5 +1,5 @@
 ---
-source_sha: "30d45b84994b"
+source_sha: "1d9dc7e4de7f"
 ---
 
 # Workflows { #workflows }
@@ -474,6 +474,16 @@ działa wolno albo zawodzi. Przesunięcie kroku i przypięte dane testowe nie s�
 zmianami. **Show this version** wraca do samej wersji.
 
 ## Ustawienia workflow { #workflow-settings }
+
+Wyniki inline mają wspólne limity: `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` (64 MiB na run) i `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` (1 GiB łącznie dla zachowanych runów). Rezerwacje obejmują kompaktowe wyniki prób, również syntetyczne wyjścia pętli, oraz możliwe kopie w wyniku runa, odpowiedzi webhooka i błędzie. Nie mierzą fizycznego storage PostgreSQL ani nie zastępują polityki całego deploymentu. Małe końcowe rekordy błędu mogą przekroczyć pełny limit, aby zamknąć przebieg. `WORKFLOW_INLINE_RESULT_LIMIT` nie da się ominąć routingiem błędów; koszty pozostają, efekty nie są automatycznie ponawiane. Handler mógł już wykonać działanie przed odmową zapisu wyniku. Użyj referencji do plików albo retencji historii, która zwalnia rezerwacje.
+
+Wznowiony agent zachowuje ciaśniejszy limit: zapisany na pauzie albo sumę dotychczasowego kosztu i aktualnie pozostałego budżetu workflow. Wydatki równoległych gałęzi podczas oczekiwania na approval nie przywracają dawnego zapasu. Każdy przypadek eval zużywa jednostkę limitu runów, również wewnątrz paczki; wyczerpane przypadki są zapisane jako refused. Pierwsza rezerwacja żądania HTTP jest zaliczana pierwszemu przypadkowi.
+
+Przypięte wyniki importują zagnieżdżone referencje plików po sprawdzeniu aktualnego dostępu. Admission i retencja współdzielą blokadę cyklu życia pliku: zatwierdzony import chroni producenta, a retencja ponawia sprawdzenie po oczekiwaniu na blokadę. Przykłady edytora zachowują dane najnowszego runa mimo opóźnionych starszych odpowiedzi; wklejanie zachowuje notatki, a mieszane zmiany notatek i stepów są stosowane razem.
+
+Migracja `0223_workflow_result_bytes.py` odtwarza liczniki z istniejącego nieskompresowanego tekstu JSON, konserwatywnie względem nowych kompaktowych rezerwacji. Na czas backfill zatrzymaj zapisujące API i workery. Historie przekraczające kwotę pozostają zachowane, ale blokują kolejne duże wyniki do sprzątnięcia lub zwiększenia limitu. Nie odtwarza to wcześniej usuniętych treści.
+
+Zagnieżdżone importy są deduplikowane po ID pliku i ograniczone przez `WORKFLOW_GRAPH_MAX_BINDINGS` przed walidacją w bazie.
 
 Run źródłowy zostaje, gdy trwa jego retry albo inny zachowany run importuje któryś z jego plików. Zakończenie retry nie unieważnia plików nadal wskazywanych przez jego kroki.
 

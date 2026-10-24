@@ -465,6 +465,16 @@ changes. **Show this version** goes back to the version alone.
 
 ## Workflow settings { #workflow-settings }
 
+Retained inline results have shared ceilings: `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` (64 MiB per run) and `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` (1 GiB across retained runs). Reservations count compact attempt results, including synthetic loop outputs, and possible run/webhook/error copies. They do not measure physical PostgreSQL storage or replace deployment-wide storage policy. Small terminal failure records can exceed a full allowance so the run can close. `WORKFLOW_INLINE_RESULT_LIMIT` cannot be bypassed by error routing; incurred fees survive and effects are not automatically retried. A handler may already have acted when its result is refused. Use file references or configure history retention to release reservations.
+
+A resumed agent keeps the tighter of its parked lifetime ceiling and the amount already spent plus the workflow's current remaining funds. Spending by sibling branches while approval is pending cannot restore the old headroom. Each eval case consumes a workflow-run allowance, including cases within one batch; exhausted cases are recorded as refused. The HTTP request's first reservation is credited to its first case.
+
+Pinned outputs import nested file references after current access checks. Admission and retention share the file lifecycle lock: a committed import protects its producer, and retention rechecks references after waiting for that lock. Recent editor examples keep the newest run's data despite delayed older responses; pasting preserves notes, and mixed note/step changes apply together.
+
+Migration `0223_workflow_result_bytes.py` backfills counters from existing uncompressed JSON text, conservatively relative to new compact reservations. Stop API and worker writers during this backfill. Existing over-limit histories are preserved but block further large results until cleanup or a configured limit increase. This does not reconstruct content already deleted.
+
+Nested imports are deduplicated by file ID and bounded by `WORKFLOW_GRAPH_MAX_BINDINGS` before database validation.
+
 A source run stays while a retry is active or another retained run imports one of its files. Finishing a retry does not invalidate files its later steps still reference.
 
 **Settings**, under **More** in the editor's header, holds what a workflow is run with rather than

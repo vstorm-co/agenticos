@@ -939,6 +939,47 @@ describe("notes on the canvas", () => {
     expect(notes()).toHaveLength(1);
   });
 
+  it("preserves existing notes when pasting steps", () => {
+    const state = useWorkflowEditorStore.getState;
+    const graph = {
+      ...seededGraph(),
+      notes: [{ id: "note", text: "Keep", layout: { x: 0, y: 0 } }],
+    };
+    state().seedGraph(graph);
+    state().insertSubgraph({
+      nodes: [{ ...graph.nodes[0]!, id: "copy" }],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    expect(notes()).toEqual(graph.notes);
+    expect(state().graph?.nodes.at(-1)?.id).toBe("copy");
+  });
+
+  it("applies mixed note and step moves and removals in one history change", () => {
+    const state = useWorkflowEditorStore.getState;
+    const graph = {
+      ...seededGraph(),
+      notes: [{ id: "note", text: "Keep", layout: { x: 0, y: 0 } }],
+    };
+    state().seedGraph(graph);
+    const id = graph.nodes[0]!.id;
+    state().applyNodeChanges([
+      { type: "position", id: "note", position: { x: 1, y: 2 } },
+      { type: "position", id, position: { x: 3, y: 4 } },
+    ]);
+    expect(notes()[0]?.layout).toEqual({ x: 1, y: 2 });
+    expect(state().graph?.nodes[0]?.layout).toEqual({ x: 3, y: 4 });
+    state().applyNodeChanges([
+      { type: "remove", id: "note" },
+      { type: "remove", id },
+    ]);
+    expect(notes()).toEqual([]);
+    expect(state().graph?.nodes.some((node) => node.id === id)).toBe(false);
+    state().undo();
+    expect(state().graph).toEqual(graph);
+  });
+
   it("moves, resizes and removes a note apart from the steps", () => {
     const state = useWorkflowEditorStore.getState;
     state().seedGraph({

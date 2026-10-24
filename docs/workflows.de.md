@@ -1,5 +1,5 @@
 ---
-source_sha: "30d45b84994b"
+source_sha: "1d9dc7e4de7f"
 ---
 
 # Workflows { #workflows }
@@ -524,6 +524,16 @@ oder fehlschlägt. Einen Schritt verschieben und angeheftete Testdaten sind kein
 Änderungen. **Show this version** kehrt zur Version allein zurück.
 
 ## Workflow-Einstellungen { #workflow-settings }
+
+Für gespeicherte Inline-Ergebnisse gelten gemeinsame Grenzen: `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` (64 MiB je Ausführung) und `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` (1 GiB über aufbewahrte Ausführungen). Reservierungen zählen kompakte Versuchsergebnisse, einschließlich synthetischer Schleifenausgaben, und mögliche Ausführungs-, Webhook- und Fehlerkopien. Sie messen weder den physischen PostgreSQL-Speicher noch ersetzen sie eine Deployment-weite Speicherpolitik. Kleine abschließende Fehlerdatensätze dürfen das volle Limit überschreiten, damit die Ausführung enden kann. `WORKFLOW_INLINE_RESULT_LIMIT` lässt sich nicht durch Fehlerpfade umgehen; Kosten bleiben erhalten, Auswirkungen werden nicht automatisch wiederholt. Ein Handler kann vor Ablehnung seines Ergebnisses bereits gehandelt haben. Dateireferenzen oder Verlaufslöschung geben Reservierungen frei.
+
+Ein fortgesetzter Agent behält die engere Grenze: sein beim Pausieren gespeichertes Gesamtlimit oder bisherige Kosten plus aktuell verbleibendes Workflow-Budget. Ausgaben paralleler Zweige während einer Freigabe stellen den alten Spielraum nicht wieder her. Jeder Eval-Fall verbraucht ein Ausführungskontingent, auch innerhalb eines Stapels; erschöpfte Fälle werden als abgelehnt gespeichert. Die erste HTTP-Reservierung wird dem ersten Fall angerechnet.
+
+Angeheftete Ausgaben importieren verschachtelte Dateireferenzen nach aktueller Zugriffsprüfung. Aufnahme und Aufbewahrung teilen die Dateisperre: ein bestätigter Import schützt seinen Erzeuger, und die Bereinigung prüft Referenzen nach dem Warten erneut. Editorbeispiele behalten die neuesten Ausführungsdaten trotz verspäteter älterer Antworten; Einfügen erhält Notizen, gemischte Notiz- und Schrittänderungen werden gemeinsam angewendet.
+
+Die Migration `0223_workflow_result_bytes.py` füllt Zähler aus vorhandenem unkomprimiertem JSON-Text, konservativ gegenüber neuen kompakten Reservierungen. API- und Worker-Schreibzugriffe müssen währenddessen gestoppt sein. Bereits übergroße Verläufe bleiben erhalten, blockieren aber weitere große Ergebnisse bis zur Bereinigung oder Anhebung des Limits. Bereits gelöschte Inhalte werden nicht wiederhergestellt.
+
+Verschachtelte Importe werden anhand der Datei-ID dedupliziert und vor Datenbankprüfungen durch `WORKFLOW_GRAPH_MAX_BINDINGS` begrenzt.
 
 Ein Quell-Run bleibt erhalten, solange ein Retry aktiv ist oder ein anderer aufbewahrter Run eine seiner Dateien importiert. Das Ende eines Retrys macht weiterhin referenzierte Dateien nicht ungültig.
 

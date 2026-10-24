@@ -9,10 +9,11 @@ itself. `Binding` is what a `NodeInstance.config` field actually points at; see
 `app.workflows.graph.model` for how it is validated against the graph's shape.
 """
 
+from collections.abc import Iterator
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 class FileRef(BaseModel):
@@ -29,6 +30,25 @@ class FileRef(BaseModel):
     file_id: UUID
     content_type: str = Field(max_length=255)
     byte_size: int = Field(ge=0)
+
+
+def file_refs(value: object) -> Iterator[FileRef]:
+    """Find valid nested file references without interpreting other structured data."""
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, dict):
+            if item.get("kind") == "file":
+                try:
+                    ref = FileRef.model_validate(item)
+                except ValidationError:
+                    pass
+                else:
+                    yield ref
+                    continue
+            pending.extend(reversed(item.values()))
+        elif isinstance(item, list):
+            pending.extend(reversed(item))
 
 
 class TableIORef(BaseModel):

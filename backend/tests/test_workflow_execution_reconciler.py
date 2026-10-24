@@ -34,6 +34,12 @@ QUEUE_PATH = "app.services.workflow_execution.dispatch_queue"
 RECONCILER_PATH = "app.services.workflow_execution.reconciler"
 
 
+@pytest.fixture(autouse=True)
+def tenant_locks():
+    with patch(f"{RECONCILER_PATH}.try_hold_subject", new=AsyncMock(return_value=True)) as locks:
+        yield locks
+
+
 @pytest.fixture
 def repo():
     """Patches `workflow_run_repo` in both `reconciler` and `dispatcher`'s own
@@ -167,6 +173,15 @@ class TestStaleClaims:
 
 
 class TestResolveOrphanedAttempts:
+    @pytest.mark.parametrize("reserved", [[False], [True, False]])
+    async def test_a_busy_tenant_is_skipped_before_any_run_row_is_locked(
+        self, repo, tenant_locks, reserved
+    ):
+        repo.list_orphaned_in_flight.return_value = [_attempt()]
+        tenant_locks.side_effect = reserved
+        assert await WorkflowReconcilerService(object()).resolve_orphaned_attempts() == 0
+        repo.get_run_by_id_for_update.assert_not_awaited()
+
     async def test_resolves_each_orphan_it_finds(self, repo, event_log):
         node_run = _node_run(status=NodeRunStatus.RUNNING.value, waiting_agent_run_id=None)
         attempt = _attempt(node_run_id=node_run.id)

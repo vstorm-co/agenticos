@@ -519,6 +519,8 @@ write — so set it well past your longest legitimate run and no closer. See
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's first retry; the wait before each later retry doubles |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to. These three apply to a node whose `policy.retry` sets none |
 | `WORKFLOW_NODE_MAX_OUTPUT_BYTES` | `10485760` | Combined compact UTF-8 JSON of one attempt result, run output and webhook response. Larger outcomes fail with `NODE_OUTPUT_TOO_LARGE` without automatic retry; incurred fees survive. Split out also checks at most 10,000 expanded items and conservative projected bytes before copying them |
+| `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` | `67108864` | Cumulative compact result reservations per run, including loop results and retained attempts; small terminal control records are exempt |
+| `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` | `1073741824` | Compact result reservations across retained runs of an organization; retention releases them without scanning JSONB |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | The longest list a `control.foreach` iterates. A longer one fails the loop with `FOREACH_TOO_MANY_ITEMS` instead of being truncated |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | The largest list a loop freezes, as JSON. A larger one fails the loop with `FOREACH_LIST_TOO_LARGE` |
 | `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Latest yielded results and unhandled errors plus collection overhead, measured before loading their JSON. Larger collections fail with `FOREACH_OUTPUT_TOO_LARGE`; yield smaller values or file references |

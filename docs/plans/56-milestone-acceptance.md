@@ -209,3 +209,15 @@ retained webhook tombstones (`0222_webhook_delivery_tombstones.py`), determinist
 datetime-range failures and public-token cutoff at link expiry. Duplicate delivery
 IDs return the original run UUID even after its content has been retained away;
 old response bodies are not reconstructed.
+
+Further review verifies nested pinned file imports and admission/retention locking,
+per-case eval admission and narrowed agent continuation budgets. Canvas paste keeps
+notes, mixed gestures apply both object kinds, and examples reject older run data.
+`0223_workflow_result_bytes.py` backfills compact-result reservation counters:
+64 MiB per run and 1 GiB per organization by default, including synthetic loop
+results. Reservations are released with deleted runs; small terminal control
+records remain writable at the ceiling. The broader deployment storage policy
+remains an explicit open risk. Evidence includes `test_workflow_inline_storage.py`,
+`test_workflow_pinned_files.py`, `test_workflow_error_foreach.py`,
+`test_workflow_settings.py`, `test_workflow_evals.py`, `TestResume`,
+`workflow-editor-store.test.ts` and `step-data-feed.test.tsx`.

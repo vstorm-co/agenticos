@@ -17,7 +17,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AppException, BadRequestError, NotFoundError
+from app.core.exceptions import AppException, BadRequestError, NotFoundError, RateLimitError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_eval import WorkflowEvalRun, WorkflowStepEval
@@ -35,6 +35,7 @@ from app.schemas.workflow_eval import (
     EvalRunRead,
 )
 from app.schemas.workflow_run import WorkflowStepTest
+from app.services import rate_limit
 from app.services.access import WORKFLOW, resolve_access
 from app.services.workflow_execution.facade import WorkflowExecutionService, node_run_read
 from app.workflows.graph.model import WorkflowGraph
@@ -114,6 +115,9 @@ class WorkflowEvalService:
     ) -> EvalCaseRead:
         """A new case for the step.
 
+        `first_case_charged` credits the HTTP request's existing run reservation;
+        callers without that admission gate leave it false.
+
         Raises:
             NotFoundError: As `list_cases`.
             BadRequestError: The draft has no such step, it asks no model, or it
@@ -155,7 +159,14 @@ class WorkflowEvalService:
             raise NotFoundError(message="Eval case not found", details={"eval_id": str(case_id)})
         await eval_repo.delete_case(self.db, case=case)
 
-    async def try_cases(self, ctx: AuthContext, workflow_id: UUID, node_id: UUID) -> EvalRunRead:
+    async def try_cases(
+        self,
+        ctx: AuthContext,
+        workflow_id: UUID,
+        node_id: UUID,
+        *,
+        first_case_charged: bool = False,
+    ) -> EvalRunRead:
         """Start a test run of the step for each of its cases.
 
         A case whose run cannot start - the organization's work is in flight, the
@@ -175,7 +186,7 @@ class WorkflowEvalService:
                 message="Write a case before trying the step", details={"node_id": str(node_id)}
             )
         tried: list[dict[str, Any]] = []
-        for case in cases:
+        for index, case in enumerate(cases):
             entry: dict[str, Any] = {
                 "eval_id": str(case.id),
                 "name": case.name,
@@ -184,6 +195,17 @@ class WorkflowEvalService:
                 "refused": None,
             }
             try:
+                if index != 0 or not first_case_charged:
+                    decision = await rate_limit.consume(
+                        surface="workflow_run",
+                        caller=f"user:{ctx.subject_id}",
+                        limit=rate_limit.run_limit(),
+                    )
+                    if not decision.allowed:
+                        raise RateLimitError(
+                            message="Too many workflow runs in the last minute. Wait and try again.",
+                            details={"retry_after_seconds": decision.retry_after_seconds},
+                        )
                 run = await self.runs.start(
                     ctx,
                     workflow.id,

@@ -33,6 +33,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.background_task_kind import BackgroundTaskKind
 from app.db.models.workflow import Workflow
@@ -144,6 +145,22 @@ async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> W
         )
     )
     return result.scalar_one_or_none()
+
+
+async def run_organization_id(db: AsyncSession, run_id: UUID) -> UUID | None:
+    """Tenant metadata for a trusted worker before it takes the run's row lock."""
+    return await db.scalar(select(WorkflowRun.organization_id).where(WorkflowRun.id == run_id))
+
+
+async def inline_result_bytes(db: AsyncSession, organization_id: UUID) -> int:
+    """Sum compact result reservations without reading or detoasting JSONB payloads."""
+    used = await db.scalar(
+        select(func.coalesce(func.sum(WorkflowRun.inline_result_bytes), 0)).where(
+            WorkflowRun.organization_id == organization_id
+        )
+    )
+    assert used is not None
+    return int(used)
 
 
 async def get_run_answer(
@@ -1494,7 +1511,26 @@ async def take_expired_runs(
         .order_by(WorkflowRun.ended_at)
         .limit(limit)
     )
-    run_ids = list((await db.execute(expired)).scalars().all())
+    candidates = list((await db.execute(expired)).scalars().all())
+    if not candidates:
+        return []
+    organizations = (
+        await db.scalars(
+            select(WorkflowRun.organization_id).where(WorkflowRun.id.in_(candidates)).distinct()
+        )
+    ).all()
+    for organization_id in sorted(organizations):
+        await hold_subject(db, LockScope.WORKFLOW_FILE_BYTES, organization_id)
+    # Admission may have committed a reference while the lifecycle lock was busy.
+    run_ids = list(
+        (
+            await db.scalars(
+                expired.where(WorkflowRun.id.in_(candidates)).with_for_update(
+                    of=WorkflowRun, skip_locked=True
+                )
+            )
+        ).all()
+    )
     if not run_ids:
         return []
     files = await db.execute(

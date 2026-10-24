@@ -1010,3 +1010,44 @@ async def test_invalid_terminal_json_is_recorded_without_repeating_effects(
         assert calls == ["effect"]
     finally:
         REGISTRY.pop(name, None)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("which", ["item", "body", "collector"])
+async def test_loop_outputs_share_the_inline_result_allowance(engine, monkeypatch, which):
+    import json
+
+    from app.core.config import settings
+    from app.db.models.workflow_run import NodeAttempt
+
+    loop = _Loop()
+    items = [{"name": "x" * 1000}] if which != "collector" else []
+    baseline = await _run(engine, loop.graph, {"items": items})
+    assert (await drive(baseline)).status == "succeeded"
+    async with baseline.factory() as db:
+        rows = (
+            await db.execute(
+                select(NodeAttempt, NodeRun.node_instance_id)
+                .join(NodeRun)
+                .where(NodeRun.workflow_run_id == baseline.run.id)
+                .order_by(NodeAttempt.started_at, NodeAttempt.id)
+            )
+        ).all()
+    used = 0
+    for attempt, node_id in rows:
+        size = len(json.dumps(attempt.result, ensure_ascii=False, separators=(",", ":")).encode())
+        if (
+            (which == "item" and node_id == loop.item.id)
+            or (which == "body" and node_id == loop.map.id)
+            or (which == "collector" and node_id == loop.loop.id and attempt.attempt_no == 2)
+        ):
+            break
+        used += size
+    else:
+        raise AssertionError("No synthetic output recorded")
+    monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES", used + size // 2)
+    seeded = await _run(engine, loop.graph, {"items": items})
+    refused = await drive(seeded)
+    assert refused.status == "failed"
+    assert refused.error["code"] == "WORKFLOW_INLINE_RESULT_LIMIT"
+    assert refused.error["bypassable"] is False

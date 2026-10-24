@@ -5247,8 +5247,12 @@ class AgentRunnerService:
         run_id: UUID,
         *,
         answers: Mapping[str, object] | None = None,
+        run_limit_usd: Decimal | None = None,
     ) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
+
+        `run_limit_usd` can only tighten the parked lifetime ceiling. A workflow
+        continuation passes the agent's prior spend plus its new remaining allowance.
 
         `answers` is what a run parked on `ask_user` questions continues with: each
         parked question's tool result, keyed by its call (#2064). A run waiting on
@@ -5310,6 +5314,10 @@ class AgentRunnerService:
                 details={"run_id": str(run_id)},
             )
         state = PausedRunState.model_validate(run.paused_state)
+        ceiling = state.run_limit_usd
+        if run_limit_usd is not None:
+            ceiling = run_limit_usd if ceiling is None else min(ceiling, run_limit_usd)
+
         given = answers or {}
         if run.status == RunStatus.AWAITING_ANSWER.value and any(
             question not in given for question in state.questions
@@ -5420,10 +5428,10 @@ class AgentRunnerService:
             # the plan over. `plan` here is the delegation resume plan; this is the
             # planning capability's, off `PausedRunState.plan`.
             plan_items=state.plan,
-            run_limit_usd=state.run_limit_usd,
+            run_limit_usd=ceiling,
         )
         prepared.output_schema = state.output_schema
-        prepared.run_limit_usd = state.run_limit_usd
+        prepared.run_limit_usd = ceiling
         prepared.built.ledger.book(_spend_already_booked(run))
         # What the run made before parking is still its own: the starting image a
         # parked `generate_video` names was drawn earlier in this same run.

@@ -483,17 +483,14 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       // A note is drawn among the steps but kept apart from them: its moves,
       // resizes and removals change `notes`, never the steps.
       const noteIds = new Set((graph.notes ?? []).map((note) => note.id));
-      if (changes.some((change) => "id" in change && noteIds.has(change.id))) {
-        const notes = applyNoteChanges(graph.notes ?? [], changes);
-        if (notes !== graph.notes) commit({ ...graph, notes });
-        return;
-      }
+      const notes = graph.notes === undefined ? undefined : applyNoteChanges(graph.notes, changes);
+      const stepChanges = changes.filter((change) => !("id" in change && noteIds.has(change.id)));
       const flowNodes: FlowNode[] = graph.nodes.map((node) => ({
         id: node.id,
         position: node.layout,
         data: {},
       }));
-      const applied = rfApplyNodeChanges(changes, flowNodes);
+      const applied = rfApplyNodeChanges(stepChanges, flowNodes);
       const byId = new Map(graph.nodes.map((node) => [node.id, node] as const));
       const nodes: NodeInstance[] = [];
       for (const flow of applied) {
@@ -501,8 +498,14 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         if (instance === undefined) continue;
         nodes.push({ ...instance, layout: { x: flow.position.x, y: flow.position.y } });
       }
-      if (nodesSignature(nodes) === nodesSignature(graph.nodes)) return;
-      commit(pruneToNodes({ ...graph, nodes }));
+      const nodesChanged = nodesSignature(nodes) !== nodesSignature(graph.nodes);
+      if (!nodesChanged && notes === graph.notes) return;
+      const updated = {
+        ...graph,
+        nodes: nodesChanged ? nodes : graph.nodes,
+        ...(notes !== undefined ? { notes } : {}),
+      };
+      commit(nodesChanged ? pruneToNodes(updated) : updated);
     },
 
     applyEdgeChanges: (changes) => {
@@ -734,6 +737,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       const entry_node_id =
         graph.nodes.length === 0 && first !== undefined ? first.id : graph.entry_node_id;
       commit({
+        ...graph,
         entry_node_id,
         nodes: [...graph.nodes, ...sub.nodes],
         edges: [...graph.edges, ...sub.edges],

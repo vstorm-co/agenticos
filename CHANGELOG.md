@@ -21,6 +21,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Bound cumulative inline workflow results per run and organization, including
+  loop-generated outputs, with compact counters and retained-history backfill.
+  Preserve fees and stop automatic retry when a result cannot be stored.
+- Import pinned nested file references safely across retention, charge each eval
+  case against run limits, and narrow resumed agents to current workflow funds.
+- Preserve canvas notes during paste, apply mixed note/step changes together and
+  retain newer test examples when older responses arrive later.
+
 - Reserve workflow email deliveries against shared issuer, organization and
   deployment allowances before sending; refuse delivery when Redis is unavailable.
   Preserve webhook delivery tombstones after run retention, enforce public-link

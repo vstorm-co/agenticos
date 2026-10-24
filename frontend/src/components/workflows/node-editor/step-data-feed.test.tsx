@@ -41,8 +41,14 @@ describe("StepDataFeed", () => {
       { id: "real", mode: "real" },
       { id: "t0", mode: "test" },
     ];
-    runsById["t1"] = { run: { status: "running" }, nodes: [step("a", { n: 1 })] };
-    runsById["t0"] = { run: { status: "succeeded" }, nodes: [step("a", { n: 0 }), step("b", {})] };
+    runsById["t1"] = {
+      run: { status: "running", created_at: "2026-10-24T12:01:00Z" },
+      nodes: [step("a", { n: 1 })],
+    };
+    runsById["t0"] = {
+      run: { status: "succeeded", created_at: "2026-10-24T12:00:00Z" },
+      nodes: [step("a", { n: 0 }), step("b", {})],
+    };
     store.getState().watchRun("t1", "a");
     render(<StepDataFeed workflowId="wf" />);
 
@@ -62,4 +68,54 @@ describe("StepDataFeed", () => {
     expect(read.mock.calls.map(([id]) => id)).toEqual(["t1", "t2"]);
     expect(store.getState().testingNodeId).toBeNull();
   });
+});
+
+it("keeps newer step data when an older request resolves later", () => {
+  runs.runs = [
+    { id: "new", mode: "test" },
+    { id: "old", mode: "test" },
+  ];
+  runsById["new"] = {
+    run: { status: "running", created_at: "2026-10-24T12:01:00Z" },
+    nodes: [step("a", { n: 2 })],
+  };
+  runsById["old"] = { run: { status: "succeeded", created_at: "2026-10-24T12:00:00Z" }, nodes: [] };
+  const view = render(<StepDataFeed workflowId="wf" />);
+  runsById["old"] = { ...runsById["old"]!, nodes: [step("a", { n: 1 }), step("b", { n: 0 })] };
+  view.rerender(<StepDataFeed workflowId="wf" />);
+  expect(store.getState().stepData["a"]?.output).toEqual({ n: 2 });
+  expect(store.getState().stepData["b"]?.output).toEqual({ n: 0 });
+});
+
+it("uses run-list age for equal timestamps and still refreshes the same newest run", () => {
+  runs.runs = [
+    { id: "new", mode: "test" },
+    { id: "old", mode: "test" },
+  ];
+  const at = "2026-10-24T12:00:00Z";
+  runsById["new"] = { run: { status: "running", created_at: at }, nodes: [step("a", { n: 2 })] };
+  runsById["old"] = { run: { status: "succeeded", created_at: at }, nodes: [] };
+  const view = render(<StepDataFeed workflowId="wf" />);
+  runsById["old"] = { run: { status: "succeeded", created_at: at }, nodes: [step("a", { n: 1 })] };
+  view.rerender(<StepDataFeed workflowId="wf" />);
+  expect(store.getState().stepData["a"]?.output).toEqual({ n: 2 });
+  runsById["new"] = { run: { status: "running", created_at: at }, nodes: [step("a", { n: 3 })] };
+  view.rerender(<StepDataFeed workflowId="wf" />);
+  expect(store.getState().stepData["a"]?.output).toEqual({ n: 3 });
+});
+
+it("falls back to the ordered run list when stored timestamps are absent", () => {
+  runs.runs = [
+    { id: "new", mode: "test" },
+    { id: "old", mode: "test" },
+  ];
+  runsById["new"] = {
+    run: { status: "running", created_at: null, started_at: null },
+    nodes: [step("a", { n: 2 })],
+  };
+  runsById["old"] = { run: { status: "succeeded", created_at: null, started_at: null }, nodes: [] };
+  const view = render(<StepDataFeed workflowId="wf" />);
+  runsById["old"] = { ...runsById["old"]!, nodes: [step("a", { n: 1 })] };
+  view.rerender(<StepDataFeed workflowId="wf" />);
+  expect(store.getState().stepData["a"]?.output).toEqual({ n: 2 });
 });

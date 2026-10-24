@@ -1,5 +1,5 @@
 ---
-source_sha: "30d45b84994b"
+source_sha: "1d9dc7e4de7f"
 ---
 
 # Workflows { #workflows }
@@ -490,6 +490,16 @@ cuando va lento o falla. Mover un paso y los datos de prueba fijados no son camb
 **Show this version** vuelve a la versión sola.
 
 ## Ajustes del workflow { #workflow-settings }
+
+Los resultados inline retenidos comparten límites: `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` (64 MiB por ejecución) y `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` (1 GiB entre ejecuciones retenidas). Las reservas cuentan resultados compactos, incluidas salidas sintéticas de bucles y posibles copias de resultado, webhook y error. No miden el almacenamiento físico de PostgreSQL ni sustituyen la política global del despliegue. Pequeños registros terminales pueden superar una cuota llena para cerrar la ejecución. `WORKFLOW_INLINE_RESULT_LIMIT` no admite desvíos por rutas de error; conserva costes y no repite efectos automáticamente. El handler puede haber actuado antes del rechazo. Usa referencias de archivos o retención del historial para liberar reservas.
+
+Un agente reanudado conserva el límite más estricto: su techo guardado al pausarse o lo gastado más el presupuesto actual restante del workflow. El gasto de ramas paralelas durante una aprobación no restaura el margen anterior. Cada caso eval consume una unidad de ejecución, también dentro de un lote; los casos sin cuota se registran como rechazados. La primera reserva HTTP se acredita al primer caso.
+
+Las salidas fijadas importan referencias anidadas de archivos después de comprobar el acceso actual. La admisión y la retención comparten el bloqueo de archivos: una importación confirmada protege al productor y la limpieza vuelve a comprobar las referencias tras esperar. Los ejemplos del editor conservan los datos más recientes aunque lleguen respuestas antiguas; pegar conserva notas y los cambios mixtos de notas y pasos se aplican juntos.
+
+La migración `0223_workflow_result_bytes.py` rellena contadores desde JSON existente sin comprimir, de forma conservadora frente a las nuevas reservas compactas. Detén las escrituras de API y workers durante este proceso. Los historiales que exceden la cuota se conservan, pero bloquean nuevos resultados grandes hasta limpiar o aumentar el límite. No se recupera contenido ya eliminado.
+
+Las importaciones anidadas se deduplican por ID y se limitan mediante `WORKFLOW_GRAPH_MAX_BINDINGS` antes de validar en la base de datos.
 
 El run de origen se conserva mientras haya un reintento activo u otro run retenido importe uno de sus archivos. Terminar un reintento no invalida archivos que sus pasos aún referencian.
 

@@ -21,6 +21,7 @@ from app.core.audit import current_impersonator
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
@@ -73,11 +74,11 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunNotRetryableError,
     WorkflowTriggerMismatchError,
 )
-from app.workflows.contracts.io import FileRef, TableIORef
+from app.workflows.contracts.io import TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.step import step_subgraph
-from app.workflows.graph.validate import file_binding_problems, validate_graph
+from app.workflows.graph.validate import file_binding_problems, graph_file_refs, validate_graph
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
 from app.workflows.triggers import BY_HAND, CHAT, DECLARES_FIELDS, WORKFLOW_CALL
 
@@ -466,6 +467,8 @@ class WorkflowExecutionService:
         public run), when it came through an external door, or when a public
         run caused it.
         """
+        if any(graph_file_refs(graph)):
+            await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         problems = await file_binding_problems(self.db, ctx, graph)
         if problems:
             raise GraphValidationError(problems)
@@ -712,6 +715,7 @@ class WorkflowExecutionService:
             WorkflowNotRunnableError: The version the run ran no longer resolves.
             WorkflowAdmissionQuotaError: As `start`.
         """
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         original = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
         if original.status not in _RETRYABLE:
             raise WorkflowRunNotRetryableError(run_id=original.id, status=original.status)
@@ -919,16 +923,16 @@ class WorkflowExecutionService:
 
     async def _record_resource_refs(self, run: WorkflowRun, graph: WorkflowGraph) -> None:
         """Record file and table bindings after admission rechecks file access."""
+        for _field, ref in graph_file_refs(graph):
+            await workflow_run_repo.create_resource_ref(
+                self.db,
+                organization_id=run.organization_id,
+                workflow_run_id=run.id,
+                kind=ResourceRefKind.FILE.value,
+                ref=ref.model_dump(mode="json"),
+            )
         for binding in graph.bindings:
-            if isinstance(binding.source, FileRef):
-                await workflow_run_repo.create_resource_ref(
-                    self.db,
-                    organization_id=run.organization_id,
-                    workflow_run_id=run.id,
-                    kind=ResourceRefKind.FILE.value,
-                    ref=binding.source.model_dump(mode="json"),
-                )
-            elif isinstance(binding.source, TableIORef):
+            if isinstance(binding.source, TableIORef):
                 await workflow_run_repo.create_resource_ref(
                     self.db,
                     organization_id=run.organization_id,

@@ -998,3 +998,59 @@ async def test_failed_pdf_batch_removes_earlier_pages_and_frees_quota(
         originals = (await db.scalars(select(WorkflowFile))).all()
         assert len(originals) == 1 and originals[0].content_type == "application/pdf"
     assert list((tmp_path / "workflow-files" / str(seeded.org.id) / str(run.id)).glob("*")) == []
+
+
+@pytest.mark.security
+async def test_nested_pinned_file_outputs_are_checked_imported_and_read(engine, storage):
+    from dataclasses import replace
+
+    from app.db.models.workflow_run import WorkflowRunMode
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    source = await seed_run(engine, _chain(_node("debug.echo"), bindings=[]))
+    ref = await _stored(engine, storage, source.run, b"Pinned file", content_type="text/plain")
+    read = _node("file.read")
+    graph = _chain(read, bindings=[])
+    entry = graph.nodes[0].model_copy(
+        update={
+            "pinned_output": {
+                "payload": {
+                    "file": ref.model_dump(mode="json"),
+                    "nested": [ref.model_dump(mode="json")],
+                }
+            }
+        }
+    )
+    graph = graph.model_copy(
+        update={
+            "nodes": (entry, *graph.nodes[1:]),
+            "bindings": (
+                *graph.bindings,
+                Binding(
+                    target_node_id=read.id,
+                    target_field="file",
+                    source=NodeOutputRef(
+                        node_id=entry.id, port="out", field_path=("payload", "file")
+                    ),
+                ),
+            ),
+        }
+    )
+    consumer = await seed_run(engine, graph, member=(source.principal, source.org))
+    async with consumer.factory() as db:
+        admitted = await WorkflowExecutionService(db).start(
+            consumer.ctx, consumer.run.workflow_id, mode=WorkflowRunMode.TEST
+        )
+        run = await db.get(WorkflowRun, admitted.id)
+        assert run is not None
+        await db.commit()
+    finished = await drive(replace(consumer, run=run))
+    assert finished.status == "succeeded"
+    async with consumer.factory() as db:
+        refs = (
+            await db.scalars(select(ResourceRef).where(ResourceRef.workflow_run_id == run.id))
+        ).all()
+        assert [item.ref["file_id"] for item in refs] == [str(ref.file_id)]
+        stranger = AuthContext(user_id=uuid.uuid4(), organization_id=source.org.id, role="viewer")
+        with pytest.raises(GraphValidationError, match="not accessible"):
+            await validate_graph(db, stranger, graph)

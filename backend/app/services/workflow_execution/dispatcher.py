@@ -57,6 +57,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, BadRequestError
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -748,6 +749,10 @@ async def begin_attempt(
 
     None of these leaves anything for `settle` to do.
     """
+    organization_id = await workflow_run_repo.run_organization_id(db, workflow_run_id)
+    if organization_id is not None:
+        await hold_subject(db, LockScope.WORKFLOW_FILE_BYTES, organization_id)
+        await hold_subject(db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, organization_id)
     run = await workflow_run_repo.get_run_by_id_for_update(db, workflow_run_id)
     node_run = await workflow_run_repo.get_node_run_by_id_for_update(db, node_run_id)
     if run is None or node_run is None:
@@ -1359,6 +1364,61 @@ def _persistable_outcome(outcome: HandlerOutcome) -> tuple[HandlerOutcome, dict[
     return safe, failed.model_dump(mode="json")
 
 
+def _inline_storage_error(scope: str) -> WorkflowError:
+    return WorkflowError(
+        code="WORKFLOW_INLINE_RESULT_LIMIT",
+        message="The retained inline result allowance is exhausted; use file references or configure history retention",
+        details={"scope": scope},
+        bypassable=False,
+    )
+
+
+async def _reserve_inline_result(
+    db: AsyncSession, run: WorkflowRun, size: int
+) -> WorkflowError | None:
+    """Reserve under the org lock and run-row lock; sums read counters, never JSONB."""
+    if run.inline_result_bytes + size > settings.WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES:
+        return _inline_storage_error("run")
+    used = await workflow_run_repo.inline_result_bytes(db, run.organization_id)
+    if used + size > settings.WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES:
+        return _inline_storage_error("organization")
+    await workflow_run_repo.update_run(
+        db, run=run, update_data={"inline_result_bytes": run.inline_result_bytes + size}
+    )
+    return None
+
+
+async def _bounded_inline_outcome(
+    db: AsyncSession, run: WorkflowRun, outcome: HandlerOutcome, serialized: dict[str, JsonValue]
+) -> tuple[HandlerOutcome, dict[str, JsonValue]]:
+    # These values already passed the node's JSONB and payload preflight above.
+    size = sum(
+        json_byte_size(value, limit=(1 << 63) - 1)
+        for value in (serialized, outcome.run_output, outcome.webhook_response)
+        if value is not None
+    )
+    if isinstance(outcome.result, Failed):
+        size += json_byte_size(serialized["error"], limit=(1 << 63) - 1)
+    refusal = await _reserve_inline_result(db, run, size)
+    if refusal is None:
+        return outcome, serialized
+    failed = Failed(error=refusal)
+    marker = failed.model_dump(mode="json")
+    # A small terminal control record must still be written at a full allowance.
+    # It closes the run and cannot route through an error handler to store more.
+    await workflow_run_repo.update_run(
+        db,
+        run=run,
+        update_data={
+            "inline_result_bytes": run.inline_result_bytes
+            + json_byte_size(marker, limit=(1 << 63) - 1)
+        },
+    )
+    return replace(
+        outcome, result=failed, run_output=None, webhook_response=None, waiting_agent_run_id=None
+    ), marker
+
+
 async def settle(
     db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutcome
 ) -> list[tuple[UUID, UUID]]:
@@ -1372,6 +1432,8 @@ async def settle(
     made ready. Their outbox rows and jobs are already written in this
     transaction, so a worker claims them once it commits.
     """
+    await hold_subject(db, LockScope.WORKFLOW_FILE_BYTES, begun.organization_id)
+    await hold_subject(db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, begun.organization_id)
     run = await workflow_run_repo.get_run_by_id_for_update(db, begun.workflow_run_id)
     node_run = await workflow_run_repo.get_node_run_by_id_for_update(db, begun.node_run_id)
     attempt = await workflow_run_repo.get_attempt(db, begun.attempt_id)
@@ -1425,6 +1487,9 @@ async def settle(
     # transition and no `_advance` - `cancel()` already closed every outbox
     # row, so there is nothing left to dispatch even if this had completed.
     if WorkflowRunStatus(run.status).is_terminal:
+        outcome, serialized_result = await _bounded_inline_outcome(
+            db, run, outcome, serialized_result
+        )
         await _record_attempt(
             db, attempt=attempt, outcome=outcome, serialized_result=serialized_result, now=now
         )
@@ -1461,6 +1526,8 @@ async def settle(
         # booked on it by then.
         await _book_attempt_cost(db, attempt=attempt, outcome=cost_outcome)
         return []
+    outcome, serialized_result = await _bounded_inline_outcome(db, run, outcome, serialized_result)
+    result = outcome.result
     # Closed *before* dispatching to a `_settle_*` handler: `_settle_completed`
     # calls `_advance`, which decides the run is done by checking whether any
     # live outbox row remains - and this node's own row is still `claimed`
@@ -2187,12 +2254,13 @@ async def _start_iteration(
         node_run_id=loop_run.id,
         payload={"index": index, "count": len(items)},
     )
-    await _settle_synthetic(
+    if not await _settle_synthetic(
         db,
         run=run,
         node_run=item_run,
         output=LoopItemOutput(item=items[index], index=index, count=len(items)),
-    )
+    ):
+        return []
     return await _advance(
         db, run=run, completed_node_instance_id=item_id, scope_path=scope_path, graph=graph
     )
@@ -2303,12 +2371,13 @@ async def _close_loop(
                 )
             )
     errors.sort(key=lambda error: error.index)
-    await _settle_synthetic(
+    if not await _settle_synthetic(
         db,
         run=run,
         node_run=loop_run,
         output=ForeachOutput(results=results, errors=errors, count=count),
-    )
+    ):
+        return []
     return await _advance(
         db,
         run=run,
@@ -2342,7 +2411,7 @@ async def _frozen_items(db: AsyncSession, loop_run: NodeRun) -> list[Any]:
 
 async def _settle_synthetic(
     db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, output: BaseModel
-) -> None:
+) -> bool:
     """Record an output the dispatcher itself produced, as a completed attempt.
 
     A `loop.item`'s element, a loop's collected results: nothing is called, but
@@ -2368,13 +2437,36 @@ async def _settle_synthetic(
         retry_guarantee=None,
         started_at=now,
     )
+    payload = {"status": "completed", "output": output.model_dump(mode="json")}
+    refusal = await _reserve_inline_result(db, run, json_byte_size(payload, limit=(1 << 63) - 1))
+    if refusal is not None:
+        marker = Failed(error=refusal).model_dump(mode="json")
+        await workflow_run_repo.update_run(
+            db,
+            run=run,
+            update_data={
+                "inline_result_bytes": run.inline_result_bytes
+                + json_byte_size(marker, limit=(1 << 63) - 1)
+            },
+        )
+        await workflow_run_repo.settle_attempt(
+            db,
+            attempt=attempt,
+            status=NodeAttemptStatus.FAILED.value,
+            result=marker,
+            cost=Decimal(0),
+            cost_is_partial=False,
+            ended_at=now,
+        )
+        await _fail_node_and_run(db, run=run, node_run=node_run, error=refusal, now=now)
+        return False
     await workflow_run_repo.settle_attempt(
         db,
         attempt=attempt,
         status=NodeAttemptStatus.COMPLETED.value,
         # Dumped from the concrete model: `Completed[BaseModel]` would serialize
         # through the base class and store `{}`.
-        result={"status": "completed", "output": output.model_dump(mode="json")},
+        result=payload,
         cost=Decimal(0),
         cost_is_partial=False,
         ended_at=now,
@@ -2389,6 +2481,8 @@ async def _settle_synthetic(
         },
     )
     await events.append(db, run=run, kind=events.EventKind.NODE_COMPLETED, node_run_id=node_run.id)
+
+    return True
 
 
 async def _succeed_run(db: AsyncSession, *, run: WorkflowRun) -> None:

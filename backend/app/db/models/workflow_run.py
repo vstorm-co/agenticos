@@ -279,6 +279,9 @@ class WorkflowRun(Base, TimestampMixin):
     child_cost: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal(0), server_default="0"
     )
+    inline_result_bytes: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
     deadline_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
     # The workflow's timezone when the run was admitted, like its deadline: what a
@@ -394,6 +397,7 @@ class WorkflowRun(Base, TimestampMixin):
         ),
         CheckConstraint("spent_cost >= 0", name="ck_workflow_run_spent_cost"),
         CheckConstraint("depth >= 0", name="ck_workflow_run_depth"),
+        CheckConstraint("inline_result_bytes >= 0", name="ck_workflow_run_inline_result_bytes"),
         Index("ix_workflow_run_org_status", "organization_id", "status"),
         # One call per `workflow.run` step: a step re-dispatched while its first
         # attempt was still admitting the call cannot start a second child run.

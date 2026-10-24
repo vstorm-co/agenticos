@@ -884,6 +884,8 @@ class Settings(BaseSettings):
 
     # Inline attempt, run and webhook payloads share one encoded byte budget.
     WORKFLOW_NODE_MAX_OUTPUT_BYTES: int = Field(default=10_485_760, gt=0)
+    WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES: int = Field(default=67_108_864, gt=0)
+    WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES: int = Field(default=1_073_741_824, gt=0)
 
     # What one `control.foreach` may iterate. The list is frozen into the
     # loop's first attempt before any iteration starts, so it is bounded in
