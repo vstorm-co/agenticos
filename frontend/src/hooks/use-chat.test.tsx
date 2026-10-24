@@ -719,7 +719,7 @@ describe("useChat - failures and interruptions", () => {
   });
 
   it("stops a turn on request and clears everything waiting on it", async () => {
-    post.mockResolvedValue(null);
+    post.mockResolvedValue("Not performed: the run was stopped.");
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_approval_required", {
@@ -1690,7 +1690,7 @@ describe("useChat - approvals and questions", () => {
 
   it("lets the owner stop a restored approval without deciding it", async () => {
     get.mockResolvedValue(true);
-    post.mockResolvedValue(null);
+    post.mockResolvedValue("Not performed: the run was stopped.");
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(parkedTurn());
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -1703,7 +1703,7 @@ describe("useChat - approvals and questions", () => {
 
   it("finds the owner's earlier parked run behind another person's approval", async () => {
     get.mockImplementation(async (url: string) => url === "/runs/r-1/can-stop");
-    post.mockResolvedValue(null);
+    post.mockResolvedValue("Not performed: the run was stopped.");
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(parkedTurn());
     useChatStore.getState().addMessage({ ...parkedTurn(), id: "other", runId: "other-run" });
@@ -2634,9 +2634,15 @@ describe("useChat - a socket that went away mid-answer", () => {
     first.unmount();
 
     const onTurnInterrupted = vi.fn();
-    renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+    const { rerender } = renderHook(({ callback }) => useChat({ onTurnInterrupted: callback }), {
+      wrapper,
+      initialProps: { callback: onTurnInterrupted },
+    });
+    const nextCallback = vi.fn();
+    rerender({ callback: nextCallback });
 
     expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+    expect(nextCallback).not.toHaveBeenCalled();
   });
 
   it("re-reads nothing on a page opened with no turn left streaming", () => {
@@ -3280,7 +3286,7 @@ describe("useChat - a question its person came back to", () => {
 
   it("stops a restored question by its parked run id without resuming it", async () => {
     get.mockResolvedValue(ASKED);
-    post.mockResolvedValue(null);
+    post.mockResolvedValue("Not performed: the run was stopped.");
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(askedTurn());
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -3365,9 +3371,9 @@ describe("useChat - a question its person came back to", () => {
 
   it("blocks competing responses and repeated Stop while cancellation is pending", async () => {
     get.mockResolvedValue(ASKED);
-    let finish!: () => void;
+    let finish!: (result: string) => void;
     post.mockReturnValue(
-      new Promise<void>((resolve) => {
+      new Promise<string>((resolve) => {
         finish = resolve;
       }),
     );
@@ -3385,7 +3391,7 @@ describe("useChat - a question its person came back to", () => {
     });
     expect(post.mock.calls).toEqual([["/runs/r-1/cancel"]]);
     expect(sent.mock.calls.map(([value]) => value.type)).toEqual(["attach"]);
-    await act(async () => finish());
+    await act(async () => finish("Not performed: the run was stopped."));
     expect(result.current.isStopping).toBe(false);
     expect(useChatStore.getState().messages[0]?.toolCalls?.[0]).toMatchObject({
       status: "completed",
@@ -3395,7 +3401,7 @@ describe("useChat - a question its person came back to", () => {
 
   it("keeps another run's approval after stopping the restored question", async () => {
     get.mockResolvedValue(ASKED);
-    post.mockResolvedValue(null);
+    post.mockResolvedValue("Not performed: the run was stopped.");
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(askedTurn());
     useChatStore.getState().addMessage({
@@ -3414,6 +3420,19 @@ describe("useChat - a question its person came back to", () => {
     act(() => result.current.stopGeneration());
     await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
     expect(result.current.pendingApproval?.runId).toBe("other-run");
+  });
+
+  it("refetches the exact result if the run was already cancelled", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue(null);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const refetch = vi.fn();
+    const { result } = renderHook(() => useChat({ onTurnInterrupted: refetch }), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it("dismisses a stale question and refetches when another tab already resumed it", async () => {

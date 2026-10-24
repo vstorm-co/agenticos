@@ -302,6 +302,7 @@ from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.transcript import (
+    STOPPED_TOOL_RESULT,
     RecordedToolCall,
     TranscriptService,
     settled_calls_in,
@@ -5287,7 +5288,7 @@ class AgentRunnerService:
             )
         )
 
-    async def cancel_parked(self, ctx: AuthContext, run_id: UUID) -> None:
+    async def cancel_parked(self, ctx: AuthContext, run_id: UUID) -> str | None:
         """Stop a parked run without executing its continuation or losing its spend.
 
         The person who started it may stop it. An approval decider may also stop
@@ -5314,7 +5315,7 @@ class AgentRunnerService:
                 details={"run_id": run_id},
             )
         if run.status == RunStatus.CANCELLED.value:
-            return
+            return None
         if run.status not in (RunStatus.AWAITING_ANSWER.value, RunStatus.AWAITING_APPROVAL.value):
             raise BadRequestError(
                 message="This run is not waiting for a response",
@@ -5339,7 +5340,7 @@ class AgentRunnerService:
             run,
             prompt=None,
             answer="",
-            settled=dict.fromkeys(calls, "Not performed: the run was stopped."),
+            settled=dict.fromkeys(calls, STOPPED_TOOL_RESULT),
         )
         await agent_run_repo.expire_pending_approvals(self.db, run_id=run.id, decided_at=at)
         await agent_run_repo.finish_run(
@@ -5363,6 +5364,7 @@ class AgentRunnerService:
             target_id=str(run.id),
             details={"previous_status": previous_status},
         )
+        return STOPPED_TOOL_RESULT
 
     async def _cancel_delegations(
         self, run: AgentRun, frames: Sequence[DelegationFrame], *, at: datetime

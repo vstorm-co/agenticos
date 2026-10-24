@@ -47,6 +47,8 @@ if TYPE_CHECKING:
     from app.db.models.agent_run import AgentRun
     from app.db.models.chat_file import ChatFile
 
+STOPPED_TOOL_RESULT = "Not performed: the run was stopped."
+
 logger = logging.getLogger(__name__)
 
 
