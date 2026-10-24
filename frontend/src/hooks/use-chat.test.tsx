@@ -1684,7 +1684,7 @@ describe("useChat - approvals and questions", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     await act(async () => {});
 
-    expect(get.mock.calls).toEqual([["/runs/r-1/can-stop"]]);
+    expect(get).toHaveBeenCalledWith("/runs/r-1/can-stop", { signal: expect.any(AbortSignal) });
     expect(result.current.pendingApproval).toBeNull();
   });
 
@@ -1722,18 +1722,93 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.canStopParked).toBe(false);
   });
 
-  it("can retry a failed authority lookup after a transcript update", async () => {
+  it.each(["pending", "resolved"])(
+    "drops owner-only Stop when decision permission arrives with lookup %s",
+    async (lookup) => {
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+      });
+      client.setQueryData(qk.organizations.list(), []);
+      const setPermissions = (decide: boolean) =>
+        client.setQueryData(qk.organizations.permissions("current"), {
+          organization_id: "org-1",
+          role: decide ? "admin" : "member",
+          is_app_admin: false,
+          permissions: decide ? [{ permission: "approvals:decide", scope: "all" }] : [],
+        });
+      setPermissions(false);
+      const Wrap = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+      let finish!: (allowed: boolean) => void;
+      const pending = new Promise<boolean>((resolve) => {
+        finish = resolve;
+      });
+      get.mockImplementation(async (url: string) =>
+        url.endsWith("/can-stop")
+          ? lookup === "pending"
+            ? pending
+            : true
+          : [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: {} }],
+      );
+      post.mockResolvedValue({ run_id: "r-1", status: "completed", output: "Done." });
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      useChatStore.getState().addMessage(parkedTurn());
+      const { result } = renderHook(() => useChat(), { wrapper: Wrap });
+      await waitFor(() =>
+        expect(get).toHaveBeenCalledWith("/runs/r-1/can-stop", { signal: expect.any(AbortSignal) }),
+      );
+      if (lookup === "resolved")
+        await waitFor(() => expect(result.current.canStopParked).toBe(true));
+      await act(async () => {
+        setPermissions(true);
+      });
+      await waitFor(() => expect(result.current.pendingApproval).not.toBeNull());
+      await act(async () => finish(true));
+      expect(result.current.canStopParked).toBe(false);
+      await act(async () => result.current.sendResumeDecisions([{ type: "approve" }]));
+      expect(result.current.pendingApproval).toBeNull();
+      expect(result.current.canStopParked).toBe(false);
+    },
+  );
+
+  it("waits for known permissions before asking about owner-only Stop", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    client.setQueryData(qk.organizations.list(), []);
+    let finish!: (permissions: unknown) => void;
+    const pending = new Promise((resolve) => {
+      finish = resolve;
+    });
+    get.mockImplementation(async (url: string) => (url === "/me/permissions" ? pending : []));
+    const Wrap = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    renderHook(() => useChat(), { wrapper: Wrap });
+    await act(async () => {});
+    expect(get.mock.calls.map(([url]) => url)).toEqual(["/me/permissions"]);
+    await act(async () =>
+      finish({
+        organization_id: "org-1",
+        role: "admin",
+        is_app_admin: false,
+        permissions: [{ permission: "approvals:decide", scope: "all" }],
+      }),
+    );
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+    expect(get.mock.calls.some(([url]) => url.endsWith("/can-stop"))).toBe(false);
+  });
+
+  it("automatically retries a temporary authority failure without another message", async () => {
     get.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(true);
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(parkedTurn());
     const { result } = renderHook(() => useChat(), { wrapper });
-    await act(async () => {});
-    act(() =>
-      useChatStore
-        .getState()
-        .updateMessage("m-1", (message) => ({ ...message, content: "updated" })),
-    );
-    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    await waitFor(() => expect(result.current.canStopParked).toBe(true), { timeout: 4000 });
+    expect(get).toHaveBeenCalledTimes(2);
   });
 
   it("asks about a run once, not on every store update", async () => {
