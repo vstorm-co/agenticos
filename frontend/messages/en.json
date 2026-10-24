@@ -9690,7 +9690,8 @@
       "invalid": "Not comparable",
       "mixed": "Mixed · {broke} broke, {fixed} fixed",
       "overall": "{overall, select, worse {Worse overall} other {Better overall}} · {broke} broke, {fixed} fixed",
-      "inconclusive": "Inconclusive"
+      "inconclusive": "Inconclusive",
+      "crashed": "The agent's run failed on {count, plural, one {# case} other {# cases}}"
     },
     "row": {
       "against": "{candidate} vs {baseline}",

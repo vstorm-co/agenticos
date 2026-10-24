@@ -8862,7 +8862,8 @@
       "invalid": "Nieporównywalne",
       "mixed": "Mieszany · zepsute: {broke}, naprawione: {fixed}",
       "overall": "{overall, select, worse {Gorszy ogólnie} other {Lepszy ogólnie}} · zepsute: {broke}, naprawione: {fixed}",
-      "inconclusive": "Nierozstrzygnięty"
+      "inconclusive": "Nierozstrzygnięty",
+      "crashed": "Run agenta zakończył się błędem w {count, plural, one {# przypadku} few {# przypadkach} many {# przypadkach} other {# przypadku}}"
     },
     "row": {
       "against": "{candidate} vs {baseline}",

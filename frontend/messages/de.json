@@ -9573,7 +9573,8 @@
       "invalid": "Nicht vergleichbar",
       "mixed": "Gemischt · {broke} verschlechtert, {fixed} behoben",
       "overall": "{overall, select, worse {Insgesamt schlechter} other {Insgesamt besser}} · {broke} verschlechtert, {fixed} behoben",
-      "inconclusive": "Nicht entschieden"
+      "inconclusive": "Nicht entschieden",
+      "crashed": "Der Agent-Lauf ist bei {count, plural, one {# Fall} other {# Fällen}} fehlgeschlagen"
     },
     "row": {
       "against": "{candidate} vs. {baseline}",

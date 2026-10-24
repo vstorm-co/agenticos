@@ -99,7 +99,7 @@ export interface EvalRunEstimate {
 export interface ArmSummary {
   cases: number;
   passed: number;
-  /** A case the agent crashed on included. */
+  /** Cases whose settled verdict is failed. */
   failed: number;
   /** Undecided because the provider, a scorer or the run failed on them, or their tries tied. */
   incomplete: number;
@@ -151,6 +151,7 @@ export interface EvalRunArm {
  */
 export interface EvalOutcome {
   candidate_arm_id: string;
+  candidate_crashed: number;
   verdict: Verdict | null;
   overall: Overall | null;
   baseline: ComparisonSide | null;
@@ -336,6 +337,9 @@ export interface EvalSuiteCheck {
   /** Whether the suite is still there, under this agent, to be opened. */
   suite_exists: boolean;
   /** Null while the run runs, or when it ended without completing. */
-  status: Extract<EvalSuiteResultStatus, "passed" | "failed" | "inconclusive"> | null;
+  status: Extract<
+    EvalSuiteResultStatus,
+    "passed" | "failed" | "inconclusive" | "baseline_set"
+  > | null;
   reasons: ThresholdReason[];
 }

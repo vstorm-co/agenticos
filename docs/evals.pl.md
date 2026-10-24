@@ -1,5 +1,5 @@
 ---
-source_sha: "7a7ab0b41b47"
+source_sha: "f756c95b2ce2"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -549,10 +549,7 @@ minimum, którego odsetek zaliczonych nie osiągnie, nawet gdyby każdy
 nierozstrzygnięty przypadek przeszedł. Podaje przypadki, które zostały
 nierozstrzygnięte.
 
-Przypadek, na którym agent się wysypał, nie jest nierozstrzygnięty: nie
-przeszedł i, jak potwierdzona regresja, od razu oblewa wynik, z minimum czy bez,
-z baseline czy bez - a czternaście awarii i jedno zaliczenie dają odsetek
-zaliczonych około 7%.
+Blokada guardraila jest oceniana jak odmowa wraz z zapisaną przyczyną; treść zatrzymana przez guardrail wyjściowy nie jest oceniana. Oczekiwanie na zgodę lub odpowiedź człowieka, anulowanie i niedokończony run pozostawiają przypadek niekompletny. Run zakończony błędem, zatrzymana pętla lub limit kroków liczą się jako awaria. Licznik awarii dotyczy pierwszych odpowiedzi niezależnie od rozstrzygnięcia większości prób: każda taka awaria oblewa suitę, nawet jeśli powtórki przejdą lub dadzą remis.
 
 Ponowna publikacja sędziego zmienia sposób oceniania, więc
 następny wynik każdej suity, którą ocenia, będzie raz bez rozstrzygnięcia, a jej

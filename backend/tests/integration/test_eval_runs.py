@@ -25,7 +25,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,7 +42,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.agent import Agent, AgentVersion
-from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.api_key import ApiKey
 from app.db.models.case_score import CaseScore
 from app.db.models.conversation import Conversation
@@ -202,6 +202,7 @@ class Model:
         raises: Any = lambda call: None,
         fails_once_started: Any = lambda call: None,
         manifest: bool = False,
+        error: str | None = None,
         breaks: str | None = None,
         on: int = 7,
     ) -> None:
@@ -215,6 +216,7 @@ class Model:
         self.raises = raises
         self.fails_once_started = fails_once_started
         self.manifest = manifest
+        self.error = error
         self.calls: list[dict[str, Any]] = []
 
     async def execute(self, runner: AgentRunnerService, ctx: AuthContext, agent_id, prompt, **kw):
@@ -236,6 +238,7 @@ class Model:
             user_id=ctx.user_id,
             surface=kw["surface"].value,
             status=self.status(call),
+            error=self.error,
             model_label="gpt-test",
             cost_usd=Decimal("0.01"),
             input_tokens=100,
@@ -3289,3 +3292,100 @@ class TestAnEvalStartedWithAnApiKey:
 
         run = await eval_run_repo.get(db, started.id, organization_id=ctx.organization_id)
         assert run is not None and run.created_by_api_key_id is None
+
+
+@pytest.mark.parametrize(
+    ("status", "state", "crashed"),
+    [
+        (RunStatus.GUARDRAIL_BLOCKED, "passed", 0),
+        (RunStatus.AWAITING_APPROVAL, "incomplete", 0),
+        (RunStatus.AWAITING_ANSWER, "incomplete", 0),
+        (RunStatus.CANCELLED, "incomplete", 0),
+        (RunStatus.RUNNING, "incomplete", 0),
+        (RunStatus.LOOP_STOPPED, "failed", 2),
+        (RunStatus.FAILED, "failed", 2),
+    ],
+)
+async def test_only_broken_runs_count_as_crashed_while_guardrails_are_graded(
+    db: AsyncSession, status: RunStatus, state: str, crashed: int
+) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(
+        db,
+        Model(
+            db,
+            status=lambda call: status.value,
+            error="Input guardrail policy-guard: 30 days safety policy",
+            answer=lambda prompt, call: "The withheld answer",
+        ),
+        started.id,
+        ctx,
+    )
+    read = await service.get(ctx, started.id)
+    attempts = [case.attempts[0] for case in (await service.cases(ctx, started.id)).items]
+    assert [attempt.state for attempt in attempts] == [state, state]
+    assert read.arms[0].summary.crashed == crashed
+    assert read.outcome is not None and read.outcome.candidate_crashed == crashed
+    if status == RunStatus.GUARDRAIL_BLOCKED:
+        assert all(
+            attempt.score is not None
+            and attempt.answer is not None
+            and "policy-guard" in attempt.answer
+            and "blocked by a guardrail" in attempt.answer
+            and "withheld answer" not in attempt.answer
+            for attempt in attempts
+        )
+        assert read.arms[0].summary.pass_rate == 1
+    elif state == "incomplete":
+        assert read.arms[0].summary.incomplete == 2
+        assert read.arms[0].failed_alike is None
+
+
+async def test_a_step_limit_is_a_crashed_eval_case(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(
+        db,
+        Model(db, raises=lambda call: UsageLimitExceeded("Request limit exceeded")),
+        started.id,
+        ctx,
+    )
+    read = await service.get(ctx, started.id)
+    assert read.arms[0].summary.crashed == 1
+    assert read.outcome is not None and read.outcome.candidate_crashed == 1
+
+    stored = await db.get(EvalRun, started.id)
+    assert stored is not None and stored.outcome is not None
+    older = dict(stored.outcome)
+    older.pop("candidate_crashed")
+    stored.outcome = older
+    await db.flush()
+    refreshed = await service.get(ctx, started.id)
+    assert refreshed.outcome is not None and refreshed.outcome.candidate_crashed == 1
+
+
+async def test_a_guardrail_without_detail_is_graded_as_a_refusal_not_a_crash(
+    db: AsyncSession,
+) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(
+        db, Model(db, status=lambda call: RunStatus.GUARDRAIL_BLOCKED.value), started.id, ctx
+    )
+    [case] = (await service.cases(ctx, started.id)).items
+    [attempt] = case.attempts
+    assert attempt.score is not None and attempt.answer is not None
+    assert "No guardrail detail was recorded" in attempt.answer
+    assert attempt.outcome is False
+    read = await service.get(ctx, started.id)
+    assert read.arms[0].summary.crashed == 0

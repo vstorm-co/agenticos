@@ -40,6 +40,7 @@ const OUTCOME: EvalOutcome = {
   candidate_first_pass_rate: null,
   baseline_first_pass_rate: null,
   candidate_undecided: 0,
+  candidate_crashed: 0,
 };
 
 beforeEach(() => {

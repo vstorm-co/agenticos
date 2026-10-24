@@ -169,7 +169,7 @@ class ArmSummaryRead(BaseSchema):
 
     cases: int
     passed: int
-    failed: int = Field(description="Settled as failed, a case the agent crashed on included")
+    failed: int = Field(description="Cases whose settled verdict is failed")
     incomplete: int = Field(
         description=(
             "Undecided because something failed on them - the provider, a scorer, the "
@@ -180,8 +180,8 @@ class ArmSummaryRead(BaseSchema):
     crashed: int = Field(
         default=0,
         description=(
-            "First answers the agent's run failed before giving; each fails a suite even "
-            "when its reruns pass"
+            "First answers the agent's run failed before giving, counted independently "
+            "of the settled verdict; each fails a suite even when its reruns pass"
         ),
     )
     pass_rate: float | None = Field(
@@ -270,6 +270,9 @@ class EvalOutcomeRead(BaseSchema):
     """
 
     candidate_arm_id: UUID
+    candidate_crashed: int = Field(
+        ge=0, description="Candidate first answers whose agent run failed, even when reruns pass"
+    )
     verdict: VerdictLiteral | None
     overall: OverallLiteral | None
     baseline: ComparisonSide | None

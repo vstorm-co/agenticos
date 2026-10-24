@@ -155,6 +155,7 @@ function worse(overrides: Parameters<typeof evalRun>[0] = {}) {
       candidate_first_pass_rate: null,
       baseline_first_pass_rate: null,
       candidate_undecided: 0,
+      candidate_crashed: 0,
     },
     ...overrides,
   });
@@ -831,3 +832,27 @@ it("puts failing scorers first, folds evidence, and warns once per case", () => 
   expect(document.querySelector("details")).not.toHaveAttribute("open");
   expect(screen.getAllByText(/Unverified: nothing quoted/)).toHaveLength(1);
 });
+
+it.each([
+  { verdict: null, count: 1, label: "The agent's run failed on 1 case" },
+  { verdict: "no_difference" as const, count: 2, label: "The agent's run failed on 2 cases" },
+])(
+  "shows a red crash chip before a neutral or undecided verdict: $count",
+  ({ verdict, count, label }) => {
+    render(
+      <VerdictChip
+        run={evalRun({
+          outcome: {
+            ...worse().outcome!,
+            verdict,
+            candidate_crashed: count,
+            candidate_undecided: 1,
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText(label)).toHaveClass("bg-destructive/10");
+    expect(screen.queryByText("First result")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inconclusive")).not.toBeInTheDocument();
+  },
+);

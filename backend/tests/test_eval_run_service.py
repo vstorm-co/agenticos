@@ -181,12 +181,29 @@ class TestAttemptState:
 
 
 class TestFailedAlike:
-    def _attempt(self, status=CaseAttemptStatus.FAILED, error="The provider rejected the key"):
-        return SimpleNamespace(status=status.value, error=error)
+    def _attempt(
+        self,
+        status=CaseAttemptStatus.FAILED,
+        error="The provider rejected the key",
+        *,
+        fault=AttemptFault.AGENT,
+    ):
+        return SimpleNamespace(status=status.value, error=error, fault=fault.value)
 
     def test_every_answer_failing_with_one_error_names_it(self):
         firsts = [self._attempt(), self._attempt()]
         assert _failed_alike(firsts) == "The provider rejected the key"
+
+    def test_a_parked_or_infrastructure_failure_is_not_a_common_agent_failure(self):
+        assert (
+            _failed_alike(
+                [
+                    self._attempt(fault=AttemptFault.INFRASTRUCTURE),
+                    self._attempt(fault=AttemptFault.INFRASTRUCTURE),
+                ]
+            )
+            is None
+        )
 
     def test_two_errors_one_answer_that_finished_or_a_single_case_name_nothing(self):
         assert _failed_alike([self._attempt(), self._attempt(error="Step limit")]) is None

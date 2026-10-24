@@ -484,16 +484,29 @@ class EvalRunWorker:
                 )
                 await self._stop_for_budget(db)
                 return True
-            if agent_run.status != RunStatus.COMPLETED.value:
+            if agent_run.status not in (
+                RunStatus.COMPLETED.value,
+                RunStatus.GUARDRAIL_BLOCKED.value,
+            ):
                 await self._erased_meanwhile(db, asked, {agent_run.id})
                 await self._fail(
                     db,
                     attempt,
                     agent_run.error or f"The run ended {agent_run.status}",
                     agent_run,
-                    fault=AttemptFault.AGENT,
+                    fault=(
+                        AttemptFault.AGENT
+                        if agent_run.status
+                        in (RunStatus.FAILED.value, RunStatus.LOOP_STOPPED.value)
+                        else AttemptFault.INFRASTRUCTURE
+                    ),
                 )
                 return False
+            if agent_run.status == RunStatus.GUARDRAIL_BLOCKED.value:
+                # Grade the refusal, never content an output guardrail withheld.
+                output = "The request was blocked by a guardrail. " + (
+                    agent_run.error or "No guardrail detail was recorded."
+                )
             intercepted = await intercepted_tool_call_repo.list_for_run(
                 db, run_id=agent_run.id, organization_id=org
             )

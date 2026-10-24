@@ -1,5 +1,5 @@
 ---
-source_sha: "7a7ab0b41b47"
+source_sha: "f756c95b2ce2"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -538,10 +538,7 @@ que algo haya fallado claramente: una regresión confirmada, o un mínimo que la
 tasa de aprobados no alcanza aunque aprobara cada caso sin decidir. Nombra los
 casos que quedaron sin decidir.
 
-Un caso en el que el agent se cayó no queda sin
-decidir: suspendió y, como una regresión confirmada, suspende el resultado de
-inmediato, con o sin mínimo o baseline; catorce caídas y un aprobado dan además
-una tasa de aprobados de un 7 % aproximadamente.
+Un bloqueo del guardrail se evalúa como una negativa con su motivo registrado; el contenido retenido por un guardrail de salida no se evalúa. Esperar una aprobación o respuesta humana, una cancelación y un run sin terminar dejan el caso incompleto. Un run fallido, un bucle detenido o un límite de pasos cuentan como fallo. El contador registra las primeras respuestas independientemente de la mayoría de intentos: cualquier fallo de este tipo suspende la suite aunque las repeticiones aprueben o empaten.
 
 Volver a
 publicar el juez cambia cómo se puntúan las respuestas, así que el siguiente

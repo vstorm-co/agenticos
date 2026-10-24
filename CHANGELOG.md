@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Eval runs distinguish refusals and waiting from crashes.** Guardrail blocks
+  are graded as refusals; parked or cancelled runs stay incomplete. Broken
+  runs, loops and step limits still fail the suite and have a red chip in the
+  run list, even when later attempts pass (#2412).
+
 - **A first suite measurement without a minimum cannot pass by default.** It
   establishes a baseline for later comparisons and leaves guarded environments
   in place. Existing unqualified passes are reclassified on upgrade (#2401).

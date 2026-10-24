@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
@@ -23,6 +24,14 @@ export function VerdictChip({ run }: { run: EvalRun }) {
     return run.status === "queued" || run.status === "running" ? (
       <Badge variant="outline">{t("pending")}</Badge>
     ) : null;
+  }
+  if (outcome.candidate_crashed > 0) {
+    return (
+      <Badge variant="destructive">
+        <XCircle className="h-3.5 w-3.5" aria-hidden />
+        {t("crashed", { count: outcome.candidate_crashed })}
+      </Badge>
+    );
   }
   const broke =
     outcome.verdict === "worse" ||

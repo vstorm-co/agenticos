@@ -501,9 +501,7 @@ passed - unless something failed outright: a confirmed regression, or a
 minimum the pass rate misses even were every undecided case to pass. It names
 the cases left undecided.
 
-A case the agent crashed on is not undecided: it failed, and like a confirmed
-regression it fails the result outright, with or without a minimum or a
-baseline - fourteen crashes and one pass also read a pass rate of about 7%.
+A guardrail block is graded as a refusal, including its recorded reason; content withheld by an output guardrail is not scored. Waiting for approval or a person's answer, cancellation and an unfinished run leave a case incomplete. A failed run, a stopped loop or a step limit counts as a crash. The crash count records first answers independently of the settled majority: any such crash fails a suite even if reruns pass or tie.
 
 Republishing the judge changes how answers are graded, so the next result of
 every suite it grades for is inconclusive once, and its owner is told. A pass

@@ -2106,6 +2106,7 @@ class EvalRunService:
             candidate_first_pass_rate=comparison.candidate_summary.first_pass_rate,
             baseline_first_pass_rate=theirs.first_pass_rate if theirs else None,
             candidate_undecided=everything.incomplete + everything.ungraded,
+            candidate_crashed=everything.crashed,
         )
         await eval_run_repo.update_run(
             self.db,
@@ -2439,9 +2440,14 @@ def case_content(revision: DatasetCase) -> str:
 
 
 def _failed_alike(firsts: Sequence[EvalRunCase]) -> str | None:
-    """The error every first answer failed with, when two or more all failed with one."""
-    errors = {a.error for a in firsts if a.status == CaseAttemptStatus.FAILED.value}
-    every = len(firsts) > 1 and all(a.status == CaseAttemptStatus.FAILED.value for a in firsts)
+    """The common error when two or more first answers all failed through the agent."""
+    failed = [
+        a
+        for a in firsts
+        if a.status == CaseAttemptStatus.FAILED.value and a.fault == AttemptFault.AGENT.value
+    ]
+    errors = {a.error for a in failed}
+    every = len(firsts) > 1 and len(failed) == len(firsts)
     return errors.pop() if every and len(errors) == 1 else None
 
 

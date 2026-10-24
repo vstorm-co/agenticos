@@ -1,5 +1,5 @@
 ---
-source_sha: "7a7ab0b41b47"
+source_sha: "f756c95b2ce2"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -578,10 +578,7 @@ bestanden -, es sei denn, etwas ist klar durchgefallen: eine bestätigte
 Regression oder ein Minimum, das die Bestehensquote verfehlt, selbst wenn jeder
 unentschiedene Fall bestünde. Es nennt die Fälle, die unentschieden blieben.
 
-Ein Fall, an dem der Agent abgestürzt ist, ist nicht unentschieden: Er ist
-nicht bestanden und lässt das Ergebnis wie eine bestätigte Regression sofort
-durchfallen, mit oder ohne Minimum oder Baseline - vierzehn Abstürze und ein
-Bestehen ergeben zudem eine Bestehensquote von etwa 7 %.
+Eine Guardrail-Blockade wird als Ablehnung mit der gespeicherten Begründung bewertet; vom Ausgabe-Guardrail zurückgehaltener Inhalt wird nicht bewertet. Das Warten auf eine Freigabe oder Antwort, ein Abbruch und ein unvollendeter Lauf lassen den Fall unvollständig. Ein fehlgeschlagener Lauf, eine gestoppte Schleife oder eine Schrittgrenze zählt als Ausfall. Die Ausfälle erster Antworten werden unabhängig von der Mehrheit der Versuche gezählt: Jeder solche Ausfall lässt die Suite scheitern, auch wenn Wiederholungen bestehen oder unentschieden enden.
 
 Den Bewerter neu zu veröffentlichen ändert, wie Antworten
 bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
