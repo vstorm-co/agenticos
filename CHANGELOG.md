@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Organization usage reports open the organization Dashboard for the report
+  window and tenant; the shared email button accurately says Open console (#2455).
+
 ## [1.16.0] - 2026-10-23
 
 ### Added
@@ -106,9 +111,6 @@ Two things are versioned separately from this file and worth knowing about:
   another name in the draft, and publish it.
 
 ### Fixed
-
-- Organization usage reports open their Dashboard with the correct organization;
-  agent reports keep their detail links, and the email button names the report (#2455).
 
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
