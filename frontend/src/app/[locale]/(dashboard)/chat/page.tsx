@@ -11,7 +11,7 @@ export default function ChatPage() {
   // A consent started from the chat comes back here, and the outcome is in the
   // query string exactly as it is on the servers page.
   useMcpOAuthOutcome();
-  // A pinned agent's shortcut opens `?with=` it: a new chat with that agent.
+  // Desktop New Chat and pinned-agent links explicitly start a fresh conversation.
   useChatWith();
   // The ?id= query param is read by useConversations.fetchConversations on mount;
   // it sets currentConversationId AND loads messages atomically. Pre-setting the

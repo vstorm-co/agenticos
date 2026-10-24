@@ -1,27 +1,36 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { setUrlParam } from "@/lib/utils";
-import { useAgentSelectionStore, useConversationStore } from "@/stores";
+import { useAgentSelectionStore } from "@/stores";
+import { useConversations } from "@/hooks/use-conversations";
 
 /**
- * `/chat?with=<agent id>`: a new chat with that agent - what a pinned agent
- * opens, from the Dock's menu, the tray or a phone's home screen (#2305,
- * #2097). The agent is selected and the open thread let go, as "Chat" on the
- * agent's page does, and the parameter is taken off the address so a reload
- * does not start another.
+ * Explicit new-chat links from the desktop shell and pinned agents. Plain /chat
+ * resumes the open thread. Each ?new= request starts fresh through the same
+ * action as the console's button, including when this page is already mounted.
  */
 export function useChatWith(): void {
-  const agentId = useSearchParams().get("with");
+  const params = useSearchParams();
+  const agentId = params.get("with");
+  const request = params.get("new");
   const select = useAgentSelectionStore((state) => state.select);
-  const resetConversation = useConversationStore((state) => state.reset);
+  const { startNewChat } = useConversations();
+  const consumed = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!agentId) return;
-    select(agentId);
-    resetConversation();
-    setUrlParam("with", null);
-  }, [agentId, select, resetConversation]);
+    const key = request || agentId;
+    if (!key) {
+      consumed.current = null;
+      return;
+    }
+    if (consumed.current === key) return;
+    consumed.current = key;
+    void startNewChat();
+    if (agentId) select(agentId);
+    if (request) setUrlParam("new", null);
+    if (agentId) setUrlParam("with", null);
+  }, [request, agentId, select, startNewChat]);
 }

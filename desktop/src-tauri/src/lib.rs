@@ -554,14 +554,16 @@ fn change_server(app: AppHandle) -> Result<(), String> {
     }
 }
 
-/// Put the console on a fresh chat, opening it if it was closed.
-///
-/// `/chat` with no conversation id is how the console starts a new one, so this
-/// is a navigation, not a request: whether the person may chat, and with which
-/// agent, is the console's to decide once it is there.
+/// Each click is a separate request, even while the console is already on /chat.
+fn fresh_chat_path() -> String {
+    format!("/chat?new={}", uuid::Uuid::new_v4())
+}
+
+/// Put the console on a fresh chat, opening it if it was closed. A plain /chat
+/// resumes the open thread; the explicit request uses the console's New Chat action.
 #[tauri::command]
 fn open_chat(app: AppHandle) -> Result<(), String> {
-    open_in_console_at(&app, "/chat")
+    open_in_console_at(&app, &fresh_chat_path())
 }
 
 fn bring_console(app: &AppHandle) -> Result<(), String> {
@@ -1131,7 +1133,7 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 });
                 Ok(())
             }
-            NEW_CHAT => open_in_console_at(app, "/chat"),
+            NEW_CHAT => open_chat(app.clone()),
             OPEN_CONSOLE => bring_console(app),
             SETTINGS => open_in_console_at(app, "/settings/profile"),
             blobby::CUSTOMIZE_MENU_ID => open_in_console_at(app, "/settings/desktop/blobby"),
@@ -1399,6 +1401,20 @@ mod tests {
         appearance, attach_script, loading_color, notify, reachable, Appearance, Look, Url, GO, LOADING_DARK,
         LOADING_LIGHT,
     };
+
+    #[test]
+    fn every_new_chat_click_has_an_explicit_distinct_request() {
+        let first = super::fresh_chat_path();
+        let second = super::fresh_chat_path();
+        assert_ne!(first, second);
+        for path in [first, second] {
+            assert!(super::notify::is_console_path(&path));
+            let url = Url::parse("https://example.com").unwrap().join(&path).unwrap();
+            assert_eq!(url.path(), "/chat");
+            let request = url.query_pairs().find(|(key, _)| key == "new").unwrap().1;
+            assert!(uuid::Uuid::parse_str(&request).is_ok());
+        }
+    }
 
     #[test]
     fn switching_servers_reuses_both_companion_windows_and_replaces_their_pages() {

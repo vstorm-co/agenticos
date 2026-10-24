@@ -274,6 +274,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Start a fresh chat from Blobby.** New Chat in the desktop menus and the
+  Blobby button now reset the active conversation, even while `/chat` is open.
+
 - **Honor the chat's local workspace selection.** Choosing This computer opens
   the native folder picker immediately. The access selector reflects the approved
   mode, and local settings follow a new conversation even with its settings closed.
