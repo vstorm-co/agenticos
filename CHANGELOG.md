@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reap partially started worker pools on failure or cancellation. Keep job
+  deadlines and memory watchdogs active while writing to a child's stdin,
+  and stop a child that closes its pipes without exiting.
+
 - Run synchronous RAG embedding calls on the bounded I/O pool so retrieval
   and ingestion leave the event loop responsive. Preserve the caller's spend
   context and settle an in-flight response before propagating cancellation.
