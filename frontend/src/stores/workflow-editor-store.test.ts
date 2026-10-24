@@ -153,6 +153,22 @@ describe("useWorkflowEditorStore", () => {
     expect(store.getState().expectedRevision).toBe(12);
   });
 
+  it("a conflict on a clean draft makes overwrite save the visible graph again", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 3 });
+    const graph = seededGraph();
+    store.getState().seedGraph(graph);
+    store.getState().markSaved(3);
+
+    // Publish can discover a conflicting revision even when there are no unsaved edits.
+    store.getState().setConflict(4);
+    expect(store.getState().isDirty).toBe(true);
+    expect(store.getState().expectedRevision).toBe(3);
+    expect(store.getState().graph).toBe(graph);
+    store.getState().clearConflict();
+    expect(store.getState().isDirty).toBe(true);
+  });
+
   it("sets and clears the conflict banner", () => {
     const store = useWorkflowEditorStore;
     store.getState().setConflict(4);

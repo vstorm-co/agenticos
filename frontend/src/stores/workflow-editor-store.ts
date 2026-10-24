@@ -787,7 +787,9 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     markSaved: (revision) => set({ isDirty: false, expectedRevision: revision, conflict: null }),
     setExpectedRevision: (revision) => set({ expectedRevision: revision }),
 
-    setConflict: (currentRevision) => set({ conflict: { currentRevision } }),
+    // A publish can conflict on an otherwise clean draft. Its visible graph
+    // must be saved again before Run or Publish, and Overwrite must trigger that save.
+    setConflict: (currentRevision) => set({ conflict: { currentRevision }, isDirty: true }),
     clearConflict: () => set({ conflict: null }),
 
     discardPendingSave: () => {

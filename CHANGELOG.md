@@ -653,7 +653,9 @@ Two things are versioned separately from this file and worth knowing about:
 - **Reloading and restoring workflow drafts keep their editor.** A response that
   arrives after opening another workflow no longer replaces its graph or marks
   it conflicted. A failed conflict reload keeps local changes, shows the error
-  beside the controls and lets the editor try again.
+  beside the controls and lets the editor try again. A publish conflict also
+  marks a clean draft unsaved, so Overwrite saves the visible graph before
+  Run or Publish can use it.
 
 - **A Gmail portal card asked for GitHub credentials.** The card a portal
   shows when its OAuth app is missing or stored twice named GitHub whatever the
