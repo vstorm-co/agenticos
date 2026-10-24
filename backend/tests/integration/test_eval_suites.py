@@ -1771,4 +1771,3 @@ async def test_an_owner_who_can_no_longer_read_runs_starts_no_run(db) -> None:
     [result] = await _results(db, suite.id)
     assert (result.status, result.reason) == ("error", "owner_lacks_access")
     assert (await db.scalar(select(func.count()).select_from(EvalRun))) == 0
-

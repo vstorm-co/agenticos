@@ -35,8 +35,8 @@ from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
-from app.db.models.case_score import CaseScore
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.case_score import CaseScore
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import DatasetCase, DatasetVersion
 from app.db.models.eval_run import EvalRun

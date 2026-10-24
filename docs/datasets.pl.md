@@ -170,8 +170,8 @@ W obu przypadkach przypadek powstaje z tej tury:
 
 - pytanie staje się wejściem, a tury przed nim trafiają razem z nim tylko
   wtedy, gdy wybierzesz **Razem z rozmową**. Pytają o to oba okna w czacie -
-  to po łapce w dół, gdy je zaznaczysz - a także Activity i **Score against a
-  case**; każde zaczyna od **Tylko to pytanie**, więc czat, który zaczął się od
+  to po łapce w dół, gdy je zaznaczysz - a także Aktywność i **Score against a
+  przypadek**; każde zaczyna od **Tylko to pytanie**, więc czat, który zaczął się od
   innego tematu, zostaje poza przypadkiem. W czacie pytanie, które wyraźnie
   ciągnie poprzednie, zaczynając się od „a co” albo „a jak”, jest oznaczone
   jako ciąg dalszy, a o pytanie bez niczego przed nim okno nie pyta. W API jest
@@ -627,7 +627,7 @@ uprawnienia dla datasetów:
 |---|---|---|
 | `datasets:view` | Czytać przypadki i wersje datasetu oraz je eksportować | `read` |
 | `datasets:edit` | Tworzyć datasety, zmieniać przypadki, importować, usuwać, udostępniać | `edit` |
-| `datasets:run` | Uruchamiać evale na datasecie, z `runs:view` | `use` (już nieoferowany, zobacz niżej) |
+| `datasets:run` | Uruchamiać ewaluacje na datasecie, z `runs:view` | `use` (już nieoferowany, zobacz niżej) |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
@@ -635,19 +635,19 @@ uprawnienia dla datasetów:
 | `datasets:edit` | all | all | shared | - | own | - |
 | `datasets:run` | all | all | all | all | shared | - |
 
-Uruchomienie evala wymaga przede wszystkim `runs:view`: za run się płaci, a kto
+Uruchomienie ewaluacji wymaga przede wszystkim `runs:view`: za run się płaci, a kto
 nie może go odczytać, nie może go uruchomić. Każda wbudowana rola, która czyta
 runy, ma już `datasets:run` w całej organizacji, a Member, którego
 `datasets:run` sięga tylko udostępnionych datasetów, runów nie czyta. Grant
-`use` na datasecie nie pozwoliłby nikomu uruchomić evala, którego bez niego nie
+`use` na datasecie nie pozwoliłby nikomu uruchomić ewaluacji, którego bez niego nie
 mógłby uruchomić, więc udostępnianie oferuje dla datasetu tylko odczyt i edycję;
 `use` wróci razem z rolami własnymi.
 
 Grant `use` nadany wcześniej zostaje i nic nie daje, a jego wiersz to mówi i
 pozwala go usunąć. Kto może uruchomić dataset, ale nie może czytać runów, widzi
-na jego stronie wyłączone Run evals z informacją, że potrzebny jest odczyt runów;
+na jego stronie wyłączone Run ewaluacje z informacją, że potrzebny jest odczyt runów;
 kto nie może go uruchomić wcale, nie dostaje tej opcji. Zobacz
-[Eval runy](evals.md#access).
+[ewaluacja runy](evals.md#access).
 
 Członek bez dostępu do datasetu dostaje „nie znaleziono” na każdej trasie,
 niezależnie od tego, na co pozwala mu rola gdzie indziej - samo istnienie
@@ -674,10 +674,10 @@ Usunięcie przypadku go usuwa.
 
 Gdy osoba, która zadała pytanie przypadku, zostanie wymazana, znika też tekst.
 Pytanie, wcześniejsze tury, obie odpowiedzi i notatka są zastępowane w każdej
-wersji, która zawiera przypadek, podobnie jak odpowiedzi i wywołania, które eval
+wersji, która zawiera przypadek, podobnie jak odpowiedzi i wywołania, które ewaluacja
 runy zapisały dla niego. Przypadek zachowuje swoje id, oczekiwane wywołania,
 sprawdzenia i tagi, i dostaje oznaczenie **Zanonimizowany po usunięciu osoby**,
-tak by jego kurator mógł go przepisać albo usunąć. Do tego czasu eval run go
+tak by jego kurator mógł go przepisać albo usunąć. Do tego czasu ewaluacja run go
 pomija, bo odpowiedź na placeholder niczego nie mierzy.
 
 Przypadek zapamiętuje, czyje słowa zawiera: kto zadał jego pytanie, kto

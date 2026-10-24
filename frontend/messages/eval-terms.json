@@ -65,7 +65,9 @@
           "onboarding.steps.flow-test-"
         ],
         "except": [
-          "agents.drafterKind"
+          "agents.drafterKind",
+          "agents.systemKind.drafter",
+          "agents.defaultBadge.drafter"
         ],
         "docs": false,
         "note": "Where \"szkic\" would name an unpublished version - an agent's spec, or a file that has none - which is \"wersja robocza\". A text written for somebody to accept - a knowledge gap's content, a generated case - stays \"szkic\", and German says \"Entwurf\" for both. A page cannot tell the two senses apart, so the docs check leaves it out."
@@ -154,46 +156,20 @@
         "key": "gebrochen",
         "pattern": "\\bgebroch\\w*",
         "use": "verschlechtert",
-        "except": [
-          "pages.runs.cacheBust"
-        ],
+        "except": ["pages.runs.cacheBust"],
         "note": "A busted cache is still \"Cache gebrochen\"; a case a version breaks is verschlechtert."
       }
     ]
   },
   "docs": {
-    "pages": [
-      "evals",
-      "datasets",
-      "environments",
-      "authoring",
-      "knowledge-gaps"
-    ],
+    "pages": ["evals", "datasets", "environments", "authoring", "knowledge-gaps"],
     "activityPages": {
-      "pl": [
-        "architecture",
-        "concepts",
-        "governance",
-        "triggers",
-        "voice"
-      ],
-      "de": [
-        "architecture",
-        "concepts",
-        "governance",
-        "triggers",
-        "voice"
-      ]
+      "pl": ["architecture", "concepts", "governance", "triggers", "voice"],
+      "de": ["architecture", "concepts", "governance", "triggers", "voice"]
     },
     "allow": {
-      "pl": [
-        "Eval judge",
-        "Knowledge gap drafter"
-      ],
-      "de": [
-        "Eval judge",
-        "Knowledge gap drafter"
-      ]
+      "pl": ["Eval judge", "Knowledge gap drafter"],
+      "de": ["Eval judge", "Knowledge gap drafter"]
     }
   }
 }

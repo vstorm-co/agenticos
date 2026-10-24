@@ -87,9 +87,9 @@ gewählter Tag beschränkt die Seiten, die Änderungen und die Fälle auf ihn; d
 Urteil gilt weiter für alle Fälle.
 
 Sobald seine Wiederholungen vorliegen, schickt ein Run in die
-[Review-Warteschlange](datasets.md#review) des Datasets, wofür er einstehen
+[Prüfwarteschlange](datasets.md#review) des Datasets, wofür er einstehen
 kann - jede bestätigte Regression und jede Antwort, an deren Bewertung sein
-Judge gescheitert ist, eine pro Fall und Agent - und sagt, wie viele
+Bewerter gescheitert ist, eine pro Fall und Agent - und sagt, wie viele
 (`routed_to_review`).
 Eine [Prüfung des Vorschlags des Assistenten](authoring.md#check-with-evals)
 schickt von sich aus nichts, da nichts angenommen wurde. Ein übersprungener
@@ -201,7 +201,7 @@ wird:
 
 Eine Version, in der nur einige Fälle nichts haben, das sie bewertet, läuft
 trotzdem, und die Schätzung zählt sie vorher (`ungraded_cases`): der
-Startdialog, ein Check von Vorschlägen und der Dialog einer Suite sagen „1 case
+Startdialog, ein Check von Vorschlägen und der Dialog einer Suite sagen „1 Fall
 has nothing to grade it. The result will be inconclusive.“
 
 ### Vorschläge prüfen { #checking-suggestions }
@@ -322,19 +322,19 @@ Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
   Ausnahme geworfen hat, der Run abgebrochen wurde oder das Budget ausging, oder
   seine Versuche unentschieden ausgingen;
 - **nicht bewertet**, wenn nichts die Antwort bewertet - kein erforderlicher
-  Bewerter passt, oder nur der Judge könnte es und die KI-Unterstützung ist aus.
+  Bewerter passt, oder nur der Bewerter könnte es und die KI-Unterstützung ist aus.
 
 Keiner der letzten beiden ist je bestanden; die Zusammenfassung zählt sie
 getrennt (`incomplete`, `ungraded`).
 
-Der Kopf eines Runs sagt „Pass rate 67% · 1 of 3 cases undecided“ und nennt das
+Der Kopf eines Runs sagt „Bestehensquote 67 % · 1 von 3 Fällen unentschieden“ und nennt das
 Ergebnis unentschieden, bis jeder Fall ein Urteil hat. Ein Provider, der die
 Zugangsdaten ablehnt, wird als solcher genannt, und eine Seite, deren Antworten
 alle mit demselben Fehler gescheitert sind, sagt das statt eines Urteils. Ein
 Fall, an dem der Agent abgestürzt ist, wo die Baseline bestand, ist eine
 Regression wie jede andere, gezeigt mit ihrem Fehler.
 
-Eine Antwort, bei der der Judge gescheitert ist oder die er übersprungen hat, ist **nicht bewertet**: Der Run listet diese
+Eine Antwort, bei der der Bewerter gescheitert ist oder die er übersprungen hat, ist **nicht bewertet**: Der Run listet diese
 Bewertungen als `ungraded_score_ids`, und sie erneut zu bewerten
 (`POST /api/v1/datasets/{id}/scores/rescore`) liest die im Versuch behaltene
 Antwort, statt den Agent zu fragen. Das Urteil einer Person bei der
@@ -383,7 +383,7 @@ gespeichert und nie neu gewählt: Wer den Run nach der nächsten Veröffentlichu
 öffnet, sieht denselben Vergleich.
 
 **Die Standard-Baseline ist günstig**: der letzte abgeschlossene Run desselben
-Datasets auf der Version vor dem Kandidaten - bei einem Draft die
+Datasets auf der Version vor dem Kandidaten - bei einem Entwurf die
 veröffentlichte Version. Es zählt nur ein Run dieser Version, wie sie
 veröffentlicht ist: auf ihrem eigenen Modell, ohne vorgeschlagenen Skill- oder
 Kontextinhalt, mit jedem Fall beantwortet, mit demselben Scoring bewertet und in
@@ -581,7 +581,7 @@ nicht bestanden und lässt das Ergebnis wie eine bestätigte Regression sofort
 durchfallen, mit oder ohne Minimum oder Baseline - vierzehn Abstürze und ein
 Bestehen ergeben zudem eine Bestehensquote von etwa 7 %.
 
-Den Judge neu zu veröffentlichen ändert, wie Antworten
+Den Bewerter neu zu veröffentlichen ändert, wie Antworten
 bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
 einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt. Eine
 Bestehensquote unter dem Minimum lässt ein Ergebnis unabhängig vom Vergleich
@@ -657,13 +657,13 @@ Einen Run zu starten - oder zu fragen, was er kosten würde - erfordert zuerst
 `runs:view`: Ein Run kostet Geld, und wer ihn nicht lesen oder abbrechen könnte,
 darf ihn nicht starten, welche Grants er auch hat. Wo die Konsole ihm sonst ein
 Start-Bedienelement anbieten würde, zeigt sie es deaktiviert und sagt warum.
-Jeder Weg, einen zu starten, fragt dasselbe: Run evals, eine Suite, Test draft
+Jeder Weg, einen zu starten, fragt dasselbe: Run evals, eine Suite, Test Entwurf
 und Mit Evals prüfen des Assistenten.
 
 Ein Start erfordert dann `datasets:run` auf dem Dataset und `agents:run`
-auf dem Agent, jeweils mit den Grants der Ressource aufgelöst. Den Draft
-laufen zu lassen erfordert außerdem `agents:edit` auf dem Agent, weil der Draft
-die laufende Arbeit der Bearbeiter ist. Der Judge braucht, wenn er das Dataset
+auf dem Agent, jeweils mit den Grants der Ressource aufgelöst. Den Entwurf
+laufen zu lassen erfordert außerdem `agents:edit` auf dem Agent, weil der Entwurf
+die laufende Arbeit der Bearbeiter ist. Der Bewerter braucht, wenn er das Dataset
 bewertet, was das [Scoring](datasets.md#scoring) sagt.
 
 Einen Run zu lesen erfordert `runs:view` und dass die lesende Person sowohl den

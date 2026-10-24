@@ -62,7 +62,7 @@ przejdzie.
 
 ## Ewaluacja jako strażnik promocji { #guarding-a-promotion-with-evals }
 
-Środowisko może wskazać [suity evali](evals.md#suites), które go **strzegą**.
+Środowisko może wskazać [suity ewaluacji](evals.md#suites), które go **strzegą**.
 Wtedy przyjmuje wersję dopiero, gdy każdy strażnik przeszedł na dokładnie tej
 wersji, na wersji datasetu i przy scoringu, do których strażnik jest przypięty,
 oraz przy progu, który ma teraz - zaliczenie sprzed przesunięcia przypięcia albo

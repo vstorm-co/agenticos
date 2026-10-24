@@ -1,5 +1,5 @@
 ---
-source_sha: "a3f93e8b9e08"
+source_sha: "b668fac0818b"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -88,7 +88,9 @@ odpowiedź, przy której ocenie jego sędzia zawiódł, po jednej na przypadek i
 agenta - i podaje, ile ich jest (`routed_to_review`).
 [Sprawdzenie propozycji asystenta](authoring.md#check-with-evals) samo z siebie
 nie wysyła nic, bo nic nie zostało przyjęte. Pominięty sędzia nie wysyła nic:
-jego odpowiedzi czekają na stronie runu na **Oceń ponownie**. Gdy wysyłka
+jego odpowiedzi czekają na stronie runu na **Oceń ponownie**.
+
+Gdy wysyłka
 zostanie odrzucona, run i tak się kończy, a jego strona mówi dlaczego
 (`routing_error`). **Wyślij niezaliczone przypadki do przeglądu**
 (Send failed cases to review) wysyła resztę niezaliczonych odpowiedzi jednej
@@ -191,8 +193,7 @@ oszacowany:
 
 Wersja, w której tylko część przypadków nie ma czym ich ocenić, nadal się
 uruchamia, a estymata najpierw je liczy (`ungraded_cases`): okno startu, check
-sugestii i okno suity mówią „1 case has nothing to grade it. The result will be
-inconclusive.”
+sugestii i okno suity mówią „1 przypadek nie ma czym go ocenić. Wynik będzie nierozstrzygnięty.”
 
 ### Sprawdzanie sugestii { #checking-suggestions }
 
@@ -311,7 +312,7 @@ Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
 Żaden z dwóch ostatnich stanów nie jest zaliczeniem; podsumowanie liczy je
 osobno (`incomplete`, `ungraded`).
 
-Nagłówek runu mówi „Pass rate 67% · 1 of 3 cases undecided” i nazywa wynik
+Nagłówek runu mówi „Odsetek zaliczeń 67% · 1 z 3 przypadków nierozstrzygnięty” i nazywa wynik
 nierozstrzygniętym, dopóki każdy przypadek nie ma werdyktu. Provider, który
 odrzuca dane uwierzytelniające, jest nazwany wprost, a strona, której każda
 odpowiedź skończyła się tym samym błędem, mówi to zamiast werdyktu. Przypadek,
@@ -365,7 +366,7 @@ strona i nigdy nie jest wybierany ponownie: run otwarty po następnej publikacji
 pokazuje to samo porównanie.
 
 **Domyślny baseline jest tani**: ostatni zakończony run tego samego datasetu na
-wersji przed kandydatem - dla draftu na opublikowanej wersji. Liczy się tylko
+wersji przed kandydatem - dla wersji roboczej na opublikowanej wersji. Liczy się tylko
 run tej wersji w opublikowanej postaci: na jej własnym modelu, bez proponowanej
 treści skilla ani kontekstu, z odpowiedzią na każdy przypadek, oceniony tym
 samym ocenianiem i uruchomiony w tym samym środowisku z tymi samymi
@@ -376,7 +377,7 @@ wersją datasetu, bo mogą się różnić w każdej z dwóch ostatnich.
 
 Run może zamiast tego wskazać jako baseline **wcześniejszy run** tego samego
 agenta na tym samym datasecie (`baseline_run_id`), taki, który się zakończył -
-tak [suita evali](#suites) sprawdzająca codziennie tę samą wersję widzi dryf.
+tak [suita ewaluacji](#suites) sprawdzająca codziennie tę samą wersję widzi dryf.
 
 ### Baseline w tym samym runie { #a-baseline-in-the-same-run }
 
@@ -520,7 +521,7 @@ ręcznie.
 Suita, która **strzeże środowiska**, uruchamia się też przed promocją na nie -
 na wersji, która ma zostać wypromowana, obok tej, którą środowisko serwuje - a
 promocja czeka, aż przejdzie; zob.
-[Strażnicy promocji z evali](environments.md#guarding-a-promotion-with-evals).
+[Strażnicy promocji z ewaluacji](environments.md#guarding-a-promotion-with-evals).
 Jej wyniki noszą oznaczenie *Przed promocją* (`gate`). Suita, która strzeże
 środowiska, jest przypięta do wersji datasetu i scoringu, które miała, gdy
 została strażnikiem, więc edycja datasetu nie zmienia tego, co sprawdza, dopóki
@@ -626,11 +627,11 @@ Uruchomienie runa - albo pytanie, ile by kosztował - wymaga najpierw
 `runs:view`: za run się płaci, a kto nie mógłby go odczytać ani anulować, nie
 może go uruchomić, jakiekolwiek granty ma. Tam, gdzie konsola zaproponowałaby mu
 kontrolkę startu, pokazuje ją wyłączoną i mówi dlaczego. Każdy sposób startu
-pyta o to samo: Run evals, suita, Test draft i Sprawdź evalami asystenta.
+pyta o to samo: Uruchom ewaluację, suita, Przetestuj wersję roboczą i Sprawdź w ewaluacji asystenta.
 
 Start wymaga następnie `datasets:run` na datasecie i `agents:run` na agencie,
-każde rozstrzygane z grantami zasobu. Uruchomienie draftu wymaga też
-`agents:edit` na agencie, bo draft to praca w toku edytorów. Sędzia, gdy ocenia
+każde rozstrzygane z grantami zasobu. Uruchomienie wersji roboczej wymaga też
+`agents:edit` na agencie, bo wersja robocza to praca w toku edytorów. Sędzia, gdy ocenia
 dataset, wymaga tego, co mówi [ocenianie](datasets.md#scoring).
 
 Odczyt runa wymaga `runs:view` oraz tego, by czytający widział i agenta, i

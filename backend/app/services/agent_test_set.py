@@ -49,7 +49,7 @@ from app.schemas.agent_test_set import (
 from app.schemas.case_generation import MAX_GENERATED, CaseGenerationRequest, CaseOriginLiteral
 from app.schemas.dataset import AnswerAs, DatasetCreate
 from app.schemas.resource_grant import as_visibility
-from app.schemas.scoring import DatasetScoring, JudgeCreate
+from app.schemas.scoring import DatasetScoring, DatasetScoringUpdate, JudgeCreate
 from app.services.access import DATASET, resolve_access
 from app.services.agent_registry import AgentRegistryService
 from app.services.ai_assistance import AiAssistanceService
@@ -447,7 +447,9 @@ class AgentTestSetService:
         if not scoring.judge.criteria:
             scoring.judge.criteria = [STARTING_CRITERION]
         scoring.reference.enabled = True
-        await self.scoring.set_scoring(ctx, dataset.id, scoring)
+        await self.scoring.set_scoring(
+            ctx, dataset.id, DatasetScoringUpdate.model_validate(scoring.model_dump())
+        )
 
     async def _request(self, ctx: AuthContext, agent: Agent, count: int) -> CaseGenerationRequest:
         spec = await self._spec(ctx, agent)

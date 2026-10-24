@@ -132,6 +132,9 @@ class PersonalDataPurge(BaseModel):
     knowledge_searches: int = Field(
         description="Knowledge searches made while answering them, including API runs."
     )
+    knowledge_gap_reasons: int = Field(
+        default=0, description="Classifier reasons about answers to this person, cleared."
+    )
     scored_answers: int = Field(
         description="Eval scores of their runs, kept but without the answer they scored."
     )

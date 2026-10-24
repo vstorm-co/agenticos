@@ -794,10 +794,6 @@ async def test_a_deployment_with_no_reruns_refuses_a_comparison_naming_no_field(
     assert refused.value.details == {"reason": "no_reruns"}
 
 
-
-
-
-
 async def test_a_flip_its_reruns_undo_counts_as_it_settled(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -3223,7 +3219,7 @@ class TestAnEvalStartedWithAnApiKey:
         return run
 
     @pytest.mark.security
-    @pytest.mark.parametrize("taken", [Perm.AGENTS_RUN, Perm.DATASETS_RUN])
+    @pytest.mark.parametrize("taken", [Perm.AGENTS_RUN, Perm.DATASETS_RUN, Perm.RUNS_VIEW])
     async def test_a_key_narrowed_since_stops_the_run_before_it_spends(
         self, db, taken: Perm
     ) -> None:

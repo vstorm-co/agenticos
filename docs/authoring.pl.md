@@ -1,5 +1,5 @@
 ---
-source_sha: "e67ba5777c29"
+source_sha: "9c566eba1b2b"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -206,10 +206,10 @@ wycenione na podstawie ostatnich runów agenta. Gdy wycena opiera się na mniej
 niż pięciu, mówi, że to przybliżone oszacowanie, i z ilu runów.
 
 Zmianę modelu przyjmuje się dopiero, gdy się opłaciła. **Przyjmij** pozostaje
-wyłączone i mówi dlaczego, dopóki [sprawdzenie evalami](#check-with-evals)
-dokładnie tego, co zostawia przyjęcie - draftu z naniesionymi wszystkimi wciąż
+wyłączone i mówi dlaczego, dopóki [sprawdzenie w ewaluacji](#check-with-evals)
+dokładnie tego, co zostawia przyjęcie - wersji roboczej z naniesionymi wszystkimi wciąż
 czekającymi sugestiami - nie przejdzie na tym modelu bez potwierdzonej regresji.
-Odrzucenie innej sugestii albo edycja draftu sprawia, że ostatnie sprawdzenie
+Odrzucenie innej sugestii albo edycja wersji roboczej sprawia, że ostatnie sprawdzenie
 jest nieaktualne i potrzebne jest nowe.
 Sprawdzenie, które zostawiło przypadek nierozstrzygnięty - nic go nie oceniło
 albo zawiódł na nim provider lub oceniający - albo nie doszło do werdyktu, też ją
@@ -240,9 +240,9 @@ zmiana.
 
 Zastosowanie jej działa od razu, jak w przypadku skilla: każdy agent podpięty do
 pliku czyta nową treść przy swoim następnym runie. Dlatego pierwszą akcją jest
-**Sprawdź evalami**, na agencie, który używa pliku, gdzie różni się tylko treść
+**Sprawdź w ewaluacji**, na agencie, który używa pliku, gdzie różni się tylko treść
 pliku, a **Zastosuj** mówi, zanim go naciśniesz, dla których agentów i środowisk
-zmiana zacznie działać, które suity evali ustawi w kolejce i którzy strażnicy
+zmiana zacznie działać, które suity ewaluacji ustawi w kolejce i którzy strażnicy
 sprawdzą ją dopiero przy następnej promocji. Zastosowanie powiadamia właścicieli
 tych agentów. Zmiany nie da się zastosować do pliku edytowanego po tym, jak ją
 zaproponowano: porównaj obie wersje i edytuj plik ręcznie albo poproś asystenta

@@ -55,7 +55,13 @@ from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import EvalRunCase
 from app.db.models.intercepted_tool_call import InterceptedToolCall
-from app.db.models.knowledge_gap import DraftAuthor, KnowledgeGapClassification, KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
+from app.db.models.knowledge_gap import (
+    DraftAuthor,
+    KnowledgeGapClassification,
+    KnowledgeGapMember,
+    KnowledgeGapTopic,
+    KnowledgeSearch,
+)
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification

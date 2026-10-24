@@ -83,7 +83,7 @@ immer er vor der Pause fand.
 
 Eine Suite, die eine Umgebung bewacht, ist auf die Dataset-Version und das
 Scoring **festgelegt**, die sie hatte, als sie Wächter wurde. Das Dataset zu
-bearbeiten - seine Fälle, seine Bewertung, seinen Judge - bleibt jedem offen,
+bearbeiten - seine Fälle, seine Bewertung, seinen Bewerter - bleibt jedem offen,
 der es bearbeiten darf, und ändert nicht, was der Wächter prüft.
 
 Das Panel der
@@ -95,8 +95,8 @@ liest wieder die neueste Version, und eine, deren Dataset noch keine Fälle hat,
 kann kein Wächter werden. Ein Wächter, der eingerichtet wurde, bevor Wächter
 festgelegt wurden, auf einem Dataset, das damals keine Fälle hatte, ist nicht
 festgelegt: Er hält jede Version zurück, bis ihn jemand festlegt, der Promotionen
-übergehen darf. Die Version des Judge-Agents selbst gehört
-nicht zur Festlegung: Ein neu veröffentlichter Judge bewertet den nächsten Run
+übergehen darf. Die Version des Bewerter-Agents selbst gehört
+nicht zur Festlegung: Ein neu veröffentlichter Bewerter bewertet den nächsten Run
 des Wächters.
 
 Der Promotion-Dialog zeigt dasselbe und lässt die Wächter laufen, die auf der

@@ -183,8 +183,8 @@ In beiden Fällen entsteht der Fall aus diesem Zug:
 
 - die Frage wird zur Eingabe, und die Züge davor kommen nur mit, wenn Sie
   **Mit dem Gespräch** wählen. Beide Dialoge im Chat fragen danach - der nach
-  dem Daumen nach unten, sobald Sie ihn ankreuzen -, ebenso Activity und
-  **Score against a case**; jeder beginnt mit **Nur diese Frage**, damit ein
+  dem Daumen nach unten, sobald Sie ihn ankreuzen -, ebenso Aktivität und
+  **Score against a Fall**; jeder beginnt mit **Nur diese Frage**, damit ein
   Chat, der mit einem anderen Thema begann, draußen bleibt. Im Chat wird eine
   Frage, die die vorige erkennbar fortsetzt, weil sie mit „und“ oder „was ist
   mit“ anfängt, als Fortsetzung gekennzeichnet, und nach einer Frage ohne

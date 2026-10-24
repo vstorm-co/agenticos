@@ -225,9 +225,9 @@ eine Regel braucht, schreibt er `{{what to fill in}}`, und der Editor listet
 jede solche Stelle auf, bis sie ersetzt ist.
 
 Wenn eine Kontextdatei oder ein Dokument die Fragen schon beantwortet, sagt der
-Drafter das, und das Thema nennt diese Quelle: Verwirf dann das Thema, statt
-Inhalt hinzuzufügen. Ein neuer Entwurf ersetzt den alten. Wer den Drafter bearbeiten darf, findet am Entwurf **Anweisungen des
-Drafters bearbeiten** und den Drafter selbst unter **System-Agents** auf der
+Lücken-Entwerfer das, und das Thema nennt diese Quelle: Verwirf dann das Thema, statt
+Inhalt hinzuzufügen. Ein neuer Entwurf ersetzt den alten. Wer den Lücken-Entwerfer bearbeiten darf, findet am Entwurf **Anweisungen des
+Lücken-Entwerfers bearbeiten** und den Lücken-Entwerfer selbst unter **System-Agents** auf der
 Seite Agents.
 
 Ein Entwurf nennt seine Quellen: die Dokumente der Wissensbasis, auf die er
@@ -342,6 +342,6 @@ gestellte Frage nur dann zur Lücke, wenn ihre Suche ein Fehltreffer war. Eine
 ohne Kommentar negativ bewertete Antwort wird auf das gelesen, was der Agent
 gesagt hat, nicht auf die Bewertung.
 
-Namen werden weder aus dem entfernt, was der Drafter liest, noch in Inhalten
+Namen werden weder aus dem entfernt, was der Lücken-Entwerfer liest, noch in Inhalten
 zum Hinzufügen markiert: Nichts hier erkennt einen Namen. Prüfe einen Entwurf
 darauf, bevor du ihn hinzufügst.

@@ -2781,8 +2781,7 @@
         "skillChanges": "Skill · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
         "contextChanges": "Kontextdatei · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
         "newSkills": "{count, plural, =1 {1 neuer Skill vorgeschlagen} other {# neue Skills vorgeschlagen}}",
-        "skills": "{count, plural, =1 {1 Skill-Änderung} other {# Skill-Änderungen}} zu prüfen",
-        "contexts": "{count, plural, =1 {1 Änderung an einer Kontextdatei} other {# Änderungen an Kontextdateien}} zu prüfen"
+        "skills": "{count, plural, =1 {1 Skill-Änderung} other {# Skill-Änderungen}} zu prüfen"
       },
       "needs-attention": {
         "title": "Agents, die Aufmerksamkeit brauchen",
@@ -9650,8 +9649,7 @@
         "published": "Über diese Vorschläge wurde in einer Version entschieden, die jetzt veröffentlicht ist."
       },
       "expected": "Erwartete Wirkung:",
-      "checks": "Mit Evals geprüft:",
-      "checkRun": "Run {index}"
+      "checks": "Mit Evals geprüft:"
     },
     "checkResult": {
       "running": "Prüfung auf {name} läuft…",

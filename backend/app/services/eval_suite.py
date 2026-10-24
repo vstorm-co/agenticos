@@ -1385,7 +1385,9 @@ class EvalSuiteService:
         try:
             async with self.db.begin_nested():
                 request, ran_alone = await self._capped(owner, suite, request, alone)
-                run = await self.evals.start(owner, suite.agent_id, request, scoring=_pinned_scoring(suite))
+                run = await self.evals.start(
+                    owner, suite.agent_id, request, scoring=_pinned_scoring(suite)
+                )
         except _OverCap as over:
             message = (
                 f"The run was estimated at ${over.estimate:.2f}, over this suite's "
@@ -1525,7 +1527,7 @@ class EvalSuiteService:
         a suite that had just gone red would read green again with the agent
         unchanged.
         """
-        return await eval_suite_repo.previous_settled(
+        passed = await eval_suite_repo.previous_settled(
             self.db,
             suite_id=suite.id,
             agent_version_id=version_id,
@@ -1533,6 +1535,19 @@ class EvalSuiteService:
             organization_id=suite.organization_id,
             passed_on_dataset=suite.dataset_id,
         )
+
+        if passed is None or passed.eval_run_id is None:
+            return None
+        run = await eval_run_repo.get(
+            self.db, passed.eval_run_id, organization_id=suite.organization_id
+        )
+        dataset = await dataset_repo.get(
+            self.db, suite.dataset_id, organization_id=suite.organization_id
+        )
+        assert dataset is not None, "a suite's dataset outlives it"
+        if run is None or run.scoring_hash != scoring_hash(reads_now(suite, dataset)[1]):
+            return None
+        return passed
 
     async def settle_finished(self, *, now: datetime) -> int:
         """Hold every result whose eval run has ended to its threshold."""

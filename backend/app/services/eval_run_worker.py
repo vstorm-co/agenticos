@@ -349,7 +349,8 @@ class EvalRunWorker:
         agent = await agent_repo.get(db, run.agent_id, organization_id=org)
         dataset = await dataset_repo.get(db, run.dataset_id, organization_id=org)
         return (
-            agent is not None
+            ctx.has(Perm.RUNS_VIEW)
+            and agent is not None
             and dataset is not None
             and await resolve_access(db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
             and await resolve_access(db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET)
@@ -506,7 +507,13 @@ class EvalRunWorker:
                 )
             except NothingToScoreError as exc:
                 if await self._erased_meanwhile(db, asked, {agent_run.id}):
-                    await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
+                    await self._fail(
+                        db,
+                        attempt,
+                        _ANONYMISED_MEANWHILE,
+                        agent_run,
+                        fault=AttemptFault.INFRASTRUCTURE,
+                    )
                     return False
                 # Nothing the scorers check applies to this case: it was answered
                 # and stays undecided, which is not a malfunction.
@@ -526,7 +533,13 @@ class EvalRunWorker:
             except Exception as exc:
                 logger.exception("Eval case %s failed to score", attempt_id)
                 if await self._erased_meanwhile(db, asked, {agent_run.id}):
-                    await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
+                    await self._fail(
+                        db,
+                        attempt,
+                        _ANONYMISED_MEANWHILE,
+                        agent_run,
+                        fault=AttemptFault.INFRASTRUCTURE,
+                    )
                     return False
                 await self._fail(
                     db,
@@ -539,7 +552,9 @@ class EvalRunWorker:
                 )
                 return False
             if await self._erased_meanwhile(db, asked, {agent_run.id}, score):
-                await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
+                await self._fail(
+                    db, attempt, _ANONYMISED_MEANWHILE, agent_run, fault=AttemptFault.INFRASTRUCTURE
+                )
                 return False
             await self._finish(
                 db,

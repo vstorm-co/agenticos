@@ -24,7 +24,9 @@ export function CaseRow({ item, onOpen, onRemove }: CaseRowProps) {
         onClick={onOpen}
         className="min-w-0 flex-1 cursor-pointer space-y-1.5 text-left"
       >
-        <span className="text-foreground line-clamp-2 block text-sm">{item.anonymised_at ? t("anonymisedInput") : item.input}</span>
+        <span className="text-foreground line-clamp-2 block text-sm">
+          {item.anonymised_at ? t("anonymisedInput") : item.input}
+        </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">{t(`source.${item.source}`)}</Badge>
           {item.anonymised_at && (

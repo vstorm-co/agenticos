@@ -378,9 +378,9 @@
     },
     "systemKindLocked": "Platforma uruchamia jednego na organizację, więc kolejny nigdy by nie zadziałał. Zmień zamiast tego tego, który już jest.",
     "systemKindOpenOwn": "Otwórz go",
-    "systemRunsOn": "Działa na pierwszym modelu organizacji, który zmienisz na jego stronie. Dopóki nie ma żadnego modelu, czeka jako szkic.",
+    "systemRunsOn": "Działa na pierwszym modelu organizacji, który zmienisz na jego stronie. Dopóki nie ma żadnego modelu, czeka jako wersja robocza.",
     "systemNamePlaceholder": "Druga opinia",
-    "systemStartsAs": "Publikowany od razu, jeśli możesz publikować agentów; w przeciwnym razie zostaje szkicem, dopóki ktoś uprawniony go nie opublikuje. Sędzia-szkic niczego nie ocenia.",
+    "systemStartsAs": "Publikowany od razu, jeśli możesz publikować agentów; w przeciwnym razie zostaje wersją roboczą, dopóki ktoś uprawniony go nie opublikuje. Sędzia w wersji roboczej niczego nie ocenia.",
     "newEnvironment": "Nowe środowisko",
     "noCapabilityOrToolMatches": "Żadna capability ani narzędzie nie pasuje do „{query}”.",
     "noDelegatesYet": "Brak delegatów. Tylko opublikowany agent może nim być - jest wtedy wersja do przypięcia.",
@@ -2780,8 +2780,7 @@
         "skillChanges": "Skill · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
         "contextChanges": "Plik kontekstu · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
         "newSkills": "{count, plural, one {1 zaproponowany nowy skill} few {# zaproponowane nowe skille} many {# zaproponowanych nowych skilli} other {# zaproponowanego nowego skilla}}",
-        "skills": "{count, plural, one {1 zmiana skilla} few {# zmiany skilli} other {# zmian skilli}} do przejrzenia",
-        "contexts": "{count, plural, one {# zmiana pliku kontekstu} few {# zmiany plików kontekstu} many {# zmian plików kontekstu} other {# zmian plików kontekstu}} do przejrzenia"
+        "skills": "{count, plural, one {1 zmiana skilla} few {# zmiany skilli} other {# zmian skilli}} do przejrzenia"
       },
       "needs-attention": {
         "title": "Agenci wymagający uwagi",
@@ -9528,7 +9527,7 @@
         "inconclusive": "Ostatnie sprawdzenie tego modelu zostawiło nierozstrzygnięte przypadki. Oceń otwarte odpowiedzi albo uruchom je ponownie.",
         "regression": "Ostatnie sprawdzenie tego modelu zepsuło przypadki, które wcześniej przechodziły. Popraw sugestie albo odrzuć tę.",
         "crashed": "Run agenta nie powiódł się na przypadkach w ostatnim sprawdzeniu tego modelu. Napraw to, co zawiodło, i uruchom sprawdzenie ponownie.",
-        "check_outdated": "Sprawdzenie jest nieaktualne: od tamtej pory zmienił się draft albo czekające na nim sugestie. Uruchom nowe sprawdzenie."
+        "check_outdated": "Sprawdzenie jest nieaktualne: od tamtej pory zmieniła się wersja robocza albo czekające na niej sugestie. Uruchom nowe sprawdzenie."
       },
       "access": {
         "title": "Nowy dostęp: {items}",
@@ -9550,8 +9549,7 @@
         "published": "Decyzje o tych sugestiach trafiły do wersji, która jest już opublikowana."
       },
       "expected": "Oczekiwany efekt:",
-      "checks": "Sprawdzone w ewaluacji:",
-      "checkRun": "run {index}"
+      "checks": "Sprawdzone w ewaluacji:"
     },
     "checkResult": {
       "running": "Trwa sprawdzanie na {name}…",

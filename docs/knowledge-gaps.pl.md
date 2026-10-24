@@ -15,7 +15,7 @@ wiedzy** pokazują takie pytania: te, dla których agent przeszukał swoją
 Luka mówi, czego brakuje. Sama nigdy niczego nie dodaje do bazy wiedzy. Człowiek
 pisze brakującą treść w temacie - może ją naszkicować model - i dodaje ją do
 bazy wiedzy jako dokument. Wcześniej może zamienić pytania z tematu na przypadki
-[datasetu](datasets.md), żeby eval pokazał, czy nowy dokument zmienił
+[datasetu](datasets.md), żeby ewaluacja pokazała, czy nowy dokument zmienił
 odpowiedzi.
 
 ## Jak pytanie staje się luką { #how-a-question-becomes-a-gap }
@@ -184,7 +184,7 @@ z którego go dodano, i to, kto go dodał, a każde dodanie trafia do dziennika
 audytu jako `knowledge_gap.content_added`.
 
 Dokument można też wgrać samodzielnie albo dodać do źródła, z którego baza
-wiedzy się synchronizuje. Po dodaniu treści uruchom eval na datasecie.
+wiedzy się synchronizuje. Po dodaniu treści uruchom ewaluację na datasecie.
 Przypadki, które nie przechodziły z powodu brakującej wiedzy, powinny teraz
 przejść.
 
@@ -211,10 +211,10 @@ ktoś go doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
 liczby, daty albo reguły, wpisuje `{{what to fill in}}`, a edytor wymienia każde
 takie miejsce, dopóki nie zostanie zastąpione.
 
-Gdy plik kontekstowy albo dokument już odpowiada na te pytania, drafter to
+Gdy plik kontekstowy albo dokument już odpowiada na te pytania, autor szkiców luk to
 mówi, a temat podaje to źródło: zamiast dodawać treść, odrzuć temat. Ponowny
-szkic zastępuje poprzedni. Kto może edytować draftera, znajdzie przy szkicu **Edytuj instrukcje
-draftera**, a samego draftera w sekcji **Agenci systemowi** na stronie Agents.
+szkic zastępuje poprzedni. Kto może edytować autora szkiców luk, znajdzie przy szkicu **Edytuj instrukcje
+autora szkiców luk**, a samego autora szkiców luk w sekcji **Agenci systemowi** na stronie Agents.
 
 Szkic podaje swoje źródła: dokumenty bazy wiedzy, na których się opiera,
 pliki kontekstowe, których się trzyma, i pytania tematu, na które odpowiada.
@@ -247,7 +247,7 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 | Czytać luki agenta | `runs:view` i `agents:view` na agencie; tematy baz wiedzy, których nie możesz czytać, są pomijane |
 | Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
-| Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap drafter |
+| Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na autor szkiców luk |
 | Napisać, zapisać albo dodać treść tematu | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Sprawdzić odpowiedzi | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap classifier |
 
@@ -277,7 +277,7 @@ szkicem.
 
 Szkic to jedyny tekst, który temat przechowuje, napisany przez model albo
 człowieka. Poświadczenia w nim są redagowane przed zapisaniem. Pisanie szkicu
-wysyła pytania, odpowiedzi i komentarze do dostawcy modelu draftera, po
+wysyła pytania, odpowiedzi i komentarze do dostawcy modelu autora szkiców luk, po
 usunięciu tego, co identyfikuje ludzi: adresów e-mail, numerów telefonów, kart
 i rachunków bankowych oraz każdej liczby albo kodu z co najmniej czterema
 cyframi albo z trzema cyframi i literą, jak numer zamówienia. Wartość taka jak
@@ -319,6 +319,6 @@ się luką tylko wtedy, gdy jego wyszukiwanie było chybione. Odpowiedź ocenion
 łapką w dół bez komentarza jest czytana pod kątem tego, co powiedział agent, a
 nie samej oceny.
 
-Imiona i nazwiska nie są usuwane z tego, co czyta drafter, ani oznaczane w
+Imiona i nazwiska nie są usuwane z tego, co czyta autor szkiców luk, ani oznaczane w
 treści do dodania: nic tutaj nie rozpoznaje imion i nazwisk. Sprawdź pod tym
 kątem szkic, zanim go dodasz.
