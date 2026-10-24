@@ -55,9 +55,9 @@ class TextExtractOutput(BaseModel):
     page_count: int | None = Field(default=None, description="For a PDF, how many pages it has")
 
 
-def _extract(data: bytes, source: SourceFormat) -> TextExtractOutput | Failed:
+def _extract(data: bytes, source: SourceFormat, max_chars: int) -> TextExtractOutput | Failed:
     if source == "pdf":
-        extracted = _documents.pdf_text(data)
+        extracted = _documents.pdf_text(data, max_chars=max_chars)
         if extracted.scanned_pages:
             return files.failed(
                 "TEXT_EXTRACTION_NEEDS_OCR",
@@ -90,7 +90,13 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         )
     try:
         # The parsers are synchronous and can take seconds on a long document.
-        result = await asyncio.to_thread(_extract, stored.data, source)
+        result = await asyncio.to_thread(_extract, stored.data, source, config.max_chars)
+    except _documents.DocumentTextTooLong:
+        return files.failed(
+            "TEXT_TOO_LONG",
+            "The text exceeds this step's character limit",
+            max_chars=config.max_chars,
+        )
     except _documents.DocumentTooLarge:
         return files.failed(
             "DOCUMENT_TOO_LARGE", "This document unpacks to more than a document may"

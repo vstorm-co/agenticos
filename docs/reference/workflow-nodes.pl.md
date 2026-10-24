@@ -1,5 +1,5 @@
 ---
-source_sha: "a04367cfdf6b"
+source_sha: "f1e835b49eb5"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -575,6 +575,8 @@ aplikacji; gdy lista jest pusta, może każdy z `approvals:decide`. Po
 `decision: "expired"`. Anulowanie runa anuluje jego prośby. Każdy przebieg kroku
 pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to samo.
 
+Wskazani zatwierdzający muszą być aktywnymi członkami z `approvals:decide`. Publikacja to sprawdza, a krok sprawdza ponownie przed wysłaniem prośby; utrata tego uprawnienia kończy krok kodem `APPROVER_UNAVAILABLE` zamiast zostawiać prośbę, której nikt nie może rozstrzygnąć.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
@@ -796,6 +798,10 @@ Pliki runa mogą łącznie zająć `WORKFLOW_RUN_MAX_FILE_BYTES`, a pliki organi
 ::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
 
 ::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+Konwersje CSV dopuszczają najwyżej 10 000 wierszy, 1000 kolumn i 1 000 000 komórek. Oba kierunki ograniczają zakodowany wynik przez `max_bytes` kroku przed zapisaniem pliku. Ekstrakcja tekstu PDF odrzuca ponad 2000 stron i przestaje czytać strony po przekroczeniu `max_chars`. Pliki wskazane bezpośrednio są ponownie sprawdzane przy przyjęciu runa względem bieżącego dostępu jego osoby do źródłowego workflowu.
+
+Wyniki sandboxa są ograniczane także podczas strumieniowego pobierania z hosta. Plik rosnący po pomiarze nie omija pozostałego wspólnego limitu bajtów; JSON wyniku też do niego wchodzi. Zakończone wywołane runy zostają do końca runa wywołującego, żeby retencja nie powodowała powtórzenia ich skutków przez oczekujący krok.
 
 ::: app.workflows.nodes.text_extract._handler.TextExtractOutput
 

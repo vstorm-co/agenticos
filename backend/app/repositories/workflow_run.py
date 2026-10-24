@@ -1349,12 +1349,14 @@ async def take_expired_runs(
     A run past `run_retention_days` since it ended, or one that succeeded more
     than a day ago in a workflow that does not keep succeeded runs. A run another
     run's chain starts from is left until that chain has gone, because the chain
-    names it as its root. The files' rows go with the run; the stored bytes are
+    names it as its root. A called run also stays until its caller ends, because
+    its waiting node needs that result to avoid calling it again. The files' rows go with the run; the stored bytes are
     the caller's to unlink once this commits.
     """
     days = Workflow.settings["run_retention_days"].as_integer()
     keeps_succeeded = Workflow.settings["keep_succeeded_runs"].as_boolean()
     descendant = aliased(WorkflowRun)
+    caller = aliased(WorkflowRun)
     expired = (
         select(WorkflowRun.id)
         .join(Workflow, Workflow.id == WorkflowRun.workflow_id)
@@ -1373,6 +1375,11 @@ async def take_expired_runs(
             ),
             ~exists().where(
                 descendant.root_run_id == WorkflowRun.id, descendant.id != WorkflowRun.id
+            ),
+            ~exists(
+                select(NodeRun.id)
+                .join(caller, caller.id == NodeRun.workflow_run_id)
+                .where(NodeRun.id == WorkflowRun.parent_node_run_id, caller.ended_at.is_(None))
             ),
         )
         .order_by(WorkflowRun.ended_at)

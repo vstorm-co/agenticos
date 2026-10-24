@@ -421,6 +421,7 @@ class TestStart:
             # the "skip a non-matching source" branch, not to be a
             # structurally valid graph. `validate_graph` has its own tests.
             patch(f"{FACADE_PATH}.validate_graph", new=AsyncMock(return_value=graph)),
+            patch(f"{FACADE_PATH}.file_binding_problems", new=AsyncMock(return_value=[])),
         ):
             await service.start(_ctx(), workflow.id, mode=WorkflowRunMode.TEST)
 

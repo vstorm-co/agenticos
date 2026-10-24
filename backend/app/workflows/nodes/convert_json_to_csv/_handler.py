@@ -6,6 +6,7 @@ fails with `NOT_TABULAR`, never a guessed flattening nobody asked for. The
 header is every key, in the order it first appears.
 """
 
+import asyncio
 import json
 from typing import Any
 
@@ -21,7 +22,12 @@ from app.workflows.nodes.convert_csv_to_json._handler import ConvertFileInput
 class ConvertJsonToCsvConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    max_bytes: int = Field(default=25_000_000, ge=1, le=50_000_000)
+    max_bytes: int = Field(
+        default=25_000_000,
+        ge=1,
+        le=50_000_000,
+        description="Maximum bytes of the input file and encoded output",
+    )
 
 
 class ConvertJsonToCsvOutput(BaseModel):
@@ -53,7 +59,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     if rows is None:
         return files.failed("NOT_TABULAR", "Only a JSON list of objects converts to CSV")
     try:
-        text = csv_text(rows)
+        text = await asyncio.to_thread(csv_text, rows, max_bytes=config.max_bytes)
     except ParseError as exc:
         return files.failed("NOT_TABULAR", str(exc))
     stem = (stored.filename or "rows").rsplit(".", 1)[0]

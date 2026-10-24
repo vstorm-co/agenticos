@@ -178,7 +178,7 @@ export function useWorkflow(workflowId: string | null) {
     enabled: !!workflowId,
   });
 
-  // A draft save or a publish changes this workflow's detail and its row in the
+  // A publish changes this workflow's detail and its row in the
   // list — invalidate just those two keys, never the whole `workflows` subtree,
   // so the immutable node catalog and the frozen version graphs stay cached
   // (#1787 F2). The published-version list rides `detail`'s key prefix.
@@ -189,7 +189,12 @@ export function useWorkflow(workflowId: string | null) {
 
   const saveDraft = useMutation({
     mutationFn: (update: WorkflowDraftUpdate) => updateWorkflowDraft(workflowId as string, update),
-    onSuccess: invalidate,
+    onSuccess: async (detail) => {
+      // The PATCH returns the complete detail. Reuse it rather than fetching the
+      // graph again and invalidating every frozen version on each autosave.
+      queryClient.setQueryData(qk.workflows.detail(detail.id), detail);
+      await queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
+    },
   });
 
   const publish = useMutation({

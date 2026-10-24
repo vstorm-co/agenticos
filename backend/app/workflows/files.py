@@ -13,6 +13,7 @@ insert fails takes its stored object with it, so a failed write leaves
 nothing behind.
 """
 
+import codecs
 import io
 import json
 import zipfile
@@ -71,10 +72,11 @@ def not_found() -> Failed:
 def sniff(data: bytes) -> str:
     """The media type these bytes are, from their own first bytes.
 
-    The images, PDF and the ZIP-based office formats by signature; valid UTF-8
-    as JSON when it parses as JSON, otherwise as plain text; anything else as
-    `application/octet-stream`. Only the start is examined, so a large file
-    costs a slice, and text is never mistaken for a binary it merely mentions.
+    Images, PDF and office formats use their signatures. Small UTF-8 files are
+    parsed as JSON; larger ones beginning with an object or array are provisionally
+    JSON, validated by the step that reads them. Other UTF-8 prefixes are text.
+    Classification decodes at most the prefix, including an incomplete UTF-8
+    character at its boundary, and never parses a whole large download.
     """
     head = data[:_SNIFF_BYTES]
     image = sniff_image_header(head)
@@ -88,9 +90,11 @@ def sniff(data: bytes) -> str:
     if container is not None:
         return "application/octet-stream"
     try:
-        text = data.decode("utf-8")
+        text = codecs.getincrementaldecoder("utf-8")().decode(head, final=len(data) <= _SNIFF_BYTES)
     except UnicodeDecodeError:
         return "application/octet-stream"
+    if len(data) > _SNIFF_BYTES:
+        return "application/json" if text.lstrip().startswith(("{", "[")) else "text/plain"
     try:
         json.loads(text)
     except ValueError:

@@ -103,9 +103,11 @@ function mount() {
   );
 }
 
-/** Send one of the empty state's suggested prompts, the shortest way to send. */
-async function pickASuggestion() {
-  await userEvent.click(await screen.findByRole("button", { name: /Brainstorm/ }));
+/** Send through the composer, independently of personalized starter suggestions. */
+async function sendMessage() {
+  const textbox = await screen.findByRole("textbox");
+  await userEvent.click(textbox);
+  await userEvent.type(textbox, "Score this lead{Enter}");
 }
 
 describe("the chat with a workflow picked to answer", () => {
@@ -114,7 +116,7 @@ describe("the chat with a workflow picked to answer", () => {
     mount();
     await screen.findByRole("button", { name: "Agent: Lead triage" });
 
-    await pickASuggestion();
+    await sendMessage();
 
     await waitFor(() => expect(FakeSocket.opened).toHaveLength(1));
     expect(FakeSocket.opened[0]?.url).toContain("/api/v1/ws/workflow-runs");
@@ -129,7 +131,7 @@ describe("the chat with a workflow picked to answer", () => {
     mount();
     await screen.findByRole("button", { name: /^Agent:/ });
 
-    await pickASuggestion();
+    await sendMessage();
 
     expect(FakeSocket.opened).toHaveLength(0);
   });

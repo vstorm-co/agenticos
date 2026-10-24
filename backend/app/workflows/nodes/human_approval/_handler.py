@@ -20,7 +20,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm, role_has
 from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
 from app.db.session import get_worker_db_context
@@ -100,6 +100,10 @@ async def check_resources(
             problems.append(
                 (f"approvers.{index}", "This person is not a member of the organization")
             )
+        elif not role_has(member.role, Perm.APPROVALS_DECIDE):
+            problems.append(
+                (f"approvers.{index}", "This person cannot decide approvals in the organization")
+            )
     return problems
 
 
@@ -168,6 +172,14 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     async with get_worker_db_context() as db:
         approval = await approval_repo.get_for_node_run_for_update(db, current.node_run_id)
         if approval is None:
+            problems = await check_resources(db, current.auth, config)
+            if problems:
+                return Failed(
+                    error=WorkflowError(
+                        code="APPROVER_UNAVAILABLE",
+                        message="A named approver is no longer able to decide approvals",
+                    )
+                )
             await _ask(db, config, details, now)
             return waiting
         if approval.status != WorkflowApprovalStatus.PENDING.value:

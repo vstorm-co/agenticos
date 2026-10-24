@@ -163,7 +163,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _literal_binding_type_problems(graph, definitions)
     problems += _template_binding_problems(graph, definitions)
     problems += await _table_binding_problems(db, ctx, graph)
-    problems += await _file_binding_problems(db, ctx, graph)
+    problems += await file_binding_problems(db, ctx, graph)
     problems += await _resource_problems(db, ctx, graph, definitions)
 
     node_scope = node_scope_map(graph)
@@ -540,7 +540,7 @@ async def _table_binding_problems(
     return problems
 
 
-async def _file_binding_problems(
+async def file_binding_problems(
     db: AsyncSession, ctx: AuthContext, graph: WorkflowGraph
 ) -> Problems:
     """Whether each `FileRef` a binding names is a file its author may hand a run.

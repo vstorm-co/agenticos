@@ -130,7 +130,7 @@ async def _decide(
         await db.commit()
 
 
-async def _another_member(seeded: SeededRun) -> AuthContext:
+async def _another_member(seeded: SeededRun, *, role: str = "admin") -> AuthContext:
     async with seeded.factory() as db:
         user = User(
             id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@x.io", hashed_password="x", is_active=True
@@ -139,11 +139,11 @@ async def _another_member(seeded: SeededRun) -> AuthContext:
         await db.flush()
         db.add(
             OrganizationMember(
-                id=uuid.uuid4(), organization_id=seeded.org.id, user_id=user.id, role="admin"
+                id=uuid.uuid4(), organization_id=seeded.org.id, user_id=user.id, role=role
             )
         )
         await db.commit()
-    return AuthContext(user_id=user.id, organization_id=seeded.org.id, role="admin")
+    return AuthContext(user_id=user.id, organization_id=seeded.org.id, role=role)
 
 
 class TestTheWait:
@@ -358,3 +358,26 @@ class TestTheStep:
             await db.commit()
         await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
         assert (await run_row(seeded)).status == WorkflowRunStatus.WAITING_APPROVAL.value
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("role", ["member", "builder", "viewer"])
+async def test_a_named_approver_without_decision_permission_cannot_park_a_run(
+    engine: AsyncEngine,
+    role: str,
+) -> None:
+    seeded = await seed_run(engine, Graph().graph)
+    approver = await _another_member(seeded, role=role)
+    config = HumanApprovalConfig(title="Proceed?", approvers=(approver.user_id,))
+    async with seeded.factory() as db:
+        problems = await check_resources(db, seeded.ctx, config)
+    assert problems == [("approvers.0", "This person cannot decide approvals in the organization")]
+
+    named = await seed_run(
+        engine,
+        Graph(approvers=[str(approver.user_id)]).graph,
+        member=(seeded.principal, seeded.org),
+    )
+    run = await drive(named)
+    assert run.status == "failed"
+    assert run.error is not None and run.error["code"] == "APPROVER_UNAVAILABLE"

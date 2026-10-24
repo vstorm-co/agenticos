@@ -7,14 +7,21 @@ the three steps cannot drift into refusing different things.
 """
 
 import base64
-import json
 import re
 from typing import Any, Literal
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, quote_plus, urlencode, urlsplit, urlunsplit
 from uuid import UUID
 
 import httpx2
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
@@ -237,9 +244,19 @@ def _scrub(text: str, secret: HttpCredentialSecret | None) -> str:
     token = secret.token.get_secret_value()
     pair = base64.b64encode(f"{secret.username or ''}:{token}".encode()).decode()
     # And as a URL parameter carries it, for a far side echoing the URL it was called at.
-    for form in (pair, quote(token, safe=""), token):
+    for form in (pair, quote(token, safe=""), quote_plus(token, safe=""), token):
         text = text.replace(form, "[redacted]")
     return text
+
+
+def _scrub_json(value: JsonValue, secret: HttpCredentialSecret | None) -> JsonValue:
+    if isinstance(value, str):
+        return _scrub(value, secret)
+    if isinstance(value, list):
+        return [_scrub_json(item, secret) for item in value]
+    if isinstance(value, dict):
+        return {_scrub(key, secret): _scrub_json(item, secret) for key, item in value.items()}
+    return value
 
 
 def response_output(
@@ -251,13 +268,14 @@ def response_output(
         for name, value in response.headers.items()
         if name.lower() not in _DROPPED_RESPONSE_HEADERS
     }
-    text = _scrub(raw.decode(response.encoding or "utf-8", errors="replace"), secret)
-    body: Any = text
+    text = raw.decode(response.encoding or "utf-8", errors="replace")
+    body: JsonValue = _scrub(text, secret)
     if "json" in response.headers.get("content-type", "").lower():
         try:
-            body = json.loads(text)
-        except json.JSONDecodeError:
-            body = text
+            body = _scrub_json(TypeAdapter(JsonValue).validate_json(text), secret)
+        except ValidationError:
+            # A response claiming JSON may still be plain text.
+            body = _scrub(text, secret)
     return HttpResponseOutput(status_code=response.status_code, headers=headers, body=body)
 
 

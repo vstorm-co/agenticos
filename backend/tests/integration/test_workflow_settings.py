@@ -14,7 +14,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.models.workflow_file import WorkflowFile
-from app.db.models.workflow_run import DispatchOutbox, WorkflowRun, WorkflowRunMode
+from app.db.models.workflow_run import DispatchOutbox, NodeRun, WorkflowRun, WorkflowRunMode
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import WorkflowPublish, WorkflowSettings
 from app.services.agent_trigger import _cron_next
@@ -573,3 +573,38 @@ async def _version_graph(engine: AsyncEngine, version_id: uuid.UUID | None) -> d
         version = await db.get(WorkflowVersion, version_id)
         assert version is not None
         return version.graph
+
+
+async def test_retention_keeps_a_finished_called_run_until_its_caller_ends(
+    engine: AsyncEngine,
+) -> None:
+    root = await seed_run(engine, _graph("core.input"))
+    child = await seed_run(engine, _graph("core.input"), member=(root.principal, root.org))
+    now = datetime.now(UTC)
+    async with root.factory() as db:
+        parent_node = (
+            await db.execute(select(NodeRun).where(NodeRun.workflow_run_id == root.run.id))
+        ).scalar_one()
+        workflow = await db.get(Workflow, child.run.workflow_id)
+        assert workflow is not None
+        workflow.settings = {"run_retention_days": 1}
+        await workflow_run_repo.update_run(
+            db,
+            run=child.run,
+            update_data={
+                "status": "succeeded",
+                "ended_at": now - timedelta(days=3),
+                "root_run_id": root.run.id,
+                "parent_node_run_id": parent_node.id,
+            },
+        )
+        await db.commit()
+    async with root.factory() as db:
+        assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == []
+        await workflow_run_repo.update_run(
+            db, run=root.run, update_data={"status": "succeeded", "ended_at": now}
+        )
+        await db.commit()
+    async with root.factory() as db:
+        removed = await workflow_run_repo.take_expired_runs(db, now=now, limit=10)
+        assert removed == [(child.run.id, [])]

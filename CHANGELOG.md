@@ -637,6 +637,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Workflow file processing stays within its limits before saving.** CSV
+  conversions cap dimensions and encoded output, PDF extraction stops at its
+  page and text limits, downloads classify only a prefix, and sandbox reads
+  stop while streaming past the remaining byte allowance. URL filenames cannot
+  carry NULs into storage, and HTTP credentials are removed after JSON decoding
+  as well as in URL-encoded echoes.
+- **Workflow references keep their authority and meaning.** Admission rechecks
+  access to literal files; named approvers must still be able to decide;
+  retention keeps called results while their caller is pending; exporting an
+  inline agent preserves application values that look like UUIDs.
+- **Workflow autosave reuses the saved graph.** Saving no longer fetches the
+  same detail again or invalidates immutable version graphs on every edit.
+
 - **Reloading and restoring workflow drafts keep their editor.** A response that
   arrives after opening another workflow no longer replaces its graph or marks
   it conflicted. A failed conflict reload keeps local changes, shows the error

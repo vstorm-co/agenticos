@@ -27,7 +27,7 @@ prefix of the step's own failure codes.
 import hashlib
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -68,7 +68,8 @@ SANDBOXD_KIND = "docker"
 # line. Only counts, never names - a script chooses its files' names.
 _MEASURE = (
     f"cd {ROOT} && find outputs -maxdepth 1 -type f | wc -l"
-    " && { cat outputs/* 2>/dev/null || true; } | wc -c"
+    " && find outputs -maxdepth 1 -type f -exec sh -c "
+    "'for path do wc -c < \"$path\"; done' sh {} + | awk '{n += $1} END {print n+0}'"
     " && { wc -c < result.json 2>/dev/null || echo 0; }"
     " && { wc -c < log.txt 2>/dev/null || echo 0; }"
 )
@@ -124,6 +125,47 @@ async def check_connection(
     return []
 
 
+class _CappedStream(httpx.AsyncByteStream):
+    """Reject oversized responses while HTTPX is still reading their chunks."""
+
+    def __init__(self, stream: httpx.AsyncByteStream, limit: int) -> None:
+        self._stream = stream
+        self._limit = limit
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        total = 0
+        async for chunk in self._stream:
+            total += len(chunk)
+            if total > self._limit:
+                raise _TooLarge
+            yield chunk
+
+    async def aclose(self) -> None:
+        await self._stream.aclose()
+
+
+class _CappedTransport(httpx.AsyncBaseTransport):
+    """One attempt's SDK transport; reads have a per-file remaining byte budget."""
+
+    def __init__(self, inner: httpx.AsyncBaseTransport) -> None:
+        self._inner = inner
+        self.read_limit = MAX_OUTPUT_BYTES
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        response = await self._inner.handle_async_request(request)
+        assert isinstance(response.stream, httpx.AsyncByteStream)
+        limit = self.read_limit if request.url.path.endswith("/files/read") else MAX_OUTPUT_BYTES
+        return httpx.Response(
+            response.status_code,
+            headers=response.headers,
+            stream=_CappedStream(response.stream, limit),
+            extensions=response.extensions,
+        )
+
+    async def aclose(self) -> None:
+        await self._inner.aclose()
+
+
 class _Sandbox:
     """The one `sandboxd` session a step's job lives in - only what the job needs.
 
@@ -132,9 +174,16 @@ class _Sandbox:
     stopped or oversized job gives its sandbox back.
     """
 
-    def __init__(self, backend: SandboxdWorkspaceBackend) -> None:
+    def __init__(
+        self,
+        backend: SandboxdWorkspaceBackend,
+        client: httpx.AsyncClient,
+        transport: _CappedTransport,
+    ) -> None:
         self._backend = backend
         self._files = Workspace(backend)
+        self._client = client
+        self._transport = transport
 
     async def exists(self, path: str) -> bool:
         return await self._files.exists(path)
@@ -144,8 +193,17 @@ class _Sandbox:
             path, content.encode() if isinstance(content, str) else content
         )
 
-    async def read_bytes(self, path: str) -> bytes:
-        return await self._files.read_bytes(path)
+    async def read_bytes(self, path: str, *, max_bytes: int = MAX_OUTPUT_BYTES) -> bytes:
+        self._transport.read_limit = max_bytes
+        data = await self._files.read_bytes(path)
+        # The SDK's shell fallback has its own output cap; enforce the file's
+        # remaining budget too, whether this host supports native reads or not.
+        if len(data) > max_bytes:
+            raise _TooLarge
+        return data
+
+    async def close(self) -> None:
+        await self._client.aclose()
 
     async def list_dir(self, path: str) -> Sequence[FileEntry]:
         return await self._files.list_dir(path)
@@ -166,7 +224,10 @@ class _Sandbox:
 def _open(resolved: ResolvedConnection, key: str, runtime: str | None, tenant: str) -> _Sandbox:
     from pydantic_ai_backends.workspaces import SandboxdWorkspace
 
+    transport = _CappedTransport(httpx.AsyncHTTPTransport())
+    client = httpx.AsyncClient(transport=transport, headers={"Accept-Encoding": "identity"})
     sandbox = SandboxdWorkspace(
+        client=client,
         service_url=resolved.row.base_url or "",
         token=resolved.token,
         # One provider name per connection, as an agent's workspace uses, so a
@@ -176,7 +237,7 @@ def _open(resolved: ResolvedConnection, key: str, runtime: str | None, tenant: s
         tenant=tenant,
         session_name=key,
     )
-    return _Sandbox(sandbox.backend())
+    return _Sandbox(sandbox.backend(), client, transport)
 
 
 async def _launch(
@@ -231,9 +292,11 @@ async def _measure(sandbox: _Sandbox) -> None:
 
 async def _collect(sandbox: _Sandbox) -> tuple[dict[str, Any], bytes, list[tuple[str, bytes]]]:
     await _measure(sandbox)
-    answer = json.loads(await sandbox.read_bytes(f"{ROOT}/result.json"))
+    raw_answer = await sandbox.read_bytes(f"{ROOT}/result.json", max_bytes=MAX_OUTPUT_BYTES)
+    answer = json.loads(raw_answer)
+    total = len(raw_answer)
     log = (
-        await sandbox.read_bytes(f"{ROOT}/log.txt")
+        await sandbox.read_bytes(f"{ROOT}/log.txt", max_bytes=MAX_LOG_BYTES)
         if await sandbox.exists(f"{ROOT}/log.txt")
         else b""
     )
@@ -241,7 +304,11 @@ async def _collect(sandbox: _Sandbox) -> tuple[dict[str, Any], bytes, list[tuple
     for entry in await sandbox.list_dir(f"{ROOT}/outputs"):
         if entry.is_dir:
             continue
-        produced.append((entry.path.rsplit("/", 1)[-1], await sandbox.read_bytes(entry.path)))
+        if len(produced) >= MAX_OUTPUT_FILES:
+            raise _TooLarge
+        data = await sandbox.read_bytes(entry.path, max_bytes=MAX_OUTPUT_BYTES - total)
+        total += len(data)
+        produced.append((entry.path.rsplit("/", 1)[-1], data))
     return answer, log, produced
 
 
@@ -254,7 +321,9 @@ def _too_large(language: ScriptLanguage) -> Failed:
 
 
 async def _started(sandbox: _Sandbox) -> datetime:
-    return datetime.fromisoformat((await sandbox.read_bytes(f"{ROOT}/started_at")).decode().strip())
+    return datetime.fromisoformat(
+        (await sandbox.read_bytes(f"{ROOT}/started_at", max_bytes=128)).decode().strip()
+    )
 
 
 async def _inputs(refs: tuple[FileRef, ...]) -> list[tuple[str, bytes]] | Failed:
@@ -296,62 +365,60 @@ async def run_job(
         return files.failed("SANDBOX_UNAVAILABLE", "Workflow scripts run on a sandboxd connection")
     key = session_key(current.idempotency_key)
     waiting = Waiting(reason="retry_backoff", resume_token=str(current.node_run_id))
+    sandbox: _Sandbox | None = None
     try:
-        sandbox = _open(resolved, key, runtime, str(current.organization_id))
-        if not await sandbox.exists(f"{ROOT}/job.pid"):
-            inputs = await _inputs(input_files)
-            if isinstance(inputs, Failed):
-                return inputs
-            await _launch(sandbox, language, code, args, inputs)
-            return waiting
-        if not await sandbox.exists(f"{ROOT}/done"):
-            started = await _started(sandbox)
-            if datetime.now(UTC) - started > timedelta(seconds=timeout_seconds):
-                await sandbox.purge()
-                return files.failed(
-                    f"{language.code_prefix}_SANDBOX_TIMEOUT",
-                    f"The script ran longer than {timeout_seconds:g} seconds and was stopped",
-                )
-            return waiting
-        answer, log, produced = await _collect(sandbox)
-    except _TooLarge:
-        await sandbox.purge()
-        return _too_large(language)
-    except (OSError, RuntimeError, WorkspaceError, httpx.HTTPError) as exc:
-        # The host went away mid-conversation, or refused a write: nothing about
-        # the job is known to have changed, and the next dispatch checks again.
-        logger.warning("A sandbox script step could not reach its host: %s", exc)
-        return files.failed(
-            "SANDBOX_UNREACHABLE", "The sandbox host could not be reached", retryable=True
-        )
-
-    # Measured before it was fetched, and checked again as it arrived: a process
-    # the script left behind can still be writing after the job was measured.
-    if (
-        len(produced) > MAX_OUTPUT_FILES
-        or sum(len(data) for _n, data in produced) > MAX_OUTPUT_BYTES
-        or len(log) > MAX_LOG_BYTES
-    ):
-        await sandbox.purge()
-        return _too_large(language)
-    log_file = await files.save(log, content_type="text/plain", filename="log.txt")
-    outputs = [
-        await files.save(data, content_type=files.sniff(data), filename=name)
-        for name, data in produced
-    ]
-    await sandbox.purge()
-    if not answer.get("ok"):
-        if answer.get("not_json"):
+        try:
+            sandbox = _open(resolved, key, runtime, str(current.organization_id))
+            if not await sandbox.exists(f"{ROOT}/job.pid"):
+                inputs = await _inputs(input_files)
+                if isinstance(inputs, Failed):
+                    return inputs
+                await _launch(sandbox, language, code, args, inputs)
+                return waiting
+            if not await sandbox.exists(f"{ROOT}/done"):
+                started = await _started(sandbox)
+                if datetime.now(UTC) - started > timedelta(seconds=timeout_seconds):
+                    await sandbox.purge()
+                    return files.failed(
+                        f"{language.code_prefix}_SANDBOX_TIMEOUT",
+                        f"The script ran longer than {timeout_seconds:g} seconds and was stopped",
+                    )
+                return waiting
+            answer, log, produced = await _collect(sandbox)
+        except _TooLarge:
+            assert sandbox is not None
+            await sandbox.purge()
+            return _too_large(language)
+        except (OSError, RuntimeError, WorkspaceError, httpx.HTTPError) as exc:
+            # The host went away mid-conversation, or refused a write: nothing about
+            # the job is known to have changed, and the next dispatch checks again.
+            logger.warning("A sandbox script step could not reach its host: %s", exc)
             return files.failed(
-                f"{language.code_prefix}_OUTPUT_NOT_JSON",
-                f"The script's result is a {answer.get('error')}, which is not a JSON value",
+                "SANDBOX_UNREACHABLE", "The sandbox host could not be reached", retryable=True
             )
-        return files.failed(
-            f"{language.code_prefix}_ERROR", f"The script failed: {answer.get('error')}"
+
+        # Collection checks the aggregate as it streams, before any file is stored.
+        log_file = await files.save(log, content_type="text/plain", filename="log.txt")
+        outputs = [
+            await files.save(data, content_type=files.sniff(data), filename=name)
+            for name, data in produced
+        ]
+        await sandbox.purge()
+        if not answer.get("ok"):
+            if answer.get("not_json"):
+                return files.failed(
+                    f"{language.code_prefix}_OUTPUT_NOT_JSON",
+                    f"The script's result is a {answer.get('error')}, which is not a JSON value",
+                )
+            return files.failed(
+                f"{language.code_prefix}_ERROR", f"The script failed: {answer.get('error')}"
+            )
+        return JobResult(
+            result=answer.get("result"),
+            stdout_tail=log.decode("utf-8", errors="replace")[-LOG_TAIL_CHARS:],
+            log_file=log_file,
+            output_files=tuple(outputs),
         )
-    return JobResult(
-        result=answer.get("result"),
-        stdout_tail=log.decode("utf-8", errors="replace")[-LOG_TAIL_CHARS:],
-        log_file=log_file,
-        output_files=tuple(outputs),
-    )
+    finally:
+        if sandbox is not None:
+            await sandbox.close()

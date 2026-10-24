@@ -25,8 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.config import settings
 from app.core.permissions import AuthContext
-from app.db.models.organization import Organization
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.db.models.workflow import Workflow
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import ResourceRef, WorkflowRun, WorkflowRunStatus
 from app.services.file_storage import LocalFileStorage
@@ -851,3 +852,51 @@ class TestStoredBytesQuota:
         error = await _error(seeded)
         assert error["code"] == "FILE_QUOTA_EXCEEDED"
         assert error["details"]["scope"] == "organization"
+
+
+@pytest.mark.security
+async def test_a_published_file_binding_is_reauthorized_when_its_source_becomes_private(
+    engine: AsyncEngine,
+    storage: LocalFileStorage,
+) -> None:
+    from app.repositories import workflow as workflow_repo
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    source = await seed_run(engine, _chain(_node("debug.echo"), bindings=[]))
+    ref = await _stored(engine, storage, source.run, b"private", content_type="text/plain")
+    reader, _other_org = await _member(engine)
+    ctx = AuthContext(user_id=reader.id, organization_id=source.org.id, role="member")
+    read = _node("file.read")
+    graph = _chain(
+        read, bindings=[Binding(target_node_id=read.id, target_field="file", source=ref)]
+    )
+    consumer = await seed_run(engine, graph, member=(reader, source.org))
+    async with source.factory() as db:
+        db.add(OrganizationMember(organization_id=source.org.id, user_id=reader.id, role="member"))
+        producing = await db.get(Workflow, source.run.workflow_id)
+        assert producing is not None
+        producing.visibility = "org"
+        await db.flush()
+        await validate_graph(db, ctx, graph)
+        version = await workflow_repo.create_version(
+            db,
+            workflow_id=consumer.run.workflow_id,
+            organization_id=source.org.id,
+            version=1,
+            graph=graph.model_dump(mode="json"),
+            note=None,
+            published_by_user_id=reader.id,
+            budget_limit=None,
+        )
+        target = await db.get(Workflow, consumer.run.workflow_id)
+        assert target is not None
+        target.current_version_id = version.id
+        await db.commit()
+    async with source.factory() as db:
+        producing = await db.get(Workflow, source.run.workflow_id)
+        assert producing is not None
+        producing.visibility = "private"
+        await db.commit()
+    async with source.factory() as db:
+        with pytest.raises(GraphValidationError, match="not accessible"):
+            await WorkflowExecutionService(db).start(ctx, consumer.run.workflow_id)

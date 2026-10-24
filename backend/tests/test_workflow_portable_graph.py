@@ -146,3 +146,28 @@ def test_an_agent_configured_in_a_step_travels_without_this_deployments_ids():
         "inline.model_profile_id",
     ]
     assert {entry.kind for entry in unresolved} == {"agent_spec"}
+
+
+def test_inline_agent_application_data_that_looks_like_a_uuid_survives_export():
+    identifier = str(uuid.uuid4())
+    variable = {"name": "tenant_id", "value": identifier}
+    schema = {"type": "object", "properties": {"id": {"const": identifier}}}
+    step = _node(
+        "agent.run",
+        {"inline": {"name": "Example", "variables": [variable], "output_schema": schema}},
+    )
+    carried, unresolved = portable(WorkflowGraph(entry_node_id=step.id, nodes=(step,)))
+    assert carried.nodes[0].config["inline"] == {
+        "name": "Example",
+        "variables": [variable],
+        "output_schema": schema,
+    }
+    assert not unresolved
+
+
+def test_an_unset_model_and_a_capability_without_settings_stay_portable() -> None:
+    spec = {"name": "Example", "model_profile_id": None, "capabilities": [{"id": "charts"}]}
+    step = _node("agent.run", {"inline": spec})
+    carried, unresolved = portable(WorkflowGraph(entry_node_id=step.id, nodes=(step,)))
+    assert carried.nodes[0].config["inline"] == spec
+    assert not unresolved

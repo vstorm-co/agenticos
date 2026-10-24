@@ -1,5 +1,5 @@
 ---
-source_sha: "a04367cfdf6b"
+source_sha: "f1e835b49eb5"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -602,6 +602,8 @@ läuft die Anfrage ab, und der Schritt geht über `rejected` mit
 Jeder Lauf des Schritts fragt einmal, sodass eine Wiederholung oder eine
 Schleifeniteration nie zweimal nach demselben fragt.
 
+Benannte Genehmigende müssen aktive Mitglieder mit `approvals:decide` sein. Die Veröffentlichung prüft dies, der Schritt erneut vor der Anfrage. Fehlt diese Berechtigung inzwischen, endet der Schritt mit `APPROVER_UNAVAILABLE`, statt eine unentscheidbare Anfrage zu hinterlassen.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
@@ -835,6 +837,10 @@ Die Dateien eines Runs dürfen zusammen `WORKFLOW_RUN_MAX_FILE_BYTES` belegen, d
 ::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
 
 ::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+CSV-Konvertierungen erlauben höchstens 10.000 Zeilen, 1.000 Spalten und 1.000.000 Zellen. Beide Richtungen begrenzen die kodierte Ausgabe vor dem Speichern auf `max_bytes` des Schritts. Die PDF-Textextraktion verweigert mehr als 2.000 Seiten und liest nach Überschreiten von `max_chars` keine weiteren Seiten. Direkt angegebene Dateien werden bei der Zulassung erneut gegen den aktuellen Zugriff der ausführenden Person auf den Quell-Workflow geprüft.
+
+Sandbox-Ausgaben werden auch beim Streaming vom Host begrenzt. Eine nach der Messung wachsende Datei umgeht das verbleibende gemeinsame Byte-Limit nicht; das Ergebnis-JSON zählt mit. Beendete aufgerufene Runs bleiben bis zum Ende ihres Aufrufers erhalten, damit die Aufbewahrung keine Wiederholung ihrer Seiteneffekte auslöst.
 
 ::: app.workflows.nodes.text_extract._handler.TextExtractOutput
 

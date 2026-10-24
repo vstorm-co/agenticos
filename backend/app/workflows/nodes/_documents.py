@@ -28,6 +28,13 @@ class DocumentTooLarge(ValueError):
     huge compressed part, and the parser would expand all of it in memory."""
 
 
+class DocumentTextTooLong(ValueError):
+    """The parser reached the step's text budget before reading the remaining pages."""
+
+
+MAX_PDF_PAGES = 2_000
+
+
 @dataclass(frozen=True)
 class PdfText:
     pages: tuple[str, ...]
@@ -47,14 +54,20 @@ def _open_pdf(data: bytes) -> pymupdf.Document:
     return document
 
 
-def pdf_text(data: bytes) -> PdfText:
+def pdf_text(data: bytes, *, max_chars: int = 200_000) -> PdfText:
     document = _open_pdf(data)
     try:
+        if int(document.page_count) > MAX_PDF_PAGES:
+            raise DocumentTooLarge(f"The PDF has more than {MAX_PDF_PAGES} pages")
         pages: list[str] = []
+        chars = 0
         scanned: list[int] = []
         for number in range(1, int(document.page_count) + 1):
             page = document[number - 1]
-            text = str(page.get_text())
+            text = str(page.get_text()).strip()
+            chars += len(text) + (2 if pages else 0)
+            if chars > max_chars:
+                raise DocumentTextTooLong("The text exceeds the step's character limit")
             pages.append(text)
             if not text.strip() and page.get_images():
                 scanned.append(number)

@@ -73,9 +73,10 @@ from app.services.workflow_execution.exceptions import (
     WorkflowTriggerMismatchError,
 )
 from app.workflows.contracts.io import FileRef, TableIORef
+from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.step import step_subgraph
-from app.workflows.graph.validate import validate_graph
+from app.workflows.graph.validate import file_binding_problems, validate_graph
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
 from app.workflows.triggers import BY_HAND, CHAT, DECLARES_FIELDS, WORKFLOW_CALL
 
@@ -431,6 +432,9 @@ class WorkflowExecutionService:
         public run), when it came through an external door, or when a public
         run caused it.
         """
+        problems = await file_binding_problems(self.db, ctx, graph)
+        if problems:
+            raise GraphValidationError(problems)
         # Charge this run's node work against the organization's and the caller's
         # outstanding-node-work ceilings before anything is written, so a caller
         # cannot start many wide graphs below the per-minute run limit and grow a
@@ -866,13 +870,7 @@ class WorkflowExecutionService:
         return graph, None, graph.model_dump(mode="json"), None
 
     async def _record_resource_refs(self, run: WorkflowRun, graph: WorkflowGraph) -> None:
-        """`FileRef`/`TableIORef` bindings, resolved once at run start.
-
-        Thin and unopinionated, like the reference types themselves
-        (`app.workflows.contracts.io`): this records what the graph named, not
-        whether it still resolves against real storage - #1791's job once it
-        exists.
-        """
+        """Record file and table bindings after admission rechecks file access."""
         for binding in graph.bindings:
             if isinstance(binding.source, FileRef):
                 await workflow_run_repo.create_resource_ref(

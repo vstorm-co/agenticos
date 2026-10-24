@@ -559,6 +559,8 @@ leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
 it asked. Each run of the step asks once, so a retry or a loop iteration never
 asks twice for the same thing.
 
+Named approvers must be active members holding `approvals:decide`. Publishing checks this, and the step checks again before asking; a person who lost that permission fails the step with `APPROVER_UNAVAILABLE` rather than leaving an undecidable request.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
@@ -771,6 +773,10 @@ A run's files may add up to `WORKFLOW_RUN_MAX_FILE_BYTES`, and an organization's
 ::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
 
 ::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+CSV conversions allow at most 10,000 rows, 1,000 columns and 1,000,000 cells. Both directions bound the encoded output by the step's `max_bytes`, before storing it. PDF text extraction refuses more than 2,000 pages and stops reading pages once `max_chars` is exceeded. Literal files are checked again against the run principal's current source-workflow access at admission.
+
+Sandbox output is also capped while streaming it from the host. A file that grows after measurement cannot bypass the remaining aggregate byte budget; the result JSON counts toward it. Finished called runs remain available until their caller ends, so retention cannot cause the waiting caller to repeat their side effects.
 
 ::: app.workflows.nodes.text_extract._handler.TextExtractOutput
 

@@ -165,9 +165,15 @@ class _Session:
             self.files[f"{job.ROOT}/job.pid"] = b"42"
         return 0, ""
 
-    async def read_bytes(self, path: str) -> bytes:
+    async def close(self) -> None:
+        pass
+
+    async def read_bytes(self, path: str, *, max_bytes: int = job.MAX_OUTPUT_BYTES) -> bytes:
         self.reads.append(path)
-        return self.files[path]
+        data = self.files[path]
+        if len(data) > max_bytes:
+            raise job._TooLarge
+        return data
 
     def _measured(self) -> str:
         if self.measured_as is not None:
@@ -518,7 +524,8 @@ class TestTheSandboxHost:
             row=SimpleNamespace(id="c1", base_url="http://sandboxd:8080", default_runtime="py"),
         )
         with patch("pydantic_ai_backends.workspaces.SandboxdWorkspace") as sandboxd:
-            job._open(resolved, "wf-key", None, "org")
+            opened = job._open(resolved, "wf-key", None, "org")
+            await opened.close()
         assert sandboxd.call_args.kwargs["session_name"] == "wf-key"
         assert sandboxd.call_args.kwargs["runtime"] == "py"
         assert sandboxd.call_args.kwargs["provider"] == "sandboxd:c1"

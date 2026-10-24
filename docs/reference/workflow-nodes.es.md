@@ -1,5 +1,5 @@
 ---
-source_sha: "a04367cfdf6b"
+source_sha: "f1e835b49eb5"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -585,6 +585,8 @@ paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo q
 pidió. Cada ejecución del paso pregunta una vez, así que un reintento o una
 iteración de un bucle nunca preguntan dos veces lo mismo.
 
+Los aprobadores nombrados deben ser miembros activos con `approvals:decide`. Se comprueba al publicar y de nuevo antes de pedir la aprobación. Si han perdido ese permiso, el paso falla con `APPROVER_UNAVAILABLE` en lugar de dejar una solicitud que nadie puede resolver.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
@@ -808,6 +810,10 @@ Los archivos de un run pueden sumar como máximo `WORKFLOW_RUN_MAX_FILE_BYTES`, 
 ::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
 
 ::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+Las conversiones CSV admiten como máximo 10.000 filas, 1.000 columnas y 1.000.000 de celdas. Ambos sentidos limitan la salida codificada a `max_bytes` del paso antes de guardarla. La extracción de texto PDF rechaza más de 2.000 páginas y deja de leer páginas cuando supera `max_chars`. Los archivos indicados directamente se comprueban de nuevo al admitir el run contra el acceso actual de su ejecutor al workflow de origen.
+
+Las salidas del sandbox también se limitan durante su descarga en streaming. Un archivo que crece después de medirse no evita el límite agregado de bytes restante; el JSON del resultado también cuenta. Los runs invocados ya terminados se conservan hasta que termine su invocador, para que la retención no provoque repetir sus efectos.
 
 ::: app.workflows.nodes.text_extract._handler.TextExtractOutput
 

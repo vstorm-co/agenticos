@@ -86,3 +86,29 @@ def test_a_next_page_the_path_cannot_read_ends_the_paging():
 
     paging = HttpPagination(mode="next_url", items_path="data", next_path="abs(next)")
     assert _next(paging, _page(), {"next": "text"}, base="https://x.example.com", number=1) is None
+
+
+@pytest.mark.security
+def test_query_credentials_are_redacted_in_urlencoded_echoes() -> None:
+    from app.core.secret_kinds import HttpCredentialSecret
+    from app.workflows.nodes._http import _scrub
+
+    secret = HttpCredentialSecret(token="secret token+value", origins=("https://api.example.com",))
+    assert (
+        _scrub("https://api.example.com/?key=secret+token%2Bvalue", secret)
+        == "https://api.example.com/?key=[redacted]"
+    )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("token", ['quote"token', "slash\\token", "zażółć token"])
+def test_json_escaped_credentials_are_scrubbed_after_decoding(token: str) -> None:
+    import httpx2
+
+    from app.core.secret_kinds import HttpCredentialSecret
+    from app.workflows.nodes._http import response_output
+
+    secret = HttpCredentialSecret(token=token, origins=("https://api.example.com",))
+    response = httpx2.Response(200, json={token: [token, {"nested": token}, False, None, 1]})
+    output = response_output(response, response.content, secret)
+    assert output.body == {"[redacted]": ["[redacted]", {"nested": "[redacted]"}, False, None, 1]}

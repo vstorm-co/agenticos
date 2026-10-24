@@ -304,7 +304,7 @@ describe("useWorkflow", () => {
     });
   });
 
-  it("invalidates only this workflow's detail and the list on a draft save", async () => {
+  it("uses the saved draft without refetching its graph or invalidating frozen versions", async () => {
     vi.mocked(api.getWorkflow).mockResolvedValue({ id: "wf-1" } as never);
     vi.mocked(api.updateWorkflowDraft).mockResolvedValue({
       id: "wf-1",
@@ -320,7 +320,9 @@ describe("useWorkflow", () => {
     });
 
     const keys = invalidatedKeys(invalidateQueries);
-    expect(keys).toContainEqual(["workflows", "wf-1"]);
+    expect(keys).not.toContainEqual(["workflows", "wf-1"]);
+    expect(api.getWorkflow).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.workflow?.draft_revision).toBe(4));
     expect(keys).toContainEqual(["workflows", "list"]);
     expect(keys).not.toContainEqual(["workflows"]);
   });

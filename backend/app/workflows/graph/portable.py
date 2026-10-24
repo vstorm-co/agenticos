@@ -18,18 +18,26 @@ an MCP server, a secret in a capability's settings. Those go, each listed, and
 the rest of the spec stays.
 """
 
-import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from pydantic import JsonValue
+from pydantic.json_schema import JsonSchemaValue
+
+from app.agents.capabilities import get as get_capability
+from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
 from app.workflows import _registry
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
 
-_MISSING = object()
-_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
+
+class _Omitted:
+    """A removed resource reference, distinct from a retained JSON null."""
+
+
+_MISSING = _Omitted()
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,36 +102,80 @@ def _strip(
     return value
 
 
-def _names_a_row(value: Any) -> bool:
-    return isinstance(value, str) and _UUID.fullmatch(value) is not None
+def _without_ids(value: JsonValue, path: str, found: list[tuple[str, str]]) -> JsonValue:
+    """Strip schema-declared resource fields, preserving UUID-shaped application data."""
+    schema = AgentSpec.model_json_schema()
+    stripped = _strip_spec(value, schema, schema.get("$defs", {}), path, found)
+    assert not isinstance(stripped, _Omitted)
+    return stripped
 
 
-def _without_ids(value: Any, path: str, found: list[tuple[str, str]]) -> Any:
-    """An agent spec's value with every id of this deployment taken out.
+def _spec_shape(
+    schema: JsonSchemaValue, defs: dict[str, JsonSchemaValue], value: JsonValue
+) -> JsonSchemaValue:
+    resolved = _resolve(schema, defs)
+    if isinstance(value, dict) and "oneOf" in resolved:
+        choices = [_resolve(branch, defs) for branch in resolved["oneOf"]]
+        return next(
+            (choice for choice in choices if set(choice.get("required", ())).issubset(value)),
+            resolved,
+        )
+    return resolved
 
-    By value rather than by schema, because a capability's settings are a free
-    dictionary its own schema describes, and a secret's id is in there. An id
-    goes, and so does the object that would be nothing without it - a list entry
-    naming a server or a delegate - rather than leave a reference half made.
-    """
-    if _names_a_row(value):
+
+def _strip_spec(
+    value: JsonValue,
+    schema: JsonSchemaValue,
+    defs: dict[str, JsonSchemaValue],
+    path: str,
+    found: list[tuple[str, str]],
+) -> JsonValue | _Omitted:
+    resolved = _spec_shape(schema, defs, value)
+    if value is None:
+        return None
+    if resolved.get("format") == "uuid" or resolved.get("x-resource"):
         found.append((path, "agent_spec"))
         return _MISSING
     if isinstance(value, dict):
-        kept: dict[str, Any] = {}
+        properties = resolved.get("properties", {})
+        # Capability settings have their own schema, outside AgentSpec's open
+        # config object. Resolve it here rather than guessing from each value.
+        capability_id = value.get("id")
+        if resolved.get("title") == "CapabilityBindingSpec" and isinstance(capability_id, str):
+            definition = get_capability(capability_id)
+            if definition.config_schema is not None:
+                config = definition.config_schema.model_json_schema()
+                properties = {**properties, "config": config}
+                defs = {**defs, **config.get("$defs", {})}
+        kept: dict[str, JsonValue] = {}
         for key, item in value.items():
-            stripped = _without_ids(item, f"{path}.{key}", found)
-            if stripped is not _MISSING:
+            item_path = f"{path}.{key}"
+            # Earlier bindings carried the vault id in config; it is still a
+            # credential reference even when the current schema omits it.
+            if key == "secret_id" and path.endswith(".config"):
+                found.append((item_path, "agent_spec"))
+                continue
+            stripped = _strip_spec(item, properties.get(key, {}), defs, item_path, found)
+            if not isinstance(stripped, _Omitted):
                 kept[key] = stripped
         return kept
     if isinstance(value, list):
-        kept_items = []
+        kept_items: list[JsonValue] = []
+        item_schema = resolved.get("items", {})
         for index, item in enumerate(value):
-            if isinstance(item, dict) and any(_names_a_row(field) for field in item.values()):
-                found.append((f"{path}.{index}", "agent_spec"))
+            item_shape = _spec_shape(item_schema, defs, item)
+            required = item_shape.get("required", ())
+            item_path = f"{path}.{index}"
+            if isinstance(item, dict) and any(
+                _resolve(item_shape.get("properties", {}).get(key, {}), defs).get("format")
+                == "uuid"
+                for key in required
+                if key in item
+            ):
+                found.append((item_path, "agent_spec"))
                 continue
-            stripped = _without_ids(item, f"{path}.{index}", found)
-            if stripped is not _MISSING:
+            stripped = _strip_spec(item, item_schema, defs, item_path, found)
+            if not isinstance(stripped, _Omitted):
                 kept_items.append(stripped)
         return kept_items
     return value

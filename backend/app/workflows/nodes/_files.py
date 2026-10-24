@@ -15,6 +15,11 @@ JSON = "application/json"
 TEXT = "text/plain"
 
 
+MAX_CSV_ROWS = 10_000
+MAX_CSV_COLUMNS = 1_000
+MAX_CSV_CELLS = 1_000_000
+
+
 class ParseError(ValueError):
     """The bytes are not what the step was asked to read them as."""
 
@@ -33,6 +38,8 @@ def csv_rows(text: str) -> tuple[dict[str, str], ...]:
         header = next(reader)
     except StopIteration:
         return ()
+    if len(header) > MAX_CSV_COLUMNS:
+        raise ParseError(f"A CSV holds at most {MAX_CSV_COLUMNS} columns")
     if len(set(header)) != len(header):
         raise ParseError("The CSV header names a column twice")
     rows: list[dict[str, str]] = []
@@ -41,6 +48,8 @@ def csv_rows(text: str) -> tuple[dict[str, str], ...]:
             continue
         if len(row) != len(header):
             raise ParseError(f"Row {number} has {len(row)} fields, the header has {len(header)}")
+        if len(rows) >= MAX_CSV_ROWS or (len(rows) + 1) * len(header) > MAX_CSV_CELLS:
+            raise ParseError("The CSV has too many rows or cells")
         rows.append(dict(zip(header, row, strict=True)))
     return tuple(rows)
 
@@ -55,14 +64,33 @@ def _cell(value: Any) -> str:
     raise ParseError("A CSV cell must be text, a number, true, false or empty")
 
 
-def csv_text(rows: Sequence[Mapping[str, Any]]) -> str:
+class _CsvBuffer(io.StringIO):
+    def __init__(self, max_bytes: int) -> None:
+        super().__init__()
+        self.remaining = max_bytes
+
+    def write(self, text: str) -> int:
+        size = len(text.encode("utf-8"))
+        if size > self.remaining:
+            raise ParseError("The CSV output exceeds its byte limit")
+        self.remaining -= size
+        return super().write(text)
+
+
+def csv_text(rows: Sequence[Mapping[str, Any]], *, max_bytes: int = 25_000_000) -> str:
     """Rows as CSV, with a header of every column in the order it first appears."""
+    if len(rows) > MAX_CSV_ROWS:
+        raise ParseError(f"A CSV holds at most {MAX_CSV_ROWS} rows")
     columns: list[str] = []
+    seen: set[str] = set()
     for row in rows:
         for column in row:
-            if column not in columns:
+            if column not in seen:
+                seen.add(column)
                 columns.append(column)
-    out = io.StringIO()
+                if len(columns) > MAX_CSV_COLUMNS or len(rows) * len(columns) > MAX_CSV_CELLS:
+                    raise ParseError("The CSV has too many columns or cells")
+    out = _CsvBuffer(max_bytes)
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(columns)
     for row in rows:

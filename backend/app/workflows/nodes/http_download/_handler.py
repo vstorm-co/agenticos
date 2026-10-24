@@ -106,7 +106,7 @@ async def check_resources(
 
 def _filename_from(url: str) -> str | None:
     name = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
-    return name[:255] or None
+    return name.replace("\x00", "")[:255] or None
 
 
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
