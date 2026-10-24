@@ -54,6 +54,7 @@ from app.core.exceptions import (
     NotFoundError,
     PaymentRequiredError,
 )
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.case_score import CaseScore
@@ -303,6 +304,9 @@ class RunPlan:
     from_recordings: bool
     live_reads: bool
     judged: bool
+    missing_baseline: int | None = None
+    """The version the candidate would be measured against, when no earlier run
+    of it can stand as the baseline."""
     ungraded: int = 0
     """Cases no required scorer can decide, which leave the result inconclusive."""
     excluded_case_ids: list[UUID] = field(default_factory=list)
@@ -539,6 +543,42 @@ class EvalRunService:
                 )
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
+        missing: int | None = None
+        if not paired:
+            execution = RunExecution(
+                environment_id=request.environment_id,
+                from_recordings=request.from_recordings,
+                live_reads=request.live_reads,
+            )
+            earlier, missing = (
+                (await self._named_earlier(ctx, request.baseline_run_id), None)
+                if request.baseline_run_id is not None
+                else await self._default_earlier(
+                    ctx,
+                    agent,
+                    dataset,
+                    source,
+                    version,
+                    scoring_hash=hashed,
+                    execution=execution,
+                    judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+                    judge_id=config.judge.agent_id,
+                )
+            )
+            if earlier is not None:
+                arms.append(earlier)
+        reruns = settings.EVAL_RERUNS if request.reruns is None else request.reruns
+        if reruns == 0 and any(arm.role is ArmRole.BASELINE for arm in arms):
+            needs = (
+                "A run measured against a baseline needs at least one rerun: a change is "
+                "confirmed only when both sides repeat it."
+            )
+            if request.reruns is not None:
+                raise refused_field("reruns", needs)
+            raise BadRequestError(
+                message=f"{needs} EVAL_RERUNS is 0 on this deployment.",
+                details={"reason": "no_reruns"},
+            )
         return RunPlan(
             agent=agent,
             dataset=dataset,
@@ -551,12 +591,116 @@ class EvalRunService:
             purpose=purpose,
             paired=paired,
             baseline_run_id=request.baseline_run_id,
-            reruns=settings.EVAL_RERUNS if request.reruns is None else request.reruns,
+            reruns=reruns,
             from_recordings=request.from_recordings,
             live_reads=request.live_reads,
             judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+            missing_baseline=missing,
             ungraded=sum(1 for case in cases if not decidable(case, config, ai_enabled=ai_enabled)),
             excluded_case_ids=excluded,
+        )
+
+    async def _named_earlier(self, ctx: AuthContext, run_id: UUID) -> ArmPlan:
+        """The candidate an earlier run measured, standing in as this run's baseline."""
+        earlier = await self._readable(ctx, run_id)
+        arms = await eval_run_repo.list_arms(
+            self.db, [earlier.id], organization_id=ctx.organization_id
+        )
+        first = next(arm for arm in arms if arm.role == ArmRole.CANDIDATE.value)
+        reused = await self._reuse(ctx, first, earlier)
+        if reused is None:
+            raise BadRequestError(
+                message="The version that run measured is gone, so it cannot be asked again",
+                details={"baseline_run_id": run_id},
+            )
+        return reused
+
+    async def _default_earlier(
+        self,
+        ctx: AuthContext,
+        agent: Agent,
+        dataset: Dataset,
+        source: ArmSource,
+        version: AgentVersion | None,
+        *,
+        scoring_hash: str,
+        execution: RunExecution,
+        judged: bool,
+        judge_id: UUID | None,
+    ) -> tuple[ArmPlan | None, int | None]:
+        """The last run of the version before the candidate that can stand as its baseline.
+
+        Before a version, the one before it; before a draft or a projection, what
+        is published. Only a run of that version as published - its model, no
+        proposed body, every case - graded the way this run will be, by the judge
+        and prompt that grade now, and executed the same way: anything else would
+        measure a difference nobody made. With none, the version it would have
+        been, so the caller can offer to run it.
+        """
+        if source is ArmSource.VERSION:
+            assert version is not None
+            previous = await agent_repo.version_before(
+                self.db,
+                agent_id=agent.id,
+                number=version.version,
+                organization_id=ctx.organization_id,
+            )
+        elif agent.current_version_id is not None:
+            previous = await agent_repo.get_version(
+                self.db, agent.current_version_id, organization_id=ctx.organization_id
+            )
+        else:
+            previous = None
+        if previous is None:
+            return None, None
+        spec = AgentSpec.model_validate(previous.spec)
+        found = await eval_run_repo.latest_arm(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            dataset_id=dataset.id,
+            agent_version_id=previous.id,
+            model_profile_id=spec.model_profile_id,
+            scoring_hash=scoring_hash,
+            execution=execution,
+        )
+        if found is None or not await self._graded_as_now(
+            ctx, found[0], judged=judged, judge_id=judge_id
+        ):
+            return None, previous.version
+        return await self._reuse(ctx, found[0], found[1]), None
+
+    async def _reuse(self, ctx: AuthContext, arm: EvalRunArm, run: EvalRun) -> ArmPlan | None:
+        """An earlier run's arm as this run's baseline: its first answers kept, its
+        flipped cases asked again here. None when its version is gone."""
+        if arm.source == ArmSource.VERSION.value:
+            if arm.agent_version_id is None:
+                return None
+            version = await agent_repo.get_version(
+                self.db, arm.agent_version_id, organization_id=ctx.organization_id
+            )
+            # The reference is set null when the version goes.
+            assert version is not None
+            spec = AgentSpec.model_validate(version.spec)
+        else:
+            version = None
+            spec = AgentSpec.model_validate(arm.spec)
+        return ArmPlan(
+            role=ArmRole.BASELINE,
+            source=ArmSource(arm.source),
+            version=version,
+            spec=spec,
+            model_profile_id=arm.model_profile_id,
+            model_label=arm.model_label,
+            cached=(arm, run),
+            skill_bodies={
+                UUID(key): SkillBody(description=body["description"], content=body["content"])
+                for key, body in (arm.skill_bodies or {}).items()
+            },
+            context_bodies={
+                UUID(key): ContextBody(description=body["description"], content=body["content"])
+                for key, body in (arm.context_bodies or {}).items()
+            },
         )
 
     async def _earlier_baseline(
@@ -767,7 +911,6 @@ class EvalRunService:
         )
         if found is None:
             return None
-        judge = await self._judge_agent(ctx, judge_id)
         attempts = await eval_run_repo.list_arm_cases(
             self.db, found[0].id, organization_id=ctx.organization_id
         )
@@ -777,6 +920,27 @@ class EvalRunService:
             if attempt.attempt == 0
         ):
             return None
+        graded = await self._graded_as_now(
+            ctx, found[0], judged=judged, judge_id=judge_id, attempts=attempts
+        )
+        return found if graded else None
+
+    async def _graded_as_now(
+        self,
+        ctx: AuthContext,
+        arm: EvalRunArm,
+        *,
+        judged: bool,
+        judge_id: UUID | None,
+        attempts: Sequence[EvalRunCase] | None = None,
+    ) -> bool:
+        """Whether an earlier arm was graded by the judge, and the prompt, that would
+        grade it now - or by no judge, when none would."""
+        if attempts is None:
+            attempts = await eval_run_repo.list_arm_cases(
+                self.db, arm.id, organization_id=ctx.organization_id
+            )
+        judge = await self._judge_agent(ctx, judge_id)
         scores = await eval_run_repo.scores(
             self.db,
             [a.case_score_id for a in attempts if a.case_score_id is not None],
@@ -788,8 +952,7 @@ class EvalRunService:
             if score.judge is not None and not _judge_graded_nothing(score)
         }
         current = str(judge.current_version_id) if judge and judge.current_version_id else None
-        now = {(current, JUDGE_PROMPT_VERSION)} if judged else set()
-        return found if pinned == now else None
+        return pinned == ({(current, JUDGE_PROMPT_VERSION)} if judged else set())
 
     async def estimate(
         self,
@@ -937,6 +1100,7 @@ class EvalRunService:
             affordable=(agent_left is None or arms_usd <= agent_left)
             and (org_left is None or total <= org_left),
             ungraded_cases=plan.ungraded,
+            missing_baseline_version=plan.missing_baseline,
         )
 
     async def _agent_left(self, ctx: AuthContext, plan: RunPlan) -> Decimal | None:
@@ -1589,6 +1753,54 @@ class EvalRunService:
             )
         return reads
 
+    async def pairing(
+        self,
+        ctx: AuthContext,
+        run: EvalRun,
+        candidate: EvalRunArm,
+        baseline: Baseline,
+        attempts: Sequence[EvalRunCase],
+    ) -> tuple[set[UUID], set[UUID]]:
+        """The cases both sides answered as the same case, and those that changed between.
+
+        A case is matched on its id and compared only when what it asks and
+        expects is the same on both sides: an edit to its check between the
+        baseline and the candidate is a change of the case, not of the agent.
+        `attempts` are this run's.
+        """
+        side = baseline.here or baseline.arm
+        side_attempts = (
+            attempts
+            if baseline.here is not None or baseline.run.id == run.id
+            else await eval_run_repo.list_cases(
+                self.db, baseline.run.id, organization_id=ctx.organization_id
+            )
+        )
+        mine = [a for a in await self._arm_attempts(ctx, candidate, attempts) if a.attempt == 0]
+        theirs = {
+            a.case_id: a.case_revision_id
+            for a in await self._arm_attempts(ctx, side, side_attempts)
+            if a.attempt == 0
+        }
+        revisions = await eval_run_repo.revisions(
+            self.db,
+            sorted({a.case_revision_id for a in mine} | set(theirs.values())),
+            organization_id=ctx.organization_id,
+        )
+        same: set[UUID] = set()
+        changed: set[UUID] = set()
+        for attempt in mine:
+            other = theirs.get(attempt.case_id)
+            if other is None:
+                continue
+            if other == attempt.case_revision_id or case_content(revisions[other]) == case_content(
+                revisions[attempt.case_revision_id]
+            ):
+                same.add(attempt.case_id)
+            else:
+                changed.add(attempt.case_id)
+        return same, changed
+
     async def _arm_attempts(
         self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
     ) -> list[EvalRunCase]:
@@ -1763,14 +1975,11 @@ class EvalRunService:
     ) -> Baseline | None:
         """What a candidate arm is compared with when nobody names a baseline.
 
-        The baseline that ran in this run, if one did. One reused from an
-        earlier run is that run's arm, so the comparison names where it came
-        from and when it finished. Then the earlier run the run was started
-        against, if it named one - its first candidate arm, the one its own
-        verdict reads. Otherwise the cheap default: the last
-        completed run of this dataset on the version before the candidate's
-        (the published one, for a draft), whatever its model and dataset
-        version - the comparison says both.
+        What the run was started against, and nothing chosen later: the baseline
+        that ran in this run, or the earlier run's arm standing in for it here -
+        that run's first answers, this run's reruns. A run written before the
+        baseline was kept on it as an arm names its earlier run instead; its
+        baseline was never asked again, so none of its flips is confirmed.
         """
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         paired = next((a for a in arms if a.role == ArmRole.BASELINE.value), None)
@@ -1778,39 +1987,18 @@ class EvalRunService:
             return Baseline(arm=paired, run=run, paired=True)
         if paired is not None:
             return await self._reused(ctx, paired)
-        if run.baseline_run_id is not None:
-            earlier = await eval_run_repo.get(
-                self.db, run.baseline_run_id, organization_id=ctx.organization_id
-            )
-            # The reference is set null when that run goes.
-            assert earlier is not None, "a run names only a baseline run that exists"
-            earlier_arms = await eval_run_repo.list_arms(
-                self.db, [earlier.id], organization_id=ctx.organization_id
-            )
-            first = next(a for a in earlier_arms if a.role == ArmRole.CANDIDATE.value)
-            return Baseline(arm=first, run=earlier, paired=False)
-        if arm.version_number is not None:
-            previous = await agent_repo.version_before(
-                self.db,
-                agent_id=run.agent_id,
-                number=arm.version_number,
-                organization_id=ctx.organization_id,
-            )
-            previous_id = previous.id if previous else None
-        else:
-            agent = await agent_repo.get(self.db, run.agent_id, organization_id=ctx.organization_id)
-            previous_id = agent.current_version_id if agent else None
-        if previous_id is None:
+        if run.baseline_run_id is None:
             return None
-        found = await eval_run_repo.latest_arm(
-            self.db,
-            organization_id=ctx.organization_id,
-            agent_id=run.agent_id,
-            dataset_id=run.dataset_id,
-            agent_version_id=previous_id,
-            exclude_run_id=run.id,
+        earlier = await eval_run_repo.get(
+            self.db, run.baseline_run_id, organization_id=ctx.organization_id
         )
-        return Baseline(arm=found[0], run=found[1], paired=False) if found else None
+        # The reference is set null when that run goes.
+        assert earlier is not None, "a run names only a baseline run that exists"
+        earlier_arms = await eval_run_repo.list_arms(
+            self.db, [earlier.id], organization_id=ctx.organization_id
+        )
+        first = next(a for a in earlier_arms if a.role == ArmRole.CANDIDATE.value)
+        return Baseline(arm=first, run=earlier, paired=False)
 
     async def _reused(self, ctx: AuthContext, arm: EvalRunArm) -> Baseline:
         assert arm.reused_from_arm_id is not None
@@ -1981,8 +2169,10 @@ class EvalRunService:
                 ),
             )
         )
-        confirmed_here = baseline.paired or baseline.here is not None
-        common = [case_id for case_id in mine if case_id in theirs]
+        drift = drifts(run, candidate, baseline)
+        confirmed_here = baseline.paired or (baseline.here is not None and not drift)
+        same, changed = await self.pairing(ctx, run, candidate, baseline, attempts)
+        common = [case_id for case_id in mine if case_id in theirs and case_id in same]
         paired_cases = [
             PairedCase(
                 case_id=case_id,
@@ -1991,6 +2181,7 @@ class EvalRunService:
                 baseline_reruns=theirs[case_id][1] if confirmed_here else (),
                 candidate_reruns=mine[case_id][1],
                 tags=mine[case_id][2],
+                drift=drift,
             )
             for case_id in common
         ]
@@ -2043,6 +2234,8 @@ class EvalRunService:
             fixed_unconfirmed=count(Flip.FIXED, False),
             compared=len(common),
             not_compared=len(set(mine) ^ set(theirs)),
+            changed=len(changed),
+            baseline_rerun=confirmed_here or drift,
             candidate_summary=_summary_read(mine_summary),
             baseline_summary=_summary_read(theirs_summary),
             efficiency=EfficiencyRead(
@@ -2204,6 +2397,38 @@ class EvalRunService:
 class _CaseAttempt:
     case_id: UUID
     attempt: Attempt
+
+
+def drifts(run: EvalRun, candidate: EvalRunArm, baseline: Baseline) -> bool:
+    """Whether a baseline is the candidate itself answering at an earlier time: the
+    same spec on the same model, executed the same way, whose reruns would only be
+    the candidate's again."""
+    earlier = baseline.run
+    return (
+        earlier.id != run.id
+        and candidate.spec_hash == baseline.arm.spec_hash
+        and candidate.model_profile_id == baseline.arm.model_profile_id
+        and earlier.environment_id == run.environment_id
+        and earlier.from_recordings == run.from_recordings
+        and earlier.live_reads == run.live_reads
+    )
+
+
+def case_content(revision: DatasetCase) -> str:
+    """What a case asks and expects, as one string: equal for two revisions an
+    answer would be graded the same against. Tags and the note are left out."""
+    return json.dumps(
+        {
+            "input": revision.input,
+            "history": revision.history,
+            "reference_answer": revision.reference_answer,
+            "counter_example": revision.counter_example,
+            "expected_tool_calls": revision.expected_tool_calls,
+            "order_mode": revision.order_mode,
+            "checks": revision.checks,
+        },
+        sort_keys=True,
+    )
 
 
 def _failed_alike(firsts: Sequence[EvalRunCase]) -> str | None:

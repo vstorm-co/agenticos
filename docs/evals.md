@@ -323,17 +323,29 @@ moved away from. A check measured against the draft itself counts in neither.
 A comparison matches the two sides case by case on the case's stable id, and
 reports each case as a **regression** (passed, now fails), **fixed** (failed,
 now passes), unchanged, or incomplete. Cases only one side answered are counted
-as not compared.
+as not compared. So is a case whose input, history, reference answer,
+counter-example, expected calls or checks changed between the two sides
+(`changed`): tightening a check is a change of the case, not of the agent, and
+the run's page says how many changed since the baseline. A change of its tags
+or note does not count.
+
+The baseline is chosen **when the run starts**, kept on the run as a side of its
+own, and never chosen again: opening the run after the next publish shows the
+same comparison.
 
 **The default baseline is cheap**: the last completed run of the same dataset
-on the version before the candidate - the published version, for a draft.
-Both sides are labelled with their date, model and dataset version, because the
-two may differ in any of them.
+on the version before the candidate - the published version, for a draft. Only
+a run of that version as published counts: on its own model, with no proposed
+skill or context body, every case answered, graded with the same scoring and
+run in the same environment with the same `from_recordings` and `live_reads`.
+When there is none, the run has no baseline; the estimate says so
+(`missing_baseline_version`), and the start dialog offers to run that version
+beside it instead. Both sides are labelled with their date, model and dataset
+version, because the two may differ in either of the last two.
 
 A run may instead name an **earlier run** of the same agent and dataset as its
-baseline (`baseline_run_id`), one that completed. Its flips are then rerun
-and confirmed against that run - which is how an [eval suite](#suites) checking the same version
-every day sees it drift.
+baseline (`baseline_run_id`), one that completed - which is how an
+[eval suite](#suites) checking the same version every day sees it drift.
 
 ### A baseline in the same run { #a-baseline-in-the-same-run }
 
@@ -355,11 +367,21 @@ A case that flipped is rerun `EVAL_RERUNS` times (2 by default) when the first
 answers are in. A regression is **confirmed** when every rerun of the candidate
 fails again and, for a baseline in the same run, every rerun of the baseline
 passes again; otherwise it is reported as **unconfirmed**. A fix is confirmed
-the same way. A baseline in the same run - one that answered here, or one whose
-first answers were reused - is rerun beside the candidate, so both sides confirm
-a flip the same day. A baseline from an earlier run, compared with when nothing
-ran beside the candidate, cannot be rerun, so only the candidate side confirms
-against it.
+the same way.
+
+Every baseline is rerun beside the candidate - one that answered
+here, or one whose first answers came from an earlier run - so both sides
+confirm a flip the same day, and one lucky answer of the baseline confirms
+nothing. The one exception is a baseline that is the candidate itself at an
+earlier time - the same spec on the same model, run the same way, as a suite
+checking one version every day compares with: its reruns would only be the
+candidate's again, so it is not rerun, and the candidate's reruns alone
+confirm the drift.
+
+A run compared with a baseline needs at least one rerun; a run with
+none may skip them. A run compared with an earlier run it never asked again -
+one written before baselines were kept on runs, or one compared by hand with
+another run - says so, and none of its flips is confirmed.
 
 Reruns raise the bar rather than lower it: a flip confirms only when it holds on
 every rerun, so more reruns confirm fewer flips. A small or cheap model that
@@ -495,9 +517,16 @@ Scheduled and dependency runs are compared with
 the suite's last passing run of the same version - the last state known to be
 good, so a case that broke stays broken until it is fixed - and so measure
 drift; a publish or a promotion runs its baseline in the same run. After a
-result that could not be compared with that run, the next one has no baseline:
-it is held to its own numbers and, passing, becomes the run the ones after it
-are compared with.
+result that could not be compared with that run - the grading changed since -
+the next one runs the version before beside it, graded the way it is now, so it
+can pass again and become the run the ones after it are compared with.
+
+When running both would cross the suite's `max_run_usd` and the candidate alone would
+not, the candidate runs without the version before beside it: against the last
+comparable run of that version if one is left, else held to its own numbers.
+When nothing compares, the result says "Not compared: running the earlier
+version too would exceed the suite's cost cap.", and a pass that says so tells
+its owner.
 
 A [check of the authoring assistant's suggestions](authoring.md#check-with-evals)
 run on a suite is held to the same threshold, but it is not a result of the

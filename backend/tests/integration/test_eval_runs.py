@@ -26,9 +26,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import SkillBody
 from app.agents.isolation import ToolRecording
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
@@ -185,6 +186,9 @@ class Model:
     `before(call)` runs first, as a person acting mid-run would;
     `fails_once_started(call)` raises after the run's row exists, as a provider's
     failure does; `manifest` records what the model was handed, as a real run does.
+    `before(call)` runs first, as a person acting mid-run would. `breaks` is a
+    question only `on` (a version number) answers wrong, so a baseline asked it
+    again in the same run passes as it did before.
     """
 
     def __init__(
@@ -198,9 +202,13 @@ class Model:
         raises: Any = lambda call: None,
         fails_once_started: Any = lambda call: None,
         manifest: bool = False,
+        breaks: str | None = None,
+        on: int = 7,
     ) -> None:
         self.db = db
         self.answer = answer
+        self.breaks = breaks
+        self.on = on
         self.status = status
         self.before = before
         self.tools = tools
@@ -274,6 +282,14 @@ class Model:
                     )
                 )
         await self.db.flush()
+        if self.breaks is not None:
+            version = (
+                await self.db.get(AgentVersion, candidate.version_id)
+                if isinstance(candidate, PublishedCandidate)
+                else None
+            )
+            broken = prompt == self.breaks and (version is None or version.version == self.on)
+            return (_FAIL if broken else _PASS), run
         return self.answer(prompt, call), run
 
 
@@ -464,11 +480,11 @@ async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regressio
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    model = Model(db, breaks="Question 0")
     await _run_to_end(db, model, v7.id, ctx)
 
-    # Four answers, then the one flipped case twice more.
-    assert len(model.calls) == 6
+    # Four answers, then the one flipped case twice more on each side.
+    assert len(model.calls) == 8
     comparison = await service.compare(ctx, v7.id)
     assert comparison.baseline is not None and comparison.baseline.run_id == v6.id
     assert comparison.baseline.version_number == 6
@@ -476,6 +492,7 @@ async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regressio
     assert comparison.regressions_confirmed == 1
     regression = next(case for case in comparison.cases if case.flip == "regression")
     assert regression.candidate_reruns == [False, False]
+    assert regression.baseline_reruns == [True, True]
     assert regression.input == "Question 0"
     # A case that breaks every time makes it worse; one flip says nothing overall.
     assert (comparison.verdict, comparison.overall) == ("worse", None)
@@ -486,7 +503,8 @@ async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regressio
     with pytest.raises(NotFoundError, match="Arm not found"):
         await service.cases(ctx, v7.id, arm_id=uuid.uuid4(), outcome="failed")
     assert [case.input for case in failed.items] == ["Question 0"]
-    assert [attempt.attempt for attempt in failed.items[0].attempts] == [0, 1, 2]
+    # The candidate's tries, then v6's: its first answer from its run, its reruns here.
+    assert [attempt.attempt for attempt in failed.items[0].attempts] == [0, 1, 2, 0, 1, 2]
 
 
 async def test_a_case_the_agent_crashes_on_where_it_passed_is_a_regression_naming_why(
@@ -501,9 +519,11 @@ async def test_a_case_the_agent_crashes_on_where_it_passed_is_a_regression_namin
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
     model = Model(db)
+    v7_version = v7.arms[0].agent_version_id
     model.raises = lambda call: (
         RuntimeError("the lookup tool exploded")
         if model.calls[call]["prompt"] == "Question 0"
+        and model.calls[call]["candidate"].version_id == v7_version
         else None
     )
 
@@ -542,6 +562,240 @@ async def test_a_case_only_the_candidate_answered_still_counts_as_undecided(db) 
     assert comparison.compared == 2
     assert comparison.candidate_summary.ungraded == 0
     assert read.outcome is not None and read.outcome.candidate_undecided == 1
+
+
+async def test_a_run_keeps_the_baseline_it_started_with_whatever_ran_since(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    first_v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), first_v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), v7.id, ctx)
+    before = await service.compare(ctx, v7.id)
+
+    later_v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), later_v6.id, ctx)
+
+    after = await service.compare(ctx, v7.id)
+    assert before.baseline is not None and after.baseline is not None
+    assert before.baseline.run_id == after.baseline.run_id == first_v6.id
+    read = await service.get(ctx, v7.id)
+    assert [arm.role for arm in read.arms] == ["candidate", "baseline"]
+    assert read.arms[1].reused_from_arm_id is not None
+
+
+async def test_an_earlier_run_that_served_a_proposed_skill_body_is_no_baseline(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    proposed = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, version=6),
+        candidate_skills={
+            uuid.uuid4(): SkillBody(description="Refunds", content="Nobody accepted this")
+        },
+    )
+    await _run_to_end(db, Model(db), proposed.id, ctx)
+
+    estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    assert estimate.missing_baseline_version == 6
+    assert [arm.role for arm in estimate.arms] == ["candidate"]
+
+
+async def test_a_case_edited_since_the_baseline_is_not_compared(db) -> None:
+    """Tightening a check is a change of the case, not of the agent; a new tag is neither."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    ids = {case.input: case.case_id for case in (await service.cases(ctx, v6.id)).items}
+    datasets = DatasetService(db)
+    await datasets.update_case(
+        ctx,
+        dataset.id,
+        ids["Question 0"],
+        DatasetCaseUpdate(checks=[{"type": "contains", "value": "45 days"}]),
+    )
+    await datasets.update_case(
+        ctx, dataset.id, ids["Question 1"], DatasetCaseUpdate(tags=["shipping"])
+    )
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db)
+    await _run_to_end(db, model, v7.id, ctx)
+
+    comparison = await service.compare(ctx, v7.id)
+    assert (comparison.changed, comparison.compared) == (1, 1)
+    assert comparison.regressions_confirmed + comparison.regressions_unconfirmed == 0
+    # A case that is not compared is not asked again.
+    assert len(model.calls) == 2
+
+
+async def test_a_run_measured_against_a_baseline_needs_a_rerun(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6, reruns=0)
+    )
+    await _run_to_end(db, Model(db), v6.id, ctx)
+
+    with pytest.raises(BadRequestError) as refused:
+        await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, reruns=0))
+    assert refused.value.details["fields"][0]["field"] == "reruns"
+    with pytest.raises(BadRequestError):
+        await service.estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=0)
+        )
+
+
+async def test_an_older_run_naming_an_earlier_one_confirms_none_of_its_flips(db) -> None:
+    """A run written before the baseline was kept as an arm of it: its earlier run was
+    never asked again, so nothing it shows is confirmed, and it says so."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db, breaks="Question 0"), v7.id, ctx)
+    # As the code before kept it: no baseline arm, the earlier run named on the run.
+    await db.execute(
+        delete(EvalRunArm).where(EvalRunArm.eval_run_id == v7.id, EvalRunArm.role == "baseline")
+    )
+    await db.execute(update(EvalRun).where(EvalRun.id == v7.id).values(baseline_run_id=v6.id))
+    await db.flush()
+    db.expire_all()
+
+    comparison = await service.compare(ctx, v7.id)
+
+    assert comparison.baseline is not None and comparison.baseline.run_id == v6.id
+    assert comparison.baseline_rerun is False
+    [regression] = [case for case in comparison.cases if case.flip == "regression"]
+    assert (regression.confirmed, comparison.regressions_confirmed) == (False, 0)
+
+
+async def test_a_baseline_whose_reruns_do_not_repeat_its_pass_confirms_nothing(db) -> None:
+    """The provider moved between the two days, not the spec: the baseline fails too."""
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db)
+    model.answer = lambda prompt, call: (
+        _FAIL
+        if model.calls[call]["candidate"].version_id == versions[7].id
+        or sum(1 for c in model.calls[: call + 1] if c["candidate"].version_id == versions[6].id)
+        == 2
+        else _PASS
+    )
+
+    await _run_to_end(db, model, v7.id, ctx)
+
+    comparison = await service.compare(ctx, v7.id)
+    [regression] = comparison.cases
+    assert regression.baseline_reruns == [True, False]
+    assert (regression.confirmed, comparison.verdict) == (False, "no_difference")
+
+
+async def test_a_named_earlier_run_of_the_draft_stands_in_as_the_baseline(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    draft = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft")
+    )
+    await _run_to_end(db, Model(db), draft.id, ctx)
+
+    v7 = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=draft.id)
+    )
+
+    [_, baseline] = v7.arms
+    assert (baseline.role, baseline.source, baseline.version_number) == ("baseline", "draft", None)
+
+
+async def test_an_earlier_run_whose_version_is_gone_cannot_be_named(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    for arm in (
+        await db.execute(select(EvalRunArm).where(EvalRunArm.eval_run_id == v6.id))
+    ).scalars():
+        arm.agent_version_id = None
+    await db.flush()
+
+    with pytest.raises(BadRequestError, match="cannot be asked again"):
+        await service.estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=v6.id)
+        )
+
+
+async def test_the_draft_of_an_agent_nobody_published_has_no_baseline_to_offer(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    agent.current_version_id = None
+    await db.flush()
+    dataset = await _dataset(db, ctx, cases=1)
+
+    estimate = await EvalRunService(db).estimate(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft")
+    )
+
+    assert (estimate.missing_baseline_version, [a.role for a in estimate.arms]) == (
+        None,
+        ["candidate"],
+    )
+
+
+async def test_an_earlier_run_graded_by_another_judge_is_no_default_baseline(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    await _pin(db, v6.id, {"agent_version_id": str(uuid.uuid4()), "prompt_version": 1})
+
+    estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    assert estimate.missing_baseline_version == 6
+
+
+async def test_a_deployment_with_no_reruns_refuses_a_comparison_naming_no_field(db) -> None:
+    """The caller sent no `reruns`: a refusal naming the field would point at nothing."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+
+    with (
+        patch("app.services.eval_run.settings.EVAL_RERUNS", 0),
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await service.estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True)
+        )
+    assert refused.value.details == {"reason": "no_reruns"}
+
+
+
+
 
 
 async def test_a_flip_its_reruns_undo_counts_as_it_settled(db) -> None:
@@ -733,10 +987,15 @@ async def test_a_different_scoring_makes_the_comparison_invalid(db) -> None:
     await _run_to_end(db, Model(db), v6.id, ctx)
     dataset.scoring = {"review": {"select": "all"}}
     await db.flush()
-    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    # Graded another way, v6's run is no default baseline; named, it does not compare.
+    unnamed = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    v7 = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=v6.id)
+    )
     await _run_to_end(db, Model(db), v7.id, ctx)
 
     comparison = await service.compare(ctx, v7.id)
+    assert unnamed.missing_baseline_version == 6
     assert comparison.verdict == "invalid"
     assert comparison.invalid_reason is not None
 
@@ -1135,7 +1394,7 @@ async def test_cases_with_their_own_judge_checks_still_compare(db) -> None:
     dataset = await _dataset(db, ctx, cases=2)
     service = EvalRunService(db)
     started = await service.start(
-        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=0)
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=1)
     )
     await _run_to_end(db, Model(db), started.id, ctx)
     attempts = (
@@ -1177,7 +1436,7 @@ async def test_a_case_added_since_the_baseline_is_not_compared(db) -> None:
         DatasetCaseCreate(input="New question", checks=[{"type": "contains", "value": "x"}]),
     )
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "New question" else _PASS)
+    model = Model(db, breaks="New question")
     await _run_to_end(db, model, v7.id, ctx)
 
     comparison = await service.compare(ctx, v7.id)
@@ -1682,7 +1941,7 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert v6.outcome is None
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    model = Model(db, breaks="Question 0")
     await _run_to_end(db, model, v7.id, ctx)
 
     listed = {run.id: run for run in (await service.list_for_agent(ctx, agent.id)).items}
@@ -1698,8 +1957,9 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert (outcome.candidate_pass_rate, outcome.baseline_pass_rate) == (0.75, 1.0)
     assert (outcome.candidate_first_pass_rate, outcome.baseline_first_pass_rate) == (0.75, 1.0)
     read = await service.get(ctx, v7.id)
-    assert (read.cases, read.first_done, read.first_total, read.attempts_total) == (4, 4, 4, 6)
-    assert read.rerun_ceiling_usd == Decimal("0.08")
+    assert (read.cases, read.first_done, read.first_total, read.attempts_total) == (4, 4, 4, 8)
+    # Either side may be asked a flipped case again, the earlier run's v6 included.
+    assert read.rerun_ceiling_usd == Decimal("0.16")
 
     # Read again, the verdict is the one kept rather than compared anew.
     stored = await db.get(EvalRun, v7.id)
@@ -2149,9 +2409,13 @@ async def _errored(
     status: str = "error",
     reason_code: str = "judge_run_failed",
 ) -> CaseScore:
-    """One of the run's scores - one that kept `answer`, when given - as a scorer
-    that reached no verdict would have left it."""
-    query = select(CaseScore).where(CaseScore.eval_run_id == run_id)
+    """One of the run's first answers' scores - one that kept `answer`, when given -
+    as a scorer that reached no verdict would have left it."""
+    query = (
+        select(CaseScore)
+        .join(EvalRunCase, EvalRunCase.case_score_id == CaseScore.id)
+        .where(CaseScore.eval_run_id == run_id, EvalRunCase.attempt == 0)
+    )
     if answer is not None:
         query = query.where(CaseScore.answer == answer)
     score = (await db.execute(query.limit(1))).scalar_one()
@@ -2246,7 +2510,7 @@ async def test_a_run_sends_its_confirmed_regressions_to_review_itself(db) -> Non
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    model = Model(db, breaks="Question 0")
     await _run_to_end(db, model, v7.id, ctx)
 
     read = await service.get(ctx, v7.id)
@@ -2292,7 +2556,7 @@ async def test_what_a_run_sends_to_review_is_what_a_person_should_see(db) -> Non
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    model = Model(db, breaks="Question 0")
     await _run_to_end(db, model, v7.id, ctx)
     run = await db.get(EvalRun, v7.id)
     assert run is not None
@@ -2332,7 +2596,7 @@ async def test_a_run_that_cannot_send_to_review_still_completes_and_says_why(db)
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    model = Model(db, breaks="Question 0")
     refused = BadRequestError(message="The review queue is closed", code="REVIEW_CLOSED")
 
     with patch.object(ScoringService, "route_to_review", new=AsyncMock(side_effect=refused)):
@@ -2378,7 +2642,7 @@ async def test_a_run_cancelled_before_its_reruns_queues_none(db) -> None:
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    model = Model(db, breaks="Question 0")
     worker = EvalRunWorker(v7.id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock())
 
     async def execute(runner, *args, **kwargs):
@@ -2668,8 +2932,6 @@ async def test_an_answer_to_a_history_an_erasure_scrubbed_meanwhile_is_not_kept(
 async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:
     """A skill change is measured with the agent held still: the candidate serves the
     proposed body, the baseline the stored one."""
-    from app.agents.capabilities.skills import SkillBody
-
     ctx = await _owner(db)
     agent, versions = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=1)
@@ -2851,12 +3113,14 @@ async def test_a_run_measured_against_an_earlier_one_confirms_its_flips_against_
         agent.id,
         EvalRunRequest(dataset_id=dataset.id, version=7, baseline_run_id=earlier.id),
     )
-    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 1" else _PASS)
+    model = Model(db, breaks="Question 1")
     await _run_to_end(db, model, later.id, ctx)
 
     comparison = await service.compare(ctx, later.id)
     assert comparison.baseline is not None and comparison.baseline.run_id == earlier.id
     assert (comparison.regressions_confirmed, comparison.paired) == (1, False)
+    # The same version on the same model: only the candidate is asked again.
+    assert (len(model.calls), comparison.baseline_rerun) == (4, True)
 
 
 @pytest.mark.security

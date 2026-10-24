@@ -1,5 +1,5 @@
 ---
-source_sha: "9a2454fdfc40"
+source_sha: "94e8bac713d5"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -344,17 +344,30 @@ Una comprobación medida contra el propio borrador no cuenta en ninguno de los d
 Una comparación empareja los dos lados caso por caso según el id estable del
 caso, e informa de cada caso como **regresión** (aprobaba, ahora no),
 **arreglado** (no aprobaba, ahora sí), sin cambios o incompleto. Los casos que
-solo respondió un lado cuentan como no comparados.
+solo respondió un lado cuentan como no comparados. También un caso cuya
+entrada, historial, respuesta de referencia, contraejemplo, llamadas esperadas o
+checks cambiaron entre los dos lados (`changed`): endurecer un check es un
+cambio del caso, no del agent, y la página del run dice cuántos cambiaron desde
+el baseline. Un cambio de sus etiquetas o de su nota no cuenta.
+
+El baseline se elige **cuando empieza el run**, se guarda en el run como un lado
+propio y nunca se vuelve a elegir: abrir el run después de la siguiente
+publicación muestra la misma comparación.
 
 **El baseline por defecto es barato**: el último run completado del mismo
 dataset en la versión anterior al candidato - la versión publicada, para un
-borrador. Ambos lados llevan su fecha, su modelo y su versión del dataset,
-porque pueden diferir en cualquiera de ellos.
+borrador. Solo cuenta un run de esa versión tal como se publicó: en su propio
+modelo, sin contenido propuesto de skill ni de contexto, con todos los casos
+respondidos, puntuado con la misma puntuación y ejecutado en el mismo entorno
+con los mismos `from_recordings` y `live_reads`. Si no hay ninguno, el run no
+tiene baseline; la estimación lo dice (`missing_baseline_version`), y el diálogo
+de inicio ofrece ejecutar esa versión a su lado en su lugar. Ambos lados llevan
+su fecha, su modelo y su versión del dataset, porque pueden diferir en
+cualquiera de los dos últimos.
 
 Un run puede nombrar en su lugar un **run anterior** del mismo agent sobre el
-mismo dataset como baseline (`baseline_run_id`). Sus cambios se repiten y se
-confirman entonces frente a ese run: así una [suite de evals](#suites) que
-comprueba la misma versión cada día ve la deriva.
+mismo dataset como baseline (`baseline_run_id`), uno que se completó: así una
+[suite de evals](#suites) que comprueba la misma versión cada día ve la deriva.
 
 ### Un baseline en el mismo run { #a-baseline-in-the-same-run }
 
@@ -378,11 +391,22 @@ Un caso que cambió se repite `EVAL_RERUNS` veces (2 por defecto) cuando ya
 están las primeras respuestas. Una regresión está **confirmada** cuando cada
 repetición del candidato vuelve a fallar y, con un baseline en el mismo run,
 cada repetición del baseline vuelve a aprobar; si no, se informa como **no
-confirmada**. Un arreglo se confirma igual. Un baseline en el mismo run - uno
-que respondió aquí o cuyas primeras respuestas se reutilizaron - se repite junto
-al candidato, así que ambos lados confirman un cambio el mismo día. Un baseline
-de un run anterior, comparado cuando nada se ejecutó junto al candidato, no
-puede repetirse: frente a él solo confirma el lado del candidato.
+confirmada**. Un arreglo se confirma igual.
+
+Todo baseline se repite junto al candidato - uno que respondió aquí o uno cuyas
+primeras respuestas vinieron de un run anterior -, así que ambos lados confirman
+un cambio el mismo día, y una respuesta afortunada del baseline no confirma
+nada. La única excepción es un baseline que es el propio candidato en un
+momento anterior - el mismo spec sobre el mismo modelo, ejecutado de la misma
+forma, como aquel con el que compara una suite que comprueba una versión cada
+día: sus repeticiones solo volverían a ser las del candidato, así que no se
+repite, y solo las repeticiones del candidato confirman la deriva.
+
+Un run comparado con un baseline necesita al menos una repetición; un run sin
+baseline puede omitirlas. Un run comparado con un run anterior al que nunca
+volvió a preguntar - uno escrito antes de que los baselines se guardaran en los
+runs, o uno comparado a mano con otro run - lo dice, y ninguno de sus cambios
+queda confirmado.
 
 Las repeticiones suben el listón en vez de bajarlo: un cambio solo se confirma
 cuando se mantiene en cada repetición, así que más repeticiones confirman menos
@@ -535,9 +559,17 @@ ejecuciones por horario y por dependencia se comparan con la última ejecución
 aprobada de la suite sobre la misma versión - el último estado que se sabe
 bueno, así que un caso que se rompió sigue roto hasta que alguien lo arregla -
 y así miden la deriva; una publicación o una promoción ejecutan su baseline en
-el mismo run. Tras un resultado que no se pudo comparar con esa ejecución, la
-siguiente no tiene baseline: se mide por sus propios números y, si aprueba, es
-la ejecución con la que se comparan las siguientes.
+el mismo run. Tras un resultado que no se pudo comparar con esa ejecución -
+porque la puntuación cambió desde entonces -, la siguiente ejecuta a su lado la
+versión anterior, puntuada como se puntúa ahora, para que pueda volver a aprobar
+y ser la ejecución con la que se comparan las siguientes.
+
+Cuando ejecutar ambos superaría el `max_run_usd` de la suite, pero el candidato
+por sí solo no, el candidato se ejecuta sin la versión anterior a su lado:
+contra la última ejecución comparable de esa versión si queda alguna y, si no,
+se mide con sus propios números. Cuando nada es comparable, el resultado dice
+«Not compared: running the earlier version too would exceed the suite's cost
+cap.», y un resultado aprobado que lo dice avisa al propietario de la suite.
 
 Una [comprobación de las sugerencias del asistente de autoría](authoring.md#check-with-evals)
 ejecutada en una suite se mide con el mismo umbral, pero no es un resultado de la

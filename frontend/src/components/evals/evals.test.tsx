@@ -584,6 +584,7 @@ describe("ArmsTable", () => {
         tag={null}
         live={false}
         baseline={{ ...comparison().candidate, run_id: "run-0", version_number: 6 }}
+        baselineSummary={SUMMARY}
         arms={[
           arm(),
           arm({
@@ -614,11 +615,31 @@ describe("ArmsTable", () => {
         tag={null}
         live
         baseline={{ ...comparison().candidate, run_id: "run-0", finished_at: null }}
+        baselineSummary={null}
         arms={[arm({ id: "arm-2", role: "baseline", reused_from_arm_id: "arm-0" })]}
       />,
     );
     expect(screen.getByRole("link", { name: "reused" })).toBeVisible();
     expect(screen.getByRole("columnheader", { name: "Pending" })).toBeVisible();
+  });
+
+  it("shows the earlier run an older run was measured against beside it", () => {
+    render(
+      <ArmsTable
+        agentId="agent-1"
+        tag={null}
+        live={false}
+        baseline={{ ...comparison().candidate, run_id: "run-0", version_number: 6 }}
+        baselineSummary={{ ...SUMMARY, pass_rate: 0.47 }}
+        arms={[arm()]}
+      />,
+    );
+    const earlier = within(screen.getByRole("row", { name: /v6 · gpt-4.1/ }));
+    expect(earlier.getByText("47%")).toBeInTheDocument();
+    expect(earlier.getByRole("link", { name: /result from the run of/ })).toHaveAttribute(
+      "href",
+      "/agents/agent-1/evals/run-0",
+    );
   });
 });
 

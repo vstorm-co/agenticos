@@ -179,4 +179,18 @@ describe("resultReasons", () => {
       resultReasons(suiteResult({ status: "failed", reason: "cancelled", summary: null }), t, "en"),
     ).toEqual([]);
   });
+
+  it("says first that a result was not compared when a pair would have crossed the ceiling", () => {
+    const alone = (status: "passed" | "failed") =>
+      suiteResult({
+        status,
+        reason: "not_compared_cost_cap",
+        summary: suiteSummary({ reasons: status === "failed" ? [shortfall] : [] }),
+      });
+    expect(resultReasons(alone("passed"), t, "en")).toEqual(["notCompared"]);
+    expect(resultReasons(alone("failed"), t, "en")).toEqual([
+      "notCompared",
+      "reason.passRateBelow(50%,80%)",
+    ]);
+  });
 });

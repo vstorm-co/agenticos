@@ -109,6 +109,13 @@ from app.services.eval_suite_threshold import judge
 logger = logging.getLogger(__name__)
 
 MAX_FAILING_CASES = 20
+
+# A run that measured its candidate alone, because running the earlier version too
+# would have crossed the suite's ceiling; kept on its result and told its owner.
+NOT_COMPARED = "not_compared_cost_cap"
+NOT_COMPARED_MESSAGE = (
+    "Not compared: running the earlier version too would exceed the suite's cost cap."
+)
 _INPUT_CHARS = 120
 _SWEEP_SCHEDULES = 100
 _SWEEP_STARTS = 20
@@ -128,6 +135,11 @@ _BOUND_FIELD: dict[DependencyKind, Literal["skill_ids", "collection_ids", "conte
 # A refusal the eval run gave that means the suite cannot run as set up, rather
 # than that its owner lost access - the reason the console words for each.
 _REFUSALS = ("ai_assistance_off", "no_scorer", "only_anonymised")
+
+
+def _uncompared(run: EvalRunRead) -> bool:
+    """Whether a run started alone found no earlier run to measure it against either."""
+    return not any(arm.role == "baseline" for arm in run.arms)
 
 
 class _OverCap(Exception):
@@ -963,16 +975,15 @@ class EvalSuiteService:
             due_at=now,
             baseline_version=baseline_version,
         )
-        baseline = (
-            None
-            if baseline_version is not None
-            else await self._earlier_run(suite, version.id, now=now)
-        )
-        request = self._request(
-            suite, version.version, baseline_version=baseline_version, baseline_run=baseline
-        )
+        alone: EvalRunRequest | None = None
+        if baseline_version is None:
+            request, alone = await self._drift_request(suite, version.id, version.version, now=now)
+        else:
+            request = self._request(
+                suite, version.version, baseline_version=baseline_version, baseline_run=None
+            )
         try:
-            await self._within_cap(ctx, suite, request)
+            request, ran_alone = await self._capped(ctx, suite, request, alone)
         except _OverCap as over:
             raise BadRequestError(
                 message=(
@@ -996,13 +1007,36 @@ class EvalSuiteService:
                 "status": EvalSuiteResultStatus.RUNNING.value,
                 "run_as_user_id": ctx.user_id,
                 "eval_run_id": run.id,
-                "baseline_eval_run_id": baseline,
+                "baseline_eval_run_id": request.baseline_run_id,
+                "reason": NOT_COMPARED if ran_alone and _uncompared(run) else None,
                 "started_at": now,
             },
         )
         assert result is not None, "a running result never conflicts with a waiting one"
         self._announce(suite)
         return result
+
+    async def _capped(
+        self,
+        ctx: AuthContext,
+        suite: EvalSuite,
+        request: EvalRunRequest,
+        alone: EvalRunRequest | None,
+    ) -> tuple[EvalRunRequest, bool]:
+        """The run to start within the suite's ceiling, and whether it is the one alone.
+
+        A pair that fits runs as a pair. One that would cross the ceiling, where
+        the candidate alone - `alone` - would not, runs the candidate alone,
+        held to its own numbers. Neither fitting raises `_OverCap`.
+        """
+        try:
+            await self._within_cap(ctx, suite, request)
+        except _OverCap:
+            if alone is None:
+                raise
+            await self._within_cap(ctx, suite, alone)
+            return alone, True
+        return request, False
 
     async def _within_cap(
         self, ctx: AuthContext, suite: EvalSuite, request: EvalRunRequest
@@ -1336,23 +1370,22 @@ class EvalSuiteService:
                 result, EvalSuiteResultStatus.SKIPPED, reason="version_gone", now=now
             )
             return False
-        baseline = (
-            None
-            if result.baseline_version_number is not None
-            else await self._earlier_run(suite, result.agent_version_id, now=now)
-        )
-        request = self._request(
-            suite,
-            result.version_number,
-            baseline_version=result.baseline_version_number,
-            baseline_run=baseline,
-        )
+        alone: EvalRunRequest | None = None
+        if result.baseline_version_number is None:
+            request, alone = await self._drift_request(
+                suite, result.agent_version_id, result.version_number, now=now
+            )
+        else:
+            request = self._request(
+                suite,
+                result.version_number,
+                baseline_version=result.baseline_version_number,
+                baseline_run=None,
+            )
         try:
             async with self.db.begin_nested():
-                await self._within_cap(owner, suite, request)
-                run = await self.evals.start(
-                    owner, suite.agent_id, request, scoring=_pinned_scoring(suite)
-                )
+                request, ran_alone = await self._capped(owner, suite, request, alone)
+                run = await self.evals.start(owner, suite.agent_id, request, scoring=_pinned_scoring(suite))
         except _OverCap as over:
             message = (
                 f"The run was estimated at ${over.estimate:.2f}, over this suite's "
@@ -1402,7 +1435,8 @@ class EvalSuiteService:
                 "status": EvalSuiteResultStatus.RUNNING.value,
                 "run_as_user_id": owner.user_id,
                 "eval_run_id": run.id,
-                "baseline_eval_run_id": baseline,
+                "baseline_eval_run_id": request.baseline_run_id,
+                "reason": NOT_COMPARED if ran_alone and _uncompared(run) else None,
                 "started_at": now,
             },
         )
@@ -1430,40 +1464,41 @@ class EvalSuiteService:
             baseline_run_id=baseline_run,
         )
 
-    async def _earlier_run(
-        self, suite: EvalSuite, version_id: UUID, *, now: datetime
-    ) -> UUID | None:
-        """The eval run of this suite's last passing result on the same version and
-        dataset, to measure drift against.
+    async def _drift_request(
+        self, suite: EvalSuite, version_id: UUID, number: int, *, now: datetime
+    ) -> tuple[EvalRunRequest, EvalRunRequest | None]:
+        """The run a suite starts when nothing names its baseline, and the one it may
+        start alone instead.
 
-        The last state known to be good, not merely the last run: measured against
-        yesterday's failure, a case still broken today would not have flipped, and
-        a suite that had just gone red would read green again with the agent
-        unchanged. None once a later result could not be compared with it - the
-        judge or the scoring changed since - or once it was graded under other
-        scoring than the suite reads now, a guard's pin having moved: the next run
-        is held to its own numbers and, passing, becomes the state the ones after
-        it are measured against.
+        Its drift baseline, or, after a result that could not be compared, the
+        version before beside it - with the candidate alone to fall back on, so a
+        pair over the suite's ceiling runs uncompared rather than skipped every
+        time (`_capped`).
         """
-        passed = await eval_suite_repo.previous_settled(
-            self.db,
-            suite_id=suite.id,
-            agent_version_id=version_id,
-            before=now,
-            organization_id=suite.organization_id,
-            passed_on_dataset=suite.dataset_id,
+        baseline_version, baseline = await self._drift_baseline(suite, version_id, number, now=now)
+        request = self._request(
+            suite, number, baseline_version=baseline_version, baseline_run=baseline
         )
-        if passed is None or passed.settled_at is None or passed.eval_run_id is None:
-            return None
-        run = await eval_run_repo.get(
-            self.db, passed.eval_run_id, organization_id=suite.organization_id
-        )
-        dataset = await dataset_repo.get(
-            self.db, suite.dataset_id, organization_id=suite.organization_id
-        )
-        assert dataset is not None, "a suite's dataset outlives it"
-        if run is None or run.scoring_hash != scoring_hash(reads_now(suite, dataset)[1]):
-            return None
+        if baseline_version is None:
+            return request, None
+        return request, self._request(suite, number, baseline_version=None, baseline_run=None)
+
+    async def _drift_baseline(
+        self, suite: EvalSuite, version_id: UUID, number: int, *, now: datetime
+    ) -> tuple[int | None, UUID | None]:
+        """What a run that names no baseline is measured against: `(version, run)`.
+
+        The suite's last passing run of this version, to show drift. Once a later
+        result could not be compared with it - the judge or the scoring changed
+        since - an old run graded the old way would make every run after it
+        incomparable too, so the version before runs beside it instead, graded
+        the way it is now (the version itself, when it is the first). With no
+        passing run at all, neither: the run is measured against the last
+        comparable run of the version before, if there is one.
+        """
+        passed = await self._earlier_run(suite, version_id, now=now)
+        if passed is None or passed.settled_at is None:
+            return None, None
         if await eval_suite_repo.incomparable_since(
             self.db,
             suite_id=suite.id,
@@ -1471,8 +1506,33 @@ class EvalSuiteService:
             since=passed.settled_at,
             organization_id=suite.organization_id,
         ):
-            return None
-        return passed.eval_run_id
+            previous = await agent_repo.version_before(
+                self.db,
+                agent_id=suite.agent_id,
+                number=number,
+                organization_id=suite.organization_id,
+            )
+            return (previous.version if previous else number), None
+        return None, passed.eval_run_id
+
+    async def _earlier_run(
+        self, suite: EvalSuite, version_id: UUID, *, now: datetime
+    ) -> EvalSuiteResult | None:
+        """This suite's last passing result on the same version and dataset.
+
+        The last state known to be good, not merely the last run: measured against
+        yesterday's failure, a case still broken today would not have flipped, and
+        a suite that had just gone red would read green again with the agent
+        unchanged.
+        """
+        return await eval_suite_repo.previous_settled(
+            self.db,
+            suite_id=suite.id,
+            agent_version_id=version_id,
+            before=now,
+            organization_id=suite.organization_id,
+            passed_on_dataset=suite.dataset_id,
+        )
 
     async def settle_finished(self, *, now: datetime) -> int:
         """Hold every result whose eval run has ended to its threshold."""
@@ -1562,7 +1622,12 @@ class EvalSuiteService:
             reasons=reasons,
             failing_cases=await self._failing(reader, read, comparison),
         )
-        await self._finish(result, status, summary=summary, now=now)
+        uncompared = result.reason == NOT_COMPARED
+        if uncompared:
+            summary = summary.model_copy(update={"message": NOT_COMPARED_MESSAGE})
+        await self._finish(
+            result, status, summary=summary, reason=result.reason if uncompared else None, now=now
+        )
 
     async def _failing(
         self, reader: AuthContext, read: EvalRunRead, comparison: EvalComparisonRead
@@ -1678,7 +1743,8 @@ class EvalSuiteService:
         assert suite is not None, "a result goes with its suite"
         if status is EvalSuiteResultStatus.PASSED and result.agent_version_id is not None:
             await self._follow(suite, result)
-        if alerting_since is not None and alerting_since == result.id:
+        passed_alone = status is EvalSuiteResultStatus.PASSED and reason == NOT_COMPARED
+        if (alerting_since is not None and alerting_since == result.id) or passed_alone:
             from app.services.notifications import NotificationService
 
             agent = await agent_repo.get(

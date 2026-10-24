@@ -37,7 +37,7 @@ import { Perm } from "@/types/permissions";
 import { EstimateSummary } from "./estimate-summary";
 import { type EvalTarget, TARGET_REQUEST, useEvalTarget } from "./eval-target";
 import { usd } from "./format";
-import { StartEvalFields, TargetChoice } from "./start-eval-fields";
+import { StartEvalFields, TargetChoice, Toggle } from "./start-eval-fields";
 
 /** How long the fields sit still before the estimate is asked for again. */
 const ESTIMATE_DEBOUNCE_MS = 400;
@@ -80,6 +80,8 @@ export function StartEvalDialog({
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const [chosenAgent, setChosenAgent] = useState<string | null>(null);
   const [chosenTarget, setChosenTarget] = useState<EvalTarget | null>(givenTarget ?? null);
+  // The version before runs beside the candidate when no earlier run of it compares.
+  const [besideBaseline, setBesideBaseline] = useState(false);
   const [request, setRequest] = useState<EvalRunRequest>({
     ...BLANK,
     dataset_id: givenDataset ?? "",
@@ -109,7 +111,12 @@ export function StartEvalDialog({
   const full: EvalRunRequest | null =
     agentId === null || target === null || datasetId === ""
       ? null
-      : { ...request, dataset_id: datasetId, ...TARGET_REQUEST[target] };
+      : {
+          ...request,
+          dataset_id: datasetId,
+          ...TARGET_REQUEST[target],
+          ...(besideBaseline && target === "version" ? { paired_baseline: true } : {}),
+        };
   // The fields as a value: a new object every render is not a new request.
   const asked = full === null ? null : JSON.stringify(full);
 
@@ -199,6 +206,17 @@ export function StartEvalDialog({
             scoring={dataset?.scoring ?? null}
             judgeName={dataset?.judge_name ?? null}
           />
+        )}
+        {target === "version" && (besideBaseline || priced?.missing_baseline_version != null) && (
+          <div className="space-y-2 text-sm">
+            {!besideBaseline && <p className="text-warning text-xs">{t("noEarlierRun")}</p>}
+            <Toggle
+              checked={besideBaseline}
+              onChange={setBesideBaseline}
+              label={t("besideBaseline")}
+              hint={t("besideBaselineHint")}
+            />
+          </div>
         )}
         {failure && (
           <div role="alert" className="text-destructive space-y-1 text-sm">

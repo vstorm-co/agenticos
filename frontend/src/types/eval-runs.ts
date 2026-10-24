@@ -91,6 +91,8 @@ export interface EvalRunEstimate {
   affordable: boolean;
   /** Cases nothing in the dataset's scoring would grade; any makes the result inconclusive. */
   ungraded_cases: number;
+  /** The version this run would be measured against, when no comparable earlier run of it exists. */
+  missing_baseline_version: number | null;
 }
 
 /** Both axes for one arm: quality as each case settled on its attempts, efficiency over first ones. */
@@ -312,6 +314,10 @@ export interface EvalComparison {
   fixed_unconfirmed: number;
   compared: number;
   not_compared: number;
+  /** Cases both sides answered whose input or expectations changed between them. */
+  changed: number;
+  /** Whether the baseline was asked the flipped cases again; false leaves every flip unconfirmed. */
+  baseline_rerun: boolean;
   candidate_summary: ArmSummary;
   baseline_summary: ArmSummary | null;
   efficiency: Efficiency | null;

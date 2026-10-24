@@ -1,5 +1,5 @@
 ---
-source_sha: "9a2454fdfc40"
+source_sha: "94e8bac713d5"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -365,17 +365,33 @@ Prüfung, die am Draft selbst gemessen wurde, zählt in keinem von beiden.
 Ein Vergleich ordnet beide Seiten Fall für Fall über die stabile ID des Falls
 zu und meldet jeden Fall als **Regression** (bestanden, jetzt nicht mehr),
 **behoben** (nicht bestanden, jetzt bestanden), unverändert oder unvollständig.
-Fälle, die nur eine Seite beantwortet hat, zählen als nicht verglichen.
+Fälle, die nur eine Seite beantwortet hat, zählen als nicht verglichen. Ebenso
+ein Fall, dessen Eingabe, Verlauf, Referenzantwort, Gegenbeispiel, erwartete
+Aufrufe oder Checks sich zwischen den beiden Seiten geändert haben (`changed`):
+Einen Check zu verschärfen ist eine Änderung des Falls, nicht des Agents, und
+die Seite des Runs sagt, wie viele sich seit der Baseline geändert haben. Eine
+Änderung seiner Tags oder seiner Notiz zählt nicht.
+
+Die Baseline wird **beim Start des Runs** gewählt, als eigene Seite am Run
+gespeichert und nie neu gewählt: Wer den Run nach der nächsten Veröffentlichung
+öffnet, sieht denselben Vergleich.
 
 **Die Standard-Baseline ist günstig**: der letzte abgeschlossene Run desselben
 Datasets auf der Version vor dem Kandidaten - bei einem Draft die
-veröffentlichte Version. Beide Seiten sind mit Datum, Modell und
-Dataset-Version beschriftet, weil sie sich in jedem davon unterscheiden können.
+veröffentlichte Version. Es zählt nur ein Run dieser Version, wie sie
+veröffentlicht ist: auf ihrem eigenen Modell, ohne vorgeschlagenen Skill- oder
+Kontextinhalt, mit jedem Fall beantwortet, mit demselben Scoring bewertet und in
+derselben Umgebung mit denselben `from_recordings` und `live_reads` gelaufen.
+Gibt es keinen, hat der Run keine Baseline; die Schätzung sagt das
+(`missing_baseline_version`), und der Startdialog bietet an, diese Version
+stattdessen daneben laufen zu lassen. Beide Seiten sind mit Datum, Modell und
+Dataset-Version beschriftet, weil sie sich in den letzten beiden davon
+unterscheiden können.
 
 Ein Run kann stattdessen einen **früheren Run** desselben Agents auf demselben
-Dataset als Baseline nennen (`baseline_run_id`). Seine gekippten Fälle werden
-dann gegen diesen Run wiederholt und bestätigt - so sieht eine
-[Eval-Suite](#suites), die täglich dieselbe Version prüft, die Drift.
+Dataset als Baseline nennen (`baseline_run_id`), einen abgeschlossenen - so
+sieht eine [Eval-Suite](#suites), die täglich dieselbe Version prüft, die
+Drift.
 
 ### Eine Baseline im selben Run { #a-baseline-in-the-same-run }
 
@@ -399,12 +415,24 @@ Ein gekippter Fall wird `EVAL_RERUNS` Mal (standardmäßig 2) wiederholt, sobald
 die ersten Antworten vorliegen. Eine Regression ist **bestätigt**, wenn jede
 Wiederholung des Kandidaten wieder nicht besteht und - bei einer Baseline im
 selben Run - jede Wiederholung der Baseline wieder besteht; sonst wird sie als
-**unbestätigt** gemeldet. Eine Behebung wird genauso bestätigt. Eine Baseline
-im selben Run - eine, die hier geantwortet hat, oder eine, deren erste Antworten
-wiederverwendet wurden - wird neben dem Kandidaten wiederholt, sodass beide
-Seiten ein Kippen am selben Tag bestätigen. Eine Baseline aus einem früheren
-Run, mit der verglichen wird, wenn nichts neben dem Kandidaten lief, lässt sich
-nicht wiederholen, daher bestätigt ihr gegenüber nur die Seite des Kandidaten.
+**unbestätigt** gemeldet. Eine Behebung wird genauso bestätigt.
+
+Jede Baseline wird neben dem Kandidaten wiederholt - eine, die hier geantwortet
+hat, oder eine, deren erste Antworten aus einem früheren Run stammen -, sodass
+beide Seiten ein Kippen am selben Tag bestätigen und eine glückliche Antwort der
+Baseline nichts bestätigt. Die einzige Ausnahme ist eine Baseline, die der
+Kandidat selbst zu einem früheren Zeitpunkt ist - derselbe Spec auf demselben
+Modell, auf dieselbe Weise ausgeführt, wie sie eine Suite, die täglich eine
+Version prüft, zum Vergleich heranzieht: Ihre Wiederholungen wären nur wieder
+die des Kandidaten, daher wird sie nicht wiederholt, und die Wiederholungen des
+Kandidaten allein bestätigen die Drift.
+
+Ein Run, der mit einer Baseline verglichen wird, braucht mindestens eine
+Wiederholung; ein Run ohne Baseline darf sie überspringen. Ein Run, der mit
+einem früheren Run verglichen wird, den er nie erneut gefragt hat - einer, der
+geschrieben wurde, bevor Baselines an Runs gespeichert wurden, oder einer, der
+von Hand mit einem anderen Run verglichen wurde -, sagt das, und keiner seiner
+gekippten Fälle ist bestätigt.
 
 Wiederholungen heben die Latte, statt sie zu senken: Ein Kippen gilt nur als
 bestätigt, wenn es bei jeder Wiederholung hält, daher bestätigen mehr
@@ -564,9 +592,18 @@ einer Abhängigkeit werden mit dem letzten bestandenen Lauf der Suite auf
 derselben Version verglichen - dem letzten als gut bekannten Stand, sodass ein
 gebrochener Fall gebrochen bleibt, bis ihn jemand behebt - und messen so die
 Drift; eine Veröffentlichung oder Promotion lässt ihre Baseline im selben Run
-laufen. Nach einem Ergebnis, das sich mit diesem Lauf nicht vergleichen ließ,
-hat der nächste keine Baseline: Er wird an seinen eigenen Zahlen gemessen und
-ist, wenn er besteht, der Lauf, mit dem die folgenden verglichen werden.
+laufen. Nach einem Ergebnis, das sich mit diesem Lauf nicht vergleichen ließ -
+weil sich die Bewertung seitdem geändert hat -, lässt der nächste die Version
+davor neben sich laufen, so bewertet, wie es jetzt geschieht, damit er wieder
+bestehen und der Lauf werden kann, mit dem die folgenden verglichen werden.
+
+Wenn beide zusammen das `max_run_usd` der Suite überschreiten würden, der
+Kandidat allein aber nicht, läuft der Kandidat ohne die Version davor neben
+sich: verglichen mit dem letzten vergleichbaren Lauf dieser Version, wenn noch
+einer da ist, sonst an seinen eigenen Zahlen gemessen. Lässt sich nichts
+vergleichen, sagt das Ergebnis „Not compared: running the earlier version too
+would exceed the suite's cost cap.“, und ein bestandenes Ergebnis, das das sagt,
+benachrichtigt den Eigentümer der Suite.
 
 Eine [Prüfung der Vorschläge des Authoring-Assistenten](authoring.md#check-with-evals)
 auf einer Suite wird am selben Schwellenwert gemessen, ist aber kein Ergebnis der

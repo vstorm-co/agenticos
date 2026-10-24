@@ -142,6 +142,14 @@ class EvalRunEstimate(BaseSchema):
     agent_after_usd: Decimal | None
     org_after_usd: Decimal | None
     affordable: bool
+    missing_baseline_version: int | None = Field(
+        default=None,
+        description=(
+            "The version this run would be measured against, when no earlier run of it "
+            "was graded and executed the same way; the run then has no baseline unless "
+            "that version runs beside it (`paired_baseline`)"
+        ),
+    )
     ungraded_cases: int = Field(
         default=0,
         description=(
@@ -516,6 +524,21 @@ class EvalComparisonRead(BaseSchema):
     fixed_unconfirmed: int
     compared: int
     not_compared: int
+    changed: int = Field(
+        default=0,
+        description=(
+            "Cases both sides answered whose input or expectations changed between them; "
+            "they are not compared"
+        ),
+    )
+    baseline_rerun: bool = Field(
+        default=True,
+        description=(
+            "Whether the baseline was asked the flipped cases again. False for a run "
+            "measured against an earlier run it could not rerun - none of its flips is "
+            "confirmed"
+        ),
+    )
     candidate_summary: ArmSummaryRead
     baseline_summary: ArmSummaryRead | None
     efficiency: EfficiencyRead | None

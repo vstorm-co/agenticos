@@ -9,9 +9,12 @@ The rules are the ones a gate can trust:
   case. A case nothing grades is ungraded; one a provider or a scorer failed
   on, or whose tries tied, is incomplete. Neither is ever counted as a pass,
   and both are counted beside the pass rate rather than dropped.
-* **A flip is confirmed only when it reproduces.** A case that changed outcome
-  is rerun; it stays a regression (or a fix) only if every rerun repeats it on
-  the side it was rerun on.
+* **A flip is confirmed only when it reproduces on both sides.** A case that
+  changed outcome is rerun on the candidate and on the baseline; it stays a
+  regression (or a fix) only if every rerun repeats it on the side it was rerun
+  on. A baseline nobody reran confirms nothing, however it came out once -
+  unless it is the candidate itself at an earlier time, the same spec on the
+  same model, whose reruns would only be the candidate's again.
 * **A verdict rests on confirmed flips.** One confirmed regression makes the
   candidate worse, confirmed fixes alone make it better, both make it mixed.
   An exact McNemar test over the confirmed flips says separately whether the
@@ -95,8 +98,8 @@ class PairedCase:
         case_id: The stable case id both sides were matched on.
         baseline: The baseline's first attempt.
         candidate: The candidate's first attempt.
-        baseline_reruns: The baseline's confirmation attempts - empty when the
-            baseline is a past run, which cannot be rerun.
+        baseline_reruns: The baseline's confirmation attempts - empty for a
+            baseline that was never rerun, which leaves every flip unconfirmed.
         candidate_reruns: The candidate's confirmation attempts.
         tags: The case's tags, for the per-tag breakdown.
     """
@@ -107,6 +110,8 @@ class PairedCase:
     baseline_reruns: tuple[Outcome, ...] = ()
     candidate_reruns: tuple[Outcome, ...] = ()
     tags: tuple[str, ...] = ()
+    drift: bool = False
+    """The baseline is the candidate's own spec and model, answering at an earlier time."""
 
     @property
     def flip(self) -> Flip:
@@ -116,9 +121,11 @@ class PairedCase:
     def confirmed(self) -> bool:
         """Whether every rerun repeated the flip on the side it was rerun on.
 
-        A flip nobody reran is unconfirmed, whatever it looks like.
+        A flip either side was not rerun on is unconfirmed, whatever it looks like.
         """
-        if self.flip not in (Flip.REGRESSION, Flip.FIXED) or not self.candidate_reruns:
+        if self.flip not in (Flip.REGRESSION, Flip.FIXED):
+            return False
+        if not self.candidate_reruns or not (self.baseline_reruns or self.drift):
             return False
         return all(run is self.candidate for run in self.candidate_reruns) and all(
             run is self.baseline for run in self.baseline_reruns

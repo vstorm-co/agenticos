@@ -1,5 +1,5 @@
 ---
-source_sha: "9a2454fdfc40"
+source_sha: "94e8bac713d5"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -344,16 +344,29 @@ względem samego draftu nie liczy się w żadnym z nich.
 Porównanie dopasowuje obie strony przypadek po przypadku według stałego id
 przypadku i podaje każdy jako **regresję** (był zaliczony, teraz nie jest),
 **naprawiony** (nie był, teraz jest), bez zmian albo niepełny. Przypadki, na
-które odpowiedziała tylko jedna strona, liczą się jako nieporównane.
+które odpowiedziała tylko jedna strona, liczą się jako nieporównane. Tak samo
+przypadek, którego wejście, historia, odpowiedź wzorcowa, kontrprzykład,
+oczekiwane wywołania albo checki zmieniły się między stronami (`changed`):
+zaostrzenie checku to zmiana przypadku, nie agenta, a strona runa podaje, ile
+przypadków zmieniło się od baseline'u. Zmiana tagów albo notatki się nie liczy.
+
+Baseline jest wybierany **przy starcie runa**, zapisywany w runie jako osobna
+strona i nigdy nie jest wybierany ponownie: run otwarty po następnej publikacji
+pokazuje to samo porównanie.
 
 **Domyślny baseline jest tani**: ostatni zakończony run tego samego datasetu na
-wersji przed kandydatem - dla draftu na opublikowanej wersji. Obie strony są
-opisane datą, modelem i wersją datasetu, bo mogą się różnić w każdej z nich.
+wersji przed kandydatem - dla draftu na opublikowanej wersji. Liczy się tylko
+run tej wersji w opublikowanej postaci: na jej własnym modelu, bez proponowanej
+treści skilla ani kontekstu, z odpowiedzią na każdy przypadek, oceniony tym
+samym ocenianiem i uruchomiony w tym samym środowisku z tymi samymi
+`from_recordings` i `live_reads`. Gdy takiego nie ma, run nie ma baseline'u;
+oszacowanie to mówi (`missing_baseline_version`), a dialog startu proponuje
+zamiast tego uruchomić tę wersję obok. Obie strony są opisane datą, modelem i
+wersją datasetu, bo mogą się różnić w każdej z dwóch ostatnich.
 
 Run może zamiast tego wskazać jako baseline **wcześniejszy run** tego samego
-agenta na tym samym datasecie (`baseline_run_id`). Jego odwrócenia są wtedy
-powtarzane i potwierdzane względem tamtego runa - tak
-[suita evali](#suites) sprawdzająca codziennie tę samą wersję widzi dryf.
+agenta na tym samym datasecie (`baseline_run_id`), taki, który się zakończył -
+tak [suita evali](#suites) sprawdzająca codziennie tę samą wersję widzi dryf.
 
 ### Baseline w tym samym runie { #a-baseline-in-the-same-run }
 
@@ -376,12 +389,22 @@ Przypadek, który się odwrócił, jest powtarzany `EVAL_RERUNS` razy (domyślni
 2), gdy są już pierwsze odpowiedzi. Regresja jest **potwierdzona**, gdy każda
 powtórka kandydata znowu nie przechodzi, a przy baseline'ie w tym samym runie
 każda powtórka baseline'u znowu przechodzi; w przeciwnym razie jest podawana
-jako **niepotwierdzona**. Naprawa jest potwierdzana tak samo. Baseline w tym
-samym runie - taki, który odpowiadał tutaj, albo taki, którego pierwsze
-odpowiedzi wykorzystano - jest powtarzany obok kandydata, więc obie strony
-potwierdzają odwrócenie tego samego dnia. Baseline'u z wcześniejszego runa,
-porównywanego, gdy nic nie działało obok kandydata, nie da się powtórzyć, więc
-wobec niego potwierdza tylko strona kandydata.
+jako **niepotwierdzona**. Naprawa jest potwierdzana tak samo.
+
+Każdy baseline jest powtarzany obok kandydata - taki, który odpowiadał tutaj,
+albo taki, którego pierwsze odpowiedzi pochodzą z wcześniejszego runa - więc obie
+strony potwierdzają odwrócenie tego samego dnia, a jedna szczęśliwa odpowiedź
+baseline'u niczego nie potwierdza. Jedynym wyjątkiem jest baseline, który jest
+samym kandydatem we wcześniejszym czasie - ten sam spec na tym samym modelu,
+uruchomiony tak samo, jak ten, z którym porównuje się suita sprawdzająca
+codziennie jedną wersję: jego powtórki byłyby znowu tylko powtórkami kandydata,
+więc nie jest powtarzany, a dryf potwierdzają same powtórki kandydata.
+
+Run porównywany z baseline'em potrzebuje co najmniej jednej powtórki; run bez
+baseline'u może je pominąć. Run porównany z wcześniejszym runem, któremu nigdy
+nie zadał pytań ponownie - zapisany, zanim baseline'y były przechowywane w
+runach, albo porównany ręcznie z innym runem - mówi o tym, i żadne z jego
+odwróceń nie jest potwierdzone.
 
 Powtórki podnoszą poprzeczkę, a nie ją obniżają: odwrócenie jest potwierdzone
 tylko wtedy, gdy utrzyma się przy każdej powtórce, więc więcej powtórek
@@ -535,8 +558,17 @@ zależności porównuje się z ostatnim zaliczonym runem suity na tej samej
 wersji - ostatnim stanem znanym jako dobry, więc przypadek, który się zepsuł,
 pozostaje zepsuty, dopóki ktoś go nie naprawi - i dzięki temu mierzą dryf;
 publikacja i promocja uruchamiają baseline w tym samym runie. Po wyniku,
-którego nie dało się porównać z tym runem, następny nie ma baseline'u: liczą
-się tylko jego własne wyniki, a jeśli przejdzie, z nim porównuje się kolejne.
+którego nie dało się porównać z tym runem - bo od tamtej pory zmieniło się
+ocenianie - następny uruchamia obok siebie poprzednią wersję, ocenianą tak, jak
+teraz, więc może znowu przejść i stać się runem, z którym porównuje się kolejne.
+
+Gdy uruchomienie obu przekroczyłoby `max_run_usd` suity, a sam kandydat by go
+nie przekroczył, kandydat uruchamia się bez poprzedniej wersji obok siebie:
+porównuje się go z ostatnim porównywalnym runem tamtej wersji, jeśli taki
+jeszcze jest, a w przeciwnym razie ocenia według własnych liczb. Gdy nie ma z
+czym porównać, wynik mówi „Not compared: running the earlier version too would
+exceed the suite's cost cap.”, a zaliczony wynik z tą informacją powiadamia
+właściciela suity.
 
 [Sprawdzenie sugestii asystenta tworzenia](authoring.md#check-with-evals)
 uruchomione na suicie jest oceniane według tego samego progu, ale nie jest
