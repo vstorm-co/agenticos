@@ -38,6 +38,7 @@ const hooks = vi.hoisted(() => ({
   setActive: undefined as unknown,
   runNow: undefined as unknown,
   remove: undefined as unknown,
+  movePin: undefined as unknown,
   estimate: undefined as unknown,
   results: [] as unknown[],
   resultsLoading: false,
@@ -55,6 +56,7 @@ vi.mock("@/hooks/use-eval-suites", () => ({
     setActive: hooks.setActive,
     runNow: hooks.runNow,
     remove: hooks.remove,
+    movePin: hooks.movePin,
     estimate: hooks.estimate,
   }),
   useEvalSuiteResults: () => ({
@@ -108,6 +110,7 @@ beforeEach(() => {
   hooks.setActive = mutation();
   hooks.runNow = mutation();
   hooks.remove = mutation();
+  hooks.movePin = mutation();
   hooks.estimate = mutation();
   hooks.results = [];
   hooks.resultsLoading = false;
@@ -248,12 +251,104 @@ describe("EvalSuitesCard", () => {
 });
 
 describe("SuiteResultsSheet", () => {
-  async function open(results: EvalSuiteResult[]) {
+  async function open(results: EvalSuiteResult[], suite: EvalSuite = evalSuite()) {
     hooks.results = results;
     hooks.total = results.length;
-    card([evalSuite()]);
+    card([suite]);
     await userEvent.click(screen.getByRole("button", { name: "Results of Nightly" }));
   }
+
+  it("says what a guard is pinned to and moves it on for whoever may override", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({
+        pin: { dataset_version: 7, latest_dataset_version: 9, scoring_current: false },
+      }),
+    );
+
+    expect(screen.getAllByText("Pinned to v7").length).toBeGreaterThan(0);
+    const sheet = screen.getByRole("dialog");
+    expect(
+      within(sheet).getByText("Pinned to dataset v7. The dataset is now at v9."),
+    ).toBeInTheDocument();
+    expect(within(sheet).getByText("Its grading has changed since.")).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Move the pin to v9" }));
+    expect((hooks.movePin as Mutation).mutate).toHaveBeenCalledWith("suite-1");
+  });
+
+  it("shows a pin it may not move as disabled, saying why", async () => {
+    await open(
+      [],
+      evalSuite({ pin: { dataset_version: 7, latest_dataset_version: 9, scoring_current: true } }),
+    );
+
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByRole("button", { name: "Move the pin to v9" })).toBeDisabled();
+    expect(
+      within(sheet).getByText("Moving the pin needs permission to override promotions."),
+    ).toBeInTheDocument();
+  });
+
+  it("says only which version a guard is pinned to when the reader cannot see its dataset", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({
+        pin: { dataset_version: 7, latest_dataset_version: null, scoring_current: null },
+      }),
+    );
+
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByText("Pinned to dataset v7.")).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Move the pin/ })).toBeNull();
+  });
+
+  it("says a guard is not pinned yet and pins it for whoever may override", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({
+        pin: { dataset_version: null, latest_dataset_version: 2, scoring_current: null },
+      }),
+    );
+
+    expect(screen.getAllByText("Not pinned").length).toBeGreaterThan(0);
+    const sheet = screen.getByRole("dialog");
+    expect(
+      within(sheet).getByText(
+        "Not pinned to a dataset version yet, so it holds every promotion back until it is pinned.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Move the pin to v2" }));
+    expect((hooks.movePin as Mutation).mutate).toHaveBeenCalledWith("suite-1");
+  });
+
+  it("offers no pin while a guard's dataset has no version to pin it to", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({
+        pin: { dataset_version: null, latest_dataset_version: 0, scoring_current: null },
+      }),
+    );
+
+    expect(
+      within(screen.getByRole("dialog")).queryByRole("button", { name: /Move the pin/ }),
+    ).toBeNull();
+  });
+
+  it("offers no move when the guard checks the dataset as it is", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({ pin: { dataset_version: 9, latest_dataset_version: 9, scoring_current: true } }),
+    );
+
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByText("Guards on dataset v9, as it is now.")).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Move the pin/ })).toBeNull();
+  });
 
   it("lists each result: how it came out, why, which cases broke, and its run", async () => {
     access.allowed = new Set([Perm.orgSettings]);

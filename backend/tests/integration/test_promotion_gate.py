@@ -19,9 +19,10 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
+import anyio
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
     AuthorizationError,
@@ -33,22 +34,25 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.audit_log import AppAdminAuditLog
-from app.db.models.dataset import Dataset
+from app.db.models.dataset import Dataset, DatasetVersion
+from app.db.models.eval_run import EvalRun
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.notification import Notification
 from app.db.models.promotion_gate import EnvironmentGuard, PromotionOverride
-from app.repositories import promotion_gate_repo
+from app.repositories import eval_suite_repo, promotion_gate_repo
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate
 from app.schemas.eval_suite import EvalSuiteThreshold, EvalSuiteUpdate
 from app.schemas.promotion_gate import PromotionGateRun
-from app.schemas.scoring import DatasetScoring
+from app.schemas.scoring import DatasetScoring, JudgeCreate
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import DatasetService
+from app.services.eval_run import scoring_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.promotion_gate import PromotionGateService
 from app.services.run_reaper import RunReaperService
+from app.services.scoring import ScoringService
 from tests.integration.test_eval_suites import (
     _FAIL,
     Model,
@@ -254,53 +258,343 @@ async def test_a_run_whose_job_was_withdrawn_leaves_checking_for_inconclusive(db
     assert gate.passing is False
 
 
-async def test_a_pass_over_an_older_dataset_version_or_threshold_is_stale(db) -> None:
-    """Cases added since the pass, or a bar raised since, are not what passed."""
+async def test_editing_a_guards_dataset_leaves_what_it_checks_until_the_pin_moves(db) -> None:
+    """Cases, grading and the judge are a builder's to edit; what a guard reads is not."""
     ctx = await _owner(db)
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
     agent, first = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx)
+    dataset = await _dataset(db, builder)
     env_id, suite = await _guarded(db, ctx, agent, first, dataset)
+    pinned = (suite.pinned_dataset_version, suite.pinned_scoring)
+    assert pinned == (dataset.latest_version, dataset.scoring)
     second = await _published(db, ctx, agent)
     await _run_guards(db, ctx, agent, env_id, second, Model(db))
     assert (await _check(db, ctx, agent, env_id, second)).passing
 
     await DatasetService(db).add_case(
-        ctx,
+        builder,
         dataset.id,
         DatasetCaseCreate(
             input="A new question", checks=[{"type": "contains", "value": "30 days"}]
         ),
     )
-    after_cases = await _check(db, ctx, agent, env_id, second)
+    scoring = ScoringService(db)
+    await scoring.set_scoring(
+        builder,
+        dataset.id,
+        DatasetScoring.model_validate(
+            {**dataset.scoring, "trajectory": {"enabled": False, "required": False}}
+        ),
+    )
+    await scoring.create_judge(builder, dataset.id, JudgeCreate(name="Lenient judge"))
+    edited = await _check(db, ctx, agent, env_id, second)
+    third = await _published(db, ctx, agent)
+    await _run_guards(db, ctx, agent, env_id, third, Model(db))
+    [result] = [row for row in await _results(db, suite.id) if row.version_number == third.version]
+    run = await db.get(EvalRun, result.eval_run_id)
+    read = await db.get(DatasetVersion, run.dataset_version_id) if run else None
+
+    assert edited.passing
+    assert read is not None and read.number == pinned[0]
+    assert run is not None and run.scoring_hash == scoring_hash(
+        DatasetScoring.model_validate(pinned[1])
+    )
+
+    moved = await EvalSuiteService(db).move_pin(ctx, agent.id, suite.id)
+    assert moved.pin is not None
+    assert (moved.pin.dataset_version, moved.pin.scoring_current) == (dataset.latest_version, True)
+    assert [g.state for g in (await _check(db, ctx, agent, env_id, second)).guards] == ["stale"]
+
+
+async def test_a_suite_whose_dataset_has_no_cases_cannot_become_a_guard(db) -> None:
+    """It could not pass, and pinned to nothing it would read whatever came first."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+    empty = await _dataset(db, ctx, cases=0)
+    loose = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(empty))
+    environments = AgentEnvironmentService(db)
+
+    with pytest.raises(BadRequestError, match="no cases yet") as refused:
+        await environments.update(
+            ctx, agent.id, env_id, EnvironmentUpdate(guard_suite_ids=[suite.id, loose.id])
+        )
+    with pytest.raises(BadRequestError, match="no cases yet") as moved:
+        await EvalSuiteService(db).update(
+            ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=empty.id)
+        )
+    assert refused.value.details is not None and moved.value.details is not None
+    assert [f["field"] for f in refused.value.details["fields"]] == ["guard_suite_ids"]
+    assert [f["field"] for f in moved.value.details["fields"]] == ["dataset_id"]
+
+    # No guard is ever left unpinned: every suite guarding anything holds a pin.
+    unpinned = (
+        await db.execute(
+            select(EvalSuite.id)
+            .join(EnvironmentGuard, EnvironmentGuard.suite_id == EvalSuite.id)
+            .where(EvalSuite.pinned_dataset_version.is_(None))
+        )
+    ).all()
+    assert unpinned == []
+
+
+async def test_a_suite_guarding_two_environments_stays_pinned_until_both_are_gone(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    staging, suite = await _guarded(db, ctx, agent, first, dataset)
+    environments = AgentEnvironmentService(db)
+    canary = await environments.create(
+        ctx, agent.id, EnvironmentCreate(name="canary", version_id=first.id)
+    )
+    await environments.update(
+        ctx, agent.id, canary.id, EnvironmentUpdate(guard_suite_ids=[suite.id])
+    )
+
+    await environments.delete(ctx, agent.id, staging)
+    await db.refresh(suite)
+    assert suite.pinned_dataset_version == dataset.latest_version
+
+    await environments.delete(ctx, agent.id, canary.id)
+    await db.refresh(suite)
+    assert (suite.pinned_dataset_version, suite.pinned_scoring) == (None, None)
+    assert (await EvalSuiteService(db).get(ctx, agent.id, suite.id)).pin is None
+
+
+async def test_two_changes_to_one_suites_guards_wait_on_each_other_rather_than_deadlock(
+    db, engine
+) -> None:
+    """Each writes a guard row - a key share on the suite for its foreign key - and then
+    locks the suite to pin it; a lock that took the key share's place would deadlock."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    suite = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(await _dataset(db, ctx)))
+    environments = AgentEnvironmentService(db)
+    left, right = [
+        await environments.create(ctx, agent.id, EnvironmentCreate(name=name, version_id=first.id))
+        for name in ("left", "right")
+    ]
+    await db.commit()
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with sessions() as one, sessions() as two:
+        for session, environment in ((one, left), (two, right)):
+            await promotion_gate_repo.replace_guards(
+                session, environment.id, [suite.id], organization_id=ctx.organization_id
+            )
+        with anyio.fail_after(5):
+            held = await eval_suite_repo.lock(one, suite.id, organization_id=ctx.organization_id)
+        assert held is not None
+        await one.commit()
+        with anyio.fail_after(5):
+            assert await eval_suite_repo.lock(two, suite.id, organization_id=ctx.organization_id)
+        await two.commit()
+
+
+async def test_a_guard_left_unpinned_holds_every_version_back_until_it_is_pinned(db) -> None:
+    """A guard set up on an empty dataset before guards were pinned: whatever a builder
+    adds to the dataset later, it lets nothing through until an override holder pins it."""
+    ctx = await _owner(db)
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=0)
+    suite = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(dataset))
+    staging = await AgentEnvironmentService(db).create(
+        ctx, agent.id, EnvironmentCreate(name="staging", version_id=first.id)
+    )
+    # As the migration left it: a guard row, and no pin.
+    await promotion_gate_repo.replace_guards(
+        db, staging.id, [suite.id], organization_id=ctx.organization_id
+    )
+    agent.owner_user_id = builder.user_id
+    await db.flush()
+    second = await _published(db, ctx, agent)
+    suites = EvalSuiteService(db)
+
+    with pytest.raises(BadRequestError, match="no cases yet"):
+        await suites.move_pin(ctx, agent.id, suite.id)
+    await DatasetService(db).add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "x"}])
+    )
+    gate = await _check(db, ctx, agent, staging.id, second)
+    ran = await PromotionGateService(db).run(
+        ctx, agent.id, staging.id, PromotionGateRun(version_id=second.id)
+    )
+    read = await suites.get(ctx, agent.id, suite.id)
+
+    assert [g.state for g in gate.guards] == ["unpinned"] and not gate.passing
+    assert ran.started == []
+    assert read.pin is not None and read.pin.dataset_version is None
+    with pytest.raises(PromotionBlockedError):
+        await _promote(db, ctx, agent, staging.id, second)
+    with pytest.raises(AuthorizationError, match="override promotions"):
+        await suites.move_pin(builder, agent.id, suite.id)
+
+    pinned = await suites.move_pin(ctx, agent.id, suite.id)
+
+    assert pinned.pin is not None and pinned.pin.dataset_version == 1
+    assert [g.state for g in (await _check(db, ctx, agent, staging.id, second)).guards] == [
+        "unchecked"
+    ]
+
+
+async def test_a_raised_bar_makes_an_earlier_pass_stale(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+    second = await _published(db, ctx, agent)
     await _run_guards(db, ctx, agent, env_id, second, Model(db))
+    assert (await _check(db, ctx, agent, env_id, second)).passing
+
     await EvalSuiteService(db).update(
         ctx,
         agent.id,
         suite.id,
         EvalSuiteUpdate(threshold=EvalSuiteThreshold(min_pass_rate=0.9)),
     )
-    after_threshold = await _check(db, ctx, agent, env_id, second)
 
-    assert [g.state for g in after_cases.guards] == ["stale"]
-    assert [g.state for g in after_threshold.guards] == ["stale"]
+    assert [g.state for g in (await _check(db, ctx, agent, env_id, second)).guards] == ["stale"]
 
 
-async def test_a_pass_graded_under_scoring_since_changed_is_stale(db) -> None:
+async def test_a_pass_graded_under_other_scoring_than_the_pin_is_stale(db) -> None:
     """Scoring changes without a dataset version, so the run's own fingerprint decides."""
     ctx = await _owner(db)
     agent, first = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx)
-    env_id, _ = await _guarded(db, ctx, agent, first, dataset)
+    env_id, suite = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
     second = await _published(db, ctx, agent)
     await _run_guards(db, ctx, agent, env_id, second, Model(db))
     assert (await _check(db, ctx, agent, env_id, second)).passing
 
-    dataset.scoring = DatasetScoring.model_validate(
-        {**dataset.scoring, "trajectory": {"enabled": False, "required": False}}
+    suite.pinned_scoring = DatasetScoring.model_validate(
+        {**(suite.pinned_scoring or {}), "trajectory": {"enabled": False, "required": False}}
     ).model_dump(mode="json")
     await db.flush()
 
     assert [g.state for g in (await _check(db, ctx, agent, env_id, second)).guards] == ["stale"]
+
+
+async def test_moving_a_pin_needs_the_permission_and_is_recorded(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    env_id, suite = await _guarded(db, ctx, agent, first, dataset)
+    loose = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(dataset))
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    agent.owner_user_id = builder.user_id
+    await db.flush()
+    suites = EvalSuiteService(db)
+
+    # Current already: nothing moves, nothing is recorded.
+    await suites.move_pin(ctx, agent.id, suite.id)
+    before = len(await _audit(db, ctx, "agent.environment_guards_changed"))
+
+    await DatasetService(db).add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Another", checks=[{"type": "contains", "value": "x"}]),
+    )
+    with pytest.raises(AuthorizationError, match="override promotions"):
+        await suites.move_pin(builder, agent.id, suite.id)
+    with pytest.raises(BadRequestError, match="guards no environment"):
+        await suites.move_pin(ctx, agent.id, loose.id)
+    with pytest.raises(NotFoundError):
+        await suites.move_pin(await _owner(db), agent.id, suite.id)
+    assert len(await _audit(db, ctx, "agent.environment_guards_changed")) == before
+
+    await suites.move_pin(ctx, agent.id, suite.id)
+
+    [entry] = [
+        change
+        for change in await _audit(db, ctx, "agent.environment_guards_changed")
+        if change.details and change.details.get("fields") == ["pin"]
+    ]
+    assert entry.details is not None
+    assert entry.details["environment_id"] == str(env_id)
+    assert entry.details["from"]["dataset_version"] == dataset.latest_version - 1
+    assert entry.details["to"]["dataset_version"] == dataset.latest_version
+    assert entry.details["from"]["scoring_hash"] == entry.details["to"]["scoring_hash"]
+
+
+async def test_a_suite_is_pinned_while_it_guards_and_follows_the_latest_after(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    env_id, suite = await _guarded(db, ctx, agent, first, dataset)
+    assert suite.pinned_dataset_version == dataset.latest_version
+    read = await EvalSuiteService(db).get(ctx, agent.id, suite.id)
+    assert read.pin is not None and read.pin.latest_dataset_version == dataset.latest_version
+
+    await AgentEnvironmentService(db).update(
+        ctx, agent.id, env_id, EnvironmentUpdate(guard_suite_ids=[])
+    )
+    await db.refresh(suite)
+
+    assert (suite.pinned_dataset_version, suite.pinned_scoring) == (None, None)
+    assert (await EvalSuiteService(db).get(ctx, agent.id, suite.id)).pin is None
+
+
+async def test_a_stricter_bar_needs_no_override_and_a_looser_one_does(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(
+        db,
+        ctx,
+        agent,
+        first,
+        await _dataset(db, ctx),
+        threshold=EvalSuiteThreshold(
+            min_pass_rate=0.8, max_confirmed_regressions=2, max_cost_per_pass_rise=0.5
+        ),
+    )
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    agent.owner_user_id = builder.user_id
+    await db.flush()
+    suites = EvalSuiteService(db)
+
+    def bar(**values: object) -> EvalSuiteUpdate:
+        return EvalSuiteUpdate(
+            threshold=EvalSuiteThreshold.model_validate(
+                {
+                    "min_pass_rate": 0.8,
+                    "max_confirmed_regressions": 2,
+                    "max_cost_per_pass_rise": 0.5,
+                    **values,
+                }
+            )
+        )
+
+    stricter = bar(min_pass_rate=0.9, max_confirmed_regressions=1, max_cost_per_pass_rise=0.2)
+    await suites.update(builder, agent.id, suite.id, stricter)
+    for looser in (
+        {"min_pass_rate": 0.5},
+        {"min_pass_rate": None},
+        {"max_confirmed_regressions": 5},
+        {"max_cost_per_pass_rise": None},
+        # One bar raised does not buy another lowered.
+        {"min_pass_rate": 0.95, "max_confirmed_regressions": 3},
+    ):
+        with pytest.raises(AuthorizationError, match="override promotions"):
+            await suites.update(
+                builder,
+                agent.id,
+                suite.id,
+                bar(
+                    **{
+                        "min_pass_rate": 0.9,
+                        "max_confirmed_regressions": 1,
+                        "max_cost_per_pass_rise": 0.2,
+                        **looser,
+                    }
+                ),
+            )
+
+    changes = await _audit(db, ctx, "agent.environment_guards_changed")
+    assert [
+        c.details["fields"]
+        for c in changes
+        if c.details and c.details.get("suite_id") == str(suite.id) and "fields" in c.details
+    ] == [["threshold"]]
+    assert str(env_id) in {c.details["environment_id"] for c in changes if c.details}
 
 
 async def test_a_paused_guard_with_nothing_to_show_holds_the_version_back(db) -> None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "439b3dadeb52"
+source_sha: "673705e1369e"
 ---
 
 # Governance { #governance }
@@ -1755,9 +1755,15 @@ Administrator, der sie imitiert, und eine Begründung von mindestens zehn
 Zeichen. Es wird im [Audit-Trail](#audit) als
 `agent.environment_promotion_overridden` verzeichnet, mit der Begründung und
 dem Ergebnis jedes Wächters, an der Version in der Historie gezeigt und an den
-Eigentümer jedes nicht bestandenen Wächters geschickt. Zu ändern, welche Suites
-eine Umgebung bewachen, braucht dieselbe Berechtigung und wird als
-`agent.environment_guards_changed` verzeichnet.
+Eigentümer jedes nicht bestandenen Wächters geschickt.
+
+Zu ändern, welche Suites eine Umgebung bewachen, die Festlegung eines Wächters
+zu verschieben oder abzuschwächen, was ein Wächter prüft, braucht dieselbe
+Berechtigung; jede dieser Änderungen, und eine strengere Schwelle, wird als
+`agent.environment_guards_changed` verzeichnet. Eine Änderung an der Bewertung
+eines Datasets wird als `dataset.scoring_changed` verzeichnet, mit den Namen
+der geänderten Teile statt ihrem Inhalt, das Anlegen seines Judges als
+`dataset.judge_created`.
 
 ## Audit { #audit }
 

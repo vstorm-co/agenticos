@@ -9302,6 +9302,18 @@
       "resumedToast": "Suite resumed",
       "pausedToast": "Suite paused",
       "runningToast": "Suite started",
+      "pinMoved": "The guard now checks the dataset as it is",
+      "pin": {
+        "badge": "Pinned to v{version}",
+        "pinned": "Pinned to dataset v{pinned}.",
+        "unpinnedBadge": "Not pinned",
+        "unpinned": "Not pinned to a dataset version yet, so it holds every promotion back until it is pinned.",
+        "current": "Guards on dataset v{pinned}, as it is now.",
+        "behind": "Pinned to dataset v{pinned}. The dataset is now at v{latest}.",
+        "scoringChanged": "Its grading has changed since.",
+        "move": "Move the pin to v{latest}",
+        "needsOverride": "Moving the pin needs permission to override promotions."
+      },
       "removed": "Suite removed",
       "viewResults": "Results of {name}",
       "holds": "{dataset} · {environment, select, none {current published version} other {{environment}}}",
@@ -9820,7 +9832,8 @@
       "checking": "Checking",
       "stale": "Out of date",
       "unchecked": "Not checked",
-      "paused": "Paused"
+      "paused": "Paused",
+      "unpinned": "Not pinned"
     },
     "hint": {
       "passed": "Passed on this version.",
@@ -9830,7 +9843,8 @@
       "error": "Ended without a verdict on this version.",
       "checking": "A run on this version is waiting or going.",
       "stale": "Its last result read other cases or another threshold than the suite holds now.",
-      "unchecked": "Has not run on this version yet."
+      "unchecked": "Has not run on this version yet.",
+      "unpinned": "This guard has no pinned dataset version. Someone who can override promotions must pin it before it can pass."
     },
     "passing": "Every guard passed on v{version}.",
     "overrideTitle": "Promote anyway",
@@ -9842,6 +9856,7 @@
     "promote": "Promote",
     "noSuites": "This agent has no eval suites yet. Set one up on the Evals tab to guard an environment with it.",
     "guardsHelp": "Suites {name} requires to pass on a version before it takes it.",
+    "noCasesYet": "This suite's dataset has no cases yet. Add cases before it guards an environment.",
     "storeGuards": "Save guards",
     "guardsReadOnly": "Changing these needs permission to override promotions.",
     "guardedBy": "{count, plural, =1 {Guarded by 1 suite} other {Guarded by # suites}}",

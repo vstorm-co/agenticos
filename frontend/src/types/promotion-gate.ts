@@ -3,8 +3,9 @@ import type { EvalSuiteResult } from "@/types/eval-suites";
 /**
  * Where one guard stands on a version. `passed` is the only state that lets the
  * version through; `stale` is a result over another dataset version or
- * threshold than the suite holds now, and `paused` a suite that will produce no
- * result until it is resumed.
+ * threshold than the suite holds now, `paused` a suite that will produce no
+ * result until it is resumed, and `unpinned` a guard not pinned to a dataset
+ * version yet, which lets nothing through until it is.
  */
 export type GuardState =
   | "passed"
@@ -15,7 +16,8 @@ export type GuardState =
   | "checking"
   | "stale"
   | "unchecked"
-  | "paused";
+  | "paused"
+  | "unpinned";
 
 export interface PromotionGuard {
   suite_id: string;

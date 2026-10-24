@@ -179,6 +179,32 @@ class EvalSuiteResultList(BaseSchema):
     total: int
 
 
+class EvalSuitePin(BaseSchema):
+    """What a guard checks, beside what its dataset holds now.
+
+    A suite that guards an environment holds the dataset version and the
+    scoring it was set up with; only somebody who may override promotions
+    moves it onto newer ones.
+    """
+
+    dataset_version: int | None = Field(
+        description=(
+            "The dataset version the guard reads; null on a guard not pinned yet, which "
+            "holds every promotion back until somebody who may override promotions pins it"
+        )
+    )
+    latest_dataset_version: int | None = Field(
+        default=None, description="The dataset's version now; null when the reader cannot see it"
+    )
+    scoring_current: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the dataset is graded now as the guard grades it; null when the reader "
+            "cannot see it"
+        ),
+    )
+
+
 class EvalSuiteRead(BaseSchema):
     """A suite, what it last came to, and what it is doing now."""
 
@@ -188,6 +214,14 @@ class EvalSuiteRead(BaseSchema):
     dataset_id: UUID
     dataset_name: str | None = Field(
         description="Null when the reader cannot see the dataset, which still runs"
+    )
+    dataset_has_cases: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the dataset has a version yet - a suite on one with none cannot guard an "
+            "environment. A version that holds no cases still counts; a run on it is refused. "
+            "Null when the reader cannot see the dataset"
+        ),
     )
     environment_id: UUID | None
     environment_name: str | None
@@ -204,6 +238,9 @@ class EvalSuiteRead(BaseSchema):
     schedule: EvalSuiteSchedule | None
     next_fire_at: datetime | None
     max_run_usd: Decimal | None
+    pin: EvalSuitePin | None = Field(
+        default=None, description="Null on a suite that guards nothing, which reads the latest"
+    )
     last_result: EvalSuiteResultRead | None
     open_result: EvalSuiteResultRead | None = Field(
         description="The result running now, or waiting to start"

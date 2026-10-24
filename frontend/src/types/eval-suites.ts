@@ -108,6 +108,8 @@ export interface EvalSuite {
   dataset_id: string;
   /** Null when the reader cannot see the dataset, which still runs. */
   dataset_name: string | null;
+  /** Whether the dataset has a version yet; null when the reader cannot see it. */
+  dataset_has_cases: boolean | null;
   environment_id: string | null;
   environment_name: string | null;
   owner_user_id: string | null;
@@ -124,11 +126,23 @@ export interface EvalSuite {
   schedule: EvalSuiteSchedule | null;
   next_fire_at: string | null;
   max_run_usd: string | null;
+  /** What a guard checks; null on a suite that guards nothing and reads the latest. */
+  pin: EvalSuitePin | null;
   last_result: EvalSuiteResult | null;
   /** The result running now, or waiting to start. */
   open_result: EvalSuiteResult | null;
   created_at: string;
   updated_at: string | null;
+}
+
+/** The dataset version a guard reads, beside the one its dataset is at now. */
+export interface EvalSuitePin {
+  /** Null on a guard not pinned yet, which holds every promotion back until it is. */
+  dataset_version: number | null;
+  /** Null when the reader cannot see the dataset. */
+  latest_dataset_version: number | null;
+  /** Whether the dataset is graded now as the guard grades it; null when the reader cannot see it. */
+  scoring_current: boolean | null;
 }
 
 export interface EvalSuiteList {

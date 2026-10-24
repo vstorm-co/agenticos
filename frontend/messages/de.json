@@ -9185,6 +9185,18 @@
       "resumedToast": "Suite fortgesetzt",
       "pausedToast": "Suite pausiert",
       "runningToast": "Suite gestartet",
+      "pinMoved": "Der Wächter prüft das Dataset jetzt so, wie es ist",
+      "pin": {
+        "badge": "Festgelegt auf v{version}",
+        "pinned": "Festgelegt auf Dataset v{pinned}.",
+        "unpinnedBadge": "Nicht festgelegt",
+        "unpinned": "Noch auf keine Dataset-Version festgelegt, daher hält sie jede Promotion zurück, bis sie festgelegt ist.",
+        "current": "Wacht auf Dataset v{pinned}, wie es jetzt ist.",
+        "behind": "Festgelegt auf Dataset v{pinned}. Das Dataset ist jetzt bei v{latest}.",
+        "scoringChanged": "Seine Bewertung hat sich seitdem geändert.",
+        "move": "Festlegung auf v{latest} verschieben",
+        "needsOverride": "Zum Verschieben braucht es die Berechtigung, Promotionen zu übergehen."
+      },
       "removed": "Suite entfernt",
       "viewResults": "Ergebnisse von {name}",
       "holds": "{dataset} · {environment, select, none {aktuell veröffentlichte Version} other {{environment}}}",
@@ -9703,7 +9715,8 @@
       "checking": "Prüft",
       "stale": "Veraltet",
       "unchecked": "Nicht geprüft",
-      "paused": "Pausiert"
+      "paused": "Pausiert",
+      "unpinned": "Nicht festgelegt"
     },
     "hint": {
       "passed": "Auf dieser Version bestanden.",
@@ -9713,7 +9726,8 @@
       "error": "Auf dieser Version ohne Urteil beendet.",
       "checking": "Ein Run auf dieser Version wartet oder läuft.",
       "stale": "Ihr letztes Ergebnis las andere Fälle oder eine andere Schwelle, als die Suite jetzt hat.",
-      "unchecked": "Ist auf dieser Version noch nicht gelaufen."
+      "unchecked": "Ist auf dieser Version noch nicht gelaufen.",
+      "unpinned": "Dieser Wächter hat keine festgelegte Dataset-Version. Bevor er bestehen kann, muss ihn jemand festlegen, der Promotionen übergehen darf."
     },
     "passing": "Jeder Wächter hat auf v{version} bestanden.",
     "overrideTitle": "Trotzdem promoten",
@@ -9725,6 +9739,7 @@
     "promote": "Promoten",
     "noSuites": "Dieser Agent hat noch keine Eval-Suites. Legen Sie im Tab Evals eine an, um damit eine Umgebung zu bewachen.",
     "guardsHelp": "Suites, die auf einer Version bestehen müssen, bevor {name} sie übernimmt.",
+    "noCasesYet": "Das Dataset dieser Suite hat noch keine Fälle. Fügen Sie Fälle hinzu, bevor sie eine Umgebung bewacht.",
     "storeGuards": "Wächter speichern",
     "guardsReadOnly": "Zum Ändern braucht es die Berechtigung, Promotionen zu übergehen.",
     "guardedBy": "{count, plural, =1 {Von 1 Suite bewacht} other {Von # Suites bewacht}}",

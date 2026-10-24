@@ -52,6 +52,23 @@ async def replace_guards(
     await db.flush()
 
 
+async def guarding(
+    db: AsyncSession, suite_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """Which of these suites guard any environment."""
+    if not suite_ids:
+        return set()
+    result = await db.execute(
+        select(EnvironmentGuard.suite_id)
+        .where(
+            EnvironmentGuard.suite_id.in_(suite_ids),
+            EnvironmentGuard.organization_id == organization_id,
+        )
+        .distinct()
+    )
+    return set(result.scalars().all())
+
+
 async def guarded_by(
     db: AsyncSession, suite_id: UUID, *, organization_id: UUID
 ) -> list[AgentEnvironment]:

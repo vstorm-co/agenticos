@@ -167,6 +167,14 @@ class CleanupExternalState(Payload):
     restamps: list[Restamp]
 
 
+class SettleLater(Exception):
+    """A settler that cannot close what its job left yet - a worker still holds it.
+
+    The worker logs it without a traceback and leaves the end owed, so the
+    rescuer's next pass runs the settler again.
+    """
+
+
 @dataclass(frozen=True)
 class TaskKind:
     """What a worker needs to know about a claimed job: where it runs, for how long, how often."""

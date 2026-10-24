@@ -440,7 +440,17 @@ class AgentEnvironmentService:
 
         await EvalSuiteService(self.db).environment_removed(environment)
         await artifact_repo.detach_environment(self.db, environment_id=environment.id)
+        guards = (
+            await promotion_gate_repo.guards_for(
+                self.db, [environment.id], organization_id=ctx.organization_id
+            )
+        ).get(environment.id, [])
         await agent_environment_repo.delete(self.db, environment=environment)
+        # The guards went with the environment; a suite that guards nothing now
+        # reads the latest again.
+        await PromotionGateService(self.db).pin_guards(
+            guarding=set(), removed=set(guards), organization_id=ctx.organization_id
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

@@ -18,11 +18,12 @@ import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.repositories import agent_run_repo, authoring_repo, eval_run_repo
-from app.worker.jobs import RUN_EVAL
+from app.worker.jobs import RUN_EVAL, SettleLater
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,8 @@ logger = logging.getLogger(__name__)
 _REAPED_ERROR = (
     "The process running this run died before recording an outcome; ended by the stale-run sweep."
 )
+
+_LOCK_NOT_AVAILABLE = "55P03"
 
 # What `background_job_repo.unsettled_ends` answers for a queued job an
 # administrator withdrew: its status, since nothing ran to write an error.
@@ -146,16 +149,23 @@ class RunReaperService:
     ) -> None:
         """Fail an authoring request whose job ended for good before the request did.
 
-        A request a worker still holds is refused rather than waited on, and
-        the rescuer settles it on a later pass.
+        Raises:
+            SettleLater: A worker still holds the request; it is not waited on,
+                and the rescuer settles it on a later pass.
         """
-        if await authoring_repo.fail_unfinished(
-            self.db,
-            request_id,
-            organization_id=organization_id,
-            error=_AUTHORING_WITHDRAWN if why == _WITHDRAWN else _AUTHORING_JOB_ENDED,
-            now=datetime.now(UTC),
-        ):
+        try:
+            failed = await authoring_repo.fail_unfinished(
+                self.db,
+                request_id,
+                organization_id=organization_id,
+                error=_AUTHORING_WITHDRAWN if why == _WITHDRAWN else _AUTHORING_JOB_ENDED,
+                now=datetime.now(UTC),
+            )
+        except DBAPIError as refused:
+            if getattr(refused.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE:
+                raise
+            raise SettleLater("a worker still holds the authoring request") from None
+        if failed:
             logger.warning(
                 "authoring_request_job_lost", extra={"request_id": str(request_id), "why": why}
             )

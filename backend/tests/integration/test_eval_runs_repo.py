@@ -522,13 +522,38 @@ async def test_a_queued_run_is_given_up_once_no_job_is_left_to_run_it(db) -> Non
     job.finished_at = datetime.now(UTC)
     await db.flush()
     assert await sweep() == 0
-    job.settled_at = datetime.now(UTC)
+    # A job that ended well is never settled, and holds nothing back.
+    job.status = "succeeded"
     await db.flush()
     assert await sweep() == 1
     await db.refresh(run)
     await db.refresh(other)
     assert run.status == EvalRunStatus.FAILED.value
     assert other.status == EvalRunStatus.QUEUED.value
+
+
+async def test_a_withdrawn_job_holds_its_run_only_until_settled_or_a_day_old(db) -> None:
+    """Past the settler's window nothing would settle it, so the sweep decides after all."""
+    ctx, settled, stale = await _two_runs(db, status=EvalRunStatus.QUEUED)
+    for run in (settled, stale):
+        await _job(db, ctx, run, "cancelled")
+    jobs = {
+        job.payload["eval_run_id"]: job
+        for job in (await db.execute(select(BackgroundJob))).scalars().all()
+    }
+    jobs[str(settled.id)].finished_at = _NOW
+    jobs[str(settled.id)].settled_at = _NOW
+    jobs[str(stale.id)].finished_at = _NOW - timedelta(days=2)
+    await db.flush()
+
+    reaped = await eval_run_repo.fail_abandoned(
+        db, idle_since=_NOW, job_kind=RUN_EVAL.kind, now=_NOW
+    )
+
+    await db.refresh(settled)
+    await db.refresh(stale)
+    assert reaped == 2
+    assert {settled.status, stale.status} == {EvalRunStatus.FAILED.value}
 
 
 async def test_a_queued_run_with_no_job_at_all_is_given_up(db) -> None:

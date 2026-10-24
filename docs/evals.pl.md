@@ -1,5 +1,5 @@
 ---
-source_sha: "a5f4d8e7cde0"
+source_sha: "2ebe68f45e29"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -483,8 +483,11 @@ Suita, która **strzeże środowiska**, uruchamia się też przed promocją na n
 na wersji, która ma zostać wypromowana, obok tej, którą środowisko serwuje - a
 promocja czeka, aż przejdzie; zob.
 [Strażnicy promocji z evali](environments.md#guarding-a-promotion-with-evals).
-Jej wyniki noszą oznaczenie *Przed promocją* (`gate`). Suity, która strzeże
-środowiska, nie da się usunąć, dopóki nie zostanie tam zdjęta.
+Jej wyniki noszą oznaczenie *Przed promocją* (`gate`). Suita, która strzeże
+środowiska, jest przypięta do wersji datasetu i scoringu, które miała, gdy
+została strażnikiem, więc edycja datasetu nie zmienia tego, co sprawdza, dopóki
+przypięcie nie zostanie przesunięte. Nie da się jej usunąć, dopóki nie zostanie
+tam zdjęta.
 
 ### Co musi spełnić wynik { #what-a-result-must-meet }
 

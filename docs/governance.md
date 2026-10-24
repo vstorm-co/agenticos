@@ -1532,8 +1532,14 @@ key or an administrator impersonating them, and a reason of at least ten
 characters. It is recorded in the [audit trail](#audit) as
 `agent.environment_promotion_overridden`, with the reason and each guard's
 result, shown on the version in the history, and sent to the owner of each
-guard that had not passed. Changing which suites guard an environment needs
-the same permission and is recorded as `agent.environment_guards_changed`.
+guard that had not passed.
+
+Changing which suites guard an environment, moving
+a guard's pin or weakening what a guarding suite checks needs the same
+permission; each, and a stricter threshold, is recorded as
+`agent.environment_guards_changed`. Changing a dataset's grading is recorded as
+`dataset.scoring_changed`, naming the parts that changed rather than their
+contents, and creating a dataset's judge as `dataset.judge_created`.
 
 ## Audit
 

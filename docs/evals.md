@@ -453,7 +453,9 @@ on the version about to be promoted, beside the one the environment serves -
 and the promotion waits for it to pass; see
 [Guarding a promotion with evals](environments.md#guarding-a-promotion-with-evals).
 Its results read *Before promotion* (`gate`). A suite that guards an
-environment cannot be deleted until it is taken off there.
+environment is pinned to the dataset version and the scoring it had when it
+became a guard, so editing the dataset does not change what it checks until the
+pin is moved. It cannot be deleted until it is taken off there.
 
 ### What a result must meet { #what-a-result-must-meet }
 

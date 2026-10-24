@@ -33,6 +33,7 @@ from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResult
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
+    dataset_repo,
     eval_run_repo,
     eval_suite_repo,
     member_repo,
@@ -48,7 +49,6 @@ from app.schemas.promotion_gate import (
     PromotionGuardRecord,
     PromotionOverrideRead,
 )
-from app.schemas.scoring import DatasetScoring
 from app.services import change_feed
 
 if TYPE_CHECKING:
@@ -82,12 +82,14 @@ def guard_state(
     the scoring it was graded under; `waiting` is such a result still to start
     or finish; `dataset_version` and `scoring_hash` are what the suite would
     read and grade by now. A paused guard holds the version back whatever it
-    found before the pause.
+    found before the pause, and so does one not pinned to a dataset version yet.
     """
     from app.services.eval_suite import threshold_of
 
     if not suite.is_active:
         return "paused", settled[0] if settled is not None else waiting
+    if suite.pinned_dataset_version is None:
+        return "unpinned", settled[0] if settled is not None else waiting
     if settled is not None:
         result, number, hashed = settled
         current = (
@@ -145,7 +147,7 @@ class PromotionGateService:
         the failing cases are left out, as nobody is reading them.
         """
         from app.services.eval_run import scoring_hash
-        from app.services.eval_suite import EvalSuiteService
+        from app.services.eval_suite import EvalSuiteService, reads_now
 
         org = agent.organization_id
         serving = await agent_repo.get_version(self.db, environment.version_id, organization_id=org)
@@ -167,21 +169,17 @@ class PromotionGateService:
         waiting = await eval_suite_repo.open_on_version(
             self.db, suite_ids, version.id, baseline_version=serving.version, organization_id=org
         )
-        states = [
-            (
+        states = []
+        for suite in suites:
+            dataset_version, scoring = reads_now(suite, datasets[suite.dataset_id])
+            state, result = guard_state(
                 suite,
-                *guard_state(
-                    suite,
-                    settled.get(suite.id),
-                    waiting.get(suite.id),
-                    dataset_version=datasets[suite.dataset_id].latest_version,
-                    scoring_hash=scoring_hash(
-                        DatasetScoring.model_validate(datasets[suite.dataset_id].scoring)
-                    ),
-                ),
+                settled.get(suite.id),
+                waiting.get(suite.id),
+                dataset_version=dataset_version,
+                scoring_hash=scoring_hash(scoring),
             )
-            for suite in suites
-        ]
+            states.append((suite, state, result))
         suites_service = EvalSuiteService(self.db)
         readable = (
             await suites_service.readable_datasets(
@@ -294,8 +292,13 @@ class PromotionGateService:
                 raise refused_field(
                     "guard_suite_ids", "A guard must be one of this agent's eval suites."
                 )
+            if suite_id not in current:
+                await self._refuse_empty_dataset(suite)
         await promotion_gate_repo.replace_guards(
             self.db, environment.id, wanted, organization_id=org
+        )
+        await self.pin_guards(
+            guarding=set(wanted), removed=set(current) - set(wanted), organization_id=org
         )
         if environment.tracks_latest:
             # The guard taken off may have been the last one holding it back.
@@ -320,6 +323,49 @@ class PromotionGateService:
         )
         return True
 
+    async def _refuse_empty_dataset(self, suite: EvalSuite) -> None:
+        """A guard is pinned to a dataset version, so a dataset with none yet cannot have one.
+
+        Such a guard could not pass anyway; set up, it would read whatever the
+        dataset's first cases turned out to be.
+        """
+        dataset = await dataset_repo.get(
+            self.db, suite.dataset_id, organization_id=suite.organization_id
+        )
+        assert dataset is not None, "a suite's dataset outlives it"
+        if dataset.latest_version == 0:
+            raise refused_field(
+                "guard_suite_ids",
+                f"'{suite.name}': this suite's dataset has no cases yet. Add cases before it "
+                "guards an environment.",
+            )
+
+    async def pin_guards(
+        self, *, guarding: set[UUID], removed: set[UUID], organization_id: UUID
+    ) -> None:
+        """Pin each guard not pinned yet, and unpin a suite that guards nothing now.
+
+        A guard checks what it was set up with until somebody who may override
+        promotions moves it; a suite guarding nothing reads the latest. Each
+        suite is locked, so two changes to the guards at once cannot leave one
+        guarding unpinned.
+        """
+        from app.services.eval_suite import pin_to_latest, unpin
+
+        for suite_id in sorted(guarding | removed):
+            suite = await eval_suite_repo.lock(self.db, suite_id, organization_id=organization_id)
+            if suite is None:
+                continue
+            guards = suite_id in guarding or bool(
+                await promotion_gate_repo.guarded_by(
+                    self.db, suite_id, organization_id=organization_id
+                )
+            )
+            if guards and suite.pinned_dataset_version is None:
+                await pin_to_latest(self.db, suite)
+            elif not guards and suite.pinned_dataset_version is not None:
+                await unpin(self.db, suite)
+
     async def run(
         self, ctx: AuthContext, agent_id: UUID, environment_id: UUID, data: PromotionGateRun
     ) -> PromotionGateRunRead:
@@ -336,7 +382,7 @@ class PromotionGateService:
         suites = EvalSuiteService(self.db)
         started = []
         for guard in gate.guards:
-            if guard.state in ("passed", "checking", "paused"):
+            if guard.state in ("passed", "checking", "paused", "unpinned"):
                 continue
             await suites.run_on_version(
                 ctx,

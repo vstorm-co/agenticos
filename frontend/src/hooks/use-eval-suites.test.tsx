@@ -120,6 +120,21 @@ describe("useEvalSuites", () => {
     expect(toast.error).toHaveBeenCalledTimes(3);
   });
 
+  it("moves a guard's pin, and says why when it is refused", async () => {
+    const result = await suites();
+    vi.mocked(apiClient.post).mockResolvedValueOnce(evalSuite());
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("needs override"));
+
+    await act(() => result.current.movePin.mutateAsync("suite-1"));
+    await act(async () => {
+      await result.current.movePin.mutateAsync("suite-1").catch(() => undefined);
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/agents/agent-1/eval-suites/suite-1/pin", {});
+    expect(toast.success).toHaveBeenCalledWith("The guard now checks the dataset as it is");
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
   it("prices a suite before it is saved", async () => {
     const result = await suites();
     vi.mocked(apiClient.post).mockResolvedValue({ fires_per_month: 30 });

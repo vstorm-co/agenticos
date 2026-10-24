@@ -39,6 +39,7 @@ const STATE_TONE: Record<GuardState, "success" | "destructive" | "warning" | "se
   stale: "warning",
   unchecked: "warning",
   paused: "warning",
+  unpinned: "warning",
 };
 
 /** States a run of the guard on the version would change. */

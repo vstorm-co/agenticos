@@ -16,13 +16,15 @@ _DATASET = uuid.uuid4()
 _SCORING = "scoring-now"
 
 
-def _suite(*, active: bool = True) -> EvalSuite:
+def _suite(*, active: bool = True, pinned: bool = True) -> EvalSuite:
     return EvalSuite(
         id=uuid.uuid4(),
         dataset_id=_DATASET,
         is_active=active,
         min_pass_rate=Decimal("0.9"),
         max_confirmed_regressions=0,
+        pinned_dataset_version=3 if pinned else None,
+        pinned_scoring={} if pinned else None,
     )
 
 
@@ -111,6 +113,16 @@ def test_a_paused_guard_holds_the_version_back_whatever_it_found() -> None:
     assert _state(paused, None, running) == ("paused", running)
 
 
+def test_a_guard_not_pinned_yet_holds_the_version_back_whatever_it_found() -> None:
+    """Pinned to nothing it would read whatever its dataset turned into."""
+    unpinned = _suite(pinned=False)
+    passed = _result(unpinned, "passed")
+    running = _result(unpinned, "running")
+    assert _state(unpinned, None) == ("unpinned", None)
+    assert _state(unpinned, (passed, 3, _SCORING)) == ("unpinned", passed)
+    assert _state(unpinned, None, running) == ("unpinned", running)
+
+
 def test_rows_say_what_they_are() -> None:
     suite = uuid.uuid4()
     guard = EnvironmentGuard(environment_id=uuid.uuid4(), suite_id=suite)
@@ -139,5 +151,6 @@ async def test_asking_about_nothing_reads_nothing() -> None:
         == {}
     )
     assert await promotion_gate_repo.guards_for(db, [], organization_id=org) == {}
+    assert await promotion_gate_repo.guarding(db, [], organization_id=org) == set()
     assert await promotion_gate_repo.overrides_for_versions(db, [], organization_id=org) == {}
     db.execute.assert_not_awaited()
