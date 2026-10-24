@@ -33,6 +33,7 @@ import type { Dataset, DatasetCase } from "@/types/datasets";
 import type { CaseScore, DatasetScoring } from "@/types/scoring";
 import { AddToDatasetDialog } from "./add-to-dataset-dialog";
 import { ScoreCard } from "./score-card";
+import { similarFirst } from "./similar-first";
 
 /** As many as the server lists at once; past it the dataset picker searches and the case picker pages. */
 const SHOWN = 100;
@@ -138,7 +139,8 @@ function useRunTurn(runId: string) {
  *
  * The run is read from Activity, so the answer and the tool calls are what it
  * recorded. The case asking the run's own question is picked when the dataset
- * has one; when it has none, the run's answer is offered as a new case instead.
+ * has one; when it has none, the run's answer is offered as a new case instead,
+ * until a case is picked. The cases closest to the run's question are listed first.
  * Scoring keeps the result on the dataset, where a person can overrule it.
  */
 export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProps) {
@@ -173,7 +175,7 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
   const dataset = offered.find((item) => item.id === chosen);
   const scoring = dataset?.scoring;
   const listing = useDatasetCases(chosen, { skip: page * SHOWN, limit: SHOWN });
-  const { cases } = listing;
+  const cases = question === null ? listing.cases : similarFirst(listing.cases, question);
   const [adding, setAdding] = useState(false);
   const asked = cases.find((item) => question !== null && normal(item.input) === question);
   const target = caseId || asked?.case_id || "";
@@ -268,21 +270,25 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
                 </SelectContent>
               </Select>
             </FormField>
-            {question !== null && asked === undefined && !listing.isLoading && chosen !== "" && (
-              <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                <span>{t("noCaseAsks")}</span>
-                {answerId !== null && (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="h-auto px-0"
-                    onClick={() => setAdding(true)}
-                  >
-                    {t("addAsCase")}
-                  </Button>
-                )}
-              </div>
-            )}
+            {question !== null &&
+              asked === undefined &&
+              caseId === "" &&
+              !listing.isLoading &&
+              chosen !== "" && (
+                <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                  <span>{t("noCaseAsks")}</span>
+                  {answerId !== null && (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto px-0"
+                      onClick={() => setAdding(true)}
+                    >
+                      {t("addAsCase")}
+                    </Button>
+                  )}
+                </div>
+              )}
             {listing.error ? (
               <ErrorState
                 description={getErrorMessage(listing.error, tErrors)}

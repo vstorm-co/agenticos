@@ -64,6 +64,8 @@ const RUNNING: CaseGeneration = {
   proposed_count: 0,
   accepted_count: 0,
   dismissed_count: 0,
+  unreadable_count: 0,
+  rejected_count: 0,
   created_at: "2026-10-13T00:00:00Z",
   finished_at: null,
 };

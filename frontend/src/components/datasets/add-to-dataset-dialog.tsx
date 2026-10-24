@@ -21,6 +21,8 @@ import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { Perm } from "@/types/permissions";
 import { DatasetTargetFields, type AnswerAs } from "./dataset-target-fields";
+import { asksAboutHistory, type AskedBefore } from "./follows-on";
+import { HistoryChoice } from "./history-choice";
 import { useDatasetTarget } from "./use-dataset-target";
 
 interface AddToDatasetDialogProps {
@@ -37,13 +39,20 @@ interface AddToDatasetDialogProps {
   askAnswerAs: boolean;
   /** Whether the answer was rated down, so the rating's comment comes with it. */
   ratedDown?: boolean;
+  /**
+   * The question, when the surface showing the answer knows it: one that plainly
+   * follows on is pointed out, and one with nothing before it is not asked about.
+   * Either way the question alone is what is chosen until the reader picks more.
+   */
+  asked?: AskedBefore;
 }
 
 /**
  * Which dataset an answer goes into.
  *
- * The question, the turns before it and the rating's comment come with it on the
- * server; this asks only what the server cannot know.
+ * The question and the rating's comment come with it on the server; this asks
+ * only what the server cannot know - where to, and whether the turns before the
+ * question come too.
  */
 export function AddToDatasetDialog({
   open,
@@ -52,6 +61,7 @@ export function AddToDatasetDialog({
   answerAs: initial,
   askAnswerAs,
   ratedDown = false,
+  asked,
 }: AddToDatasetDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -61,6 +71,7 @@ export function AddToDatasetDialog({
     useDatasetTarget();
   const add = useAddToDataset();
   const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
+  const [withHistory, setWithHistory] = useState(false);
   const [newName, setNewName] = useState(t("newDatasetFromActivity"));
   const making = !isLoading && editable.length === 0 && can(Perm.datasetsEdit);
 
@@ -69,17 +80,16 @@ export function AddToDatasetDialog({
       const into =
         target ??
         (await create.mutateAsync({ name: newName.trim(), description: null, visibility: "org" }));
-      await add.mutateAsync({ datasetId: into.id, messageId, answerAs });
+      await add.mutateAsync({ datasetId: into.id, messageId, answerAs, withHistory });
       remember(into);
-      const added = t("addedTo", { name: into.name });
-      if (returnTo === undefined) toast.success(added);
-      else
-        toast.success(added, {
-          action: {
-            label: t("backToDataset", { name: returnTo.name }),
-            onClick: () => router.push(`${ROUTES.DATASET_DETAIL(returnTo.id)}?tab=cases`),
-          },
-        });
+      const back = returnTo ?? into;
+      toast.success(t("addedTo", { name: into.name }), {
+        action: {
+          label:
+            returnTo === undefined ? t("openDataset") : t("backToDataset", { name: returnTo.name }),
+          onClick: () => router.push(`${ROUTES.DATASET_DETAIL(back.id)}?tab=cases`),
+        },
+      });
       onOpenChange(false);
     } catch (error) {
       toast.error(getErrorMessage(error, tErrors));
@@ -111,6 +121,14 @@ export function AddToDatasetDialog({
           idPrefix="add-to-dataset"
           create={making ? { name: newName, onChange: setNewName } : undefined}
         />
+        {asksAboutHistory(asked) && (
+          <HistoryChoice
+            idPrefix="add-to-dataset"
+            withHistory={withHistory}
+            onChange={setWithHistory}
+            asked={asked}
+          />
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}

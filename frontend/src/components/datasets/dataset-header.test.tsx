@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -119,7 +119,13 @@ describe("DatasetHeader", () => {
     const click = vi.spyOn(picker, "click");
     await openMenu();
     await userEvent.click(await screen.findByRole("menuitem", { name: "Import" }));
+    const help = await screen.findByRole("dialog", { name: "Import cases" });
+    expect(click).not.toHaveBeenCalled();
+    expect(within(help).getByText("reference_answer")).toBeInTheDocument();
+    expect(within(help).getByText("What a good answer says.")).toBeInTheDocument();
+    await userEvent.click(within(help).getByRole("button", { name: "Choose file" }));
     expect(click).toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
 
     const file = new File(["input\nq\n"], "cases.csv", { type: "text/csv" });
     await userEvent.upload(picker, file);

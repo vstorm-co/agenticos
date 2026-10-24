@@ -192,7 +192,7 @@ describe("GradingPanel", () => {
     expect(within(bar()).getByRole("alert")).toHaveTextContent("Turn on at least one scorer");
     expect(saveAll()).toBeDisabled();
 
-    await userEvent.click(screen.getByRole("switch", { name: "Judge" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Your criteria" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Give the judge at least one criterion");
     await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -209,7 +209,7 @@ describe("GradingPanel", () => {
       panel(JUDGED);
 
       expect(screen.getAllByRole("status")[0]).toHaveTextContent(offer);
-      expect(screen.getByRole("switch", { name: "Judge" })).toBeDisabled();
+      expect(screen.getByRole("switch", { name: "Your criteria" })).toBeDisabled();
       expect(screen.getByRole("switch", { name: "Reference answer" })).toBeDisabled();
       expect(screen.getByRole("combobox", { name: "Which judge" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Add criterion" })).toBeDisabled();
@@ -221,7 +221,7 @@ describe("GradingPanel", () => {
   it("configures the judge: its scale and its criteria, its model only on its page", async () => {
     panel();
 
-    await userEvent.click(screen.getByRole("switch", { name: "Judge" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Your criteria" }));
     expect(screen.queryByRole("combobox", { name: "Judge's model" })).toBeNull();
     expect(screen.getByText("Its model is changed on its own page.")).toBeInTheDocument();
     await userEvent.clear(screen.getByRole("spinbutton", { name: "Top of the scale" }));
@@ -289,6 +289,7 @@ describe("GradingPanel", () => {
       with_checks: 1,
       with_tool_calls: 2,
       with_reference: 1,
+      with_counter_example: 3,
       expectation_mix: [
         { checks: true, tool_calls: false, reference: false, cases: 1 },
         { checks: false, tool_calls: false, reference: true, cases: 1 },
@@ -299,12 +300,15 @@ describe("GradingPanel", () => {
 
     expect(screen.getAllByText("1 of 5 cases")).toHaveLength(2);
     expect(screen.getByText("2 of 5 cases")).toBeInTheDocument();
+    const counter = screen.getByText("Counter-example").parentElement as HTMLElement;
+    expect(within(counter).getByText("3 of 5 cases")).toBeInTheDocument();
+    expect(within(counter).queryByRole("switch")).toBeNull();
     expect(screen.getByText(/4 cases have nothing that grades them/)).toBeInTheDocument();
     expect(
       screen.getByText("A case passes when everything marked Must pass passes."),
     ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("switch", { name: "Judge" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Your criteria" }));
     await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
     expect(screen.queryByText(/nothing that grades/)).toBeNull();
   });
@@ -645,7 +649,7 @@ describe("GradingPanel", () => {
     panel(JUDGED, { can_edit: false });
 
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(screen.getByRole("switch", { name: "Judge" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Your criteria" })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Criterion name" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add criterion" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Create a judge for this dataset" })).toBeNull();

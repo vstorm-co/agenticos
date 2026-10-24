@@ -1012,6 +1012,9 @@ class DatasetService:
     ) -> DatasetCaseRead:
         """Turn an agent's answer into a case: the question, the turns before it, the answer.
 
+        `with_history` false leaves the turns before the question out, for a
+        question that stands on its own in a conversation that was about more.
+
         The answer is the agent's whole reply to the question - every step it
         wrote before the next question, whichever of them `message_id` names.
         Its text becomes the counter-example (or the reference answer, when
@@ -1036,14 +1039,20 @@ class DatasetService:
         """
         dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         content, provenance = await self._case_from_message(
-            ctx, dataset, data.message_id, data.answer_as
+            ctx, dataset, data.message_id, data.answer_as, with_history=data.with_history
         )
         return await self._add(
             ctx, dataset_id, content, source=CaseSource.CONVERSATION, **provenance
         )
 
     async def _case_from_message(
-        self, ctx: AuthContext, dataset: Dataset, message_id: UUID, answer_as: AnswerAs
+        self,
+        ctx: AuthContext,
+        dataset: Dataset,
+        message_id: UUID,
+        answer_as: AnswerAs,
+        *,
+        with_history: bool = True,
     ) -> tuple[DatasetCaseContent, dict[str, UUID | None]]:
         """The case an agent's answer makes, and the links back to where it came from.
 
@@ -1130,7 +1139,9 @@ class DatasetService:
                 history=[
                     {"role": turn.role, "content": turn.content}
                     for turn in earlier[:asked][-MAX_HISTORY_TURNS:]
-                ],
+                ]
+                if with_history
+                else [],
                 counter_example=None if keeps_good else answer,
                 reference_answer=(answer or None) if keeps_good else None,
                 expected_tool_calls=[

@@ -1,13 +1,17 @@
 "use client";
 
 import { useImperativeHandle, useState, type Ref } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAddToDataset } from "@/hooks/use-datasets";
 import { getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import { DatasetTargetFields } from "./dataset-target-fields";
+import { asksAboutHistory, type AskedBefore } from "./follows-on";
+import { HistoryChoice } from "./history-choice";
 import { useCanAddToDataset, useDatasetTarget } from "./use-dataset-target";
 
 export interface AlsoAddToDatasetHandle {
@@ -21,6 +25,8 @@ export interface AlsoAddToDatasetHandle {
 interface AlsoAddToDatasetProps {
   messageId: string;
   ref: Ref<AlsoAddToDatasetHandle>;
+  /** The question the answer replied to, when the chat can see it. */
+  asked?: AskedBefore;
 }
 
 /**
@@ -30,11 +36,13 @@ interface AlsoAddToDatasetProps {
  * it is wrong. The rating is saved first, so its comment is there to become the
  * case's note. Not rendered for somebody with no dataset to add to.
  */
-export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
+export function AlsoAddToDataset({ messageId, ref, asked }: AlsoAddToDatasetProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
+  const router = useRouter();
   const allowed = useCanAddToDataset();
   const [wanted, setWanted] = useState(false);
+  const [withHistory, setWithHistory] = useState(false);
   const { editable, isLoading, search, target, choose, remember } = useDatasetTarget({
     enabled: allowed && wanted,
   });
@@ -46,15 +54,25 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
       async addIfChosen() {
         if (!wanted || target === undefined) return;
         try {
-          await add.mutateAsync({ datasetId: target.id, messageId, answerAs: "counter_example" });
+          await add.mutateAsync({
+            datasetId: target.id,
+            messageId,
+            answerAs: "counter_example",
+            withHistory,
+          });
           remember(target);
-          toast.success(t("addedTo", { name: target.name }));
+          toast.success(t("addedTo", { name: target.name }), {
+            action: {
+              label: t("openDataset"),
+              onClick: () => router.push(`${ROUTES.DATASET_DETAIL(target.id)}?tab=cases`),
+            },
+          });
         } catch (error) {
           toast.error(t("addAfterRatingFailed", { reason: getErrorMessage(error, tErrors) }));
         }
       },
     }),
-    [wanted, target, add, messageId, remember, t, tErrors],
+    [wanted, target, add, messageId, withHistory, remember, router, t, tErrors],
   );
 
   if (!allowed) return null;
@@ -64,6 +82,7 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
         <Checkbox checked={wanted} onCheckedChange={(next) => setWanted(next === true)} />
         {t("alsoAddToDataset")}
       </label>
+      <p className="text-muted-foreground text-xs">{t("alsoAddAsCounterExample")}</p>
       {wanted && (
         <DatasetTargetFields
           editable={editable}
@@ -72,6 +91,14 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
           onDatasetChange={choose}
           search={search}
           idPrefix="rate-down"
+        />
+      )}
+      {wanted && asksAboutHistory(asked) && (
+        <HistoryChoice
+          idPrefix="rate-down"
+          withHistory={withHistory}
+          onChange={setWithHistory}
+          asked={asked}
         />
       )}
     </div>

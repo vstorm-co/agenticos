@@ -21,6 +21,7 @@ import {
   AlsoAddToDataset,
   type AlsoAddToDatasetHandle,
 } from "@/components/datasets/also-add-to-dataset";
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { useCanAddToDataset } from "@/components/datasets/use-dataset-target";
 import { TURN_ACTION } from "./turn-action";
 
@@ -34,7 +35,11 @@ interface RatingButtonsProps {
     rating_count: { likes: number; dislikes: number };
   }) => void;
   isAssistant: boolean;
+  /** The question this answer replied to, for Add to dataset to offer its history. */
+  asked?: AskedBefore;
 }
+
+const ADD_TOAST_MS = 10_000;
 
 export function RatingButtons({
   messageId,
@@ -43,6 +48,7 @@ export function RatingButtons({
   ratingCount,
   onRatingChange,
   isAssistant,
+  asked,
 }: RatingButtonsProps) {
   const t = useTranslations("chat");
   const tc = useTranslations("common");
@@ -90,6 +96,7 @@ export function RatingButtons({
           // A thumbs-up asks nothing, so the add is a toast's action rather than
           // a dialog in the way of every good answer.
           toast.success(t("thankYouFeedback"), {
+            duration: ADD_TOAST_MS,
             action: { label: tDatasets("addToDataset"), onClick: () => setAddingReference(true) },
           });
         } else {
@@ -210,7 +217,7 @@ export function RatingButtons({
             maxLength={2000}
             autoFocus
           />
-          <AlsoAddToDataset messageId={messageId} ref={datasetChoice} />
+          <AlsoAddToDataset messageId={messageId} ref={datasetChoice} asked={asked} />
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-xs">{comment.length} / 2000</span>
             <div className="flex gap-2">
@@ -243,6 +250,7 @@ export function RatingButtons({
           messageId={messageId}
           answerAs="reference_answer"
           askAnswerAs={false}
+          asked={asked}
         />
       )}
     </>

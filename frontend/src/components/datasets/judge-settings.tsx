@@ -21,13 +21,16 @@ interface JudgeSettingsProps {
   onCreate?: () => void;
   /** How many of the dataset's cases have a reference answer, as a sentence. */
   referenceCoverage: string;
+  /** How many have a counter-example, which the judge checks while it or the reference is on. */
+  counterExampleCoverage: string;
   /** Changed to put the cursor in the rubric's first criterion. */
   focusRubric?: number;
 }
 
 /**
  * Which judge grades the dataset, on which criteria and from which mark, and
- * whether it compares answers with the reference answer. The judge's model is
+ * whether it compares answers with the reference answer. The counter-example is
+ * no switch of its own: it is checked whenever either is on. The judge's model is
  * shown with it and changed on the judge's own page, the one place it is set.
  *
  * Changing the judge is allowed and said: scores graded before name another
@@ -42,6 +45,7 @@ export function JudgeSettings({
   disabled,
   onCreate,
   referenceCoverage,
+  counterExampleCoverage,
   focusRubric,
 }: JudgeSettingsProps) {
   const t = useTranslations("datasets.scoring");
@@ -75,7 +79,7 @@ export function JudgeSettings({
         </p>
       )}
       <ScorerRow
-        label={t("scorer.judge")}
+        label={t("scorer.criteria")}
         hint={t("judgeHint")}
         enabled={judge.enabled}
         onChange={({ enabled }) => onJudge({ ...judge, enabled })}
@@ -125,6 +129,11 @@ export function JudgeSettings({
         onChange={(next) => onReference({ ...reference, ...next })}
         disabled={disabled}
       />
+      <div className="border-b pb-4 last:border-b-0 last:pb-0">
+        <p className="text-sm font-medium">{t("counterExampleRow")}</p>
+        <p className="text-muted-foreground text-xs">{t("counterExampleHint")}</p>
+        <p className="text-muted-foreground mt-0.5 text-xs">{counterExampleCoverage}</p>
+      </div>
     </>
   );
 }

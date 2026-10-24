@@ -187,6 +187,7 @@ export function GradingPanel({
       >
         <JudgeSettings
           referenceCoverage={of(dataset.stats.with_reference)}
+          counterExampleCoverage={of(dataset.stats.with_counter_example)}
           judge={draft.judge}
           stored={stored.judge}
           reference={draft.reference}

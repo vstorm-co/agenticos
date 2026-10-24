@@ -102,6 +102,12 @@ class CaseGeneration(Base):
     dismissed_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    unreadable_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    rejected_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -113,7 +119,8 @@ class CaseGeneration(Base):
         ),
         CheckConstraint("requested_count >= 1", name="ck_case_generation_requested_count"),
         CheckConstraint(
-            "proposed_count >= 0 AND accepted_count >= 0 AND dismissed_count >= 0",
+            "proposed_count >= 0 AND accepted_count >= 0 AND dismissed_count >= 0 "
+            "AND unreadable_count >= 0 AND rejected_count >= 0",
             name="ck_case_generation_counts",
         ),
     )

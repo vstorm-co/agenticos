@@ -19,6 +19,7 @@ The claims:
 - a credential the generator wrote is redacted before a proposal is stored.
 """
 
+import json
 import uuid
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -26,6 +27,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import (
     AiAssistanceDisabledError,
@@ -419,6 +421,112 @@ async def test_an_unreadable_answer_keeps_why_on_the_generator_s_run(db, monkeyp
     await db.refresh(run)
     assert (row.status, row.error, row.run_id) == ("failed", "could not be read", run.id)
     assert run.error == "Not valid JSON"
+
+
+def _model_answers(monkeypatch, agent, run: AgentRun, cases: list[dict]) -> None:
+    """Stand in for the model under the real runner, which reads the answer itself."""
+    monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock(return_value=agent))
+    monkeypatch.setattr(
+        agent_runner.AgentRunnerService,
+        "execute",
+        AsyncMock(return_value=(json.dumps({"cases": cases}), run)),
+    )
+
+
+_READABLE = {"origin": "agent", "input": "Can I return shoes?", "reference_answer": "Yes."}
+_MALFORMED = {"origin": "agent", "input": "And boots?", "expected_tools": "lookup_order"}
+
+
+async def test_cases_that_could_not_be_read_are_left_out_and_counted(db, monkeypatch) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    row, material, quotas = await _generation(db, owner, dataset, agent, [CaseOrigin.AGENT], 4)
+    run = await _run_row(db, owner, agent)
+    _model_answers(
+        monkeypatch,
+        agent,
+        run,
+        [_READABLE, _MALFORMED, {**_READABLE, "input": "Can I return a hat?"}, _MALFORMED],
+    )
+
+    await generate(
+        db, generation_id=row.id, ctx=owner, prompt="p", material=material, quotas=quotas
+    )
+
+    await db.refresh(row)
+    assert (row.status, row.proposed_count, row.unreadable_count, row.rejected_count) == (
+        "ready",
+        2,
+        2,
+        0,
+    )
+    proposals = (
+        (await db.execute(select(CaseProposal).order_by(CaseProposal.position))).scalars().all()
+    )
+    assert [p.input for p in proposals] == ["Can I return shoes?", "Can I return a hat?"]
+
+
+async def test_readable_cases_that_break_a_rule_are_counted_apart(db, monkeypatch) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    row, material, quotas = await _generation(db, owner, dataset, agent, [CaseOrigin.AGENT], 2)
+    run = await _run_row(db, owner, agent)
+    invented = {"origin": "knowledge", "input": "Invented?", "passage": "P99"}
+    _model_answers(monkeypatch, agent, run, [_READABLE, _MALFORMED, invented])
+
+    await generate(
+        db, generation_id=row.id, ctx=owner, prompt="p", material=material, quotas=quotas
+    )
+
+    await db.refresh(row)
+    assert (row.status, row.proposed_count, row.unreadable_count, row.rejected_count) == (
+        "ready",
+        1,
+        1,
+        1,
+    )
+
+
+async def test_an_answer_with_no_readable_case_fails_as_unreadable(db, monkeypatch) -> None:
+    """Not `ready` with nothing proposed: the generation fails as it always did."""
+    owner, _, agent, dataset, _ = await _setup(db)
+    row, material, quotas = await _generation(db, owner, dataset, agent, [CaseOrigin.AGENT], 2)
+    run = await _run_row(db, owner, agent)
+    _model_answers(monkeypatch, agent, run, [_MALFORMED, _MALFORMED])
+
+    await generate(
+        db, generation_id=row.id, ctx=owner, prompt="p", material=material, quotas=quotas
+    )
+
+    await db.refresh(row)
+    await db.refresh(run)
+    assert (row.status, row.run_id, row.proposed_count, row.unreadable_count) == (
+        "failed",
+        run.id,
+        0,
+        0,
+    )
+    assert row.error == (
+        f"'{agent.name}' answered in a form that could not be read. Its run is in Activity."
+    )
+    assert run.error is not None and "none of the 2 cases" in run.error
+    assert await db.scalar(select(func.count(CaseProposal.id))) == 0
+
+
+@pytest.mark.parametrize("column", ["unreadable_count", "rejected_count"])
+async def test_a_generation_cannot_leave_out_fewer_than_no_cases(db, column) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    db.add(
+        CaseGeneration(
+            organization_id=owner.organization_id,
+            dataset_id=dataset.id,
+            agent_id=agent.id,
+            sources=["agent"],
+            requested_count=1,
+            **{column: -1},
+        )
+    )
+
+    with pytest.raises(IntegrityError, match="ck_case_generation_counts"):
+        await db.flush()
 
 
 async def test_a_source_deleted_while_the_generator_ran_fails_the_generation(

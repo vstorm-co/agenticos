@@ -55,6 +55,7 @@ describe("GenerateCasesDialog", () => {
     start.mutateAsync.mockResolvedValue({ id: "g1" });
     const { onOpenChange } = mount();
     expect(screen.getByRole("button", { name: "Estimate cost" })).toBeDisabled();
+    expect(screen.getByText(/Nothing is run against it\./)).toBeInTheDocument();
 
     await chooseAgent();
     await userEvent.click(screen.getByLabelText(/From knowledge/));

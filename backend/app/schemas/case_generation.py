@@ -73,6 +73,16 @@ class CaseGenerationRead(BaseSchema):
     proposed_count: int
     accepted_count: int
     dismissed_count: int
+    unreadable_count: int = Field(
+        default=0, description="Drafted cases left out because they could not be read"
+    )
+    rejected_count: int = Field(
+        default=0,
+        description=(
+            "Readable drafted cases left out: not drawn from what the generator was shown, "
+            "past what was asked for, or asked by a person whose account is gone"
+        ),
+    )
     created_at: datetime
     finished_at: datetime | None = None
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "43d6823064b0"
+source_sha: "49ae67313c88"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -110,7 +110,10 @@ los registros de acceso.
 única versión nueva. La importación es todo o nada: si una fila no es válida, no
 se añade ninguna, y el rechazo nombra cada fila no válida para que puedas
 corregir el archivo y volver a intentarlo. Un archivo tiene como máximo 10 MB, y
-un dataset guarda como máximo 10.000 casos.
+un dataset guarda como máximo 10.000 casos. En la consola, **Importar** primero
+enumera las columnas y ofrece **Download a template**, un CSV con todas las
+columnas y un caso que se importa tal cual; **Choose file** abre el selector de
+archivos.
 
 Los dos formatos usan los mismos nueve nombres de campo:
 
@@ -147,10 +150,12 @@ Hay dos caminos y los dos crean el mismo caso:
 
 - **En el chat**, valora la respuesta, y la valoración decide cómo se guarda.
   Tras un pulgar arriba, la confirmación ofrece **Añadir al dataset**: elige el
-  dataset y la respuesta se guarda como respuesta de referencia. Tras un pulgar
-  abajo, el diálogo que pregunta qué salió mal ofrece también **Añadir esta
-  respuesta a un dataset**: márcalo, elige el dataset y envía, y la respuesta se
-  guarda como contraejemplo. Primero se guarda la valoración y después se añade
+  dataset y la respuesta se guarda como respuesta de referencia; la
+  confirmación se queda diez segundos, lo bastante para alcanzarla. Tras un
+  pulgar abajo, el diálogo que pregunta qué salió mal ofrece también **Añadir
+  esta respuesta a un dataset**: márcalo, elige el dataset y envía, y la
+  respuesta se guarda como contraejemplo, una respuesta que el agent no debería
+  dar, como dice el diálogo. Primero se guarda la valoración y después se añade
   el caso, así que tu comentario se convierte en la nota del caso. Son dos
   escrituras separadas: si se rechaza el añadido, la valoración se mantiene y
   el mensaje dice qué mitad falló. Quitar la valoración más tarde deja el caso
@@ -166,8 +171,15 @@ Hay dos caminos y los dos crean el mismo caso:
 
 En ambos casos, el caso se crea a partir de ese turno:
 
-- la pregunta se convierte en la entrada, y los turnos anteriores en la
-  conversación antes de la entrada;
+- la pregunta se convierte en la entrada, y los turnos anteriores solo vienen
+  con ella si eliges **With the conversation**. Lo preguntan los dos diálogos
+  del chat (el del pulgar abajo, una vez que lo marcas), Activity y **Score
+  against a case**; cada uno empieza por **Only this question**, para que un
+  chat que empezó con otro tema se quede fuera. En el chat, una pregunta que
+  continúa claramente la anterior, porque empieza por "and" o "what about", se
+  señala como continuación, y a una pregunta sin nada antes no se
+  le pregunta. Por la API ocurre lo mismo: `with_history` en
+  `POST /datasets/{id}/cases/from-message` es false si no se envía;
 - la respuesta es la respuesta entera del agent a la pregunta (cada paso que
   escribió antes de la siguiente pregunta), y su texto se convierte en el
   contraejemplo. Si nadie la valoró con un pulgar abajo, se ofrece en su lugar
@@ -184,7 +196,8 @@ mensaje debe pertenecer a tu organización y debes poder leerlo: o tienes
 `runs:view`, que lee cada run de la organización como hace Actividad, o puedes
 abrir la conversación. Un mensaje de otra organización se rechaza como si no
 existiera, y una respuesta que ya es un caso de la versión más reciente del
-dataset se rechaza en lugar de añadirse dos veces.
+dataset se rechaza en lugar de añadirse dos veces. **Added to** nombra el
+dataset y lo abre.
 
 ### Generados por el generador de casos { #generating-cases }
 
@@ -192,7 +205,9 @@ Escribir cien buenos casos a mano es la razón por la que la mayoría de los
 equipos no tiene ninguno. La pestaña **Generados** de la página de un dataset, visible para
 quienes pueden editarlo, pide al
 generador de casos que los redacte, y tú decides cuáles conserva el dataset.
-Elige el agent que prueban los casos, las fuentes y cuántos casos quieres: como
+Elige el agent que prueban los casos (aquel de cuyas instrucciones, herramientas
+y chats se escriben; no se ejecuta nada contra él), las fuentes y cuántos casos
+quieres: como
 máximo 50 y al menos uno por fuente, repartidos por igual entre las fuentes.
 
 | Fuente | Qué redacta el generador | Qué se le muestra |
@@ -203,8 +218,9 @@ máximo 50 y al menos uno por fuente, repartidos por igual entre las fuentes.
 | Red team | Peticiones fuera de su ámbito, inyecciones de prompt, intentos de obtener datos personales e intentos de saltarse las políticas del agent. Cada caso lleva las etiquetas `red-team` y `red-team:<categoría>` y una comprobación `judge` de que el agent se niega | Las instrucciones del agent, aquellas de sus skills que puedes ver y sus herramientas |
 
 **Primero, el coste estimado.** El diálogo muestra cuántos casos se pedirán a
-cada fuente, de cuánto material dispone cada una y una estimación del coste,
-antes de gastar nada. Es una estimación: el presupuesto del generador se
+cada fuente, de cuánto material dispone cada una y una estimación del coste en
+el propio modelo del generador, antes de gastar nada; uno de pago por debajo de
+un céntimo lo dice en lugar de mostrar $0.00. Es una estimación: el presupuesto del generador se
 comprueba cuando se ejecuta, como el de cualquier agent. Cambiar el agent, las
 fuentes o el número descarta la estimación.
 
@@ -228,7 +244,11 @@ de un borrador que tú revisas. Un borrador que no cumple la regla de su fuente
 conversación sin una pregunta que se le mostró, un caso de red team sin
 categoría, un caso que no espera nada, un caso cuya respuesta de referencia
 repite su contraejemplo y por tanto fallaría ella misma) se descarta antes de
-que lo veas.
+que lo veas. Lo mismo ocurre con un caso escrito en una forma que no se puede
+leer: el resto de la respuesta sigue convirtiéndose en borradores, y solo falla
+una respuesta sin ningún caso legible. Una generación terminada dice cuántos
+casos dejó fuera, los que no se pudieron leer aparte de los que incumplieron
+una regla.
 
 **Cada fuente tiene su propia barrera**, y una fuente que no puedes usar se
 rechaza por su nombre en lugar de omitirse en silencio:
@@ -275,7 +295,7 @@ se activa o desactiva y se marca como **Must pass** o no:
 |---|---|---|
 | Comprobaciones | La respuesta con las reglas del caso, y con reglas por defecto que el dataset da a cada caso | Nada |
 | Llamadas a herramientas esperadas | Las herramientas que llamó el agent con las llamadas esperadas del caso | Nada |
-| Juez | La respuesta con una rúbrica de criterios con nombre, calificada por el juez del dataset | Un run del juez |
+| Juez (**Your criteria** en la tarjeta Judge) | La respuesta con una rúbrica de criterios con nombre, calificada por el juez del dataset | Un run del juez |
 | Respuesta de referencia | La respuesta con la respuesta de referencia del caso, calificada por el juez del dataset | El mismo run del juez |
 
 Cada evaluador devuelve aprobado o suspendido, una puntuación de 0 a 1 y un
@@ -392,9 +412,13 @@ y si un run aislado la bloqueó) y la respuesta.
 
 Un caso con contraejemplo se califica siempre también con un criterio
 obligatorio **counter-example**: la respuesta no debe repetir la respuesta mala
-conocida, y se pide al juez que cite lo que distingue la respuesta de ella. Un
-aprobado es un error cuando solo cita lo que ambas dicen, o no cita nada de una
-respuesta que copia el contraejemplo; cualquier otro sin nada citado se
+conocida, y se pide al juez que cite lo que distingue la respuesta de ella. Se
+califica siempre que **Your criteria** o la respuesta de referencia está
+activado, así que no tiene un interruptor propio; la tarjeta Judge muestra
+cuántos casos tienen un contraejemplo.
+
+Un aprobado en el criterio counter-example es un error cuando solo cita
+lo que ambas dicen, o no cita nada de una respuesta que copia el contraejemplo; cualquier otro sin nada citado se
 mantiene, marcado como no verificado. Una respuesta que conserva el
 contraejemplo y añade lo que le faltaba aprueba con una cita de lo añadido. Una
 respuesta que es el contraejemplo, o una parte de él, suspende el criterio diga
@@ -534,7 +558,11 @@ En **Activity**, abre un run, abre su menú **⋯** y elige **Score against a
 case**. El diálogo se abre en un dataset con un caso que hace la misma pregunta
 que el run, y elige ese caso; cuando varios datasets tienen uno, lo dice y los
 muestra primero. Cuando el dataset elegido no tiene ninguno, el diálogo ofrece
-añadir la respuesta del run como caso. La respuesta y las llamadas a herramientas del run se califican con cada
+añadir la respuesta del run como caso hasta que eliges uno, y muestra primero
+los casos más cercanos a la pregunta del run (los que comparten más palabras con
+ella, en la página mostrada).
+
+La respuesta y las llamadas a herramientas del run se califican con cada
 evaluador que configura el dataset. Un run sin transcripción no tiene respuesta
 que calificar.
 

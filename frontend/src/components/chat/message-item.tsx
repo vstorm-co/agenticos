@@ -45,6 +45,7 @@ import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 
 interface MessageItemProps {
@@ -95,6 +96,8 @@ interface MessageItemProps {
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** The question an answer replied to, when `MessageList` can see it. */
+  asked?: AskedBefore;
 }
 
 export function MessageItem({
@@ -108,6 +111,7 @@ export function MessageItem({
   onRegenerate,
   pins,
   agents = [],
+  asked,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
@@ -456,6 +460,7 @@ export function MessageItem({
                 currentRating={message.user_rating ?? null}
                 ratingCount={message.rating_count ?? undefined}
                 isAssistant={!isUser}
+                asked={asked}
                 onRatingChange={(updatedData) => {
                   updateMessage(message.id, (msg) => ({
                     ...msg,

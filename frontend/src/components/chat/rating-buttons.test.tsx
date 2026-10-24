@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { RatingButtons } from "./rating-buttons";
 import { RatingValue, type UserRating } from "@/types";
 import { ApiError } from "@/lib/api-error";
@@ -12,6 +13,11 @@ vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const rateMessage =
   vi.fn<(body: { rating: RatingValue; comment: string | null }) => Promise<unknown>>();
@@ -53,11 +59,13 @@ function mount({
   ratingCount,
   conversationId = "c-1",
   isAssistant = true,
+  asked,
 }: {
   currentRating?: UserRating;
   ratingCount?: { likes: number; dislikes: number };
   conversationId?: string;
   isAssistant?: boolean;
+  asked?: AskedBefore;
 } = {}) {
   const onRatingChange = vi.fn();
   const { unmount } = render(
@@ -68,6 +76,7 @@ function mount({
       ratingCount={ratingCount}
       onRatingChange={onRatingChange}
       isAssistant={isAssistant}
+      asked={asked}
     />,
   );
   return Object.assign(onRatingChange, { unmount });
@@ -456,6 +465,7 @@ describe("adding a rated-down answer to a dataset", () => {
     datasets.add.mockImplementation(async () => order.push("add"));
     mount();
     await userEvent.click(down());
+    expect(screen.getByText("alsoAddAsCounterExample")).toBeInTheDocument();
     await userEvent.click(alsoAdd());
     await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));
@@ -467,11 +477,64 @@ describe("adding a rated-down answer to a dataset", () => {
         datasetId: "d2",
         messageId: "m-1",
         answerAs: "counter_example",
+        withHistory: false,
       }),
     );
     expect(order).toEqual(["rate", "add"]);
-    expect(toast.success).toHaveBeenCalledWith("addedTo");
+    expect(toast.success).toHaveBeenCalledWith("addedTo", {
+      action: { label: "openDataset", onClick: expect.any(Function) },
+    });
+    act(() => toastAction(1).onClick());
+    expect(push).toHaveBeenCalledWith("/datasets/d2?tab=cases");
     await waitFor(() => expect(screen.queryByText("whatWentWrong")).toBeNull());
+  });
+
+  it("copies the conversation into a rated-down case only when asked to", async () => {
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    const history = screen.getByRole("combobox", { name: "historyChoice" });
+    expect(history).toHaveTextContent("historyAlone");
+    await userEvent.click(history);
+    await userEvent.click(screen.getByRole("option", { name: "historyWith" }));
+    await userEvent.click(screen.getByRole("button", { name: "skipComment" }));
+
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenCalledWith(expect.objectContaining({ withHistory: true })),
+    );
+  });
+
+  it("asks nothing about a conversation the question did not have", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: false } });
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+
+    expect(screen.queryByRole("combobox", { name: "historyChoice" })).toBeNull();
+  });
+
+  it("points out a follow-up in the thumbs-down dialog without choosing it", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: true } });
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+
+    expect(screen.getByRole("combobox", { name: "historyChoice" })).toHaveTextContent(
+      "historyAlone",
+    );
+    expect(screen.getByText("historyFollowUp")).toBeInTheDocument();
+  });
+
+  it("points out a follow-up in the thumbs-up dialog too", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: true } });
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    act(() => toastAction(0).onClick());
+
+    expect(screen.getByRole("combobox", { name: "historyChoice" })).toHaveTextContent(
+      "historyAlone",
+    );
+    expect(screen.getByText("historyFollowUp")).toBeInTheDocument();
   });
 
   it("keeps the rating when the add is refused, and says which half failed", async () => {
@@ -511,6 +574,9 @@ describe("adding a rated-down answer to a dataset", () => {
     expect(vi.mocked(toast.success).mock.calls[0]![0]).toBe("thankYouFeedback");
     const action = toastAction(0);
     expect(action.label).toBe("addToDataset");
+    expect(vi.mocked(toast.success).mock.calls[0]![1]).toEqual(
+      expect.objectContaining({ duration: 10_000 }),
+    );
     expect(screen.queryByRole("dialog")).toBeNull();
 
     act(() => action.onClick());
@@ -522,6 +588,7 @@ describe("adding a rated-down answer to a dataset", () => {
         datasetId: "d1",
         messageId: "m-1",
         answerAs: "reference_answer",
+        withHistory: false,
       }),
     );
     await waitFor(() => expect(screen.queryByText("addAsReferenceBody")).toBeNull());

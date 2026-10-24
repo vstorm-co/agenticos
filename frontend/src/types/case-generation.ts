@@ -25,6 +25,10 @@ export interface CaseGeneration {
   proposed_count: number;
   accepted_count: number;
   dismissed_count: number;
+  /** Drafted cases left out because they could not be read. */
+  unreadable_count: number;
+  /** Readable drafted cases left out for not keeping to what the generator was shown. */
+  rejected_count: number;
   created_at: string;
   finished_at: string | null;
 }

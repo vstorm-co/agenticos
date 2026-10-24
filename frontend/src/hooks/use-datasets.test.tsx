@@ -308,10 +308,24 @@ describe("useAddToDataset", () => {
       datasetId: "d1",
       messageId: "m1",
       answerAs: "counter_example",
+      withHistory: true,
     });
     expect(apiClient.post).toHaveBeenCalledWith("/datasets/d1/cases/from-message", {
       message_id: "m1",
       answer_as: "counter_example",
+      with_history: true,
+    });
+
+    await result.current.mutateAsync({
+      datasetId: "d1",
+      messageId: "m1",
+      answerAs: "reference_answer",
+      withHistory: false,
+    });
+    expect(apiClient.post).toHaveBeenLastCalledWith("/datasets/d1/cases/from-message", {
+      message_id: "m1",
+      answer_as: "reference_answer",
+      with_history: false,
     });
   });
 });
