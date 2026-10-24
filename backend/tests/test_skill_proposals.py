@@ -28,6 +28,7 @@ from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.repositories import skill_proposal_repo, skill_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.services import proposal_reach
+from app.services import skill_proposal as skill_proposal_module
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SkillChange
 
@@ -86,6 +87,11 @@ def _service(monkeypatch) -> SkillProposalService:
     service.skills.update = AsyncMock(return_value=skill)
     service.skills.put_resources = AsyncMock(return_value=[])
     monkeypatch.setattr(skill_proposal_repo, "decide_if", AsyncMock(side_effect=_decided))
+    # Who may decide a proposal is the integration tests' question; here everybody may.
+    monkeypatch.setattr(skill_repo, "get", AsyncMock(return_value=MagicMock()))
+    monkeypatch.setattr(skill_repo, "get_many", AsyncMock(return_value={}))
+    monkeypatch.setattr(skill_proposal_module, "resolve_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(skill_proposal_module, "accessible_ids", AsyncMock(return_value=set()))
     monkeypatch.setattr(
         proposal_reach,
         "reach",

@@ -1,5 +1,5 @@
 ---
-source_sha: "2980e260fcea"
+source_sha: "5de889685e53"
 ---
 
 # Skills { #skills }
@@ -173,7 +173,9 @@ nächste Leser hätte keine Möglichkeit, eine durchdachte Verbesserung von eine
 halluzinierten zu unterscheiden.
 
 Ein Schreibvorgang wird deshalb zu einem **Vorschlag**, und dieser erscheint über
-der Liste auf der Seite Skills für jeden, der `skills:edit` hält:
+der Liste auf der Seite Skills für alle, die diesen Skill bearbeiten dürfen - seinen
+Besitzer oder wer eine Bearbeitungsfreigabe darauf hat - und bei einem Skill, den
+es noch nicht gibt, für alle, die Skills anlegen dürfen. Sonst sieht ihn niemand:
 
 - **Apply** schreibt den Skill neu und erhöht seine Version, was jeden gebundenen
   Agent bei seinem nächsten Run erreicht.

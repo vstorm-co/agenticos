@@ -1,15 +1,12 @@
 """What agents proposed changing about this organization's skills.
 
-Gated on `skills:edit` throughout, including the listing. That is deliberate and
-it is not a permission being cautious: a proposal carries the full body an agent
-wrote, so reading one is reading a candidate version of the organization's own
-instructions - and whoever may read it is exactly whoever may accept it.
-
-These are collection routes and per-resource routes in the same file, and both
-carry the gate, which is the one place this repository's rule bends. A proposal
-has no sharing model of its own - there are no grants on one, and
-`resolve_access` has nothing to widen - so the gate cannot refuse somebody a
-grant would have admitted.
+A proposal carries the full body an agent wrote, so reading one is reading a
+candidate version of the organization's own instructions - and whoever may read
+it is exactly whoever may accept it. The routes take `skills:edit`; the service
+then lists and opens only the proposals for skills the caller may edit, with
+grants, as applying one requires, and a proposal for a skill nobody has written
+yet for anybody who may create skills - which is that same `skills:edit`. Any
+other proposal answers 404, like any per-resource read.
 """
 
 from typing import Any

@@ -32,6 +32,7 @@ from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_proposal import SkillProposalRead
 from app.services import proposal_reach
+from app.services.access import SKILL, accessible_ids, resolve_access
 from app.services.notifications import NotificationService
 from app.services.skill_workspace import SkillChange
 from app.services.skills import SkillService
@@ -104,9 +105,27 @@ class SkillProposalService:
     async def list_proposals(
         self, ctx: AuthContext, *, status: str | None = None
     ) -> list[SkillProposal]:
-        return await skill_proposal_repo.list_for_organization(
+        """The proposals the caller could decide: those for skills they may edit.
+
+        A proposal for a skill nobody has written yet is one anybody who may create
+        skills could accept - the route's own `skills:edit` - so it is listed for them.
+        """
+        proposals = await skill_proposal_repo.list_for_organization(
             self.db, organization_id=ctx.organization_id, status=status
         )
+        skills = await skill_repo.get_many(
+            self.db,
+            sorted({proposal.skill_id for proposal in proposals if proposal.skill_id is not None}),
+            organization_id=ctx.organization_id,
+        )
+        editable = await accessible_ids(
+            self.db, ctx, list(skills.values()), Perm.SKILLS_EDIT, resource_type=SKILL
+        )
+        return [
+            proposal
+            for proposal in proposals
+            if proposal.skill_id is None or proposal.skill_id in editable
+        ]
 
     async def list_read(
         self, ctx: AuthContext, *, status: str | None = None
@@ -158,10 +177,26 @@ class SkillProposalService:
         return read.model_copy(update={"evidence": hidden})
 
     async def get(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:
+        """One proposal the caller could decide - see :meth:`list_proposals`.
+
+        Raises:
+            NotFoundError: No such proposal in the organization, or one for a skill
+                the caller may not edit - which they may not learn exists.
+        """
         proposal = await skill_proposal_repo.get(
             self.db, proposal_id, organization_id=ctx.organization_id
         )
-        if proposal is None:
+        skill = (
+            None
+            if proposal is None or proposal.skill_id is None
+            else await skill_repo.get(
+                self.db, proposal.skill_id, organization_id=ctx.organization_id
+            )
+        )
+        hidden = skill is not None and not await resolve_access(
+            self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
+        )
+        if proposal is None or hidden:
             raise NotFoundError(
                 message="Skill change not found", details={"proposal_id": str(proposal_id)}
             )
