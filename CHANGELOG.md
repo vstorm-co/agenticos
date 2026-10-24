@@ -274,6 +274,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Native controls above opened apps.** The macOS app viewer reserves a title-bar
+  row, keeping the traffic lights clear of the back button and app title while
+  leaving browser viewers edge to edge.
+
 - **Clickable desktop page actions and panel controls.** The window drag area
   now has its own row outside the scrolling content, so it cannot cover New agent,
   close buttons, tabs or other controls near the top of the window. The web

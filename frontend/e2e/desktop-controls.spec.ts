@@ -164,4 +164,52 @@ test.describe("desktop pointer controls", () => {
     );
     await expect(panel).toBeHidden();
   });
+
+  test("keeps an opened app below the native controls with a usable toolbar", async ({ page }) => {
+    test.setTimeout(60_000);
+    const listing = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/apps" && response.request().method() === "GET",
+    );
+    await page.goto("/apps");
+    const response = await listing;
+    expect(response.ok()).toBe(true);
+    const data = z
+      .object({
+        items: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            current_version: z.object({ id: z.string() }).nullable(),
+          }),
+        ),
+      })
+      .parse(await response.json());
+    const app = data.items.find((item) => item.current_version !== null);
+    test.skip(!app, "This deployment has no published apps yet");
+    if (!app) return;
+    for (const width of [1440, 900]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`/apps/${encodeURIComponent(app.id)}`);
+      await expect(page.getByRole("heading", { name: app.title, exact: true })).toBeVisible();
+      await expect(page.locator("iframe")).toBeVisible();
+      const back = page.getByRole("link", { name: "Back to apps", exact: true });
+      await expect(back).toBeVisible();
+      const bounds = await back.boundingBox();
+      expect(bounds?.y, "native controls occupy the first 48 pixels").toBeGreaterThanOrEqual(48);
+      await expectReachableButtons(page);
+      await clickCenter(page, page.getByRole("button", { name: "Share", exact: true }));
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+
+      // The reserved row is native chrome; the web viewer stays edge to edge.
+      await page.locator("html").evaluate((root) => root.removeAttribute("data-shell"));
+      await expect(page.locator(".macos-window-controls")).toBeHidden();
+      expect((await back.boundingBox())?.y).toBeLessThan(48);
+      await clickCenter(page, back);
+      await expect(page).toHaveURL(/\/apps$/);
+    }
+  });
 });
