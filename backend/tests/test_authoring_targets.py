@@ -215,7 +215,7 @@ def test_subagents_are_never_added_or_reconfigured():
     )
     assert authoring_fields.stage(
         spec, "capabilities/subagents/inline/t/description", "set", "Sorts tickets"
-    ) == ("d", "Sorts tickets")
+    ) == authoring_fields.Staged("d", "Sorts tickets")
 
 
 def test_the_spec_fields_it_may_change_are_exactly_these():

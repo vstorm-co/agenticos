@@ -98,7 +98,7 @@ class TestSet:
             ("capabilities/sandbox/tool_approval/execute", None, "required", None),
             ("capabilities/subagents/inline/triage/description", "Sorts", "Sorts tickets", None),
             (f"mcp_servers/{CONNECTION}/allowed_tools", None, ["search"], None),
-            ("mcp_servers/personal:notion/allowed_tools", ["search"], None, None),
+            ("mcp_servers/personal:notion/allowed_tools", ["search"], [], None),
         ],
     )
     def test_a_change_applies_once_and_undoes_while_it_stands(self, path, base, new, check):
@@ -107,7 +107,7 @@ class TestSet:
         address = fields.parse(path)
         assert address is not None
         assert fields.read(document, address) == base
-        assert fields.stage(spec, path, "set", new) == (base, new)
+        assert fields.stage(spec, path, "set", new) == fields.Staged(base, new)
 
         written = fields.apply(spec, path, "set", base, new)
 
@@ -171,8 +171,8 @@ class TestLists:
         spec = _spec()
 
         staged = fields.stage(spec, "collection_ids", "remove", COLLECTION)
-        assert isinstance(staged, tuple)
-        base, new = staged
+        assert isinstance(staged, fields.Staged) and staged.adds == ()
+        base, new = staged.base, staged.new
         written = fields.apply(spec, "collection_ids", "remove", base, new)
 
         assert (base, new) == (COLLECTION, None)
@@ -187,8 +187,8 @@ class TestLists:
     def test_a_capability_is_removed_whole_and_only_as_it_was_read(self):
         spec = _spec()
         staged = fields.stage(spec, "capabilities", "remove", "knowledge")
-        assert isinstance(staged, tuple)
-        base = staged[0]
+        assert isinstance(staged, fields.Staged)
+        base = staged.base
         edited = _spec(capabilities=[{"id": "knowledge", "config": {"default_top_k": 9}}])
 
         assert base == spec.model_dump(mode="json")["capabilities"][0]
@@ -201,18 +201,14 @@ class TestLists:
         spec = _spec(capabilities=[])
 
         staged = fields.stage(spec, "capabilities", "add", {"id": "sandbox"})
-        assert isinstance(staged, tuple)
-        binding = staged[1]
+        assert isinstance(staged, fields.Staged)
+        binding = staged.new
 
-        assert binding["tool_approval"] == {
-            "write_file": "required",
-            "edit_file": "required",
-            "execute": "required",
-        }
-        assert fields.gated({"id": "sandbox", "approval": "required"}) == {
-            "id": "sandbox",
-            "approval": "required",
-        }
+        gated = {"write_file": "required", "edit_file": "required", "execute": "required"}
+        assert binding["tool_approval"] == gated
+        assert staged.adds == (
+            fields.Access("capability", "sandbox", ("write_file", "edit_file", "execute")),
+        )
         assert fields.gated({"id": "charts"}) == {"id": "charts"}
         assert fields.writing_tools("retired") == []
         written = fields.apply(spec, "capabilities", "add", None, binding)
@@ -221,16 +217,18 @@ class TestLists:
 
     def test_an_added_collection_id_is_stored_as_text(self):
         added = uuid.uuid4()
-        assert fields.stage(_spec(), "collection_ids", "add", added) == (None, str(added))
+        assert fields.stage(_spec(), "collection_ids", "add", added) == fields.Staged(
+            None, str(added), (fields.Access("collection", str(added)),)
+        )
 
 
 def test_a_capability_may_be_switched_on_and_configured_only_where_it_opts_in():
     added = fields.stage(_spec(), "capabilities", "add", {"id": "web_fetch"})
-    assert isinstance(added, tuple) and added[1]["id"] == "web_fetch"
+    assert isinstance(added, fields.Staged) and added.new["id"] == "web_fetch"
     configured = fields.stage(
         _spec(), "capabilities", "add", {"id": "thinking", "config": {"effort": "high"}}
     )
-    assert isinstance(configured, tuple) and configured[1]["config"] == {"effort": "high"}
+    assert isinstance(configured, fields.Staged) and configured.new["config"] == {"effort": "high"}
     assert (
         fields.stage(
             _spec(), "capabilities", "add", {"id": "web_fetch", "config": {"blocked_domains": []}}
@@ -240,10 +238,11 @@ def test_a_capability_may_be_switched_on_and_configured_only_where_it_opts_in():
 
 
 def test_a_safeguard_may_be_added():
-    base, new = fields.stage(
+    staged = fields.stage(
         _spec(), "capabilities", "add", {"id": "guardrails", "config": {"redact_secrets_out": True}}
     )
-    assert base is None and new["id"] == "guardrails"
+    assert isinstance(staged, fields.Staged)
+    assert staged.base is None and staged.new["id"] == "guardrails"
 
 
 def test_a_change_never_accepted_says_why_whatever_the_draft_holds():
@@ -267,7 +266,8 @@ def test_only_a_removed_or_reconfigured_safeguard_weakens_protection():
     assert fields.weakens_protection("capabilities", "remove", {"id": "guardrails"})
     assert fields.weakens_protection("capabilities/guardrails/config", "set", {})
     assert not fields.weakens_protection("capabilities", "remove", {"id": "charts"})
-    assert not fields.weakens_protection("capabilities", "remove", "guardrails")
+    assert fields.weakens_protection("capabilities", "remove", "guardrails")
+    assert not fields.weakens_protection("capabilities", "remove", "charts")
     assert not fields.weakens_protection("capabilities/knowledge/config", "set", {})
     assert not fields.weakens_protection("capabilities/guardrails/approval", "set", "never")
     assert not fields.weakens_protection("budget", "set", 5)
@@ -332,3 +332,113 @@ class TestRefusals:
         assert fields.stage(spec, "capabilities/retired/config", "set", {"x": 1}) == (
             "not_a_target"
         )
+
+
+class TestPolicy:
+    """What every proposed change passes before anybody sees it, whoever proposed it."""
+
+    def test_an_added_capability_asks_for_every_tool_that_writes_whatever_it_set(self):
+        staged = fields.stage(
+            _spec(capabilities=[]),
+            "capabilities",
+            "add",
+            {"id": "sandbox", "approval": "required", "tool_approval": {"execute": "never"}},
+        )
+
+        assert isinstance(staged, fields.Staged)
+        assert staged.new["approval"] == "required"
+        assert staged.new["tool_approval"] == {
+            "write_file": "required",
+            "edit_file": "required",
+            "execute": "required",
+        }
+
+    @pytest.mark.parametrize(
+        ("path", "op", "value"),
+        [
+            ("capabilities", "remove", "guardrails"),
+            ("capabilities", "remove", {"id": "guardrails"}),
+            ("capabilities/guardrails/config", "set", {}),
+        ],
+    )
+    def test_a_safeguard_is_neither_removed_nor_reconfigured_in_any_form(self, path, op, value):
+        spec = _spec(capabilities=[{"id": "guardrails"}])
+
+        assert fields.stage(spec, path, op, value) == "weakens_protection"
+
+    def test_widening_mcp_tools_asks_for_those_that_write_and_says_what_it_adds(self):
+        spec = _spec()
+        path = "mcp_servers/personal:notion/allowed_tools"
+
+        staged = fields.stage(spec, path, "set", ["search", "create_page"])
+        assert isinstance(staged, fields.Staged)
+        assert staged.adds == (fields.Access("mcp_tools", "personal:notion", ("create_page",)),)
+        written = fields.apply(spec, path, "set", staged.base, staged.new)
+
+        assert written is not None
+        assert written.model_dump(mode="json")["mcp_servers"][1]["approval"] == "writes"
+        # Undo puts the tools back and leaves the approval raised: lowering it is a loosening.
+        undone = fields.undo(written, path, "set", staged.base, staged.new)
+        assert undone is not None
+        assert undone.model_dump(mode="json")["mcp_servers"][1] == {
+            **spec.model_dump(mode="json")["mcp_servers"][1],
+            "approval": "writes",
+        }
+
+    def test_widening_to_every_tool_offered_adds_them_all_and_keeps_a_stricter_approval(self):
+        spec = _spec(
+            mcp_servers=[
+                {
+                    "account": "personal",
+                    "catalog_key": "notion",
+                    "allowed_tools": ["search"],
+                    "approval": "all",
+                }
+            ]
+        )
+        path = "mcp_servers/personal:notion/allowed_tools"
+
+        staged = fields.stage(spec, path, "set", None)
+        assert isinstance(staged, fields.Staged)
+        written = fields.apply(spec, path, "set", ["search"], None)
+
+        assert staged.adds == (fields.Access("mcp_tools", "personal:notion"),)
+        assert written is not None
+        assert written.model_dump(mode="json")["mcp_servers"][0]["approval"] == "all"
+
+    def test_narrowing_or_removing_adds_nothing_and_raises_no_approval(self):
+        spec = _spec()
+        path = "mcp_servers/personal:notion/allowed_tools"
+
+        narrowed = fields.stage(spec, path, "set", [])
+        removed = fields.stage(spec, "collection_ids", "remove", COLLECTION)
+        written = fields.apply(spec, path, "set", ["search"], [])
+
+        assert isinstance(narrowed, fields.Staged) and narrowed.adds == ()
+        assert isinstance(removed, fields.Staged) and removed.adds == ()
+        assert written is not None
+        assert written.model_dump(mode="json")["mcp_servers"][1]["approval"] == "none"
+
+    def test_a_context_file_it_adds_is_named_as_access(self):
+        added = str(uuid.uuid4())
+
+        staged = fields.stage(_spec(), "context_ids", "add", added)
+
+        assert isinstance(staged, fields.Staged)
+        assert staged.adds == (fields.Access("context", added),)
+
+
+def test_a_change_is_taken_as_accepted_only_where_it_adds_a_capability():
+    gated = fields.as_accepted("capabilities", "add", {"id": "sandbox"})
+    assert gated["tool_approval"] == {
+        "write_file": "required",
+        "edit_file": "required",
+        "execute": "required",
+    }
+    assert fields.as_accepted("capabilities", "add", gated) == gated
+    assert fields.as_accepted("capabilities", "add", {"id": "sandbox", "config": 5}) == {
+        "id": "sandbox",
+        "config": 5,
+    }
+    assert fields.as_accepted("capabilities", "remove", {"id": "sandbox"}) == {"id": "sandbox"}
+    assert fields.as_accepted("max_steps", "set", 20) == 20

@@ -1,5 +1,5 @@
 ---
-source_sha: "5821f497cd86"
+source_sha: "7e089b23abf2"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -164,7 +164,7 @@ refiere, nunca un identificador.
 | Modelo | Cambiar el perfil de modelo |
 | Ajustes del modelo | Fijar la temperatura, top-p, el máximo de tokens, el timeout o las llamadas paralelas a herramientas |
 | Límite de pasos | Fijar `max_steps` |
-| Capabilities | Añadir o quitar una, o cambiar sus ajustes - solo donde los ajustes tratan únicamente de calidad, como cuánto conocimiento recuperar o cuándo compactar; los ajustes que llegan a una URL, un dominio, una conexión, un proveedor o datos personales nunca cambian, y Subagents nunca se añade ni se reconfigura. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar |
+| Capabilities | Añadir o quitar una, o cambiar sus ajustes - solo donde los ajustes tratan únicamente de calidad, como cuánto conocimiento recuperar o cuándo compactar; los ajustes que llegan a una URL, un dominio, una conexión, un proveedor o datos personales nunca cambian, y Subagents nunca se añade ni se reconfigura. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar, se nombre como se nombre en la sugerencia |
 | Aprobación | Hacer que una capability o una de sus herramientas pregunte antes |
 | Especialistas | Reescribir la descripción de un [especialista](reference/capabilities.md#delegation) integrado |
 | Bases de conocimiento | Vincular o desvincular una |
@@ -177,17 +177,29 @@ budgets, la observabilidad y un delegado fijado nunca los cambia el asistente.
 pasos, una descripción; todo lo demás se acepta o se descarta tal como se
 sugirió.
 
-### Nunca amplía el acceso { #never-widens-access }
+### Ampliar el acceso { #widening-access }
+
+El asistente puede sugerir dar al agent más a lo que llegar: una capability, una
+base de conocimiento, un archivo de contexto, más herramientas MCP. Una
+sugerencia así se marca como **Añade acceso** y nombra cada cosa que añade.
+Nunca amplía lo que se ejecuta sin una persona:
+
+- Una capability que añade llega con cada una de sus herramientas que cambia
+  algo configurada para pedir aprobación, sea cual sea el valor que les dio la
+  propia sugerencia.
+- Permitir más herramientas de un servidor MCP hace que una vinculación que no
+  pedía nada pida aprobación para las herramientas que escriben. **Deshacer**
+  devuelve las herramientas y las deja preguntando: volver a bajar la aprobación
+  es decisión de una persona. En un servidor al que cada persona llega con su
+  propia cuenta, una herramienta cuya descripción el asistente no puede ver
+  cuenta como una que escribe.
+- La aprobación solo se endurece: una sugerencia puede hacer que una capability
+  o una herramienta pregunte antes, nunca que deje de preguntar.
 
 Una sugerencia que vincula una base de conocimiento, un archivo de contexto, un
 perfil de modelo o un servidor MCP, o que deja al agent llamar a más herramientas
 MCP, solo la acepta quien podría hacer ese cambio a mano: aceptarla como
-cualquier otra persona se rechaza, como lo rechazaría el Builder. La aprobación
-solo se endurece: una sugerencia puede hacer que una capability o una
-herramienta pregunte antes, nunca que deje de preguntar. Una capability que añade
-el asistente llega con cada una de sus herramientas que cambia algo configurada
-para preguntar antes, y la sugerencia enumera esas herramientas, igual que
-enumera las herramientas MCP a las que un cambio da alcance.
+cualquier otra persona se rechaza, como lo rechazaría el Builder.
 
 ### Un cambio de modelo { #a-change-of-model }
 
@@ -197,8 +209,11 @@ cinco, dice que es una estimación aproximada y con cuántos runs.
 
 Un cambio de modelo solo se acepta cuando ha dado resultado. **Aceptar** sigue
 desactivado, y dice por qué, hasta que una
-[comprobación con evals](#check-with-evals) de las sugerencias en espera se haya
-ejecutado con ese modelo sin encontrar ninguna regresión confirmada. Una
+[comprobación con evals](#check-with-evals) de exactamente lo que deja aceptar -
+el draft con todas las sugerencias aún en espera aplicadas - se haya ejecutado
+con ese modelo sin encontrar ninguna regresión confirmada. Descartar otra
+sugerencia o editar el draft deja desactualizada la última comprobación, y hace
+falta una nueva. Una
 comprobación que dejó un caso sin decidir - nada lo calificó, o el provider o un
 evaluador fallaron en él - o que no llegó a un veredicto también lo retiene:
 califica las respuestas o vuelve a ejecutar la comprobación. Igual una

@@ -278,7 +278,9 @@ def undo_tool(spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec | None:
 
 def apply_field(spec: AgentSpec, hunk: SpecProposalHunk, value: Any) -> AgentSpec | None:
     """`spec` with a field hunk's change made with `value`, or `None` when it is stale."""
-    return authoring_fields.apply(spec, hunk.path or "", hunk.op or "", hunk.base_value, value)
+    path, op = hunk.path or "", hunk.op or ""
+    accepted = authoring_fields.as_accepted(path, op, value)
+    return authoring_fields.apply(spec, path, op, hunk.base_value, accepted)
 
 
 def undo_field(spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec | None:

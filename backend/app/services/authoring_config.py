@@ -34,6 +34,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_evidence import EvidencePack
 from app.services.context import ContextService
 from app.services.knowledge_base import KnowledgeBaseService
+from app.services.platform_mcp import platform_tool_catalog
 
 COST_SAMPLE = 20
 """How many recent runs a model change is priced on."""
@@ -175,8 +176,19 @@ class ConfigurationService:
         return lines
 
     async def _server_tools(self, ctx: AuthContext, ref: dict[str, Any]) -> list[dict[str, Any]]:
-        """What an organization binding's server offered when it was last probed."""
-        if ref.get("account", "organization") != "organization":
+        """The tools a binding's server offers, each saying whether it only reads.
+
+        An organization's connection as it was last probed, the platform's own
+        from its catalog; a personal binding reaches each person's own account,
+        so what it offers is not known here.
+        """
+        account = ref.get("account", "organization")
+        if account == "platform":
+            return [
+                {"name": tool.name, "read_only": not tool.writes}
+                for tool in platform_tool_catalog()
+            ]
+        if account != "organization":
             return []
         connection = await mcp_connection_repo.get_org_scoped_by_id(
             self.db,
@@ -275,7 +287,7 @@ class ConfigurationService:
             if isinstance(staged, str):
                 refused.append((change, Rejection(staged)))
                 continue
-            base, new = staged
+            base, new = staged.base, staged.new
             applied = authoring_fields.apply(spec, change.path, change.op, base, new)
             assert applied is not None, "stage() applied it already"
             if await self.registry.reference_problems(ctx, applied, path=change.path, op=change.op):
@@ -290,7 +302,7 @@ class ConfigurationService:
                     "op": change.op,
                     "base_value": base,
                     "new_value": new,
-                    "effect": await self._effect(ctx, agent_id, change.path, change.op, base, new),
+                    "effect": await self._effect(ctx, agent_id, spec, change, staged),
                     "rationale": change.rationale,
                     "expected_effect": change.expected_effect,
                     "evidence": kept,
@@ -300,41 +312,56 @@ class ConfigurationService:
         return hunks, refused
 
     async def _effect(
-        self, ctx: AuthContext, agent_id: UUID, path: str, op: str, base: Any, new: Any
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        spec: AgentSpec,
+        change: FieldChange,
+        staged: authoring_fields.Staged,
     ) -> dict[str, Any] | None:
-        if path == "model_profile_id":
-            return await self.cost(ctx, agent_id, base, new)
-        if path == "capabilities" and op == "add":
-            writes = authoring_fields.writing_tools(str(new.get("id")))
-            return {"writes": writes} if writes else None
-        if path.startswith("mcp_servers/"):
-            return await self._mcp_writes(ctx, path, base, new)
-        return None
+        """What a field change does beyond its value: its cost, what it gives access to.
+
+        `adds` names each thing the agent gains, for the card to mark; `writes` the
+        tools among them that change something, every one asking for approval.
+        """
+        if change.path == "model_profile_id":
+            return await self.cost(ctx, agent_id, staged.base, staged.new)
+        if not staged.adds:
+            return None
+        writes: list[str] = []
+        for access in staged.adds:
+            if access.kind == "capability":
+                writes += access.tools
+            elif access.kind == "mcp_tools":
+                writes += await self._mcp_writes(ctx, spec, change.path, staged)
+        return {
+            "adds": [
+                {"kind": access.kind, "id": access.id, "tools": list(access.tools)}
+                for access in staged.adds
+            ],
+            **({"writes": writes} if writes else {}),
+        }
 
     async def _mcp_writes(
-        self, ctx: AuthContext, path: str, base: Any, new: Any
-    ) -> dict[str, Any] | None:
-        """The tools a widened MCP binding newly reaches that the server says write.
+        self, ctx: AuthContext, spec: AgentSpec, path: str, staged: authoring_fields.Staged
+    ) -> list[str]:
+        """The tools a widened MCP binding newly reaches that may write.
 
-        `None` is every tool the connection allows, so widening to it reaches all
-        the server offers, and narrowing from it reaches nothing new.
+        `None` is every tool the server offers. A tool the server does not
+        describe - a personal binding's - may write, so it counts.
         """
-        try:
-            connection_id = UUID(path.split("/")[1])
-        except ValueError:
-            return None
-        tools = await self._server_tools(
-            ctx, {"account": "organization", "connection_id": connection_id}
+        key = path.split("/")[1]
+        ref = next(
+            server
+            for server in spec.model_dump(mode="json")["mcp_servers"]
+            if authoring_fields.server_key(server) == key
         )
+        tools = await self._server_tools(ctx, ref)
         offered = {str(tool["name"]) for tool in tools}
-        reached = offered if new is None else set(new)
-        before = offered if base is None else set(base)
-        writes = sorted(
-            str(tool["name"])
-            for tool in tools
-            if tool["name"] in reached - before and not tool.get("read_only")
-        )
-        return {"writes": writes} if writes else None
+        reached = offered if staged.new is None else set(staged.new)
+        before = offered if staged.base is None else set(staged.base)
+        reads = {str(tool["name"]) for tool in tools if tool.get("read_only")}
+        return sorted(reached - before - reads)
 
     async def cost(
         self, ctx: AuthContext, agent_id: UUID, before: Any, after: Any

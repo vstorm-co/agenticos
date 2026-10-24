@@ -9430,7 +9430,16 @@
         "check_first": "Zmianę modelu przyjmuje się, gdy się opłaca. Najpierw uruchom Sprawdź w ewaluacji na tych sugestiach.",
         "inconclusive": "Ostatnie sprawdzenie tego modelu zostawiło nierozstrzygnięte przypadki. Oceń otwarte odpowiedzi albo uruchom je ponownie.",
         "regression": "Ostatnie sprawdzenie tego modelu zepsuło przypadki, które wcześniej przechodziły. Popraw sugestie albo odrzuć tę.",
-        "crashed": "Run agenta nie powiódł się na przypadkach w ostatnim sprawdzeniu tego modelu. Napraw to, co zawiodło, i uruchom sprawdzenie ponownie."
+        "crashed": "Run agenta nie powiódł się na przypadkach w ostatnim sprawdzeniu tego modelu. Napraw to, co zawiodło, i uruchom sprawdzenie ponownie.",
+        "check_outdated": "Sprawdzenie jest nieaktualne: od tamtej pory zmienił się draft albo czekające na nim sugestie. Uruchom nowe sprawdzenie."
+      },
+      "access": {
+        "title": "Nowy dostęp: {items}",
+        "capability": "capability „{name}”{count, plural, =0 {} one {, jej narzędzie zapisujące pyta o zgodę} few {, jej # narzędzia zapisujące pytają o zgodę} many {, jej # narzędzi zapisujących pyta o zgodę} other {, jej # narzędzia zapisującego pyta o zgodę}}",
+        "collection": "baza wiedzy „{name}”",
+        "context": "plik kontekstu „{name}”",
+        "mcpTools": "{count, plural, =0 {wszystkie narzędzia {server}} one {narzędzie {tools} z {server}} other {narzędzia {tools} z {server}}}, z pytaniem o zgodę tam, gdzie zapisują",
+        "keeps": "Jeśli serwer o nic nie pytał, przyjęcie sprawia, że każde jego narzędzie zapisujące pyta o zgodę - nie tylko dodane. Cofnięcie przywraca narzędzia i zostawia pytanie o zgodę."
       }
     },
     "evidence": {

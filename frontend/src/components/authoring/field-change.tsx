@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { Badge, Input, Textarea } from "@/components/ui";
 import type { FieldValue, Hunk } from "@/types/authoring";
+import { AddsAccess } from "./adds-access";
 import { TextDiff } from "./text-diff";
 
 type Translate = ReturnType<typeof useTranslations>;
@@ -144,6 +145,7 @@ export function FieldDiff({
           {t("writes", { tools: effect.writes.join(", ") })}
         </p>
       )}
+      {effect?.adds && effect.adds.length > 0 && <AddsAccess adds={effect.adds} names={names} />}
       {hunk.expected_effect && (
         <p className="text-sm">{t("expects", { effect: hunk.expected_effect })}</p>
       )}

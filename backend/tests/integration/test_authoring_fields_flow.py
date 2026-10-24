@@ -138,7 +138,10 @@ async def test_what_may_be_staged_is_staged_and_the_rest_is_only_counted(db):
     by_path = {(hunk.path, str(hunk.new_value)): hunk for hunk in batch.hunks}
     added = next(hunk for hunk in batch.hunks if hunk.path == "capabilities")
     assert added.new_value["tool_approval"] == {"publish_artifact": "required"}
-    assert added.effect == {"writes": ["publish_artifact"]}
+    assert added.effect == {
+        "adds": [{"kind": "capability", "id": "artifacts", "tools": ["publish_artifact"]}],
+        "writes": ["publish_artifact"],
+    }
     assert added.names == {"artifacts": "Apps"}
     assert by_path[("collection_ids", str(shared.id))].names == {str(shared.id): shared.name}
     assert by_path[(None, "None")].names == {}

@@ -1,5 +1,5 @@
 ---
-source_sha: "5821f497cd86"
+source_sha: "7e089b23abf2"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -170,7 +170,7 @@ sich bezieht, nie eine Kennung.
 | Modell | Das Modellprofil wechseln |
 | Modelleinstellungen | Temperatur, Top-p, maximale Tokens, Timeout oder parallele Tool-Aufrufe setzen |
 | Schrittlimit | `max_steps` setzen |
-| Capabilities | Eine hinzufügen oder entfernen oder ihre Einstellungen ändern - nur dort, wo die Einstellungen allein die Qualität betreffen, etwa wie viel Wissen abgerufen oder wann kompaktiert wird; Einstellungen, die eine URL, eine Domain, eine Verbindung, einen Anbieter oder personenbezogene Daten erreichen, ändern sich nie, und Subagents werden nie hinzugefügt oder umkonfiguriert. Eine Schutzmaßnahme - Guardrails - lässt sich nur hinzufügen: nie entfernen oder umkonfigurieren |
+| Capabilities | Eine hinzufügen oder entfernen oder ihre Einstellungen ändern - nur dort, wo die Einstellungen allein die Qualität betreffen, etwa wie viel Wissen abgerufen oder wann kompaktiert wird; Einstellungen, die eine URL, eine Domain, eine Verbindung, einen Anbieter oder personenbezogene Daten erreichen, ändern sich nie, und Subagents werden nie hinzugefügt oder umkonfiguriert. Eine Schutzmaßnahme - Guardrails - lässt sich nur hinzufügen: nie entfernen oder umkonfigurieren, gleich, wie der Vorschlag sie nennt |
 | Freigabe | Eine Capability oder eines ihrer Tools zuerst fragen lassen |
 | Spezialisten | Die Beschreibung eines eingebetteten [Spezialisten](reference/capabilities.md#delegation) umschreiben |
 | Wissensbasen | Eine binden oder lösen |
@@ -183,17 +183,29 @@ Assistenten nie geändert. **Bearbeiten** funktioniert bei einem einzelnen Wert
 oder einem Text - einer Einstellung, dem Schrittlimit, einer Beschreibung; alles
 andere wird so angenommen oder verworfen, wie es vorgeschlagen wurde.
 
-### Er erweitert nie den Zugriff { #never-widens-access }
+### Zugriff erweitern { #widening-access }
+
+Der Assistent kann vorschlagen, dem Agent mehr zugänglich zu machen: eine
+Capability, eine Wissensbasis, eine Context-Datei, weitere MCP-Tools. Ein solcher
+Vorschlag ist mit **Erweitert den Zugriff** markiert und nennt alles, was er
+hinzufügt. Er erweitert nie, was ohne einen Menschen läuft:
+
+- Eine Capability, die er hinzufügt, kommt mit jedem ihrer Tools, das etwas
+  ändert, auf Freigabe gesetzt, ganz gleich, worauf der Vorschlag selbst sie
+  gesetzt hat.
+- Mehr Tools eines MCP-Servers zuzulassen, lässt eine Bindung, die nach nichts
+  fragte, für die schreibenden Tools um Freigabe bitten. **Rückgängig** stellt
+  die Tools wieder her und lässt sie weiter fragen: Die Freigabe wieder zu
+  lockern, ist die Entscheidung eines Menschen. Bei einem Server, den jede
+  Person über ihr eigenes Konto erreicht, zählt ein Tool, dessen Beschreibung der
+  Assistent nicht sehen kann, als schreibendes.
+- Freigaben werden nur strenger: Ein Vorschlag kann eine Capability oder ein
+  Tool zuerst fragen lassen, nie aufhören lassen zu fragen.
 
 Einen Vorschlag, der eine Wissensbasis, eine Context-Datei, ein Modellprofil
 oder einen MCP-Server bindet oder den Agent mehr MCP-Tools aufrufen lässt, nimmt
 nur an, wer diese Änderung auch von Hand vornehmen dürfte: Jeder andere wird
-abgelehnt, wie der Builder ihn ablehnen würde. Freigaben werden nur strenger:
-Ein Vorschlag kann eine Capability oder ein Tool zuerst fragen lassen, nie
-aufhören lassen zu fragen. Eine Capability, die der Assistent hinzufügt, kommt
-mit jedem ihrer Tools, das etwas ändert, auf zuerst fragen gesetzt, und der
-Vorschlag nennt diese Tools, so wie er die MCP-Tools nennt, die eine Änderung
-erreichbar macht.
+abgelehnt, wie der Builder ihn ablehnen würde.
 
 ### Ein Modellwechsel { #a-change-of-model }
 
@@ -204,8 +216,10 @@ wie vielen Runs.
 
 Ein Modellwechsel wird erst angenommen, wenn er sich bewährt hat. **Annehmen**
 bleibt deaktiviert und sagt warum, bis eine [Prüfung mit Evals](#check-with-evals)
-der wartenden Vorschläge auf diesem Modell gelaufen ist und keine bestätigte
-Regression gefunden hat. Eine Prüfung, die einen Fall unentschieden ließ -
+von genau dem, was das Annehmen hinterlässt - dem Draft mit allen noch wartenden
+Vorschlägen umgesetzt -, auf diesem Modell gelaufen ist und keine bestätigte
+Regression gefunden hat. Einen anderen Vorschlag zu verwerfen oder den Draft zu
+bearbeiten, macht die letzte Prüfung veraltet, und eine neue ist nötig. Eine Prüfung, die einen Fall unentschieden ließ -
 nichts hat ihn bewertet, oder der Provider oder ein Bewerter ist daran
 gescheitert - oder zu keinem Urteil kam, hält ihn ebenfalls zurück: Bewerten Sie
 die Antworten oder starten Sie die Prüfung erneut. Ebenso eine Prüfung, in der

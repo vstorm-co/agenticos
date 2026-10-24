@@ -1,4 +1,5 @@
-"""When a change of model may be accepted: only once a check shows it pays off."""
+"""When a change of model may be accepted: only once a check of exactly what is
+accepted - the draft with every suggestion still waiting made - shows it pays off."""
 
 import uuid
 from types import SimpleNamespace
@@ -7,15 +8,17 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.db.models.eval_run import ArmRole
 from app.repositories import eval_run_repo
 from app.services.authoring import AuthoringService
-from app.services.eval_run import EvalRunService
+from app.services.eval_run import EvalRunService, spec_hash
 
 pytestmark = pytest.mark.anyio
 
 MODEL = str(uuid.uuid4())
+COMBINATION = AgentSpec(name="Clerk", instructions="Answer refunds.", model_profile_id=MODEL)
 
 
 def _run(
@@ -27,6 +30,7 @@ def _run(
     incomplete: int = 0,
     crashed: int = 0,
     outcome: bool = True,
+    checked: AgentSpec = COMBINATION,
 ) -> Any:
     decided = SimpleNamespace(incomplete=0, ungraded=0, crashed=0)
     return SimpleNamespace(
@@ -37,6 +41,7 @@ def _run(
                 id=uuid.uuid4(),
                 role=ArmRole.CANDIDATE,
                 summary=SimpleNamespace(incomplete=incomplete, ungraded=ungraded, crashed=crashed),
+                spec_hash=spec_hash(checked),
             ),
         ],
         outcome=SimpleNamespace(verdict=verdict, regressions_confirmed=regressions)
@@ -61,9 +66,8 @@ async def _gate(monkeypatch, mock_db_session, runs: list[Any], *, model: str = M
         AsyncMock(return_value=SimpleNamespace(spec={"model_profile_id": model})),
     )
     batch = SimpleNamespace(check_eval_run_ids=list(by_id))
-    hunk = SimpleNamespace(new_value=MODEL)
     ctx = SimpleNamespace(organization_id=uuid.uuid4())
-    return await AuthoringService(mock_db_session)._model_gate(ctx, batch, hunk)
+    return await AuthoringService(mock_db_session)._model_gate(ctx, batch, COMBINATION)
 
 
 @pytest.mark.parametrize(
@@ -116,7 +120,14 @@ async def test_a_check_without_its_candidate_or_its_spec_does_not_count(
     monkeypatch.setattr(eval_run_repo, "get_arm", AsyncMock(return_value=None))
     batch = SimpleNamespace(check_eval_run_ids=[uuid.uuid4()])
     ctx = SimpleNamespace(organization_id=uuid.uuid4())
-    gate = await AuthoringService(mock_db_session)._model_gate(
-        ctx, batch, SimpleNamespace(new_value=MODEL)
-    )
+    gate = await AuthoringService(mock_db_session)._model_gate(ctx, batch, COMBINATION)
     assert gate == "check_first"
+
+
+async def test_a_check_of_another_combination_is_out_of_date(monkeypatch, mock_db_session):
+    moved = COMBINATION.model_copy(update={"instructions": "Answer refunds briefly."})
+
+    assert await _gate(monkeypatch, mock_db_session, [_run(checked=moved)]) == "check_outdated"
+    # The latest check of exactly this combination decides, however many came before.
+    runs = [_run(), _run(checked=moved)]
+    assert await _gate(monkeypatch, mock_db_session, runs) is None

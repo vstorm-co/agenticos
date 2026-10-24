@@ -9530,7 +9530,16 @@
         "check_first": "Ein Modellwechsel wird angenommen, wenn er sich auszahlt. Führe zuerst Mit Evals prüfen für diese Vorschläge aus.",
         "inconclusive": "Die letzte Prüfung dieses Modells hat Fälle offen gelassen. Bewerte die offenen Antworten oder prüfe erneut.",
         "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen.",
-        "crashed": "Der Run des Agenten ist in der letzten Prüfung dieses Modells bei Fällen gescheitert. Behebe, was gescheitert ist, und prüfe erneut."
+        "crashed": "Der Run des Agenten ist in der letzten Prüfung dieses Modells bei Fällen gescheitert. Behebe, was gescheitert ist, und prüfe erneut.",
+        "check_outdated": "Die Prüfung ist veraltet: Der Entwurf oder die darauf wartenden Vorschläge haben sich seitdem geändert. Führe eine neue Prüfung aus."
+      },
+      "access": {
+        "title": "Erweitert den Zugriff: {items}",
+        "capability": "Capability „{name}“{count, plural, =0 {} =1 {, deren schreibendes Tool um Freigabe bittet} other {, deren # schreibende Tools um Freigabe bitten}}",
+        "collection": "Wissensdatenbank „{name}“",
+        "context": "Kontextdatei „{name}“",
+        "mcpTools": "{count, plural, =0 {jedes Tool von {server}} =1 {Tool {tools} von {server}} other {Tools {tools} von {server}}}, mit Freigabe, wo sie schreiben",
+        "keeps": "Wo der Server nach nichts gefragt hat, lässt das Annehmen jedes seiner schreibenden Tools um Freigabe bitten - nicht nur die hinzugefügten. Rückgängig stellt die Tools wieder her und lässt sie weiter um Freigabe bitten."
       }
     },
     "evidence": {

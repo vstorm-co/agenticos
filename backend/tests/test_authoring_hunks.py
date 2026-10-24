@@ -351,3 +351,22 @@ def test_verify_reads_an_edit_to_the_tools_beside_one_to_the_instructions():
     assert any(line.startswith("~ charts / create_chart:") for line in lines)
     assert "  now: create_chart - Only for trends." in lines
     assert _tool_diff(published, published) == ""
+
+
+def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
+    """A row staged before the rule, or by a writer that never passed staging, is
+    still written with every tool that writes asking for approval."""
+    spec = AgentSpec(name="Clerk", instructions="Answer.")
+    stored = {"id": "sandbox", "approval": "required", "tool_approval": {"execute": "never"}}
+    hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=stored)
+
+    projected, skipped = hunks.projection(spec, [hunk])
+
+    assert skipped == []
+    (binding,) = projected.capabilities
+    assert binding.tool_approval == {
+        "execute": "required",
+        "write_file": "required",
+        "edit_file": "required",
+    }
+    assert hunks.apply_field(spec, hunk, stored) == projected

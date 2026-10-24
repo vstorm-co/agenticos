@@ -117,7 +117,21 @@ export interface EvidenceItem {
 export type FieldValue =
   string | number | boolean | null | FieldValue[] | { [key: string]: FieldValue };
 
-/** What a field change is expected to do, measured on recent runs. */
+/**
+ * One thing a change gives the agent access to. `tools` are a capability's
+ * tools that write, or the MCP tools newly allowed - none for every tool the
+ * server offers.
+ */
+export interface AccessAdded {
+  kind: "capability" | "collection" | "context" | "mcp_tools";
+  id: string;
+  tools: string[];
+}
+
+/**
+ * What a field change does beyond its value: for a model, its cost measured on
+ * recent runs; for anything it adds, what that is and the tools among it that write.
+ */
 export interface FieldEffect {
   /** For a change of model: what one recent run would cost on each, as decimals. */
   runs?: number;
@@ -126,6 +140,8 @@ export interface FieldEffect {
   cost_per_run_after?: string | null;
   /** Tools the change makes reachable that write; an eval holds them back. */
   writes?: string[];
+  /** What the change gives the agent access to, each tool that writes asking for approval. */
+  adds?: AccessAdded[];
 }
 
 export interface Hunk {
@@ -153,8 +169,8 @@ export interface Hunk {
   effect: FieldEffect | null;
   /** Names of the models, collections, context files and servers it refers to. */
   names: Record<string, string>;
-  /** Why Accept is refused for now: `check_first`, `inconclusive`, `regression` or `crashed`. */
-  blocked: "check_first" | "inconclusive" | "regression" | "crashed" | null;
+  /** Why Accept is refused for now: `check_first`, `check_outdated`, `inconclusive`, `regression` or `crashed`. */
+  blocked: "check_first" | "check_outdated" | "inconclusive" | "regression" | "crashed" | null;
   expected_effect: string;
   rationale: string;
   evidence: EvidenceItem[];
