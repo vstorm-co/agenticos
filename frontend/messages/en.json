@@ -7026,7 +7026,14 @@
     "goToQuestion": "Go to question {step}",
     "skipped": "Skipped",
     "sendAnswers": "Send answers",
-    "backToOptions": "Back to the options"
+    "backToOptions": "Back to the options",
+    "resourceUnavailable": {
+      "title": "Resource unavailable",
+      "description": "This is not in your organization, or you do not have access.",
+      "switchOrganization": "If you belong to another organization, switch to it in the organization menu.",
+      "runsTitle": "Permission needed",
+      "runsPermission": "Reading eval results needs runs:view. Ask an organization owner for access."
+    }
   },
   "vault": {
     "access": "Access",

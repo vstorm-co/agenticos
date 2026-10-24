@@ -6795,7 +6795,14 @@
     "goToQuestion": "Przejdź do pytania {step}",
     "skipped": "Pominięte",
     "sendAnswers": "Wyślij odpowiedzi",
-    "backToOptions": "Wróć do opcji"
+    "backToOptions": "Wróć do opcji",
+    "resourceUnavailable": {
+      "title": "Zasób niedostępny",
+      "description": "Ten zasób nie należy do Twojej organizacji albo nie masz do niego dostępu.",
+      "switchOrganization": "Jeśli należysz do innej organizacji, przełącz ją w menu organizacji.",
+      "runsTitle": "Potrzebne uprawnienie",
+      "runsPermission": "Odczyt wyników ewaluacji wymaga runs:view. Poproś właściciela organizacji o dostęp."
+    }
   },
   "vault": {
     "access": "Dostęp",

@@ -1,5 +1,5 @@
 ---
-source_sha: "030a32879fab"
+source_sha: "07fd123e7c37"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -184,6 +184,8 @@ Una versión en la que solo algunos casos no tienen nada que los califique se
 ejecuta igualmente, y la estimación los cuenta antes (`ungraded_cases`): el
 diálogo de inicio, un check de sugerencias y el diálogo de una suite dicen «1
 case has nothing to grade it. The result will be inconclusive.»
+
+Un entorno desconocido devuelve 404. Crear o renombrar suites simultáneamente con el mismo nombre devuelve 409 en lugar de un error del servidor. Un dataset que puede leer pero no editar o ejecutar devuelve 403 indicando el permiso que falta; uno inaccesible sigue devolviendo 404 sin detalles de permisos. Una prueba de borrador inválida explica que no se puede evaluar y conserva los problemas de cada campo.
 
 ### Comprobar sugerencias { #checking-suggestions }
 

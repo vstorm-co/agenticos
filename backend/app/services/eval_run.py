@@ -876,9 +876,16 @@ class EvalRunService:
         candidate = (
             PublishedCandidate(version.id) if version is not None else UnpublishedCandidate(spec)
         )
-        await self.registry.get_candidate_spec(
-            ctx, agent.id, candidate, environment_id=environment_id
-        )
+        try:
+            await self.registry.get_candidate_spec(
+                ctx, agent.id, candidate, environment_id=environment_id
+            )
+        except BadRequestError as exc:
+            if version is not None or not exc.details or "problems" not in exc.details:
+                raise
+            raise BadRequestError(
+                message="The draft cannot be evaluated", details=exc.details
+            ) from exc
         model = await self.models.resolve(ctx, profile_id=model_profile_id or spec.model_profile_id)
         return ArmPlan(
             role=role,

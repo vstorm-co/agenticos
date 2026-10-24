@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Eval refusals explain what needs changing.** Unknown environments return
+  404, concurrent suite-name conflicts return 409, and visible datasets name
+  missing permissions. Draft validation talks about evaluation. Agent and
+  dataset links show a no-access view; Evals deep links explain `runs:view`,
+  and read-only grading controls are visibly disabled (#2367).
+
 - **Judge criteria can be scoped to case tags.** Unmatched criteria are omitted,
   the rubric editor shows coverage without double counting, and Review notes
   can target a case tag. Existing unscoped criteria and their hashes remain

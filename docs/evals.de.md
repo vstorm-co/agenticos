@@ -1,5 +1,5 @@
 ---
-source_sha: "030a32879fab"
+source_sha: "07fd123e7c37"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -203,6 +203,8 @@ Eine Version, in der nur einige Fälle nichts haben, das sie bewertet, läuft
 trotzdem, und die Schätzung zählt sie vorher (`ungraded_cases`): der
 Startdialog, ein Check von Vorschlägen und der Dialog einer Suite sagen „1 Fall
 has nothing to grade it. The result will be inconclusive.“
+
+Eine unbekannte Umgebung liefert 404. Gleichzeitiges Erstellen oder Umbenennen von Suiten mit demselben Namen liefert 409 statt eines Serverfehlers. Ein lesbares Dataset ohne Bearbeitungs- oder Ausführungsrecht liefert 403 mit der fehlenden Berechtigung; ein nicht zugängliches Dataset bleibt bei 404 ohne Berechtigungsdetails. Ein ungültiger Entwurfstest erklärt, dass der Entwurf nicht ausgewertet werden kann, und behält die Feldprobleme bei.
 
 ### Vorschläge prüfen { #checking-suggestions }
 

@@ -31,6 +31,7 @@ from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
+    AuthorizationError,
     BadRequestError,
     EvalSuiteInUseError,
     NotFoundError,
@@ -330,15 +331,20 @@ class DatasetService:
 
         Raises:
             NotFoundError: When it does not exist, belongs to another organization,
-                or the caller lacks `perm` on it. One answer for all three: whether
-                a private dataset exists is itself something the caller may not
-                learn.
+                or the caller cannot view it.
+            AuthorizationError: A visible dataset needs the named permission.
         """
         dataset = await dataset_repo.get(self.db, dataset_id, organization_id=ctx.organization_id)
-        if dataset is None or not await resolve_access(
-            self.db, ctx, dataset, perm, resource_type=DATASET
-        ):
-            raise NotFoundError(message="Dataset not found", details={"dataset_id": dataset_id})
+        if dataset is None:
+            raise NotFoundError(message="Dataset not found")
+        if not await resolve_access(self.db, ctx, dataset, perm, resource_type=DATASET):
+            if perm is not Perm.DATASETS_VIEW and await resolve_access(
+                self.db, ctx, dataset, Perm.DATASETS_VIEW, resource_type=DATASET
+            ):
+                raise AuthorizationError(
+                    message=f"Needs {perm.value}", details={"permission": perm.value}
+                )
+            raise NotFoundError(message="Dataset not found")
         return dataset
 
     async def _can_edit(self, ctx: AuthContext, dataset: Dataset) -> bool:

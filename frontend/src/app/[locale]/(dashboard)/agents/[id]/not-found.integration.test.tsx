@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -151,6 +151,11 @@ function wrapper({ children }: { children: ReactNode }) {
   );
 }
 
+vi.mock("@/hooks/use-organizations", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-organizations")>()),
+  useOrganizationList: () => ({ data: [] }),
+}));
+
 const PARAMS = Promise.resolve({ id: "a1", locale: "en" });
 
 async function mount() {
@@ -170,9 +175,11 @@ describe("the agent detail page for an unreadable agent", () => {
   it("says the agent is unavailable instead of holding the skeleton", async () => {
     await mount();
 
-    expect(await screen.findByText("Agent not available")).toBeInTheDocument();
+    expect(await screen.findByText("Resource unavailable")).toBeInTheDocument();
     // The server's reason, so a 404 reads as "not found" rather than a bare frame.
-    expect(screen.getByText("Agent not found")).toBeInTheDocument();
+    expect(
+      screen.getByText("This is not in your organization, or you do not have access."),
+    ).toBeInTheDocument();
     // Never the Builder: no skeleton and no tabs behind the refusal.
     expect(screen.queryByRole("tab", { name: "Build" })).toBeNull();
   });
@@ -180,15 +187,17 @@ describe("the agent detail page for an unreadable agent", () => {
   it("offers a way back to the Agents list", async () => {
     await mount();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Back to agents" }));
-    expect(push).toHaveBeenCalledWith("/agents");
+    expect(await screen.findByRole("link", { name: "Back to agents" })).toHaveAttribute(
+      "href",
+      "/agents",
+    );
   });
 
   it("says so too when the agent is deleted while its page is open", async () => {
     read.agent = AGENT;
     await mount();
 
-    expect(await screen.findByText("Agent not available")).toBeInTheDocument();
+    expect(await screen.findByText("Resource unavailable")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Build" })).toBeNull();
   });
 
@@ -198,6 +207,14 @@ describe("the agent detail page for an unreadable agent", () => {
     await mount();
 
     expect(await screen.findByRole("tab", { name: "Build" })).toBeInTheDocument();
-    expect(screen.queryByText("Agent not available")).toBeNull();
+    expect(screen.queryByText("Resource unavailable")).toBeNull();
   });
+});
+
+it("shows a no-access state for a forbidden agent too", async () => {
+  read.agent = undefined;
+  read.error = new ApiError(403, "Forbidden");
+  await mount();
+  expect(await screen.findByText("Resource unavailable")).toBeVisible();
+  expect(screen.queryByText("Something went wrong")).toBeNull();
 });

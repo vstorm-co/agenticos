@@ -34,6 +34,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.subagents import SubagentsConfig
@@ -324,6 +325,15 @@ def _line(text: str) -> str:
     return flat if len(flat) <= _INPUT_CHARS else flat[: _INPUT_CHARS - 1] + "…"
 
 
+def _name_conflict(exc: IntegrityError) -> bool:
+    """The driver's named uniqueness violation; unrelated integrity failures remain errors."""
+    return (
+        getattr(exc.orig, "constraint_name", None) == "uq_eval_suites_agent_name"
+        or getattr(exc.orig.__cause__ if exc.orig else None, "constraint_name", None)
+        == "uq_eval_suites_agent_name"
+    )
+
+
 class EvalSuiteService:
     """Setting suites up, firing them on the events they watch, and the sweep that runs them."""
 
@@ -605,25 +615,33 @@ class EvalSuiteService:
             await self._check_environment(ctx, agent, data.environment_id)
         await self._check_name(ctx, agent, data.name)
         now = datetime.now(UTC)
-        suite = await eval_suite_repo.create(
-            self.db,
-            organization_id=ctx.organization_id,
-            suite=EvalSuite(
-                agent_id=agent.id,
-                dataset_id=data.dataset_id,
-                environment_id=data.environment_id,
-                owner_user_id=ctx.user_id,
-                name=data.name,
-                description=data.description,
-                is_active=True,
-                on_publish=data.on_publish,
-                on_promotion=data.on_promotion,
-                on_dependency_change=data.on_dependency_change,
-                max_run_usd=data.max_run_usd,
-                **self._threshold_columns(data.threshold),
-                **self._schedule_columns(data.schedule, now=now),
-            ),
-        )
+        try:
+            async with self.db.begin_nested():
+                suite = await eval_suite_repo.create(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    suite=EvalSuite(
+                        agent_id=agent.id,
+                        dataset_id=data.dataset_id,
+                        environment_id=data.environment_id,
+                        owner_user_id=ctx.user_id,
+                        name=data.name,
+                        description=data.description,
+                        is_active=True,
+                        on_publish=data.on_publish,
+                        on_promotion=data.on_promotion,
+                        on_dependency_change=data.on_dependency_change,
+                        max_run_usd=data.max_run_usd,
+                        **self._threshold_columns(data.threshold),
+                        **self._schedule_columns(data.schedule, now=now),
+                    ),
+                )
+        except IntegrityError as exc:
+            if not _name_conflict(exc):
+                raise
+            raise AlreadyExistsError(
+                message="A suite with this name already exists", details={"name": data.name}
+            ) from exc
         await self._audit(ctx, suite, "eval_suite.created", {"name": suite.name})
         return (await self._reads(ctx, [suite]))[0]
 
@@ -693,7 +711,15 @@ class EvalSuiteService:
                 await eval_suite_repo.discard_pending(
                     self.db, suite.id, organization_id=ctx.organization_id
                 )
-        suite = await eval_suite_repo.update(self.db, suite=suite, values=values)
+        try:
+            async with self.db.begin_nested():
+                suite = await eval_suite_repo.update(self.db, suite=suite, values=values)
+        except IntegrityError as exc:
+            if not _name_conflict(exc):
+                raise
+            raise AlreadyExistsError(
+                message="A suite with this name already exists", details={"name": data.name}
+            ) from exc
         if guards and "dataset_id" in values:
             await pin_to_latest(self.db, suite)
         await self._audit(ctx, suite, action, {"fields": sorted(fields)})
@@ -892,6 +918,8 @@ class EvalSuiteService:
     ) -> EvalSuiteEstimate:
         """What a run of a suite set up this way costs, and a month of its schedule."""
         agent = await self._editable(ctx, agent_id)
+        if data.environment_id is not None:
+            await self._check_environment(ctx, agent, data.environment_id)
         version = await self._served(
             agent, data.environment_id, organization_id=ctx.organization_id
         )
@@ -1254,7 +1282,8 @@ class EvalSuiteService:
                 self.db, environment_id, organization_id=organization_id
             )
             # The suite's reference is set null when the environment goes.
-            assert environment is not None, "a suite names only an environment that exists"
+            if environment is None or environment.agent_id != agent.id:
+                raise NotFoundError(message="Environment not found")
             version_id = environment.version_id
         if version_id is None:
             return None

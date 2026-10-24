@@ -1,5 +1,5 @@
 ---
-source_sha: "030a32879fab"
+source_sha: "07fd123e7c37"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -194,6 +194,8 @@ oszacowany:
 Wersja, w której tylko część przypadków nie ma czym ich ocenić, nadal się
 uruchamia, a estymata najpierw je liczy (`ungraded_cases`): okno startu, check
 sugestii i okno suity mówią „1 przypadek nie ma czym go ocenić. Wynik będzie nierozstrzygnięty.”
+
+Nieznane środowisko zwraca 404. Równoległe tworzenie lub zmiana nazwy suity na zajętą zwraca 409 zamiast błędu serwera. Dataset, który możesz odczytać, lecz nie edytować lub uruchomić, zwraca 403 z nazwą brakującego uprawnienia; niedostępny dataset nadal zwraca 404 bez szczegółów uprawnień. Nieprawidłowy test wersji roboczej wyjaśnia, że nie można jej ocenić, i zachowuje szczegóły problematycznych pól.
 
 ### Sprawdzanie sugestii { #checking-suggestions }
 

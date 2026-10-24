@@ -685,3 +685,10 @@ it("scopes a criterion to matching tags and counts overlapping cases only once",
   await userEvent.click(saveAll());
   await waitFor(() => expect(saved().judge.criteria[0]?.tags).toEqual(["refund", "billing"]));
 });
+
+it("disables every default-check control for a reader", () => {
+  panel(JUDGED, { can_edit: false });
+  expect(screen.getByRole("button", { name: "Add a check" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Remove check 1" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Check 1: type" })).toBeDisabled();
+});

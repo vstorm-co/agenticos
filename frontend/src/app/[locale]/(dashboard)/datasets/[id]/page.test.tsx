@@ -3,11 +3,13 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/lib/api-error";
 import { DEFAULT_SCORING } from "@/lib/scoring";
 import DatasetPage from "./page";
 
 const state = vi.hoisted(() => ({
   total: 0,
+  datasetError: null as unknown,
   cases: [] as unknown[],
   skips: [] as number[],
   canEdit: true,
@@ -42,7 +44,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       pending_proposals: 0,
       scoring: DEFAULT_SCORING,
     },
-    error: null,
+    error: state.datasetError,
     update: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: state.remove, isPending: false },
   }),
@@ -63,6 +65,10 @@ vi.mock("@/hooks/use-datasets", () => ({
       findTwin: state.findTwin,
     };
   },
+}));
+vi.mock("@/hooks/use-organizations", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-organizations")>()),
+  useOrganizationList: () => ({ data: [] }),
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -122,6 +128,7 @@ async function mount() {
 
 describe("the dataset page", () => {
   beforeEach(() => {
+    state.datasetError = null;
     state.runsView = true;
     state.total = 0;
     state.cases = [];
@@ -289,4 +296,17 @@ describe("the dataset page", () => {
       "Review",
     ]);
   });
+});
+
+it.each([403, 404])("shows a no-access view for an unreadable dataset (%s)", async (status) => {
+  state.datasetError = new ApiError(status, "Dataset not found");
+  await act(async () => {
+    render(
+      <Suspense fallback={null}>
+        <DatasetPage params={Promise.resolve({ id: "d1" })} />
+      </Suspense>,
+    );
+  });
+  expect(await screen.findByText("Resource unavailable")).toBeVisible();
+  expect(screen.queryByText("Something went wrong")).toBeNull();
 });

@@ -91,6 +91,10 @@ import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
+import {
+  ResourceUnavailable,
+  RunsPermissionNotice,
+} from "@/components/states/resource-unavailable";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
   Badge,
@@ -395,7 +399,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     ...(isJudge ? ["datasets"] : []),
     ...(isSystem ? [] : ["toolbox", "mcp", "availability"]),
     "limits",
-    ...(canViewRuns && !isSystem ? ["evals", "gaps"] : []),
+    ...(!isSystem ? ["evals"] : []),
+    ...(canViewRuns && !isSystem ? ["gaps"] : []),
     "history",
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
@@ -823,7 +828,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
   // below cannot tell it from a slow load. A 404 is the agent gone even while the cache
   // still holds it (deleted from another tab); any other failure keeps the Builder open.
-  const gone = error instanceof ApiError && error.status === 404;
+  const gone = error instanceof ApiError && [403, 404].includes(error.status);
+  if (gone) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
   if (error && (!agent || gone)) {
     return (
       <ErrorState
@@ -1450,15 +1456,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 {t("availability")}
               </TabsTrigger>
             )}
+            {!isSystem && (canViewRuns || tab === "evals") && (
+              <TabsTrigger value="evals" data-tour="agent-tab-evals">
+                {t("evals")}
+              </TabsTrigger>
+            )}
             {canViewRuns && !isSystem && (
-              <>
-                <TabsTrigger value="evals" data-tour="agent-tab-evals">
-                  {t("evals")}
-                </TabsTrigger>
-                <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
-                  {tGaps("tab")}
-                </TabsTrigger>
-              </>
+              <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
+                {tGaps("tab")}
+              </TabsTrigger>
             )}
             {isJudge && <TabsTrigger value="datasets">{t("judgeDatasets")}</TabsTrigger>}
             <TabsTrigger value="history" data-tour="agent-tab-history">
@@ -1972,10 +1978,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          {canViewRuns && !isSystem && (
+          {!isSystem && (
             <TabsContent value="evals" className="mt-6 space-y-6">
-              <EvalsPanel agentId={id} canStart={canStartEvals} />
-              <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
+              {canViewRuns ? (
+                <>
+                  <EvalsPanel agentId={id} canStart={canStartEvals} />
+                  <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
+                </>
+              ) : (
+                <RunsPermissionNotice />
+              )}
             </TabsContent>
           )}
           {isJudge && (

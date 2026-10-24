@@ -1875,3 +1875,23 @@ async def test_rubric_coverage_groups_count_a_case_once_when_it_has_several_tags
     assert sum(g.cases for g in read.stats.tag_groups) == 3
     assert sum(g.cases for g in read.stats.tag_groups if set(g.tags) & {"refund", "billing"}) == 2
     assert all(g.reference for g in read.stats.tag_groups)
+
+
+async def test_a_visible_dataset_names_the_missing_permission_but_an_outsider_learns_nothing(
+    db,
+) -> None:
+    from app.core.exceptions import AuthorizationError
+    from app.core.permissions import Perm
+
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="visible dataset"))
+    org = await db.get(Organization, ctx.organization_id)
+    assert org is not None
+    viewer = await _member(db, org, OrgRoleName.VIEWER)
+    with pytest.raises(AuthorizationError) as refusal:
+        await service.get(viewer, dataset.id, perm=Perm.DATASETS_EDIT)
+    assert refusal.value.details == {"permission": "datasets:edit"}
+    with pytest.raises(NotFoundError) as missing:
+        await service.get(await _owner(db), dataset.id, perm=Perm.DATASETS_EDIT)
+    assert missing.value.details is None

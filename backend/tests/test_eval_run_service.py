@@ -226,3 +226,36 @@ def test_every_eval_row_names_itself():
     assert "status=queued" in repr(run)
     assert "role=candidate" in repr(arm)
     assert "attempt=1" in repr(case)
+
+
+@pytest.mark.anyio
+async def test_invalid_draft_eval_explains_evaluation_without_talking_about_publishing() -> None:
+    from unittest.mock import AsyncMock
+
+    from app.agents.spec import AgentSpec
+    from app.core.exceptions import BadRequestError
+    from app.core.permissions import AuthContext, OrgRoleName
+    from app.db.models.agent import Agent
+    from app.db.models.eval_run import ArmRole, ArmSource
+    from app.services.eval_run import EvalRunService
+
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+    service = EvalRunService(AsyncMock())
+    service.registry.get_candidate_spec = AsyncMock(
+        side_effect=BadRequestError(
+            message="This agent cannot be published yet",
+            details={"problems": ["The selected model profile no longer exists"]},
+        )
+    )
+    with pytest.raises(BadRequestError, match="draft cannot be evaluated") as refused:
+        await service._arm(
+            ctx,
+            Agent(id=uuid.uuid4()),
+            role=ArmRole.CANDIDATE,
+            source=ArmSource.DRAFT,
+            version=None,
+            spec=AgentSpec(name="Draft"),
+            model_profile_id=None,
+            environment_id=None,
+        )
+    assert refused.value.details == {"problems": ["The selected model profile no longer exists"]}

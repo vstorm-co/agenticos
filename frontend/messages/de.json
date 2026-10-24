@@ -6909,7 +6909,14 @@
     "goToQuestion": "Zu Frage {step}",
     "skipped": "Übersprungen",
     "sendAnswers": "Antworten senden",
-    "backToOptions": "Zurück zu den Optionen"
+    "backToOptions": "Zurück zu den Optionen",
+    "resourceUnavailable": {
+      "title": "Ressource nicht verfügbar",
+      "description": "Diese Ressource gehört nicht zu Ihrer Organisation oder Sie haben keinen Zugriff.",
+      "switchOrganization": "Wenn Sie einer anderen Organisation angehören, wechseln Sie im Organisationsmenü dorthin.",
+      "runsTitle": "Berechtigung erforderlich",
+      "runsPermission": "Zum Lesen von Eval-Ergebnissen ist runs:view erforderlich. Bitten Sie einen Organisationseigentümer um Zugriff."
+    }
   },
   "vault": {
     "access": "Zugriff",

@@ -49,7 +49,7 @@ from app.db.models.notification import Notification
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
-from app.repositories import agent_environment_repo
+from app.repositories import agent_environment_repo, eval_suite_repo
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import ArmSummaryRead
@@ -1797,3 +1797,35 @@ async def test_a_first_all_failed_measurement_sets_a_nonpassing_baseline(db: Asy
     assert baseline is not None and baseline.id == first.id and baseline.status != "passed"
     second = await service.run_now(ctx, agent.id, suite.id)
     assert second.baseline_eval_run_id == first.eval_run_id
+
+
+async def test_unknown_estimate_environment_is_a_not_found_refusal(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    with pytest.raises(NotFoundError, match="Environment not found"):
+        await EvalSuiteService(db).estimate(
+            ctx,
+            agent.id,
+            EvalSuiteEstimateRequest(dataset_id=dataset.id, environment_id=uuid.uuid4()),
+        )
+
+
+async def test_a_concurrent_suite_name_conflict_is_a_409_and_preserves_the_transaction(
+    db, monkeypatch
+) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    data = _suite_data(dataset)
+    first = await service.create(ctx, agent.id, data)
+    other = await service.create(ctx, agent.id, _suite_data(dataset))
+    monkeypatch.setattr(eval_suite_repo, "get_by_name", AsyncMock(return_value=None))
+    for _ in range(2):
+        with pytest.raises(AlreadyExistsError, match="suite with this name") as conflict:
+            await service.create(ctx, agent.id, data)
+        assert conflict.value.status_code == 409
+    with pytest.raises(AlreadyExistsError, match="suite with this name"):
+        await service.update(ctx, agent.id, other.id, EvalSuiteUpdate(name=data.name))
+    assert (await service.get(ctx, agent.id, first.id)).name == data.name

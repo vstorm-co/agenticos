@@ -164,7 +164,7 @@ export function GradingPanel({
         >
           <fieldset className="space-y-2" disabled={disabled}>
             <legend className="text-sm font-medium">{t("defaults")}</legend>
-            <CaseChecksEditor checks={defaults} onChange={setDefaults} />
+            <CaseChecksEditor checks={defaults} onChange={setDefaults} disabled={disabled} />
             {defaultsProblem && <p className="text-destructive text-xs">{defaultsProblem}</p>}
           </fieldset>
         </ScorerRow>

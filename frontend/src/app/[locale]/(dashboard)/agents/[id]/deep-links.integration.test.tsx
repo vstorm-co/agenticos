@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -171,9 +172,13 @@ vi.mock("@/components/triggers/triggers-panel", () => ({ TriggersPanel: () => nu
 async function mount() {
   await act(async () => {
     render(
-      <Suspense fallback={null}>
-        <AgentBuilderPage params={Promise.resolve({ id: "a1" })} />
-      </Suspense>,
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <Suspense fallback={null}>
+          <AgentBuilderPage params={Promise.resolve({ id: "a1" })} />
+        </Suspense>
+      </QueryClientProvider>,
     );
   });
 }
@@ -202,15 +207,21 @@ describe("the detail page's Evals tab gate", () => {
     expect(screen.queryByRole("tab", { name: "Evals" })).toBeNull();
   });
 
-  it("opens on Build when a link names a tab the caller does not have", async () => {
+  it("keeps a requested Evals tab open and explains the permission it needs", async () => {
     allowed = new Set();
     page.params = "tab=evals";
     await mount();
 
-    expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
+    expect(await screen.findByRole("tab", { name: "Evals" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
+    expect(
+      screen.getByText(
+        "Reading eval results needs runs:view. Ask an organization owner for access.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByTestId("eval-results")).toBeNull();
   });
 });
 

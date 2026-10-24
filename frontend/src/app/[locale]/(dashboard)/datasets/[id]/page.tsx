@@ -34,7 +34,8 @@ import {
   useDatasetVersions,
 } from "@/hooks/use-datasets";
 import { usePermissions } from "@/hooks/use-permissions";
-import { getErrorMessage } from "@/lib/api-error";
+import { ResourceUnavailable } from "@/components/states/resource-unavailable";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
@@ -91,6 +92,9 @@ export default function DatasetPage({ params }: PageProps) {
   // the page that still exists, the adjust-state-while-rendering way.
   if (!cases.isLoading && page >= pageCount) setPage(pageCount - 1);
 
+  if (datasetError instanceof ApiError && [403, 404].includes(datasetError.status)) {
+    return <ResourceUnavailable back={ROUTES.DATASETS} label={tc("back")} />;
+  }
   if (datasetError) {
     return <ErrorState description={getErrorMessage(datasetError, tErrors)} />;
   }

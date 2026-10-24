@@ -32,6 +32,7 @@ const TYPED: Partial<Record<CheckType, string>> = {
 
 interface CaseChecksEditorProps {
   checks: CheckDraft[];
+  disabled?: boolean;
   onChange: (checks: CheckDraft[]) => void;
 }
 
@@ -39,10 +40,12 @@ interface CaseChecksEditorProps {
 function CheckValue({
   check,
   label,
+  disabled,
   onChange,
 }: {
   check: CheckDraft;
   label: string;
+  disabled: boolean;
   onChange: (value: string) => void;
 }) {
   const t = useTranslations("datasets");
@@ -58,6 +61,7 @@ function CheckValue({
   if (as === "json" || check.type === "judge") {
     return (
       <Textarea
+        disabled={disabled}
         rows={2}
         value={check.value}
         aria-label={label}
@@ -69,6 +73,7 @@ function CheckValue({
   }
   return (
     <Input
+      disabled={disabled}
       value={check.value}
       inputMode={as === "number" ? "decimal" : undefined}
       aria-label={label}
@@ -83,7 +88,7 @@ function CheckValue({
  * it checks. A check of a type this build does not know is shown as stored and
  * kept, and can only be removed.
  */
-export function CaseChecksEditor({ checks, onChange }: CaseChecksEditorProps) {
+export function CaseChecksEditor({ checks, onChange, disabled = false }: CaseChecksEditorProps) {
   const t = useTranslations("datasets");
   const change = (index: number, patch: Partial<CheckDraft>) =>
     onChange(checks.map((check, at) => (at === index ? { ...check, ...patch } : check)));
@@ -94,7 +99,7 @@ export function CaseChecksEditor({ checks, onChange }: CaseChecksEditorProps) {
         <div key={index} className="flex items-start gap-2">
           <Select
             value={check.type}
-            disabled={!isKnownCheck(check.type)}
+            disabled={disabled || !isKnownCheck(check.type)}
             onValueChange={(type) => change(index, { type, value: "", rest: {} })}
           >
             <SelectTrigger
@@ -116,10 +121,12 @@ export function CaseChecksEditor({ checks, onChange }: CaseChecksEditorProps) {
           </Select>
           <CheckValue
             check={check}
+            disabled={disabled}
             label={t("checkValue", { number: index + 1 })}
             onChange={(value) => change(index, { value })}
           />
           <Button
+            disabled={disabled}
             variant="ghost"
             size="icon"
             aria-label={t("removeCheck", { number: index + 1 })}
@@ -130,6 +137,7 @@ export function CaseChecksEditor({ checks, onChange }: CaseChecksEditorProps) {
         </div>
       ))}
       <Button
+        disabled={disabled}
         variant="outline"
         size="sm"
         onClick={() => onChange([...checks, { type: "contains", value: "", rest: {} }])}

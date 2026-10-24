@@ -174,6 +174,8 @@ estimate counts them first (`ungraded_cases`): the start dialog, a check of
 suggestions and a suite's dialog say "1 case has nothing to grade it. The
 result will be inconclusive."
 
+An unknown environment returns 404. Concurrent suite creates or renames with the same name return 409 instead of a server error. A dataset you can view but cannot edit or run returns 403 naming the missing permission; an unreachable dataset stays 404 without permission details. Invalid draft tests explain that the draft cannot be evaluated and keep the field problems beside that message.
+
 ### Checking suggestions { #checking-suggestions }
 
 The [authoring assistant](authoring.md#check-with-evals) starts eval runs to check
