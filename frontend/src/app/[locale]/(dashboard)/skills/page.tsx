@@ -110,7 +110,7 @@ export default function SkillsPage() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const tGallery = useTranslations("skills.gallery");
 
-  const canEdit = can(Perm.skillsEdit);
+  const canCreate = can(Perm.skillsEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
   const isFiltering = isSearching || selectedCategories.length > 0 || groupId !== null;
@@ -134,7 +134,7 @@ export default function SkillsPage() {
       title={t("skills2")}
       description={t("skillKnowHowWritten")}
       actions={
-        canEdit ? (
+        canCreate ? (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -204,7 +204,7 @@ export default function SkillsPage() {
 
       {/* Above the list, because it is a decision somebody has to make and the
           list is a thing to browse. Absent entirely when nothing is waiting. */}
-      <ProposedChanges canEdit={canEdit} />
+      <ProposedChanges canEdit={canCreate} />
 
       <ListCard
         data-tour="skills-list"
@@ -323,12 +323,12 @@ export default function SkillsPage() {
               description={
                 isFiltering
                   ? t("namesDescriptionsPickedCategories")
-                  : canEdit
+                  : canCreate
                     ? t("writeDownSomethingYour")
                     : t("nobodyHasWrittenSkill")
               }
               cta={
-                canEdit && !isFiltering
+                canCreate && !isFiltering
                   ? {
                       label: (
                         <>
@@ -348,7 +348,7 @@ export default function SkillsPage() {
                   <SkillCard
                     key={entry.id}
                     skill={entry}
-                    canEdit={canEdit}
+                    canEdit={entry.can_edit === true}
                     onOpen={() => setSelected(entry)}
                     onDelete={() => setPendingDelete(entry)}
                   />
@@ -386,7 +386,7 @@ export default function SkillsPage() {
                 categorySuggestions={categorySuggestions(categories, suggestedCategories)}
                 key={skill.id}
                 skill={skill}
-                canEdit={canEdit}
+                canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
                 onCancel={() => setSelected(null)}

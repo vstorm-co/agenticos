@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Use effective per-resource edit access for context, skill and vault controls.
+  Honor explicit edit grants and hide write actions on private resources
+  shared read-only, while keeping collection creation gated by its permission.
+
 - End console voice calls and pending microphone/setup/reconnect work on
   tenant or account changes. Ignore stale media and transcript callbacks,
   and keep late failures from ending a newer call. Public embeds retain

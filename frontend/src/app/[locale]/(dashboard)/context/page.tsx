@@ -119,7 +119,7 @@ export default function ContextPage() {
   // must not answer it for anybody.
   const [dropped, setDropped] = useState<ContextDraft[]>([]);
 
-  const canEdit = can(Perm.contextEdit);
+  const canCreate = can(Perm.contextEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
   const isFiltering = isSearching || groupId !== null;
@@ -175,7 +175,7 @@ export default function ContextPage() {
     setDropped(drafts);
   }
 
-  const { isDragging } = useFileDrop({ onFiles: acceptDropped, disabled: !canEdit });
+  const { isDragging } = useFileDrop({ onFiles: acceptDropped, disabled: !canCreate });
   const draft = dropped[0] ?? null;
 
   const isBusy = isLoading || isLoadingPermissions;
@@ -185,7 +185,7 @@ export default function ContextPage() {
       title={t("context")}
       description={t("contextStandingKnowledge")}
       actions={
-        canEdit ? (
+        canCreate ? (
           <Button data-tour="context-new" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             {t("newContext")}
@@ -292,12 +292,12 @@ export default function ContextPage() {
               description={
                 isFiltering
                   ? t("namesDescriptionsSearched")
-                  : canEdit
+                  : canCreate
                     ? t("addSomethingYourAgents")
                     : t("nobodyHasAddedContext")
               }
               cta={
-                canEdit && !isFiltering
+                canCreate && !isFiltering
                   ? {
                       label: (
                         <>
@@ -317,7 +317,7 @@ export default function ContextPage() {
                   <ContextCard
                     key={entry.id}
                     file={entry}
-                    canEdit={canEdit}
+                    canEdit={entry.can_edit === true}
                     onOpen={() => setSelected(entry)}
                     onDelete={() => setPendingDelete(entry)}
                   />
@@ -359,7 +359,7 @@ export default function ContextPage() {
               <ContextEditor
                 key={file.id}
                 file={file}
-                canEdit={canEdit}
+                canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
                 onCancel={() => setSelected(null)}

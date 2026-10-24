@@ -127,6 +127,8 @@ export interface Skill {
 }
 
 export interface SkillSummary {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string;
@@ -180,6 +182,8 @@ export interface ContextFile {
 
 /** A context file as the listing shows it - the body is a byte count only. */
 export interface ContextFileSummary {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string | null;

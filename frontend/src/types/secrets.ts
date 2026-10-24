@@ -173,6 +173,8 @@ export interface SecretPurposeList {
 export type SecretVisibility = "private" | "team" | "org";
 
 export interface Secret {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string | null;
