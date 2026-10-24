@@ -2295,10 +2295,7 @@ async def _close_loop(
         definition_id = graph_nodes[row.node_instance_id].definition_id
         if definition_id == LOOP_YIELD and row.status == NodeRunStatus.SUCCEEDED.value:
             results[index] = (stored_result.get("output") or {}).get("value")
-        elif (
-            row.status == NodeRunStatus.FAILED.value
-            and not graph_nodes[row.node_instance_id].routes_errors
-        ):
+        else:
             error = WorkflowError.model_validate(stored_result.get("error"))
             errors.append(
                 ForeachItemError(

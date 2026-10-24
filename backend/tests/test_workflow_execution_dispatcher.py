@@ -3015,6 +3015,7 @@ def test_terminal_outcomes_reject_jsonb_strings_without_losing_fees(field):
     assert stored["status"] == "failed" and "bad" not in str(stored)
 
 
+@pytest.mark.security
 async def test_loop_output_budget_is_checked_before_loading_results(repo, event_log, monkeypatch):
     graph, nodes = TestLoopsWithoutADatabase._loop_graph()
     run = _run()
@@ -3057,6 +3058,7 @@ def test_oversized_terminal_outputs_fail_without_retry_or_lost_fees(monkeypatch,
     assert stored["status"] == "failed"
 
 
+@pytest.mark.security
 def test_node_output_budget_counts_all_persisted_payloads_together(monkeypatch):
     outcome = dispatcher.HandlerOutcome(
         result=Completed[_EchoOutput](output=_EchoOutput(echoed="ok")),

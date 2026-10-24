@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 
+pytestmark = pytest.mark.security
+
 
 @pytest.mark.parametrize("value", [None, {}, [], {"text": "Zażółć 😀\n", "n": [1, True, None]}])
 def test_size_matches_compact_utf8_json(value):
