@@ -8685,7 +8685,8 @@
       "reruns": "Powtórki potwierdzające",
       "rerunsDefault": "Domyślnie",
       "rerunsCount": "{count, plural, =0 {Brak} one {# powtórka} few {# powtórki} many {# powtórek} other {# powtórki}}",
-      "rerunsHint": "Przypadek, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. Więcej powtórek utrudnia potwierdzenie zmiany, a nie ułatwia: model, który za każdym razem odpowiada inaczej, rzadko cokolwiek potwierdzi. „Brak” pomija to sprawdzenie."
+      "rerunsHint": "Przypadek, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. Więcej powtórek utrudnia potwierdzenie zmiany, a nie ułatwia: model, który za każdym razem odpowiada inaczej, rzadko cokolwiek potwierdzi. „Brak” pomija to sprawdzenie.",
+      "noChanges": "Brak zmian — wersja robocza jest taka sama jak opublikowana."
     },
     "comparison": {
       "title": "Jak wypadają obie strony",
@@ -8818,9 +8819,10 @@
     "live": {
       "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Przypadki, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
       "comparisonLater": "Porównanie pojawi się, gdy obie strony skończą.",
-      "confirming": "Wszystkie pierwsze odpowiedzi są już gotowe. Potwierdzam przypadki, które się zmieniły: {done} z {total} powtórek gotowe."
+      "confirming": "Wszystkie pierwsze odpowiedzi są już gotowe. Potwierdzam przypadki, które się zmieniły: {done} z {total} powtórek gotowe.",
+      "answeringSingle": "Gotowe {done} z {total} odpowiedzi."
     },
-    "answers": "{cases, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} · {first, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} + {reruns, plural, =0 {bez powtórek} one {# powtórka potwierdzająca} few {# powtórki potwierdzające} many {# powtórek potwierdzających} other {# powtórki potwierdzającej}}",
+    "answers": "{cases, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} · {first, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}{reruns, plural, =0 {} one { + # powtórka potwierdzająca} few { + # powtórki potwierdzające} many { + # powtórek potwierdzających} other { + # powtórki potwierdzającej}}",
     "actions": {
       "whatChanged": "Zobacz, co się zmieniło",
       "showBroken": "{count, plural, one {Pokaż przypadek, który się zepsuł} few {Pokaż # przypadki, które się zepsuły} many {Pokaż # przypadków, które się zepsuły} other {Pokaż # przypadku, które się zepsuły}}",

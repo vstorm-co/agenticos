@@ -53,5 +53,5 @@ export function useEvalTarget(agentId: string | null) {
       : "version"
     : (targets[0] ?? null);
   const ready = agent !== undefined && (agent.current_version_id === null || version !== undefined);
-  return { agent, currentVersion, targets, preferred: ready ? preferred : null };
+  return { agent, currentVersion, draftDiffers, targets, preferred: ready ? preferred : null };
 }

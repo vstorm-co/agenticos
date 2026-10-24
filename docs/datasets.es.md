@@ -1,5 +1,5 @@
 ---
-source_sha: "4ac3639e1702"
+source_sha: "9ae4dab40365"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -275,6 +275,8 @@ que la inicia y sobrevive a un reinicio de la API o del worker. El worker
 redacta como la persona que la pidió, con el acceso que tenga en ese momento;
 una generación cuyo worker murió se marca como fallida, así que nada se queda
 esperándola para siempre.
+
+Una generación iniciada con una clave API conserva su identificador. Antes de leer las fuentes, el worker vuelve a comprobar los permisos actuales de la clave y la membresía de quien la emitió. Una clave restringida no obtiene acceso de consola; una clave revocada, caducada o eliminada detiene la generación con un error explícito.
 
 ### El conjunto de prueba de un agent { #agent-test-set }
 

@@ -171,7 +171,7 @@ describe("EvalRunView", () => {
     expect(screen.getByTitle("First answers alone: 75% → 75%")).toHaveTextContent(
       "Pass rate 75% → 75%",
     );
-    expect(screen.getByText("4 cases · 4 answers + no confirming reruns")).toBeInTheDocument();
+    expect(screen.getByText("4 cases · 4 answers")).toBeInTheDocument();
     expect(
       screen.getByText(
         /spent \$0.04 of an estimated \$0.05, plus up to \$0.02 for confirming reruns/,
@@ -227,6 +227,10 @@ describe("EvalRunView", () => {
       expect.objectContaining({ caseIds: ["case-1"], skip: 0 }),
     ]);
     expect(screen.getByText("Showing the case that broke.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /How long/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Show every case" }));
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ caseIds: null })]);
   });
@@ -1143,4 +1147,15 @@ describe("EvalRunView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(refetch).toHaveBeenCalled();
   });
+});
+
+it("does not promise comparisons or reruns while a single version is answering", () => {
+  state.run = {
+    ...state.run,
+    run: evalRun({ status: "running", paired: false, first_done: 2, first_total: 4 }),
+  };
+  render(<EvalRunView agentId="agent-1" runId="run-1" />);
+  expect(screen.getByText("2 of 4 answers in.")).toBeVisible();
+  expect(screen.queryByText(/The comparison appears/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/for confirming reruns/)).not.toBeInTheDocument();
 });

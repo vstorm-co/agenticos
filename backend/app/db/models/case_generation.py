@@ -88,6 +88,11 @@ class CaseGeneration(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Keep the identity after key deletion: a queued job must fail rather than
+    # silently regain the issuer's full console authority.
+    created_by_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
     sources: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     requested_count: Mapped[int] = mapped_column(Integer, nullable=False)
     # Set only for an agent's test set built without a person at each step: its

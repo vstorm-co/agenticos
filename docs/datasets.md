@@ -259,6 +259,8 @@ it and survives a restart of the API or the worker. The worker drafts as the
 person who asked, with their access as it is then; a job whose worker died marks
 the generation failed, so nothing waits on it for ever.
 
+A generation started with an API key keeps that key’s identity. Before reading sources, the worker rechecks its current scopes and the issuer’s current membership. A narrowed key cannot gain console access; a revoked, expired or deleted key stops the generation with an explicit error.
+
 ### An agent's test set { #agent-test-set }
 
 An improvement can only be measured on test questions. `POST

@@ -16,13 +16,14 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, AuthenticationError
 from app.core.permissions import AuthContext
 from app.db.models.case_generation import CaseGeneration, CaseOrigin, GenerationStatus
 from app.db.session import get_worker_db_context
-from app.repositories import case_generation_repo, member_repo
+from app.repositories import case_generation_repo
 from app.schemas.case_generation import CaseGenerationRequest
 from app.services import change_feed
+from app.services.api_key import job_context
 from app.services.case_generation.facade import CaseGenerationService
 from app.services.case_generation.generation import generate
 from app.services.rag.embeddings import EmbeddingService
@@ -38,17 +39,12 @@ STOPPED = "The generation stopped before it finished. Start it again."
 
 
 async def requester(db: AsyncSession, generation: CaseGeneration) -> AuthContext | None:
-    """The requester's authority as it is now, or `None` once they left the organization."""
-    user_id = generation.requested_by_user_id
-    if user_id is None:
-        return None
-    membership = await member_repo.get_active(
-        db, organization_id=generation.organization_id, user_id=user_id
-    )
-    if membership is None:
-        return None
-    return AuthContext(
-        user_id=user_id, organization_id=generation.organization_id, role=membership.role
+    """Current membership and key scopes, or `None` once the requester left."""
+    return await job_context(
+        db,
+        organization_id=generation.organization_id,
+        user_id=generation.requested_by_user_id,
+        api_key_id=generation.created_by_api_key_id,
     )
 
 
@@ -100,7 +96,11 @@ class CaseGenerationWorker:
         )
         if generation is None or generation.status != GenerationStatus.RUNNING.value:
             return None
-        ctx = await requester(db, generation)
+        try:
+            ctx = await requester(db, generation)
+        except AuthenticationError as exc:
+            await _fail(db, generation, exc.message)
+            return generation
         if ctx is None or generation.agent_id is None:
             await _fail(db, generation, REQUESTER_GONE if ctx is None else AGENT_GONE)
             return generation

@@ -26,12 +26,14 @@ async def create_generation(
     sources: list[str],
     requested_count: int,
     auto_accept: bool = False,
+    created_by_api_key_id: UUID | None = None,
 ) -> CaseGeneration:
     generation = CaseGeneration(
         organization_id=organization_id,
         dataset_id=dataset_id,
         agent_id=agent_id,
         requested_by_user_id=requested_by_user_id,
+        created_by_api_key_id=created_by_api_key_id,
         sources=sources,
         requested_count=requested_count,
         auto_accept=auto_accept,

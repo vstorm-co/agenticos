@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { CheckCircle2, XCircle, AlertTriangle, MinusCircle, ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { reasonKeyOf } from "@/lib/scoring";
 import type { DatasetCaseContent } from "@/types/datasets";
+import type { ScorerStatus } from "@/types/scoring";
 import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
-import { seconds, usd } from "./format";
+import { percent, seconds, usd } from "./format";
 import { sideName } from "./names";
 
 const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
@@ -16,6 +18,14 @@ const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
   replayed: "outline",
   blocked: "warning",
   divergent: "warning",
+};
+
+const SCORER_ORDER: Record<ScorerStatus, number> = { fail: 0, error: 1, skipped: 2, pass: 3 };
+const SCORER_ICON = {
+  pass: CheckCircle2,
+  fail: XCircle,
+  error: AlertTriangle,
+  skipped: MinusCircle,
 };
 
 function Attempt({ attempt }: { attempt: EvalAttempt }) {
@@ -62,21 +72,38 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
         </Link>
       )}
       {attempt.score && (
-        <ul className="space-y-0.5 text-xs">
-          {attempt.score.results.map((result, index) => (
-            <li key={index}>
-              <span className="font-medium">{result.name}</span> · {t(`scorer.${result.status}`)} ·{" "}
-              <span className="text-muted-foreground">{result.reason}</span>
-              {result.rule && (
-                <span className="text-muted-foreground block">
-                  {tScoring("rule", { rule: result.rule })}
-                </span>
-              )}
-              {result.unverified && (
-                <span className="text-warning block">{tScoring("unverifiedGrade")}</span>
-              )}
-            </li>
-          ))}
+        <ul className="divide-border divide-y rounded-md border text-sm">
+          {[...attempt.score.results]
+            .sort((a, b) => SCORER_ORDER[a.status] - SCORER_ORDER[b.status])
+            .map((result, index) => {
+              const Icon = SCORER_ICON[result.status];
+              return (
+                <li key={index}>
+                  <details className="group">
+                    <summary className="hover:bg-muted/40 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
+                      <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                      <span className="min-w-0 flex-1 font-medium">{result.name}</span>
+                      <Badge variant={result.status === "fail" ? "destructive" : "secondary"}>
+                        {t(`scorer.${result.status}`)}
+                      </Badge>
+                      {result.score !== null && (
+                        <span className="text-muted-foreground tabular-nums">
+                          {percent(result.score, locale)}
+                        </span>
+                      )}
+                      <ChevronRight
+                        className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90"
+                        aria-hidden
+                      />
+                    </summary>
+                    <div className="text-muted-foreground space-y-1 px-3 pb-3 text-xs">
+                      <p className="whitespace-pre-wrap">{result.reason}</p>
+                      {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
         </ul>
       )}
     </div>
@@ -170,12 +197,22 @@ export function CaseDetail({
   caseId: string;
 }) {
   const t = useTranslations("evals");
+  const tScoring = useTranslations("datasets.scoring");
+  const unverified = attempts.some((attempt) =>
+    attempt.score?.results.some((result) => result.unverified),
+  );
   return (
     <div className="space-y-3">
       {expectation && (
         <Expectation expectation={expectation} datasetId={datasetId} caseId={caseId} />
       )}
-      <div className="grid gap-3 md:grid-cols-2">
+      {unverified && (
+        <p className="bg-warning/10 border-warning/35 flex items-start gap-2 rounded-md border p-3 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {tScoring("unverifiedGrade")}
+        </p>
+      )}
+      <div className={arms.length > 1 ? "grid gap-3 md:grid-cols-2" : "space-y-3"}>
         {arms.map((arm) => {
           const own = attempts.filter((attempt) => attempt.arm_id === arm.id);
           return (

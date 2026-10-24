@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Queued case generation retains API key permissions.** Workers recheck the
+  original key's current scopes and membership before reading sources, and stop
+  explicitly if it was revoked, expired or deleted (#2429).
+- **Eval results are easier to scan.** Failing scorers appear first, with icons,
+  scores and expandable evidence; each case shows one unverified-grade warning.
+  Execution status stays neutral beside the verdict. Single-version progress
+  avoids comparison promises, identical drafts cannot start a comparison, and
+  a single broken case opens automatically (#2362).
+
 ## [1.16.0] - 2026-10-23
 
 ### Added

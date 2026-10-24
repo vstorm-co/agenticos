@@ -22,6 +22,8 @@ The claims:
 import json
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -37,9 +39,10 @@ from app.core.exceptions import (
     SystemAgentRunError,
     SystemAgentUnavailableError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun
+from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
 from app.db.models.case_generation import CaseGeneration, CaseOrigin, CaseProposal
@@ -49,10 +52,12 @@ from app.db.models.rag_document import DocumentStatus
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.repositories import agent_run_repo, project_repo
+from app.schemas.api_key import ApiKeyCreate
 from app.schemas.case_generation import CaseGenerationRequest
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset import DatasetCreate
 from app.services import agent_runner, change_feed
+from app.services.api_key import KEY_GONE, ApiKeyService
 from app.services.case_generation import CaseGenerationService, worker
 from app.services.case_generation.drafts import DraftedCase, DraftedCases, split
 from app.services.case_generation.generation import FAILED, NOTHING_KEPT, generate
@@ -899,3 +904,46 @@ async def test_a_worker_reads_knowledge_through_the_process_s_vector_store(monke
     assert job._store() is store
     assert job._store() is store
     assert len(made) == 1
+
+
+@pytest.mark.parametrize("change", ["narrowed", "revoked", "expired", "deleted"])
+async def test_queued_generation_retains_and_rechecks_api_key_authority(
+    db, monkeypatch, change: str
+) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    created = await ApiKeyService(db).create(
+        owner,
+        ApiKeyCreate(
+            name="case generation",
+            scopes=[Perm.DATASETS_EDIT, Perm.AGENTS_VIEW, Perm.AGENTS_RUN, Perm.COLLECTIONS_VIEW],
+        ),
+    )
+    key = await db.get(ApiKey, created.id)
+    assert key is not None
+    ctx = replace(
+        owner, api_key_id=key.id, key_scopes=frozenset(Perm(scope) for scope in key.scopes)
+    )
+    monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock())
+    calls = _answer(monkeypatch, RuntimeError("a refused key must call no model"))
+    monkeypatch.setattr(change_feed, "publish", AsyncMock())
+    started = await _service(db).start(ctx, dataset.id, _request(agent, "knowledge"))
+    row = await db.get(CaseGeneration, started.id)
+    assert row is not None and row.created_by_api_key_id == key.id
+    if change == "narrowed":
+        key.scopes = [Perm.AGENTS_VIEW.value]
+    elif change == "revoked":
+        key.revoked_at = datetime.now(UTC)
+    elif change == "expired":
+        key.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    else:
+        await db.delete(key)
+    await db.commit()
+
+    await _worker(db, row).run()
+
+    await db.refresh(row)
+    assert row.status == "failed"
+    assert row.error is not None
+    if change != "narrowed":
+        assert row.error == KEY_GONE
+    calls.assert_not_awaited()

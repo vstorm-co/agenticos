@@ -9513,7 +9513,8 @@
       "reruns": "Confirming reruns",
       "rerunsDefault": "Default",
       "rerunsCount": "{count, plural, =0 {None} =1 {1 rerun} other {# reruns}}",
-      "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. More reruns make a change harder to confirm, not easier: a model that answers differently each time rarely confirms anything. None skips the check."
+      "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. More reruns make a change harder to confirm, not easier: a model that answers differently each time rarely confirms anything. None skips the check.",
+      "noChanges": "No changes — the draft matches the published version."
     },
     "comparison": {
       "title": "How the two compare",
@@ -9646,9 +9647,10 @@
     "live": {
       "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
       "comparisonLater": "The comparison appears when both sides finish.",
-      "confirming": "Every first answer is in. Confirming the cases that changed: {done} of {total} reruns in."
+      "confirming": "Every first answer is in. Confirming the cases that changed: {done} of {total} reruns in.",
+      "answeringSingle": "{done} of {total} answers in."
     },
-    "answers": "{cases, plural, =1 {1 case} other {# cases}} · {first, plural, =1 {1 answer} other {# answers}} + {reruns, plural, =0 {no confirming reruns} =1 {1 confirming rerun} other {# confirming reruns}}",
+    "answers": "{cases, plural, =1 {1 case} other {# cases}} · {first, plural, =1 {1 answer} other {# answers}}{reruns, plural, =0 {} =1 { + 1 confirming rerun} other { + # confirming reruns}}",
     "actions": {
       "whatChanged": "See what changed",
       "showBroken": "{count, plural, =1 {Show the case that broke} other {Show the # cases that broke}}",

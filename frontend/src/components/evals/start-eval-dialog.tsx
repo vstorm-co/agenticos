@@ -99,7 +99,7 @@ export function StartEvalDialog({
   const agentId = givenAgent ?? chosenAgent ?? offeredAgent;
   const { runs, estimate, start } = useEvalRuns(agentId);
   const { datasets } = useEveryDataset();
-  const { currentVersion, targets, preferred } = useEvalTarget(agentId);
+  const { currentVersion, draftDiffers, targets, preferred } = useEvalTarget(agentId);
 
   const runnable = datasets.filter(isRunnable);
   const offered =
@@ -107,7 +107,12 @@ export function StartEvalDialog({
     (runnable.length === 1 ? runnable[0]?.id : undefined) ??
     "";
   const datasetId = request.dataset_id || offered;
-  const target = chosenTarget !== null && targets.includes(chosenTarget) ? chosenTarget : preferred;
+  const target =
+    chosenTarget !== null &&
+    targets.includes(chosenTarget) &&
+    (chosenTarget !== "compare" || draftDiffers)
+      ? chosenTarget
+      : preferred;
   const full: EvalRunRequest | null =
     agentId === null || target === null || datasetId === ""
       ? null
@@ -188,6 +193,7 @@ export function StartEvalDialog({
               targets={targets}
               value={target}
               currentVersion={currentVersion}
+              draftDiffers={draftDiffers}
               onChange={setChosenTarget}
             />
           )}

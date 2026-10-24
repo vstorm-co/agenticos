@@ -1,5 +1,5 @@
 ---
-source_sha: "4ac3639e1702"
+source_sha: "9ae4dab40365"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -271,6 +271,8 @@ je uruchamia, i przetrwa restart API albo workera. Worker przygotowuje
 propozycje jako osoba, która o nie poprosiła, z jej dostępem z tej chwili;
 generowanie, którego worker padł, jest oznaczane jako nieudane, więc nic nie
 czeka na nie w nieskończoność.
+
+Generowanie rozpoczęte kluczem API zachowuje identyfikator tego klucza. Przed odczytem źródeł worker ponownie sprawdza jego bieżące zakresy i członkostwo wystawcy. Ograniczony klucz nie uzyskuje uprawnień konsoli; cofnięcie, wygaśnięcie lub usunięcie klucza zatrzymuje generowanie z jednoznacznym błędem.
 
 ### Zestaw testowy agenta { #agent-test-set }
 

@@ -52,6 +52,7 @@ export function VerdictHeader({
   const locale = useLocale();
   const live = run.status === "queued" || run.status === "running";
   const reruns = run.attempts_total - run.first_total;
+  const compares = run.paired || comparison?.baseline != null;
   const confirming = run.first_total > 0 && run.first_done === run.first_total && reruns > 0;
   const [doneNow, ofNow] = confirming
     ? [run.attempts_done - run.first_done, reruns]
@@ -128,9 +129,14 @@ export function VerdictHeader({
             <p className="text-muted-foreground text-xs">
               {confirming
                 ? t("live.confirming", { done: doneNow, total: ofNow })
-                : t("live.answering", { done: doneNow, total: ofNow })}
+                : t(compares ? "live.answering" : "live.answeringSingle", {
+                    done: doneNow,
+                    total: ofNow,
+                  })}
             </p>
-            <p className="text-muted-foreground text-xs">{t("live.comparisonLater")}</p>
+            {compares && (
+              <p className="text-muted-foreground text-xs">{t("live.comparisonLater")}</p>
+            )}
           </div>
         ) : (
           <p className="text-muted-foreground text-xs">
@@ -143,7 +149,9 @@ export function VerdictHeader({
             cost: usd(run.cost_usd, locale),
             estimate: usd(run.estimate_usd, locale),
             ceiling:
-              Number(run.rerun_ceiling_usd) > 0 ? usd(run.rerun_ceiling_usd, locale) : "none",
+              compares && Number(run.rerun_ceiling_usd) > 0
+                ? usd(run.rerun_ceiling_usd, locale)
+                : "none",
           })}
         </p>
         {run.suite && (

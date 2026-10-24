@@ -9396,7 +9396,8 @@
       "reruns": "Bestätigende Wiederholungen",
       "rerunsDefault": "Standard",
       "rerunsCount": "{count, plural, =0 {Keine} =1 {1 Wiederholung} other {# Wiederholungen}}",
-      "rerunsHint": "Ein Fall, dessen Ergebnis sich ändert, wird so oft erneut beantwortet, und die Änderung gilt nur als bestätigt, wenn sie jedes Mal hält. Mehr Wiederholungen machen eine Änderung schwerer zu bestätigen, nicht leichter: Ein Modell, das jedes Mal anders antwortet, bestätigt selten etwas. „Keine“ überspringt die Prüfung."
+      "rerunsHint": "Ein Fall, dessen Ergebnis sich ändert, wird so oft erneut beantwortet, und die Änderung gilt nur als bestätigt, wenn sie jedes Mal hält. Mehr Wiederholungen machen eine Änderung schwerer zu bestätigen, nicht leichter: Ein Modell, das jedes Mal anders antwortet, bestätigt selten etwas. „Keine“ überspringt die Prüfung.",
+      "noChanges": "Keine Änderungen — der Entwurf entspricht der veröffentlichten Version."
     },
     "comparison": {
       "title": "Wie die beiden abschneiden",
@@ -9529,9 +9530,10 @@
     "live": {
       "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",
       "comparisonLater": "Der Vergleich erscheint, wenn beide Seiten fertig sind.",
-      "confirming": "Alle ersten Antworten sind da. Die geänderten Fälle werden bestätigt: {done} von {total} Wiederholungen da."
+      "confirming": "Alle ersten Antworten sind da. Die geänderten Fälle werden bestätigt: {done} von {total} Wiederholungen da.",
+      "answeringSingle": "{done} von {total} Antworten da."
     },
-    "answers": "{cases, plural, =1 {1 Fall} other {# Fälle}} · {first, plural, =1 {1 Antwort} other {# Antworten}} + {reruns, plural, =0 {keine bestätigenden Wiederholungen} =1 {1 bestätigende Wiederholung} other {# bestätigende Wiederholungen}}",
+    "answers": "{cases, plural, =1 {1 Fall} other {# Fälle}} · {first, plural, =1 {1 Antwort} other {# Antworten}}{reruns, plural, =0 {} =1 { + 1 bestätigende Wiederholung} other { + # bestätigende Wiederholungen}}",
     "actions": {
       "whatChanged": "Änderungen ansehen",
       "showBroken": "{count, plural, =1 {Den verschlechterten Fall zeigen} other {Die # verschlechterten Fälle zeigen}}",

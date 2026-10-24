@@ -794,3 +794,40 @@ describe("CaseDetail", () => {
     expect(screen.queryByText("Checks:")).toBeNull();
   });
 });
+
+it("puts failing scorers first, folds evidence, and warns once per case", () => {
+  const result = {
+    scorer: "judge" as const,
+    name: "Tone",
+    required: true,
+    status: "pass" as const,
+    score: 1,
+    reason: "Polite response",
+    reason_code: null,
+    unverified_quotes: [],
+    rule: null,
+    unverified: true,
+    judge_said: null,
+    judge_run_id: null,
+  };
+  const score = caseScore({
+    results: [
+      result,
+      { ...result, name: "Accuracy", status: "fail", score: 0.25, reason: "Wrong policy" },
+    ],
+  });
+  render(
+    <CaseDetail
+      arms={[arm()]}
+      attempts={[attempt({ score }), attempt({ id: "second", attempt: 1, score })]}
+      expectation={null}
+      datasetId="ds-1"
+      caseId="case-1"
+    />,
+  );
+  const summaries = document.querySelectorAll("details > summary");
+  expect(summaries[0]).toHaveTextContent("Accuracy");
+  expect(summaries[0]).toHaveTextContent("25%");
+  expect(document.querySelector("details")).not.toHaveAttribute("open");
+  expect(screen.getAllByText(/Unverified: nothing quoted/)).toHaveLength(1);
+});

@@ -1,5 +1,5 @@
 ---
-source_sha: "4ac3639e1702"
+source_sha: "9ae4dab40365"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -289,6 +289,8 @@ des Workers. Der Worker entwirft als die Person, die gefragt hat, mit ihrem
 Zugriff, wie er zu diesem Zeitpunkt ist; eine Generierung, deren Worker
 abgestürzt ist, wird als fehlgeschlagen markiert, sodass nichts ewig auf sie
 wartet.
+
+Eine mit einem API-Schlüssel gestartete Generierung behält dessen Identität. Vor dem Lesen der Quellen prüft der Worker die aktuellen Berechtigungen des Schlüssels und die Mitgliedschaft des Ausstellers erneut. Ein eingeschränkter Schlüssel erhält keinen Konsolenzugriff; ein widerrufener, abgelaufener oder gelöschter Schlüssel stoppt die Generierung mit einer eindeutigen Fehlermeldung.
 
 ### Das Testset eines Agents { #agent-test-set }
 

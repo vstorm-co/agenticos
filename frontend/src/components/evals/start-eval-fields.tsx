@@ -29,11 +29,13 @@ export function TargetChoice({
   targets,
   value,
   currentVersion,
+  draftDiffers,
   onChange,
 }: {
   targets: EvalTarget[];
   value: EvalTarget | null;
   currentVersion: number | null;
+  draftDiffers: boolean;
   onChange: (target: EvalTarget) => void;
 }) {
   const t = useTranslations("evals.fields");
@@ -49,9 +51,10 @@ export function TargetChoice({
           type="button"
           role="radio"
           aria-checked={value === target}
+          disabled={target === "compare" && !draftDiffers}
           onClick={() => onChange(target)}
           className={cn(
-            "w-full rounded-lg border px-3 py-2 text-left transition-colors",
+            "min-h-11 w-full rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
             value === target ? "border-primary bg-primary/5" : "hover:bg-accent/40",
           )}
         >
@@ -59,7 +62,9 @@ export function TargetChoice({
             {t(`targetOption.${target}`, { version: currentVersion ?? 0 })}
           </span>
           <span className="text-muted-foreground block text-xs">
-            {t(`targetHint.${target}`, { version: currentVersion ?? 0 })}
+            {target === "compare" && !draftDiffers
+              ? t("noChanges")
+              : t(`targetHint.${target}`, { version: currentVersion ?? 0 })}
           </span>
         </button>
       ))}

@@ -150,7 +150,9 @@ export function CaseTable({
   const tErrors = useTranslations("errors");
   const [outcome, setOutcome] = useState<string>(ALL);
   const [skip, setSkip] = useState(0);
-  const [open, setOpen] = useState<string | null>(opened);
+  const [open, setOpen] = useState<string | null>(
+    opened ?? (caseIds?.length === 1 ? (caseIds[0] ?? null) : null),
+  );
   // Page three of one tag's or one side's cases is not page three of another's.
   // Compared as a value: the ids arrive as a new array on every render.
   const scope = JSON.stringify([arm, tag, caseIds]);
@@ -158,6 +160,7 @@ export function CaseTable({
   if (seenScope !== scope) {
     setSeenScope(scope);
     setSkip(0);
+    setOpen(caseIds?.length === 1 ? (caseIds[0] ?? null) : opened);
   }
   const live = isLive(run.status);
   const { cases, total, isLoading, error, refetch } = useEvalCases(run.id, {
@@ -230,7 +233,7 @@ export function CaseTable({
                     type="button"
                     aria-expanded={expanded}
                     onClick={() => setOpen(expanded ? null : item.case_id)}
-                    className="flex w-full items-center gap-2 text-left"
+                    className="hover:bg-muted/40 flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left"
                   >
                     {expanded ? (
                       <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />

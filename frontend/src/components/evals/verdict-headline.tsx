@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckCircle2, XCircle, AlertTriangle, MinusCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
@@ -63,12 +64,28 @@ export function VerdictBadge({
   const { verdict, overall } = comparison;
   const broke = verdict === "worse" || verdict === "mixed" || verdict === "invalid";
   if (undecided > 0 && !broke) {
-    return <Badge variant="warning">{t("verdict.inconclusive")}</Badge>;
+    return (
+      <Badge variant="warning">
+        <AlertTriangle className="h-4 w-4" aria-hidden />
+        {t("verdict.inconclusive")}
+      </Badge>
+    );
   }
   if (verdict === null) return null;
+  const Icon =
+    verdict === "better"
+      ? CheckCircle2
+      : verdict === "worse"
+        ? XCircle
+        : verdict === "no_difference"
+          ? MinusCircle
+          : AlertTriangle;
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <Badge variant={VERDICT_TONE[verdict]}>{t(`verdict.${verdict}`)}</Badge>
+      <Badge variant={VERDICT_TONE[verdict]}>
+        <Icon className="h-4 w-4" aria-hidden />
+        {t(`verdict.${verdict}`)}
+      </Badge>
       {overall !== null && <Badge variant="outline">{t(`overall.${overall}`)}</Badge>}
     </span>
   );

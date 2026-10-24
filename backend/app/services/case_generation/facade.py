@@ -215,6 +215,7 @@ class CaseGenerationService:
             dataset_id=dataset_id,
             agent_id=data.agent_id,
             requested_by_user_id=ctx.subject_id,
+            created_by_api_key_id=ctx.api_key_id,
             sources=list(data.sources),
             requested_count=data.count,
             auto_accept=auto_accept,
