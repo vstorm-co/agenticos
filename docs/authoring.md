@@ -326,3 +326,15 @@ The assistant can propose **Worth creating a skill** when a reusable procedure a
 **Accept** creates the private skill and binds it to the agent's draft in the same transaction. It requires `skills:edit` as well as edit access to the agent. Without creation permission the proposal remains readable and testable, but Accept explains why it is disabled. **Dismiss** creates nothing. **Undo** removes the binding and keeps the independent skill; accepting again reuses it only while its name and body still match. Skills contain written know-how and grant no tools. Additional tool access needs separate policy-checked proposals, with writing tools requiring approval.
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
+
+### Checking a knowledge draft { #checking-a-knowledge-draft }
+
+In a finished session, choose a draft and independent questions about its topic. The estimate and confirmation are separate from accepting the agent changes. The test compares **A**, the selected agent changes, with **B**, the same changes plus the draft. Its result appears separately and says **assuming search finds this passage**: this stage injects the passage as context and does not test retrieval.
+
+Training cases, source conversations, source turns and normalized copies of source questions are excluded. At least five independent, gradable holdout questions are required; otherwise the draft **cannot be measured** and no paid check starts. The complete quote includes both variants and confirming repeats, counts against the session limit and is bound to the current draft and selected questions.
+
+**Unsupported — verify the facts** means the draft has no surviving source document in its knowledge base. A passing answer test does not prove its facts. Use the existing topic review dialog to check the passage and explicitly add it. Checking creates no context file or knowledge-base document and publishes nothing. Suites depending on the knowledge base still run after a person adds a document.
+
+Temporary bodies are cleared when a check ends or its draft changes. Changed drafts invalidate the old verdict. Erasing a source person's data also clears derived test answers, scoring explanations and model manifests. A cancelled session cancels its knowledge checks too. These checks keep their paid cost after cancellation or erasure.
+
+The draft records every input question as a fingerprint, including uncited inputs. Old drafts without complete provenance cannot be measured; write a new draft first. These fingerprints and source run identities are cleared with the draft during erasure.

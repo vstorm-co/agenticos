@@ -131,7 +131,11 @@ def _candidate(arm: EvalRunArm) -> Candidate:
         for skill_id, body in (arm.skill_bodies or {}).items()
     }
     contexts = {
-        UUID(context_id): ContextBody(description=body["description"], content=body["content"])
+        UUID(context_id): ContextBody(
+            description=body["description"],
+            content=body["content"],
+            name=TypeAdapter(str | None).validate_python(body.get("name")),
+        )
         for context_id, body in (arm.context_bodies or {}).items()
     }
     if arm.source == ArmSource.VERSION.value and arm.agent_version_id is not None:
@@ -370,7 +374,24 @@ class EvalRunWorker:
         what its starter could no longer start.
         """
         if run.proposal_check is not None:
-            parent_id = ProposalCheckRecord.model_validate(run.proposal_check).improvement_run_id
+            record = ProposalCheckRecord.model_validate(run.proposal_check)
+            if record.knowledge is not None:
+                if record.knowledge.invalidated:
+                    return False
+                from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
+
+                try:
+                    gaps = KnowledgeGapService(db)
+                    topic = await gaps._topic(ctx, record.knowledge.topic_id, edit=True)
+                    await gaps._row(ctx, topic)
+                    if (
+                        not topic.draft_content
+                        or draft_fingerprint(topic) != record.knowledge.draft_hash
+                    ):
+                        return False
+                except AppException:
+                    return False
+            parent_id = record.improvement_run_id
             if parent_id is not None:
                 from app.services.improvement_pipeline import ImprovementPipelineService
 
@@ -451,6 +472,26 @@ class EvalRunWorker:
             dataset = await dataset_repo.get(db, run.dataset_id, organization_id=org)
             # Each cascades to the attempt, so the attempt existing means they do.
             assert arm is not None and revision is not None and dataset is not None
+            if run.proposal_check is not None:
+                try:
+                    fresh = await job_context(
+                        db,
+                        organization_id=org,
+                        user_id=run.created_by_user_id,
+                        api_key_id=run.created_by_api_key_id,
+                    )
+                except AuthenticationError:
+                    fresh = None
+                if fresh is None or not await self._may_still_run(db, fresh, run):
+                    await eval_run_repo.fail_live(
+                        db,
+                        run.id,
+                        organization_id=org,
+                        now=datetime.now(UTC),
+                        error=_NO_LONGER_RUNS,
+                    )
+                    return True
+                ctx = fresh
             calls: list[RecordedToolCall] = []
             asked = _Asked(revision.id, revision.input, list(revision.history or []))
 
@@ -671,6 +712,48 @@ class EvalRunWorker:
         # Grade the original answer in memory; only its persisted copy is redacted,
         # with the same detector Review uses. Failed and ungraded attempts pass here too.
         kept = dict(values)
+        run = await eval_run_repo.get(db, self.eval_run_id, organization_id=self.organization_id)
+        if run is not None:
+            await db.refresh(run)
+            record = (
+                None
+                if run.proposal_check is None
+                else ProposalCheckRecord.model_validate(run.proposal_check)
+            )
+            if record is not None and record.knowledge is not None:
+                try:
+                    ctx = await job_context(
+                        db,
+                        organization_id=run.organization_id,
+                        user_id=run.created_by_user_id,
+                        api_key_id=run.created_by_api_key_id,
+                    )
+                except AuthenticationError:
+                    ctx = None
+                if ctx is None or not await self._may_still_run(db, ctx, run):
+                    paid = {
+                        key
+                        for key in [attempt.agent_run_id, kept.get("agent_run_id")]
+                        if isinstance(key, UUID)
+                    }
+                    score_id = kept.get("case_score_id")
+                    if isinstance(score_id, UUID):
+                        score = (
+                            await eval_run_repo.scores(
+                                db, [score_id], organization_id=self.organization_id
+                            )
+                        ).get(score_id)
+                        if score is not None:
+                            paid |= personal_data_repo.judge_runs_of(score)
+                            personal_data_repo.forget_answer(score)
+                    await personal_data_repo.forget_knowledge_runs(db, paid)
+                    kept.update(
+                        answer=None,
+                        calls=[],
+                        error="The knowledge draft is no longer available",
+                        fault=AttemptFault.INFRASTRUCTURE.value,
+                        status=CaseAttemptStatus.FAILED.value,
+                    )
         for field in ("answer", "calls", "error"):
             if field in kept:
                 kept[field] = _redact_evidence(_JSON.validate_python(kept[field]))

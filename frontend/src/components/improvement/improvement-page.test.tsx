@@ -38,6 +38,7 @@ vi.mock("@/hooks/use-improvements", () => ({
     refetch: vi.fn(),
   }),
 }));
+vi.mock("./knowledge-drafts", () => ({ KnowledgeDrafts: () => null }));
 vi.mock("./start-session", () => ({ StartSession: () => <p>Start fixture</p> }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRun: () => ({ run: null, error: null }),

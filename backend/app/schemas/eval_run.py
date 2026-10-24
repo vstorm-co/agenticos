@@ -42,6 +42,14 @@ class ImprovementMeasurement(BaseSchema):
     minimum_holdout: int
 
 
+class KnowledgeCheckRecord(BaseSchema):
+    topic_id: UUID
+    draft_hash: str
+    mode: Literal["context", "retrieval"] = "context"
+    supported: bool
+    invalidated: bool = False
+
+
 class ProposalCheckRecord(BaseSchema):
     """What a check of the authoring assistant's proposal measured, kept on its run.
 
@@ -65,6 +73,7 @@ class ProposalCheckRecord(BaseSchema):
     improvement_run_id: UUID | None = None
     evidence_run_ids: list[UUID] = Field(default_factory=list)
     measurement: ImprovementMeasurement | None = None
+    knowledge: KnowledgeCheckRecord | None = None
 
 
 class EvalRunRequest(BaseSchema):
@@ -107,6 +116,19 @@ class EvalRunRequest(BaseSchema):
     from_recordings: bool = False
     live_reads: bool = False
     reruns: int | None = Field(default=None, ge=0, le=MAX_RERUNS)
+    case_ids: list[UUID] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=1000,
+        description="Only these case identities in the selected version; omitted runs every case",
+    )
+
+    @field_validator("case_ids")
+    @classmethod
+    def _distinct_cases(cls, value: list[UUID] | None) -> list[UUID] | None:
+        if value is not None and len(set(value)) != len(value):
+            raise ValueError("Name each case once")
+        return value
 
     @field_validator("model_profile_ids")
     @classmethod

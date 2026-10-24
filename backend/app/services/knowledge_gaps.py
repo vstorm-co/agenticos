@@ -23,6 +23,8 @@ person confirms it.
 """
 
 import asyncio
+import hashlib
+import json
 import logging
 import re
 from collections import Counter
@@ -65,6 +67,7 @@ from app.db.models.knowledge_gap import (
 from app.db.models.rag_document import RAGDocument
 from app.repositories import (
     agent_repo,
+    authoring_repo,
     context_repo,
     knowledge_base_repo,
     knowledge_gap_repo,
@@ -110,6 +113,7 @@ from app.services.collection_access import readable_kb, writable_kb
 from app.services.context import ContextService
 from app.services.dataset import DatasetService
 from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
+from app.services.improvement_data import input_hash
 from app.services.ml import pii
 from app.services.rag.vectorstore import BaseVectorStore, embedder_for
 from app.services.rag_document import RAGDocumentService
@@ -562,6 +566,23 @@ def _cited[T](numbers: list[int], numbered: list[T]) -> tuple[list[T], int]:
     distinct_numbers = list(dict.fromkeys(numbers))
     cited = [numbered[n - 1] for n in distinct_numbers if 1 <= n <= len(numbered)]
     return cited, len(distinct_numbers) - len(cited)
+
+
+def draft_fingerprint(topic: KnowledgeGapTopic) -> str:
+    """Pin the passage and provenance; editing either invalidates a paid check."""
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "title": topic.draft_title,
+                "content": topic.draft_content,
+                "sources": topic.draft_sources,
+                "evidence_run_ids": sorted(str(key) for key in topic.draft_evidence_run_ids or []),
+                "evidence_input_hashes": sorted(topic.draft_evidence_input_hashes or []),
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
 
 
 class KnowledgeGapService:
@@ -1029,6 +1050,10 @@ class KnowledgeGapService:
             run_id=result.run.id,
             unverified=unknown_documents + unknown_questions + unknown_context,
             keep_persons=automatic,
+            source_runs={row.search.run_id for row in material},
+            source_inputs=[
+                text for row in material for text in (row.question, row.search.query) if text
+            ],
         )
         return await self.read(ctx, topic.id)
 
@@ -1040,6 +1065,8 @@ class KnowledgeGapService:
         run_id: UUID | None = None,
         unverified: int = 0,
         keep_persons: bool = False,
+        source_runs: set[UUID] | None = None,
+        source_inputs: list[str] | None = None,
     ) -> None:
         """Keep proposed content on a topic, replacing any earlier draft.
 
@@ -1063,6 +1090,26 @@ class KnowledgeGapService:
         if keep_persons:
             topic = await knowledge_gap_repo.lock_topic(self.db, topic)
             _refuse_over_person(topic)
+        if source_runs is None:
+            evidence = await knowledge_gap_repo.topic_evidence(
+                self.db, topic.id, organization_id=ctx.organization_id
+            )
+            if len(evidence) > 1000:
+                raise BadRequestError(
+                    message="The topic has too much source material to track safely"
+                )
+            source_runs = {row.run_id for row in evidence}
+            sources = await authoring_repo.evidence_inputs(
+                self.db,
+                organization_id=ctx.organization_id,
+                run_ids=list(source_runs),
+                conversation_ids=[],
+            )
+            if sources.truncated:
+                raise BadRequestError(
+                    message="The topic has too much source material to track safely"
+                )
+            source_inputs = [*sources.inputs, *(row.query for row in evidence)]
         named = list(dict.fromkeys((source.kind, source.id) for source in report.sources))
         questions = await knowledge_gap_repo.member_queries(
             self.db, topic.id, organization_id=ctx.organization_id
@@ -1089,6 +1136,10 @@ class KnowledgeGapService:
             update_data={
                 "draft_title": _redacted(report.title),
                 "draft_content": _redacted(report.content),
+                "draft_evidence_run_ids": sorted(source_runs),
+                "draft_evidence_input_hashes": sorted(
+                    {input_hash(text) for text in source_inputs or []}
+                ),
                 "draft_sources": verified[:MAX_DRAFT_SOURCES],
                 "draft_unverified": unverified + len(named) - len(verified),
                 "draft_already_covered": report.already_covered,
@@ -1214,6 +1265,9 @@ class KnowledgeGapService:
                 "draft_title": title,
                 "draft_content": content,
                 "draft_sources": [],
+                # Editing cannot make old learning questions into fresh test data.
+                "draft_evidence_run_ids": topic.draft_evidence_run_ids,
+                "draft_evidence_input_hashes": topic.draft_evidence_input_hashes,
                 "draft_unverified": 0,
                 "draft_already_covered": False,
                 "draft_author": DraftAuthor.PERSON.value,

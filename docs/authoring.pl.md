@@ -1,5 +1,5 @@
 ---
-source_sha: "ffa69beed973"
+source_sha: "d03acffb6694"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -342,3 +342,15 @@ Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje
 **Accept** tworzy prywatny skill i przypina go do wersji roboczej agenta w jednej transakcji. Wymaga `skills:edit` oraz edycji agenta. Bez uprawnienia tworzenia można czytać i sprawdzać propozycję, ale wyłączone Accept wyjaśnia powód. **Dismiss** niczego nie tworzy. **Undo** usuwa przypięcie i zachowuje niezależny skill; kolejna akceptacja wykorzystuje go ponownie tylko wtedy, gdy nazwa i treść nadal pasują. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Dodatkowy dostęp wymaga osobnych propozycji sprawdzanych przez politykę, z zatwierdzaniem narzędzi zapisujących.
 
 Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.
+
+### Sprawdzanie szkicu wiedzy { #checking-a-knowledge-draft }
+
+W zakończonej sesji wybierz szkic i niezależne pytania na jego temat. Oszacowanie kosztu i potwierdzenie są oddzielne od akceptacji zmian agenta. Test porównuje **A**, wybrane zmiany agenta, z **B**, tymi samymi zmianami i szkicem. Osobny wynik zawiera zastrzeżenie **zakładając, że wyszukiwanie znajdzie ten fragment**: ten etap przekazuje fragment jako kontekst i nie sprawdza wyszukiwania.
+
+Przypadki treningowe, rozmowy i tury źródłowe oraz znormalizowane kopie pytań źródłowych są wykluczane. Potrzeba co najmniej pięciu niezależnych pytań kontrolnych, które można ocenić; inaczej szkicu **nie można zmierzyć** i płatne sprawdzenie nie ruszy. Pełny szacunek obejmuje oba warianty i powtórzenia, obciąża limit sesji i dotyczy aktualnego szkicu oraz wybranych pytań.
+
+**Bez źródła — sprawdź fakty** oznacza, że szkic nie ma istniejącego dokumentu źródłowego w bazie wiedzy. Poprawne odpowiedzi w teście nie dowodzą prawdziwości faktów. Sprawdź fragment w istniejącym dialogu tematu i samodzielnie zdecyduj o dodaniu. Test nie tworzy pliku kontekstu ani dokumentu bazy wiedzy i niczego nie publikuje. Po dodaniu dokumentu przez osobę nadal uruchamiają się zestawy zależne od bazy wiedzy.
+
+Tymczasowe treści są usuwane po zakończeniu sprawdzenia lub zmianie szkicu. Zmiana szkicu unieważnia stary wynik. Usunięcie danych osoby źródłowej czyści także odpowiedzi testowe, uzasadnienia ocen i manifesty modeli. Anulowanie sesji anuluje jej sprawdzenia wiedzy. Koszt pozostaje zapisany po anulowaniu lub usunięciu danych.
+
+Szkic zapisuje odciski wszystkich pytań wejściowych, także niecytowanych. Starszych szkiców bez pełnego pochodzenia nie można zmierzyć; najpierw przygotuj nowy szkic. Odciski i identyfikatory runów źródłowych są usuwane razem ze szkicem przy usuwaniu danych osoby.

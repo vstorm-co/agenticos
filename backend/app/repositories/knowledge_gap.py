@@ -272,6 +272,10 @@ async def add_members(db: AsyncSession, placements: Sequence[tuple[UUID, UUID]])
 async def update_topic(
     db: AsyncSession, *, topic: KnowledgeGapTopic, update_data: dict[str, Any]
 ) -> KnowledgeGapTopic:
+    if {"draft_title", "draft_content", "draft_sources"} & update_data.keys():
+        from app.repositories import eval_run_repo
+
+        await eval_run_repo.invalidate_knowledge_topics(db, [topic.id])
     for field, value in update_data.items():
         setattr(topic, field, value)
     await db.flush()
@@ -285,13 +289,28 @@ async def delete_empty_topics(db: AsyncSession) -> int:
     Unscoped by organization on purpose: a topic copies no text, so one with no
     searches left says nothing and belongs to nobody's view, in any organization.
     """
+    from app.repositories import eval_run_repo
+
+    empty = list(
+        await db.scalars(
+            select(KnowledgeGapTopic.id).where(
+                ~exists(
+                    select(KnowledgeGapMember.search_id).where(
+                        KnowledgeGapMember.topic_id == KnowledgeGapTopic.id
+                    )
+                )
+            )
+        )
+    )
+    await eval_run_repo.invalidate_knowledge_topics(db, empty)
     result = await db.execute(
         delete(KnowledgeGapTopic).where(
+            KnowledgeGapTopic.id.in_(empty),
             ~exists(
                 select(KnowledgeGapMember.search_id).where(
                     KnowledgeGapMember.topic_id == KnowledgeGapTopic.id
                 )
-            )
+            ),
         )
     )
     await db.flush()
@@ -759,6 +778,23 @@ async def member_queries(
         )
     )
     return {row[0]: row[1] for row in result.all()}
+
+
+async def topic_evidence(
+    db: AsyncSession, topic_id: UUID, *, organization_id: UUID
+) -> list[KnowledgeSearch]:
+    """All source turns a topic's draft could have read, with an overflow sentinel."""
+    rows = await db.scalars(
+        select(KnowledgeSearch)
+        .join(KnowledgeGapMember, KnowledgeGapMember.search_id == KnowledgeSearch.id)
+        .where(
+            KnowledgeGapMember.topic_id == topic_id,
+            KnowledgeSearch.organization_id == organization_id,
+        )
+        .order_by(KnowledgeSearch.id)
+        .limit(1001)
+    )
+    return list(rows)
 
 
 async def documents_named(

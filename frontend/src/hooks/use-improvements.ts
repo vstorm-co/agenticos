@@ -2,9 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import type { EvalRun } from "@/types/eval-runs";
 import { qk } from "@/lib/query-keys";
 import type {
   AttributionEstimate,
+  KnowledgeCheckEstimate,
+  KnowledgeCheckTarget,
   Improvement,
   ImprovementEstimate,
   ImprovementTarget,
@@ -59,6 +62,16 @@ export function useImprovement(agentId: string, runId: string) {
       queryClient.invalidateQueries({ queryKey: qk.evalRuns.all() }),
     ]);
   };
+  const estimateKnowledge = useMutation({
+    mutationFn: (target: KnowledgeCheckTarget) =>
+      apiClient.post<KnowledgeCheckEstimate>(`${base}/knowledge/estimate`, target),
+  });
+  const checkKnowledge = useMutation({
+    mutationFn: (
+      target: KnowledgeCheckTarget & { confirmed: true; draft_hash: string; estimate_usd: string },
+    ) => apiClient.post<EvalRun>(`${base}/knowledge`, target),
+    onSuccess: refresh,
+  });
   const cancel = useMutation({
     mutationFn: () => apiClient.post<Improvement>(`${base}/cancel`, {}),
     onSuccess: refresh,
@@ -93,6 +106,8 @@ export function useImprovement(agentId: string, runId: string) {
     onSuccess: refresh,
   });
   return {
+    estimateKnowledge,
+    checkKnowledge,
     finish,
     session: query.data,
     isLoading: query.isLoading,

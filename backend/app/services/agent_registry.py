@@ -114,6 +114,7 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
+from app.schemas.context import ContextFileCreate
 from app.schemas.skill import SkillCreate
 from app.services import (
     agent_templates,
@@ -3347,6 +3348,19 @@ class AgentRegistryService:
         if environment_id is not None:
             await self._environment_of(ctx, agent, environment_id)
         if isinstance(candidate, UnpublishedCandidate):
+            virtual_contexts = {
+                key: body
+                for key, body in candidate.context_bodies.items()
+                if body.name is not None and key in candidate.spec.context_ids
+            }
+            for body in virtual_contexts.values():
+                ContextFileCreate.model_validate(
+                    {
+                        "name": body.name,
+                        "description": body.description,
+                        "content": body.content,
+                    }
+                )
             virtual = {
                 key: body
                 for key, body in candidate.skill_bodies.items()
@@ -3358,10 +3372,24 @@ class AgentRegistryService:
                 )
             validation = candidate.spec.model_copy(
                 update={
-                    "skill_ids": [key for key in candidate.spec.skill_ids if key not in virtual]
+                    "skill_ids": [key for key in candidate.spec.skill_ids if key not in virtual],
+                    "context_ids": [
+                        key for key in candidate.spec.context_ids if key not in virtual_contexts
+                    ],
                 }
             )
             await self.validate_spec(ctx, validation, agent_id=agent.id)
+            if virtual_contexts:
+                stored_contexts = await context_repo.get_many(
+                    self.db, validation.context_ids, organization_id=ctx.organization_id
+                )
+                context_names = [file.name for file in stored_contexts.values()] + [
+                    body.name for body in virtual_contexts.values()
+                ]
+                if len(context_names) != len(set(context_names)):
+                    raise BadRequestError(
+                        message="Projected context files must have distinct names"
+                    )
             if virtual:
                 stored = await skill_repo.get_many(
                     self.db, validation.skill_ids, organization_id=ctx.organization_id

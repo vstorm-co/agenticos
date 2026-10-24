@@ -234,6 +234,22 @@ async def completed_checks(
     ) or 0
 
 
+async def knowledge_checks(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> list[UUID]:
+    """The draft checks belonging to a session, without copying their evidence."""
+    from app.db.models.eval_run import EvalRun
+
+    rows = await db.scalars(
+        select(EvalRun.id)
+        .where(
+            EvalRun.organization_id == organization_id,
+            EvalRun.proposal_check["improvement_run_id"].astext == str(run_id),
+            EvalRun.proposal_check["knowledge"]["topic_id"].astext.is_not(None),
+        )
+        .order_by(EvalRun.created_at, EvalRun.id)
+    )
+    return list(rows)
+
+
 async def timeline(
     db: AsyncSession, run_id: UUID, *, organization_id: UUID
 ) -> list[AppAdminAuditLog]:
@@ -266,3 +282,20 @@ async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Dec
         )
     )
     return value + (archived or Decimal(0))
+
+
+async def has_active_check(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> bool:
+    """Whether paid evaluation work still reserves this session's budget."""
+    from app.db.models.eval_run import EvalRun
+
+    return bool(
+        await db.scalar(
+            select(EvalRun.id)
+            .where(
+                EvalRun.organization_id == organization_id,
+                EvalRun.proposal_check["improvement_run_id"].astext == str(run_id),
+                EvalRun.status.in_(["queued", "running"]),
+            )
+            .limit(1)
+        )
+    )

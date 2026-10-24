@@ -180,9 +180,7 @@ def _bodies_json(
         str(key): {
             "description": body.description,
             "content": body.content,
-            **(
-                {"name": body.name} if isinstance(body, SkillBody) and body.name is not None else {}
-            ),
+            **({"name": body.name} if body.name is not None else {}),
         }
         for key, body in bodies.items()
     }
@@ -416,6 +414,8 @@ class EvalRunService:
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
         candidate_contexts: Mapping[UUID, ContextBody] | None = None,
         baseline_spec: AgentSpec | None = None,
+        baseline_skills: Mapping[UUID, SkillBody] | None = None,
+        baseline_contexts: Mapping[UUID, ContextBody] | None = None,
     ) -> RunPlan:
         """Decide what a run is, refusing anything that could not or should not run.
 
@@ -477,9 +477,19 @@ class EvalRunService:
                     },
                 )
         left_out = set(exclude_conversations)
-        excluded = [case.case_id for case in cases if case.source_conversation_id in left_out]
+        selected_ids = None if request.case_ids is None else set(request.case_ids)
+        if selected_ids is not None and selected_ids - {case.case_id for case in cases}:
+            raise BadRequestError(
+                message="The selected questions are not available in this dataset version"
+            )
+        excluded = [
+            case.case_id
+            for case in cases
+            if case.source_conversation_id in left_out
+            or (selected_ids is not None and case.case_id not in selected_ids)
+        ]
         if excluded:
-            cases = [case for case in cases if case.source_conversation_id not in left_out]
+            cases = [case for case in cases if case.case_id not in excluded]
             if not cases:
                 raise BadRequestError(
                     message=(
@@ -510,6 +520,7 @@ class EvalRunService:
                     agent,
                     role=ArmRole.CANDIDATE,
                     projected_skills=candidate_skills,
+                    projected_contexts=candidate_contexts,
                     source=source,
                     version=version,
                     spec=spec,
@@ -547,17 +558,29 @@ class EvalRunService:
                 ctx,
                 agent,
                 role=ArmRole.BASELINE,
+                projected_skills=baseline_skills,
+                projected_contexts=baseline_contexts,
                 source=ArmSource.VERSION if baseline_version is not None else ArmSource.DRAFT,
                 version=baseline_version,
                 spec=measured,
                 model_profile_id=profile_id,
                 environment_id=request.environment_id,
             )
+            baseline = replace(
+                baseline,
+                skill_bodies=dict(baseline_skills or {}),
+                context_bodies=dict(baseline_contexts or {}),
+            )
             # A skill's or a context file's stored body is live rather than versioned,
             # so a cached baseline may have read an older one than the body replaced.
             cached = (
                 None
-                if excluded or candidate_skills or candidate_contexts or baseline_version is None
+                if excluded
+                or candidate_skills
+                or candidate_contexts
+                or baseline_skills
+                or baseline_contexts
+                or baseline_version is None
                 else await self._cached(
                     ctx,
                     agent=agent,
@@ -747,7 +770,11 @@ class EvalRunService:
                 for key, body in (arm.skill_bodies or {}).items()
             },
             context_bodies={
-                UUID(key): ContextBody(description=body["description"], content=body["content"])
+                UUID(key): ContextBody(
+                    description=body["description"],
+                    content=body["content"],
+                    name=TypeAdapter(str | None).validate_python(body.get("name")),
+                )
                 for key, body in (arm.context_bodies or {}).items()
             },
         )
@@ -879,6 +906,7 @@ class EvalRunService:
         model_profile_id: UUID | None,
         environment_id: UUID | None,
         projected_skills: Mapping[UUID, SkillBody] | None = None,
+        projected_contexts: Mapping[UUID, ContextBody] | None = None,
     ) -> ArmPlan:
         """One arm, checked now rather than at its first case.
 
@@ -890,7 +918,9 @@ class EvalRunService:
         candidate = (
             PublishedCandidate(version.id)
             if version is not None
-            else UnpublishedCandidate(spec, skill_bodies=projected_skills or {})
+            else UnpublishedCandidate(
+                spec, skill_bodies=projected_skills or {}, context_bodies=projected_contexts or {}
+            )
         )
         try:
             await self.registry.get_candidate_spec(
@@ -1042,6 +1072,8 @@ class EvalRunService:
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
         candidate_contexts: Mapping[UUID, ContextBody] | None = None,
         baseline_spec: AgentSpec | None = None,
+        baseline_skills: Mapping[UUID, SkillBody] | None = None,
+        baseline_contexts: Mapping[UUID, ContextBody] | None = None,
         proposal_check: ProposalCheckRecord | None = None,
     ) -> EvalRunEstimate:
         """What a run would cost, against what the agent and organization have left.
@@ -1062,6 +1094,8 @@ class EvalRunService:
             candidate_skills=candidate_skills,
             candidate_contexts=candidate_contexts,
             baseline_spec=baseline_spec,
+            baseline_skills=baseline_skills,
+            baseline_contexts=baseline_contexts,
         )
         if proposal_check is not None:
             proposal_check = proposal_check.model_copy(
@@ -1319,6 +1353,8 @@ class EvalRunService:
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
         candidate_contexts: Mapping[UUID, ContextBody] | None = None,
         baseline_spec: AgentSpec | None = None,
+        baseline_skills: Mapping[UUID, SkillBody] | None = None,
+        baseline_contexts: Mapping[UUID, ContextBody] | None = None,
         suite: EvalSuiteCheck | None = None,
         proposal_check: ProposalCheckRecord | None = None,
     ) -> EvalRunRead:
@@ -1346,6 +1382,8 @@ class EvalRunService:
             candidate_skills=candidate_skills,
             candidate_contexts=candidate_contexts,
             baseline_spec=baseline_spec,
+            baseline_skills=baseline_skills,
+            baseline_contexts=baseline_contexts,
         )
         if proposal_check is not None:
             proposal_check = proposal_check.model_copy(
@@ -1470,6 +1508,19 @@ class EvalRunService:
         try:
             await self.registry.get(ctx, run.agent_id)
             await self.datasets.get(ctx, run.dataset_id)
+            record = (
+                None
+                if run.proposal_check is None
+                else ProposalCheckRecord.model_validate(run.proposal_check)
+            )
+            if (
+                record is not None
+                and record.knowledge is not None
+                and not record.knowledge.invalidated
+            ):
+                from app.services.knowledge_gaps import KnowledgeGapService
+
+                await KnowledgeGapService(self.db)._topic(ctx, record.knowledge.topic_id, edit=True)
         except NotFoundError:
             raise NotFoundError(
                 message="Eval run not found", details={"eval_run_id": run_id}
@@ -2401,6 +2452,10 @@ class EvalRunService:
             for case_id in common
         ]
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
+        if run.proposal_check is not None:
+            knowledge = ProposalCheckRecord.model_validate(run.proposal_check).knowledge
+            if knowledge is not None and knowledge.invalidated:
+                invalid_reason = "The knowledge draft changed or was removed; check it again"
         if measured is not None and measured.gradable_holdout < measured.minimum_holdout:
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"

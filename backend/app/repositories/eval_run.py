@@ -1,7 +1,7 @@
 """Rows in `eval_runs`, `eval_run_arms` and `eval_run_cases`."""
 
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 from uuid import UUID
 
@@ -78,8 +78,56 @@ async def update_run(db: AsyncSession, *, run: EvalRun, values: dict[str, Any]) 
     for name, value in values.items():
         setattr(run, name, value)
     await db.flush()
+    if EvalRunStatus(run.status).terminal:
+        await clear_knowledge_overlays(db, [run.id])
     await db.refresh(run)
     return run
+
+
+async def clear_knowledge_overlays(db: AsyncSession, eval_run_ids: Sequence[UUID]) -> None:
+    """Drop run-only draft bodies while retaining the measured fingerprint and outcome."""
+    runs = select(EvalRun.id).where(
+        EvalRun.id.in_(eval_run_ids),
+        EvalRun.proposal_check["knowledge"]["topic_id"].astext.is_not(None),
+    )
+    await db.execute(
+        update(EvalRunArm).where(EvalRunArm.eval_run_id.in_(runs)).values(context_bodies=None)
+    )
+    await db.flush()
+
+
+async def invalidate_knowledge_topics(db: AsyncSession, topic_ids: Sequence[UUID]) -> list[UUID]:
+    """Revoke checks and run-only bodies derived from replaced or erased drafts."""
+    from app.schemas.eval_run import ProposalCheckRecord
+
+    rows = await db.scalars(
+        select(EvalRun)
+        .where(
+            EvalRun.proposal_check["knowledge"]["topic_id"].astext.in_(
+                [str(key) for key in topic_ids]
+            ),
+        )
+        .order_by(EvalRun.id)
+        .with_for_update()
+    )
+    ids: list[UUID] = []
+    for run in rows:
+        record = ProposalCheckRecord.model_validate(run.proposal_check)
+        assert record.knowledge is not None
+        record.knowledge.invalidated = True
+        run.proposal_check = record.model_dump(mode="json")
+        run.outcome = None
+        run.outcome_at = None
+        ids.append(run.id)
+        if run.status in _LIVE:
+            await _end_unfinished(
+                db,
+                [run.id],
+                now=datetime.now(UTC),
+                error="The knowledge draft changed or was removed",
+            )
+    await clear_knowledge_overlays(db, ids)
+    return ids
 
 
 async def list_arms(
@@ -826,6 +874,7 @@ async def _end_unfinished(
         .where(EvalRun.id.in_(eval_run_ids))
         .values(status=EvalRunStatus.FAILED.value, error=error, ended_at=now)
     )
+    await clear_knowledge_overlays(db, eval_run_ids)
     await db.flush()
 
 

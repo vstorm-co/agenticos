@@ -17,6 +17,7 @@ import { useOrgStore } from "@/stores/org-store";
 import { Perm } from "@/types/permissions";
 import type { Improvement } from "@/types/improvement";
 import { StartSession } from "./start-session";
+import { KnowledgeDrafts } from "./knowledge-drafts";
 import { RoundResults } from "./round-results";
 
 const STEPS = ["understand", "testSet", "today", "changes", "check", "result", "accept"] as const;
@@ -203,6 +204,7 @@ function Session({
           ))}
         </section>
       )}
+      {(step === "changes" || step === "result") && <KnowledgeDrafts session={session} />}
       {step === "accept" && (
         <section className="space-y-4 rounded-xl border p-6" data-tour="improvement-accept">
           <h2 className="font-medium">{t("steps.accept")}</h2>

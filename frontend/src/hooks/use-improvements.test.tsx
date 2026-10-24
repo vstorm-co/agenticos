@@ -63,3 +63,27 @@ it("loads a reopened session and requires the reviewed price for attribution", a
     automatic_check: true,
   });
 });
+
+it("keeps draft testing separate and sends consent for the quoted draft and selected questions", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready" });
+  vi.mocked(apiClient.post).mockResolvedValue({});
+  const { result } = renderHook(() => useImprovement("a1", "s1"), { wrapper });
+  await waitFor(() => expect(result.current.session?.id).toBe("s1"));
+  const target = { topic_id: "t1", round: 1, case_ids: ["q1", "q2"] };
+  const invalidation = vi.spyOn(client, "invalidateQueries");
+  await result.current.estimateKnowledge.mutateAsync(target);
+  expect(apiClient.post).toHaveBeenLastCalledWith(
+    "/agents/a1/improvements/s1/knowledge/estimate",
+    target,
+  );
+  expect(invalidation).not.toHaveBeenCalled();
+  const consent = {
+    ...target,
+    confirmed: true as const,
+    draft_hash: "a".repeat(64),
+    estimate_usd: "0.02",
+  };
+  await result.current.checkKnowledge.mutateAsync(consent);
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/knowledge", consent);
+  expect(invalidation).toHaveBeenCalledWith({ queryKey: ["improvements"] });
+});

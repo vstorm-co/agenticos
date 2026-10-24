@@ -38,6 +38,8 @@ class ContextBody:
 
     description: str | None
     content: str
+    name: str | None = None
+    """A named body is a run-only file, never a stored context-file replacement."""
 
 
 class ContextConfig(BaseModel):

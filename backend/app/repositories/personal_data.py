@@ -53,7 +53,7 @@ from app.db.models.context_proposal import ContextProposal
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import DatasetCase
-from app.db.models.eval_run import EvalRunCase
+from app.db.models.eval_run import EvalRun, EvalRunCase
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_gap import (
     DraftAuthor,
@@ -1044,14 +1044,55 @@ async def clear_gap_drafts_of(db: AsyncSession, user_id: UUID) -> int:
     Returns:
         How many drafts were discarded.
     """
+    from app.repositories import eval_run_repo
+
+    topic_ids = list(
+        await db.scalars(
+            select(KnowledgeGapMember.topic_id)
+            .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+            .where(_their_searches(user_id))
+            .distinct()
+        )
+    )
+    source_run = func.unnest(KnowledgeGapTopic.draft_evidence_run_ids).column_valued(
+        "source_run_id"
+    )
+    tracked_topics = await db.scalars(
+        select(KnowledgeGapTopic.id).where(
+            exists(select(literal(1)).where(source_run.in_(_runs_they_asked(user_id))))
+        )
+    )
+    topic_ids = list(set(topic_ids) | set(tracked_topics))
+    # A conversation may already be deleted, taking topic memberships with it.
+    # The check's frozen source run identities still identify derived content.
+    cited_topics = await db.scalars(
+        select(EvalRun.proposal_check["knowledge"]["topic_id"].astext).where(
+            EvalRun.proposal_check["knowledge"]["topic_id"].astext.is_not(None),
+            _cites(
+                EvalRun.proposal_check,
+                "$.evidence_run_ids[*]",
+                AgentRun.id.in_(_runs_they_asked(user_id)),
+            ),
+        )
+    )
+    topic_ids = list(set(topic_ids) | {UUID(key) for key in cited_topics if key is not None})
+    checked = await eval_run_repo.invalidate_knowledge_topics(db, topic_ids)
+    if checked:
+        attempts = list(
+            await db.scalars(select(EvalRunCase).where(EvalRunCase.eval_run_id.in_(checked)))
+        )
+        runs = {attempt.agent_run_id for attempt in attempts if attempt.agent_run_id is not None}
+        for attempt in attempts:
+            attempt.answer, attempt.calls, attempt.error = None, [], None
+        scores = await db.scalars(select(CaseScore).where(CaseScore.eval_run_id.in_(checked)))
+        for score in scores:
+            runs |= judge_runs_of(score)
+            forget_answer(score)
+        await forget_knowledge_runs(db, runs)
     result = await db.execute(
         update(KnowledgeGapTopic)
         .where(
-            KnowledgeGapTopic.id.in_(
-                select(KnowledgeGapMember.topic_id)
-                .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
-                .where(_their_searches(user_id))
-            ),
+            KnowledgeGapTopic.id.in_(topic_ids),
             KnowledgeGapTopic.draft_author == DraftAuthor.MODEL.value,
             or_(
                 KnowledgeGapTopic.draft_content.is_not(None),
@@ -1060,9 +1101,11 @@ async def clear_gap_drafts_of(db: AsyncSession, user_id: UUID) -> int:
         )
         .values(
             draft_author=None,
-            draft_already_covered=None,
+            draft_already_covered=False,
             draft_title=None,
             draft_content=None,
+            draft_evidence_run_ids=None,
+            draft_evidence_input_hashes=None,
             draft_sources=[],
             draft_unverified=0,
             draft_run_id=None,
@@ -1072,6 +1115,16 @@ async def clear_gap_drafts_of(db: AsyncSession, user_id: UUID) -> int:
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def forget_knowledge_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
+    """Injected drafts may occur in system instructions too; retain only the paid run row."""
+    wanted = list(set(run_ids))
+    await forget_runs(db, wanted)
+    await db.execute(
+        update(RunManifest).where(RunManifest.run_id.in_(wanted)).values(payload={}, truncated=True)
+    )
+    await db.flush()
 
 
 async def attachment_paths_in(db: AsyncSession, conversation_id: UUID) -> list[str]:

@@ -7,11 +7,13 @@ into the instructions or exposed through a tool - is the context *capability*.
 """
 
 import logging
+from collections.abc import Mapping
 from typing import cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.context import ContextBody
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.excerpt import excerpt
@@ -158,7 +160,11 @@ class ContextService:
         )
 
     async def resolve_for_agent(
-        self, ctx: AuthContext, context_ids: list[UUID]
+        self,
+        ctx: AuthContext,
+        context_ids: list[UUID],
+        *,
+        projected: Mapping[UUID, ContextBody] | None = None,
     ) -> list[ContextFile]:
         """The enabled context files an agent is bound to.
 
@@ -178,12 +184,35 @@ class ContextService:
         """
         if not context_ids:
             return []
+        virtual = {
+            key: body
+            for key, body in (projected or {}).items()
+            if body.name is not None and key in context_ids
+        }
         found = await context_repo.get_many(
-            self.db, context_ids, organization_id=ctx.organization_id
+            self.db,
+            [key for key in context_ids if key not in virtual],
+            organization_id=ctx.organization_id,
         )
         resolved = []
         for context_id in context_ids:
-            file = found.get(context_id)
+            body = virtual.get(context_id)
+            file = (
+                ContextFile(
+                    id=context_id,
+                    organization_id=ctx.organization_id,
+                    owner_user_id=ctx.user_id,
+                    visibility=Visibility.PRIVATE.value,
+                    name=body.name,
+                    description=body.description,
+                    content=body.content,
+                    format="md",
+                    mode="inject",
+                    enabled=True,
+                )
+                if body is not None
+                else found.get(context_id)
+            )
             if file is None or not file.enabled:
                 logger.warning(
                     "Agent references context file %s which is disabled, deleted, or not org %s's",

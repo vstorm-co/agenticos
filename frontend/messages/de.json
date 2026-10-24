@@ -4843,7 +4843,7 @@
       },
       "improvement-accept": {
         "title": "Annehmen",
-        "body": "In den Draft übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht."
+        "body": "In den Entwurf übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht."
       },
       "flow-improvement-start": {
         "title": "Testfragen",
@@ -4855,7 +4855,7 @@
       },
       "flow-improvement-accept": {
         "title": "Annehmen",
-        "body": "In den Draft übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht."
+        "body": "In den Entwurf übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht."
       }
     },
     "chooseLanguage": "Sprache",
@@ -10311,7 +10311,7 @@
     },
     "newSkill": {
       "title": "Ein Skill wäre sinnvoll",
-      "binding": "Annehmen erstellt diesen Skill und bindet ihn an den Draft. Er enthält Anweisungen und gewährt keine Tools. Nichts wird veröffentlicht.",
+      "binding": "Annehmen erstellt diesen Skill und bindet ihn an den Entwurf. Er enthält Anweisungen und gewährt keine Tools. Nichts wird veröffentlicht.",
       "permission": "Sie können diesen Vorschlag prüfen und testen. Das Erstellen erfordert skills:edit."
     }
   },
@@ -10597,7 +10597,7 @@
     "changesWorking": "Wir bereiten Änderungen vor. Sie können diese Seite schließen und später zurückkehren.",
     "noChanges": "Hier sind keine Änderungen verfügbar. Lesen Sie das Ergebnis und den Abbruchgrund oder bearbeiten Sie den Agenten.",
     "background": "Die Prüfung läuft im Hintergrund. Sie können diese Seite schließen — wir benachrichtigen Sie, sobald das Ergebnis vorliegt.",
-    "acceptBody": "In den Draft übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht.",
+    "acceptBody": "In den Entwurf übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht.",
     "automatic": "Diese Fragen bei jeder Veröffentlichung prüfen, falls noch keine automatische Prüfung besteht.",
     "confirmation": "Ich habe die ausgewählten Änderungen geprüft und möchte sie anwenden.",
     "keepDraft": "Als Draft behalten",
@@ -10674,6 +10674,23 @@
     "nextStep": "Nächster Schritt",
     "measurementDetails": "Messdetails anzeigen",
     "attributionUnavailable": "Diese Prüfung hat kein verwertbares Ergebnis geliefert. Öffne sie, um den Grund zu sehen.",
-    "blockedChanges": "Einige ausgewählte Änderungen können mit deinen aktuellen Berechtigungen nicht übernommen werden. Prüfe sie unter Änderungen."
+    "blockedChanges": "Einige ausgewählte Änderungen können mit deinen aktuellen Berechtigungen nicht übernommen werden. Prüfe sie unter Änderungen.",
+    "knowledgeTitle": "Wirkung des Wissensentwurfs",
+    "knowledgeSeparate": "Vergleiche die ausgewählten Agentenänderungen mit denselben Änderungen plus einem Entwurf. Dieses Ergebnis ist vom Agentenergebnis getrennt und veröffentlicht nichts.",
+    "chooseDraft": "Wissensentwurf auswählen",
+    "knowledgeQuestions": "Fragen zu diesem Thema",
+    "knowledgeQuestionsBody": "Wähle unabhängige Fragen zum Thema des Entwurfs. Trainingsfragen, Quellgespräche und Kopien von Quellfragen werden ausgeschlossen.",
+    "previousQuestions": "Vorherige Fragen",
+    "nextQuestions": "Nächste Fragen",
+    "estimateKnowledge": "Prüfung des Entwurfs schätzen",
+    "confirmKnowledge": "Bestätigen und Entwurf prüfen",
+    "unsupportedDraft": "Unbelegt — Fakten prüfen. Dieser Entwurf hat kein Quelldokument in der Wissensbasis.",
+    "knowledgeQuote": "{count} unabhängige Fragen · {excluded} ausgeschlossen · bis zu {cost} (Schätzung einschließlich beider Varianten und Wiederholungen).",
+    "knowledgeUnmeasurable": "Nicht messbar. Wähle mindestens fünf unabhängige, bewertbare Fragen zu diesem Thema.",
+    "contextAssumption": "Unter der Annahme, dass die Suche diese Passage findet. Diese Prüfung gibt den Entwurf direkt an den Agenten; sie prüft weder die Suche noch die Richtigkeit der Fakten.",
+    "reviewKnowledgeDraft": "Entwurf prüfen und über das Hinzufügen entscheiden",
+    "noKnowledgeDrafts": "Für diese Runde ist kein prüfbarer Entwurf verfügbar. Prüfe die Themen im Wissen-Tab des Agenten.",
+    "knowledgeInvalidated": "Der Entwurf wurde geändert oder entfernt. Prüfe den aktuellen Entwurf erneut, bevor du dieses Ergebnis verwendest.",
+    "knowledgeUntracked": "Nicht messbar: Dieser ältere Entwurf hat nicht alle Quellfragen gespeichert. Erstelle vor der Prüfung einen neuen Entwurf."
   }
 }

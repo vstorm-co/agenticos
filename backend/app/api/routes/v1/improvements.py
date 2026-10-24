@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from app.api.deps import Auth, ImprovementSvc
+from app.schemas.eval_run import EvalRunRead
 from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
@@ -15,9 +16,35 @@ from app.schemas.improvement import (
     ImprovementRead,
     ImprovementStart,
     ImprovementTarget,
+    KnowledgeCheckConsent,
+    KnowledgeCheckEstimate,
+    KnowledgeCheckTarget,
 )
 
 router = APIRouter(prefix="/agents/{agent_id}/improvements")
+
+
+@router.post("/{run_id}/knowledge/estimate", response_model=KnowledgeCheckEstimate)
+async def estimate_knowledge_check(
+    agent_id: UUID, run_id: UUID, data: KnowledgeCheckTarget, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Estimate draft B against agent changes A on independent questions selected for the topic.
+
+    Context checks assume search finds the passage; they do not verify its facts.
+    Source questions and training cases are excluded. No resources are created.
+    """
+    return await service.estimate_knowledge(ctx, agent_id, run_id, data)
+
+
+@router.post("/{run_id}/knowledge", response_model=EvalRunRead, status_code=status.HTTP_201_CREATED)
+async def start_knowledge_check(
+    agent_id: UUID, run_id: UUID, data: KnowledgeCheckConsent, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Check a draft only after consent to its current hash and complete estimated cost.
+
+    Never adds it to a knowledge base. A person must verify the draft's facts.
+    """
+    return await service.start_knowledge(ctx, agent_id, run_id, data)
 
 
 @router.post("/estimate", response_model=ImprovementEstimate)

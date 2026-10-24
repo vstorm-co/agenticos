@@ -68,6 +68,7 @@ export interface Improvement {
   created_at: string;
   finished_at: string | null;
   iterations: ImprovementIteration[];
+  knowledge_eval_run_ids?: string[];
   timeline: {
     action: string;
     at: string;
@@ -81,4 +82,20 @@ export interface AttributionEstimate {
   total_usd: string;
   affordable: boolean;
   already_started: boolean;
+}
+
+export interface KnowledgeCheckTarget {
+  topic_id: string;
+  round: number;
+  case_ids: string[];
+}
+export interface KnowledgeCheckEstimate {
+  total_usd: string;
+  affordable: boolean;
+  can_measure: boolean;
+  cases: number;
+  excluded: number;
+  supported: boolean;
+  draft_hash: string;
+  reason: string | null;
 }

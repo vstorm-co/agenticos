@@ -97,6 +97,7 @@ class ImprovementRead(BaseSchema):
     finished_at: datetime | None
     iterations: list[ImprovementIterationRead] = Field(default_factory=list)
     timeline: list[ImprovementEvent] = Field(default_factory=list)
+    knowledge_eval_run_ids: list[UUID] = Field(default_factory=list)
 
 
 class AttributionEstimate(BaseSchema):
@@ -121,3 +122,26 @@ class ImprovementFinished(BaseSchema):
     session: ImprovementRead
     version_id: UUID | None = None
     version: int | None = None
+
+
+class KnowledgeCheckTarget(BaseSchema):
+    topic_id: UUID
+    round: int = Field(ge=1, le=3)
+    case_ids: list[UUID] = Field(min_length=1, max_length=1000)
+
+
+class KnowledgeCheckEstimate(BaseSchema):
+    total_usd: Decimal
+    affordable: bool
+    can_measure: bool
+    cases: int
+    excluded: int
+    supported: bool
+    draft_hash: str
+    reason: str | None = None
+
+
+class KnowledgeCheckConsent(KnowledgeCheckTarget):
+    confirmed: Literal[True]
+    estimate_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
+    draft_hash: str = Field(min_length=64, max_length=64)

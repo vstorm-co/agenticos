@@ -4730,7 +4730,7 @@
       },
       "improvement-accept": {
         "title": "Akceptacja",
-        "body": "Zaakceptuj do draftu lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
+        "body": "Zaakceptuj do wersji roboczej lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
       },
       "flow-improvement-start": {
         "title": "Pytania",
@@ -4742,7 +4742,7 @@
       },
       "flow-improvement-accept": {
         "title": "Akceptacja",
-        "body": "Zaakceptuj do draftu lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
+        "body": "Zaakceptuj do wersji roboczej lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
       }
     },
     "chooseLanguage": "Język",
@@ -10211,7 +10211,7 @@
     },
     "newSkill": {
       "title": "Warto utworzyć skill",
-      "binding": "Akceptacja tworzy skill i przypina go do draftu. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Nic nie jest publikowane.",
+      "binding": "Akceptacja tworzy skill i przypina go do wersji roboczej. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Nic nie jest publikowane.",
       "permission": "Możesz przejrzeć i sprawdzić tę propozycję. Utworzenie skilla wymaga uprawnienia skills:edit."
     }
   },
@@ -10497,7 +10497,7 @@
     "changesWorking": "Przygotowujemy zmiany. Możesz zamknąć tę stronę i wrócić później.",
     "noChanges": "Nie ma tu dostępnych zmian. Przeczytaj wynik i powód zatrzymania lub otwórz agenta, aby go edytować.",
     "background": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku.",
-    "acceptBody": "Zaakceptuj do draftu lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie.",
+    "acceptBody": "Zaakceptuj do wersji roboczej lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie.",
     "automatic": "Sprawdzaj te pytania przy każdej publikacji, jeśli nie ma jeszcze automatycznego sprawdzenia.",
     "confirmation": "Przejrzałem wybrane zmiany i chcę je zastosować.",
     "keepDraft": "Zachowaj jako draft",
@@ -10574,6 +10574,23 @@
     "nextStep": "Następny krok",
     "measurementDetails": "Pokaż szczegóły pomiaru",
     "attributionUnavailable": "To sprawdzenie nie dało użytecznego wyniku. Otwórz je, aby zobaczyć przyczynę.",
-    "blockedChanges": "Niektórych wybranych zmian nie można zaakceptować z Twoimi uprawnieniami. Sprawdź je w kroku Zmiany."
+    "blockedChanges": "Niektórych wybranych zmian nie można zaakceptować z Twoimi uprawnieniami. Sprawdź je w kroku Zmiany.",
+    "knowledgeTitle": "Wpływ szkicu wiedzy",
+    "knowledgeSeparate": "Porównaj wybrane zmiany agenta z tymi samymi zmianami i dodatkowym szkicem. To osobny wynik, niezależny od wyniku agenta. Niczego nie publikuje.",
+    "chooseDraft": "Wybierz szkic wiedzy",
+    "knowledgeQuestions": "Pytania na ten temat",
+    "knowledgeQuestionsBody": "Wybierz niezależne pytania dotyczące tematu szkicu. Pytania treningowe, rozmowy źródłowe i kopie pytań źródłowych zostaną wykluczone ze sprawdzenia.",
+    "previousQuestions": "Poprzednie pytania",
+    "nextQuestions": "Następne pytania",
+    "estimateKnowledge": "Oszacuj koszt sprawdzenia szkicu",
+    "confirmKnowledge": "Potwierdź i sprawdź szkic",
+    "unsupportedDraft": "Bez źródła — sprawdź fakty. Ten szkic nie ma dokumentu źródłowego w bazie wiedzy.",
+    "knowledgeQuote": "{count} niezależnych pytań · {excluded} wykluczonych · do {cost} (szacunek obejmujący oba warianty i powtórzenia).",
+    "knowledgeUnmeasurable": "Nie można zmierzyć. Wybierz co najmniej pięć niezależnych pytań na ten temat, które można ocenić.",
+    "contextAssumption": "Zakładając, że wyszukiwanie znajdzie ten fragment. To sprawdzenie przekazuje szkic bezpośrednio agentowi; nie sprawdza wyszukiwania ani prawdziwości faktów.",
+    "reviewKnowledgeDraft": "Sprawdź szkic i zdecyduj, czy go dodać",
+    "noKnowledgeDrafts": "Brak szkicu do sprawdzenia w tej rundzie. Przejrzyj tematy w zakładce wiedzy agenta.",
+    "knowledgeInvalidated": "Szkic został zmieniony lub usunięty. Sprawdź aktualny szkic ponownie, zanim skorzystasz z tego wyniku.",
+    "knowledgeUntracked": "Nie można zmierzyć: ten starszy szkic nie zapisał wszystkich pytań źródłowych. Przygotuj nowy szkic przed sprawdzeniem."
   }
 }

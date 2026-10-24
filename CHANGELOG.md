@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Measure a knowledge draft separately from agent changes using run-only context,
+  independently selected holdout questions and explicit cost consent; invalidate
+  changed drafts and remove derived content when source data is erased.
+
 - Propose reusable skills from three verified evidence answers, test them as
   temporary candidate resources, and create and bind them only after an
   authorized human accepts.

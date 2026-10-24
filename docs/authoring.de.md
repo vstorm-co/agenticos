@@ -1,5 +1,5 @@
 ---
-source_sha: "ffa69beed973"
+source_sha: "d03acffb6694"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -358,3 +358,15 @@ Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverw
 **Accept** erstellt den privaten Skill und bindet ihn in derselben Transaktion an den Entwurf des Agenten. Dafür sind `skills:edit` und Bearbeitungszugriff auf den Agenten nötig. Ohne Erstellungsrecht bleibt der Vorschlag lesbar und prüfbar; die deaktivierte Annahme erklärt den Grund. **Dismiss** erstellt nichts. **Undo** entfernt die Bindung und behält den unabhängigen Skill. Erneutes Annehmen verwendet ihn nur bei unverändertem Namen und Inhalt. Skills enthalten Anweisungen und gewähren keine Tools. Zusätzlicher Tool-Zugriff benötigt eigene Richtlinienprüfungen; schreibende Tools erfordern eine Freigabe.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
+
+### Einen Wissensentwurf prüfen { #checking-a-knowledge-draft }
+
+Wähle in einer abgeschlossenen Sitzung einen Entwurf und unabhängige Fragen zu seinem Thema. Schätzung und Bestätigung erfolgen getrennt von der Übernahme der Agentenänderungen. Die Prüfung vergleicht **A**, die ausgewählten Änderungen, mit **B**, denselben Änderungen plus Entwurf. Das eigene Ergebnis sagt **unter der Annahme, dass die Suche diese Passage findet**: Diese Stufe fügt den Text als Kontext ein und prüft die Suche nicht.
+
+Trainingsfälle, Quellgespräche, Quellbeiträge und normalisierte Kopien der Quellfragen sind ausgeschlossen. Mindestens fünf unabhängige, bewertbare Kontrollfragen sind nötig; andernfalls ist der Entwurf **nicht messbar** und keine kostenpflichtige Prüfung startet. Die vollständige Schätzung umfasst beide Varianten und Wiederholungen, zählt zum Sitzungslimit und gilt für den aktuellen Entwurf und die ausgewählten Fragen.
+
+**Unbelegt — Fakten prüfen** bedeutet, dass kein Quelldokument des Entwurfs in der Wissensbasis mehr existiert. Ein bestandener Antworttest beweist keine Fakten. Prüfe die Passage im vorhandenen Themendialog und entscheide selbst über das Hinzufügen. Die Prüfung erzeugt weder Kontextdateien noch Dokumente und veröffentlicht nichts. Abhängige Testsuiten laufen weiterhin, nachdem ein Mensch ein Dokument hinzufügt.
+
+Temporäre Inhalte werden nach Prüfungsende oder einer Entwurfsänderung entfernt. Änderungen machen das alte Ergebnis ungültig. Das Löschen von Daten einer Quellperson entfernt außerdem abgeleitete Testantworten, Bewertungsbegründungen und Modellmanifeste. Ein Sitzungsabbruch beendet auch ihre Wissensprüfungen. Bereits entstandene Kosten bleiben nach Abbruch oder Löschung erhalten.
+
+Der Entwurf speichert Fingerabdrücke aller Eingabefragen, auch der nicht zitierten. Ältere Entwürfe ohne vollständige Herkunft sind nicht messbar; erstelle zuerst einen neuen Entwurf. Fingerabdrücke und Quellrun-Identitäten werden bei der Datenlöschung mit dem Entwurf entfernt.

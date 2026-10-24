@@ -10791,6 +10791,23 @@
     "nextStep": "Next step",
     "measurementDetails": "Show measurement details",
     "attributionUnavailable": "This check did not produce a usable result. Open it to see why.",
-    "blockedChanges": "Some selected changes cannot be accepted with your current access. Review them in Changes."
+    "blockedChanges": "Some selected changes cannot be accepted with your current access. Review them in Changes.",
+    "knowledgeTitle": "Effect of the knowledge draft",
+    "knowledgeSeparate": "Compare the selected agent changes with the same changes plus a draft. This result is separate from the agent’s result and does not publish anything.",
+    "chooseDraft": "Choose a knowledge draft",
+    "knowledgeQuestions": "Questions about this topic",
+    "knowledgeQuestionsBody": "Select independent questions about the draft’s topic. Training questions, source conversations and copies of source questions are excluded from the check.",
+    "previousQuestions": "Previous questions",
+    "nextQuestions": "Next questions",
+    "estimateKnowledge": "Estimate checking the draft",
+    "confirmKnowledge": "Confirm and check the draft",
+    "unsupportedDraft": "Unsupported — verify the facts. This draft has no source document in the knowledge base.",
+    "knowledgeQuote": "{count} independent questions · {excluded} excluded · up to {cost} (estimate, including both sides and repeats).",
+    "knowledgeUnmeasurable": "Can’t be measured. Choose at least five independent, gradable questions about this topic.",
+    "contextAssumption": "Assuming search finds this passage. This check gives the draft directly to the agent; it does not test retrieval or verify that the facts are true.",
+    "reviewKnowledgeDraft": "Review the draft and decide whether to add it",
+    "noKnowledgeDrafts": "No draft is available to check for this round. Review knowledge topics in the agent’s knowledge tab.",
+    "knowledgeInvalidated": "The draft changed or was removed. Check the current draft again before using this result.",
+    "knowledgeUntracked": "Can’t be measured: this older draft did not record all its source questions. Write a new draft before checking it."
   }
 }

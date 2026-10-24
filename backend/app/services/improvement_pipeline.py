@@ -15,6 +15,8 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.context import ContextBody
+from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
 from app.core.audit import record_audit
 from app.core.exceptions import (
@@ -47,10 +49,16 @@ from app.repositories import (
     authoring_repo,
     dataset_repo,
     improvement_repo,
+    knowledge_gap_repo,
     organization_repo,
 )
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
-from app.schemas.eval_run import EvalRunRequest, ProposalCheckRecord
+from app.schemas.eval_run import (
+    EvalRunRead,
+    EvalRunRequest,
+    KnowledgeCheckRecord,
+    ProposalCheckRecord,
+)
 from app.schemas.eval_suite import EvalSuiteCreate, EvalSuiteRead
 from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.improvement import (
@@ -64,6 +72,9 @@ from app.schemas.improvement import (
     ImprovementRead,
     ImprovementStart,
     ImprovementTarget,
+    KnowledgeCheckConsent,
+    KnowledgeCheckEstimate,
+    KnowledgeCheckTarget,
 )
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks
@@ -75,6 +86,8 @@ from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
+from app.services.improvement_data import input_hash
+from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import ADVANCE_IMPROVEMENT, AdvanceImprovement
 
@@ -116,6 +129,18 @@ class Inputs:
             None if self.suite is None else self.suite.id,
             self.suite_hash,
         )
+
+
+@dataclass(frozen=True)
+class KnowledgePlan:
+    session: ImprovementRun
+    request: EvalRunRequest
+    base: AgentSpec
+    candidate: AgentSpec
+    skills: dict[UUID, SkillBody]
+    contexts: dict[UUID, ContextBody]
+    record: ProposalCheckRecord
+    quote: KnowledgeCheckEstimate
 
 
 class ImprovementPipelineService:
@@ -339,6 +364,10 @@ class ImprovementPipelineService:
             self.db, run.id, organization_id=run.organization_id
         )
         result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        if ctx.has(Perm.RUNS_VIEW):
+            result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
+                self.db, run.id, organization_id=ctx.organization_id
+            )
         result.timeline = [
             ImprovementEvent(
                 action=event.action,
@@ -390,15 +419,15 @@ class ImprovementPipelineService:
         if run.status != Status.READY:
             raise BadRequestError(message="Select a checked round before accepting it")
         await self.ensure_current(ctx, run.id, allow_finished=True)
+        if await improvement_repo.has_active_check(
+            self.db, run.id, organization_id=ctx.organization_id
+        ):
+            raise ConcurrentChangeError(
+                message="Wait for this session's checks to finish, or stop the session"
+            )
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=run.organization_id, run_id=run.id
         )
-        for item in rounds:
-            for child_id in item.attribution_eval_run_ids.values():
-                if not (await self.evals.get(ctx, UUID(child_id))).status.terminal:
-                    raise ConcurrentChangeError(
-                        message="Wait for the individual change checks to finish, or stop the session"
-                    )
         selected = next((item for item in rounds if item.id == run.best_iteration_id), None)
         if selected is None or selected.batch_id is None:
             raise BadRequestError(message="No checked round is selected")
@@ -522,6 +551,12 @@ class ImprovementPipelineService:
         from app.db.models.eval_run import EvalRunStatus
         from app.repositories import eval_run_repo
 
+        for child_id in await improvement_repo.knowledge_checks(
+            self.db, run.id, organization_id=run.organization_id
+        ):
+            await eval_run_repo.cancel_live(
+                self.db, child_id, organization_id=run.organization_id, now=datetime.now(UTC)
+            )
         iterations = await improvement_repo.list_iterations(
             self.db, organization_id=run.organization_id, run_id=run.id
         )
@@ -1367,6 +1402,215 @@ class ImprovementPipelineService:
         await self._move(run, transition)
         return await self._read(ctx, run)
 
+    async def _knowledge_plan(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: KnowledgeCheckTarget
+    ) -> KnowledgePlan | KnowledgeCheckEstimate:
+        run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, data.round)
+        gaps = KnowledgeGapService(self.db)
+        topic = await gaps._topic(ctx, data.topic_id, edit=True)
+        if not topic.draft_content:
+            raise BadRequestError(message="This topic has no draft to check")
+        base, _ = await self._candidate(inputs.agent, run, iteration)
+        if topic.knowledge_base_id not in base.collection_ids:
+            raise BadRequestError(message="The selected round does not search this knowledge base")
+        assert iteration.batch_id is not None
+        skills = await self.authoring.projected_skills(ctx, iteration.batch_id)
+        if spec_hash(base, skills) != iteration.candidate_spec_hash:
+            raise ConcurrentChangeError(
+                message="The selected changes no longer match the measured round"
+            )
+        evidence = await knowledge_gap_repo.topic_evidence(
+            self.db, topic.id, organization_id=ctx.organization_id
+        )
+        if len(evidence) > 1000:
+            raise BadRequestError(
+                message="The topic has too much source material to isolate a test safely"
+            )
+        source_runs = (
+            {row.run_id for row in evidence}
+            | set(topic.draft_evidence_run_ids or [])
+            | set(run.chat_evidence_run_ids or [])
+        )
+        conversations = {row.conversation_id for row in evidence if row.conversation_id is not None}
+        sources = await authoring_repo.evidence_inputs(
+            self.db,
+            organization_id=ctx.organization_id,
+            run_ids=list(source_runs),
+            conversation_ids=list(conversations),
+        )
+        if sources.truncated:
+            raise BadRequestError(
+                message="The source material is too large to isolate a test safely"
+            )
+        source_hashes = {
+            input_hash(text) for text in [*sources.inputs, *(row.query for row in evidence)]
+        }
+        source_hashes.update(topic.draft_evidence_input_hashes or [])
+        version = await dataset_repo.get_version(
+            self.db, run.dataset_id, run.dataset_version, organization_id=ctx.organization_id
+        )
+        if version is None:
+            raise NotFoundError(message="The session's test questions no longer exist")
+        cases = await dataset_repo.list_cases(
+            self.db, version.id, organization_id=ctx.organization_id, limit=None
+        )
+        selected = set(data.case_ids)
+        if len(selected) != len(data.case_ids) or selected - {case.case_id for case in cases}:
+            raise BadRequestError(message="Choose distinct questions from this session's test set")
+        # Every topic member is excluded, not only the subset the drafter cited.
+        eligible = [
+            case.case_id
+            for case in cases
+            if case.case_id in selected
+            and case.improvement_partition == "holdout"
+            and case.anonymised_at is None
+            and case.source_run_id not in source_runs
+            and case.source_conversation_id not in conversations
+            and input_hash(case.input) not in source_hashes
+        ]
+        document_ids = [
+            UUID(source["id"]) for source in topic.draft_sources if source.get("kind") == "document"
+        ]
+        supported = bool(
+            await knowledge_gap_repo.documents_in(
+                self.db, topic.knowledge_base_id, document_ids, organization_id=ctx.organization_id
+            )
+        )
+        hashed = draft_fingerprint(topic)
+        if topic.draft_evidence_run_ids is None or topic.draft_evidence_input_hashes is None:
+            return KnowledgeCheckEstimate(
+                total_usd=Decimal(0),
+                affordable=False,
+                can_measure=False,
+                cases=0,
+                excluded=len(selected),
+                supported=supported,
+                draft_hash=hashed,
+                reason="untracked_draft_sources",
+            )
+        if not eligible:
+            return KnowledgeCheckEstimate(
+                total_usd=Decimal(0),
+                affordable=False,
+                can_measure=False,
+                cases=0,
+                excluded=len(selected),
+                supported=supported,
+                draft_hash=hashed,
+                reason="no_independent_questions",
+            )
+        request = self._eval_request(inputs, run).model_copy(update={"case_ids": eligible})
+        contexts = {
+            topic.id: ContextBody(
+                name=f"draft-{topic.id}", description=topic.draft_title, content=topic.draft_content
+            )
+        }
+        binding = next((binding for binding in base.capabilities if binding.id == "context"), None)
+        capabilities = list(base.capabilities)
+        context_ids = list(base.context_ids)
+        if binding is None or not binding.enabled:
+            from app.agents.spec import CapabilityBindingSpec
+
+            capabilities = [item for item in capabilities if item.id != "context"] + [
+                CapabilityBindingSpec(id="context")
+            ]
+            context_ids = []
+        candidate = base.model_copy(
+            update={"context_ids": [*context_ids, topic.id], "capabilities": capabilities}
+        )
+        record = ProposalCheckRecord(
+            kind="context",
+            base_version=None,
+            on_draft=True,
+            suggestions=1,
+            improvement_run_id=run.id,
+            evidence_run_ids=list(source_runs),
+            knowledge=KnowledgeCheckRecord(
+                topic_id=topic.id, draft_hash=hashed, supported=supported
+            ),
+        )
+        estimate = await self.evals.estimate(
+            ctx,
+            agent_id,
+            request,
+            scoring=DatasetScoring.model_validate(run.pinned_scoring),
+            judge_version_id=run.judge_version_id,
+            judge_pinned=True,
+            candidate_spec=candidate,
+            candidate_skills=skills,
+            candidate_contexts=contexts,
+            baseline_spec=base,
+            baseline_skills=skills,
+            exclude_conversations=list(conversations),
+            proposal_check=record,
+        )
+        measured = estimate.proposal_check.measurement if estimate.proposal_check else None
+        can_measure = measured is not None and measured.gradable_holdout >= measured.minimum_holdout
+        total = estimate.total_usd + estimate.rerun_ceiling_usd
+        quote = KnowledgeCheckEstimate(
+            total_usd=total,
+            affordable=can_measure
+            and estimate.affordable
+            and rules.affordable(
+                spent=await improvement_repo.spent(
+                    self.db, run.id, organization_id=ctx.organization_id
+                ),
+                step_estimate=total,
+                budget=run.budget_usd,
+            ),
+            can_measure=can_measure,
+            cases=len(eligible),
+            excluded=len(selected) - len(eligible),
+            supported=supported,
+            draft_hash=hashed,
+            reason=None if can_measure else "too_few_independent_questions",
+        )
+        return KnowledgePlan(run, request, base, candidate, skills, contexts, record, quote)
+
+    async def estimate_knowledge(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: KnowledgeCheckTarget
+    ) -> KnowledgeCheckEstimate:
+        planned = await self._knowledge_plan(ctx, agent_id, run_id, data)
+        return planned.quote if isinstance(planned, KnowledgePlan) else planned
+
+    async def start_knowledge(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: KnowledgeCheckConsent
+    ) -> EvalRunRead:
+        planned = await self._knowledge_plan(ctx, agent_id, run_id, data)
+        quote = planned.quote if isinstance(planned, KnowledgePlan) else planned
+        if quote.draft_hash != data.draft_hash or quote.total_usd != data.estimate_usd:
+            raise ConcurrentChangeError(
+                message="The draft or its estimate changed; review the new estimate"
+            )
+        if not isinstance(planned, KnowledgePlan) or not quote.can_measure:
+            raise BadRequestError(message="This draft cannot be measured on the selected questions")
+        # The parent row is locked before the quote. No two clicks can reserve
+        # additional work against the same available session budget.
+        if await improvement_repo.has_active_check(
+            self.db, run_id, organization_id=ctx.organization_id
+        ):
+            raise ConcurrentChangeError(message="A check is already running in this session")
+        if not quote.affordable:
+            raise PaymentRequiredError(
+                message="The complete knowledge check exceeds the remaining budget"
+            )
+        child = await self.evals.start(
+            ctx,
+            agent_id,
+            planned.request,
+            scoring=DatasetScoring.model_validate(planned.session.pinned_scoring),
+            judge_version_id=planned.session.judge_version_id,
+            judge_pinned=True,
+            candidate_spec=planned.candidate,
+            candidate_skills=planned.skills,
+            candidate_contexts=planned.contexts,
+            baseline_spec=planned.base,
+            baseline_skills=planned.skills,
+            proposal_check=planned.record,
+        )
+        await self._audit(planned.session, "knowledge_check_started", actor_user_id=ctx.user_id)
+        return child
+
     async def _attribution_target(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, number: int
     ) -> tuple[ImprovementRun, ImprovementIteration, Inputs]:
@@ -1455,15 +1699,10 @@ class ImprovementPipelineService:
         run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, number)
         if iteration.attribution_eval_run_ids:
             return await self._read(ctx, run)
-        # Pending paid attribution on another round reserves its whole ceiling.
-        rounds = await improvement_repo.list_iterations(
-            self.db, organization_id=run.organization_id, run_id=run.id
-        )
-        for other in rounds:
-            for child_id in other.attribution_eval_run_ids.values():
-                child = await self.evals.get(ctx, UUID(child_id))
-                if not child.status.terminal:
-                    raise ConcurrentChangeError(message="Another attribution is still running")
+        if await improvement_repo.has_active_check(
+            self.db, run_id, organization_id=ctx.organization_id
+        ):
+            raise ConcurrentChangeError(message="Another check is still running")
         changes = await self._attribution_changes(ctx, run, iteration, inputs)
         total = sum((price for _, _, price in changes), Decimal(0))
         if total > consent.estimate_usd:

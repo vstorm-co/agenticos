@@ -1,5 +1,5 @@
 ---
-source_sha: "ffa69beed973"
+source_sha: "d03acffb6694"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -348,3 +348,15 @@ El asistente puede proponer **Worth creating a skill** cuando un procedimiento r
 **Accept** crea el skill privado y lo vincula al borrador del agente en la misma transacción. Requiere `skills:edit` y acceso de edición al agente. Sin permiso de creación se puede leer y comprobar la propuesta, pero Accept queda deshabilitado y explica el motivo. **Dismiss** no crea nada. **Undo** elimina el vínculo y conserva el skill independiente; una nueva aceptación lo reutiliza solo si conserva su nombre y contenido. Los skills contienen instrucciones y no conceden herramientas. El acceso adicional necesita propuestas independientes verificadas por la política; las herramientas de escritura requieren aprobación.
 
 La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.
+
+### Comprobar un borrador de conocimiento { #checking-a-knowledge-draft }
+
+En una sesión terminada, elige un borrador y preguntas independientes sobre su tema. La estimación y la confirmación son independientes de aceptar los cambios del agente. La prueba compara **A**, los cambios seleccionados, con **B**, los mismos cambios más el borrador. Su resultado separado dice **suponiendo que la búsqueda encuentre este pasaje**: esta etapa inyecta el texto como contexto y no comprueba la búsqueda.
+
+Se excluyen los casos de entrenamiento, las conversaciones y turnos de origen y las copias normalizadas de sus preguntas. Se necesitan al menos cinco preguntas de control independientes y evaluables; de lo contrario, el borrador **no se puede medir** y no comienza ninguna prueba de pago. La estimación completa incluye ambas variantes y repeticiones, cuenta contra el límite de la sesión y corresponde al borrador actual y las preguntas elegidas.
+
+**Sin respaldo — verifica los hechos** significa que no queda ningún documento fuente del borrador en su base de conocimiento. Superar una prueba de respuestas no demuestra los hechos. Revisa el pasaje en el diálogo existente del tema y decide expresamente si lo añades. La prueba no crea archivos de contexto ni documentos y no publica nada. Las suites dependientes siguen ejecutándose cuando una persona añade un documento.
+
+Los contenidos temporales se eliminan al terminar la prueba o cambiar el borrador. Un cambio invalida el resultado anterior. El borrado de los datos de una persona fuente también elimina las respuestas derivadas, las explicaciones de puntuación y los manifiestos de modelos. Cancelar la sesión cancela sus pruebas de conocimiento. Los costes incurridos se conservan tras cancelar o borrar datos.
+
+El borrador registra huellas de todas las preguntas de entrada, incluidas las no citadas. Los borradores antiguos sin procedencia completa no se pueden medir; escribe uno nuevo primero. Las huellas y las identidades de los runs fuente se eliminan con el borrador al borrar los datos personales.

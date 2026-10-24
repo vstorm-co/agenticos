@@ -3144,7 +3144,9 @@ class AgentRunnerService:
             "skills": await self.skills.resolve_for_agent(
                 ctx, spec.skill_ids, projected=skill_bodies
             ),
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
+                ctx, spec.context_ids, projected=context_bodies
+            ),
             SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
             CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
         }

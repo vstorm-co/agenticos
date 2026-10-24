@@ -204,6 +204,12 @@ class KnowledgeGapTopic(Base):
     # Never added to a knowledge base by the platform; a person checks it and adds a document.
     draft_title: Mapped[str | None] = mapped_column(Text, nullable=True)
     draft_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    draft_evidence_run_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
+    draft_evidence_input_hashes: Mapped[list[str] | None] = mapped_column(
+        ARRAY(String(64)), nullable=True
+    )
     # `{"kind": "document" | "question", "id": ...}`, each verified when it was recorded.
     draft_sources: Mapped[list[dict[str, str]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"

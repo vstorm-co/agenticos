@@ -33,6 +33,7 @@ export type CaseOutcomeFilter = "passed" | "failed" | "undecided";
 
 /** What to run - the same body estimates and starts. */
 export interface EvalRunRequest {
+  case_ids?: string[];
   dataset_id: string;
   dataset_version?: number | null;
   environment_id?: string | null;
@@ -63,6 +64,13 @@ export interface ImprovementMeasurement {
 }
 
 export interface ProposalCheckRecord {
+  knowledge?: {
+    topic_id: string;
+    draft_hash: string;
+    mode: "context" | "retrieval";
+    supported: boolean;
+    invalidated: boolean;
+  } | null;
   measurement?: ImprovementMeasurement | null;
   evidence_run_ids?: string[];
   kind: "agent" | "skill" | "context";
