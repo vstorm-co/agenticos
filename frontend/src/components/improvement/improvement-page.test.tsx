@@ -19,6 +19,14 @@ const actions = vi.hoisted(() => ({
   attribute: { mutateAsync: vi.fn(), isPending: false },
 }));
 const state = vi.hoisted(() => ({
+  agentLoading: false,
+  agentError: null as Error | null,
+  sessionLoading: false,
+  sessionError: null as Error | null,
+  authoringLoading: false,
+  authoringError: null as Error | null,
+  authoringRefetch: vi.fn(),
+  sessionRefetch: vi.fn(),
   edit: true,
   runs: true,
   publish: true,
@@ -27,20 +35,27 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgent: () => ({
+    isLoading: state.agentLoading,
+    error: state.agentError,
     agent: { id: "a1", name: "Refund desk", can_edit: state.edit, can_publish: state.publish },
   }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => state.runs }) }));
 vi.mock("@/hooks/use-authoring", () => ({
-  useAgentAuthoring: () => ({ authoring: { batch: { id: "b1", hunks: state.hunks } } }),
+  useAgentAuthoring: () => ({
+    authoring: { batch: { id: "b1", hunks: state.hunks } },
+    isLoading: state.authoringLoading,
+    error: state.authoringError,
+    refetch: state.authoringRefetch,
+  }),
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovement: () => ({
     ...actions,
     session: state.session,
-    error: null,
-    isLoading: false,
-    refetch: vi.fn(),
+    error: state.sessionError,
+    isLoading: state.sessionLoading,
+    refetch: state.sessionRefetch,
   }),
 }));
 vi.mock("./knowledge-drafts", () => ({ KnowledgeDrafts: () => null }));
@@ -51,11 +66,18 @@ vi.mock("@/hooks/use-eval-runs", () => ({
 }));
 beforeEach(() => {
   vi.clearAllMocks();
+  state.agentLoading = false;
+  state.agentError = null;
+  state.sessionLoading = false;
+  state.sessionError = null;
+  state.authoringLoading = false;
+  state.authoringError = null;
   state.edit = true;
   state.runs = true;
   state.publish = true;
   state.hunks = [];
   state.session = {
+    offer_automatic_check: true,
     id: "s1",
     agent_id: "a1",
     status: "ready",
@@ -237,4 +259,136 @@ it("lets the person inspect a pinned step directly without claiming it published
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Result" }));
   expect(screen.getByText("Better: fixes 3, breaks nothing")).toBeInTheDocument();
+});
+
+it("reopens the publication link without offering another publish", () => {
+  state.session!.status = "published";
+  state.session!.published_version = 4;
+  state.session!.published_version_id = "v4";
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("link", { name: "Open version 4" })).toHaveAttribute(
+    "href",
+    "/agents/a1?tab=history&from=4&to=4",
+  );
+  expect(screen.queryByRole("button", { name: "Accept and publish" })).not.toBeInTheDocument();
+});
+it("shows saved draft completion and the exact next version before publishing", async () => {
+  state.session!.next_version = 4;
+  state.session!.offer_automatic_check = false;
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  expect(screen.getByRole("button", { name: "Publish version 4" })).toBeDisabled();
+  expect(screen.queryByLabelText(/Check these questions automatically/)).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Keep as draft" }));
+  expect(actions.finish.mutateAsync).toHaveBeenCalledWith({
+    confirmed: true,
+    publish: false,
+    automatic_check: false,
+  });
+  state.session!.status = "accepted";
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText(/selected changes are saved in the draft/)).toBeInTheDocument();
+});
+it("reports unavailable suggestions and allows retrying a failed read", async () => {
+  state.session!.iterations[0]!.batch_id = "replaced";
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+  expect(screen.getByText(/suggestions are no longer available/)).toBeInTheDocument();
+  state.authoringLoading = true;
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText(/Waiting for the selected suggestions/)).toBeInTheDocument();
+  state.authoringLoading = false;
+  state.authoringError = new Error("suggestions failed");
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.authoringRefetch).toHaveBeenCalled();
+});
+it("keeps a failed acceptance visible and shows an empty changes step", async () => {
+  actions.finish.mutateAsync.mockRejectedValueOnce(new Error("publish refused"));
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(
+    screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Accept and publish" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("publish refused");
+  await userEvent.click(screen.getByRole("button", { name: "Changes" }));
+  expect(screen.getByText(/No changes are available/)).toBeInTheDocument();
+});
+it("shows loading, refusal and retry states for actual resource reads", async () => {
+  state.agentLoading = true;
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.queryByText("Better: fixes 3, breaks nothing")).not.toBeInTheDocument();
+  state.agentLoading = false;
+  state.agentError = new Error("agent unavailable");
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText("agent unavailable")).toBeInTheDocument();
+  state.agentError = null;
+  state.sessionLoading = true;
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  state.sessionLoading = false;
+  state.sessionError = new Error("session unavailable");
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.sessionRefetch).toHaveBeenCalled();
+});
+
+it("returns to the actual working step after confirming a selected check", async () => {
+  state.hunks = [hunk({ id: "h1" })];
+  actions.estimateSelection.mutateAsync.mockResolvedValue({
+    total_usd: "0.04",
+    affordable: true,
+    candidate_hash: "hash",
+  });
+  actions.checkSelection.mutateAsync.mockResolvedValue(state.session);
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Estimate checking selected changes" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Confirm and check selected changes" }),
+  );
+  expect(actions.checkSelection.mutateAsync).toHaveBeenCalled();
+  expect(screen.getByText("Better: fixes 3, breaks nothing")).toBeInTheDocument();
+});
+
+it.each([
+  ["inconclusive", { fixed: null, broken: null }],
+  ["regression", { fixed: 1, broken: 2 }],
+  ["no_change", {}],
+] as const)("does not highlight acceptance for %s or missing measurements", (verdict, detail) => {
+  state.session!.iterations[0]!.verdict = verdict;
+  state.session!.iterations[0]!.verdict_detail = detail;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("button", { name: "Accept these changes" })).not.toHaveClass(
+    "bg-primary",
+  );
+});
+it("can inspect earlier rounds while another round is running", async () => {
+  const first = state.session!.iterations[0]!;
+  state.session!.iterations.push({ ...first, id: "r2", number: 2, verdict: null });
+  state.session!.iteration = 2;
+  state.session!.status = "running";
+  state.session!.stage = "proposing";
+  state.session!.best_iteration_id = "r1";
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText(/preparing changes/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Check" }));
+  expect(screen.getByText(/Round 1/)).toBeInTheDocument();
+});
+
+it("opens the start screen for an authorized editor", () => {
+  render(<ImprovementPage agentId="a1" sessionId="new" />);
+  expect(screen.getByText("Start fixture")).toBeInTheDocument();
+});
+it("keeps a provider failure and recorded round visible without a selected best round", () => {
+  state.session!.status = "failed";
+  state.session!.stage = "evaluating";
+  state.session!.error = "The provider could not complete this check";
+  state.session!.best_iteration_id = null;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("alert")).toHaveTextContent("The provider could not complete this check");
+  expect(screen.getByText("Round 1 of 3")).toBeInTheDocument();
 });

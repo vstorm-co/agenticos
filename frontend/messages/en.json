@@ -10892,6 +10892,12 @@
     "discard": "Discard",
     "discardTitle": "Discard this session’s suggestions?",
     "discardBody": "This dismisses only the pending suggestions from this session. Applied changes and other waiting proposals are kept.",
-    "confirmDiscard": "Discard pending suggestions"
+    "confirmDiscard": "Discard pending suggestions",
+    "changesReplaced": "These suggestions are no longer available. Open the agent to review the current draft.",
+    "donePublished": "Done. Version {version} has been published. Guarded environments wait for their checks; pinned environments keep their current version.",
+    "openVersion": "Open version {version}",
+    "doneDraft": "Done. The selected changes are saved in the draft. Publish from the agent when you are ready.",
+    "publishVersion": "Publish version {version}",
+    "publishImpact": "Publishing freezes a new version. Environments that follow it move only after their guards pass; pinned environments stay on their current version. Open the agent to review where people use it."
   }
 }

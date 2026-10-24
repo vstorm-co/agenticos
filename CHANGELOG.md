@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- The improvement wizard keeps its publication link when reopened, names the next version, offers the first automatic check only when needed, and distinguishes failed or replaced suggestions from loading.
+
 ### Changed
 
 - Show pinned source examples, recorded causes, question versions and completed baseline results in the improvement wizard, with explicit loading and refusal states.

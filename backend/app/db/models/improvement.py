@@ -11,8 +11,9 @@ Two tables:
   ids only, never the text of a question or an answer, which stays with the eval
   run and is masked there.
 
-**A session never writes an agent.** It ends at `ready` with a candidate batch a
-person accepts and publishes; the draft, versions and environments are untouched.
+**Background steps never write an agent.** They end at `ready` with a candidate
+batch. A person may then confirm acceptance and publication through the normal
+services; background transitions leave the draft, versions and environments untouched.
 """
 
 import uuid
@@ -206,6 +207,11 @@ class ImprovementRun(Base):
     # Pinned at start and kept without a foreign key, so deleting the version, the
     # dataset or the suite leaves the pin to compare with and the session goes stale.
     base_version_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    # Publication made by this session; kept as a historical pin if removed later.
+    published_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    published_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     base_draft_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     dataset_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)

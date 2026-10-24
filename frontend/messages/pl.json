@@ -10675,6 +10675,12 @@
     "discard": "Odrzuć",
     "discardTitle": "Odrzucić sugestie z tej sesji?",
     "discardBody": "Odrzucone zostaną tylko oczekujące sugestie z tej sesji. Zastosowane zmiany i inne oczekujące propozycje zostaną zachowane.",
-    "confirmDiscard": "Odrzuć oczekujące sugestie"
+    "confirmDiscard": "Odrzuć oczekujące sugestie",
+    "changesReplaced": "Te sugestie nie są już dostępne. Otwórz agenta, aby sprawdzić aktualny draft.",
+    "donePublished": "Gotowe. Wersja {version} została opublikowana. Chronione środowiska czekają na sprawdzenia; przypięte zachowują obecną wersję.",
+    "openVersion": "Otwórz wersję {version}",
+    "doneDraft": "Gotowe. Wybrane zmiany zapisano w drafcie. Opublikuj go z widoku agenta, gdy będzie gotowy.",
+    "publishVersion": "Opublikuj wersję {version}",
+    "publishImpact": "Publikacja zapisuje nową wersję. Środowiska śledzące zmiany przechodzą na nią dopiero po zaliczeniu swoich sprawdzeń; przypięte zachowują obecną wersję. Otwórz agenta, aby sprawdzić, gdzie jest używany."
   }
 }

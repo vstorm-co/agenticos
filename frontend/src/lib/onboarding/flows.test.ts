@@ -10,6 +10,7 @@ import {
   type OrgState,
 } from "@/lib/onboarding/flows";
 import {
+  IMPROVEMENT,
   AGENT_BUILDER,
   DATASET_DETAIL,
   KB_DETAIL,
@@ -637,4 +638,8 @@ describe("canOfferFlow", () => {
   it("offers an unpermissioned flow to anyone", () => {
     expect(canOfferFlow(FLOWS["create-org"], deny)).toBe(true);
   });
+});
+
+it("registers the dedicated first improvement journey", () => {
+  expect(flowForPage(IMPROVEMENT)).toBe("first-improvement");
 });

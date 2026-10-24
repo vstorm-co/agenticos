@@ -68,7 +68,8 @@ function Session({
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const actions = useImprovement(agentId, sessionId);
-  const { authoring } = useAgentAuthoring(agentId);
+  const authoringQuery = useAgentAuthoring(agentId);
+  const { authoring } = authoringQuery;
   const [selected, setSelected] = useState<Step | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [automatic, setAutomatic] = useState(true);
@@ -192,26 +193,52 @@ function Session({
         <section className="space-y-4 rounded-xl border p-6" data-tour="improvement-accept">
           <h2 className="font-medium">{t("steps.accept")}</h2>
           <p className="text-sm">{t("acceptBody")}</p>
+          {chosen && <RoundResults session={session} round={chosen} />}
+          {session.status === "published" && session.published_version != null && (
+            <p role="status" className="text-sm">
+              {t("donePublished", { version: session.published_version })}{" "}
+              <Link
+                className="underline"
+                href={`/agents/${agentId}?tab=history&from=${session.published_version}&to=${session.published_version}`}
+              >
+                {t("openVersion", { version: session.published_version })}
+              </Link>
+            </p>
+          )}
+          {session.status === "accepted" && (
+            <p role="status" className="text-sm">
+              {t("doneDraft")}
+            </p>
+          )}
           {session.status === "ready" && (
             <>
-              {missingBatch && (
-                <p role="status" className="text-sm">
-                  {t("changesPending")}
-                </p>
-              )}
+              {missingBatch &&
+                (authoringQuery.error ? (
+                  <ErrorState
+                    description={getErrorMessage(authoringQuery.error, tErrors)}
+                    cta={{ label: t("retryRead"), onClick: () => void authoringQuery.refetch() }}
+                  />
+                ) : (
+                  <p role="status" className="text-sm">
+                    {t(authoringQuery.isLoading ? "changesPending" : "changesReplaced")}
+                  </p>
+                ))}
               {blockedChanges && (
                 <p role="alert" className="text-warning text-sm">
                   {t("blockedChanges")}
                 </p>
               )}
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={automatic}
-                  onChange={(e) => setAutomatic(e.target.checked)}
-                />
-                {t("automatic")}
-              </label>
+              {session.offer_automatic_check && (
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={automatic}
+                    onChange={(e) => setAutomatic(e.target.checked)}
+                  />
+                  {t("automatic")}
+                </label>
+              )}
+              <p className="text-muted-foreground text-sm">{t("publishImpact")}</p>
               <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -235,7 +262,7 @@ function Session({
                       await actions.finish.mutateAsync({
                         confirmed: true,
                         publish: false,
-                        automatic_check: automatic,
+                        automatic_check: session.offer_automatic_check === true && automatic,
                       });
                     })
                   }
@@ -256,12 +283,14 @@ function Session({
                         await actions.finish.mutateAsync({
                           confirmed: true,
                           publish: true,
-                          automatic_check: automatic,
+                          automatic_check: session.offer_automatic_check === true && automatic,
                         });
                       })
                     }
                   >
-                    {t("publish")}
+                    {session.next_version == null
+                      ? t("publish")
+                      : t("publishVersion", { version: session.next_version })}
                   </Button>
                 )}
               </div>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  IMPROVEMENT,
   AGENT_BUILDER,
   DATASET_DETAIL,
   EVAL_RUN,
@@ -497,4 +498,8 @@ describe("voice call stops (#54)", () => {
       expect(step?.activate).toBe(activate);
     },
   );
+});
+
+it("registers the dedicated first improvement journey", () => {
+  expect(pageKey("/agents/a1/improve/s1")).toBe(IMPROVEMENT);
 });

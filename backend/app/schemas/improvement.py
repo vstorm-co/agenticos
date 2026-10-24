@@ -78,6 +78,10 @@ class ImprovementEvent(BaseSchema):
 
 
 class ImprovementRead(BaseSchema):
+    published_version_id: UUID | None = None
+    published_version: int | None = None
+    next_version: int | None = None
+    offer_automatic_check: bool = False
     can_restart: bool = False
     can_discard: bool = False
     improver_agent_id: UUID | None = None

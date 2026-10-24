@@ -2,7 +2,7 @@
 
 A transition only coordinates stored children. Paid calls belong to authoring
 and eval jobs, each of which has one attempt. The minute sweep recovers a lost
-transition without repeating a model call. Nothing here accepts or publishes.
+transition without repeating a model call. Only an explicit human finish accepts or publishes.
 """
 
 import hashlib
@@ -679,6 +679,13 @@ class ImprovementPipelineService:
             self.db, run.id, organization_id=ctx.organization_id
         )
         result = ImprovementRead.model_validate(run)
+        if run.status == Status.READY and ctx.has(Perm.RUNS_VIEW):
+            latest = await agent_repo.newest_version(
+                self.db, agent_id=run.agent_id, organization_id=run.organization_id
+            )
+            result.next_version = 1 if latest is None else latest.version + 1
+            suites = await EvalSuiteService(self.db).list_for_agent(ctx, run.agent_id)
+            result.offer_automatic_check = not suites.items
         result.can_restart = (
             ctx.user_id == run.created_by_user_id and ctx.api_key_id == run.created_by_api_key_id
         )
@@ -736,6 +743,8 @@ class ImprovementPipelineService:
         """
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
+        if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
+            raise NotFoundError(message="Agent not found")
         run = await self._row(ctx, agent_id, run_id, lock=True)
         if run.status == Status.PUBLISHED:
             raise ConcurrentChangeError(message="This session was already published")
@@ -799,7 +808,11 @@ class ImprovementPipelineService:
         await improvement_repo.update_run(
             self.db,
             run=run,
-            values={"status": Status.PUBLISHED.value if version else Status.ACCEPTED.value},
+            values={
+                "status": Status.PUBLISHED.value if version else Status.ACCEPTED.value,
+                "published_version_id": None if version is None else version.id,
+                "published_version": None if version is None else version.version,
+            },
         )
         await self._audit(run, "published" if version else "accepted", actor_user_id=ctx.subject_id)
         return ImprovementFinished(

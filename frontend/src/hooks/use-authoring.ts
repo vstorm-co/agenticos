@@ -84,6 +84,7 @@ export function useAgentAuthoring(agentId: string, { enabled = true } = {}) {
   });
 
   return {
+    refetch: query.refetch,
     authoring: query.data ?? null,
     isLoading: query.isLoading,
     error: query.error,

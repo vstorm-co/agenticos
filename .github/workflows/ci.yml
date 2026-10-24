@@ -532,6 +532,12 @@ jobs:
             > "$RUNNER_TEMP/backend.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/backend.pid"
 
+      - name: Start background work for the evals journey
+        run: |
+          uv run --directory backend python -m app.worker --pools agent,eval,system \
+            > "$RUNNER_TEMP/eval-worker.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/eval-worker.pid"
+
       - name: Wait for the backend to be healthy
         # Polled, not slept. A fixed wait is either too short on a cold runner
         # or wasted on a warm one, and the failure it produces is a browser
@@ -639,8 +645,8 @@ jobs:
       # report embeds most of it, but only for the runs it managed to finish -
       # a suite the runner killed leaves `test-results/` and no report at all,
       # which is the case #162 was diagnosed without.
-      - name: Upload the raw Playwright output when a journey fails
-        if: failure()
+      - name: Upload the raw Playwright output and evals screenshots
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-results
@@ -661,7 +667,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: backend-log
-          path: ${{ runner.temp }}/backend.log
+          path: |
+            ${{ runner.temp }}/backend.log
+            ${{ runner.temp }}/eval-worker.log
           retention-days: 7
           if-no-files-found: ignore
 

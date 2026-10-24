@@ -1,5 +1,5 @@
 ---
-source_sha: "aa9f5b0c2017"
+source_sha: "2cf865543fc5"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -376,3 +376,6 @@ Nowa naprawa jest potwierdzona tylko wtedy, gdy szkic dotarł do każdej potwier
 Ręczne testy i generowanie pytań testowych powiadamiają osobę, która je uruchomiła, o zakończeniu, także błędem. Ponowne dostarczenie zadania nie powiela powiadomienia. Testy podrzędne zestawu i sesji poprawy korzystają z powiadomienia procesu nadrzędnego. Preferencje tych zdarzeń znajdują się w **Ustawienia → Powiadomienia**. Otwarte strony testów i zbiorów danych odświeżają się przez strumień zmian po zatwierdzeniu wyniku.
 
 Krok Zrozumienie w kreatorze pokazuje ograniczoną próbkę źródeł, zapisaną przyczynę, odpowiedź, komentarze oceniających i odnośnik do rozmowy. Nieznane przyczyny pozostają jawnie niesklasyfikowane. Krok Pytania testowe odczytuje przypiętą wersję pytań sesji i oznacza pytania treningowe oraz odłożone. Dzisiaj pokazuje punkt odniesienia dopiero po pomyślnym zakończeniu testu; pomiar częściowy lub nieudany nie jest przedstawiany jako gotowy wynik bazowy. Podgląd źródeł wymaga `runs:view`, ponownie sprawdza dostęp do baz wiedzy i usuwa dane uwierzytelniające z każdego pola tekstowego.
+
+
+Ekran akceptacji pokazuje numer następnej wersji i zmierzony wynik wybranej rundy. Oferta automatycznego sprawdzenia pojawia się tylko dla agenta bez zestawu sprawdzeń. Publikacja zapisuje identyfikator i numer wersji w sesji, więc ponowne otwarcie zakończenia prowadzi do tej publikacji także po kolejnej. Stare sesje bez zapisanego powiązania pokazują stan bez zgadywania wersji. Błąd odczytu sugestii pozwala ponowić odczyt; zastąpione sugestie są niedostępne zamiast bez końca się ładować. Chronione środowiska śledzące zmiany czekają na sprawdzenia, a przypięte zachowują obecną wersję.

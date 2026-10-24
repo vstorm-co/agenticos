@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import { caseScore } from "@/test-utils/scores";
 import { attempt, evalCase } from "@/test-utils/eval-runs";
 import { ChangedAnswers } from "./changed-answers";
 const state = vi.hoisted(() => ({
@@ -8,6 +9,9 @@ const state = vi.hoisted(() => ({
   status: "completed",
   confirmed: true,
   invalid: false,
+  comparisonAvailable: true,
+  missingAnswers: false,
+  flip: "fixed" as "fixed" | "regression" | "unchanged",
 }));
 const comparisonOptions = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -18,8 +22,29 @@ vi.mock("@/hooks/use-eval-runs", () => ({
       evalCase({
         input: "How long can I return an order?",
         attempts: [
-          attempt({ arm_id: "before", answer: "90 days" }),
-          attempt({ arm_id: "after", answer: "30 days" }),
+          attempt({ arm_id: "before", answer: state.missingAnswers ? null : "90 days" }),
+          attempt({
+            arm_id: "after",
+            answer: state.missingAnswers ? null : "30 days",
+            score: caseScore({
+              results: [
+                {
+                  scorer: "check",
+                  name: "Return policy",
+                  required: true,
+                  status: "pass",
+                  score: 1,
+                  reason_code: null,
+                  unverified_quotes: [],
+                  rule: null,
+                  unverified: false,
+                  judge_said: null,
+                  judge_run_id: null,
+                  reason: "Matches the reviewed return policy",
+                },
+              ],
+            }),
+          }),
         ],
       }),
     ],
@@ -28,10 +53,12 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalComparison: (_id: string, options: { live: boolean }) => {
     comparisonOptions(options);
     return {
-      comparison: {
-        verdict: state.invalid ? "invalid" : "better",
-        cases: [{ case_id: "case-1", flip: "fixed", confirmed: state.confirmed }],
-      },
+      comparison: !state.comparisonAvailable
+        ? null
+        : {
+            verdict: state.invalid ? "invalid" : "better",
+            cases: [{ case_id: "case-1", flip: state.flip, confirmed: state.confirmed }],
+          },
     };
   },
 }));
@@ -41,6 +68,9 @@ beforeEach(() => {
   state.status = "completed";
   state.confirmed = true;
   state.invalid = false;
+  state.comparisonAvailable = true;
+  state.missingAnswers = false;
+  state.flip = "fixed";
   comparisonOptions.mockClear();
 });
 it.each(["failed", "cancelled", "budget_exceeded"])(
@@ -75,6 +105,7 @@ it("shows changed answers beside their separate attribution result", () => {
   );
   expect(screen.getByText("90 days")).toBeInTheDocument();
   expect(screen.getByText("30 days")).toBeInTheDocument();
+  expect(screen.getByText("Matches the reviewed return policy")).toBeInTheDocument();
   expect(screen.getByText("Change 1: newly fixed")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
     "href",
@@ -126,4 +157,54 @@ it("does not attribute an unconfirmed flip or an invalid comparison", () => {
   state.invalid = true;
   view.rerender(<ChangedAnswers {...props} />);
   expect(screen.getByText("The check of change 1 could not be read.")).toBeInTheDocument();
+});
+
+it("shows progress while the answer rows are loading", () => {
+  state.loading = true;
+  render(
+    <ChangedAnswers
+      runId="r1"
+      agentId="a1"
+      caseIds={["case-1"]}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+    />,
+  );
+  expect(screen.getByRole("status")).toBeInTheDocument();
+  expect(screen.queryByText("30 days")).not.toBeInTheDocument();
+});
+
+it.each([
+  ["regression", "Change 1: newly broken"],
+  ["unchanged", "Change 1: no measured change for this question"],
+] as const)("distinguishes a confirmed %s from a fix", (flip, text) => {
+  state.flip = flip;
+  render(
+    <ChangedAnswers
+      runId="r1"
+      agentId="a1"
+      caseIds={["case-1"]}
+      baselineId="before"
+      candidateId="after"
+      attributions={{ h1: "attr" }}
+    />,
+  );
+  expect(screen.getByText(text)).toBeInTheDocument();
+});
+it("keeps an unfinished attribution and unavailable answers explicit", () => {
+  state.comparisonAvailable = false;
+  state.missingAnswers = true;
+  render(
+    <ChangedAnswers
+      runId="r1"
+      agentId="a1"
+      caseIds={["case-1"]}
+      baselineId="before"
+      candidateId="after"
+      attributions={{ h1: "attr" }}
+    />,
+  );
+  expect(screen.getByText("Still checking change 1…")).toBeInTheDocument();
+  expect(screen.queryByText("30 days")).not.toBeInTheDocument();
 });

@@ -91,7 +91,7 @@ interface ChatMessage {
 
 /** As much of a tool declaration as deciding whether to call one needs. */
 interface ChatTool {
-  function?: { name?: string };
+  function?: { name?: string; parameters?: { properties?: Record<string, unknown> } };
 }
 
 interface ChatRequest {
@@ -117,6 +117,45 @@ function allText(body: ChatRequest): string {
   };
   walk(body.messages ?? []);
   return parts.join(" ");
+}
+
+/** Fixed structured output only for the improvement journey's explicit fixture marker.
+ * The real API, worker, evidence builder and eval scorer still do all their work.
+ */
+function improvementReply(body: ChatRequest): { name: string; value: object } | null {
+  if (!allText(body).includes("E2E-IMPROVEMENT")) return null;
+  for (const tool of body.tools ?? []) {
+    const properties = tool.function?.parameters?.properties;
+    const name = tool.function?.name;
+    if (!properties || !name) continue;
+    if (
+      "summary" in properties &&
+      "expected_effect" in properties &&
+      "instructions" in properties
+    ) {
+      return {
+        name,
+        value: {
+          summary: "The fixture answers with the old return policy.",
+          expected_effect: "Use the reviewed policy token for the test questions.",
+          instructions: [
+            {
+              old_text: "PONG-IMPROVEMENT-BEFORE",
+              new_text: "PONG-IMPROVEMENT-AFTER",
+              after: "",
+              rationale: "The deterministic checks expect the reviewed policy.",
+              evidence: [],
+            },
+          ],
+          tools: [],
+          fields: [],
+          new_skills: [],
+        },
+      };
+    }
+    if ("findings" in properties) return { name, value: { findings: [] } };
+  }
+  return null;
 }
 
 function replyFor(body: ChatRequest): string {
@@ -335,6 +374,38 @@ const server = createServer((request, response) => {
     // Empty on a delegating turn, which is what a provider sends beside a tool
     // call: the parent has not said anything yet, and inventing prose for it
     // would put words in the transcript the agent never generated.
+    const structured = improvementReply(body);
+    if (structured) {
+      const argumentsText = JSON.stringify(structured.value);
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          id: COMPLETION_ID,
+          object: "chat.completion",
+          created: CREATED,
+          model,
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: "assistant",
+                content: null,
+                tool_calls: [
+                  {
+                    id: "call-improvement-result",
+                    type: "function",
+                    function: { name: structured.name, arguments: argumentsText },
+                  },
+                ],
+              },
+              finish_reason: "tool_calls",
+            },
+          ],
+          usage: usageFor(allText(body), argumentsText),
+        }),
+      );
+      return;
+    }
     const answer = subagent === null ? replyFor(body) : "";
     const usage = usageFor(allText(body), answer);
 

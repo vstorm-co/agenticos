@@ -200,3 +200,21 @@ it("explains a baseline-only result without calling it a pass", () => {
     "baselineSetHint",
   ]);
 });
+
+it("explains missing-value and zero-baseline cost and latency failures", () => {
+  expect(
+    reasonText(
+      { code: "cost_per_pass_rise", value: null, limit: null, detail: "zero_baseline" },
+      t,
+      "en",
+    ),
+  ).toBe("reason.costFromZero");
+  expect(
+    reasonText({ code: "p95_rise", value: null, limit: null, detail: "zero_baseline" }, t, "en"),
+  ).toBe("reason.latencyFromZero");
+  for (const code of ["ungraded", "incomplete", "crashed"] as const) {
+    expect(reasonText({ code, value: null, limit: null, detail: null }, t, "en")).toBe(
+      `reason.${code}(0)`,
+    );
+  }
+});

@@ -10775,6 +10775,12 @@
     "discard": "Verwerfen",
     "discardTitle": "Vorschläge dieser Sitzung verwerfen?",
     "discardBody": "Nur ausstehende Vorschläge dieser Sitzung werden verworfen. Angewendete Änderungen und andere ausstehende Vorschläge bleiben erhalten.",
-    "confirmDiscard": "Ausstehende Vorschläge verwerfen"
+    "confirmDiscard": "Ausstehende Vorschläge verwerfen",
+    "changesReplaced": "Diese Vorschläge sind nicht mehr verfügbar. Öffnen Sie den Agenten, um den aktuellen Entwurf zu prüfen.",
+    "donePublished": "Fertig. Version {version} wurde veröffentlicht. Geschützte Umgebungen warten auf ihre Prüfungen; fixierte Umgebungen behalten ihre aktuelle Version.",
+    "openVersion": "Version {version} öffnen",
+    "doneDraft": "Fertig. Die ausgewählten Änderungen sind im Entwurf gespeichert. Veröffentlichen Sie ihn beim Agenten, sobald Sie bereit sind.",
+    "publishVersion": "Version {version} veröffentlichen",
+    "publishImpact": "Eine Veröffentlichung speichert eine neue Version. Folgende Umgebungen wechseln erst nach bestandenen Schutzprüfungen; fixierte Umgebungen behalten ihre aktuelle Version. Öffnen Sie den Agenten, um seine Einsatzorte zu prüfen."
   }
 }

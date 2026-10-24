@@ -50,6 +50,10 @@ export interface ImprovementIteration {
   ended_at: string | null;
 }
 export interface Improvement {
+  published_version_id?: string | null;
+  published_version?: number | null;
+  next_version?: number | null;
+  offer_automatic_check?: boolean;
   can_restart?: boolean;
   can_discard?: boolean;
   id: string;

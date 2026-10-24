@@ -174,6 +174,8 @@ async def test_confirmed_finish_accepts_and_publishes_through_normal_path(db):
 
     ctx, agent, ready = await _ready_proposal(db)
     before = agent.current_version_id
+    assert ready.offer_automatic_check
+    assert ready.next_version is not None
     result = await ImprovementPipelineService(db).finish(
         ctx,
         agent.id,
@@ -181,6 +183,10 @@ async def test_confirmed_finish_accepts_and_publishes_through_normal_path(db):
         ImprovementFinish(confirmed=True, publish=True, automatic_check=True),
     )
     assert result.session.status == "published"
+    reopened = await ImprovementPipelineService(db).read(ctx, agent.id, ready.id)
+    assert reopened.published_version_id == result.version_id
+    assert reopened.published_version == result.version
+    assert not reopened.offer_automatic_check
     assert result.version_id is not None and result.version_id != before
     assert "30 days" in AgentSpec.model_validate(agent.draft_spec).instructions
     suites = await EvalSuiteService(db).list_for_agent(ctx, agent.id)
@@ -553,3 +559,22 @@ async def test_waiting_session_tracks_human_accept_undo_dismiss_and_publish(db):
         event.action == "improvement.published"
         for event in (await service.read(ctx, agent.id, read.id)).timeline
     )
+
+
+async def test_existing_suite_is_not_offered_or_duplicated_on_finish(db):
+    from app.schemas.eval_suite import EvalSuiteCreate
+    from app.schemas.improvement import ImprovementFinish
+    from app.services.eval_suite import EvalSuiteService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    suites = EvalSuiteService(db)
+    existing = await suites.create(
+        ctx, agent.id, EvalSuiteCreate(name="Existing checks", dataset_id=ready.dataset_id)
+    )
+    service = ImprovementPipelineService(db)
+    reopened = await service.read(ctx, agent.id, ready.id)
+    assert not reopened.offer_automatic_check
+    await service.finish(
+        ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, automatic_check=True)
+    )
+    assert [s.id for s in (await suites.list_for_agent(ctx, agent.id)).items] == [existing.id]
