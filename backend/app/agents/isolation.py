@@ -54,6 +54,7 @@ from app.agents.deps import AgentDeps
 from app.agents.mcp import MCP_ORIGIN
 from app.agents.spec import AgentSpec
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.services.rag.overlay import KnowledgeOverlay
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,7 @@ class RunIsolation:
     live_reads: bool = False
     intercepted: list[InterceptedCall] = field(default_factory=list)
     improvement_run_id: UUID | None = None
+    knowledge_overlay: KnowledgeOverlay | None = None
 
 
 def _blocked_notice(name: str) -> str:

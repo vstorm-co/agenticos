@@ -7,6 +7,7 @@ from uuid import UUID
 
 from rank_bm25 import BM25Okapi
 
+from app.core.exceptions import BadRequestError
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import (
     RetrievalFilters,
@@ -16,6 +17,7 @@ from app.services.rag.filters import (
     scope_for_tenant,
 )
 from app.services.rag.models import ParentContextMode, SearchResult
+from app.services.rag.overlay import active_overlay
 from app.services.rag.parent_context import expand_context, expansion_tenant
 from app.services.rag.vectorstore import BaseVectorStore
 
@@ -154,6 +156,7 @@ class RetrievalService(BaseRetrievalService):
                 similarity=r.similarity,
                 metadata=r.metadata,
                 parent_doc_id=r.parent_doc_id,
+                overlay_token=r.overlay_token,
             )
             for r, s in scored[:limit]
             if s > 0
@@ -176,6 +179,16 @@ class RetrievalService(BaseRetrievalService):
         # Composed once and threaded through every candidate-producing query
         # (the vector leg and the BM25 rerank), so no path can skip enforcement.
         query_filter = compose(scope, filters)
+        overlay = active_overlay()
+        if (
+            overlay is not None
+            and overlay.matching(collection_name, query_filter)
+            and not self.store.supports_knowledge_overlay
+        ):
+            overlay.failed = True
+            raise BadRequestError(
+                message="This vector store does not support run-only knowledge drafts"
+            )
 
         logger.info(
             "[RETRIEVAL] Query: '%.50s...', collection: %s, limit: %d",

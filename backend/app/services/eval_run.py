@@ -1108,8 +1108,34 @@ class EvalRunService:
                     )
                 }
             )
-        estimate = await self._estimate(ctx, plan)
+        estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
         return estimate.model_copy(update={"proposal_check": proposal_check})
+
+    @staticmethod
+    def _knowledge_cost(
+        estimate: EvalRunEstimate, record: ProposalCheckRecord | None
+    ) -> EvalRunEstimate:
+        if record is None or record.knowledge is None:
+            return estimate
+        extra = record.knowledge.embedding_estimate_usd
+        repeats = record.knowledge.embedding_rerun_ceiling_usd
+        agent_after = (
+            None if estimate.agent_after_usd is None else estimate.agent_after_usd - extra - repeats
+        )
+        org_after = (
+            None if estimate.org_after_usd is None else estimate.org_after_usd - extra - repeats
+        )
+        return estimate.model_copy(
+            update={
+                "total_usd": estimate.total_usd + extra,
+                "rerun_ceiling_usd": estimate.rerun_ceiling_usd + repeats,
+                "agent_after_usd": agent_after,
+                "org_after_usd": org_after,
+                "affordable": estimate.affordable
+                and (agent_after is None or agent_after >= 0)
+                and (org_after is None or org_after >= 0),
+            }
+        )
 
     async def improvement_measurement(
         self,
@@ -1396,7 +1422,7 @@ class EvalRunService:
                     )
                 }
             )
-        estimate = await self._estimate(ctx, plan)
+        estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
         if not estimate.affordable:
             raise PaymentRequiredError(
                 message=(
@@ -2452,13 +2478,31 @@ class EvalRunService:
             for case_id in common
         ]
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
+        invalid_reason_code: Literal["knowledge_not_retrieved"] | None = None
         if run.proposal_check is not None:
             knowledge = ProposalCheckRecord.model_validate(run.proposal_check).knowledge
             if knowledge is not None and knowledge.invalidated:
                 invalid_reason = "The knowledge draft changed or was removed; check it again"
+            elif knowledge is not None and knowledge.mode == "retrieval" and invalid_reason is None:
+                fixed = {
+                    case.case_id
+                    for case in paired_cases
+                    if case.flip is Flip.FIXED and case.confirmed
+                }
+                if any(
+                    attempt.case_id in fixed
+                    and attempt.arm_id == candidate.id
+                    and knowledge.topic_id not in attempt.knowledge_overlay_topic_ids
+                    for attempt in attempts
+                ):
+                    invalid_reason = (
+                        "Search did not return the draft for every confirmed improvement"
+                    )
+                    invalid_reason_code = "knowledge_not_retrieved"
         if measured is not None and measured.gradable_holdout < measured.minimum_holdout:
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"
+            invalid_reason_code = None
         if (
             measured is not None
             and invalid_reason is None
@@ -2507,6 +2551,7 @@ class EvalRunService:
             overall=quality.overall,
             p_value=quality.p_value,
             invalid_reason=invalid_reason,
+            invalid_reason_code=invalid_reason_code,
             regressions_confirmed=count(Flip.REGRESSION, True),
             regressions_unconfirmed=count(Flip.REGRESSION, False),
             fixed_confirmed=count(Flip.FIXED, True),

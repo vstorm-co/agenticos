@@ -6,12 +6,15 @@ import { KnowledgeDrafts } from "./knowledge-drafts";
 const state = vi.hoisted(() => ({
   estimate: vi.fn(),
   check: vi.fn(),
+  refetch: vi.fn().mockResolvedValue({}),
   topics: true,
   runStatus: "completed",
   invalidated: false,
+  retrievalInvalid: false,
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovement: () => ({
+    refetch: state.refetch,
     estimateKnowledge: { mutateAsync: state.estimate, isPending: false },
     checkKnowledge: { mutateAsync: state.check, isPending: false },
   }),
@@ -27,10 +30,22 @@ vi.mock("@/hooks/use-knowledge-gaps", () => ({
 vi.mock("@/hooks/use-datasets", () => ({
   useDatasetCases: () => ({
     cases: [
-      { case_id: "q1", input: "Return window?", improvement_partition: "holdout" },
-      { case_id: "q2", input: "Learning example", improvement_partition: "train" },
+      ...[
+        "Return window?",
+        "Gift order?",
+        "Shipping fee?",
+        "Weekend days?",
+        "Arrival date?",
+        "Source question?",
+        "Copied source question?",
+      ].map((input, index) => ({
+        case_id: `q${index + 1}`,
+        input,
+        improvement_partition: "holdout",
+      })),
+      { case_id: "q8", input: "Learning example", improvement_partition: "train" },
     ],
-    total: 2,
+    total: 8,
   }),
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -41,7 +56,12 @@ vi.mock("@/hooks/use-eval-runs", () => ({
     },
   }),
   useEvalComparison: () => ({
-    comparison: { verdict: "better", fixed_confirmed: 2, regressions_confirmed: 0 },
+    comparison: {
+      verdict: state.retrievalInvalid ? "invalid" : "better",
+      invalid_reason_code: state.retrievalInvalid ? "knowledge_not_retrieved" : null,
+      fixed_confirmed: 2,
+      regressions_confirmed: 0,
+    },
   }),
 }));
 vi.mock("@/components/knowledge-gaps/knowledge-gap-dialog", () => ({
@@ -107,12 +127,15 @@ beforeEach(() => {
   state.topics = true;
   state.runStatus = "completed";
   state.invalidated = false;
+  state.retrievalInvalid = false;
   state.estimate.mockResolvedValue(QUOTE);
   state.check.mockResolvedValue({ id: "k1" });
 });
 async function choose() {
   await userEvent.selectOptions(screen.getByRole("combobox"), "t1");
-  await userEvent.click(screen.getByLabelText("Return window?"));
+  for (const checkbox of screen.getAllByRole("checkbox")) {
+    if (!checkbox.hasAttribute("disabled")) await userEvent.click(checkbox);
+  }
 }
 it("requires a separately priced confirmation and keeps fact verification visible", async () => {
   render(<KnowledgeDrafts session={SESSION} />);
@@ -126,8 +149,9 @@ it("requires a separately priced confirmation and keeps fact verification visibl
   await userEvent.click(screen.getByRole("button", { name: "Confirm and check the draft" }));
   expect(state.check).toHaveBeenCalledWith({
     topic_id: "t1",
+    mode: "context",
     round: 1,
-    case_ids: ["q1"],
+    case_ids: ["q1", "q2", "q3", "q4", "q5", "q6", "q7"],
     confirmed: true,
     draft_hash: QUOTE.draft_hash,
     estimate_usd: "0.02",
@@ -207,4 +231,30 @@ it("explains why an older draft without tracked source inputs cannot be tested",
     await screen.findByText(/this older draft did not record all its source questions/),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Confirm and check the draft" })).toBeDisabled();
+});
+
+it("requires a fresh quote after switching to actual retrieval", async () => {
+  render(<KnowledgeDrafts session={SESSION} />);
+  await choose();
+  await userEvent.click(screen.getByRole("button", { name: "Estimate checking the draft" }));
+  await screen.findByText(/5 independent questions/);
+  await userEvent.click(screen.getByRole("button", { name: "Test whether search finds it" }));
+  expect(
+    screen.queryByRole("button", { name: "Confirm and check the draft" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText(/The draft joins search only for this check/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Estimate checking the draft" }));
+  expect(state.estimate).toHaveBeenLastCalledWith({
+    topic_id: "t1",
+    mode: "retrieval",
+    round: 1,
+    case_ids: ["q1", "q2", "q3", "q4", "q5", "q6", "q7"],
+  });
+});
+it("does not call a high pass count an improvement when search failed to return the draft", () => {
+  state.retrievalInvalid = true;
+  render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
+  expect(screen.getByText(/No demonstrated improvement from the draft/)).toBeInTheDocument();
+  expect(screen.queryByText("Better: fixes 2, breaks nothing")).not.toBeInTheDocument();
+  expect(state.refetch).toHaveBeenCalled();
 });

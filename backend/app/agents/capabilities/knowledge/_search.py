@@ -12,6 +12,7 @@ from app.db.session import on_the_pooled_loop
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalFilters
 from app.services.rag.models import ParentContextMode, SearchResult
+from app.services.rag.overlay import active_overlay
 from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
 from app.services.rag.retrieval import RetrievalService, fuse_over_queries
 from app.services.rag.vectorstore import process_vector_store, unpooled_vector_store
@@ -253,11 +254,15 @@ async def search_knowledge_base(
                 scopes={resolved[0]: single_scope} if one_collection else scopes_by_name,
             )
     except AppException:
+        if overlay := active_overlay():
+            overlay.failed = True
         # Already an account of what is wrong and what to do about it - an
         # unconfigured embedding credential names the setting to set. Rewrapping
         # it as "search failed" would replace that with a symptom.
         raise
     except Exception as e:
+        if overlay := active_overlay():
+            overlay.failed = True
         # The upstream text stays here and goes no further. `details` is
         # serialized into the response body, and `str(e)` on an embedding or
         # vector-store client is not a controlled string: provider SDKs put the
@@ -273,6 +278,8 @@ async def search_knowledge_base(
             },
         ) from e
 
+    if overlay := active_overlay():
+        overlay.record(results)
     if on_results is not None:
         on_results(resolved, results)
     return _format_results(results)

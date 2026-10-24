@@ -66,3 +66,40 @@ async def test_no_projection_adds_no_cost_and_an_unprofiled_body_uses_the_fallba
         arm, skill_bodies={uuid4(): SkillBody(description="Procedure", content="A" * 2000)}
     )
     assert await service._projected_input_cost(ctx, with_body) > 0
+
+
+def test_retrieval_embeddings_and_repeats_are_visible_and_can_exhaust_the_budget():
+    from app.schemas.eval_run import EvalRunEstimate, KnowledgeCheckRecord, ProposalCheckRecord
+
+    estimate = EvalRunEstimate(
+        cases=5,
+        arms=[],
+        judge_usd=Decimal(0),
+        total_usd=Decimal("0.02"),
+        rerun_ceiling_usd=Decimal("0.01"),
+        agent_remaining_usd=Decimal("0.04"),
+        org_remaining_usd=Decimal("0.04"),
+        agent_after_usd=Decimal("0.01"),
+        org_after_usd=Decimal("0.01"),
+        affordable=True,
+    )
+    assert EvalRunService._knowledge_cost(estimate, None) is estimate
+    record = ProposalCheckRecord(
+        kind="context",
+        base_version=None,
+        suggestions=1,
+        knowledge=KnowledgeCheckRecord(
+            topic_id=uuid4(),
+            draft_hash="x",
+            mode="retrieval",
+            supported=False,
+            embedding_estimate_usd=Decimal("0.01"),
+            embedding_rerun_ceiling_usd=Decimal("0.02"),
+        ),
+    )
+    with_cost = EvalRunService._knowledge_cost(estimate, record)
+    assert (with_cost.total_usd, with_cost.rerun_ceiling_usd) == (Decimal("0.03"), Decimal("0.03"))
+    assert with_cost.agent_after_usd == with_cost.org_after_usd == Decimal("-0.02")
+    assert not with_cost.affordable
+    unlimited = estimate.model_copy(update={"agent_after_usd": None, "org_after_usd": None})
+    assert EvalRunService._knowledge_cost(unlimited, record).affordable

@@ -10591,6 +10591,14 @@
     "reviewKnowledgeDraft": "Sprawdź szkic i zdecyduj, czy go dodać",
     "noKnowledgeDrafts": "Brak szkicu do sprawdzenia w tej rundzie. Przejrzyj tematy w zakładce wiedzy agenta.",
     "knowledgeInvalidated": "Szkic został zmieniony lub usunięty. Sprawdź aktualny szkic ponownie, zanim skorzystasz z tego wyniku.",
-    "knowledgeUntracked": "Nie można zmierzyć: ten starszy szkic nie zapisał wszystkich pytań źródłowych. Przygotuj nowy szkic przed sprawdzeniem."
+    "knowledgeUntracked": "Nie można zmierzyć: ten starszy szkic nie zapisał wszystkich pytań źródłowych. Przygotuj nowy szkic przed sprawdzeniem.",
+    "knowledgeMode": "Sposób sprawdzenia szkicu",
+    "contextMode": "Załóż, że fragment został znaleziony",
+    "retrievalMode": "Sprawdź, czy wyszukiwanie go znajdzie",
+    "retrievalAssumption": "Szkic dołącza do wyszukiwania wyłącznie na czas tego sprawdzenia. Musi zostać zwrócony przez wyszukiwanie, aby nowo naprawiona odpowiedź potwierdzała poprawę. Żaden dokument nie jest dodawany.",
+    "knowledgeEmbeddingUnavailable": "Nie można zmierzyć wyszukiwania: usługa embeddingów tej bazy wiedzy jest niedostępna. Nadal możesz sprawdzić szkic jako tymczasowy kontekst.",
+    "knowledgeEmbeddingPriceUnavailable": "Nie można zmierzyć wyszukiwania: model embeddingów nie ma znanej ceny, więc nie można podać pełnego kosztu. Nadal możesz sprawdzić szkic jako tymczasowy kontekst.",
+    "knowledgeNotRetrieved": "Brak potwierdzonej poprawy dzięki szkicowi: wyszukiwanie nie zwróciło go przy każdej nowo naprawionej odpowiedzi. Pełne sprawdzenie zachowuje rzeczywiste odpowiedzi i oceny.",
+    "knowledgeSearchDisabled": "W tej sprawdzonej propozycji wyszukiwanie wiedzy jest wyłączone. Sprawdź szkic jako tymczasowy kontekst albo włącz wyszukiwanie i rozpocznij nową sesję."
   }
 }

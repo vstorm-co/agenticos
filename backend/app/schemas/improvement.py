@@ -126,6 +126,7 @@ class ImprovementFinished(BaseSchema):
 
 class KnowledgeCheckTarget(BaseSchema):
     topic_id: UUID
+    mode: Literal["context", "retrieval"] = "context"
     round: int = Field(ge=1, le=3)
     case_ids: list[UUID] = Field(min_length=1, max_length=1000)
 

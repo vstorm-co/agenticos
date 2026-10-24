@@ -338,3 +338,9 @@ Training cases, source conversations, source turns and normalized copies of sour
 Temporary bodies are cleared when a check ends or its draft changes. Changed drafts invalidate the old verdict. Erasing a source person's data also clears derived test answers, scoring explanations and model manifests. A cancelled session cancels its knowledge checks too. These checks keep their paid cost after cancellation or erasure.
 
 The draft records every input question as a fingerprint, including uncited inputs. Old drafts without complete provenance cannot be measured; write a new draft first. These fingerprints and source run identities are cleared with the draft during erasure.
+
+#### Checking real retrieval { #checking-real-retrieval }
+
+Choose **Test whether search finds it** to compare A against B with a retrieval-only overlay instead. The draft is embedded on the knowledge base’s selected model and added to its query candidates only during that run. Tenant restrictions, document allow-lists, business filters, ranking and final result limits still apply. No vector table, document or context file is created. Temporary content is removed even after failure or cancellation.
+
+A new fix counts as demonstrated only if the draft reached every confirming candidate answer through the final search response. Otherwise the verdict is inconclusive, even when the grader liked the answer; the actual answers and grades remain visible. A search failure cannot become a success because the model ignored the tool error. The estimate includes extra embedding searches and their confirming repeats. An unavailable or unpriced embedding model refuses the check before paid work starts. A person must still verify the facts and explicitly add the document.

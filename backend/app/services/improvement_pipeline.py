@@ -12,13 +12,18 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
+from pydantic_ai.usage import RunUsage
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
+from app.agents.capabilities.knowledge._capability import KnowledgeConfig
 from app.agents.capabilities.skills import SkillBody
+from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import (
     AppException,
     AuthenticationError,
@@ -84,6 +89,7 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
+from app.services.embedding_resolution import embeddings_for_collection
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.improvement_data import input_hash
@@ -1408,6 +1414,9 @@ class ImprovementPipelineService:
         run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, data.round)
         gaps = KnowledgeGapService(self.db)
         topic = await gaps._topic(ctx, data.topic_id, edit=True)
+        if (await gaps._row(ctx, topic)).status != "open":
+            raise BadRequestError(message="Reopen the knowledge topic before checking a draft")
+        kb = await gaps._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
         if not topic.draft_content:
             raise BadRequestError(message="This topic has no draft to check")
         base, _ = await self._candidate(inputs.agent, run, iteration)
@@ -1526,9 +1535,79 @@ class ImprovementPipelineService:
             improvement_run_id=run.id,
             evidence_run_ids=list(source_runs),
             knowledge=KnowledgeCheckRecord(
-                topic_id=topic.id, draft_hash=hashed, supported=supported
+                topic_id=topic.id, draft_hash=hashed, supported=supported, mode=data.mode
             ),
         )
+        if data.mode == "retrieval":
+            knowledge_binding = next(
+                (item for item in base.capabilities if item.id == "knowledge" and item.enabled),
+                None,
+            )
+            if knowledge_binding is None:
+                return KnowledgeCheckEstimate(
+                    total_usd=Decimal(0),
+                    affordable=False,
+                    can_measure=False,
+                    cases=len(eligible),
+                    excluded=len(selected) - len(eligible),
+                    supported=supported,
+                    draft_hash=hashed,
+                    reason="knowledge_search_disabled",
+                )
+            resolved = await embeddings_for_collection(kb.collection_name, ctx.organization_id)
+            if (
+                resolved is None
+                or resolved.key_source.is_degraded
+                or resolved.vector_tenant != ctx.organization_id
+            ):
+                return KnowledgeCheckEstimate(
+                    total_usd=Decimal(0),
+                    affordable=False,
+                    can_measure=False,
+                    cases=len(eligible),
+                    excluded=len(selected) - len(eligible),
+                    supported=supported,
+                    draft_hash=hashed,
+                    reason="embedding_unavailable",
+                )
+            config = KnowledgeConfig.model_validate(knowledge_binding.config)
+            variants = (
+                1 + config.query_analysis_max_variants
+                if config.query_analysis_mode == "multi_query"
+                else 1
+            )
+            searches = (
+                (base.max_steps or DEFAULT_MAX_STEPS)
+                * variants
+                * (2 if settings.rag.enable_hybrid_search else 1)
+            )
+            tokens = (
+                len(topic.draft_content.encode("utf-8")) + 3
+            ) // 4 + settings.EVAL_FALLBACK_INPUT_TOKENS
+            priced = price_request(
+                RunUsage(input_tokens=tokens * searches), resolved.model, resolved.provider
+            )
+            if priced is None:
+                return KnowledgeCheckEstimate(
+                    total_usd=Decimal(0),
+                    affordable=False,
+                    can_measure=False,
+                    cases=len(eligible),
+                    excluded=len(selected) - len(eligible),
+                    supported=supported,
+                    draft_hash=hashed,
+                    reason="embedding_price_unavailable",
+                )
+            embedding_usd = (priced * len(eligible)).quantize(Decimal("0.000001"))
+            assert record.knowledge is not None
+            record.knowledge.collection_name = kb.collection_name
+            record.knowledge.embedding_model = resolved.model
+            record.knowledge.embedding_dim = resolved.dim
+            record.knowledge.embedding_estimate_usd = embedding_usd
+            record.knowledge.embedding_rerun_ceiling_usd = embedding_usd * (
+                request.reruns if request.reruns is not None else settings.EVAL_RERUNS
+            )
+            candidate = base
         estimate = await self.evals.estimate(
             ctx,
             agent_id,

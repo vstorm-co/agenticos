@@ -329,6 +329,7 @@ export interface EvalComparison {
   overall: Overall | null;
   p_value: number | null;
   invalid_reason: string | null;
+  invalid_reason_code?: "knowledge_not_retrieved" | null;
   regressions_confirmed: number;
   regressions_unconfirmed: number;
   fixed_confirmed: number;

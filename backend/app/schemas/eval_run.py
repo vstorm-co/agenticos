@@ -48,6 +48,11 @@ class KnowledgeCheckRecord(BaseSchema):
     mode: Literal["context", "retrieval"] = "context"
     supported: bool
     invalidated: bool = False
+    collection_name: str | None = None
+    embedding_model: str | None = None
+    embedding_dim: int | None = Field(default=None, ge=1)
+    embedding_estimate_usd: Decimal = Field(default=Decimal(0), ge=0)
+    embedding_rerun_ceiling_usd: Decimal = Field(default=Decimal(0), ge=0)
 
 
 class ProposalCheckRecord(BaseSchema):
@@ -557,6 +562,7 @@ class EvalComparisonRead(BaseSchema):
     overall: OverallLiteral | None
     p_value: float | None
     invalid_reason: str | None
+    invalid_reason_code: Literal["knowledge_not_retrieved"] | None = None
     regressions_confirmed: int
     regressions_unconfirmed: int
     fixed_confirmed: int

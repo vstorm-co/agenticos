@@ -1,5 +1,5 @@
 ---
-source_sha: "d03acffb6694"
+source_sha: "27023f8847f1"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -360,3 +360,9 @@ Se excluyen los casos de entrenamiento, las conversaciones y turnos de origen y 
 Los contenidos temporales se eliminan al terminar la prueba o cambiar el borrador. Un cambio invalida el resultado anterior. El borrado de los datos de una persona fuente también elimina las respuestas derivadas, las explicaciones de puntuación y los manifiestos de modelos. Cancelar la sesión cancela sus pruebas de conocimiento. Los costes incurridos se conservan tras cancelar o borrar datos.
 
 El borrador registra huellas de todas las preguntas de entrada, incluidas las no citadas. Los borradores antiguos sin procedencia completa no se pueden medir; escribe uno nuevo primero. Las huellas y las identidades de los runs fuente se eliminan con el borrador al borrar los datos personales.
+
+#### Comprobar la búsqueda real { #checking-real-retrieval }
+
+Elige **Comprobar si la búsqueda lo encuentra** para comparar A con B mediante una superposición exclusiva de búsqueda. El borrador se vectoriza con el modelo elegido de la base de conocimiento y se añade a los candidatos solo durante ese run. Se mantienen las restricciones de organización, las listas de documentos permitidos, los filtros, el ranking y los límites finales. No se crea ninguna tabla vectorial, documento ni archivo de contexto. El contenido temporal también se elimina tras fallos o cancelaciones.
+
+Una nueva corrección solo se considera demostrada si el borrador llegó a cada respuesta confirmatoria del candidato a través del resultado final de búsqueda. En caso contrario, el resultado no es concluyente, aunque la respuesta obtenga buena puntuación; se conservan las respuestas y evaluaciones reales. Ignorar un error de herramienta no convierte un fallo de búsqueda en éxito. La estimación incluye búsquedas adicionales de embeddings y repeticiones confirmatorias. Un modelo no disponible o sin precio conocido impide empezar trabajo de pago. Una persona debe seguir verificando los hechos y añadir expresamente el documento.

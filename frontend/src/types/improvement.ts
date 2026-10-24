@@ -85,6 +85,7 @@ export interface AttributionEstimate {
 }
 
 export interface KnowledgeCheckTarget {
+  mode?: "context" | "retrieval";
   topic_id: string;
   round: number;
   case_ids: string[];

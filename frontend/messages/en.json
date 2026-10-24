@@ -10808,6 +10808,14 @@
     "reviewKnowledgeDraft": "Review the draft and decide whether to add it",
     "noKnowledgeDrafts": "No draft is available to check for this round. Review knowledge topics in the agent’s knowledge tab.",
     "knowledgeInvalidated": "The draft changed or was removed. Check the current draft again before using this result.",
-    "knowledgeUntracked": "Can’t be measured: this older draft did not record all its source questions. Write a new draft before checking it."
+    "knowledgeUntracked": "Can’t be measured: this older draft did not record all its source questions. Write a new draft before checking it.",
+    "knowledgeMode": "How to test the draft",
+    "contextMode": "Assume the passage is found",
+    "retrievalMode": "Test whether search finds it",
+    "retrievalAssumption": "The draft joins search only for this check. It must be returned by search for a newly fixed answer to count as a demonstrated improvement. No document is added.",
+    "knowledgeEmbeddingUnavailable": "Retrieval cannot be measured: this knowledge base’s embedding service is unavailable. You can still test with temporary context.",
+    "knowledgeEmbeddingPriceUnavailable": "Retrieval cannot be measured: the embedding model has no known price, so a complete cost cannot be quoted. You can still test with temporary context.",
+    "knowledgeNotRetrieved": "No demonstrated improvement from the draft: search did not return it for every newly fixed answer. The full check keeps the actual answers and grades.",
+    "knowledgeSearchDisabled": "This measured candidate has knowledge search disabled. Test with temporary context, or enable search and start a new session."
   }
 }

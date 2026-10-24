@@ -276,6 +276,10 @@ async def update_topic(
         from app.repositories import eval_run_repo
 
         await eval_run_repo.invalidate_knowledge_topics(db, [topic.id])
+    elif update_data.get("status") in {TopicStatus.COVERED.value, TopicStatus.DISMISSED.value}:
+        from app.repositories import eval_run_repo
+
+        await eval_run_repo.invalidate_knowledge_topics(db, [topic.id], only_live=True)
     for field, value in update_data.items():
         setattr(topic, field, value)
     await db.flush()

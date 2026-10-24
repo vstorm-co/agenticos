@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Checkbox } from "@/components/ui";
@@ -25,6 +25,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   const actions = useImprovement(session.agent_id, session.id);
   const { topics, error: topicsError } = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
   const [topicId, setTopicId] = useState("");
+  const [mode, setMode] = useState<"context" | "retrieval">("context");
   const [selected, setSelected] = useState<string[]>([]);
   const [skip, setSkip] = useState(0);
   const questions = useDatasetCases(session.dataset_id, {
@@ -41,6 +42,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   const round = session.iterations.find((item) => item.id === session.best_iteration_id);
   const target: KnowledgeCheckTarget = {
     topic_id: topicId,
+    mode,
     round: round?.number ?? 1,
     case_ids: selected,
   };
@@ -59,6 +61,19 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
     <section className="space-y-4 rounded-xl border p-4 sm:p-6">
       <h3 className="font-medium">{t("knowledgeTitle")}</h3>
       <p className="text-muted-foreground text-sm">{t("knowledgeSeparate")}</p>
+      <div role="group" aria-label={t("knowledgeMode")} className="flex flex-wrap gap-2">
+        {(["context", "retrieval"] as const).map((value) => (
+          <Button
+            key={value}
+            variant={value === mode ? "secondary" : "outline"}
+            className="h-auto max-w-full text-center whitespace-normal"
+            aria-pressed={value === mode}
+            onClick={() => setMode(value)}
+          >
+            {t(value === "context" ? "contextMode" : "retrievalMode")}
+          </Button>
+        ))}
+      </div>
       {(topicsError || questions.error) && (
         <p role="alert">{getErrorMessage(topicsError ?? questions.error, tErrors)}</p>
       )}
@@ -80,7 +95,12 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
             </select>
           </label>
           {topicId && (
-            <DraftFacts key={topicId} topicId={topicId} supported={current?.quote.supported} />
+            <DraftFacts
+              key={topicId}
+              topicId={topicId}
+              supported={current?.quote.supported}
+              mode={mode}
+            />
           )}
           <fieldset className="space-y-3">
             <legend className="mb-3 text-sm font-medium">{t("knowledgeQuestions")}</legend>
@@ -148,7 +168,13 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
                   : t(
                       current.quote.reason === "untracked_draft_sources"
                         ? "knowledgeUntracked"
-                        : "knowledgeUnmeasurable",
+                        : current.quote.reason === "embedding_unavailable"
+                          ? "knowledgeEmbeddingUnavailable"
+                          : current.quote.reason === "embedding_price_unavailable"
+                            ? "knowledgeEmbeddingPriceUnavailable"
+                            : current.quote.reason === "knowledge_search_disabled"
+                              ? "knowledgeSearchDisabled"
+                              : "knowledgeUnmeasurable",
                     )}
               </p>
               <Button
@@ -184,13 +210,21 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
         </p>
       )}
       {(session.knowledge_eval_run_ids ?? []).map((id) => (
-        <KnowledgeResult key={id} runId={id} agentId={session.agent_id} />
+        <KnowledgeResult key={id} runId={id} agentId={session.agent_id} refresh={actions.refetch} />
       ))}
     </section>
   );
 }
 
-function DraftFacts({ topicId, supported }: { topicId: string; supported?: boolean }) {
+function DraftFacts({
+  topicId,
+  supported,
+  mode,
+}: {
+  topicId: string;
+  supported?: boolean;
+  mode: "context" | "retrieval";
+}) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const { topic, error } = useKnowledgeGap(topicId);
@@ -198,7 +232,7 @@ function DraftFacts({ topicId, supported }: { topicId: string; supported?: boole
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   return (
     <div className="space-y-3 text-sm">
-      <p>{t("contextAssumption")}</p>
+      <p>{t(mode === "retrieval" ? "retrievalAssumption" : "contextAssumption")}</p>
       {topic?.draft && (
         <>
           {!(supported ?? topic.draft.sources.some((source) => source.kind === "document")) && (
@@ -222,17 +256,29 @@ function DraftFacts({ topicId, supported }: { topicId: string; supported?: boole
   );
 }
 
-function KnowledgeResult({ runId, agentId }: { runId: string; agentId: string }) {
+function KnowledgeResult({
+  runId,
+  agentId,
+  refresh,
+}: {
+  runId: string;
+  agentId: string;
+  refresh: () => Promise<unknown>;
+}) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const { run, error } = useEvalRun(runId);
   const active = run?.status === "queued" || run?.status === "running";
   const { comparison, error: comparisonError } = useEvalComparison(runId, { live: active });
   const record = run?.proposal_check?.knowledge;
+  const status = run?.status;
+  useEffect(() => {
+    if (status && !["queued", "running"].includes(status)) void refresh();
+  }, [status, refresh]);
   return (
     <article className="space-y-3 border-t pt-4 text-sm">
       <p className="font-medium">{t("knowledgeTitle")}</p>
-      <p>{t("contextAssumption")}</p>
+      <p>{t(record?.mode === "retrieval" ? "retrievalAssumption" : "contextAssumption")}</p>
       {record && !record.supported && <p className="text-warning">{t("unsupportedDraft")}</p>}
       {error || comparisonError ? (
         <p role="alert">{getErrorMessage(error ?? comparisonError, tErrors)}</p>
@@ -242,6 +288,9 @@ function KnowledgeResult({ runId, agentId }: { runId: string; agentId: string })
         <p role="status">{t("working")}</p>
       ) : run.status !== "completed" ? (
         <p role="alert">{t("attributionUnavailable")}</p>
+      ) : comparison?.verdict === "invalid" &&
+        comparison.invalid_reason_code === "knowledge_not_retrieved" ? (
+        <p>{t("knowledgeNotRetrieved")}</p>
       ) : (
         comparison && (
           <p>

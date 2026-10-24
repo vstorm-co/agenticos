@@ -49,6 +49,7 @@ from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import (
+    ArmRole,
     ArmSource,
     AttemptFault,
     CaseAttemptStatus,
@@ -75,6 +76,7 @@ from app.services.api_key import job_context
 from app.services.eval_comparison import Flip, classify
 from app.services.eval_run import EvalRunService, drifts
 from app.services.message_history import HistoryMessage, build_message_history
+from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument
 from app.services.scorers import ScoredAnswer, ScoredCall
 from app.services.scoring import ScoringService
 from app.services.transcript import RecordedToolCall
@@ -384,6 +386,12 @@ class EvalRunWorker:
                     gaps = KnowledgeGapService(db)
                     topic = await gaps._topic(ctx, record.knowledge.topic_id, edit=True)
                     await gaps._row(ctx, topic)
+                    kb = await gaps._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+                    if (
+                        record.knowledge.mode == "retrieval"
+                        and record.knowledge.collection_name != kb.collection_name
+                    ):
+                        return False
                     if (
                         not topic.draft_content
                         or draft_fingerprint(topic) != record.knowledge.draft_hash
@@ -501,6 +509,46 @@ class EvalRunWorker:
                 if await eval_run_repo.link_run(db, case=attempt, agent_run_id=agent_run.id):
                     answering.add(agent_run.id)
 
+            record = (
+                None
+                if run.proposal_check is None
+                else ProposalCheckRecord.model_validate(run.proposal_check)
+            )
+            isolation = RunIsolation(
+                recording=await self._recording(db, ctx, run, revision),
+                live_reads=run.live_reads,
+                improvement_run_id=None if record is None else record.improvement_run_id,
+            )
+            if (
+                record is not None
+                and record.knowledge is not None
+                and record.knowledge.mode == "retrieval"
+                and arm.role == ArmRole.CANDIDATE.value
+            ):
+                knowledge = record.knowledge
+                body = _candidate(arm).context_bodies.get(knowledge.topic_id)
+                if (
+                    body is None
+                    or knowledge.collection_name is None
+                    or knowledge.embedding_model is None
+                    or knowledge.embedding_dim is None
+                ):
+                    raise BadRequestError(
+                        message="The stored knowledge retrieval check is incomplete"
+                    )
+                isolation.knowledge_overlay = KnowledgeOverlay(
+                    (
+                        OverlayDocument(
+                            topic_id=knowledge.topic_id,
+                            organization_id=org,
+                            collection_name=knowledge.collection_name,
+                            title=body.description or "Knowledge draft",
+                            content=body.content,
+                            embedding_model=knowledge.embedding_model,
+                            embedding_dim=knowledge.embedding_dim,
+                        ),
+                    )
+                )
             try:
                 output, agent_run = await AgentRunnerService(db).execute(
                     ctx,
@@ -514,17 +562,7 @@ class EvalRunWorker:
                             for turn in revision.history or []
                         ]
                     ),
-                    isolation=RunIsolation(
-                        recording=await self._recording(db, ctx, run, revision),
-                        live_reads=run.live_reads,
-                        improvement_run_id=(
-                            None
-                            if run.proposal_check is None
-                            else ProposalCheckRecord.model_validate(
-                                run.proposal_check
-                            ).improvement_run_id
-                        ),
-                    ),
+                    isolation=isolation,
                     candidate=_candidate(arm),
                     model_profile_id=arm.model_profile_id,
                     tool_calls=calls,
@@ -537,6 +575,19 @@ class EvalRunWorker:
                 error, fault = run_failure(exc)
                 await self._fail(db, attempt, error, fault=fault)
                 return False
+            if isolation.knowledge_overlay is not None:
+                await eval_run_repo.record_overlay_hits(
+                    db, attempt, sorted(isolation.knowledge_overlay.returned_topic_ids)
+                )
+                if isolation.knowledge_overlay.failed:
+                    await self._fail(
+                        db,
+                        attempt,
+                        "Knowledge draft retrieval failed",
+                        agent_run,
+                        fault=AttemptFault.INFRASTRUCTURE,
+                    )
+                    return False
             if agent_run.status == RunStatus.BUDGET_EXCEEDED.value:
                 await self._erased_meanwhile(db, asked, {agent_run.id})
                 await self._fail(

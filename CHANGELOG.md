@@ -19,7 +19,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-- Measure a knowledge draft separately from agent changes using run-only context,
+- Measure a knowledge draft separately from agent changes using run-only context or retrieval,
   independently selected holdout questions and explicit cost consent; invalidate
   changed drafts and remove derived content when source data is erased.
 

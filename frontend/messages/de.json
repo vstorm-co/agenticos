@@ -10691,6 +10691,14 @@
     "reviewKnowledgeDraft": "Entwurf prüfen und über das Hinzufügen entscheiden",
     "noKnowledgeDrafts": "Für diese Runde ist kein prüfbarer Entwurf verfügbar. Prüfe die Themen im Wissen-Tab des Agenten.",
     "knowledgeInvalidated": "Der Entwurf wurde geändert oder entfernt. Prüfe den aktuellen Entwurf erneut, bevor du dieses Ergebnis verwendest.",
-    "knowledgeUntracked": "Nicht messbar: Dieser ältere Entwurf hat nicht alle Quellfragen gespeichert. Erstelle vor der Prüfung einen neuen Entwurf."
+    "knowledgeUntracked": "Nicht messbar: Dieser ältere Entwurf hat nicht alle Quellfragen gespeichert. Erstelle vor der Prüfung einen neuen Entwurf.",
+    "knowledgeMode": "Prüfungsart für den Entwurf",
+    "contextMode": "Annehmen, dass die Passage gefunden wird",
+    "retrievalMode": "Prüfen, ob die Suche sie findet",
+    "retrievalAssumption": "Der Entwurf ergänzt die Suche nur für diese Prüfung. Er muss von der Suche zurückgegeben werden, damit eine neu korrigierte Antwort als nachgewiesene Verbesserung zählt. Es wird kein Dokument hinzugefügt.",
+    "knowledgeEmbeddingUnavailable": "Die Suche ist nicht messbar: Der Embedding-Dienst dieser Wissensbasis ist nicht verfügbar. Du kannst weiterhin mit temporärem Kontext prüfen.",
+    "knowledgeEmbeddingPriceUnavailable": "Die Suche ist nicht messbar: Für das Embedding-Modell ist kein Preis bekannt, daher lässt sich keine vollständige Kostenschätzung erstellen. Du kannst weiterhin mit temporärem Kontext prüfen.",
+    "knowledgeNotRetrieved": "Keine nachgewiesene Verbesserung durch den Entwurf: Die Suche hat ihn nicht für jede neu korrigierte Antwort zurückgegeben. Die vollständige Prüfung behält die tatsächlichen Antworten und Bewertungen.",
+    "knowledgeSearchDisabled": "Die Wissenssuche ist für diesen gemessenen Kandidaten deaktiviert. Prüfe mit temporärem Kontext oder aktiviere die Suche und starte eine neue Sitzung."
   }
 }

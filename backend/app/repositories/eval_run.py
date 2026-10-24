@@ -96,7 +96,9 @@ async def clear_knowledge_overlays(db: AsyncSession, eval_run_ids: Sequence[UUID
     await db.flush()
 
 
-async def invalidate_knowledge_topics(db: AsyncSession, topic_ids: Sequence[UUID]) -> list[UUID]:
+async def invalidate_knowledge_topics(
+    db: AsyncSession, topic_ids: Sequence[UUID], *, only_live: bool = False
+) -> list[UUID]:
     """Revoke checks and run-only bodies derived from replaced or erased drafts."""
     from app.schemas.eval_run import ProposalCheckRecord
 
@@ -106,6 +108,7 @@ async def invalidate_knowledge_topics(db: AsyncSession, topic_ids: Sequence[UUID
             EvalRun.proposal_check["knowledge"]["topic_id"].astext.in_(
                 [str(key) for key in topic_ids]
             ),
+            *([EvalRun.status.in_(_LIVE)] if only_live else []),
         )
         .order_by(EvalRun.id)
         .with_for_update()
@@ -504,6 +507,22 @@ async def finish_case(db: AsyncSession, *, case: EvalRunCase, values: dict[str, 
         .returning(EvalRunCase.id)
     )
     return result.scalar_one_or_none() is not None
+
+
+async def record_overlay_hits(
+    db: AsyncSession, case: EvalRunCase, topic_ids: Sequence[UUID]
+) -> None:
+    """Keep only final retrieved topic identities, without resurrecting a closed attempt."""
+    await db.execute(
+        update(EvalRunCase)
+        .where(
+            EvalRunCase.id == case.id,
+            EvalRunCase.organization_id == case.organization_id,
+            EvalRunCase.status == CaseAttemptStatus.RUNNING.value,
+        )
+        .values(knowledge_overlay_topic_ids=list(topic_ids))
+    )
+    await db.flush()
 
 
 async def link_run(db: AsyncSession, *, case: EvalRunCase, agent_run_id: UUID) -> bool:

@@ -1,5 +1,5 @@
 ---
-source_sha: "d03acffb6694"
+source_sha: "27023f8847f1"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -370,3 +370,9 @@ Trainingsfälle, Quellgespräche, Quellbeiträge und normalisierte Kopien der Qu
 Temporäre Inhalte werden nach Prüfungsende oder einer Entwurfsänderung entfernt. Änderungen machen das alte Ergebnis ungültig. Das Löschen von Daten einer Quellperson entfernt außerdem abgeleitete Testantworten, Bewertungsbegründungen und Modellmanifeste. Ein Sitzungsabbruch beendet auch ihre Wissensprüfungen. Bereits entstandene Kosten bleiben nach Abbruch oder Löschung erhalten.
 
 Der Entwurf speichert Fingerabdrücke aller Eingabefragen, auch der nicht zitierten. Ältere Entwürfe ohne vollständige Herkunft sind nicht messbar; erstelle zuerst einen neuen Entwurf. Fingerabdrücke und Quellrun-Identitäten werden bei der Datenlöschung mit dem Entwurf entfernt.
+
+#### Die tatsächliche Suche prüfen { #checking-real-retrieval }
+
+Wähle **Prüfen, ob die Suche sie findet**, um A mit B über ein reines Such-Overlay zu vergleichen. Der Entwurf wird mit dem ausgewählten Embedding-Modell der Wissensbasis eingebettet und nur während dieses Runs zu den Suchkandidaten hinzugefügt. Mandantengrenzen, Dokumentfreigaben, fachliche Filter, Ranking und endgültige Ergebnislimits gelten weiterhin. Es entstehen weder Vektortabellen noch Dokumente oder Kontextdateien. Temporäre Inhalte werden auch nach Fehlern oder Abbruch entfernt.
+
+Eine neue Korrektur gilt nur als nachgewiesen, wenn der Entwurf jede bestätigende Kandidatenantwort über das endgültige Suchergebnis erreicht hat. Andernfalls ist das Ergebnis nicht schlüssig, auch wenn die Antwort gut bewertet wurde; tatsächliche Antworten und Bewertungen bleiben sichtbar. Ein ignorierter Toolfehler macht einen Suchfehler nicht zum Erfolg. Die Schätzung umfasst zusätzliche Embedding-Suchen und Bestätigungswiederholungen. Nicht verfügbare oder nicht bepreiste Modelle verhindern die Prüfung vor kostenpflichtiger Arbeit. Ein Mensch muss weiterhin Fakten prüfen und das Dokument ausdrücklich hinzufügen.

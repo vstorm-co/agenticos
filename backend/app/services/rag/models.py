@@ -149,6 +149,7 @@ class SearchResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     parent_doc_id: str | None = None
     expanded_content: str | None = None
+    overlay_token: uuid.UUID | None = Field(default=None, exclude=True)
 
 
 class IngestionStatus(StrEnum):

@@ -356,6 +356,9 @@ class EvalRunCase(Base):
         nullable=True,
     )
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    knowledge_overlay_topic_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
     calls: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
     cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     cost_is_partial: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

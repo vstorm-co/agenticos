@@ -308,6 +308,7 @@ from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.project import ProjectService
+from app.services.rag.overlay import with_overlay
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
@@ -1486,7 +1487,11 @@ class PreparedRun:
         The non-streaming half of :meth:`iterate`, and it exists for the same
         reason.
         """
-        with guarded_by(self.built.budget), metered_by(self.built.ledger):
+        with (
+            guarded_by(self.built.budget),
+            metered_by(self.built.ledger),
+            with_overlay(None if self.isolation is None else self.isolation.knowledge_overlay),
+        ):
             return await self.built.agent.run(
                 user_prompt,
                 deps=self.built.deps,
@@ -1526,7 +1531,11 @@ class PreparedRun:
         decides what to forward. It stays readable after the block closes; the
         outcome is taken from it there.
         """
-        with guarded_by(self.built.budget), metered_by(self.built.ledger):
+        with (
+            guarded_by(self.built.budget),
+            metered_by(self.built.ledger),
+            with_overlay(None if self.isolation is None else self.isolation.knowledge_overlay),
+        ):
             async with self.built.agent.iter(
                 user_prompt,
                 deps=self.built.deps,
