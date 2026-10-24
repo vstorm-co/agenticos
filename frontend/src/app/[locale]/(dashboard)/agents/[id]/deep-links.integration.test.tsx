@@ -181,7 +181,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   page.params = "";
   page.kind = "agent";
-  page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [] });
+  page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [], fixes: [] });
   page.agent = { ...AGENT, can_edit: true, can_publish: true };
 });
 

@@ -4,7 +4,6 @@ import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  AlertCircle,
   Archive,
   ArchiveRestore,
   Copy,
@@ -73,6 +72,7 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { VoiceCard } from "@/components/agents/voice-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
+import { PublishRefusal } from "@/components/agents/publish-refusal";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
@@ -156,7 +156,9 @@ import {
   VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
+import type { SpecRefusal } from "@/hooks/use-agents";
 import { ApiError, getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { applySpecFix, type SpecFix } from "@/lib/spec-fixes";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
@@ -314,6 +316,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // configuration was refused marks the box rather than only saying so in
   // the list above the form (#882).
   const [configProblems, setConfigProblems] = useState<FieldProblem[]>([]);
+  const [fixes, setFixes] = useState<SpecFix[]>([]);
+  const [fixing, setFixing] = useState(false);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -880,9 +884,30 @@ export default function AgentBuilderPage({ params }: PageProps) {
   async function handlePublish() {
     if (!(await persist())) return;
     const found = await validate();
+    showRefusal(found);
+    if (found.problems.length === 0) setPublishOpen(true);
+  }
+
+  function showRefusal(found: SpecRefusal) {
     setProblems(found.problems);
     setConfigProblems(found.fields);
-    if (found.problems.length === 0) setPublishOpen(true);
+    setFixes(found.fixes);
+  }
+
+  /** Rewrite the draft as the refusal offered, save it and check it again - publishing stays a click of its own. */
+  async function handleFix(fix: SpecFix) {
+    if (!spec) return;
+    const next = applySpecFix(spec, fix);
+    setSpec(next);
+    setFixing(true);
+    try {
+      await saveDraft.mutateAsync(next);
+      showRefusal(await validate());
+    } catch {
+      // `saveDraft` has already said what went wrong.
+    } finally {
+      setFixing(false);
+    }
   }
 
   // What the next publish will be called. The server owns the number; this
@@ -1332,19 +1357,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
         )}
 
         {problems.length > 0 && (
-          <Card className="border-destructive/40 bg-destructive/5">
-            <CardContent className="space-y-2 p-4">
-              <p className="flex items-center gap-2 text-sm font-medium">
-                <AlertCircle className="h-4 w-4" />
-                {t("agentCannotBePublished")}
-              </p>
-              <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
-                {problems.map((problem) => (
-                  <li key={problem}>{problem}</li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <PublishRefusal
+            problems={problems}
+            fixes={fixes}
+            canEdit={canEdit}
+            onFix={handleFix}
+            fixing={fixing}
+          />
         )}
 
         {/* Tabs, because the alternative was a single column of eleven cards and

@@ -73,7 +73,7 @@ vi.mock("@/hooks", async () => {
       },
       isLoading: false,
       saveDraft: { mutateAsync: saveDraft, isPending: false },
-      validate: async () => ({ problems: [], fields: [] }),
+      validate: async () => ({ problems: [], fields: [], fixes: [] }),
       publish: {
         mutateAsync: vi.fn().mockResolvedValue({ version: state.nextPublished }),
         isPending: false,

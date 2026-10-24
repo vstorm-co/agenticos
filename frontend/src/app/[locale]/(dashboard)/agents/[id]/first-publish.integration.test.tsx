@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
 import type { AgentSpec } from "@/types/agents";
+import type { SpecRefusal } from "@/hooks/use-agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
@@ -42,6 +43,7 @@ const MODEL_PROFILE = {
 };
 
 const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const saveDraft = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 const state = {
   permissions: [] as Permission[],
@@ -53,6 +55,9 @@ const state = {
   permissionsLoaded: true,
   versions: [] as { version: number }[],
   nextPublished: 1,
+  capabilities: [] as AgentSpec["capabilities"],
+  /** What each check of the draft answers, in turn; then that it may be published. */
+  refusals: [] as SpecRefusal[],
 };
 
 vi.mock("@/hooks", async () => {
@@ -74,7 +79,7 @@ vi.mock("@/hooks", async () => {
           instructions: "Be helpful.",
           model_profile_id: null,
           model_settings: {},
-          capabilities: [],
+          capabilities: state.capabilities,
           collection_ids: [],
           skill_ids: [],
           context_ids: [],
@@ -83,8 +88,8 @@ vi.mock("@/hooks", async () => {
         } satisfies AgentSpec,
       },
       isLoading: false,
-      saveDraft: { mutateAsync: vi.fn(), isPending: false },
-      validate: async () => ({ problems: [], fields: [] }),
+      saveDraft: { mutateAsync: saveDraft, isPending: false },
+      validate: async () => state.refusals.shift() ?? { problems: [], fields: [], fixes: [] },
       publish: {
         mutateAsync: vi.fn().mockResolvedValue({ version: state.nextPublished }),
         isPending: false,
@@ -196,6 +201,9 @@ beforeEach(() => {
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
   state.permissionsLoaded = true;
+  state.capabilities = [];
+  state.refusals = [];
+  saveDraft.mockClear();
 });
 
 describe("the first publish", () => {
@@ -225,5 +233,39 @@ describe("the first publish", () => {
     await publish();
 
     expect(screen.queryByText(/choose where else people reach it/)).not.toBeInTheDocument();
+  });
+});
+
+describe("a refusal that offers a fix", () => {
+  const NO_SANDBOX = "This organization has registered no sandbox connection.";
+
+  it("rewrites the draft, saves it and checks it again, and leaves publishing to its own click", async () => {
+    state.capabilities = [
+      {
+        id: "sandbox",
+        config: { backend: "service", runtime: "python" },
+        approval: "default",
+        tool_approval: {},
+        tool_overrides: {},
+        secret_id: null,
+        enabled: true,
+      },
+    ];
+    state.refusals = [{ problems: [NO_SANDBOX], fields: [], fixes: ["use_state_workspace"] }];
+    await mount();
+
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Switch the workspace to Files" }),
+    );
+
+    const saved = saveDraft.mock.lastCall?.[0] as AgentSpec;
+    expect(saved.capabilities[0]?.config).toMatchObject({
+      backend: "state",
+      runtime: null,
+      connection_id: null,
+    });
+    expect(screen.queryByText(NO_SANDBOX)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

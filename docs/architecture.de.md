@@ -1,5 +1,5 @@
 ---
-source_sha: "94cd032fa02a"
+source_sha: "e631cab52e05"
 ---
 
 # Architektur { #architecture }
@@ -577,6 +577,14 @@ Pydantics eigenes `exc.errors()` stattdessen durchzureichen war
 sind kaputte Referenzen ohne eine Eingabe, die zu markieren wäre. Also antwortet es
 mit `details.problems` — je eine Zeile, die der Builder auflistet — und mit
 `details.fields` für die Teilmenge, die eines benennt.
+
+Wenn sich ein Teil davon mit einem Klick beheben lässt, antwortet es zusätzlich mit
+`details.fixes`, einer Liste von Codes: `use_state_workspace` verlegt den Workspace
+auf das gespeicherte Backend `state`, das keine Sandbox-Verbindung braucht, und
+`stop_sharing_unbound` streicht aus `share_with_delegates`, was der Agent nicht
+teilen kann. Der Builder bietet für jeden bekannten Code eine Schaltfläche an und
+übergeht den Rest. Eine Korrektur speichert den Entwurf und validiert ihn erneut;
+sie veröffentlicht nie.
 
 Die Konfiguration einer Capability ist der eine Teil eines Specs, der als
 generiertes Formular gerendert wird, ihre Ablehnungen benennen die Eingabe also:

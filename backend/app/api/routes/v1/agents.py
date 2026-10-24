@@ -39,6 +39,7 @@ from app.api.deps import (
     MLSvc,
     PrefersAsync,
     SystemAgentSvc,
+    SandboxConnectionSvc,
     limit_agent_run,
     limit_dictation,
     require,
@@ -116,10 +117,16 @@ async def list_prompt_variables() -> Any:
     response_model=CapabilityCatalog,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_capability_catalog() -> Any:
-    """Every capability an agent can be given, with the schema its form is built from."""
+async def list_capability_catalog(ctx: Auth, sandboxes: SandboxConnectionSvc) -> Any:
+    """Every capability an agent can be given, with the schema its form is built from.
+
+    `recommended` is what a new agent starts with in the caller's organization: a
+    container workspace only where one would publish, the files-only one otherwise.
+    """
     contracts = await tool_contracts()
-    starter = agent_templates.starter_capabilities()
+    starter = agent_templates.starter_capabilities(
+        container_workspace=await sandboxes.can_provide(ctx.organization_id)
+    )
     items = [
         CapabilityCatalogEntry(
             id=definition.id,

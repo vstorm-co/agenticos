@@ -3786,6 +3786,61 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
         )
 
     @pytest.mark.anyio
+    async def test_a_refusal_offers_the_files_only_workspace_and_to_stop_sharing(self, monkeypatch):
+        """Both blockers a new agent meets without a sandbox, each with the code of
+        the click that clears it - and only for those, so a client offers no button
+        a refusal cannot honour."""
+        from app.repositories import sandbox_connection_repo
+
+        monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=None))
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
+        container = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "service"}}])
+        switched_off = _spec(
+            capabilities=[
+                {"id": "sandbox", "enabled": False},
+                {"id": "subagents", "config": {"share_with_delegates": ["sandbox"]}},
+            ]
+        )
+
+        with pytest.raises(BadRequestError) as no_connection:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), container)
+        with pytest.raises(BadRequestError) as unbound:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), switched_off)
+        with pytest.raises(BadRequestError) as unrelated:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), _spec())
+
+        assert no_connection.value.details["fixes"] == ["use_state_workspace"]
+        assert unbound.value.details["fixes"] == ["stop_sharing_unbound"]
+        assert "fixes" not in unrelated.value.details
+
+    @pytest.mark.anyio
+    async def test_the_starter_publishes_where_no_sandbox_can_run(self):
+        """A new agent made with the defaults, in an organization with no sandbox
+        connection and none this deployment could set up."""
+        from app.services import agent_templates
+
+        spec = AgentSpec(
+            name="New",
+            capabilities=list(
+                agent_templates.starter_capabilities(container_workspace=False).values()
+            ),
+            model_profile_id=uuid.uuid4(),
+        )
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.SandboxConnectionService.ensure_local_connection",
+                new=AsyncMock(return_value=None),
+            ),
+            patch.object(settings, "SANDBOXD_TOKEN", ""),
+            patch.object(settings, "BROWSER_SIGN_IN_CDP_URL", ""),
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+    @pytest.mark.anyio
     async def test_the_deployments_own_sandbox_is_set_up_by_the_first_publish(self):
         """Nobody had opened the Sandboxes page yet: publish sets the local one up
         rather than refusing an agent the deployment can run."""
@@ -4341,6 +4396,43 @@ class TestAgentTemplates:
         assert create.await_args.kwargs["visibility"] is Visibility.ORG
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("can_provide", "config"),
+        [
+            (True, {"backend": "service", "include_execute": True}),
+            (False, {"backend": "state"}),
+        ],
+    )
+    async def test_a_template_s_workspace_is_one_the_organization_can_publish(
+        self, can_provide, config
+    ):
+        template = MagicMock()
+        template.key, template.name = "general/coder", "Coder"
+        template.description, template.instructions = "Writes code.", "You write..."
+        template.capabilities = (
+            {"id": "sandbox", "config": {"backend": "service", "include_execute": True}},
+        )
+        template.skills, template.mcp, template.attach, template.budget_usd = (), (), (), None
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "coder", template.name
+        org = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch(
+                f"{REGISTRY_PATH}.SandboxConnectionService.can_provide",
+                new=AsyncMock(return_value=can_provide),
+            ) as asked,
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            await AgentRegistryService(_db()).install_template(org, "general/coder")
+
+        asked.assert_awaited_once_with(org.organization_id)
+        assert create.await_args.args[1].capabilities[0].config == config
+
+    @pytest.mark.anyio
     async def test_a_bundled_skill_is_bound_without_a_gallery_install(self):
         """`artifact-pages` ships with every organization; there is nothing to install.
 
@@ -4523,7 +4615,9 @@ class TestTheShippedTemplatesOnDisk:
                     name=template.name,
                     description=template.description,
                     instructions=template.instructions,
-                    capabilities=agent_templates.for_this_deployment(template.capabilities),
+                    capabilities=agent_templates.for_this_deployment(
+                        template.capabilities, container_workspace=True
+                    ),
                     model_profile_id=uuid.uuid4(),
                 )
                 with (

@@ -535,6 +535,12 @@ carrying `input`, `ctx` and `url`, that nothing on the frontend read.
 references with no input to mark. So it answers `details.problems` — a line each,
 which the Builder lists — and `details.fields` for the subset that names one.
 
+When a click can clear some of them, it also answers `details.fixes`, a list of codes:
+`use_state_workspace` moves the workspace onto the stored `state` backend, which needs
+no sandbox connection, and `stop_sharing_unbound` drops from `share_with_delegates`
+what the agent cannot share. The Builder offers a button for each code it knows and
+ignores the rest. A fix saves the draft and validates it again; it never publishes.
+
 A capability's configuration is the one part of a spec rendered as a generated form,
 so its refusals name the input: `capabilities.knowledge.config.default_top_k`, with
 `specialists.researcher.` in front of that for a capability configured inside a

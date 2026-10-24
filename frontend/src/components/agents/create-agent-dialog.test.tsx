@@ -167,6 +167,21 @@ describe("CreateAgentDialog", () => {
     );
   });
 
+  it("asks again what a new agent starts with each time it opens", async () => {
+    const asked = () =>
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/agents/capabilities")
+        .length;
+    const { rerender } = render(
+      <CreateAgentDialog open={false} onOpenChange={vi.fn()} onCreated={vi.fn()} />,
+      { wrapper },
+    );
+    await waitFor(() => expect(asked()).toBe(1));
+
+    rerender(<CreateAgentDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+
+    await waitFor(() => expect(asked()).toBe(2));
+  });
+
   it("sends private when private is asked for", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
     open();

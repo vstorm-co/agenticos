@@ -68,7 +68,7 @@ vi.mock("@/hooks", async () => {
       error: read.error,
       fetchedAt: 0,
       saveDraft: mutation(),
-      validate: vi.fn().mockResolvedValue({ problems: [], fields: [] }),
+      validate: vi.fn().mockResolvedValue({ problems: [], fields: [], fixes: [] }),
       publish: mutation(),
       rollback: mutation(),
       setAvatar: mutation(),
