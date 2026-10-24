@@ -1274,6 +1274,7 @@ class TestUserServiceRegistrationWithOrg:
         result = MagicMock()
         result.scalar_one_or_none.return_value = None
         db.execute = AsyncMock(return_value=result)
+        db.scalar = AsyncMock(return_value=False)
         db.add = MagicMock()
         db.flush = AsyncMock()
         db.refresh = AsyncMock()
@@ -1282,9 +1283,10 @@ class TestUserServiceRegistrationWithOrg:
     @pytest.mark.anyio
     async def test_register_creates_personal_org(self, mock_db):
         mock_user = MagicMock()
-        mock_user.id = MagicMock()
+        mock_user.id = uuid.uuid4()
 
         with (
+            patch.object(UserService, "_queue_welcome", new=AsyncMock()),
             patch("app.services.user.user_repo.get_by_email", new=AsyncMock(return_value=None)),
             patch("app.services.user.user_repo.create", new=AsyncMock(return_value=mock_user)),
             patch(
