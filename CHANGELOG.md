@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Batch knowledge-source audience reads by resource type so the Builder does
+  not make one grant query per private skill, context file or connection.
+
 - Prepare chat grouping, turn usage and request context in linear time per
   stream update, and skip rendering unchanged message items between deltas.
 
