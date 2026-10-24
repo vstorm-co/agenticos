@@ -147,8 +147,13 @@ async def get_conversation(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    include_messages: bool = Query(True),
 ) -> Any:
-    """Get a conversation with all its messages.
+    """Get a conversation, optionally including its full transcript.
+
+    `include_messages=false` returns metadata and an empty messages list; use
+    the paginated messages route to open a transcript in the console. The
+    default remains the complete transcript for existing API callers.
 
     Always scoped to the caller. This used to pass `user_id=None` - "do not
     filter by owner" - for anybody whose `users.role` column said `admin`, which
@@ -161,13 +166,15 @@ async def get_conversation(
     resolves against its agent's access; without it that thread would 404 for
     the very person who created the schedule.
     """
-    return await conversation_service.get_conversation(
+    conversation = await conversation_service.get_conversation(
         conversation_id,
         organization_id=active_org.id,
-        include_messages=True,
+        include_messages=include_messages,
         user_id=current_user.id,
         ctx=ctx,
     )
+
+    return conversation if include_messages else ConversationRead.model_validate(conversation)
 
 
 @router.post(
@@ -355,8 +362,16 @@ async def list_messages(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    latest: bool = Query(False),
+    before_message_id: UUID | None = Query(None),
 ) -> Any:
     """List messages in a conversation, always scoped to the caller.
+
+    `latest=true` selects the newest page, returned in chronological order.
+    `before_message_id` selects the preceding page without shifting when new
+    messages arrive. Its cursor must belong to this conversation. By default,
+    offset pagination starts at the oldest message. Total and cost cover the
+    whole conversation, including when a cursor selects an older page.
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
@@ -370,6 +385,8 @@ async def list_messages(
         conversation_id,
         skip=skip,
         limit=limit,
+        latest=latest,
+        before_message_id=before_message_id,
         include_tool_calls=True,
         organization_id=active_org.id,
         user_id=current_user.id,

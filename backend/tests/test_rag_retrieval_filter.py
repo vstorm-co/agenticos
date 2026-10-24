@@ -205,3 +205,39 @@ class TestResolvingScopePerCollection:
 
         # Refused before the first collection is read, not part-way through.
         assert not store.search.called
+
+
+@pytest.mark.parametrize("hybrid", [False, True])
+@pytest.mark.security
+async def test_retrieval_stops_before_another_embedding_once_the_ambient_budget_is_spent(hybrid):
+    from decimal import Decimal
+
+    from app.agents.capabilities.budget import (
+        BudgetExceeded,
+        BudgetGuard,
+        BudgetScope,
+        SpendLedger,
+        SpendLimit,
+        guarded_by,
+        metered_by,
+        record_ambient_cost,
+    )
+
+    store = MagicMock()
+
+    async def search(**_kwargs):
+        record_ambient_cost("embedding", Decimal("0.02"))
+        return [SearchResult(content="one", score=0.9)]
+
+    store.search = AsyncMock(side_effect=search)
+    ledger = SpendLedger()
+    guard = BudgetGuard(
+        ledger=ledger, limits=[SpendLimit(scope=BudgetScope.RUN, limit_usd=Decimal("0.01"))]
+    )
+    service = _retrieval_over(store, hybrid=hybrid)
+    with metered_by(ledger), guarded_by(guard), pytest.raises(BudgetExceeded):
+        await service.retrieve_multi(
+            query="policy", collection_names=["a", "b"], scopes={"a": AppScope(), "b": AppScope()}
+        )
+    assert store.search.await_count == 1
+    assert ledger.total_usd == Decimal("0.02")

@@ -65,6 +65,10 @@ function orderedIndent(children: React.ReactNode, start: unknown): string {
  * Code spans and blocks are left as-is because the regex does not enter them; in
  * practice agent responses never cite inside code.
  */
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeHighlight];
+const STREAM_REHYPE_PLUGINS = [rehypeHighlight, rehypeStreamWords];
+
 const CITATION = /(\[(?!\d{1,3}\])[^\]]*\]\[\d{1,3}\])|\[(\d{1,3})\](?![\(:])/g;
 
 function preprocessCitations(content: string): string {
@@ -397,8 +401,8 @@ export function MarkdownContent({
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={streaming ? [rehypeHighlight, rehypeStreamWords] : [rehypeHighlight]}
+      remarkPlugins={REMARK_PLUGINS}
+      rehypePlugins={streaming ? STREAM_REHYPE_PLUGINS : REHYPE_PLUGINS}
       components={components}
     >
       {processed}

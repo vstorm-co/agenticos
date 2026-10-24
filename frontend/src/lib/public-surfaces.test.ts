@@ -6,6 +6,7 @@ describe("isPublicSurface", () => {
   it.each([
     "/e/W-Buc9zD7bZOzro8FYEOmOpGrNxFGuN7",
     "/shared/abc123",
+    "/f/57dPpsE-grPe8CF2PDAWR8ppJjb6A1U9",
     "/a/Vq3Zf0x9kD2mYh7LtR1sWc8nPb4eJ6uA",
   ])("recognises %s as served to somebody who is not a member", (pathname) => {
     expect(isPublicSurface(pathname)).toBe(true);

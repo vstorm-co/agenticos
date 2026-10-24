@@ -14,7 +14,7 @@ settings, the sliders beside the microphone.
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-eight cards exist. You will not see all of them: **a card is gated on the
+Forty-six cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -256,6 +256,16 @@ moved. One whose run is still at work shows a spinner and how long it has been
 going; one with an answer you have not seen since you last had it open carries a
 dot, which opening it clears - for you only, since a shared thread is read by each
 of its readers separately.
+
+Reopening a conversation shows its newest 100 messages. **Load older messages**
+at the top adds the preceding page without moving the passage you are reading.
+New answers and the conversation cost still cover the current thread.
+
+Opening chat reads conversation metadata without downloading the full history or
+its model summary. Streaming updates reuse unchanged message components and
+coalesce replay frames per animation frame, with a 50 ms background-tab fallback
+and bounded queues. Historical drawings activate near the viewport and release
+their frames outside it; running drawings still render to report tool errors.
 
 Three things in the composer worth knowing.
 
@@ -595,6 +605,8 @@ page inside it, and stays the way you left it.
 | **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
 | **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
 | **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
+| **Tables** | Typed records and their columns, seen as a table, a kanban board or a list | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Multi-step automations your agents run, built on a canvas | [Workflows](workflows.md) |
 | **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
 | **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
 | **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -649,7 +661,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **thirty-eight widgets** you arrange yourself, saved per
+- The dashboard is **forty-six widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

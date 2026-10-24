@@ -123,6 +123,7 @@ class TestListing:
             "google_oauth_app",
             "git_token",
             "entra_app",
+            "http_credential",
             "openai_codex",
         }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])
@@ -144,6 +145,23 @@ class TestWriting:
         assert response.status_code == 201
         assert "wx-live-abcd4242" not in response.text
         assert service.create.call_args.kwargs["value"].kind is SecretKind.API_KEY
+
+    async def test_an_http_credential_can_be_stored_and_rotated(self, client, service) -> None:
+        """A workflow's HTTP step authenticates with this kind, so the vault must take it."""
+        value = {
+            "kind": "http_credential",
+            "token": "tok-abcdef-123456",
+            "origins": ["https://api.example.com"],
+        }
+        async with client() as opened:
+            created = await opened.post(_url(""), json={"name": "Weather", "value": value})
+            rotated = await opened.patch(_url(f"/{_SECRET_ID}"), json={"value": value})
+
+        assert created.status_code == 201
+        assert rotated.status_code == 200
+        assert "tok-abcdef-123456" not in created.text
+        assert service.create.call_args.kwargs["value"].kind is SecretKind.HTTP_CREDENTIAL
+        assert service.update.call_args.kwargs["value"].kind is SecretKind.HTTP_CREDENTIAL
 
     async def test_a_value_that_does_not_match_its_kind_is_refused_by_the_schema(
         self, client, service

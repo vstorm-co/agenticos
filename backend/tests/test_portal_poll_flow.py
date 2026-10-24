@@ -77,6 +77,18 @@ def _service(recorder: _Recorder, *, read: PolledEvents | None, decisions: list)
     return connections, triggers
 
 
+def _workflows(recorder: _Recorder, *, admitted: bool = True) -> MagicMock:
+    """The workflows listening to the mailbox: every message admitted, or not."""
+    workflows = MagicMock()
+
+    async def receive(*, organization_id, events):
+        recorder.steps.append(f"workflows:{len(events)}")
+        return admitted
+
+    workflows.receive_polled_email = receive
+    return workflows
+
+
 def _queueing(triggers: MagicMock, recorder: _Recorder, dispatch=None) -> None:
     """Record each fire the trigger service queues, as the poll asks for it."""
 
@@ -88,8 +100,8 @@ def _queueing(triggers: MagicMock, recorder: _Recorder, dispatch=None) -> None:
     triggers.queue_fire = queue_fire
 
 
-async def _run(recorder: _Recorder, *, read, decisions, dispatch=None):
-    """The flow, with its two services and its dispatcher swapped out."""
+async def _run(recorder: _Recorder, *, read, decisions, dispatch=None, admitted=True):
+    """The flow, with its three services and its dispatcher swapped out."""
     from app.worker.tasks import trigger_tasks
 
     connections, triggers = _service(recorder, read=read, decisions=decisions)
@@ -112,6 +124,10 @@ async def _run(recorder: _Recorder, *, read, decisions, dispatch=None):
         patch.object(trigger_tasks, "_ensure_trigger_dedupe", already_configured),
         patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
+        patch(
+            "app.services.workflow_exposure.WorkflowExposureService",
+            return_value=_workflows(recorder, admitted=admitted),
+        ),
     ):
         await trigger_tasks.poll_portal_grants()
 
@@ -138,8 +154,45 @@ class TestTheOrderOfWork:
             "poll",
             "match:gmail:1",
             f"fire:{decision.trigger_id}",
+            "workflows:1",
             "cursor:600",
         ]
+
+    async def test_a_workflow_run_with_no_room_keeps_the_cursor(self):
+        """A message a workflow could not take yet is read again a minute later,
+        and the delivery it already has stops a second run of the ones it took."""
+        recorder = _Recorder()
+
+        await _run(
+            recorder,
+            read=PolledEvents(events=(_event(),), cursor={"history_id": "602"}),
+            decisions=[],
+            admitted=False,
+        )
+
+        assert "workflows:1" in recorder.steps and "cursor:602" not in recorder.steps
+
+    async def test_a_refused_workflow_admission_logs_that_the_cursor_was_retained(self, caplog):
+        """The operator's one trace that a mailbox is being re-read on purpose, and an
+        admitted poll - which advances the cursor - says nothing."""
+        recorder = _Recorder()
+
+        with caplog.at_level("WARNING", logger="app.worker.tasks.trigger_tasks"):
+            await _run(
+                recorder,
+                read=PolledEvents(events=(_event(),), cursor={"history_id": "603"}),
+                decisions=[],
+                admitted=False,
+            )
+            assert [r.message for r in caplog.records] == ["portal_poll_cursor_retained"]
+            caplog.clear()
+            await _run(
+                _Recorder(),
+                read=PolledEvents(events=(_event(),), cursor={"history_id": "604"}),
+                decisions=[],
+            )
+
+        assert caplog.records == []
 
     async def test_a_fire_that_cannot_be_queued_keeps_the_cursor_where_it_was(self):
         """A queueing that raised fails the grant: the cursor is not stored, so the
@@ -178,7 +231,7 @@ class TestTheOrderOfWork:
             recorder, read=PolledEvents(events=(), cursor={"history_id": "700"}), decisions=[]
         )
 
-        assert recorder.steps == ["poll", "match:gmail:0", "cursor:700"]
+        assert recorder.steps == ["poll", "match:gmail:0", "workflows:0", "cursor:700"]
 
 
 class TestOneMailboxIsOneTenant:
@@ -227,6 +280,10 @@ class TestOneMailboxIsOneTenant:
             patch.object(trigger_tasks, "get_worker_db_context", lambda: _Ctx()),
             patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
             patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
+            patch(
+                "app.services.workflow_exposure.WorkflowExposureService",
+                return_value=_workflows(recorder),
+            ),
         ):
             await trigger_tasks.poll_portal_grants()
         return recorder, one, two

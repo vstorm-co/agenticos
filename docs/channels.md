@@ -2545,6 +2545,16 @@ and purpose into every system prompt. That is a different feature with a
 different failure mode — a `purpose` written by whoever can edit the channel,
 pasted into the instructions, is a prompt injection with a public edit button.
 
+## A bot whose messages start a workflow { #a-bot-whose-messages-start-a-workflow }
+
+A workflow with a **Channel message** trigger takes a bot's messages in its agent's
+place. Only the messages the agent would have answered reach it, and of those only
+the ones that fit the trigger's filter: a message naming another agent by `@handle`
+still goes there, and one the filter leaves is answered by the bot's agent as
+before. The workflow answers with its own **Send a message** step, into the thread
+the message came from. See
+[From a channel message](workflows.md#from-a-channel-message).
+
 ## Choosing
 
 ```mermaid

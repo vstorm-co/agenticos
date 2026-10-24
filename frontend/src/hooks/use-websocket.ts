@@ -25,6 +25,8 @@ interface UseWebSocketOptions {
    *  principal does not. */
   identity?: string;
   onMessage?: (event: MessageEvent) => void;
+  /** Coalesce replay bursts into one render tick, preserving frame order. */
+  batchMessages?: boolean;
   onOpen?: () => void;
   onClose?: (event: CloseEvent) => void;
   onError?: (error: Event) => void;
@@ -70,6 +72,7 @@ export function useWebSocket({
   protocols,
   identity,
   onMessage,
+  batchMessages = false,
   onOpen,
   onClose,
   onError,
@@ -79,6 +82,7 @@ export function useWebSocket({
 }: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const cancelMessagesRef = useRef<() => void>(() => {});
   // Params the live socket was opened with - lets connect() tell a StrictMode
   // remount / quick nav-back (same params → reuse the socket) apart from a real
   // change like switching organization (different params → swap the socket).
@@ -97,6 +101,7 @@ export function useWebSocket({
 
   // Use refs for callbacks to avoid recreating connect function
   const onMessageRef = useRef(onMessage);
+  const batchMessagesRef = useRef(batchMessages);
   const onOpenRef = useRef(onOpen);
   const onCloseRef = useRef(onClose);
   const onErrorRef = useRef(onError);
@@ -109,11 +114,12 @@ export function useWebSocket({
 
   useEffect(() => {
     onMessageRef.current = onMessage;
+    batchMessagesRef.current = batchMessages;
     onOpenRef.current = onOpen;
     onCloseRef.current = onClose;
     onErrorRef.current = onError;
     protocolsRef.current = protocols;
-  }, [onMessage, onOpen, onClose, onError, protocols]);
+  }, [onMessage, onOpen, onClose, onError, protocols, batchMessages]);
 
   // `connect` reconnects by calling itself from a timeout, and a `useCallback`
   // cannot reference its own binding before it exists. Held in a ref, kept
@@ -150,6 +156,7 @@ export function useWebSocket({
     // The address changed (an organization switch), or a stale socket lingers →
     // discard it silently before opening the replacement.
     if (live) {
+      cancelMessagesRef.current();
       silentClose(live);
       wsRef.current = null;
     }
@@ -169,11 +176,53 @@ export function useWebSocket({
       onOpenRef.current?.();
     };
 
+    let queued: MessageEvent[] = [];
+    let queuedBytes = 0;
+    let animation: number | null = null;
+    let deadline: ReturnType<typeof setTimeout> | null = null;
+    const clearSchedule = () => {
+      if (animation !== null) cancelAnimationFrame(animation);
+      if (deadline !== null) clearTimeout(deadline);
+      animation = null;
+      deadline = null;
+    };
+    const flushMessages = () => {
+      clearSchedule();
+      const batch = queued;
+      queued = [];
+      queuedBytes = 0;
+      if (wsRef.current !== ws || !shouldReconnectRef.current) return;
+      for (const event of batch) {
+        if (wsRef.current !== ws || !shouldReconnectRef.current) break;
+        onMessageRef.current?.(event);
+      }
+    };
+    cancelMessagesRef.current = () => {
+      clearSchedule();
+      queued = [];
+      queuedBytes = 0;
+    };
     ws.onmessage = (event) => {
-      onMessageRef.current?.(event);
+      if (!batchMessagesRef.current) {
+        flushMessages();
+        onMessageRef.current?.(event);
+        return;
+      }
+      const data: unknown = event.data;
+      queuedBytes += typeof data === "string" ? data.length * 2 : 1_048_576;
+      queued.push(event);
+      // A background tab may suspend animation frames; bound delay and queue size.
+      if (queued.length >= 256 || queuedBytes >= 1_048_576) {
+        flushMessages();
+        return;
+      }
+      if (deadline !== null) return;
+      animation = requestAnimationFrame(flushMessages);
+      deadline = setTimeout(flushMessages, 50);
     };
 
     ws.onclose = (event) => {
+      flushMessages();
       setIsConnected(false);
 
       // A deliberate disconnect() (unmount, logout, token swap) is not a failure
@@ -207,6 +256,7 @@ export function useWebSocket({
   }, [connect]);
 
   const disconnect = useCallback(() => {
+    cancelMessagesRef.current();
     shouldReconnectRef.current = false;
     reconnectAttemptsRef.current = 0;
     if (reconnectTimeoutRef.current) {
@@ -242,8 +292,10 @@ export function useWebSocket({
    * than going into a socket that is not open yet.
    */
   const reopen = useCallback(() => {
+    cancelMessagesRef.current();
     const live = wsRef.current;
     if (live) {
+      cancelMessagesRef.current();
       silentClose(live);
       wsRef.current = null;
       wsSigRef.current = null;

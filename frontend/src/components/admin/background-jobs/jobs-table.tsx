@@ -21,7 +21,7 @@ import { useBackgroundJobActions, useBackgroundJobs } from "@/hooks/use-backgrou
 import { timeAgo } from "@/lib/utils";
 import type { BackgroundJob, JobPool, JobStatus } from "@/types/background-jobs";
 
-const POOLS: readonly JobPool[] = ["agent", "ingest", "system"];
+const POOLS: readonly JobPool[] = ["agent", "ingest", "system", "workflow"];
 const ALL = "all";
 
 const BADGE: Record<JobStatus, "default" | "secondary" | "destructive" | "outline"> = {

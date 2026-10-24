@@ -7,11 +7,12 @@ agent - so the Builder says so instead.
 """
 
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, OrgMcpServerRef
@@ -29,6 +30,9 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.group import GroupService
 from app.services.knowledge_reach import KnowledgeReachService
 from app.services.mcp_connection import McpConnectionService
+from app.services.workflow_execution import context
+from app.workflows.contracts.results import Failed
+from app.workflows.nodes.mcp_call import _handler as workflow_mcp
 
 pytestmark = pytest.mark.anyio
 
@@ -268,3 +272,101 @@ async def test_a_department_page_names_its_server_and_deleting_it_drops_the_gran
     await McpConnectionService(db).delete_for_org(owner, connection_id=server.id)
 
     assert await GroupService(db).resources(owner, finance.id) == []
+
+
+async def _refused_workflow_call(
+    db: AsyncSession, ctx: AuthContext, connection: McpConnection, monkeypatch: pytest.MonkeyPatch
+) -> Failed:
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[AsyncSession]:
+        yield db
+
+    headers = AsyncMock(side_effect=AssertionError("Refused MCP calls must not unseal credentials"))
+    monkeypatch.setattr(workflow_mcp, "get_worker_db_context", session)
+    monkeypatch.setattr(workflow_mcp, "resolve_auth_headers", headers)
+    dispatch = context.DispatchContext(
+        organization_id=ctx.organization_id,
+        workflow_run_id=uuid.uuid4(),
+        node_run_id=uuid.uuid4(),
+        node_instance_id=uuid.uuid4(),
+        attempt_no=1,
+        auth=ctx,
+        resumed_agent_run_id=None,
+        workflow_id=uuid.uuid4(),
+    )
+    with context.dispatching_as(dispatch):
+        result = await workflow_mcp.handle(
+            workflow_mcp.McpCallConfig(connection_id=connection.id, tool="find", approval="none"),
+            None,
+        )
+    assert isinstance(result, Failed)
+    headers.assert_not_awaited()
+    return result
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("audience", ["person", "group"])
+async def test_workflow_mcp_cannot_borrow_another_teams_private_connection(
+    db, monkeypatch, audience
+):
+    org, _owner = await _setup(db)
+    creator = await _member(db, org, "builder")
+    intended = await _member(db, org, "builder")
+    intruder = await _member(db, org, "builder")
+    group = await _department(db, org, intended)
+    server = await _server(
+        db,
+        creator,
+        "private-workflow",
+        **(
+            {"user_ids": [intended.subject_id]}
+            if audience == "person"
+            else {"group_ids": [group.id]}
+        ),
+    )
+    config = workflow_mcp.McpCallConfig(connection_id=server.id, tool="find", approval="none")
+    assert await workflow_mcp.check_resources(db, intended, config) == []
+    assert [field for field, _ in await workflow_mcp.check_resources(db, intruder, config)] == [
+        "connection_id"
+    ]
+    refused = await _refused_workflow_call(db, intruder, server, monkeypatch)
+    assert refused.error.code == "MCP_SERVER_UNAVAILABLE"
+
+
+@pytest.mark.security
+async def test_workflow_mcp_rechecks_group_access_after_publish(db, monkeypatch):
+    org, _owner = await _setup(db)
+    creator = await _member(db, org, "builder")
+    user = await _member(db, org, "builder")
+    group = await _department(db, org, user)
+    server = await _server(db, creator, "withdrawn-workflow", group_ids=[group.id])
+    config = workflow_mcp.McpCallConfig(connection_id=server.id, tool="find")
+    assert await workflow_mcp.check_resources(db, user, config) == []
+    await db.execute(
+        delete(GroupMember).where(
+            GroupMember.group_id == group.id, GroupMember.user_id == user.subject_id
+        )
+    )
+    await db.flush()
+    assert (
+        await _refused_workflow_call(db, user, server, monkeypatch)
+    ).error.code == "MCP_SERVER_UNAVAILABLE"
+
+
+@pytest.mark.security
+async def test_workflow_mcp_rechecks_the_effective_connection_allowlist_after_publish(
+    db, monkeypatch
+):
+    org, owner = await _setup(db)
+    user = await _member(db, org, "builder")
+    server = await _server(db, owner, "limited-workflow")
+    server.allowed_tools = ["find"]
+    await db.flush()
+    config = workflow_mcp.McpCallConfig(connection_id=server.id, tool="find")
+    assert await workflow_mcp.check_resources(db, user, config) == []
+    server.allowed_tools = []
+    await db.flush()
+    assert [field for field, _ in await workflow_mcp.check_resources(db, user, config)] == ["tool"]
+    assert (
+        await _refused_workflow_call(db, user, server, monkeypatch)
+    ).error.code == "MCP_TOOL_NOT_ALLOWED"

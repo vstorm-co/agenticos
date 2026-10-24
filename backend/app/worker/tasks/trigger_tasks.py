@@ -52,6 +52,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     """
     from app.services.agent_trigger import AgentTriggerService
     from app.services.mcp_connection import McpConnectionService
+    from app.services.workflow_exposure import WorkflowExposureService
 
     read = await McpConnectionService(db).poll_grant(grant)
     if read is None:
@@ -69,11 +70,21 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             organization_id=grant.organization_id,
             event_context=decision.event_context,
         )
+    # The workflows listening to this mailbox, in the same transaction as the fires
+    # and the cursor: a run is admitted and its message recorded, or neither, and a
+    # run the organization had no room for keeps the cursor where it was.
+    admitted_every_run = await WorkflowExposureService(db).receive_polled_email(
+        organization_id=grant.organization_id, events=read.events
+    )
     # In the fires' own transaction: the cursor moves exactly when the fires for
     # what it read are queued, so a crash re-reads the window - which the
     # delivery-id claim then dedups - rather than dropping a polled message that,
-    # unlike a webhook, no provider will ever resend.
-    await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    # unlike a webhook, no provider will ever resend. A poll some workflow had no
+    # room to admit a run for keeps its place and reads the same window again.
+    if admitted_every_run:
+        await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    else:
+        logger.warning("portal_poll_cursor_retained", extra={"grant_id": str(grant.id)})
     return len(decisions)
 
 

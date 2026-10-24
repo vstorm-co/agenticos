@@ -1,5 +1,5 @@
 ---
-source_sha: "f04a97d799b3"
+source_sha: "b80792aba430"
 ---
 
 # Ochrona danych { #data-protection }
@@ -72,6 +72,8 @@ przez sprawdzenie rodzica.
 
 ### Baza danych { #the-database }
 
+Łączny limit jest sprawdzany w savepoincie zmiany, pod blokadą organizacji, przed commitem. Przekroczenie cofa rekord i wszystkie zachowane kopie, także dla wiersza importu; pozostałe wiersze są raportowane jako odrzucone. Ponowienie z potwierdzenia, zapis bez zmian, odczyt i usuwanie nadal działają po obniżeniu limitu. Retencja zwalnia usuwane bajty. Bajty danych JSONB PostgreSQL na organizację łącznie dla rekordów, historii, potwierdzeń i outboxa; narzut tabel i indeksów jest osobny.
+
 | Magazyn | Trzyma | Dane osobowe w nim | Cel |
 |---|---|---|---|
 | `users`, `sessions`, `organization_members` | Konta i logowania | E-mail, imię, awatar, zahaszowane hasło albo id konta Google, hash refresh tokenu, adres IP i user agent na sesję; to, co osoba powiedziała agentom o sobie - język konsoli, strefa czasowa, rola, czym się zajmuje, godziny pracy - oraz pierwsze wiadomości napisane dla jej pustego czatu | Uwierzytelnianie i autoryzacja; to, co każdy agent słyszy o osobie |
@@ -81,10 +83,15 @@ przez sprawdzenie rodzica.
 | `chat_files` | Załączniki do wiadomości | Nazwa pliku, typ, rozmiar, wyciągnięty tekst (`parsed_content`) i ścieżka bajtów na dysku | Odpowiadanie o pliku |
 | `generated_media` | Jeden wiersz na każdy obraz, klip mowy lub wideo wygenerowane przez agenta | Organizacja, konwersacja, w której powstał, jeśli run ją miał, nazwa pliku, ścieżka w magazynie i rozmiar - **nie jego treść**, która jest plikiem pod `MEDIA_DIR` | Liczenie wygenerowanych mediów każdej organizacji względem jej limitu oraz usuwanie ich razem z konwersacją albo po okresie retencji |
 | `context_files` | Stała wiedza, którą builder napisał dla agentów | Cokolwiek autor tam umieścił — i trafia to do promptu dosłownie. Zobacz [Pliki kontekstu](context.md) | Instrukcje i fakty, które agent zawsze ma znać |
-| `artifacts`, `artifact_versions` i ich pliki | Strony opublikowane przez agentów — raporty, dashboardy | Cokolwiek strona pokazuje, a run zbudował ją z tego, co mógł przeczytać; właściciel, run, który zapisał każdą wersję, i — gdy jest włączony — klucz publicznego linku, jego ustawienia (hasło jako hash bcrypt) i to, ile razy go otwarto — liczba i czas, nic o odwiedzającym. Zobacz [Aplikacje](artifacts.md) | Udostępnienie wyniku pod stałym linkiem |
+| `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Wiersze [Virtual Table](virtual-tables.md) i ślad każdej zmiany w nich | Cokolwiek organizacja umieściła w komórkach, w tym potencjalnie dane osobowe. Bieżące wartości (records); cały rekord przy create i delete, a przy update tylko komórki, które się zmieniły (history); cały rekord tak, jak zwrócił go zapis z kluczem (receipts); id i external id każdego utworzonego rekordu (outbox, bez wartości). Usunięcie rekordu usuwa tylko bieżący wiersz: history i receipts zachowują wartości, dopóki nie usunie ich codzienny sweep retencji: receipts po 24 godzinach, wysłane wiersze outbox po 3 dniach, a history po 365 dniach, wszystko jako ustawienia wdrożenia. Usunięcie konta usuwa jego receipts i czyści je jako autora w history; usunięcie organizacji usuwa wszystkie cztery | Typowane rekordy dla agentów i workflow, bezpieczne ponawianie zapisu i przekazanie utworzonego rekordu |
+| `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | [Wyzwalacze](virtual-tables.md#triggers) tabeli, każda konfiguracja, jaką miały, i to, co każdy zdecydował o utworzonym rekordzie | Członek, jako który działa wyzwalacz; wartości jego filtrów i klucze mapowania, które mogą zawierać dane osobowe, jeśli builder jakieś wpisał (filtr po adresie e-mail). Decyzja trzyma status, ogólny powód i run, który uruchomiła, nigdy wartości rekordu. Żadna klasa retencji ich nie usuwa: znikają razem z tabelą i wyzwalaczem, a usunięcie konta czyści je jako członka, po czym wyzwalacz niczego nie uruchamia | Uruchamianie workflow, gdy przybędzie rekord |
+| `artifacts`, `artifact_versions` i ich pliki | Strony opublikowane przez agentów — raporty, dashboardy | Cokolwiek strona pokazuje, a run zbudował ją z tego, co mógł przeczytać — albo, dla strony powiązanej z danymi tabel, jej zapytania strony (tabela, filtry, sortowanie, limit i kolumny, każde rozwiązane do identyfikatorów), przy czym same rekordy są czytane w chwili oglądania, z dostępem właściciela strony, i nigdy nie są przechowywane w stronie; dla każdej wersji — kto ją opublikował i zgoda właściciela na udostępnienie jej danych (odcisk zapytań, członkostwo właściciela i kiedy) oraz zgoda strony na dane publiczne (kto ją potwierdził, członkostwo właściciela, kiedy); wiersz organizacji trzyma wyłącznik `public_live_data`; właściciel, run, który zapisał każdą wersję, i — gdy jest włączony — klucz publicznego linku, jego ustawienia (hasło jako hash bcrypt) i to, ile razy go otwarto — liczba i czas, nic o odwiedzającym. Zobacz [Aplikacje](artifacts.md) | Udostępnienie wyniku pod stałym linkiem |
 | `agent_memory_files` | Notatki, które agent napisał o osobie albo o czacie grupowym | Cokolwiek agent uznał za warte zapamiętania, kluczowane przez `person:<user_id>` albo pokój czatu | Ciągłość między rozmowami |
 | `rag_documents`, `knowledge_bases` i jedna tabela wektorowa na kolekcję | Wgrane i zsynchronizowane dokumenty, ich chunki i embeddingi | Tekst dokumentu i jego wektory, oryginalna ścieżka pliku w źródle | Wyszukiwanie |
-| `agent_runs`, `tool_approvals`, `run_manifests` | Ile każdy run kosztował i co zrobił | Prompt systemowy i ostatnie żądanie podane modelowi, argumenty narzędzi czekające na zatwierdzenie, osoba decydująca i jej notatka | Budżety, zatwierdzenia, historia runów |
+| `agent_runs`, `tool_approvals`, `run_manifests` | Ile każdy run kosztował i co zrobił | Prompt systemowy i ostatnie żądanie podane modelowi, argumenty narzędzi czekające na zatwierdzenie, osoba decydująca i jej notatka. Obok argumentów `tool_approvals.context` przechowuje nazwy, które oznaczają id zaparkowanego wywołania - nazwę widoku i tabeli, nigdy zawartość rekordu - ustalone jako osoba runa w chwili parkowania wywołania. Zostają z wierszem zatwierdzenia także po zmianie nazwy albo zniknięciu widoku czy tabeli i czyta je każdy, kto może rozstrzygać zatwierdzenia, niezależnie od własnego dostępu do tej tabeli | Budżety, zatwierdzenia, historia runów |
+| `workflow_runs`, `node_runs`, `node_attempts`, `workflow_events`, `dispatch_outbox`, `resource_refs` | Każdy run workflowu, próby każdego węzła i strumień zdarzeń runa | Konto, w imieniu którego działa run, a dla runa uruchomionego z [akcji strony](artifacts.md#actions) także strona i numer jej wersji; wynik każdej próby, zawierający to, co węzeł wytworzył z otrzymanych danych; kod i komunikat błędu; referencje do plików i tabel, które powiązał graf. Historia workflow i pliki podlegają `run_retention_days`. Czyszczenie zachowuje źródła aktywnych ponowień, podprocesy potrzebne działającym wywołującym i producentów plików używanych przez zachowane przebiegi. Jawne usunięcie workflow nadal może usunąć jego historię. | Doprowadzenie workflowu do końca mimo restartów i pokazanie jego historii |
+| `workflow_files` | Pliki zapisane przez kroki runa workflow - pobrane pliki, zapisane pliki, wyrenderowane strony, przekształcone obrazy, wynik skryptu | Wszystko, co zawiera plik, co może być danymi osobowymi, oraz jego nazwa. Bajty są w `MEDIA_DIR` albo w magazynie obiektów. Historia workflow i pliki podlegają `run_retention_days`. Czyszczenie zachowuje źródła aktywnych ponowień, podprocesy potrzebne działającym wywołującym i producentów plików używanych przez zachowane przebiegi. Jawne usunięcie workflow nadal może usunąć jego historię. | Przekazywanie plików między krokami i pobieranie ich z runa |
+| `workflow_exposures`, `workflow_webhook_deliveries` | Webhooki i harmonogramy workflow oraz każde dostarczenie webhooka, które przyjął | Członek, jako który każdy działa, wejście harmonogramu, signing secret webhooka zapieczętowany w sejfie oraz id każdego dostarczenia obok runa, który uruchomiło. Znikają razem z workflow i organizacją, a członek jest czyszczony przy usunięciu konta | Uruchamianie workflow spoza konsoli dokładnie raz na dostarczenie |
 | `agent_triggers` | Runy zaplanowane i wyzwalane zdarzeniem | Prompt oraz konfiguracja i filtr źródła zdarzeń | Uruchamianie agenta bez człowieka |
 | `app_admin_audit_logs` | Kto zmienił dostęp albo wydał pieniądze — ślad organizacji i ślad administratora wdrożenia dzielą jedną tabelę | Aktor, podszywający się, adres IP, akcja i mapa `details`. Mapa przeważnie nazywa pola, ale niektóre wpisy trzymają wartości: e-mail konta, pod które się podszyto, e-mail konta usuniętego przez administratora, notatka publikacji | Rozliczalność. Zobacz [Nadzór](governance.md#audit) |
 | `notifications`, `notification_deliveries` | Każde powiadomienie zaadresowane do kogoś oraz jego dostarczenie mailem. Wiersz powstaje nawet wtedy, gdy odbiorca wyłączył dla tego zdarzenia wszystkie kanały — to on nie pozwala zapisać tego samego wystąpienia dwa razy — i po prostu nigdy nie jest pokazywany ani wysyłany; warunkowy jest tylko wiersz dostawy | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje swój kanał, status, liczbę prób i oczyszczony powód niepowodzenia — nigdy tekst błędu od providera | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |
@@ -96,6 +103,8 @@ przez sprawdzenie rodzica.
 | `ml_service_calls` | Każde wywołanie [usług ML](ml-services.md) i każda transkrypcja: dyktowanie, wiadomość głosowa z kanału, API, dyktowanie odwiedzającego na hostowanej stronie albo w widgecie | Organizacja, kto poprosił, która usługa, liczby bajtów i jednostek, czas trwania i sposób zakończenia; przy transkrypcji także provider i model, identyfikator klucza z vaultu, z którym ją wysłano, skąd przyszła, agent i bot kanału, dla których była, oraz długość nagrania. Wiersz wiadomości głosowej z kanału wskazuje osobę, z którą powiązane jest konto nadawcy, a przy niepowiązanym nadawcy nikogo. Wiersz odwiedzającego nie wskazuje nikogo - ani odwiedzającego, który nie ma konta, ani tego, kto opublikował stronę. Usunięcie osoby, agenta, bota albo klucza czyści powiązanie i zostawia wiersz - **nic z tego, co wysłano, i nic z tego, co wróciło** | Raportowanie zużycia i wgląd operatora w integrację, która się psuje |
 | `agent_workspaces`, `sandbox_operations` | Pliki, na których pracował agent, i log tego, co uruchomił | Dla backendu `state` same pliki, jako JSON; dla kontenera id sesji oraz każda komenda, cel i podsumowanie wyniku | Sandbox. Zobacz [Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Poświadczenia i to, gdzie wskazują | Wyłącznie zapieczętowany szyfrogram, z podpowiedzią; provider, model i `base_url` jawnie | Sięganie do providerów. Zobacz [Sekrety](secrets.md) |
+
+`workflow_node_spend` zachowuje bezpośrednie opłaty za decyzje i embeddingi po usunięciu historii: organizację, UUID próby, koszt, znacznik częściowego kosztu i daty. Nie zawiera promptów, wyników, plików ani tożsamości użytkownika. Opłaty agentów pozostają w `agent_runs` i nie są liczone podwójnie. Nigdy niezapisanych kosztów historycznych nie można odtworzyć.
 
 `messages.search_vector` to indeks pełnotekstowy nad tą samą treścią,
 a `conversations.summary_messages` to jej kompresja napisana przez model. Oba są
@@ -149,7 +158,7 @@ wiersza.
 | Redis | Kubełki rate limitu kluczowane wywołującym — dla powierzchni publicznej to **jawny adres IP**, w kluczu, na czas TTL okna; klucze deduplikacji triggerów i kanałów; stan wymiany OAuth; zaparkowane zaproszenia; podgląd przeglądania na żywo — ostatni zrzut ekranu, kroki oraz to, co osoba trzymająca przeglądarkę kliknęła i wpisała, dopóki przeglądanie tego nie odczyta; kroki do powtórzenia danej osoby — adresy i etykiety tego, co nacisnęły jej zakończone przeglądania, nigdy to, co wpisała | Po wygaśnięciu: podgląd na żywo godzinę po ostatniej klatce przeglądania, kroki do powtórzenia dwa tygodnie po ostatnim wykonaniu zadania, wszystko inne w ciągu minut |
 | `background_jobs` w PostgreSQL | Payload każdego zadania w tle, jego ostatni błąd i odpowiedź asynchronicznego runu przez API | Sweep retencji usuwa zakończone zadanie po `BACKGROUND_JOB_RETENTION_DAYS` (14). Payloady to id i ścieżki, z dwoma wyjątkami: **`event_context` odpalenia wyzwolonego zdarzeniem** — nadawca, temat i treść wiadomości Gmail, zgłoszenia GitHub, ładunku webhooka — oraz **prompt i odpowiedź asynchronicznego runu przez API** zostają w zadaniu do tego czasu. Logi workera przechodzą przez ten sam filtr redakcji co logi API |
 | Logfire, jeśli skonfigurowany | Trace'y każdego runu | Retencja providera. Dziś trace niesie pełny prompt, wyjście i argumenty narzędzi — zobacz [Trace'y](#traces) |
-| Twój relay SMTP | Zaproszenia, magic linki, prośby o zatwierdzenie, alerty budżetowe, raporty użycia oraz własny mail [skrzynki powiadomień](governance.md#alerts) - nienadzorowane zakończenie albo błąd runa, zakończenie albo błąd ingestii dokumentu, zdarzenie bezpieczeństwa albo zmiana konfiguracji, własne ogłoszenie administratora | Cokolwiek relay zachowa. Mail o zatwierdzeniu nazywa agenta, narzędzie i link, a nie argumenty narzędzia |
+| Twój relay SMTP | Zaproszenia, magic linki, prośby o zatwierdzenie, alerty budżetowe, raporty użycia oraz własny mail [skrzynki powiadomień](governance.md#alerts) - nienadzorowane zakończenie albo błąd runa, zakończenie albo błąd ingestii dokumentu, zdarzenie bezpieczeństwa albo zmiana konfiguracji, własne ogłoszenie administratora - oraz temat i treść kroku [`email.send`](reference/workflow-nodes.md#email-send) workflow, na adresy, które dostał | Cokolwiek relay zachowa. Mail o zatwierdzeniu nazywa agenta, narzędzie i link, a nie argumenty narzędzia |
 | Kopie zapasowe | `pg_dump` to cała baza; wolumen mediów to pliki | Twoje wygaśnięcie kopii. Usunięcie nigdy nie sięga kopii już zrobionej — zobacz [Kopie zapasowe](deploy.md#backups) |
 
 ## Co opuszcza wdrożenie { #what-leaves-the-deployment }
@@ -169,7 +178,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Proxy przeglądarki agenta albo przeglądarka hostowana | Wszystko, co przeglądarka ładuje i wysyła, tak jak inaczej robiłaby to przeglądarka we wdrożeniu - strony, treść formularzy, ciasteczka, logowania - oraz własny zapis proxy albo usługi | `browser_use.connection` w spec (#2130); domyślnie `built_in` | Proxy albo usługa przeglądarki hostowanej (Browserbase, Steel lub inna), na umowie organizacji z nią |
 | Kroki przeglądarki | Każdy krok przeglądania idzie do modelu tego agenta: adres strony, jej tytuł, etykiety widocznych elementów i do 4000 znaków jej widocznego tekstu, plus zrzut ekranu przy włączonym `vision` — co może być zawartością systemu wewnętrznego. To, co zawiera pole, nie jest powtarzane: tabela elementów podaje tylko, że pole jest wypełnione | Capability `browser_use` w specu | Dostawcy modelu agenta, tak jak przy rozmowie |
 | Sandbox, ruch wychodzący | **Cokolwiek z workspace'u, do dowolnego hosta** — runtime `workbench` ma sieć, powłokę i `curl` | Capability `sandbox` i runtime z `needs_network`; zatwierdzanie komend bramkuje to, co się uruchamia, a nie to, dokąd się łączy | Dokądkolwiek poszła komenda. Kontrola ruchu wychodzącego to firewall hosta sandboksa, a nie ustawienie tutaj |
-| Serwer MCP | Argumenty i wyniki narzędzi | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
+| Serwer MCP | Argumenty i wyniki narzędzi, agenta albo kroku [`mcp.call`](reference/workflow-nodes.md#mcp-call) workflow | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |
 | Logfire | Spany każdego żądania i runu | `LOGFIRE_TOKEN` na poziomie wdrożenia; token `observability` w specu albo `logfire_token_secret_id` na środowisku przekierowuje te runy do innego projektu. `LOGFIRE_BASE_URL` wybiera wdrożenie w USA albo w UE. Nieustawione wszędzie — nic nie jest wysyłane | Pydantic, USA albo UE |
 | Mowa na tekst, generowanie obrazów | Notatka głosowa z kanału, nagranie podyktowane w `/chat` albo nagranie anonimowego odwiedzającego na hostowanej stronie lub w widgecie; prompt | Provider, do którego rozwiązuje się nagranie - własna para bota, nadpisanie agenta albo domyślny provider organizacji, który bot dziedziczy, chyba że ma to wyłączone - wysyłane z kluczem z vaultu wskazanym obok tej pary - kluczem API dla `groq`, `mistral` albo `openai`, widocznym dla organizacji na poziomie organizacji i bota; przy dyktowaniu w `/chat` także silnik organizacji ustawiony na `server`, a dla strony albo widgetu jego własne `dictation: server`. Profil dla `google` albo `openai` przy obrazach. Dźwięk dyktowania nie jest tu przechowywany. Przy `browser` na stronie albo w widgecie przeglądarka odwiedzającego wysyła dźwięk do swojego dostawcy i nic z niego nie przechodzi przez ten deployment | Providera albo, przy obrazach, twój własny host; przy `browser` dostawcy przeglądarki |
@@ -178,13 +187,91 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Generowanie wideo | Prompt i ewentualny obraz początkowy | `provider` capability `video_generation`: `google`, `byteplus`, `xai` albo `alibaba`, z kluczem bindingu. `google` zapisuje interakcję (`store: true`), bo Gemini dostarcza klip pod adresem tylko z zapisanej; pozostałych trzech nikt o to nie prosi | Providera |
 | Slack, Teams, Telegram, Mattermost | Odpowiedzi agenta; adres e-mail nowego członka, żeby znaleźć go na [powitanie](channels.md#a-welcome-for-a-new-member) w Slacku, Mattermost albo Teams | Wiersz `channel_bots` z tokenem w vaulcie | Dostawca komunikatora i tak ma już ten czat |
 | Logowanie Google | Nic wychodzącego; Google zwraca e-mail, imię, zdjęcie i id konta | `GOOGLE_CLIENT_ID` | Google |
-| Twój relay SMTP | Poczta wymieniona wyżej | `SMTP_HOST`, `SMTP_TLS` | Twoja |
+| Twój relay SMTP | Poczta wymieniona wyżej oraz tekst kroku [`email.send`](reference/workflow-nodes.md#email-send) workflow, na adresy wybrane przez jego autora | `SMTP_HOST`, `SMTP_TLS` | Twoja, potem każdego odbiorcy |
 
 Konektory synchronizacji działają w drugą stronę: źródło Google Drive albo S3
 zaciąga dokumenty **do środka**, uwierzytelnione sekretem `connector`, a od tej
 chwili dokumenty są kopią wdrożenia i podlegają regułom powyżej. To, kto może
 przeczytać, co zaciągnęło źródło, jest
 [decyzją, którą podejmuje wiersz źródła](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+## Dane tabel pokazywane na stronie { #table-data-on-a-page }
+
+Opublikowana [strona](artifacts.md#live-data) może pokazywać rekordy z tabeli,
+a te rekordy mogą być danymi osobowymi. To **przepływ wewnątrz wdrożenia, od
+właściciela strony do każdego, kto może ją otworzyć** — nie cel poza nim — ale
+omija on własną kontrolę dostępu tabeli, więc jest tu wymieniony.
+
+- **Co przepływa.** Tylko kolumny, które nazywa zapytanie strony, i wiersze, które
+  wybierają jego filtry, do 1000 na binding. Filtr może używać kolumny, której strona
+  nie pokazuje, a właściciel dowiaduje się, której. Formuły, lookupy, rollupy
+  i etykiety linków niosą też dane z powiązanych tabel, a zgoda wymienia te tabele.
+- **Z czyjego upoważnienia.** Właściciela strony. Każdy oglądający dostaje te same
+  rekordy, niezależnie od własnego dostępu do tabeli. Dane opuszczają tabelę dopiero
+  wtedy, gdy właściciel to potwierdzi, po przeczytaniu zapytań słowami i tego, kto
+  może otworzyć stronę teraz i później (role, które otwierają każdą stronę,
+  widoczność, osoby i grupy). Dane są czytane od nowa przy każdym załadowaniu,
+  nigdy nie są przechowywane w stronie. Odczyty dla członków nie są cache'owane;
+  odczyty dla strony publicznej są, jak opisano niżej.
+- **Co się o tym przechowuje.** Dla każdej wersji strony: kto ją opublikował, odcisk jej
+  zapytań, czy właściciel wyraził zgodę, kiedy i pod jakim członkostwem. Prośby
+  o udostępnienie zachowują proszącego, rodzaj, opcjonalną notatkę, decyzję i to, kto
+  ją podjął. Ślad audytu zapisuje zgodę, jej wycofanie, auto-zgodę, granty `edit_data`,
+  zmiany właściciela i prośby, razem z tekstem, który człowiek potwierdził.
+- **Czego nigdy się nie loguje.** Wartości rekordów, wartości filtrów i adres treści
+  strony serwowanej z danymi. Wpisy audytu i powiadomienia nazywają stronę i osoby,
+  nigdy wiersz.
+- **Co tam nie dociera.** Zgoda usuniętego członka wygasa wraz z jego członkostwem,
+  a strona, której właściciel odszedł, nie serwuje danych, dopóki inny właściciel
+  ich nie potwierdzi.
+
+### Dla osób bez konta { #table-data-on-a-public-page }
+
+To jedyny przepływ tutaj, który **wychodzi poza krąg osób mających konto**. [Publiczny
+link strony i jej embedy](artifacts.md#live-data-on-a-public-link) mogą wpisać te same
+rekordy do strony dla każdego, kto otworzy adres, i dla każdej witryny, która ją
+osadza, bez logowania. Otwierają go dwie decyzje, a wdrożenie, które tego przepływu
+nie chce, zostawia pierwszą wyłączoną.
+
+- **Domyślnie wyłączone, w całej organizacji.** `public_live_data` to wyłącznik, który
+  zmienia tylko Owner albo Admin, jako on sam. Gdy jest wyłączony, żadna strona nie
+  pokazuje danych w linku ani w embedzie, cokolwiek potwierdził jej właściciel.
+- **Potem per strona.** Właściciel strony, albo w jego imieniu Owner lub Admin,
+  potwierdza to po ekranie, który nazywa tabele i kolumny i mówi, kto może je czytać —
+  każdy z linkiem, jego hasło i wygaśnięcie, każda witryna osadzająca. Zgoda jest
+  związana z zapytaniami strony i z tym kręgiem odbiorców. Dodanie witryny, usunięcie
+  hasła, wyłączenie linku, archiwizacja strony, nowy właściciel i wycofana zgoda
+  członka ją czyszczą.
+- **Co jest przechowywane.** Na stronie: odcisk zapytań, którym ją udzielono, kto ją
+  potwierdził, członkostwo właściciela i kiedy. Wiersz organizacji trzyma wyłącznik.
+  Ślad audytu zapisuje `organization.public_live_data_changed`,
+  `artifact.public_data_consented`, `artifact.public_data_withdrawn` i
+  `artifact.public_data_voided` z nazwami tabel i kolumn, witrynami osadzającymi,
+  informacją, czy hasło jest ustawione, i powodem — nigdy wiersz, wartość ani odwiedzający.
+- **Cache.** Rekordy bindingu są trzymane przez 30 sekund w pamięci procesu API, żeby
+  ruchliwa strona nie czytała swojej tabeli przy każdym odwiedzającym. **Nigdy nie są
+  zapisywane** w Redisie, w bazie danych ani w pliku, pamięć jest ograniczona w bajtach
+  (`ARTIFACT_PUBLIC_DATA_CACHE_BYTES`) i znika, gdy proces się zatrzymuje. Każda bramka
+  dostępu działa, zanim cache zostanie odczytany, więc wyłączenie wyłącznika albo
+  wymiana klucza linku kończy przepływ przy następnym ładowaniu; to, co odwiedzający
+  już załadował, zostaje w jego przeglądarce.
+- **Czego nigdy się nie loguje.** Wartości rekordów, wartości filtrów, klucz linku i
+  adres treści strony załadowanej z danymi są trzymane poza logami, śladami i wpisami
+  audytu. Żaden odwiedzający nie jest zapisywany: link liczy otwarcia, nie osoby. Tylko
+  klucz limitu żądań trzyma IP odwiedzającego, w Redisie, przez minuty.
+- **Nikt nie dowiaduje się, dlaczego.** Odwiedzający, którego ładowanie nie przechodzi
+  bramki, widzi stronę bez jej danych i bez powodu, więc strona nie mówi, co trzyma
+  tabela ani dlaczego jest ukryta.
+- **Co widzi witryna osadzająca stronę.** Witryna osadzająca ramkuje stronę; strona
+  działa w nieprzezroczystym originie bez sieci, więc witryna nie może odczytać rekordów
+  z ramki, ale czyta je każdy, kto otwiera witrynę.
+
+Rekordy pokazane każdemu z linkiem może skopiować każdy, kto je widzi. Wiąż publiczną
+stronę tylko z kolumnami, które mają być publiczne.
+
+Wdrożenie, które musi zachować wiersze tabeli przed niektórymi swoimi członkami,
+nie powinno wiązać z nią strony, którą ci członkowie mogą otworzyć; potwierdzenie
+wymienia, kim są.
 
 ## Kontrole i gdzie każda jest dowiedziona { #controls-and-where-each-is-proved }
 
@@ -203,14 +290,14 @@ jest luką — i tak jest nazwany.
 | W tranzycie, do magazynów | `POSTGRES_SSLMODE` i `REDIS_SSL`; `agenticos cmd doctor` raportuje, czy połączenie, które nawiązał, było szyfrowane | [Połączenia szyfrowane](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | W tranzycie, do providerów | HTTPS do każdego skatalogowanego endpointu. Własny `base_url` jest odrzucany bez hosta albo z poświadczeniami w środku, ale **`http://` jest przyjmowany**, dla Ollamy albo gatewaya w sieci samego wdrożenia; profil na zwykłym HTTP wskazujący poza tę sieć wysyła prompty i klucz jawnie. Punkt 4 listy kontrolnej wypisuje każdy taki profil | `refused_field("base_url", ...)` w serwisie profili modeli; schemat to kontrola operatora |
 | Sekrety w odpowiedziach, logach, audycie, eksportach | Żaden endpoint nie zwraca jawnego tekstu; `SecretStr` wszędzie; spece odwołują się do sekretów po id | [Sekrety](secrets.md#what-never-happens) |
-| Dane osobowe w logach | `app/core/logging.py` redaguje adresy e-mail, JWT, klucze API, tokeny bearer i pary `password=` z każdego rekordu logu, tak w API, jak i w workerze | `tests/test_logging.py`; worker instaluje to w `app/worker/__main__.py`, a każdy proces potomny ingestii w `app/worker/child.py` (#440) |
+| Dane osobowe w logach | `app/core/logging.py` redaguje adresy e-mail, JWT, klucze API, tokeny bearer, pary `password=` oraz sekretny segment adresu — klucz linku albo token treści artefaktu, token udostępnionej rozmowy, formularza workflow, testu webhooka, linku kanału albo zaproszenia, albo token wznowienia przebiegu workflow — a także wartość parametru zapytania będącego poświadczeniem — `visitor` i `token` socketu widgetu agenta, `code`, `state` i `invitation_handle` logowania oraz `token` linku wysłanego e-mailem — z każdego rekordu logu, tak w API, jak i w workerze, łącznie z logiem dostępu uvicorna i jego liniami WebSocketu. Te same segmenty i wartości są redagowane w spanach Logfire i w argumentach endpointu, które te spany niosą, zanim span zostanie skopiowany albo wypisany. Dołączone konfiguracje Traefika i Nginx pomijają ścieżkę, query string i `Referer` w logu dostępu proxy | `tests/test_logging.py`, `tests/test_logfire_redaction.py`; worker instaluje to w `app/worker/__main__.py`, a każdy proces potomny ingestii w `app/worker/child.py` (#440); [Wdrożenie na serwer](deploy.md#choose-a-reverse-proxy) |
 | Dane osobowe docierające do modelu | Capability `guardrails` redaguje numery IBAN, numery kart, amerykańskie numery ubezpieczenia społecznego, numery telefonów i adresy e-mail z promptów, odpowiedzi, wyników i argumentów narzędzi, jeśli jest skonfigurowana | [Capabilities](reference/capabilities.md); jej testy pod `tests/` |
 | Dane osobowe w kolumnie błędu | `rag_documents.error_message` i pokrewne zapisują etap i klasę, nigdy tekst klienta | `app/services/rag/failures.py` (#423) |
 | Rozliczalność | Wpisy audytu dzielą transakcję działającą i zawodzą zamknięte; podszycie nazywa obie osoby; eksporty masowe są zapisywane | [Nadzór](governance.md#audit) |
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |
 | Dowód nienaruszalności śladu | Każdy wpis wchodzi w łańcuch haszy danej organizacji, a każdy łańcuch ma checkpoint na swoim najwyższym stanie, więc przepisany wpis, urwany koniec i skasowany łańcuch są wykrywalne. `agenticos cmd audit-verify` przechodzi je i kończy się kodem niezerowym przy naruszeniu | [Nadzór](governance.md#audit) (#1622, #1648). Wykrywanie, nie zapobieganie: kto ma poświadczenia samej bazy, ten przekuje łańcuch od nowa albo zdejmie trigger pilnujący checkpointu |
 | Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi, a tryb ten dziedziczy specjalista tego agenta | [Środowiska](environments.md) (#1413); stan pośredni `redacted` został odrzucony, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retencja według harmonogramu | Na organizację i na klasę — rozmowy i ich pliki, runy i manifesty, workspace'y, pamięć agentów, wgrane dokumenty i audyt — w ramach domyślnej wartości, sufitu i podłogi audytu na poziomie wdrożenia. Codzienny sweep usuwa twardo i zapisuje liczniki, nigdy treść. Backupy i cokolwiek już wysłane do zewnętrznego kolektora są poza tym. `notifications` nie jest jedną z tych klas: zamiast tego jest zamiatane według własnego, stałego harmonogramu — wiersz *przeczytany* po 90 dniach, a każdy wiersz po roku bez względu na to. Same `announcements` są wyłączone, więc to, co zostało wysłane, pozostaje możliwe do sprawdzenia w śladzie audytu, nawet gdy jego dostawy się przedawnią. Nie jest nią też wygenerowane medium, które odchodzi po ogólnowdrożeniowym `GENERATED_MEDIA_RETENTION_DAYS` | [Retencja](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; zamiatanie powiadomień to `tests/integration/test_notification_retention.py` (#1598, Decision 8); wygenerowane media to `test_generated_media.py` i `tests/integration/test_generated_media.py` (#2310) |
+| Retencja według harmonogramu | Na organizację i na klasę — rozmowy i ich pliki, runy i manifesty, workspace'y, pamięć agentów, wgrane dokumenty i audyt — w ramach domyślnej wartości, sufitu i podłogi audytu na poziomie wdrożenia. Codzienny sweep usuwa twardo i zapisuje liczniki, nigdy treść. Receipts, wysłane wiersze outbox i history Virtual Tables są zamiatane w tym samym przebiegu, według okresów całego wdrożenia, a nie per organizacja. Backupy i cokolwiek już wysłane do zewnętrznego kolektora są poza tym. `notifications` nie jest jedną z tych klas: zamiast tego jest zamiatane według własnego, stałego harmonogramu — wiersz *przeczytany* po 90 dniach, a każdy wiersz po roku bez względu na to. Same `announcements` są wyłączone, więc to, co zostało wysłane, pozostaje możliwe do sprawdzenia w śladzie audytu, nawet gdy jego dostawy się przedawnią Wygenerowane media też mają osobny okres `GENERATED_MEDIA_RETENTION_DAYS`. | [Retencja](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; zamiatanie powiadomień to `tests/integration/test_notification_retention.py` (#1598, Decision 8); `test_generated_media.py`, `tests/integration/test_generated_media.py` |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało, odpina bajty załączników po commicie i czyści to, do czego nie sięga żadna kaskada — notatki, które agenci o niej zapisali, jej tożsamości platformowe, jej workspace'y. Usunięcie pamięci to również osobne wywołanie i sięga mem0 | [Co obejmuje usunięcie](#what-deletion-reaches) — co jest zatrzymywane celowo; `test_personal_data.py` |
 | Dostęp do własnych danych | Osoba czyta w Ustawienia → Pamięć wszystko, co każdy agent tutaj o niej zapisał, i może notatkę wyłączyć, przywrócić albo usunąć. Czytanie *cudzego* magazynu należy wyłącznie do administratora wdrożenia — nie do roli w organizacji — i jest audytowane z aktorem, tenantem, podmiotem i powodem, nigdy z treścią. Magazyny zewnętrzne (mem0) są nazwane, a nie listowane | [Jak to czytać i jak wymazać](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Wszystko inne, co jest o niej trzymane, wraca z `GET /me/data/export`, ograniczone rozmiarem i audytowane (#1421) |
 | Tożsamość korporacyjna | Logowanie Google, hasła, generyczne OIDC przeciwko dostawcy, którego już prowadzisz — konfigurowane samym discovery z `OIDC_ISSUER` — oraz własny katalog przez LDAP albo Kerberos. Adres z katalogu, nazwa wyświetlana i stabilny identyfikator są trzymane na koncie; grupy z katalogu są czytane przy każdym logowaniu i nie są przechowywane — przechowywane są tylko członkostwa, które tworzą z nich mapowania organizacji. Bez SAML i SCIM | [Logowanie katalogowe i grupy](directory.md); `OIDC_ISSUER`, `LDAP_URL` |

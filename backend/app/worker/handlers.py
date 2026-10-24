@@ -58,6 +58,7 @@ def production() -> Handlers:
         teardown_tasks,
         trigger_tasks,
         voice_tasks,
+        workflow_tasks,
     )
     from app.worker.tasks.background_tasks import sweep_background_jobs
 
@@ -66,6 +67,7 @@ def production() -> Handlers:
             *ingest().values(),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
+            Handler(jobs.WORKFLOW_DISPATCH_NODE, workflow_tasks.dispatch_node),
             Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
             Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
             Handler(jobs.BRIEF_PERSON, proactive_tasks.brief_person),
@@ -94,6 +96,18 @@ def production() -> Handlers:
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
+            Handler(jobs.WORKFLOW_DISPATCH_POLL, _each_tick(workflow_tasks.poll_due_dispatches)),
+            Handler(jobs.WORKFLOW_RECONCILE, _each_tick(workflow_tasks.reconcile)),
+            Handler(
+                jobs.WORKFLOW_SCHEDULES_CHECK, _each_tick(workflow_tasks.check_workflow_schedules)
+            ),
+            Handler(
+                jobs.WORKFLOW_TABLE_TRIGGERS, _each_tick(workflow_tasks.consume_table_triggers)
+            ),
+            Handler(
+                jobs.WORKFLOW_RUN_RETENTION,
+                _each_tick(workflow_tasks.sweep_workflow_run_retention),
+            ),
             Handler(
                 jobs.SWEEP_GENERATED_MEDIA,
                 _each_tick(generated_media_tasks.sweep_generated_media),

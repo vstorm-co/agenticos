@@ -1,5 +1,7 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState, type ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentFilter } from "./agent-filter";
@@ -8,6 +10,8 @@ import {
   ARTIFACT_SANDBOX,
   ArtifactFrame,
   ArtifactFrameView,
+  type DataBridge,
+  readyFrom,
   requestedLink,
 } from "./artifact-frame";
 import { PublicArtifact } from "./public-artifact";
@@ -20,16 +24,51 @@ import {
   originLines,
 } from "./public-link-settings";
 import { VersionPicker } from "./version-picker";
+import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
-import type { Artifact, ArtifactPublicLink, ArtifactVersion } from "@/types/artifact";
+import { qk } from "@/lib/query-keys";
+import type {
+  Artifact,
+  ArtifactData,
+  ArtifactPublicLink,
+  ArtifactVersion,
+  ArtifactView,
+  BindingData,
+} from "@/types/artifact";
 
 const useArtifactViewMock = vi.fn();
+const useArtifactDataMock = vi.fn();
+const IDLE_READ = {
+  data: undefined,
+  error: null,
+  isError: false,
+  isFetching: false,
+  dataUpdatedAt: 0,
+  errorUpdatedAt: 0,
+  refetch: vi.fn(),
+};
+const useArtifactReasonsMock = vi.fn().mockReturnValue(IDLE_READ);
 const unlockMock = vi.fn();
 vi.mock("@/hooks/use-artifacts", () => ({
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
+  useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
+  useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
   usePublicArtifactUnlock: () => unlockMock(),
 }));
 const toastError = vi.fn();
+// The console's answer to a page's actions has its own tests (`artifact-actions.test.tsx`);
+// here the frame is only a frame.
+vi.mock("@/hooks/use-artifact-actions", async (importActual) => {
+  const actual = await importActual<typeof import("@/hooks/use-artifact-actions")>();
+  const idle = {
+    pending: null,
+    paused: [],
+    cancel: () => {},
+    confirm: async () => {},
+    onLoad: () => {},
+  };
+  return { useArtifactActions: () => idle, useAskingGate: actual.useAskingGate };
+});
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
 
 function version(number: number, overrides: Partial<ArtifactVersion> = {}): ArtifactVersion {
@@ -39,6 +78,8 @@ function version(number: number, overrides: Partial<ArtifactVersion> = {}): Arti
     media_type: "text/html",
     size_bytes: 10,
     run_id: null,
+    restored_from: null,
+    consent_state: "not_needed",
     created_at: "2026-09-22T10:00:00Z",
     ...overrides,
   };
@@ -56,6 +97,8 @@ function artifact(overrides: Partial<Artifact> = {}): Artifact {
     environment_name: null,
     public_url: null,
     published_at: "2026-09-22T10:00:00Z",
+    archived_at: null,
+    live: false,
     current_version: version(3),
     created_at: "2026-09-01T10:00:00Z",
     updated_at: null,
@@ -84,8 +127,21 @@ function postFromFrame(frame: HTMLIFrameElement, data: unknown) {
   });
 }
 
+/** A data query that has not answered, for a test about the frame alone. */
+const IDLE_DATA = {
+  data: undefined,
+  error: null,
+  isError: false,
+  isFetching: false,
+  dataUpdatedAt: 0,
+  refetch: vi.fn(),
+};
+
 describe("the frame", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useArtifactDataMock.mockReturnValue(IDLE_DATA);
+  });
 
   it("never grants the page this console's origin", () => {
     render(
@@ -102,9 +158,14 @@ describe("the frame", () => {
   });
 
   it("loads the version asked for from a fresh address", () => {
-    useArtifactViewMock.mockReturnValue({ isLoading: false, data: { url: "https://x/c/t" } });
+    useArtifactViewMock.mockReturnValue({
+      isLoading: false,
+      data: { url: "https://x/c/t", nonce: "n", live: false, version: version(2) },
+    });
     render(<ArtifactFrame artifactId="a1" versionId="v2" title="Report" />);
-    expect(useArtifactViewMock).toHaveBeenCalledWith("a1", "v2", true);
+    expect(useArtifactViewMock).toHaveBeenCalledWith("a1", "v2", true, false);
+    // A page with no bindings asks for nothing.
+    expect(useArtifactDataMock).toHaveBeenCalledWith("a1", "v2", false);
     expect(screen.getByTitle("Report").getAttribute("src")).toBe("https://x/c/t");
   });
 
@@ -113,6 +174,31 @@ describe("the frame", () => {
     render(<ArtifactFrame artifactId="a1" versionId="gone" title="Report" />);
     expect(screen.getByText("This version is not available")).toBeInTheDocument();
     expect(screen.queryByTitle("Report")).toBeNull();
+  });
+
+  it("lends a bridge an inline callback can keep in state without rendering forever", () => {
+    useArtifactViewMock.mockReturnValue({
+      isLoading: false,
+      data: { url: "https://x/c/t", nonce: "n", live: false, version: version(2) },
+    });
+    let renders = 0;
+    let lent: DataBridge | null = null;
+    function Host() {
+      const [bridge, setBridge] = useState<DataBridge | null>(null);
+      renders += 1;
+      lent = bridge;
+      return (
+        <ArtifactFrame
+          artifactId="a1"
+          versionId={null}
+          title="Report"
+          onBridge={(next) => setBridge(next)}
+        />
+      );
+    }
+    render(<Host />);
+    expect(lent).not.toBeNull();
+    expect(renders).toBeLessThan(5);
   });
 
   it("shows a skeleton while the address is minted", () => {
@@ -191,6 +277,689 @@ describe("a link inside the page", () => {
   });
 });
 
+function liveView(
+  nonce: string,
+  number = 3,
+  live = true,
+  injected = false,
+  awaitingConsent = false,
+): ArtifactView {
+  return {
+    url: `https://c/${nonce}`,
+    nonce,
+    live,
+    injected,
+    awaiting_consent: awaitingConsent,
+    bindings: live ? 1 : 0,
+    expires_at: "",
+    version: version(number),
+    actions_enabled: false,
+    actions: [],
+  };
+}
+
+function bound(overrides: Partial<BindingData> = {}): BindingData {
+  return {
+    status: "ok",
+    reason: null,
+    truncated: false,
+    limit: null,
+    count: 1,
+    fields: {},
+    records: [{ id: "r1", region: "North" }],
+    ...overrides,
+  };
+}
+
+function answer(bindings: Record<string, BindingData>): ArtifactData {
+  return { bindings, current: true, read_at: "2026-10-20T10:00:00Z" };
+}
+
+/** What the page receives for a binding: everything but the editor's reason. */
+function forPage({ reason: _reason, ...rest }: BindingData) {
+  return rest;
+}
+
+function ready(n: string, subscribes = false) {
+  return { type: "agenticos:ready", n, subscribes };
+}
+
+const DATA_PATH = "/apps/a1/versions/v3/data";
+
+/** Answers every read by its path, from the function the test gives. */
+function serve(answerFor: (path: string) => unknown) {
+  return vi
+    .spyOn(apiClient, "get")
+    .mockImplementation(((path: string) =>
+      Promise.resolve().then(() => answerFor(path))) as typeof apiClient.get);
+}
+
+function paths() {
+  return vi.mocked(apiClient.get).mock.calls.map(([path]) => path);
+}
+
+/** The options of every read of `path`, in order. */
+function readsOf(path: string) {
+  return vi
+    .mocked(apiClient.get)
+    .mock.calls.filter(([read]) => read === path)
+    .map(([, options]) => options as { params?: Record<string, string> } | undefined);
+}
+
+function renderLive(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrap = (node: ReactElement) => (
+    <QueryClientProvider client={client}>{node}</QueryClientProvider>
+  );
+  const result = render(wrap(ui));
+  return { client, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
+}
+
+/** The frame once its address is in, loaded, with its window's inbox watched. */
+async function loadedFrame(src: string) {
+  await waitFor(() => expect(screen.getByTitle("Report").getAttribute("src")).toBe(src));
+  const frame = screen.getByTitle("Report") as HTMLIFrameElement;
+  const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
+  fireEvent.load(frame);
+  return { frame, post };
+}
+
+async function dataArrived(times = 1) {
+  await waitFor(() => expect(paths().filter((path) => path === DATA_PATH)).toHaveLength(times));
+  await act(async () => {});
+}
+
+type Bridge = {
+  refresh: () => Promise<void>;
+  status: { subscribes: boolean; fetching: boolean; data?: ArtifactData; served: unknown };
+};
+
+describe("the page's live data", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const actual =
+      await vi.importActual<typeof import("@/hooks/use-artifacts")>("@/hooks/use-artifacts");
+    useArtifactViewMock.mockImplementation(actual.useArtifactView);
+    useArtifactDataMock.mockImplementation(actual.useArtifactData);
+    useArtifactReasonsMock.mockImplementation(actual.useArtifactReasons);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useArtifactViewMock.mockReset();
+    useArtifactDataMock.mockReset();
+  });
+
+  it("answers a page's ready with its data once both are in", async () => {
+    let release!: (data: ArtifactData) => void;
+    const pending = new Promise<ArtifactData>((resolve) => (release = resolve));
+    serve((path) => (path === DATA_PATH ? pending : liveView("n1")));
+    renderLive(<ArtifactFrame artifactId="a1" versionId={null} title="Report" />);
+    const { frame, post } = await loadedFrame("https://c/n1");
+
+    postFromFrame(frame, ready("n1"));
+    expect(post).not.toHaveBeenCalled();
+
+    await act(async () => release(answer({ sales: bound() })));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post).toHaveBeenCalledWith(
+      { type: "agenticos:data", n: "n1", bindings: { sales: forPage(bound()) } },
+      "*",
+    );
+  });
+
+  it("never fetches when a page says ready", async () => {
+    serve((path) => (path === DATA_PATH ? answer({ sales: bound() }) : liveView("n1")));
+    renderLive(<ArtifactFrame artifactId="a1" versionId={null} title="Report" />);
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+
+    for (let i = 0; i < 20; i++) postFromFrame(frame, ready("n1", i % 2 === 0));
+    await act(async () => {});
+
+    expect(paths().filter((path) => path === DATA_PATH)).toHaveLength(1);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("posts once however many readies arrive", async () => {
+    serve((path) => (path === DATA_PATH ? answer({ sales: bound() }) : liveView("n1")));
+    const { client } = renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" />,
+    );
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+
+    for (let i = 0; i < 20; i++) postFromFrame(frame, ready("n1"));
+    expect(post).toHaveBeenCalledTimes(1);
+
+    // Nor does a new read reach a page that never said it listens.
+    await act(() => client.refetchQueries({ queryKey: qk.artifacts.data("a1", "v3") }));
+    await dataArrived(2);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets the handshake when the frame loads again", async () => {
+    let reads = 0;
+    serve((path) => {
+      if (path !== DATA_PATH) return liveView("n1");
+      reads += 1;
+      return answer({ sales: bound({ count: reads }) });
+    });
+    const { client } = renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" />,
+    );
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(frame, ready("n1", true));
+    expect(post).toHaveBeenCalledTimes(1);
+
+    // A new document in the same frame has said nothing yet.
+    fireEvent.load(frame);
+    await act(() => client.refetchQueries({ queryKey: qk.artifacts.data("a1", "v3") }));
+    await dataArrived(2);
+    expect(post).toHaveBeenCalledTimes(1);
+
+    postFromFrame(frame, ready("n1", true));
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(post).toHaveBeenLastCalledWith(
+      { type: "agenticos:data", n: "n1", bindings: { sales: forPage(bound({ count: 2 })) } },
+      "*",
+    );
+  });
+
+  it("refreshes a subscribing page in place on each fetch", async () => {
+    let reads = 0;
+    serve((path) => {
+      if (path !== DATA_PATH) return liveView("n1");
+      reads += 1;
+      return answer({ sales: bound({ count: reads }) });
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(frame, ready("n1", true));
+    expect(onBridge.mock.lastCall?.[0].status.subscribes).toBe(true);
+
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(3));
+
+    expect(post).toHaveBeenLastCalledWith(
+      { type: "agenticos:data", n: "n1", bindings: { sales: forPage(bound({ count: 3 })) } },
+      "*",
+    );
+    // In place: the page was never minted again.
+    expect(paths().filter((path) => path.includes("/view"))).toHaveLength(1);
+  });
+
+  it("refreshes in place again once a page says ready after its frame loads", async () => {
+    // The page asks while it is still parsing, so its first ready can be
+    // answered before the frame's load; the ready it sends on its own load is
+    // what lets the console refresh it in place again.
+    let reads = 0;
+    serve((path) => {
+      if (path !== DATA_PATH) return liveView("n1");
+      reads += 1;
+      return answer({ sales: bound({ count: reads }) });
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTitle("Report").getAttribute("src")).toBe("https://c/n1"),
+    );
+    const frame = screen.getByTitle("Report") as HTMLIFrameElement;
+    const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
+    await dataArrived();
+    postFromFrame(frame, ready("n1", true));
+    expect(post).toHaveBeenCalledTimes(1);
+
+    fireEvent.load(frame);
+    expect(onBridge.mock.lastCall?.[0].status.subscribes).toBe(false);
+    postFromFrame(frame, ready("n1", true));
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(onBridge.mock.lastCall?.[0].status.subscribes).toBe(true);
+
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(3));
+    expect(post).toHaveBeenLastCalledWith(
+      { type: "agenticos:data", n: "n1", bindings: { sales: forPage(bound({ count: 2 })) } },
+      "*",
+    );
+    expect(paths().filter((path) => path.includes("/view"))).toHaveLength(1);
+  });
+
+  it("refetches the data before reloading a page that does not subscribe", async () => {
+    let reads = 0;
+    let mints = 0;
+    serve((path) => {
+      if (path === DATA_PATH) {
+        reads += 1;
+        return answer({ sales: bound({ count: reads }) });
+      }
+      mints += 1;
+      return liveView(`n${mints}`);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const first = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(first.frame, ready("n1"));
+    expect(first.post).toHaveBeenCalledTimes(1);
+
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    expect(paths()).toEqual([
+      "/apps/a1/view?data=true",
+      DATA_PATH,
+      DATA_PATH,
+      "/apps/a1/view?data=true",
+    ]);
+    // The page that does not listen was not handed the new read in place.
+    expect(first.post).toHaveBeenCalledTimes(1);
+
+    // The reloaded page asks, and gets the data read before it was minted.
+    const second = await loadedFrame("https://c/n2");
+    postFromFrame(second.frame, ready("n1"));
+    expect(second.post).not.toHaveBeenCalled();
+    postFromFrame(second.frame, ready("n2"));
+    expect(second.post).toHaveBeenCalledWith(
+      { type: "agenticos:data", n: "n2", bindings: { sales: forPage(bound({ count: 2 })) } },
+      "*",
+    );
+  });
+
+  it("reads nothing for a page served with its data, and refreshes it in place", async () => {
+    let reads = 0;
+    serve((path) => {
+      if (path !== DATA_PATH) return liveView("n1", 3, true, true);
+      reads += 1;
+      return answer({ sales: bound({ count: reads }) });
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await act(async () => {});
+    // The page carries its data: no first read, and its ready is answered with nothing.
+    expect(paths()).toEqual(["/apps/a1/view?data=true"]);
+    postFromFrame(frame, ready("n1", true));
+    expect(post).not.toHaveBeenCalled();
+    expect(onBridge.mock.lastCall?.[0].status.subscribes).toBe(true);
+
+    // A refresh still reads through the data route and posts in place.
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(paths()).toEqual(["/apps/a1/view?data=true", DATA_PATH]);
+    expect(post).toHaveBeenLastCalledWith(
+      { type: "agenticos:data", n: "n1", bindings: { sales: forPage(bound({ count: 1 })) } },
+      "*",
+    );
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(paths().filter((path) => path.includes("/view"))).toHaveLength(1);
+  });
+
+  it("tells the strip it is busy while a refresh of a page served with its data reads", async () => {
+    let release!: (data: ArtifactData) => void;
+    const pending = new Promise<ArtifactData>((resolve) => (release = resolve));
+    serve((path) => (path === DATA_PATH ? pending : liveView("n1", 3, true, true)));
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const { frame } = await loadedFrame("https://c/n1");
+    postFromFrame(frame, ready("n1", true));
+    expect(onBridge.mock.lastCall![0].status.fetching).toBe(false);
+
+    let refreshing!: Promise<void>;
+    act(() => {
+      refreshing = onBridge.mock.lastCall![0].refresh();
+    });
+    await waitFor(() => expect(onBridge.mock.lastCall![0].status.fetching).toBe(true));
+
+    await act(async () => {
+      release(answer({ sales: bound() }));
+      await refreshing;
+    });
+    await waitFor(() => expect(onBridge.mock.lastCall![0].status.fetching).toBe(false));
+  });
+
+  it("never posts or shows a read cached from before an injected load was minted", async () => {
+    let mints = 0;
+    serve((path) => {
+      if (path === DATA_PATH) return answer({ sales: bound({ count: 1 }) });
+      mints += 1;
+      return liveView(`n${mints}`, 3, true, true);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    const { client } = renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const first = await loadedFrame("https://c/n1");
+    postFromFrame(first.frame, ready("n1", true));
+    // A refresh caches a read, and posts it in place to the page that listens.
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(first.post).toHaveBeenCalledTimes(1));
+    expect(onBridge.mock.lastCall![0].status).toMatchObject({ data: { current: true } });
+
+    // Consent confirmed or withdrawn: the page is minted again, its data is not read.
+    await act(() => client.invalidateQueries({ queryKey: qk.artifacts.all() }));
+    const second = await loadedFrame("https://c/n2");
+    postFromFrame(second.frame, ready("n2", false));
+    await act(async () => {});
+
+    expect(second.post).not.toHaveBeenCalled();
+    expect(onBridge.mock.lastCall![0].status.data).toBeUndefined();
+    expect(paths().filter((path) => path === DATA_PATH)).toHaveLength(1);
+  });
+
+  it("asks an editor why a source is empty only once the page has loaded, without reading its records", async () => {
+    let mints = 0;
+    serve((path) => {
+      if (path === DATA_PATH) return answer({ sales: bound({ count: 1 }) });
+      mints += 1;
+      return liveView(`n${mints}`, 3, true, true);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    const { client } = renderLive(
+      <ArtifactFrame
+        artifactId="a1"
+        versionId={null}
+        title="Report"
+        onBridge={onBridge}
+        fetchReasons
+      />,
+    );
+    // The address is in and the page is being served its data: nothing else reads yet.
+    await waitFor(() =>
+      expect(screen.getByTitle("Report").getAttribute("src")).toBe("https://c/n1"),
+    );
+    await act(async () => {});
+    expect(readsOf(DATA_PATH)).toEqual([]);
+
+    await loadedFrame("https://c/n1");
+    await waitFor(() => expect(readsOf(DATA_PATH)).toHaveLength(1));
+    expect(readsOf(DATA_PATH)[0]).toEqual({ params: { rows: "false" } });
+    await waitFor(() => expect(onBridge.mock.lastCall![0].status.data).toBeDefined());
+
+    // The page is minted again: it is asked again, under its own nonce.
+    await act(() => client.invalidateQueries({ queryKey: qk.artifacts.all() }));
+    await waitFor(() =>
+      expect(screen.getByTitle("Report").getAttribute("src")).toBe("https://c/n2"),
+    );
+    await loadedFrame("https://c/n2");
+    await waitFor(() => expect(readsOf(DATA_PATH).length).toBeGreaterThanOrEqual(2));
+    // Never a full read beside the injected load.
+    expect(readsOf(DATA_PATH).every((options) => options?.params?.rows === "false")).toBe(true);
+  });
+
+  it("tells the strip what the minted address says when nothing was read", async () => {
+    serve(() => ({ ...liveView("n1", 3, true, true, true), bindings: 2 }));
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    await loadedFrame("https://c/n1");
+
+    expect(onBridge.mock.lastCall![0].status).toMatchObject({
+      data: undefined,
+      served: { bindings: 2, awaitingConsent: true },
+    });
+    expect(paths()).toEqual(["/apps/a1/view?data=true"]);
+  });
+
+  it("loads a page served with its data again, without a read of its own, when it does not subscribe", async () => {
+    let mints = 0;
+    serve((path) => {
+      if (path === DATA_PATH) return answer({ sales: bound() });
+      mints += 1;
+      return liveView(`n${mints}`, 3, true, true);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    await loadedFrame("https://c/n1");
+
+    await act(() => onBridge.mock.lastCall![0].refresh());
+
+    // The new load carries the data itself, so there is no read beside it.
+    await loadedFrame("https://c/n2");
+    expect(paths()).toEqual(["/apps/a1/view?data=true", "/apps/a1/view?data=true"]);
+  });
+
+  it("reloads a page with no live data without reading any", async () => {
+    let mints = 0;
+    serve(() => {
+      mints += 1;
+      return liveView(`n${mints}`, 3, false);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    await loadedFrame("https://c/n1");
+
+    await act(() => onBridge.mock.lastCall![0].refresh());
+
+    await loadedFrame("https://c/n2");
+    expect(paths()).toEqual(["/apps/a1/view?data=true", "/apps/a1/view?data=true"]);
+  });
+
+  it("drops a reply whose nonce belongs to the previous version", async () => {
+    let releaseOld!: (data: ArtifactData) => void;
+    const old = new Promise<ArtifactData>((resolve) => (releaseOld = resolve));
+    serve((path) => {
+      if (path === "/apps/a1/view?data=true") return liveView("n1", 3);
+      if (path === "/apps/a1/view?version_id=v2") return liveView("n2", 2);
+      if (path === DATA_PATH) return old;
+      return answer({ older: bound({ count: 2 }) });
+    });
+    const { rerender } = renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" />,
+    );
+    const first = await loadedFrame("https://c/n1");
+    postFromFrame(first.frame, ready("n1"));
+
+    rerender(<ArtifactFrame artifactId="a1" versionId="v2" title="Report" />);
+    const second = await loadedFrame("https://c/n2");
+    await waitFor(() => expect(paths()).toContain("/apps/a1/versions/v2/data"));
+    // The v1 document, late, and v1's records, later still.
+    postFromFrame(second.frame, ready("n1"));
+    await act(async () => releaseOld(answer({ sales: bound() })));
+    expect(first.post).not.toHaveBeenCalled();
+    expect(second.post).not.toHaveBeenCalled();
+
+    postFromFrame(second.frame, ready("n2"));
+    await waitFor(() => expect(second.post).toHaveBeenCalledTimes(1));
+    expect(second.post).toHaveBeenCalledWith(
+      { type: "agenticos:data", n: "n2", bindings: { older: forPage(bound({ count: 2 })) } },
+      "*",
+    );
+  });
+
+  it("refuses a ready from any other window", async () => {
+    serve((path) => (path === DATA_PATH ? answer({ sales: bound() }) : liveView("n1")));
+    renderLive(<ArtifactFrame artifactId="a1" versionId={null} title="Report" />);
+    const { post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: ready("n1"), source: window }));
+    });
+
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("posts hostile cell text as data", async () => {
+    const hostile = {
+      id: "r1",
+      markup: "</script><img src=x onerror=alert(1)>",
+      separator: "before after",
+      emoji: "📈 up",
+      long: "x".repeat(100_000),
+    };
+    serve((path) =>
+      path === DATA_PATH ? answer({ sales: bound({ records: [hostile] }) }) : liveView("n1"),
+    );
+    renderLive(<ArtifactFrame artifactId="a1" versionId={null} title="Report" />);
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(frame, ready("n1"));
+
+    const [message] = post.mock.calls[0] as [{ bindings: { sales: BindingData } }];
+    const record = message.bindings.sales.records[0]!;
+    expect(record.markup).toBe(hostile.markup);
+    expect(record.separator).toBe(hostile.separator);
+    expect(record.emoji).toBe(hostile.emoji);
+    expect(record.long).toBe(hostile.long);
+    expect(record).toEqual(hostile);
+  });
+
+  it("never passes the reason to the page", async () => {
+    const gone = bound({ status: "unavailable", reason: "view_deleted", records: [] });
+    serve((path) => (path === DATA_PATH ? answer({ sales: gone }) : liveView("n1")));
+    renderLive(<ArtifactFrame artifactId="a1" versionId={null} title="Report" />);
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(frame, ready("n1"));
+
+    const [message] = post.mock.calls[0] as [{ bindings: Record<string, object> }];
+    expect(message.bindings.sales).not.toHaveProperty("reason");
+    expect(message.bindings.sales).toEqual(forPage(gone));
+  });
+
+  it("keeps a binding named like a prototype key as the page's own", async () => {
+    // As the server's JSON parses: an own key, never the object's prototype.
+    const parsed = JSON.parse(
+      `{"bindings": {"__proto__": ${JSON.stringify(bound())}}, "current": true, "read_at": ""}`,
+    ) as ArtifactData;
+    serve((path) => (path === DATA_PATH ? parsed : liveView("n1")));
+    renderLive(<ArtifactFrame artifactId="a1" versionId={null} title="Report" />);
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(frame, ready("n1"));
+
+    const [message] = post.mock.calls[0] as [{ bindings: object }];
+    expect(Object.hasOwn(message.bindings, "__proto__")).toBe(true);
+    expect(Object.getPrototypeOf(message.bindings)).toBe(Object.prototype);
+  });
+
+  it("moves a page on the current version onto a newer one an agent published", async () => {
+    // v3 is open and listening; a run publishes v4, so v3's next read answers
+    // not current. The frame mints the current version again, once, and the
+    // reloaded page is answered with v4's data - never with v3's stale one.
+    const NEWER = "/apps/a1/versions/v4/data";
+    let mints = 0;
+    let reads = 0;
+    serve((path) => {
+      if (path === DATA_PATH) {
+        reads += 1;
+        return { ...answer({ sales: bound() }), current: reads === 1 };
+      }
+      if (path === NEWER) return answer({ sales: bound({ count: 4 }) });
+      mints += 1;
+      return mints === 1 ? liveView("n1") : liveView("n2", 4);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    const { client } = renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    client.setQueryData(qk.artifacts.detail("a1"), artifact());
+    client.setQueryData(qk.artifacts.versions("a1"), { items: [], total: 0 });
+    const first = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(first.frame, ready("n1", true));
+    expect(first.post).toHaveBeenCalledTimes(1);
+
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    const second = await loadedFrame("https://c/n2");
+    await waitFor(() => expect(paths()).toContain(NEWER));
+
+    expect(first.post).toHaveBeenCalledTimes(1);
+    expect(paths().filter((path) => path === "/apps/a1/view?data=true")).toHaveLength(2);
+    expect(client.getQueryState(qk.artifacts.detail("a1"))?.isInvalidated).toBe(true);
+    expect(client.getQueryState(qk.artifacts.versions("a1"))?.isInvalidated).toBe(true);
+    postFromFrame(second.frame, ready("n2", true));
+    await waitFor(() =>
+      expect(second.post).toHaveBeenCalledWith(
+        { type: "agenticos:data", n: "n2", bindings: { sales: forPage(bound({ count: 4 })) } },
+        "*",
+      ),
+    );
+    await act(async () => {});
+    expect(paths().filter((path) => path === "/apps/a1/view?data=true")).toHaveLength(2);
+  });
+
+  it("keeps a picked version where it is when a newer one is published", async () => {
+    const stale = bound({ status: "unavailable", count: 0, records: [] });
+    serve((path) =>
+      path === DATA_PATH ? { ...answer({ sales: stale }), current: false } : liveView("n1"),
+    );
+    renderLive(<ArtifactFrame artifactId="a1" versionId="v3" title="Report" />);
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await dataArrived();
+    postFromFrame(frame, ready("n1"));
+
+    expect(post).toHaveBeenCalledWith(
+      { type: "agenticos:data", n: "n1", bindings: { sales: forPage(stale) } },
+      "*",
+    );
+    expect(paths().filter((path) => path.includes("/view"))).toHaveLength(1);
+  });
+
+  it.each([403, 404])("answers with no data when the data answers %i", async (status) => {
+    serve((path) => {
+      if (path === DATA_PATH) throw new ApiError(status, "Not available.");
+      return liveView("n1");
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const { frame, post } = await loadedFrame("https://c/n1");
+    postFromFrame(frame, ready("n1"));
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith({ type: "agenticos:data", n: "n1", bindings: {} }, "*"),
+    );
+    expect(onBridge.mock.lastCall?.[0].status).toMatchObject({
+      error: expect.objectContaining({ status }),
+    });
+  });
+});
+
+describe("what counts as a page's ready", () => {
+  const frame = { contentWindow: window } as unknown as HTMLIFrameElement;
+  const message = (data: unknown, source: unknown = window) =>
+    new MessageEvent("message", { data, source: source as Window });
+
+  it("takes the frame's own ready, with the nonce of this load", () => {
+    expect(readyFrom(message(ready("n1", true)), frame, "n1")).toEqual({ subscribes: true });
+    expect(readyFrom(message({ type: "agenticos:ready", n: "n1" }), frame, "n1")).toEqual({
+      subscribes: false,
+    });
+  });
+
+  it.each([
+    ["no frame", ready("n1"), null],
+    ["another window", ready("n1"), { contentWindow: {} }],
+    ["not an object", "agenticos:ready", frame],
+    ["null", null, frame],
+    ["another type", { type: "agenticos:open-link", n: "n1" }, frame],
+    ["another nonce", ready("n0"), frame],
+  ])("refuses %s", (_label, data, target) => {
+    expect(readyFrom(message(data), target as HTMLIFrameElement | null, "n1")).toBeNull();
+  });
+});
+
 describe("what counts as a link request", () => {
   const frame = { contentWindow: window } as unknown as HTMLIFrameElement;
   const message = (data: unknown, source: unknown = window) =>
@@ -227,6 +996,14 @@ describe("the list card", () => {
     expect(screen.getByText(/Version 3/)).toBeInTheDocument();
   });
 
+  it("marks a page with live data", () => {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
+    const { rerender } = render(<ArtifactCard artifact={artifact({ live: true })} />);
+    expect(screen.getByText("Live")).toBeInTheDocument();
+    rerender(<ArtifactCard artifact={artifact({ live: false })} />);
+    expect(screen.queryByText("Live")).toBeNull();
+  });
+
   it("stacks one sheet per earlier version and names the version on the page", () => {
     useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
     const { container } = render(<ArtifactCard artifact={artifact()} />);
@@ -247,6 +1024,76 @@ describe("the list card", () => {
       <ArtifactCard artifact={artifact({ current_version: null, environment_name: "staging" })} />,
     );
     expect(screen.getByText("staging")).toHaveAttribute("title", "Published from this environment");
+  });
+
+  it("marks an archived page and draws no thumbnail of a page that would not load", () => {
+    useArtifactViewMock.mockReset();
+    render(
+      <ArtifactCard artifact={artifact({ archived_at: "2026-10-01T09:00:00Z", live: true })} />,
+    );
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    // Archived serves nothing, so it is not live, whatever its bindings.
+    expect(screen.queryByText("Live")).toBeNull();
+    expect(useArtifactViewMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/apps/a1");
+  });
+
+  function withMenu(overrides: Partial<Artifact> = {}) {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
+    const actions = { onArchive: vi.fn(), onRestore: vi.fn(), onDelete: vi.fn() };
+    render(<ArtifactCard artifact={artifact(overrides)} actions={actions} />);
+    return actions;
+  }
+
+  it("offers a reader the page and nothing to act on", () => {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
+    render(<ArtifactCard artifact={artifact()} />);
+
+    expect(screen.getByRole("link", { name: "Open Weekly report" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /More actions/ })).toBeNull();
+  });
+
+  it("archives a live page from its menu, without opening it", async () => {
+    const actions = withMenu();
+    const link = screen.getByRole("link", { name: "Open Weekly report" });
+    const opened = vi.fn();
+    link.addEventListener("click", opened);
+    const trigger = screen.getByRole("button", { name: "More actions for Weekly report" });
+    // The menu sits beside the link, never inside it.
+    expect(link.contains(trigger)).toBe(false);
+
+    await userEvent.click(trigger);
+    expect(screen.queryByRole("menuitem", { name: "Restore" })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+
+    expect(actions.onArchive).toHaveBeenCalled();
+    expect(opened).not.toHaveBeenCalled();
+  });
+
+  it("restores an archived page from its menu", async () => {
+    const actions = withMenu({ archived_at: "2026-10-01T09:00:00Z" });
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Weekly report" }));
+    expect(screen.queryByRole("menuitem", { name: "Archive" })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Restore" }));
+
+    expect(actions.onRestore).toHaveBeenCalled();
+  });
+
+  it("deletes permanently, and says that is what it is", async () => {
+    const actions = withMenu();
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Weekly report" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete permanently" }));
+
+    expect(actions.onDelete).toHaveBeenCalled();
+  });
+
+  it("dims the card while its change is on the way", () => {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
+    const { container } = render(<ArtifactCard artifact={artifact()} busy />);
+
+    expect(container.firstElementChild).toHaveClass("pointer-events-none");
   });
 
   it("names the departments a page is shared with, as every other card does", () => {
@@ -354,6 +1201,23 @@ describe("the version picker", () => {
     );
   });
 
+  it("says which version a restored one was restored from, and nothing on a publish", async () => {
+    render(
+      <VersionPicker
+        versions={[version(4, { restored_from: 2 }), version(3), version(2)]}
+        value={null}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Version" }));
+
+    expect(screen.getByRole("menuitemradio", { name: /^v4/ })).toHaveTextContent(
+      "v4 · restored from v2",
+    );
+    expect(screen.getByRole("menuitemradio", { name: /^v3/ })).not.toHaveTextContent(/restored/);
+  });
+
   it("names nothing on the button for a pinned version that was pruned", () => {
     render(<VersionPicker versions={[version(2), version(1)]} value="gone" onChange={vi.fn()} />);
 
@@ -394,10 +1258,12 @@ describe("the public link settings", () => {
   function renderSettings(
     overrides: Partial<ArtifactPublicLink> = {},
     onSave = vi.fn().mockResolvedValue(undefined),
+    publicDataConfirmed = false,
   ) {
     render(
       <PublicLinkSettings
         link={link(overrides)}
+        publicDataConfirmed={publicDataConfirmed}
         versions={[version(2), version(1)]}
         saving={false}
         onSave={onSave}
@@ -424,6 +1290,64 @@ describe("the public link settings", () => {
       pinned_version_id: "v1",
       embed_origins: ["https://a.example.com", "https://b.example.com"],
     });
+  });
+
+  it("asks before a new site clears the confirmed public data, and saves on yes", async () => {
+    const onSave = renderSettings(
+      { embed_origins: ["https://a.example.com"] },
+      vi.fn().mockResolvedValue(undefined),
+      true,
+    );
+    await userEvent.type(
+      screen.getByLabelText("Sites that may embed it"),
+      "{enter}https://b.example.com",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save link settings" }));
+
+    expect(screen.getByText("Add a site to the public link?")).toBeVisible();
+    expect(onSave).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Save and hide data" }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embed_origins: ["https://a.example.com", "https://b.example.com"],
+      }),
+    );
+  });
+
+  it("saves nothing when the question is cancelled", async () => {
+    const onSave = renderSettings(
+      { embed_origins: [] },
+      vi.fn().mockResolvedValue(undefined),
+      true,
+    );
+    await userEvent.type(screen.getByLabelText("Sites that may embed it"), "https://b.example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Save link settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.queryByText("Add a site to the public link?")).toBeNull();
+  });
+
+  it("does not ask when sites are only removed or kept", async () => {
+    const onSave = renderSettings(
+      { embed_origins: ["https://a.example.com", "https://b.example.com"] },
+      vi.fn().mockResolvedValue(undefined),
+      true,
+    );
+    fireEvent.change(screen.getByLabelText("Sites that may embed it"), {
+      target: { value: "https://A.example.com/" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Save link settings" }));
+    expect(screen.queryByText("Add a site to the public link?")).toBeNull();
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
+  it("adds a site without asking when no public data is confirmed", async () => {
+    const onSave = renderSettings({ embed_origins: [] });
+    await userEvent.type(screen.getByLabelText("Sites that may embed it"), "https://b.example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Save link settings" }));
+    expect(screen.queryByText("Add a site to the public link?")).toBeNull();
+    expect(onSave).toHaveBeenCalledOnce();
   });
 
   it("clears what was set when the fields are emptied", async () => {
@@ -486,6 +1410,25 @@ describe("the public link settings", () => {
     await userEvent.click(screen.getByRole("button", { name: "Remove password" }));
     expect(onSave).toHaveBeenCalledWith({ password: null });
   });
+
+  it("asks before removing a password while public data is confirmed, and removes on yes", async () => {
+    const onSave = renderSettings({ password_protected: true }, undefined, true);
+    await userEvent.click(screen.getByRole("button", { name: "Remove password" }));
+
+    expect(screen.getByText("Remove the password?")).toBeVisible();
+    expect(onSave).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Remove and hide data" }));
+    expect(onSave).toHaveBeenCalledWith({ password: null });
+  });
+
+  it("keeps the password when the question is cancelled", async () => {
+    const onSave = renderSettings({ password_protected: true }, undefined, true);
+    await userEvent.click(screen.getByRole("button", { name: "Remove password" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.queryByText("Remove the password?")).toBeNull();
+  });
 });
 
 describe("the embed code", () => {
@@ -534,7 +1477,18 @@ describe("the public page", () => {
     password_required: false as const,
     title: "Weekly report",
     published_at: "2026-09-22T10:00:00Z",
-    view: { url: "https://api/c/t", expires_at: "", version: version(3) },
+    view: {
+      url: "https://api/c/t",
+      expires_at: "",
+      nonce: "n",
+      live: false,
+      injected: false,
+      awaiting_consent: false,
+      bindings: 0,
+      version: version(3),
+      actions_enabled: false,
+      actions: [],
+    },
   };
   const locked = {
     password_required: true as const,
@@ -548,6 +1502,28 @@ describe("the public page", () => {
     expect(screen.getByRole("heading", { name: "Weekly report" })).toBeInTheDocument();
     expect(screen.getByText(/Updated/)).toBeInTheDocument();
     expect(screen.getByTitle("Weekly report").getAttribute("src")).toBe("https://api/c/t");
+  });
+
+  it("never reads a page's data and never answers its ready: it carries its own, or none", () => {
+    const get = vi
+      .spyOn(apiClient, "get")
+      .mockImplementation((() =>
+        Promise.reject(new Error("a public page reads nothing"))) as typeof apiClient.get);
+    render(
+      <PublicArtifact
+        artifact={{ ...opened, view: { ...opened.view, injected: true, bindings: 2 } }}
+        publicKey="k"
+      />,
+    );
+    const frame = screen.getByTitle("Weekly report") as HTMLIFrameElement;
+    const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
+    fireEvent.load(frame);
+
+    postFromFrame(frame, ready("n"));
+    postFromFrame(frame, ready("n", true));
+
+    expect(post).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
   });
 
   it("asks for the password first and says nothing else about the page", async () => {

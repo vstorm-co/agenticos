@@ -83,6 +83,11 @@ export interface McpToolCall {
 export interface McpToolInfo {
   name: string;
   description: string;
+  /**
+   * The JSON Schema of the tool's arguments, when the server's was small enough
+   * to keep. Absent from a list recorded before it was kept.
+   */
+  input_schema?: Record<string, unknown> | null;
   /** The server marks it read-only; anything else is treated as a write. */
   read_only?: boolean;
 }

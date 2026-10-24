@@ -830,7 +830,9 @@ class TestTheIndex:
         ):
             await VisualService(MagicMock()).save_thumbnail(ctx, uuid.uuid4(), "c", PNG)
 
-    @pytest.mark.parametrize("data", [b"<svg/>", PNG + b"\x00" * (513 * 1024)])
+    @pytest.mark.parametrize(
+        "data", [b"<svg/>", PNG + b"\x00" * (513 * 1024)], ids=["not-png", "over-512-kib"]
+    )
     async def test_a_thumbnail_is_a_small_png(self, data: bytes) -> None:
         ctx = _ctx()
         row = SimpleNamespace(organization_id=ctx.organization_id, user_id=ctx.user_id)

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -213,6 +213,28 @@ class MemberIdentity(NamedTuple):
 
     email: str | None
     avatar_url: str | None
+
+
+async def get_active_ids(
+    db: AsyncSession, *, organization_id: UUID, user_ids: list[UUID]
+) -> dict[UUID, UUID]:
+    """Map user id -> the id of their active membership, for those who have one.
+
+    The batch form of `get_active`, for a listing that must tell whose membership is
+    still the one a stored id names.
+    """
+    if not user_ids:
+        return {}
+    result = await db.execute(
+        select(OrganizationMember.user_id, OrganizationMember.id)
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id.in_(user_ids),
+            User.is_active.is_(True),
+        )
+    )
+    return dict(result.all())
 
 
 async def get_identities_for_users(
@@ -428,6 +450,23 @@ async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def count_active_for_org(db: AsyncSession, organization_id: UUID) -> int:
+    """Members whose account can still sign in - what a per-member allowance scales by.
+
+    Joined against `User.is_active`, the same test `get_active` reads a single membership
+    through: a deactivated account cannot write, so counting its row would inflate a budget
+    nothing is producing traffic against. Used by the Virtual Tables retention sweep to size
+    one organization's daily removal budget off how many members could actually be writing,
+    rather than assuming exactly one.
+    """
+    result = await db.execute(
+        select(func.count(OrganizationMember.id))
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(OrganizationMember.organization_id == organization_id, User.is_active.is_(True))
+    )
+    return result.scalar() or 0
+
+
 async def first_owner_id(db: AsyncSession, *, organization_id: UUID) -> UUID | None:
     """The earliest-joined owner - who system-made rows are attributed to."""
     return await db.scalar(
@@ -523,3 +562,22 @@ async def update_role(
 async def delete(db: AsyncSession, member: OrganizationMember) -> None:
     await db.delete(member)
     await db.flush()
+
+
+async def find_active(
+    db: AsyncSession, *, organization_id: UUID, term: str
+) -> list[tuple[UUID, str, str | None]]:
+    """The active members whose address or full name is `term`, ignoring case, as
+    `(user_id, email, full_name)` - more than one when a name is shared."""
+    wanted = term.lower()  # as Postgres `lower()` folds it, not `casefold()`
+    result = await db.execute(
+        select(User.id, User.email, User.full_name)
+        .join(OrganizationMember, OrganizationMember.user_id == User.id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            User.is_active.is_(True),
+            or_(func.lower(User.email) == wanted, func.lower(User.full_name) == wanted),
+        )
+        .order_by(User.email)
+    )
+    return [(row[0], row[1], row[2]) for row in result.all()]

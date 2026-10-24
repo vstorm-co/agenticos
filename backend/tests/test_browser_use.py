@@ -523,6 +523,25 @@ class TestWhichBrowsersTheOperatorAllows:
         with pytest.raises(UrlRefusedError):
             validate_cdp_url(WebBrowserConfig(cdp_url="http://browser:9222"))
 
+    @pytest.mark.parametrize(
+        "url",
+        ["http://artifact-render:9222", "ws://Artifact-Render:9333/devtools/browser/x"],
+        ids=["as-configured", "another-port-and-case"],
+    )
+    def test_the_page_renderer_is_refused_even_when_the_allowlist_names_it(
+        self, monkeypatch: pytest.MonkeyPatch, url: str
+    ):
+        """The render browser draws people's records and is the operator's alone."""
+        monkeypatch.setattr(settings, "ARTIFACT_RENDER_CDP_URL", "http://artifact-render:9222")
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser", "artifact-render"])
+        with pytest.raises(UrlRefusedError, match="page renderer"):
+            validate_cdp_url(WebBrowserConfig(cdp_url=url))
+        validate_cdp_url(WebBrowserConfig(cdp_url="http://browser:9222"))
+
+    def test_without_a_renderer_no_host_is_held_back(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "ARTIFACT_RENDER_CDP_URL", None)
+        validate_cdp_url(WebBrowserConfig(cdp_url="http://browser:9222"))
+
 
 class TestPinningTheBrowserToItsAddress:
     """Chromium answers DevTools only to an address, so a named service is reached by one."""
@@ -1690,6 +1709,21 @@ async def _call_as(deps: AgentDeps, opener: _Opener | None = None) -> str:
     tools = await toolset.get_tools(ctx)
     args = {"task": "find the price", "start_url": "https://example.test/"}
     return str(await toolset.call_tool("browse_web", args, ctx, tools["browse_web"]))
+
+
+class TestThePageRendererIsRefusedOnEveryBrowse:
+    @pytest.mark.security
+    async def test_the_page_renderer_is_refused_on_every_browse(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """An agent published before the operator named its browser the renderer."""
+        monkeypatch.setattr(settings, "ARTIFACT_RENDER_CDP_URL", "http://Artifact-Render:9222")
+        opener = _Opener()
+
+        answer = await _call(_toolset(opener, cdp_url="http://artifact-render:9333"))
+
+        assert "page renderer" in answer
+        assert opener.opened == []
 
 
 class TestALongBrowseMayRunInTheBackground:

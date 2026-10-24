@@ -152,6 +152,16 @@ def _window_days(since: datetime, window_start: datetime) -> int:
 
 class TestBudgetExceeded:
     @pytest.mark.anyio
+    async def test_a_ceiling_set_on_one_run_is_reported_by_whoever_set_it(self, written):
+        """A workflow step's `max_cost_usd`: the workflow run fails with it, so
+        nobody is mailed about an agent's or an organization's cap that did not bind."""
+        await NotificationService(MagicMock()).budget_exceeded(
+            _run(), agent=_agent(), spec=_spec(), reason="cap", scope=BudgetScope.RUN
+        )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
     async def test_the_owner_and_the_admins_are_both_told(self, written):
         """The builder fixes the agent; the people paying decide if the cap was too low."""
         admin_id, owner_id = uuid.uuid4(), uuid.uuid4()

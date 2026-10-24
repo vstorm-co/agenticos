@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -105,6 +106,7 @@ def _org_read(
         welcome_dm_enabled=org.welcome_dm_enabled,
         welcome_dm_text=org.welcome_dm_text,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        public_live_data=org.public_live_data,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
         speech_to_text_secret_id=org.speech_to_text_secret_id,
@@ -438,6 +440,12 @@ class OrganizationService:
         approval should not be able to switch the queue off for every
         conversation (#925).
 
+        `public_live_data` - whether a page's data may reach anonymous visitors - is
+        `org:settings` (Owner or Admin), signed in as themselves: nobody impersonating
+        them changes it (saving the value it already has is not a change), since it
+        widens who reads the organization's tables. Audited
+        `organization.public_live_data_changed` with the old and the new value.
+
         The speech-to-text default falls under `org:settings` with the metadata,
         and is validated only when one of its fields is named - so a rename never
         trips over a default that went stale (#1797). Calls and dictation are
@@ -459,9 +467,15 @@ class OrganizationService:
         )
         wants_color = "avatar_color" in data.model_fields_set
         wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
+        wants_public_data = "public_live_data" in data.model_fields_set
         wants_metadata = bool(
             data.model_fields_set
-            - {"monthly_budget_usd", "proactive_limit_usd", "chat_may_waive_approvals"}
+            - {
+                "monthly_budget_usd",
+                "proactive_limit_usd",
+                "chat_may_waive_approvals",
+                "public_live_data",
+            }
             - _PROACTIVE_FIELDS
         )
         if wants_metadata and not holds(Perm.ORG_SETTINGS):
@@ -471,6 +485,22 @@ class OrganizationService:
         if wants_waiver and not holds(Perm.APPROVALS_DECIDE):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
+            )
+
+        if wants_public_data and not holds(Perm.ORG_SETTINGS):
+            raise AuthorizationError(
+                message="Changing whether pages may show data publicly requires 'org:settings'"
+            )
+        if (
+            wants_public_data
+            and data.public_live_data != org.public_live_data
+            and current_impersonator() is not None
+        ):
+            raise AuthorizationError(
+                message=(
+                    "Changing whether pages may show data publicly is not allowed while "
+                    "impersonating another account."
+                )
             )
 
         if wants_budget:
@@ -514,6 +544,24 @@ class OrganizationService:
                 self.db, org, allowed=data.chat_may_waive_approvals
             )
 
+        if (
+            wants_public_data
+            and data.public_live_data is not None
+            and data.public_live_data != org.public_live_data
+        ):
+            before = org.public_live_data
+            org = await organization_repo.set_public_live_data(
+                self.db, org, allowed=data.public_live_data
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=requester_id,
+                organization_id=org.id,
+                action="organization.public_live_data_changed",
+                target_type="organization",
+                target_id=str(org.id),
+                details={"from": before, "to": org.public_live_data},
+            )
         if data.model_fields_set & _SPEECH_FIELDS:
             org = await self._apply_speech_settings(org, data)
 

@@ -23,10 +23,10 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 105 | 241 |
+| MIT | 105 | 250 |
 | Apache-2.0 | 66 | 24 |
 | BSD-3-Clause | 24 | 4 |
-| ISC | 3 | 16 |
+| ISC | 3 | 21 |
 | BSD-2-Clause | 7 | 0 |
 | Apache-2.0 AND MIT | 1 | 2 |
 | LGPL-3.0-or-later | 1 | 2 |
@@ -281,7 +281,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-292 distributions.
+306 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -299,12 +299,12 @@ names no author is in the evidence column below.
 | @formatjs/intl-localematcher | 0.8.13 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @img/colour | 1.1.0 | MIT | https://github.com/lovell/colour | package.json license |
 | @img/sharp-libvips-linux-arm64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
-| @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
+| @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted; no licence file, attributed to Lovell Fuller <npm@lovell.info> |
 | @img/sharp-linux-arm64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @img/sharp-linux-x64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @next/env | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
 | @next/swc-linux-arm64-gnu | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license |
-| @next/swc-linux-x64-gnu | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license |
+| @next/swc-linux-x64-gnu | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Vercel, Inc. |
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
 | @opentelemetry/api-logs | 0.221.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
 | @opentelemetry/core | 2.10.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
@@ -328,6 +328,7 @@ names no author is in the evidence column below.
 | @radix-ui/react-collection | 1.1.15 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-compose-refs | 1.1.5 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-context | 1.2.2 | MIT | https://github.com/radix-ui/primitives | package.json license |
+| @radix-ui/react-context-menu | 2.3.7 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-dialog | 1.1.23 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-direction | 1.1.4 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-dismissable-layer | 1.1.19 | MIT | https://github.com/radix-ui/primitives | package.json license |
@@ -373,13 +374,17 @@ names no author is in the evidence column below.
 | @tanstack/react-query | 5.102.8 | MIT | https://github.com/TanStack/query | package.json license |
 | @types/d3-array | 3.2.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-color | 3.1.3 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-drag | 3.0.7 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-ease | 3.0.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-interpolate | 3.0.4 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-path | 3.1.1 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-scale | 4.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-selection | 3.0.12 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-shape | 3.1.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-time | 3.0.4 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-timer | 3.0.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-transition | 3.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-zoom | 3.0.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/debug | 4.1.13 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/estree | 1.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/estree-jsx | 1.0.5 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
@@ -393,6 +398,8 @@ names no author is in the evidence column below.
 | @types/use-sync-external-store | 0.0.6 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @ungap/structured-clone | 1.3.3 | ISC | https://github.com/ungap/structured-clone | package.json license |
 | @vercel/otel | 2.1.3 | MIT | https://github.com/vercel/otel | package.json license |
+| @xyflow/react | 12.11.6 | MIT | https://github.com/xyflow/xyflow | package.json license |
+| @xyflow/system | 0.0.82 | MIT | https://github.com/xyflow/xyflow | package.json license |
 | aria-hidden | 1.2.6 | MIT | https://github.com/theKashey/aria-hidden | package.json license |
 | bail | 2.0.2 | MIT | https://github.com/wooorm/bail | package.json license |
 | baseline-browser-mapping | 2.11.10 | Apache-2.0 | https://github.com/web-platform-dx/baseline-browser-mapping | package.json license |
@@ -406,6 +413,7 @@ names no author is in the evidence column below.
 | character-reference-invalid | 2.0.1 | MIT | https://github.com/wooorm/character-reference-invalid | package.json license |
 | cjs-module-lexer | 2.2.0 | MIT | https://github.com/nodejs/cjs-module-lexer | package.json license |
 | class-variance-authority | 0.7.1 | Apache-2.0 | https://github.com/joe-bell/cva | package.json license |
+| classcat | 5.0.5 | MIT | https://github.com/jorgebucaran/classcat | package.json license |
 | client-only | 0.0.1 | MIT | https://reactjs.org/ | package.json license; no licence file, attributed to Meta Platforms, Inc. and affiliates |
 | clsx | 2.1.1 | MIT | https://github.com/lukeed/clsx | package.json license |
 | cmdk | 1.1.1 | MIT | https://github.com/pacocoursey/cmdk | package.json license |
@@ -413,15 +421,20 @@ names no author is in the evidence column below.
 | csstype | 3.2.3 | MIT | https://github.com/frenic/csstype | package.json license |
 | d3-array | 3.2.4 | ISC | https://github.com/d3/d3-array | package.json license |
 | d3-color | 3.1.0 | ISC | https://github.com/d3/d3-color | package.json license |
+| d3-dispatch | 3.0.1 | ISC | https://github.com/d3/d3-dispatch | package.json license |
+| d3-drag | 3.0.0 | ISC | https://github.com/d3/d3-drag | package.json license |
 | d3-ease | 3.0.1 | BSD-3-Clause | https://github.com/d3/d3-ease | package.json license |
 | d3-format | 3.1.2 | ISC | https://github.com/d3/d3-format | package.json license |
 | d3-interpolate | 3.0.1 | ISC | https://github.com/d3/d3-interpolate | package.json license |
 | d3-path | 3.1.0 | ISC | https://github.com/d3/d3-path | package.json license |
 | d3-scale | 4.0.2 | ISC | https://github.com/d3/d3-scale | package.json license |
+| d3-selection | 3.0.0 | ISC | https://github.com/d3/d3-selection | package.json license |
 | d3-shape | 3.2.0 | ISC | https://github.com/d3/d3-shape | package.json license |
 | d3-time | 3.1.0 | ISC | https://github.com/d3/d3-time | package.json license |
 | d3-time-format | 4.1.0 | ISC | https://github.com/d3/d3-time-format | package.json license |
 | d3-timer | 3.0.1 | ISC | https://github.com/d3/d3-timer | package.json license |
+| d3-transition | 3.0.1 | ISC | https://github.com/d3/d3-transition | package.json license |
+| d3-zoom | 3.0.0 | ISC | https://github.com/d3/d3-zoom | package.json license |
 | debug | 4.4.3 | MIT | https://github.com/debug-js/debug | package.json license |
 | decimal.js-light | 2.5.1 | MIT | https://github.com/MikeMcl/decimal.js-light | package.json license |
 | decode-named-character-reference | 1.3.0 | MIT | https://github.com/wooorm/decode-named-character-reference | package.json license |
@@ -575,6 +588,7 @@ names no author is in the evidence column below.
 | victory-vendor | 37.3.6 | MIT AND ISC | https://github.com/FormidableLabs/victory | package.json license; no licence file, attributed to Formidable |
 | voice-glow | 0.2.0 | MIT | https://github.com/Jakubantalik/Libraries.dev | package.json license |
 | yaml | 2.9.1 | ISC | github:eemeli/yaml | package.json license |
+| zustand | 4.5.7 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zustand | 5.0.15 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zwitch | 2.0.4 | MIT | https://github.com/wooorm/zwitch | package.json license |
 

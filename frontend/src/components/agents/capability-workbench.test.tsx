@@ -29,6 +29,25 @@ vi.mock("@/hooks/use-memory", () => ({
 
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
+  // The tables panel lists the organization's tables; `tables-section` covers it.
+  useAllTables: () => ({
+    tables: [{ id: "t-1", name: "Leads", description: null }],
+    isLoading: false,
+  }),
+  // The workflows panel lists the organization's workflows; `workflows-section` covers it.
+  useWorkflows: () => ({
+    workflows: [
+      {
+        id: "w-1",
+        name: "Refund",
+        description: null,
+        status: "published",
+        current_version_id: "v-1",
+        live_trigger: "trigger.manual",
+      },
+    ],
+    isLoading: false,
+  }),
   // The workspace section reads both: where sandboxes may run, and what the
   // chosen host allows. Neither is this file's subject - `workspace-section`
   // covers them - so both answer empty, which is a deployment that registered
@@ -223,6 +242,20 @@ describe("the capability workbench", () => {
     renderWorkbench({ selected: [binding("charts")] });
 
     await openCapability("Charts");
+
+    expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
+  });
+
+  it("offers no clear for a spec no agent holds yet", async () => {
+    // A workflow step's agent before its first run: there are no notes to clear,
+    // and no agent to clear them on.
+    renderWorkbench({
+      agentId: null,
+      catalog: [MEMORY_FILES],
+      selected: [binding("memory_files")],
+    });
+
+    await openCapability("Memory files");
 
     expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
   });
@@ -718,6 +751,120 @@ describe("image generation, whose model is a provider and a model", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Image generation enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("image_generation");
+  });
+});
+
+describe("tables, whose grants are a table and its operations", () => {
+  const TABLES: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "virtual_tables",
+    name: "Tables",
+    category: "data",
+    description: "Read and write the Virtual Tables this agent is granted.",
+    tools: [],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")] });
+
+    await openCapability("Tables");
+
+    expect(screen.getByRole("checkbox", { name: "Let the agent use Leads" })).toBeVisible();
+  });
+
+  it("grants it from the panel's own switch", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [TABLES, CHARTS], onToggle });
+
+    await openCapability("Tables");
+    await userEvent.click(screen.getByRole("switch", { name: "Tables enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("virtual_tables");
+  });
+});
+
+describe("workflows, whose grants are the workflows it may start", () => {
+  const WORKFLOWS: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "workflows",
+    name: "Workflows",
+    category: "automation",
+    description: "Start published workflows as tools, and read what they answered.",
+    tools: [],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [WORKFLOWS, CHARTS], selected: [binding("workflows")] });
+
+    await openCapability("Workflows");
+
+    expect(screen.getByRole("checkbox", { name: "Let the agent start Refund" })).toBeVisible();
+  });
+
+  it("grants it from the panel's own switch", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [WORKFLOWS, CHARTS], onToggle });
+
+    await openCapability("Workflows");
+    await userEvent.click(screen.getByRole("switch", { name: "Workflows enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("workflows");
+  });
+});
+
+describe("the workbench as illustrated cards", () => {
+  it("shelves the catalog by category and opens settings in a panel", async () => {
+    const PORTALS = { ...CHARTS, id: "portals", name: "Portals", category: "teleportation" };
+    renderWorkbench({ catalog: [CHARTS, CONTEXT, PORTALS], selected: [binding("charts")] });
+
+    expect(screen.getByRole("region", { name: "Work with data" })).toBeInTheDocument();
+    // A category the console has no words for yet keeps the registry's own.
+    expect(screen.getByRole("region", { name: "teleportation" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Knowledge and memory" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Context settings" }));
+    const panel = screen.getByRole("dialog");
+    expect(within(panel).getByRole("heading", { name: "Context settings" })).toBeInTheDocument();
+    expect(within(panel).getByRole("switch", { name: "Context enabled" })).toBeInTheDocument();
+
+    await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("says when a search matches nothing", async () => {
+    renderWorkbench();
+
+    await userEvent.type(screen.getByPlaceholderText("Search capabilities…"), "teleport");
+
+    expect(screen.getByText(/teleport/)).toBeInTheDocument();
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+
+  it("marks a recommended capability on its card", () => {
+    renderWorkbench({
+      catalog: [
+        {
+          ...CHARTS,
+          recommended: {
+            id: "charts",
+            config: {},
+            approval: "default",
+            tool_approval: {},
+            tool_overrides: {},
+            secret_id: null,
+            enabled: true,
+          },
+        },
+        CONTEXT,
+      ],
+    });
+
+    expect(screen.getAllByText("Recommended")).toHaveLength(1);
   });
 });
 

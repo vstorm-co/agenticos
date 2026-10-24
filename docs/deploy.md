@@ -236,6 +236,63 @@ host was set up with rather than the one a script assumed.
     the host — and that is a property of *not being labelled*, so it survives
     somebody adding a service without thinking about the proxy.
 
+!!! warning "Some request paths and query strings are credentials"
+
+    These path segments open something to whoever reads them:
+
+    - a public link's key, in `/a/<key>`, `/api/v1/public/artifacts/<key>` and
+      `/api/v1/artifact-embed/<key>`, until the link is rotated;
+    - a signed content address, `/api/v1/artifact-content/<token>`, for its
+      lifetime;
+    - a shared conversation's token, in `/shared/<token>` and
+      `/api/v1/conversations/shared/<token>`;
+    - a workflow form's token, in `/f/<token>` and
+      `/api/v1/public/workflow-forms/<token>`;
+    - a webhook test's token, in `/api/v1/workflow-webhook-tests/<token>` and
+      `/api/v1/workflows/<id>/webhook-test/<token>`;
+    - a channel link's token, in `/link/<token>` and
+      `/api/v1/me/channel-link/<token>`;
+    - an invitation's token, in `/invitations/<token>`,
+      `/api/v1/invitations/<token>` and `/api/v1/invitations/<token>/accept`;
+    - a workflow run's resume token, in
+      `/api/v1/workflow-resume/<run_id>/<token>`.
+
+    So do these query parameters:
+
+    - `visitor` and `token` on the agent widget's socket,
+      `/api/v1/embed/<key>/ws`: a hosted page's key, which resumes the
+      visitor's conversation, and the customer's signed visitor token;
+    - `code` and `state` on a sign-in provider's return,
+      `/api/v1/oauth/<provider>/callback`, and `code` on the console's
+      `/auth/callback`;
+    - `invitation_handle` on `/api/v1/oauth/<provider>/login` and
+      `/api/v1/auth/kerberos/login`, which redeems the invitation it stands
+      for;
+    - `token` on the console's `/reset-password`, `/auth/magic-link` and
+      `/auth/email-change`, the links that a password reset, a sign-in link and
+      an email change send.
+
+    A request made from one of those pages can carry its address in the
+    `Referer` header. The API replaces the API segments and the values of those
+    parameters with `[REDACTED]` in its own access log, in uvicorn's line for
+    each accepted WebSocket, in every log record and in Logfire spans, the
+    console output, the endpoint's arguments and the copy Logfire makes when a
+    span starts included. Other query parameters, such as `q`, `skip`, `limit`
+    and ids, are kept.
+
+    Traefik can keep, drop or redact a whole field but cannot rewrite part of
+    one, so `traefik/traefik.yml` drops `RequestPath`, which includes the query
+    string, from Traefik's access log. Nginx can rewrite part of a value, but
+    `nginx/nginx.conf` drops the path, the query string and the `Referer` the
+    same way, with the `agenticos_no_path` log format each
+    server block names, so the list of secret paths is kept in one place. Both
+    logs still have the client, the status, the size and the duration.
+    Nginx's error log writes the request line and the `Referer` of a failed
+    request, and no setting changes that, so keep the error log on the host. If
+    you need the paths in the access log, remove that field rule or log format
+    and handle the log as a secret: keep it on the host and do not ship it to a
+    log service.
+
 ### Option B: Nginx
 
 For a host where Nginx already terminates TLS, or where the proxy is not in
@@ -251,7 +308,10 @@ make prod-frontend
 the `server_name` in each block is `${DOMAIN:-localhost}`, and Nginx does not
 expand that — put the two hostnames in by hand. Certificates are yours to obtain
 and renew, and so is the `Strict-Transport-Security` header, which the backend
-deliberately leaves to whatever terminates TLS.
+deliberately leaves to whatever terminates TLS. The template's access log leaves
+out the request path, the query string and the `Referer`; *Some request paths
+and query strings are credentials*, above, says why and what the error log
+still writes.
 
 !!! warning "`BIND_HOST` is a security setting, not a convenience"
 

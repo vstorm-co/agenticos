@@ -236,6 +236,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setPublicLiveData = useCallback(
+    async (id: string, allowed: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        public_live_data: allowed,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   // Five fields in one request, because the server validates them together: a
   // provider without its model, or `server` without either, is refused whole.
   const setVoiceSettings = useCallback(
@@ -285,6 +296,7 @@ export function useOrganizations() {
     setProactivity,
     setWelcomeDm,
     setChatApprovalWaiver,
+    setPublicLiveData,
     setVoiceSettings,
     deleteOrg,
     switchOrg,

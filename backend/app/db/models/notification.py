@@ -51,6 +51,14 @@ class NotificationEventType(enum.StrEnum):
     MCP_SERVER_DOWN = "mcp_server_down"
     MCP_SERVER_RECOVERED = "mcp_server_recovered"
     BACKGROUND_TASK_PAUSED = "background_task_paused"
+    # Written by a workflow's `notification.send` step. Its audience is the step's
+    # own recipient list, already checked against the workflow's reach, rather
+    # than a setting on an agent (#1789).
+    WORKFLOW_NOTIFICATION = "workflow_notification"
+    # A page changed hands: told to its old and its new owner (#1974).
+    ARTIFACT_OWNER_CHANGED = "artifact_owner_changed"
+    # Somebody asked a page's owner to share it, or to confirm a version (#1974).
+    ARTIFACT_SHARE_REQUESTED = "artifact_share_requested"
     CAPABILITY_REQUESTED = "capability_requested"
     SUGGESTION = "suggestion"
     FINDING = "finding"
@@ -147,7 +155,9 @@ class Notification(Base, TimestampMixin):
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
-            "'background_task_paused', 'capability_requested', 'suggestion', 'finding')",
+            "'background_task_paused', 'workflow_notification', "
+            "'artifact_owner_changed', 'artifact_share_requested', "
+            "'capability_requested', 'suggestion', 'finding')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

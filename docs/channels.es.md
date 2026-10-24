@@ -1,5 +1,5 @@
 ---
-source_sha: "513cb1cca129"
+source_sha: "f4452dd32ac7"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2684,6 +2684,16 @@ Esto deliberadamente *no* es lo mismo que meter la lista de miembros y el propó
 del canal en cada system prompt. Eso es otra funcionalidad con otro modo de fallo — un
 `purpose` escrito por cualquiera que pueda editar el canal, pegado dentro de las
 instrucciones, es una inyección de prompt con un botón de editar público.
+
+## Un bot cuyos mensajes inician un workflow { #a-bot-whose-messages-start-a-workflow }
+
+Un workflow con un trigger **Channel message** recibe los mensajes de un bot en lugar
+de su agente. Solo le llegan los mensajes que el agente habría respondido, y de ellos
+solo los que encajan con el filtro del trigger: un mensaje que nombra a otro agente
+por `@handle` sigue yendo a ese agente, y uno que el filtro deja fuera lo responde el
+agente del bot como hasta ahora. El workflow responde con su propio paso **Send a
+message**, en el hilo del que vino el mensaje. Ver
+[Desde un mensaje en un canal](workflows.md#from-a-channel-message).
 
 ## Elegir { #choosing }
 

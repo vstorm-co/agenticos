@@ -10,6 +10,7 @@ parked run that never continues. It drives a real agent through park and resume.
 """
 
 import asyncio
+import json
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -129,6 +130,45 @@ class TestGate:
 
         assert tool.calls == [{"to": "approved@example.com"}]
         assert result == "sent"
+
+    @pytest.mark.anyio
+    async def test_the_arguments_asked_about_can_be_stored(self):
+        """A tool taking an id is asked about with it as text, which a JSON column holds.
+
+        `share_view(view_id: UUID)` reached the approval queue as a `UUID`, and the
+        run died writing the row instead of showing the person anything.
+        """
+        view_id = uuid.uuid4()
+        ctx = _ctx(ApprovalPending())
+
+        with pytest.raises(ApprovalRequired):
+            await ApprovalGate(required_tool_names=GATED).wrap_tool_execute(
+                ctx,
+                call=_call({"view_id": str(view_id)}),
+                tool_def=_tool_def(),
+                args={"view_id": view_id},
+                handler=_Recorder(),
+            )
+
+        [request] = ctx.deps.request_approval.await_args.args
+        assert request.tool_args == {"view_id": str(view_id)}
+        json.dumps(request.tool_args)
+
+    @pytest.mark.anyio
+    async def test_an_approved_id_reaches_the_tool_as_the_type_it_takes(self):
+        """The approval holds the id as text; the tool still gets its `UUID` back."""
+        view_id = uuid.uuid4()
+        tool = _Recorder()
+
+        await ApprovalGate(required_tool_names=GATED).wrap_tool_execute(
+            _ctx(ApprovalGranted(tool_args={"view_id": str(view_id)})),
+            call=_call({"view_id": str(view_id)}),
+            tool_def=_tool_def(),
+            args={"view_id": view_id},
+            handler=tool,
+        )
+
+        assert tool.calls == [{"view_id": view_id}]
 
     @pytest.mark.anyio
     async def test_a_rejected_call_refuses_without_crashing_the_run(self):
@@ -661,6 +701,9 @@ class TestApprovalQueue:
             "agent_id": agent_id,
             "tool_id": "send_email",
             "tool_args": {"to": "customer@example.com"},
+            "capability_tool_id": None,
+            # Nothing described it: the arguments alone are what the approver reads.
+            "context": None,
             # A capability's tool is nobody's account: only an MCP binding names one.
             "account": None,
             # Nobody delegated: the agent whose run this is asked directly. Pinned

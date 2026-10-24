@@ -230,6 +230,30 @@ describe("SharingPanel", () => {
     expect(screen.queryByRole("option", { name: "owner@example.com" })).not.toBeInTheDocument();
   });
 
+  it("finds a member by typing part of their address", async () => {
+    groups = [];
+    members = [...members, member("u-noor", "noor@other.example")];
+    renderPanel();
+    await userEvent.click(screen.getByLabelText(ADD));
+    await userEvent.type(await screen.findByPlaceholderText("Search by name or email…"), "other");
+
+    expect(screen.getByRole("option", { name: "noor@other.example" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "nina@example.com" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("option", { name: "noor@other.example" }));
+    expect(screen.getByLabelText(ADD)).toHaveTextContent("noor@other.example");
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+    expect(share.mutate).toHaveBeenCalledWith({ subject_user_id: "u-noor", level: "read" });
+  });
+
+  it("says so when nobody matches", async () => {
+    renderPanel();
+    await userEvent.click(screen.getByLabelText(ADD));
+    await userEvent.type(await screen.findByPlaceholderText("Search by name or email…"), "zzz");
+
+    expect(screen.getByText("Nobody here matches that.")).toBeInTheDocument();
+  });
+
   it("shares with the member and level that were chosen", async () => {
     renderPanel();
     await choose(screen.getByLabelText(ADD), "nina@example.com");
@@ -355,11 +379,137 @@ describe("SharingPanel", () => {
   });
 });
 
+describe("including data", () => {
+  const PERSON_TEXT =
+    "sam@example.com can change the data everyone sees on this page, including new tables " +
+    "and columns, without asking you. This also covers their API runs.";
+
+  function renderPage(mayGrantEditData: boolean, grants: ResourceGrant[] = [GRANT]) {
+    sharing = { ...SHARING, resource_type: "artifact", grants };
+    return render(
+      <SharingPanel
+        resourceType="artifact"
+        resourceId="a1"
+        canManage
+        mayGrantEditData={mayGrantEditData}
+      />,
+    );
+  }
+
+  it("offers it to nobody on anything but a page, whatever the flag says", async () => {
+    render(<SharingPanel resourceType="agent" resourceId="a1" canManage mayGrantEditData />);
+    await userEvent.click(screen.getByLabelText("Access for sam@example.com"));
+
+    expect(await screen.findByRole("option", { name: "Can edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Can edit, including data" })).toBeNull();
+  });
+
+  it("does not offer it to a page's editor the server did not allow to give it", async () => {
+    renderPage(false);
+    await userEvent.click(screen.getByLabelText("Access for sam@example.com"));
+    expect(await screen.findByRole("option", { name: "Can edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Can edit, including data" })).toBeNull();
+  });
+
+  it("still names a row that holds it, and lets any editor lower it without a popup", async () => {
+    renderPage(false, [{ ...GRANT, level: "edit_data" }]);
+    expect(screen.getByLabelText("Access for sam@example.com")).toHaveTextContent(
+      "Can edit, including data",
+    );
+
+    await choose(screen.getByLabelText("Access for sam@example.com"), "Can edit");
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(share.mutate).toHaveBeenCalledWith({ subject_user_id: "u-sam", level: "edit" });
+  });
+
+  it("says what it allows before raising a person to it, and sends the text's id with it", async () => {
+    renderPage(true);
+    await choose(screen.getByLabelText("Access for sam@example.com"), "Can edit, including data");
+
+    expect(share.mutate).not.toHaveBeenCalled();
+    expect(await screen.findByText(PERSON_TEXT)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Give access" }));
+
+    expect(share.mutate).toHaveBeenCalledWith({
+      subject_user_id: "u-sam",
+      level: "edit_data",
+      confirmed: "edit_data.person.v2",
+    });
+  });
+
+  it("names a member with a full name by it in the popup, as the audit entry does", async () => {
+    members = [{ ...member("u-sam", "sam@example.com"), full_name: "Sam Rivera" }];
+    renderPage(true);
+    await choose(screen.getByLabelText("Access for sam@example.com"), "Can edit, including data");
+
+    expect(
+      await screen.findByText(/^Sam Rivera can change the data everyone sees/),
+    ).toBeInTheDocument();
+  });
+
+  it("gives a group the wording for everyone in it, now and later", async () => {
+    renderPage(true, [{ ...GROUP_GRANT, level: "edit" }]);
+    await choose(screen.getByLabelText("Access for Finance"), "Can edit, including data");
+
+    expect(
+      await screen.findByText(
+        /^Anyone in Finance, now or later, can change the data everyone sees/,
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Give access" }));
+
+    expect(share.mutate).toHaveBeenCalledWith({
+      subject_group_id: "g-fin",
+      level: "edit_data",
+      confirmed: "edit_data.group.v2",
+    });
+  });
+
+  it("shares nothing when the popup is cancelled", async () => {
+    renderPage(true);
+    await choose(screen.getByLabelText("Access for sam@example.com"), "Can edit, including data");
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(share.mutate).not.toHaveBeenCalled();
+  });
+
+  it("asks before adding someone at it, naming them as the picker does", async () => {
+    members = [{ ...member("u-nina", "nina@example.com"), full_name: "Nina Park" }];
+    renderPage(true, []);
+    await choose(screen.getByLabelText(ADD), "Nina Park (nina@example.com)");
+    await choose(screen.getByLabelText("Access"), "Can edit, including data");
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+
+    expect(
+      await screen.findByText(/^Nina Park can change the data everyone sees/),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Give access" }));
+
+    expect(share.mutate).toHaveBeenCalledWith({
+      subject_user_id: "u-nina",
+      level: "edit_data",
+      confirmed: "edit_data.person.v2",
+    });
+  });
+
+  it("asks before adding a group at it, and not for another level", async () => {
+    renderPage(true, []);
+    await choose(screen.getByLabelText(ADD), "Ops");
+    await choose(screen.getByLabelText("Access"), "Can edit, including data");
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+    expect(await screen.findByText(/^Anyone in Ops, now or later/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(share.mutate).not.toHaveBeenCalled();
+  });
+});
+
 describe("toLevel", () => {
   it("reads back each level the catalog offers", () => {
     expect(toLevel("read")).toBe("read");
     expect(toLevel("use")).toBe("use");
     expect(toLevel("edit")).toBe("edit");
+    expect(toLevel("edit_data")).toBe("edit_data");
   });
 
   it("refuses a level this product has no concept of", () => {

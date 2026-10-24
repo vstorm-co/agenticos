@@ -1,7 +1,7 @@
 """Schemas for user-configured MCP server connections."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -22,6 +22,9 @@ MAX_ALLOWED_TOOLS = 100
 class McpToolRead(BaseSchema):
     name: str
     description: str
+    # The JSON Schema of the tool's arguments, when the server's was small
+    # enough to keep. Absent from a list recorded before it was kept.
+    input_schema: dict[str, Any] | None = None
     read_only: bool = Field(
         default=False,
         description="The server marks it readOnlyHint; anything else is treated as a write",

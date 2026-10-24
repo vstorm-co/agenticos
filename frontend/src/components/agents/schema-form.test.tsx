@@ -1203,3 +1203,118 @@ describe("x-enum-when", () => {
     expect(screen.queryByRole("option", { name: /anthropic|openai/ })).toBeNull();
   });
 });
+
+describe("a hint on hover", () => {
+  it("puts an x-hint on the label, for a pointer and a screen reader, not under the field", () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { zone: { type: "string", title: "Timezone", "x-hint": "An IANA timezone" } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="hint"
+      />,
+    );
+    expect(screen.getByText("Timezone").closest("label")).toHaveAttribute(
+      "title",
+      "An IANA timezone",
+    );
+    expect(screen.getByLabelText("Timezone. An IANA timezone")).toBeInTheDocument();
+  });
+
+  it("ticks each choice of a list of choices, named by its label", async () => {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            events: {
+              type: "array",
+              title: "Starts when a record is",
+              items: { type: "string", enum: ["created", "updated", "deleted"] },
+              default: ["created"],
+              "x-enum-labels": { created: "Added", updated: "Changed", deleted: "Deleted" },
+            },
+          },
+        }}
+        value={{}}
+        onChange={onChange}
+        idPrefix="t"
+      />,
+    );
+
+    expect(screen.getByRole("group", { name: "Starts when a record is" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Added" })).toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Changed" }));
+    expect(onChange).toHaveBeenLastCalledWith({ events: ["created", "updated"] });
+    await userEvent.click(screen.getByRole("checkbox", { name: "Added" }));
+    expect(onChange).toHaveBeenLastCalledWith({ events: undefined });
+  });
+});
+
+/** A field that suggests the usual answers and accepts any other. */
+const OPEN_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    model: {
+      type: "string",
+      title: "Model",
+      description: "The model that decides",
+      default: "jev-latest",
+      "x-suggestions": ["jev-latest", "jev-preview"],
+      "x-enum-labels": { "jev-latest": "Jev (latest)", "jev-preview": "Jev (preview)" },
+      "x-placeholder": "jev-latest",
+    },
+  },
+};
+
+describe("a field that suggests rather than restricts", () => {
+  function renderOpen(value: Record<string, unknown> = {}) {
+    const onChange = vi.fn();
+    const { container } = render(
+      <SchemaForm schema={OPEN_SCHEMA} value={value} onChange={onChange} idPrefix="decide" />,
+    );
+    return { onChange, container };
+  }
+
+  it("is an input somebody can type into, not a closed select", () => {
+    // An `<input list=...>` reports `combobox`; what matters is that it takes
+    // free text, where `enum` would have rendered a select and forbidden the
+    // pinned build this field exists to allow.
+    renderOpen();
+    const field = screen.getByRole("combobox");
+    expect(field.tagName).toBe("INPUT");
+    expect(field).toHaveAttribute("list", "decide-model-suggestions");
+  });
+
+  it("offers the catalog through a datalist, labelled the way a select labels its options", () => {
+    const { container } = renderOpen();
+
+    const list = container.querySelector("datalist");
+    expect([...(list?.querySelectorAll("option") ?? [])].map((o) => o.value)).toEqual([
+      "jev-latest",
+      "jev-preview",
+    ]);
+    expect(list?.textContent).toContain("Jev (latest)");
+  });
+
+  it("shows the default until somebody types, and accepts a value the catalog lacks", () => {
+    const { onChange } = renderOpen();
+    expect(screen.getByRole("combobox")).toHaveValue("jev-latest");
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "jev-1.13.0" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({ model: "jev-1.13.0" });
+  });
+
+  it("clearing it means unset rather than an empty string", () => {
+    const { onChange } = renderOpen({ model: "jev-preview" });
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({});
+  });
+});

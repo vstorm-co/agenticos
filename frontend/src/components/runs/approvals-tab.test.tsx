@@ -160,6 +160,33 @@ describe("deciding a parked call", () => {
     expect(screen.getByText(/board@acme\.test/)).toBeVisible();
   });
 
+  it("says what a described call will do in names, over its arguments", async () => {
+    backend({
+      queue: [
+        {
+          ...PARKED,
+          // Renamed by its binding: the sentence is found by the stable id.
+          tool_id: "change_ticket",
+          capability_tool_id: "update_record",
+          tool_args: { table_id: "6f1c" },
+          context: { table: "Support" },
+        },
+        { ...PARKED, id: "ap-3" },
+      ],
+    });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(await screen.findByText("Change a record in Support")).toBeVisible();
+    // The ids it was made with stay one click away, under the sentence.
+    const [described] = screen.getAllByRole("button", { name: "Details" });
+    await userEvent.click(described as HTMLElement);
+    expect(screen.getByText(/6f1c/)).toBeVisible();
+    expect(screen.getByText("change_ticket")).toBeVisible();
+    // A call nobody described gets no sentence.
+    expect(screen.getAllByText("Change a record in Support")).toHaveLength(1);
+  });
+
   it("says nothing waiting only when both reads answered and were empty", async () => {
     backend();
 

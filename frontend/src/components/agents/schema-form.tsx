@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronRight, Eye, EyeOff } from "lucide-react";
 
 import {
+  Checkbox,
   Input,
   Label,
   MarkdownEditor,
@@ -266,9 +267,12 @@ function SchemaField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={id}>
+        <Label htmlFor={id} title={property["x-hint"]}>
           {label}
           {required && <span className="text-muted-foreground"> *</span>}
+          {property["x-hint"] !== undefined && (
+            <span className="sr-only">{`. ${property["x-hint"]}`}</span>
+          )}
         </Label>
         {kind === "boolean" && (
           <Switch
@@ -280,6 +284,34 @@ function SchemaField({
           />
         )}
       </div>
+
+      {kind === "suggested" && (
+        <>
+          <Input
+            id={id}
+            list={`${id}-suggestions`}
+            placeholder={placeholder}
+            value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(event.target.value === "" ? undefined : event.target.value)
+            }
+            {...invalid}
+          />
+          {/* A native datalist rather than a combobox component: this is an
+              ordinary text field that offers the usual answers, and anything
+              richer would be a widget standing between somebody and a string
+              they already know how to type. i18n-exempt: option values are
+              identifiers the backend validates, not copy. */}
+          <datalist id={`${id}-suggestions`}>
+            {(suggestions(property) ?? []).map((choice) => (
+              <option key={choice} value={choice}>
+                {enumLabel(property, choice)}
+              </option>
+            ))}
+          </datalist>
+        </>
+      )}
 
       {kind === "number" && (
         <Input
@@ -337,6 +369,31 @@ function SchemaField({
             ))}
           </SelectContent>
         </Select>
+      )}
+
+      {kind === "choiceList" && (
+        <div id={id} role="group" aria-label={label} className="flex flex-wrap gap-x-4 gap-y-2">
+          {(listChoices(property) ?? []).map((choice) => {
+            const picked = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : [];
+            const on = picked.includes(choice);
+            return (
+              <label key={choice} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={on}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => {
+                    const next =
+                      checked === true
+                        ? [...picked, choice]
+                        : picked.filter((item) => item !== choice);
+                    onChange(next.length === 0 ? undefined : next);
+                  }}
+                />
+                {enumLabel(property, choice)}
+              </label>
+            );
+          })}
+        </div>
       )}
 
       {kind === "stringList" && (
@@ -510,7 +567,29 @@ function SchemaModelProfile({
   );
 }
 
-type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList" | "modelProfile";
+type FieldKind =
+  | "string"
+  | "number"
+  | "boolean"
+  | "enum"
+  | "suggested"
+  | "stringList"
+  | "choiceList"
+  | "modelProfile";
+
+/**
+ * The values a field suggests without restricting itself to them.
+ *
+ * `x-suggestions` is the open counterpart of `enum`: the backend validates a
+ * plain string and the catalog is what most people want, so the form offers the
+ * catalog and still accepts anything. A decision step's `model` is the case it
+ * serves - the catalog holds the moving aliases, and a step whose confidence
+ * floor was tuned against a pinned build has to be able to name that build.
+ */
+function suggestions(property: JsonSchemaProperty): string[] | null {
+  const values = property["x-suggestions"];
+  return Array.isArray(values) && values.every((v) => typeof v === "string") ? values : null;
+}
 
 /**
  * What kind of input a property needs.
@@ -521,9 +600,14 @@ type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList" | "mode
  */
 function resolveKind(property: JsonSchemaProperty): FieldKind {
   if (property["x-widget"] === "model-profile") return "modelProfile";
+  // Before the enum check: a field carrying suggestions is an *open* string
+  // that happens to know the usual answers, and rendering it as a closed
+  // select would forbid the unusual one it exists to allow.
+  if (suggestions(property) !== null) return "suggested";
   // Before the type check, not after: a `Literal` is a string, and a text box
   // for a closed set of values is a way to type one the backend will refuse.
   if (enumChoices(property) !== null) return "enum";
+  if (listChoices(property) !== null) return "choiceList";
   if (isStringList(property)) return "stringList";
 
   const candidates = property.anyOf
@@ -547,6 +631,19 @@ function resolveKind(property: JsonSchemaProperty): FieldKind {
  */
 function enumChoices(property: JsonSchemaProperty): string[] | null {
   const values = property.enum ?? property.anyOf?.find((entry) => entry.enum)?.enum;
+  if (values === undefined) return null;
+  return values.filter((value): value is string => typeof value === "string");
+}
+
+/**
+ * The values a list of choices may hold - a `tuple[Literal[...], ...]` - or null.
+ *
+ * Its labels are on the list itself (`x-enum-labels`), since the list is the
+ * field a person reads; each value is ticked on or off.
+ */
+function listChoices(property: JsonSchemaProperty): string[] | null {
+  const branch = property.anyOf?.find((entry) => entry.type === "array") ?? property;
+  const values = branch.type === "array" ? branch.items?.enum : undefined;
   if (values === undefined) return null;
   return values.filter((value): value is string => typeof value === "string");
 }

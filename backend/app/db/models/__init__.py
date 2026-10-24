@@ -54,6 +54,15 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.virtual_table import (
+    VirtualTable,
+    VirtualTableOutbox,
+    VirtualTableReceipt,
+    VirtualTableRecord,
+    VirtualTableRecordHistory,
+    VirtualTableSchemaVersion,
+)
+from app.db.models.table_view import TableView
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
@@ -87,6 +96,43 @@ from app.db.models.artifact import (
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
 from app.db.models.generated_media import GeneratedMedia, GeneratedMediaReservation
 from app.db.models.visual import Visual
+from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
+from app.db.models.workflow_run import (
+    DispatchOutbox,
+    DispatchOutboxStatus,
+    NodeAttempt,
+    NodeAttemptStatus,
+    NodeRun,
+    NodeRunStatus,
+    ResourceRef,
+    ResourceRefKind,
+    RetryGuarantee,
+    WaitingReason,
+    WorkflowEvent,
+    WorkflowRun,
+    WorkflowNodeSpend,
+    WorkflowRetainedSpend,
+    WorkflowRunMode,
+    WorkflowRunStatus,
+    WorkflowRunTrigger,
+)
+from app.db.models.workflow_exposure import (
+    ExposureAdapter,
+    ExposureScheduleKind,
+    WorkflowExposure,
+    WorkflowWebhookDelivery,
+)
+from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
+from app.db.models.workflow_eval import WorkflowEvalRun, WorkflowStepEval
+from app.db.models.workflow_file import WorkflowFile
+from app.db.models.virtual_table_trigger import (
+    AdmissionReason,
+    AdmissionStatus,
+    TableTriggerAdmission,
+    VirtualTableTrigger,
+    VirtualTableTriggerRevision,
+)
+from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
     "Visual",
@@ -106,6 +152,7 @@ __all__ = [
     "Artifact",
     "ArtifactFollower",
     "ArtifactMediaType",
+    "ArtifactShareRequest",
     "ArtifactVersion",
     "User",
     "Session",
@@ -175,6 +222,13 @@ __all__ = [
     "ContextFile",
     "ContextMode",
     "AgentMemoryFile",
+    "VirtualTable",
+    "VirtualTableOutbox",
+    "VirtualTableReceipt",
+    "VirtualTableRecord",
+    "VirtualTableRecordHistory",
+    "VirtualTableSchemaVersion",
+    "TableView",
     "Skill",
     "SkillProposal",
     "ProposalStatus",
@@ -191,6 +245,40 @@ __all__ = [
     "DeliveryStatus",
     "NotificationChannelPreference",
     "Announcement",
+    "Workflow",
+    "WorkflowStatus",
+    "WorkflowVersion",
+    "DispatchOutbox",
+    "DispatchOutboxStatus",
+    "NodeAttempt",
+    "NodeAttemptStatus",
+    "NodeRun",
+    "NodeRunStatus",
+    "ResourceRef",
+    "ResourceRefKind",
+    "RetryGuarantee",
+    "WaitingReason",
+    "WorkflowEvent",
+    "WorkflowRun",
+    "WorkflowNodeSpend",
+    "WorkflowRetainedSpend",
+    "WorkflowRunMode",
+    "WorkflowRunStatus",
+    "WorkflowRunTrigger",
+    "ExposureAdapter",
+    "ExposureScheduleKind",
+    "WorkflowExposure",
+    "WorkflowWebhookDelivery",
+    "WorkflowApproval",
+    "WorkflowEvalRun",
+    "WorkflowStepEval",
+    "WorkflowApprovalStatus",
+    "WorkflowFile",
+    "AdmissionReason",
+    "AdmissionStatus",
+    "TableTriggerAdmission",
+    "VirtualTableTrigger",
+    "VirtualTableTriggerRevision",
     "VoiceCall",
     "GeneratedMedia",
     "GeneratedMediaReservation",

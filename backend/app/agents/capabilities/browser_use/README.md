@@ -83,6 +83,11 @@ mem0. Chromium answers its DevTools endpoint only to a `Host` that is an address
 so a plain `http`/`ws` endpoint given by name is resolved once and reached by
 address (`pin_host`); TLS endpoints keep their name for the certificate.
 
+One host is refused even when the allowlist names it: the host of
+`ARTIFACT_RENDER_CDP_URL`. That is the browser `preview_artifact` draws people's
+pages in - deployment config, never an author's - so listing it by mistake must
+not hand it to every browsing agent.
+
 Each browse gets its own browser context, disposed with the tab, so one person's
 cookies are never the next caller's.
 

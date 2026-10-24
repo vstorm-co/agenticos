@@ -1,5 +1,5 @@
 ---
-source_sha: "7772e57485bb"
+source_sha: "e035b57c5e83"
 ---
 
 # Governance { #governance }
@@ -1174,6 +1174,20 @@ Cuatro propiedades que conviene conocer:
   deliberado: un agent que llevaba tiempo funcionando así se detiene, con un mensaje
   que dice qué cambiar. Lo que se detiene es un agent cuyo operador pidió una
   aprobación que nunca se le estaba pidiendo a nadie.
+- **Una llamada aparcada puede nombrar lo que representan sus ids.** Una
+  herramienta puede describir su propia llamada: las escrituras en tablas dan el
+  nombre de la tabla. Nunca
+  se nombra un registro, porque la etiqueta de un registro es el texto de una de
+  sus celdas, y la aprobación la conservaría. Los nombres se resuelven como la
+  persona del run cuando la llamada se aparca, así que no se nombra nada que esa
+  persona no pueda ver, y se guardan en la aprobación como `context`. La tarjeta
+  del chat y la página Approvals empiezan con una frase construida a partir
+  de ellos, como "Share the view Closed tickets of Support with everyone who may
+  read the table", encima de los argumentos, que siguen siendo lo que se ejecuta.
+  La frase se encuentra por el id estable de la herramienta, así que una
+  herramienta que un binding renombró la conserva. Una descripción que falla o
+  tarda aparca la llamada sin ella, y una llamada que un run reanudado ya decidió
+  no se vuelve a describir.
 - **Un solo paso de modelo puede aparcar varias llamadas.** Un modelo que responde con
   dos llamadas con efectos externos a la vez — "escribe al cliente y al gestor de
   cuenta" — aparca ambas, cada una con su propia fila de aprobación decidida por
@@ -1400,6 +1414,53 @@ delegación reejecutada desde el principio ha gastado igualmente lo que gastó.
     ejecutadas dentro del proveedor del modelo no pasan por la puerta de
     aprobación local.
 
+### Un paso de workflow que pregunta a una persona { #workflow-step-approvals }
+
+Un workflow pregunta con un paso [`human.approval`](reference/workflow-nodes.md#human-approval)
+en lugar de una herramienta protegida: el paso escribe su propia solicitud - un
+título, los detalles que recibió, quién puede decidir y hasta cuándo - y su run la
+espera. La pestaña **Approvals** las lista encima de las llamadas a herramientas, y
+decidir una despierta el run, que sigue según la respuesta. Una decisión es
+definitiva y queda en el registro de auditoría junto con lo que se preguntó. Un
+paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
+que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
+
+### Entradas de artefactos { #artifact-entries }
+
+Una página que lee datos de tabla se comparte con el consentimiento de su propietario, y
+cada paso de eso deja una entrada con la persona que lo dio. Ninguna lleva un registro, un
+valor de filtro ni una fila: contienen versiones, huellas, ids de solicitud y las palabras
+que una persona confirmó.
+
+| Acción | Se registra cuando |
+|---|---|
+| `artifact.published` | Se publicó una versión, con su número, la huella de sus page queries y `actions`, los ids de los workflows que declara |
+| `artifact.data_consented` | El propietario confirmó los datos de una versión, o se consintió automáticamente (`automatic`). Nombra la versión y la huella, `for_owner` cuando un Owner o Admin confirmó por él, y `via_grant` cuando lo dio una concesión `edit_data` |
+| `artifact.data_withdrawn` | Un editor dejó de compartir los datos de la página; nombra la versión que se servía a la audiencia, si el consentimiento automático estaba activo y cuántas concesiones `edit_data` bajó a `edit` |
+| `artifact.auto_consent_changed` | El propietario activó o desactivó «Share new versions automatically», con el texto que confirmó |
+| `artifact.edit_data_granted` | El propietario, o un Owner o Admin, dio a una persona o a un grupo «Can edit, including data», con el texto que confirmó |
+| `artifact.owner_changed` | Una página cambió de manos: el propietario anterior y el nuevo, quién lo hizo y las concesiones `edit_data` que se descartaron |
+| `artifact.share_requested` | Se presentó una solicitud — de tipo `audience`, `access` o `version` — por una persona o por el run de su agent |
+| `artifact.share_request_approved` y `artifact.share_request_declined` | Se decidió una solicitud, y quién |
+| `organization.public_live_data_changed` | Un Owner o Admin activó o desactivó **Public pages with live data** para la organización, con el valor anterior y el nuevo |
+| `artifact.public_data_consented` | El propietario, o un Owner o Admin en su nombre, confirmó que cualquiera con el enlace público de la página, y los sitios web que la incrustan, puede leer sus datos. Nombra la versión, la huella, las tablas y columnas, los sitios web que incrustan y si hay una contraseña, y `for_owner` cuando alguien lo confirmó en su nombre |
+| `artifact.public_data_withdrawn` | Un editor retiró ese consentimiento, con la sesión iniciada como uno mismo (sin suplantar), con la huella que tenía |
+| `artifact.public_data_voided` | El consentimiento se borró porque cambió algo de lo que dependía, con un `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` o `archived` |
+| `artifact.action_started` | Un miembro confirmó e inició un workflow desde la acción de una página. Nombra la página, la versión, el workflow y el run, nunca los valores de entrada, que están en el run |
+
+**Public pages with live data** es un ajuste de la organización, desactivado por defecto, en los
+ajustes de la organización junto a la exención de aprobación. Decide si los datos de una página
+pueden llegar a personas sin cuenta mediante un enlace público o un embed. A diferencia de la
+exención, requiere `org:settings` - Owner o Admin - y debe cambiarse con la sesión iniciada como
+uno mismo: una sesión que suplanta se rechaza. La página sigue necesitando el
+[consentimiento de datos públicos](artifacts.md#live-data-on-a-public-link) de su propietario.
+Desactivar el interruptor es un interruptor de emergencia: las páginas públicas pierden sus datos en
+la siguiente carga y conservan su consentimiento, que vuelve a valer cuando se activa de nuevo.
+
+Ampliar la visibilidad o las concesiones de una página se registra como entradas
+`resource.share`, `resource.unshare` y `resource.visibility_changed`, como en cualquier otro
+recurso. La herramienta `share_view` ya no existe, y con ella la aprobación que la protegía.
+
 ## Alertas { #alerts }
 
 Cada alerta de aquí trata de un run que nadie está mirando. Un run de chat que se
@@ -1420,6 +1481,8 @@ un relay SMTP caído — sin que el otro se entere jamás.
 Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
 las aprobaciones y apagar su correo, o al revés.
+
+Las solicitudes para compartir páginas y los cambios de propietario nombran la página y la persona, nunca sus datos.
 
 La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
@@ -1754,6 +1817,13 @@ su ajuste.
 Se configura en **Organizaciones → un workspace → Miembros → Retención**,
 protegido por `org:settings`. Un barrido corre una vez al día y **borra de
 verdad**: una política que conservara las filas no sería una política.
+
+Los datos de [Virtual Tables](virtual-tables.md#limits-and-retention) entran en el mismo
+barrido, con plazos de todo el deployment que ninguna organización fija: los receipts de
+idempotencia a las 24 horas, las filas de outbox despachadas a los 3 días y el history de
+un registro a los 365 días, que es también lo que elimina el history de un registro
+borrado. La entrada que escribe nombra `table_receipts`, `table_outbox` o `table_history` y
+un recuento.
 
 Los tres números propios del despliegue —`retention_defaults`,
 `retention_max_days` y `audit_retention_floor_days`— son campos de los ajustes

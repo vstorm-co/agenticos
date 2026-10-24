@@ -427,8 +427,9 @@ reaches the database the API does. Every setting below is per worker process.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | The pools this process serves. Run a second worker with `ingest` to put parsing on a host of its own |
+| `WORKER_POOLS` | `agent,ingest,system,workflow` | The pools this process serves. Run a second worker with `ingest` to put parsing on a host of its own. A list set before the `workflow` pool existed needs it added, or no worker runs workflow nodes |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Agent runs and trigger fires at once |
+| `WORKER_WORKFLOW_CONCURRENCY` | `5` | Workflow nodes at once. Size the worker's memory for this many of them at the largest file a node may hold |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Sweeps, cleanups and reports at once |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` in the shipped compose files) | Child processes for parsing and embedding, one job each at a time |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | What one child may hold, with whatever it started, before the watchdog stops it |
@@ -505,6 +506,70 @@ be exact — a live run the sweep flips anyway is flipped back by its own termin
 write — so set it well past your longest legitimate run and no closer. See
 [Governance](governance.md#a-run-whose-process-died).
 
+### Workflow runs
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | The largest payload a run may be started with, as compact JSON. It is kept on the run for its `core.input` node, so a larger one is refused with `413` before the run is admitted |
+| `WORKFLOW_RUN_MAX_FILE_BYTES` | `1073741824` | The most file bytes one run may store, all its file steps together. A step whose file would pass it fails with `FILE_QUOTA_EXCEEDED` and stores nothing |
+| `WORKFLOW_ORG_MAX_FILE_BYTES` | `21474836480` | The same for one organization, across every run that still holds its files |
+| `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | How long a webhook delivery whose graph has a Respond to webhook step waits for its answer before it is answered `202` and the run goes on. A proxy in front with a shorter read timeout cuts the wait first |
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | How long a worker's claim on a workflow node holds before it is treated as abandoned. The worker renews it every third of a lease while the node runs, so it bounds how long a dead worker goes unnoticed, not how long a node may take |
+| `WORKFLOW_RETRY_CEILING` | `3` | The most failed or interrupted attempts a node gets: attempts that failed, and attempts cut short by a worker dying. An attempt that waits - on an approval, or a backoff the node asked for - does not count, so only the run's deadline, budget or a cancel bounds how often a node waits |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's first retry; the wait before each later retry doubles |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to. These three apply to a node whose `policy.retry` sets none |
+| `WORKFLOW_NODE_MAX_OUTPUT_BYTES` | `10485760` | Combined compact UTF-8 JSON of one attempt result, run output and webhook response. Larger outcomes fail with `NODE_OUTPUT_TOO_LARGE` without automatic retry; incurred fees survive. Split out also checks at most 10,000 expanded items and conservative projected bytes before copying them |
+| `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` | `67108864` | Retained compact input, draft snapshot, Wait payload and result reservations per run; small terminal control records are exempt |
+| `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` | `1073741824` | Inline payload reservations across retained runs of an organization; retention releases reservations through counters |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | The longest list a `control.foreach` iterates. A longer one fails the loop with `FOREACH_TOO_MANY_ITEMS` instead of being truncated |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | The largest list a loop freezes, as JSON. A larger one fails the loop with `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Latest yielded results and unhandled errors plus collection overhead, measured before loading their JSON. Larger collections fail with `FOREACH_OUTPUT_TOO_LARGE`; yield smaller values or file references |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | How deep loops may nest. A graph with deeper loops cannot be published |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | The most node runs one run may create, loop iterations included. An iteration that would pass it fails the run with `NODE_RUN_LIMIT` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | The most queued or running node work one organization may hold at once. A start reserves its graph's node count against this, and one over it is refused with `429` until running work drains. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | The same ceiling for a single caller, counted across every organization they run in, so a person who can create organizations cannot multiply their allowance by spreading runs across them. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
+
+The per-caller run limit (`RATE_LIMIT_RUN_PER_MINUTE`) charges one token per
+start, which cannot tell a one-node graph from a five-hundred-node one. These two
+ceilings do: they bound the queued and running node work behind the shared runner
+so one caller cannot start many wide graphs below the rate limit and grow a
+backlog that starves other tenants.
+
+A workflow run is a chain of jobs. Each node attempt is one `workflow-dispatch-node`
+job on the workflow pool, queued in the same transaction as the node's dispatch row,
+so a run never starts without its job and a rolled-back start leaves none. A
+timer or a retry's backoff is the same job with its `run_after` set to the time
+it is due.
+
+The row in the database, not the job, holds the run's position: the
+job runs once, and a worker that dies mid-node is recovered by the sweeps below,
+not by retrying the job.
+
+Five sweeps run on the system pool:
+`workflow-dispatch-poll` (every minute) queues a job for a due node whose own job
+never ran, `workflow-reconcile` (every 30 seconds) recovers the claims and
+attempts a dead worker left behind, `workflow-schedules-check` (every minute)
+fires workflow schedules, `workflow-table-triggers` (every 10 seconds) runs the
+triggers on table records, and `workflow-run-retention` (daily) removes runs past
+their workflow's retention.
+
+Node jobs have a pool of their own, so a fan-out cannot hold the slots agent
+runs wait for, and an agent that calls a workflow and waits for it cannot wait on
+a slot of its own pool. `WORKER_WORKFLOW_CONCURRENCY` caps the nodes in flight on
+each worker. A run someone is waiting on (a webhook answering, a chat, the API)
+goes ahead of one that started itself, and a workflow another one calls takes the
+priority of the run that called it.
+
+A node runs on the worker's own event loop and memory:
+size the worker's memory for `WORKER_WORKFLOW_CONCURRENCY` nodes each holding the
+largest file a node may hold (`WORKFLOW_RUN_MAX_FILE_BYTES`), because a worker the
+kernel kills loses every job it was running. Those deaths are not counted toward
+`WORKER_BREAKER_DEATHS`: one crash ends every node the worker held, and a node
+that keeps killing its worker is stopped by the workflow's own retry ceiling. The Background jobs page shows one job per node attempt,
+and the sweeps add about 14,400 rows a day, kept for
+`BACKGROUND_JOB_RETENTION_DAYS`. Cancelling a queued node job there is not
+offered: cancel the run instead.
+
 ### A chat turn left running
 
 | Variable | Default | Description |
@@ -515,6 +580,12 @@ The answer lands in the conversation and its person is notified, so this bounds
 spend on an answer that may never be read rather than switching anything off. It
 needs to cover your longest research or browsing turn; a run is still held to its
 agent's budget either way. See [Console](console.md#chat).
+
+Per-organization file and table quotas do not cap storage across a deployment.
+With `max_organizations_per_user` unset, an account may own unlimited organizations
+and multiply tenant allowances. Set a finite ownership limit in deployment settings,
+provision and monitor shared storage, and account for retained run history. A
+deployment-wide storage budget is not currently enforced.
 
 ## AI models — configured in the app, not here
 
@@ -748,7 +819,9 @@ file storage above; these bound them and say where they are served from. See
 | `ARTIFACT_MAX_BYTES` | 5 MiB | One version of one page. A publication above it is refused with a message the model reads |
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per app. The oldest is removed when a newer one lands, unless the public link is pinned to it |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
+| `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | The most bytes of records one API process keeps, for 30 seconds, for [pages' public links and embeds](artifacts.md#the-cache-and-the-cap). In process memory only, never Redis. The least recently used reads go first, and a read over the budget is not kept. At least 1024 |
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
+| `ARTIFACT_RENDER_CDP_URL` | (empty) | The Chromium DevTools endpoint [`preview_artifact`](artifacts.md#seeing-the-page-preview) draws pages in, such as `http://artifact-render:9222`. Deployment config alone: it is not checked against `BROWSER_CDP_ALLOWED_HOSTS`, which lists what agent authors may drive, and a browsing agent is refused its host even when that list names it. The backend needs the `browser` extra. Empty, a preview returns its report without a picture |
 | `VISUAL_MAP_TILES` | (empty) | The one tile server a [visual](artifacts.md#visuals) or an app may draw a map on: `openstreetmap`, `usgs-topo`, or a `https://` URL template with `{z}`, `{x}` and `{y}` once each. The deployment fetches each tile and serves it to pages from its own tile path; no page talks to the server. Empty draws a map as an outline of its stops. A value that cannot be served is refused at startup |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | The credit shown under a map on a tile server of your own, e.g. `© OpenStreetMap contributors`. Required with a URL template; a preset brings its own |
 
@@ -762,10 +835,29 @@ public tiles are for light use, and a busy deployment should run its own server
 or pay a provider. *Admin → System* shows whether the server answers.
 
 **`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
-content addresses on it, and the frontend adds it to the console's `frame-src`.
+content addresses on it, and the frontend adds its content route,
+`/api/v1/artifact-content/`, to the console's `frame-src`.
 Set it in the backend's environment and in the frontend's; the compose files
 pass it to both. A value in only one of them shows an empty frame, because the
 browser refuses to load the page from an origin the console did not allow.
+
+**With `ARTIFACT_ORIGIN` empty, the frontend's `PUBLIC_API_URL` must equal the
+backend's `PUBLIC_BASE_URL` exactly, path included.** The backend then signs
+content addresses on `PUBLIC_BASE_URL`, and the console's `frame-src` names the
+content route under `PUBLIC_API_URL`, so `https://example.com/agenticos` on one
+side and `https://example.com` on the other is the same empty frame.
+
+**The renderer is its own browser, with no network.** Compose ships it as the
+opt-in `artifact-render` profile: a pinned headless Chromium on an internal
+network that only the API and the worker join. Every request a render
+makes is answered by the API - the page, its library files and a host document -
+or refused, so the browser needs no route out, and it renders people's records,
+so it must not be the browser a [browsing agent](reference/capabilities.md#browser-automation-choose)
+drives. Start it with `docker compose --profile artifact-render up -d`, then set
+`ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Do not add
+`artifact-render` to `BROWSER_CDP_ALLOWED_HOSTS`: that list is for browsing
+agents, and the renderer needs no entry there. One process draws two pages at a
+time, each within 15 seconds.
 
 ## Agent workspaces
 
@@ -1164,15 +1256,22 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 Applied to the surfaces a stranger can reach, and only those: the public run API,
 the widget's script, its config, either surface's socket handshake, a hosted
 page's config and logo, and a visitor's upload, dictation and voice call. The console's own routes are
-behind a session and are not metered — whether the whole API should carry a
-ceiling is a separate decision, not this one.
+behind a session and are not metered, with one exception: writes to
+[Virtual Tables](virtual-tables.md), which store a snapshot per change. Whether the
+whole API should carry a ceiling is a separate decision, not this one.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, per caller |
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Every `auth.py` route — login, register, refresh, the reset/magic-link request and verify routes. Counted **per IP and, where the body carries one, per submitted address**. See below |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Per address, and **two separate counters of this size**: one for `widget.js`, one for admission — the widget's `/config` plus either surface's socket handshake. See below |
-| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. A workflow's [form](workflows.md#from-a-form) is read on a counter of this size per form. See below |
+| `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Answers one workflow [form](workflows.md#from-a-form) takes, **per form**: each one is a run its publisher pays for, and the console's server forwards them all, so an address would count nobody |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Deliveries one workflow [webhook](workflows.md) or GitHub trigger takes, **per webhook**, counted once the signature has verified and the delivery would start a run, so strangers and skipped deliveries spend nothing of it: each one is a run |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Requests one address may send the workflow webhook and GitHub trigger addresses in a minute, whatever they carry, counted before anything is read. Wide, because senders such as GitHub deliver for many hooks from a few addresses |
+| `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unique workflow email recipients per issuer, across keys and organizations; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unique workflow email recipients per organization; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unique workflow email recipients across the deployment; [email.send](reference/workflow-nodes.md#email-send) |
 | `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Map tiles one address may fetch through the deployment's [tile path](artifacts.md#visuals), **per address**. A map is a few dozen tiles and panning adds more; the bound keeps the deployment from being anybody's free proxy to its tile server |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
@@ -1182,6 +1281,9 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | The same, per page or widget, from every visitor together - the ceiling on what a leaked link costs: this many recordings a minute, each up to the organization's longest dictation. Spent only once a visitor is admitted |
 | `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Voice calls](channels.md#voice-calls-on-a-widget-or-a-hosted-page) started on a widget or a hosted page, per address, and per visitor's token subject on a `jwt` widget. The address is counted before the key is looked up; each call is a paid realtime session |
 | `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | The same, per page or widget, from every visitor together, spent only once a visitor is admitted. With `VOICE_MAX_CALLS_PER_EMBED` above, the ceiling on what a leaked link costs |
+| `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Times one page's data may be read from its tables for visitors of its public link or embeds, **per page across all visitors**. A load that has to read from the tables counts once, and one served from the 30-second [cache](artifacts.md#the-cache-and-the-cap) does not; past the limit, the page loads with that data unavailable |
+| `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` | `10` | Runs one member may start from one page's [actions](artifacts.md#actions) per minute, **per member, organization and page**. Each run is confirmed by the member first; this bounds a page that asks in a loop. Past it the page's call is rejected as `rate_limited` |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Writes to [Virtual Tables](virtual-tables.md), **per member and organization**: a record create, update, upsert or delete, a table create, rename, archive or schema change, and saving, changing or deleting a saved view. Applies to the console as much as to a script. Reads are not counted |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with
@@ -1296,6 +1398,40 @@ stays safe but shared.
 
     With two proxies in front, collapse the header to one hop at your edge — only
     the last hop is trustworthy.
+
+## Virtual Tables limits and retention { #virtual-tables-limits-and-retention }
+
+What one organization may store in [Virtual Tables](virtual-tables.md#limits-and-retention),
+and how long the copies a write leaves behind are kept. A write over a limit is refused
+with `QUOTA_EXCEEDED` (402) and an audit entry that names the quota, never the content.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tables per organization. Archived ones count, because nothing deletes a table |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Records in one table |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialized size of one record's values, in bytes. Minimum `1`. It also bounds what a create's and a delete's history row and a receipt hold; a record already over the limit still deletes, keeping a byte-count marker instead of its values |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | `1073741824` | Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | How long an idempotency receipt answers a retry. Afterwards the same key is a new write |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | How long a dispatched outbox row is kept |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | How long an undispatched outbox row is kept. The [table-trigger](virtual-tables.md#triggers) heartbeat marks each row it judges, so a row this old means the worker has been down that long. This is a dead-letter cutoff, not a claim the event was delivered - past it, the row is gone and no trigger starts for that record |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | How long a record's history is kept, counted from the change, for a deleted record as well |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | How many quota-refusal audit entries this process writes at once, so a burst of refusals cannot open an unbounded number of database connections. The rest of a burst waits on this bound instead |
+
+The three retention periods are applied by the daily
+[retention sweep](governance.md#retention), for every organization, and are not
+per-organization settings.
+
+The sweep's per-pass budget for these three classes scales with
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` rather than a fixed number of batches - but that limit is
+per *member* (`limit_table_write` counts each member's writes on their own allowance), so the
+budget also scales with how many active members the organization has: up to
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` rows per active member per day, in batches of
+500.
+
+That figure is doubled for headroom, so a pre-existing backlog shrinks rather than merely
+holding level, and capped at 50 members' worth so one unusually large organization cannot make
+its own pass grow without bound - it still drains, just over more passes, the same as every
+other retention class once a backlog outgrows its budget.
 
 ## A worker whose event loop has stopped turning
 

@@ -35,6 +35,7 @@ from app.agents import mcp_oauth
 from app.agents.mcp import (
     ANSWERED_FOR,
     CONNECT_TIMEOUT_SECS,
+    MAX_INPUT_SCHEMA_BYTES,
     TOOL_NAME_LIMIT,
     AnsweredRecently,
     FittedNames,
@@ -85,8 +86,8 @@ from app.services.mcp_connection import (
     UnavailablePrefixCollision,
     UnavailableUnreachableServer,
     _apply_token,
-    _resolve_auth_headers,
     connection_scope,
+    resolve_auth_headers,
     watched_connection_spec,
 )
 from app.services.organization_secret import OrganizationSecretService
@@ -829,11 +830,14 @@ class TestProbeSuccess:
     @pytest.mark.anyio
     async def test_a_reachable_server_lists_its_tools(self, monkeypatch):
         """The probe's whole product: the tool names an admin picks from,
-        with a missing description read as empty rather than None."""
-        described = MagicMock(description="Search issues")
+        with a missing description read as empty rather than None, and each
+        tool's argument schema kept unless it is too large to store."""
+        schema = {"type": "object", "properties": {"q": {"type": "string"}}}
+        described = MagicMock(description="Search issues", input_schema=schema)
         described.name = "search"
         described.annotations = MagicMock(read_only_hint=True)
-        bare = MagicMock(description=None, annotations=None)
+        oversized = {"type": "object", "description": "x" * (MAX_INPUT_SCHEMA_BYTES + 1)}
+        bare = MagicMock(description=None, input_schema=oversized, annotations=None)
         bare.name = "create_issue"
         session = AsyncMock()
         session.list_tools = AsyncMock(return_value=MagicMock(tools=[described, bare]))
@@ -849,8 +853,10 @@ class TestProbeSuccess:
         # A tool says it only reads through `readOnlyHint`; one that says nothing
         # is a write, the same reading the approval policy gives it.
         assert tools == [
-            McpToolInfo(name="search", description="Search issues", read_only=True),
-            McpToolInfo(name="create_issue", description=""),
+            McpToolInfo(
+                name="search", description="Search issues", input_schema=schema, read_only=True
+            ),
+            McpToolInfo(name="create_issue", description="", input_schema=None),
         ]
         session.initialize.assert_awaited_once()
 
@@ -1946,13 +1952,13 @@ class TestAWatchedConnection:
 class TestAuthHeaders:
     @pytest.mark.anyio
     async def test_no_token_no_headers(self):
-        assert await _resolve_auth_headers(AsyncMock(), _connection()) == {}
+        assert await resolve_auth_headers(AsyncMock(), _connection()) == {}
 
     @pytest.mark.anyio
     async def test_token_is_decrypted_into_bearer_header(self):
         conn = _connection()
         conn.auth_token = _seal_into(conn, "secret-token")
-        assert await _resolve_auth_headers(AsyncMock(), conn) == {
+        assert await resolve_auth_headers(AsyncMock(), conn) == {
             "Authorization": "Bearer secret-token"
         }
 
@@ -1967,7 +1973,7 @@ class TestAuthHeaders:
         """
         mine = _connection()
         stolen = _connection(auth_token=_seal_into(mine, "secret-token"))
-        assert await _resolve_auth_headers(AsyncMock(), stolen) is None
+        assert await resolve_auth_headers(AsyncMock(), stolen) is None
 
     @pytest.mark.anyio
     async def test_a_personal_row_without_an_owner_is_refused_not_guessed(self):
@@ -1980,7 +1986,7 @@ class TestAuthHeaders:
     @pytest.mark.anyio
     async def test_undecryptable_token_yields_none(self):
         conn = _connection(auth_token="enc:not-valid-ciphertext")
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(AsyncMock(), conn) is None
 
     @pytest.mark.anyio
     async def test_an_organization_token_is_opened_with_the_organizations_envelope(self):
@@ -1993,7 +1999,7 @@ class TestAuthHeaders:
             auth_token=sealed.ciphertext,
             secret_key_version=sealed.key_version,
         )
-        assert await _resolve_auth_headers(AsyncMock(), conn) == {
+        assert await resolve_auth_headers(AsyncMock(), conn) == {
             "Authorization": "Bearer org-token"
         }
 
@@ -2010,7 +2016,7 @@ class TestAuthHeaders:
             auth_token=sealed.ciphertext,
             secret_key_version=sealed.key_version,
         )
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(AsyncMock(), conn) is None
 
     @pytest.mark.anyio
     async def test_an_organization_row_without_an_organization_is_refused_not_guessed(self):
@@ -2053,7 +2059,7 @@ class TestAccountAuthorized:
     @pytest.mark.anyio
     async def test_resolve_auth_headers_refuses_a_token_whose_key_is_gone(self):
         conn = _connection(auth_token="sealed", secret_key_version=999)
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(AsyncMock(), conn) is None
 
     def test_the_read_carries_the_server_decided_authorized(self):
         usable = _connection()
@@ -2152,13 +2158,13 @@ class TestOAuthTokens:
     async def test_unauthorized_oauth_yields_none(self):
         # No access_token yet (consent not completed).
         conn = _oauth_connection(_base_payload(code_verifier="v"), oauth_state="state123")
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(AsyncMock(), conn) is None
 
     @pytest.mark.anyio
     async def test_valid_oauth_token_becomes_bearer(self):
         payload = _base_payload(access_token="live-token", expires_at=None)
         conn = _oauth_connection(payload)
-        assert await _resolve_auth_headers(AsyncMock(), conn) == {
+        assert await resolve_auth_headers(AsyncMock(), conn) == {
             "Authorization": "Bearer live-token"
         }
 
@@ -2178,7 +2184,7 @@ class TestOAuthTokens:
         update_mock = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update_mock)
 
-        headers = await _resolve_auth_headers(AsyncMock(), conn)
+        headers = await resolve_auth_headers(AsyncMock(), conn)
         assert headers == {"Authorization": "Bearer fresh-token"}
         refresh_mock.assert_awaited_once()
         # The stored address, never the stored token endpoint, scopes the refresh.
@@ -2218,7 +2224,7 @@ class TestOAuthTokens:
         update_mock = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update_mock)
 
-        headers = await _resolve_auth_headers(AsyncMock(), stale)
+        headers = await resolve_auth_headers(AsyncMock(), stale)
 
         assert headers == {"Authorization": "Bearer fresh-token"}
         refresh_mock.assert_not_awaited()
@@ -2228,7 +2234,7 @@ class TestOAuthTokens:
     async def test_expired_token_without_refresh_yields_none(self):
         payload = _base_payload(access_token="stale", refresh_token=None, expires_at=0.0)
         conn = _oauth_connection(payload)
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(AsyncMock(), conn) is None
 
     @pytest.mark.anyio
     async def test_a_connection_awaiting_first_consent_has_no_payload_to_read(self):
@@ -2237,7 +2243,7 @@ class TestOAuthTokens:
         a licence to reach the server anonymously - the plugin is simply not
         usable until the callback lands."""
         conn = _connection(auth_type="oauth", oauth_payload=None, oauth_state="pending")
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(AsyncMock(), conn) is None
 
 
 class TestRefreshUnderLock:
@@ -2276,7 +2282,7 @@ class TestRefreshUnderLock:
         provider a credential the user has just withdrawn."""
         refresh = self._locked(monkeypatch, None)
 
-        assert await _resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await resolve_auth_headers(AsyncMock(), self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2288,7 +2294,7 @@ class TestRefreshUnderLock:
         must not resurrect them against the new host."""
         refresh = self._locked(monkeypatch, _connection(auth_type="oauth", oauth_payload=None))
 
-        assert await _resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await resolve_auth_headers(AsyncMock(), self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2304,7 +2310,7 @@ class TestRefreshUnderLock:
             ),
         )
 
-        assert await _resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await resolve_auth_headers(AsyncMock(), self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2327,7 +2333,7 @@ class TestRefreshUnderLock:
         update = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update)
 
-        assert await _resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await resolve_auth_headers(AsyncMock(), self._expired()) is None
         update.assert_not_awaited()
 
 

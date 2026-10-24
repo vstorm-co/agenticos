@@ -11,6 +11,9 @@ export interface ConversationState {
   // loaded messages for that selection, and the fetch/select status.
   currentConversationId: string | null;
   currentMessages: ConversationMessage[];
+  hasOlderMessages: boolean;
+  loadingOlderMessages: boolean;
+  setLoadingOlderMessages: (loading: boolean) => void;
   /**
    * What the open thread has cost in total, as the server added it up.
    *
@@ -29,7 +32,11 @@ export interface ConversationState {
   error: string | null;
 
   setCurrentConversationId: (id: string | null) => void;
-  setCurrentMessages: (messages: ConversationMessage[], cost?: ConversationCost | null) => void;
+  setCurrentMessages: (
+    messages: ConversationMessage[],
+    cost?: ConversationCost | null,
+    hasOlder?: boolean,
+  ) => void;
   /**
    * Replace the thread's total on its own, without touching the transcript.
    *
@@ -51,6 +58,8 @@ export interface ConversationState {
 const initialState = {
   currentConversationId: null,
   currentMessages: [],
+  hasOlderMessages: false,
+  loadingOlderMessages: false,
   currentCost: null,
   pendingProjectId: null,
   isLoading: false,
@@ -60,13 +69,20 @@ const initialState = {
 const conversationState: StateCreator<ConversationState> = (set) => ({
   ...initialState,
 
-  setCurrentConversationId: (id) => set({ currentConversationId: id }),
+  setCurrentConversationId: (id) =>
+    set((state) =>
+      state.currentConversationId === id
+        ? state
+        : { currentConversationId: id, hasOlderMessages: false, loadingOlderMessages: false },
+    ),
 
   // The total travels with the messages it totals. Set separately, a switch
   // between conversations would leave one thread's figure under another's
   // transcript for as long as the second fetch took.
-  setCurrentMessages: (messages, cost = null) =>
-    set({ currentMessages: messages, currentCost: cost }),
+  setCurrentMessages: (messages, cost = null, hasOlder = false) =>
+    set({ currentMessages: messages, currentCost: cost, hasOlderMessages: hasOlder }),
+
+  setLoadingOlderMessages: (loading) => set({ loadingOlderMessages: loading }),
 
   setCurrentCost: (cost) => set({ currentCost: cost }),
 

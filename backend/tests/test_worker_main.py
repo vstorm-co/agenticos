@@ -39,6 +39,16 @@ def test_ingestion_runs_in_child_processes_and_the_rest_on_the_loop() -> None:
     assert ingest.handlers == "app.worker.handlers:ingest"
 
 
+def test_workflow_nodes_get_a_pool_of_their_own_with_its_own_concurrency() -> None:
+    assert worker_main.pools_from("workflow") == [Pool.WORKFLOW]
+    with patch.object(worker_main.settings, "WORKER_WORKFLOW_CONCURRENCY", 3):
+        executors = worker_main.executors_for([Pool.AGENT, Pool.WORKFLOW])
+    workflow = executors[Pool.WORKFLOW]
+    assert isinstance(workflow, InProcessExecutor)
+    assert workflow is not executors[Pool.AGENT]
+    assert workflow._free._value == 3  # the semaphore the concurrency sets
+
+
 def test_a_worker_serving_only_ingestion_loads_no_handler_itself() -> None:
     with patch.object(worker_main, "production") as production:
         executors = worker_main.executors_for([Pool.INGEST])

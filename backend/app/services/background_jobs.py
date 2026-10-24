@@ -246,17 +246,14 @@ class BackgroundJobService:
 
         Raises:
             NotFoundError: No such job.
-            BadRequestError: The job is not queued, or is of a kind whose document
-                or sync log would be left in progress for good.
+            BadRequestError: The job is not queued, or is of a kind that is not
+                cancellable (`TaskKind.uncancellable_because` says why).
         """
         job = await background_job_repo.get(self.db, job_id)
         task = None if job is None else TASKS.get(job.kind)
         if task is not None and not task.cancellable:
             raise BadRequestError(
-                message=(
-                    f"A {task.kind} job cannot be cancelled: its document or sync would stay "
-                    "in progress with nothing left to finish it. Pause the kind instead."
-                ),
+                message=f"A {task.kind} job cannot be cancelled: {task.uncancellable_because}",
                 details={"job_id": str(job_id), "kind": task.kind},
             )
         if not await background_job_repo.cancel_queued(self.db, job_id):

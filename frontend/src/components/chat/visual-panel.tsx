@@ -133,13 +133,18 @@ export function ConversationVisualsProvider({
 
 /** A turn's drawings, each a panel under the message where the turn made it. */
 export function TurnVisuals({ calls }: { calls: ToolCall[] }) {
-  if (calls.length === 0) return null;
+  const shownCalls = calls.filter(
+    (call) =>
+      call.status !== "error" &&
+      !(call.status === "completed" && call.result !== undefined && !drewVisual(call.result)),
+  );
+  if (shownCalls.length === 0) return null;
   return (
     // More air around a drawing than between two lines of a turn: it is the
     // largest thing in the answer, and text set 8px under it read as its caption.
     <div className="flex w-full min-w-0 flex-col gap-6 py-2.5">
-      {calls.map((call) => (
-        <VisualPanel key={call.id} call={call} />
+      {shownCalls.map((call) => (
+        <ViewportVisual key={call.id} call={call} />
       ))}
     </div>
   );
@@ -323,7 +328,54 @@ function SaveToApps({ update, onSave }: { update: boolean; onSave: () => void })
   );
 }
 
-function VisualPanel({ call }: { call: ToolCall }) {
+/** History keeps a measured placeholder; live drawings still render offscreen to report errors. */
+function ViewportVisual({ call }: { call: ToolCall }) {
+  const holder = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [visited, setVisited] = useState(false);
+  const [height, setHeight] = useState(DEFAULT_HEIGHT);
+  const live = call.status === "pending" || call.status === "running";
+  useEffect(() => {
+    const element = holder.current;
+    if (!element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      queueMicrotask(() => {
+        setVisible(true);
+        setVisited(true);
+      });
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        setVisible(entry.isIntersecting);
+        if (entry.isIntersecting) setVisited(true);
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(element);
+    const sizing =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver((entries) => {
+            const size = entries[0]?.contentRect.height;
+            if (size && size > 0) setHeight(size);
+          });
+    sizing?.observe(element);
+    return () => {
+      observer.disconnect();
+      sizing?.disconnect();
+    };
+  }, []);
+  return (
+    <div ref={holder} style={{ minHeight: visible || live ? undefined : height }}>
+      {(visited || live) && <VisualPanel call={call} active={visible || live} />}
+    </div>
+  );
+}
+
+function VisualPanel({ call, active }: { call: ToolCall; active: boolean }) {
   const t = useTranslations("chat.visuals");
   const { known, conversationId, onReport, onCompose, onSend } = useContext(ConversationVisuals);
   const { artifactUrl } = usePublicConfig();
@@ -332,7 +384,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const pictures = useVisualImages(
     conversationId,
     shown !== null && shown !== "missing" ? shown.images : NO_IMAGES,
-    shown !== null && shown !== "missing" && shown.done,
+    active && shown !== null && shown !== "missing" && shown.done,
   );
   const saved = useSavedVisualsStore((state) => state.saved);
   const [code, setCode] = useState(false);
@@ -500,21 +552,23 @@ function VisualPanel({ call }: { call: ToolCall }) {
             !done && "bg-foreground/[0.03]",
           )}
         >
-          <VisualFrame
-            key={frameKey}
-            kind={shown.kind}
-            title={shown.title}
-            content={content}
-            done={done}
-            height={shown.height}
-            aspect={shown.kind === "svg" ? svgAspect(shown.content) : null}
-            zoom={zoom}
-            onError={onError}
-            onRendered={onRendered}
-            onSvg={onSvg}
-            onStall={() => setStalled(true)}
-            onFollowUp={offerFollowUp}
-          />
+          {active && (
+            <VisualFrame
+              key={frameKey}
+              kind={shown.kind}
+              title={shown.title}
+              content={content}
+              done={done}
+              height={shown.height}
+              aspect={shown.kind === "svg" ? svgAspect(shown.content) : null}
+              zoom={zoom}
+              onError={onError}
+              onRendered={onRendered}
+              onSvg={onSvg}
+              onStall={() => setStalled(true)}
+              onFollowUp={offerFollowUp}
+            />
+          )}
           {/* On a phone the preview is a picture: a drag on a canvas would take
               the scroll of the conversation with it, so a tap opens it full
               screen, where it is the whole window. */}

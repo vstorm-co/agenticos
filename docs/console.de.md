@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "c74cc1214d3a"
 ---
 
 # Die Konsole { #the-console }
@@ -19,7 +19,7 @@ neben dem Mikrofon.
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt achtunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt sechsundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -293,6 +293,18 @@ sich zuletzt bewegt hat. Einer, dessen Run noch arbeitet, zeigt einen Spinner un
 wie lange er schon läuft; einer mit einer Antwort, die Sie seit dem letzten Öffnen
 nicht gesehen haben, trägt einen Punkt, den das Öffnen löscht - nur für Sie, denn
 einen geteilten Thread liest jeder seiner Leser für sich.
+
+Beim erneuten Öffnen zeigt eine Unterhaltung ihre neuesten 100 Nachrichten.
+**Ältere Nachrichten laden** ergänzt oben die vorherige Seite und erhält die
+Position der gelesenen Passage. Neue Antworten und die Kosten gehören weiterhin
+zur aktuellen Unterhaltung.
+
+Beim Öffnen lädt der Chat Metadaten ohne den gesamten Verlauf oder die
+Modellzusammenfassung. Streaming verwendet unveränderte Nachrichtenkomponenten
+weiter und bündelt Replay-Nachrichten pro Animationsframe, mit begrenzten
+Warteschlangen und einem 50-ms-Ersatztermin im Hintergrund. Historische Zeichnungen
+aktivieren sich nahe dem sichtbaren Bereich und geben ihre Frames außerhalb frei;
+laufende Zeichnungen rendern weiterhin, um Werkzeugfehler zu melden.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 
@@ -675,6 +687,8 @@ verlassen haben.
 | **Knowledge** | Collections, Dokumente, Sync-Quellen, Ingestion-Einstellungen | [Dateiverarbeitung](file-processing.md) |
 | **Skills** | Geschriebene Abläufe, die ein Agent bei Bedarf lädt | [Skills](skills.md) |
 | **Context** | Dauerhaftes Wissen, das an viele Agents gebunden ist | [Context-Dateien](context.md) |
+| **Tables** | Typisierte Datensätze und ihre Spalten, als Tabelle, Kanban-Board oder Liste | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Mehrstufige Automatisierungen, die Ihre Agents ausführen, auf einer Zeichenfläche gebaut | [Workflows](workflows.md) |
 | **Routines** | Zeitpläne und Ereignis-Trigger | [Trigger](triggers.md) |
 | **Runs** | Was lief, was es kostete, was es berührte, ob es fehlschlug | [Governance](governance.md#audit) |
 | **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -731,7 +745,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **achtunddreißig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **sechsundvierzig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.

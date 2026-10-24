@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { MentionChip } from "./mention-chip";
 import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -102,7 +103,7 @@ interface MessageItemProps {
   request?: string;
 }
 
-export function MessageItem({
+function MessageItemView({
   message,
   agent,
   groupPosition,
@@ -671,3 +672,5 @@ function PinButton({ pins, prompt }: { pins: PinnedPrompts; prompt: string }) {
     </button>
   );
 }
+
+export const MessageItem = memo(MessageItemView);

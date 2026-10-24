@@ -64,15 +64,22 @@ class BudgetScope(StrEnum):
     GROUP = "group"
     """A department's month, across every agent its members run (#2072)."""
     ORGANIZATION = "organization"
+    RUN = "run"
+    """One run's own ceiling, set by whoever started it - a workflow step's
+    `max_cost_usd`. Metered against this run's ledger, never a period."""
 
     @property
     def label(self) -> str:
         """How the refusal names it to the person reading it."""
-        return {
-            BudgetScope.AGENT: "Agent monthly",
-            BudgetScope.GROUP: "Department monthly",
-            BudgetScope.ORGANIZATION: "Organization monthly",
-        }[self]
+        return _SCOPE_LABELS[self]
+
+
+_SCOPE_LABELS = {
+    BudgetScope.AGENT: "Agent monthly",
+    BudgetScope.GROUP: "Department monthly",
+    BudgetScope.ORGANIZATION: "Organization monthly",
+    BudgetScope.RUN: "This run's",
+}
 
 
 class BudgetExceeded(Exception):

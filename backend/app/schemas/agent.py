@@ -124,6 +124,13 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    workflow_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The workflow whose step configures this agent, when one does. Such an "
+            "agent is changed in that step, never here, and is not in the catalog."
+        ),
+    )
     a2a_enabled: bool = Field(
         default=False,
         description=(
@@ -757,6 +764,14 @@ class ParkedCall(BaseSchema):
     )
     tool_name: str
     tool_args: dict[str, Any] = Field(default_factory=dict)
+    capability_tool_id: str | None = Field(
+        default=None,
+        description="The tool's stable id, as `ApprovalRead.capability_tool_id` carries it.",
+    )
+    context: dict[str, str] | None = Field(
+        default=None,
+        description="The arguments' ids as names, as `ApprovalRead.context` carries them.",
+    )
     account: str | None = Field(
         default=None,
         description="Which account of an MCP service the call acts as, where that is a question.",
@@ -825,6 +840,14 @@ class AgentRunResult(BaseSchema):
         ),
     )
     output: str
+    structured: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "The answer as an object, for an agent with an `output_schema`: it fits "
+            "that schema, and `output` shows the same object as a JSON block. Null "
+            "for a free-text answer, and for a run that parked or stopped"
+        ),
+    )
     status: str
     cost_usd: Decimal
     cost_is_partial: bool = Field(

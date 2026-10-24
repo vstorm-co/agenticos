@@ -82,6 +82,11 @@ export { useUrlSort, type UrlSort } from "./use-url-sort";
 export { useModelProviders, useProviderCatalog, useProviderModels } from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
+export { useTables, useTable, useAllTables } from "./use-tables";
+export { useTableRecords } from "./use-table-records";
+export { useTableRecordCount, useTableRecordPages } from "./use-table-record-pages";
+export { useTableViews } from "./use-table-views";
+export { useRecordMutation, isRevisionConflict } from "./use-record-mutation";
 export {
   useLocalSandboxService,
   useSandboxConnections,
@@ -134,6 +139,25 @@ export { useAgentEnvironments } from "./use-agent-environments";
 export { useExposures } from "./use-exposures";
 export { usePollWhileIngesting, type IngestingDocument } from "./use-poll-while-ingesting";
 export { useResizablePanel, type ResizablePanel } from "./use-resizable-panel";
+export {
+  useNodeCatalog,
+  useWorkflow,
+  useWorkflowVersion,
+  useWorkflowExport,
+  useWorkflowVersions,
+  useWorkflows,
+} from "./use-workflows";
+export { useWorkflowActions } from "./use-workflow-actions";
+export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
+export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
+export { useWorkflowApprovals } from "./use-workflow-approvals";
+export { useWorkflowExposure } from "./use-workflow-exposure";
+export { useWorkflowStats } from "./use-workflow-stats";
+export { useWorkflowsSummary } from "./use-workflows-summary";
+export { useStepEvals } from "./use-step-evals";
+export { useWebhookTest } from "./use-webhook-test";
+export { useWorkflowChat } from "./use-workflow-chat";
+export { useTableTriggerAdmissions, useTableTriggers } from "./use-table-triggers";
 export { useDictationStatus } from "./use-dictation-status";
 export {
   useDictation,

@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "c74cc1214d3a"
 ---
 
 # La consola { #the-console }
@@ -19,7 +19,7 @@ al micrófono.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
+Existen cuarenta y seis tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -275,6 +275,18 @@ misma puerta de aprobación, mismo rastro de auditoría, porque
 lleva; uno con una respuesta que no has visto desde la última vez que lo abriste
 lleva un punto, que abrirlo borra - solo para ti, porque cada lector de un hilo
 compartido lo lee por separado.
+
+Al volver a abrir una conversación se muestran sus 100 mensajes más recientes.
+**Cargar mensajes anteriores** añade la página anterior arriba y conserva la
+posición del pasaje que estás leyendo. Las respuestas nuevas y el coste siguen
+correspondiendo a la conversación actual.
+
+Al abrir el chat se leen metadatos sin descargar todo el historial ni el resumen
+del modelo. El streaming reutiliza componentes de mensajes sin cambios y agrupa
+el replay por fotograma de animación, con colas limitadas y un plazo alternativo
+de 50 ms en segundo plano. Los dibujos históricos se activan cerca del área visible
+y liberan sus marcos fuera de ella; los dibujos en curso siguen renderizándose
+para informar de errores a la herramienta.
 
 Tres cosas del compositor que conviene saber.
 
@@ -631,6 +643,8 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Knowledge** | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta | [Procesamiento de archivos](file-processing.md) |
 | **Skills** | Procedimientos escritos que un agent carga cuando hacen falta | [Skills](skills.md) |
 | **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
+| **Tables** | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Automatizaciones de varios pasos que ejecutan tus agents, construidas en un lienzo | [Workflows](workflows.md) |
 | **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
 | **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
 | **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -689,7 +703,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y ocho widgets** que ordenas tú, guardados por
+- El dashboard son **cuarenta y seis widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

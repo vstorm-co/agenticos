@@ -417,6 +417,13 @@ async def _run(profile: str | None = None) -> int:
     status, detail = await _browser_endpoints()
     failures += _report("browser endpoints", status, detail)
 
+    # Imported here like every probe with a dependency of its own: the renderer
+    # reaches the artifact service, which a doctor without a database never needs.
+    from app.services.artifact_render import probe as probe_artifact_renderer
+
+    status, detail = await probe_artifact_renderer()
+    failures += _report("artifact renderer", status, detail)
+
     if profile:
         info(f"\nAgainst the {profile} profile - technical safeguards only:")
         failures += await _profile_sheet(profile)

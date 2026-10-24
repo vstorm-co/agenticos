@@ -18,6 +18,8 @@ import {
   Plug,
   Repeat,
   ShieldCheck,
+  Table2,
+  Workflow,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -118,6 +120,13 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Perm.agentsView,
         dataTour: "nav-agents",
       },
+      {
+        labelKey: "workflows",
+        href: ROUTES.WORKFLOWS,
+        icon: Workflow,
+        permission: Perm.workflowsView,
+        dataTour: "nav-workflows",
+      },
       // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
       // the floor for seeing an agent's schedule; the create controls inside gate
       // further on `agents:run`, so a viewer sees the list without the buttons.
@@ -142,6 +151,13 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.RAG,
         icon: Database,
         permission: Perm.collectionsView,
+      },
+      {
+        labelKey: "tables",
+        href: ROUTES.TABLES,
+        icon: Table2,
+        permission: Perm.tablesView,
+        dataTour: "nav-tables",
       },
       {
         // Deliberately ungated. These are the files an agent kept *for the

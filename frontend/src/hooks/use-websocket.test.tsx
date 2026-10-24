@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -550,4 +551,108 @@ describe("sending", () => {
 
     expect(sockets()).toEqual([]);
   });
+});
+
+describe("bounded chat replay batches (#2469)", () => {
+  it("delivers a burst in order on the next animation frame", () => {
+    const onMessage = vi.fn();
+    const { result } = renderHook(() =>
+      useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+    );
+    act(() => result.current.connect());
+    for (let index = 0; index < 100; index++)
+      act(() => latest().onmessage!(new MessageEvent("message", { data: String(index) })));
+    expect(onMessage).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersToNextFrame());
+    expect(onMessage.mock.calls.map(([event]) => event.data)).toEqual(
+      Array.from({ length: 100 }, (_, index) => String(index)),
+    );
+  });
+
+  it("flushes before a close so completion precedes interruption", () => {
+    const order: string[] = [];
+    const { result } = renderHook(() =>
+      useWebSocket({
+        url: "wss://api/chat",
+        batchMessages: true,
+        onMessage: (event) => order.push(event.data),
+        onClose: () => order.push("closed"),
+      }),
+    );
+    act(() => result.current.connect());
+    act(() => {
+      latest().onmessage!(new MessageEvent("message", { data: "complete" }));
+      latest().drop(1000);
+    });
+    expect(order).toEqual(["complete", "closed"]);
+    act(() => vi.advanceTimersByTime(100));
+    expect(order).toEqual(["complete", "closed"]);
+  });
+
+  it("bounds suspended-tab delay and the number of retained frames", () => {
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const onMessage = vi.fn();
+    const { result } = renderHook(() =>
+      useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+    );
+    act(() => result.current.connect());
+    act(() => latest().onmessage!(new MessageEvent("message", { data: "one" })));
+    act(() => vi.advanceTimersByTime(50));
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    act(() => {
+      for (let index = 0; index < 256; index++)
+        latest().onmessage!(new MessageEvent("message", { data: String(index) }));
+    });
+    expect(onMessage).toHaveBeenCalledTimes(257);
+  });
+
+  it("discards queued frames when the chat socket is replaced", () => {
+    const onMessage = vi.fn();
+    const { result } = renderHook(() =>
+      useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+    );
+    act(() => result.current.connect());
+    act(() => latest().onmessage!(new MessageEvent("message", { data: "old" })));
+    act(() => result.current.reopen());
+    act(() => vi.advanceTimersByTime(100));
+    expect(onMessage).not.toHaveBeenCalled();
+  });
+});
+
+it("renders one consumer update for a replay frame burst (#2469)", () => {
+  let renders = 0;
+  const { result } = renderHook(() => {
+    const [text, setText] = useState("");
+    renders++;
+    const socket = useWebSocket({
+      url: "wss://api/chat",
+      batchMessages: true,
+      onMessage: (event) => setText((previous) => previous + event.data),
+    });
+    return { ...socket, text };
+  });
+  act(() => result.current.connect());
+  const before = renders;
+  for (let index = 0; index < 100; index++)
+    act(() => latest().onmessage!(new MessageEvent("message", { data: "x" })));
+  expect(renders).toBe(before);
+  act(() => vi.advanceTimersToNextFrame());
+  expect(result.current.text).toBe("x".repeat(100));
+  expect(renders).toBe(before + 1);
+});
+
+it("flushes large replay payloads without retaining a frame-sized backlog", () => {
+  const onMessage = vi.fn();
+  const { result } = renderHook(() =>
+    useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+  );
+  act(() => result.current.connect());
+  act(() => latest().onmessage!(new MessageEvent("message", { data: "x".repeat(524288) })));
+  expect(onMessage).toHaveBeenCalledTimes(1);
+  act(() => vi.advanceTimersByTime(100));
+  expect(onMessage).toHaveBeenCalledTimes(1);
 });

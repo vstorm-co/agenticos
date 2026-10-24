@@ -1,10 +1,12 @@
 """ResourceGrant repository (PostgreSQL async)."""
 
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Delete, delete, func, or_, select
+from sqlalchemy import ColumnElement, CursorResult, Delete, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.artifact import Artifact
 from app.db.models.group import Group, GroupMember
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, ResourceGrant
 
@@ -326,6 +328,49 @@ async def count_for_resources(
     # named `count` shadows the Row sequence method as far as a type checker
     # can tell, even though SQLAlchemy resolves it to the value at run time.
     return dict(result.all())
+
+
+async def lower_edit_data(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    resource_id: UUID | None = None,
+    owner_user_id: UUID | None = None,
+) -> int:
+    """Turn `edit_data` grants on pages back into `edit`; how many were changed.
+
+    Name one page (`resource_id`), or a person (`owner_user_id`) for every page of the
+    organization they own. The grants are never deleted: the editor keeps what they could
+    always do, and only the owner's standing consent to their republishes goes.
+    """
+    assert (resource_id is None) != (owner_user_id is None)  # one scope, never both or neither
+    scope: ColumnElement[bool] = (
+        ResourceGrant.resource_id == resource_id
+        if resource_id is not None
+        else ResourceGrant.resource_id.in_(
+            select(Artifact.id).where(
+                Artifact.organization_id == organization_id,
+                Artifact.owner_user_id == owner_user_id,
+            )
+        )
+    )
+    # `execute` is typed to return `Result`; a DML statement returns `CursorResult`,
+    # which has the `rowcount` read below.
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            update(ResourceGrant)
+            .where(
+                ResourceGrant.organization_id == organization_id,
+                ResourceGrant.resource_type == "artifact",
+                ResourceGrant.level == GrantLevel.EDIT_DATA.value,
+                scope,
+            )
+            .values(level=GrantLevel.EDIT.value)
+        ),
+    )
+    await db.flush()
+    return result.rowcount
 
 
 async def list_for_group(

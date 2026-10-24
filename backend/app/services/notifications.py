@@ -44,7 +44,7 @@ no spec can redirect it.
 
 import hashlib
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -57,6 +57,7 @@ from app.core.config import settings
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ToolApproval
+from app.db.models.artifact import Artifact
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
@@ -171,6 +172,10 @@ class NotificationService:
         department's is set by an administrator and is its lead's to argue for,
         so it reaches both (#2072).
         """
+        if scope is BudgetScope.RUN:
+            # A ceiling one caller set for one run - a workflow step's - is
+            # reported by that caller: the workflow run fails with it.
+            return
         if scope is BudgetScope.ORGANIZATION:
             recipients = await self._administrator_ids(run.organization_id)
         elif scope is BudgetScope.GROUP:
@@ -1238,6 +1243,102 @@ class NotificationService:
             use_savepoint=True,
         )
         return bool(written)
+
+    async def artifact_owner_changed(
+        self,
+        artifact: Artifact,
+        *,
+        previous_owner_id: UUID | None,
+        new_owner_id: UUID,
+        by_user_id: UUID,
+        by_name: str,
+        new_owner_name: str,
+    ) -> None:
+        """A page changed hands: the old owner is told they gave it up, the new one that it
+        is theirs and its data waits for their confirmation.
+
+        Each says which page and who switched it, never what the page shows. A page
+        with no owner left has no one to tell of giving it up, and whoever made the
+        switch (`by_user_id`) is never told of their own act.
+        """
+        path = self._link(f"/apps/{artifact.id}", artifact.organization_id)
+        title = artifact.title or artifact.name
+        # A page can change hands again, and the same pair twice: the instant makes each
+        # switch its own fact for the dedup key.
+        occurrence = f"{artifact.id}:{datetime.now(UTC).isoformat()}"
+        render_context = {
+            "artifact_id": str(artifact.id),
+            "app_name": settings.PROJECT_NAME,
+            "page_url": absolute_context_url(path),
+            # Lets the old owner read this row after the switch took their access.
+            "previous_owner_id": str(previous_owner_id) if previous_owner_id else None,
+        }
+        told: list[tuple[UUID, str]] = [
+            (
+                new_owner_id,
+                f"{by_name} made you the owner of {title}. Its data stays hidden from "
+                "others until you confirm it.",
+            )
+        ]
+        if previous_owner_id is not None:
+            told.append(
+                (previous_owner_id, f"{by_name} made {new_owner_name} the owner of {title}.")
+            )
+        for user_id, summary in told:
+            if user_id == by_user_id:
+                continue
+            await self._center.write(
+                recipients=[user_id],
+                event_type=NotificationEventType.ARTIFACT_OWNER_CHANGED,
+                occurrence_id=occurrence,
+                summary=summary,
+                context_url=path,
+                render_context=render_context,
+                organization_id=artifact.organization_id,
+            )
+
+    async def artifact_share_requested(
+        self,
+        artifact: Artifact,
+        *,
+        request_id: UUID,
+        kind: str,
+        requester_name: str,
+        recipients: Sequence[UUID],
+    ) -> None:
+        """Somebody asked for a page to be shared, or for a version of it to be confirmed.
+
+        Told to those who decide it (see :func:`app.services.artifact_requests.deciders`).
+        Names the page, the requester and what they asked, never what the page reads.
+        """
+        # `requests=open` opens the page's Requests section, in the console and from an email.
+        path = self._link(f"/apps/{artifact.id}?requests=open", artifact.organization_id)
+        title = artifact.title or artifact.name
+        summary = {
+            "audience": f"{requester_name} asked to share {title} with more people.",
+            "access": f"{requester_name} asked for access to {title}.",
+            "version": (
+                f"{requester_name} changed the data {title} shows. Others see the earlier "
+                "version until you approve it."
+            ),
+        }[kind]
+        render_context = {
+            "artifact_id": str(artifact.id),
+            "request_id": str(request_id),
+            "kind": kind,
+            "app_name": settings.PROJECT_NAME,
+            "page_url": absolute_context_url(path),
+        }
+        for user_id in recipients:
+            await self._center.write(
+                recipients=[user_id],
+                event_type=NotificationEventType.ARTIFACT_SHARE_REQUESTED,
+                occurrence_id=str(request_id),
+                summary=summary,
+                context_url=path,
+                render_context=render_context,
+                organization_id=artifact.organization_id,
+            )
 
     def _link(self, path: str, organization_id: UUID) -> str:
         """A console path that says which organization it is about.

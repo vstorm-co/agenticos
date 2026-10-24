@@ -57,16 +57,26 @@ from app.db.models.project import Project
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
+from app.db.models.table_view import TableView
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.virtual_table import VirtualTable
+from app.db.models.virtual_table_trigger import VirtualTableTrigger
 from app.db.models.watch import Watch
+from app.db.models.workflow import Workflow
+from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.updates import cleared, writable
 from app.schemas.agent import AgentDraftUpdate
 from app.schemas.agent_embed import EmbedUpdate
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
 from app.schemas.agent_trigger import TriggerUpdate
-from app.schemas.artifact import ArtifactPublicLinkUpdate, ArtifactUpdate
+from app.schemas.artifact import (
+    ArtifactAutoConsentUpdate,
+    ArtifactOwnerUpdate,
+    ArtifactPublicLinkUpdate,
+    ArtifactUpdate,
+)
 from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.context import ContextFileUpdate
@@ -87,21 +97,34 @@ from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.secret import SecretUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
+from app.schemas.table_view import TableViewUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
+from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
+from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.watch import WatchUpdate
+from app.schemas.workflow import WorkflowActiveUpdate, WorkflowDraftUpdate, WorkflowUpdate
+from app.schemas.workflow_exposure import WorkflowExposureUpdate
 
 # Which row each `*Update` schema writes, and `None` where it writes no single
 # one. Declared by hand because nothing in the code says it: the pairing lives in
 # a service, three call frames from either end. `None` is a claim as much as a
-# model is - `AgentDraftUpdate` writes a JSONB spec, `VisibilityUpdate` writes
+# model is - `AgentDraftUpdate` and `WorkflowDraftUpdate` write a JSONB spec or
+# graph directly (their service builds `update_data` itself; neither ever dumps
+# the schema), `VisibilityUpdate` writes
 # a column plus grant rows, and `NotificationPreferenceUpdate` writes one exact
 # `(user_id, event_type, channel)` upsert whose three fields are all required
 # (#1598, Decision 4) rather than an optional-field partial patch through
 # `writable` - so a schema whose fields *are* columns must not be parked there
-# to silence the gate.
+# to silence the gate. `RecordUpdate` writes cells of one JSONB document, merged
+# and validated per column type by the table service, and `SchemaUpdate` appends
+# a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    # Sets `auto_consent` from `enabled`; `confirmed` is checked and audited, never stored.
+    ArtifactAutoConsentUpdate: Artifact,
+    # Sets `owner_user_id` from `user_id` (`artifact_ownership.change_owner`).
+    ArtifactOwnerUpdate: Artifact,
     ArtifactPublicLinkUpdate: Artifact,
     # The organization's assistant row; the agent itself is edited in the Builder.
     AssistantUpdate: OrganizationAssistant,
@@ -125,16 +148,26 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
     ProjectUpdate: Project,
+    RecordUpdate: None,
     RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
+    SchemaUpdate: None,
     SecretUpdate: OrganizationSecret,
     SkillResourceUpdate: SkillResource,
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,
+    TableUpdate: VirtualTable,
+    TableTriggerUpdate: VirtualTableTrigger,
+    TableViewUpdate: TableView,
     TriggerUpdate: AgentTrigger,
     UserSlashCommandUpdate: UserSlashCommand,
     UserUpdate: User,
     VisibilityUpdate: None,
+    WorkflowDraftUpdate: None,
+    # Switches whichever trigger row the workflow has: an exposure or a table trigger.
+    WorkflowActiveUpdate: None,
+    WorkflowUpdate: Workflow,
+    WorkflowExposureUpdate: WorkflowExposure,
     WatchUpdate: Watch,
 }
 
@@ -215,7 +248,11 @@ class TestEveryUpdateSchemaIsAccountedFor:
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
             "NotificationPreferenceUpdate",
+            "RecordUpdate",
+            "SchemaUpdate",
             "VisibilityUpdate",
+            "WorkflowDraftUpdate",
+            "WorkflowActiveUpdate",
         }
 
 

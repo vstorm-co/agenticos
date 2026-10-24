@@ -19,6 +19,10 @@ import { scopedStore } from "./chat-scope-context";
  * leaves it alone, and it only takes effect when a conversation begins or the
  * live selection is empty or stale.
  *
+ * `selectedWorkflowId` addresses the chat to a published workflow instead: each
+ * message then starts a run of it, and its answer comes back into the thread.
+ * Picking an agent clears it, so exactly one of the two answers.
+ *
  * Persisted to localStorage the same way the knowledge-base draft is, so the
  * choice survives a refresh or a new tab. A scoped conversation - the
  * Architect's window, the Builder's test panel - keeps its own in memory: it
@@ -30,15 +34,19 @@ import { scopedStore } from "./chat-scope-context";
 export interface AgentSelectionState {
   selectedAgentId: string | null;
   defaultAgentId: string | null;
+  selectedWorkflowId: string | null;
   select: (agentId: string | null) => void;
   setDefault: (agentId: string | null) => void;
+  selectWorkflow: (workflowId: string | null) => void;
 }
 
 const agentSelectionState: StateCreator<AgentSelectionState> = (set) => ({
   selectedAgentId: null,
   defaultAgentId: null,
-  select: (agentId) => set({ selectedAgentId: agentId }),
+  selectedWorkflowId: null,
+  select: (agentId) => set({ selectedAgentId: agentId, selectedWorkflowId: null }),
   setDefault: (agentId) => set({ defaultAgentId: agentId }),
+  selectWorkflow: (workflowId) => set({ selectedWorkflowId: workflowId }),
 });
 
 /** A copy of its own, held in memory and addressed to `agentId`, for a conversation in a scope - see `ChatScope`. */
@@ -52,8 +60,8 @@ export const useAgentSelectionStore = scopedStore(
   create<AgentSelectionState>()(
     persist(agentSelectionState, {
       name: "agent-selection",
-      // Still version 1: adding `defaultAgentId` is backward-compatible - a
-      // persisted state without it merges over the initial `null`.
+      // Still version 1: adding `defaultAgentId` and `selectedWorkflowId` is
+      // backward-compatible - a persisted state without them merges over `null`.
       version: 1,
     }),
   ),

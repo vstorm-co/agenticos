@@ -142,3 +142,24 @@ def test_a_route_can_declare_refusals_of_its_own() -> None:
         "$ref": "#/components/schemas/ErrorEnvelope"
     }
     assert "x-error-responses" not in operation
+
+
+async def test_table_operations_are_part_of_the_public_contract(document: dict[str, Any]) -> None:
+    prefix = f"{settings.API_V1_STR}/tables"
+    paths = document["paths"]
+    assert "post" in paths[prefix]
+    assert "put" in paths[f"{prefix}/{{table_id}}/schema"]
+    assert "post" in paths[f"{prefix}/{{table_id}}/records/query"]
+    assert "post" in paths[f"{prefix}/{{table_id}}/records"]
+    assert "put" in paths[f"{prefix}/{{table_id}}/records/by-external-id/{{external_id}}"]
+
+
+async def test_workflow_runs_are_public_but_authoring_stays_session_only(
+    document: dict[str, Any],
+) -> None:
+    prefix = f"{settings.API_V1_STR}/workflow-runs"
+    paths = document["paths"]
+    assert "post" in paths[prefix]
+    assert "get" in paths[f"{prefix}/{{run_id}}"]
+    assert "get" in paths[f"{prefix}/{{run_id}}/events"]
+    assert f"{settings.API_V1_STR}/workflows/{{workflow_id}}/draft" not in paths

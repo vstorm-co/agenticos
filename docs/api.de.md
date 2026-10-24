@@ -1,5 +1,5 @@
 ---
-source_sha: "d77cb23fa679"
+source_sha: "79a6161b4bee"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -170,6 +170,12 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
 
+
+**Ein Run setzt eine Unterhaltung fort.** Ein Aufruf ohne `conversation_id`
+öffnet eine neue Unterhaltung für den Aussteller des Schlüssels und gibt ihre Id
+Ein Agent mit einem [Antwortformat](concepts.md#spec) antwortet mit einem
+Objekt: Es steht in `structured`, bereits gegen das `output_schema` des Agents
+geprüft, und `output` zeigt dasselbe Objekt als JSON-Block.
 Die Antwort trägt die Id des Runs, die Ausgabe, den Status, die Tokens und die
 Kosten. `environment_id` im Body wählt, [welche Umgebung](environments.md)
 antwortet. `"draft": true` führt stattdessen den unveröffentlichten Entwurf aus, wie
@@ -283,6 +289,167 @@ Die Antwort trägt außerdem
 `categories` und `tags`: jedes eindeutige Label auf den Agents, die Sie auflisten
 können, unabhängig von Filter und Seite — die Auswahl, die ein Filtermenü anbietet.
 Ein privater Agent, den Sie nicht sehen, trägt keines bei.
+
+## Einen Workflow ausführen { #running-a-workflow }
+
+Organisations-API-Keys können Runs starten und Status, Graph, Schritte, Dateien
+und Ereignisse über `/api/v1/workflow-runs` lesen. Ein Start verlangt `workflows:run`,
+das Lesen zusätzlich `workflows:view`, ein Entwurfstest `workflows:edit`. Der Worker
+behält die beim Start zugelassenen Scopes und prüft Key und Aussteller vor jedem
+Schritt erneut, auch nach einer Freigabe oder Wartezeit. Widerruf, Ablauf oder
+Löschung stoppen neue Arbeit mit `PRINCIPAL_REVOKED`; eine Fortsetzung erhält nie
+die volle Rolle des Ausstellers. Key-Runs erreichen keine persönlichen Daten des
+Ausstellers. Das Bearbeiten eines Workflows verlangt weiterhin eine Sitzung.
+
+API-Schlüssel können Läufe öffentlichen Ursprungs einschließlich schlüsselgestarteter
+Läufe lesen. Persönliche, von Mitgliedern gestartete Läufe antworten mit `404`, auch
+bei Graph, Schritten, Ereignissen, Dateien, Wiederholung und Abbruch. Schlüssel können
+keine Dateien aus diesen Läufen importieren.
+
+```bash
+curl -X POST "$BASE/api/v1/workflow-runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input": {"question": "How long do refunds take?"}, "deadline_seconds": 3600}'
+```
+
+Das startet einen Run der veröffentlichten Version des Workflows und antwortet
+sofort mit `201`; die Knoten laufen im Hintergrund. `input` ist das, was der Trigger [`core.input`](reference/workflow-nodes.md#core-input) des Graphen weitergibt, höchstens `WORKFLOW_RUN_MAX_INPUT_BYTES` als JSON (darüber `413`). Hier startet nur eine Version, die mit diesem Trigger oder ohne einen startet: jede andere antwortet `409
+WORKFLOW_TRIGGER_MISMATCH`, weil ein Webhook, ein Zeitplan, eine Chatnachricht oder ein Tabellen-Datensatz sie startet. `"mode": "test"` führt
+stattdessen den aktuellen Entwurf aus, mit jedem Trigger, und verlangt `workflows:edit`.
+
+`deadline_seconds` (bis zu dreißig Tage) setzt eine Deadline, die jedes Mal
+geprüft wird, bevor ein Knoten ausgeführt wird: Der erste nach Ablauf fällige
+Knoten lässt den Run mit `DEADLINE_EXCEEDED` fehlschlagen, während ein bereits
+laufender Knoten oder ein Run, der auf eine Freigabe wartet, davon nicht
+unterbrochen wird. Die
+Route ist wie die Agent-Run-Route je Aufrufer begrenzt und antwortet jenseits des
+Kontingents mit `429` und `Retry-After`.
+
+`GET /api/v1/workflow-runs/{id}` liefert Status, `spent_cost`, `error` und, sobald sein Knoten [`core.output`](reference/workflow-nodes.md#core-output) gelaufen ist, `output` des
+Runs, und `POST /api/v1/workflow-runs/{id}/cancel` stoppt ihn. `GET
+/api/v1/workflow-runs/{id}/events?after=<cursor>` liefert den Ereignisstrom des
+Runs, älteste zuerst, mit einem `next_cursor`, den Sie als `after` zurückgeben:
+Er bleibt gleich, solange nichts Neueres existiert, sodass Abfragen damit einem
+laufenden Run folgen. Wer was davon darf, steht unter
+[Berechtigungen](permissions.md#workflow-runs).
+
+`GET /api/v1/workflow-runs/{id}/nodes` listet jeden Schritt, den der Run gemacht
+hat, Schleifeniterationen eingeschlossen, jeden mit seinem `scope_path`, Status,
+seinen Versuchen, Kosten und dem typisierten Fehler, mit dem er zuletzt
+fehlschlug, und `GET /api/v1/workflow-runs/{id}/graph` liefert den Graphen, den der
+Run ausführt: den seiner Version oder den Draft-Snapshot eines Test-Runs.
+
+### Einen Workflow exportieren und importieren { #exporting-and-importing-a-workflow }
+
+`GET /api/v1/workflows/{id}/export` (`workflows:view`) gibt den Entwurf als
+portable Datei zurück: `name`, `description`, `tags`, `settings`, `graph` und
+`unresolved`, Schritt und Feld jeder weggelassenen Ressourcenbindung. Sie enthält
+keine ID dieses Deployments und keinen Secret-Wert. `POST /api/v1/workflows/import`
+(`workflows:create`) nimmt diese Datei und antwortet mit `201`, dem neuen Entwurf
+`workflow` und seinen `unresolved`-Bindungen; ein Graph, der sich nicht parsen
+lässt oder einen Schritt nennt, den dieses Deployment nicht hat, ist ein `400`, und
+nichts entsteht.
+
+### Einem Run über einen WebSocket folgen { #following-a-run-over-a-websocket }
+
+`/api/v1/ws/workflow-runs?organization_id=<org>` authentifiziert sich wie der Socket
+des Chats, mit dem Access Token als Subprotokoll `access_token.<token>`. Sende
+`{"type": "start", "workflow_id": ..., "input": {...}}`, um einen Run zu starten,
+oder `{"type": "attach", "run_id": ..., "after": <cursor>}`, um einem zu folgen. Der
+Server sendet `{"type": "run", "run": {...}}`, wenn er zu folgen beginnt, und erneut,
+wenn der Run endet, und `{"type": "event", "event": {...}, "cursor": ...}` für jedes
+Ereignis dazwischen. Ein abgelehnter Frame bekommt `{"type": "error", "code": ...,
+"message": ...}`, und eine widerrufene Sitzung schließt den Socket mit `4001`. Ein
+Socket folgt einem Run; ein neuer Frame ersetzt den Run, dem er gefolgt ist.
+
+Ein `start`-Frame verbraucht dasselbe Kontingent pro Minute wie `POST /workflow-runs` und
+bekommt darüber hinaus `RATE_LIMIT_EXCEEDED`.
+
+### Webhooks und Zeitpläne { #workflow-webhooks-and-schedules }
+
+Webhook- und GitHub-Zustellungs-IDs überleben die Aufbewahrung von Ausführungsinhalten als minimale, zur Exposition und Organisation gehörende Tombstones. Ein Duplikat liefert weiterhin die ursprüngliche Ausführungs-UUID; Status und frühere Webhook-Antwort können bereits gelöscht sein. Das Löschen der Exposition oder Organisation beendet diese Deduplizierung. Die Migration `0222_webhook_delivery_tombstones.py` stellt bereits gelöschte Claims nicht wieder her; ein Downgrade entfernt verwaiste Tombstones vor Wiederherstellung des alten kaskadierenden Fremdschlüssels.
+
+Die Veröffentlichung automatischer Trigger und Änderungen ihrer Ausführungsrechte erfordern eine Mitgliedssitzung (`403` für Organisations-API-Schlüssel). Schlüssel dürfen manuelle Workflows veröffentlichen, Ausführungen innerhalb ihrer Scopes starten und Expositionen pausieren, aber nicht aktivieren, Geheimnisse/Formularlinks rotieren, Zeitpläne ändern oder eine neue Fehler-Workflow-Identität wählen. Diese Vorgänge hinterlegen Benutzerrechte für spätere Ereignisse.
+
+Öffentliche Workflow-Formulare erzwingen das Eingabebyte-Limit beim Lesen des Anforderungsstroms, vor JSON-Parsing und Tokenprüfung. Zu große deklarierte oder in Chunks gesendete Inhalte liefern `413`; fehlerhaftes JSON und ungültige Formularfelder liefern `422`.
+
+
+Ein Workflow, dessen Trigger-Knoten ein Webhook oder ein Zeitplan ist, erhält seine
+Exposure, wenn diese Version veröffentlicht wird, und die Antwort der
+Veröffentlichung trägt sie als `exposure`. Das Signatur-Secret eines Webhooks steht im
+`webhook_secret` der Veröffentlichung, die ihn zum ersten Mal einschaltet, und
+nirgendwo sonst. `GET /api/v1/workflows/{id}/exposure` liest sie zurück, oder `null`
+für einen Workflow, der anders startet. `PATCH .../exposures/{exposure_id}` mit
+`{"is_active": false}` pausiert sie, und `POST .../exposures/{exposure_id}/rotate-secret`
+ersetzt das Secret eines Webhooks und gibt das neue einmal zurück. Beide verlangen
+`workflows:edit` und `workflows:run` auf dem Workflow. Die `webhook_url` eines
+Webhooks ist die Adresse, an die der Absender zustellt:
+
+```bash
+BODY='{"lead": 42}'
+SIGNATURE="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)"
+curl -X POST "$WEBHOOK_URL" \
+  -H "X-Signature-256: $SIGNATURE" \
+  -H "X-Delivery-Id: lead-42" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+Es antwortet mit `202` und `{"run_id": ..., "duplicate": false}`, sobald der Run
+zugelassen ist, und wartet nie auf den Run selbst. Eine bereits zugelassene
+Zustellungs-ID antwortet mit `"duplicate": true` und der ID des ersten Runs. Eine
+Signatur, die sich nicht verifizieren lässt, ist ein `403`, eine Zustellung ohne ID
+oder mit einem Body, der kein JSON-Objekt ist, ein `400`, und ein pausierter oder
+unbekannter Webhook ein `404`.
+
+Ein Graph mit einem Schritt [Respond to webhook](reference/workflow-nodes.md#webhook-respond)
+antwortet stattdessen mit dessen Status, Headern und JSON-Body, und eine
+Wiederholung der Zustellung bekommt dieselbe Antwort. Die Anfrage wartet höchstens
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` darauf und antwortet dann wie oben mit
+`202`; ein Run, der vor der Antwort fehlschlägt, abgebrochen wird oder sein Budget
+aufbraucht, ist ein `500` `WORKFLOW_WEBHOOK_UNANSWERED` mit dem Run.
+
+Vor der Veröffentlichung öffnet `POST /api/v1/workflows/{id}/webhook-test`
+(`workflows:edit`) eine Test-URL für den Entwurf, zurückgegeben als `url` mit dem
+`test_token` darin und für zwei Minuten für einen Aufruf offen. Der Aufruf braucht keine
+Signatur, wird mit `{"captured": true}` beantwortet und startet keinen Run.
+`GET .../webhook-test/{token}` liest `state` (`listening`, `caught` oder `expired`)
+und die empfangene `delivery` zurück.
+
+## Mit Tabellen arbeiten { #working-with-tables }
+
+Die `values` eines Datensatzes sind nach Spalten-id geschlüsselt; `GET
+/api/v1/tables/{id}` listet die Spalten. Jeder Schreibzugriff nimmt einen
+`Idempotency-Key`: Eine Wiederholung mit demselben Schlüssel und Body antwortet mit dem
+Ergebnis des ersten Schreibzugriffs und `Idempotent-Replayed: true`, statt erneut zu
+schreiben, und derselbe Schlüssel mit anderem Body ist `422`.
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Idempotency-Key: lead-ada-2026-09-29" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "ada@example.com", "values": {"'"$EMAIL_COLUMN"'": "ada@example.com"}}'
+```
+
+`PATCH .../records/{record_id}` ändert einige Zellen und braucht die
+`expected_revision`, die Sie zuletzt gelesen haben; eine veraltete ist `409
+REVISION_CONFLICT`. `PUT .../records/by-external-id/{external_id}` legt den Datensatz
+an oder aktualisiert ihn, mit `expected_revision`, sobald er existiert. `POST
+.../records/query` filtert, durchsucht und sortiert seitenweise, und `POST
+.../records/count` sagt, wie viele Datensätze dieselben Filter und dieselbe Suche
+treffen, höchstens 100.000.
+
+Ein Workflow, dessen Trigger-Knoten **Table record** ist, läuft nach der
+Veröffentlichung für die Datensätze seiner Tabelle, die hinzugefügt, geändert oder
+gelöscht werden - je nachdem, was sein Trigger nennt. `GET
+.../triggers` listet die Workflows, die mit einer Tabelle starten, `PATCH
+.../triggers/{trigger_id}` mit `{"is_active": false}` pausiert einen, und `GET
+.../triggers/{trigger_id}/admissions` listet, was er über jeden Datensatz entschieden
+hat. Siehe [Trigger](virtual-tables.md#triggers).
 ## Agents über A2A { #agents-over-a2a }
 
 Ein Agent, den seine Organisation über A2A anbietet, beantwortet JSON-RPC unter

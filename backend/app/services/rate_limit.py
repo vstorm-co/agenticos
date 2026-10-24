@@ -44,14 +44,17 @@ the caller for as long as the outage lasts rather than none at all.
 
 import hashlib
 import logging
+import secrets
 import time
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from starlette.requests import HTTPConnection
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
+from app.core.exceptions import RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +247,15 @@ async def exhausted(*, surface: str, caller: str, limit: Limit) -> bool:
     return used is not None and int(used) >= limit.attempts
 
 
+async def consume_with_local_floor(*, surface: str, caller: str, limit: Limit) -> Decision:
+    """`consume_floored`, under the name the Virtual Tables and page routes call it by.
+
+    For a surface whose per-caller limit is a storage or database boundary - a table
+    write, a page's data load - and so must not vanish for the length of a Redis outage.
+    """
+    return await consume_floored(surface=surface, caller=caller, limit=limit)
+
+
 def run_limit() -> Limit:
     """What one caller may spend the public run API on, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
@@ -257,6 +269,107 @@ def api_key_limit() -> Limit:
 def ml_limit() -> Limit:
     """What one caller may ask the standalone ML services for, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
+
+
+def table_write_limit() -> Limit:
+    """What one member may write to Virtual Tables in one organization, per minute.
+
+    Every write stores a history row and, with an idempotency key, a receipt, so the
+    thing rationed is how fast a tenant can grow the shared database with requests that
+    are each tiny (#1823).
+    """
+    return Limit(attempts=settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE)
+
+
+def artifact_data_limit() -> Limit:
+    """How many times one member may load a live page's data in one organization, per minute.
+
+    Each load runs every binding's view as a query, so the thing rationed is what an
+    open page refreshing itself, or a loop calling the route, costs the database.
+    """
+    return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE)
+
+
+def artifact_public_data_limit() -> Limit:
+    """How many times one public page's data may be read from the tables per minute, across
+    all its visitors - only reads that missed the cache, which are what costs the database."""
+    return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE)
+
+
+def artifact_share_request_limit() -> Limit:
+    """How many requests to share a page or to open one a member may file per hour.
+
+    Each one lands in the page owner's notifications, so the thing rationed is how
+    often one person can interrupt somebody else.
+    """
+    return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR, window_seconds=3600)
+
+
+def artifact_action_limit() -> Limit:
+    """How many runs one member may start from one page's actions per minute.
+
+    Each run is admitted work, so the thing rationed is a page's script asking in a loop
+    on a member's behalf.
+    """
+    return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE)
+
+
+_held_here: set[str] = set()
+"""The in-flight claims this process holds while the shared Redis cannot take them."""
+
+
+async def _claim(redis: RedisClient, key: str, token: str, ttl_seconds: int) -> bool | None:
+    """Take `key` for `token`: whether it was free, or `None` when Redis could not say."""
+    try:
+        return await redis.set(key, token, ttl=ttl_seconds, nx=True)
+    except Exception:
+        logger.warning("in_flight_limit_redis_unavailable", exc_info=True)
+        return None
+
+
+async def _release(redis: RedisClient, key: str, token: str) -> None:
+    try:
+        await redis.delete_if_equals(key, token)
+    except Exception:
+        # The claim's TTL frees it.
+        logger.warning("in_flight_limit_release_failed", exc_info=True)
+
+
+@asynccontextmanager
+async def one_in_flight(
+    surface: str, caller: str, *, ttl_seconds: int, message: str
+) -> AsyncGenerator[None]:
+    """Hold the one claim `caller` has on `surface` for the body, or refuse at once.
+
+    The claim is a Redis key taken with `SET NX EX`, holding a token of this call's
+    own, and released by deleting it only while it still holds that token. A body
+    that outlives `ttl_seconds` loses its claim to the next caller, and its release
+    then leaves that caller's claim alone. While Redis is down or unconfigured the
+    claim is held in this process instead, which bounds a caller per worker only,
+    not across workers.
+
+    Raises:
+        RateLimitError: `caller` already holds the claim; `message` says so.
+    """
+    key = f"inflight:{surface}:{_bounded(caller)}"
+    token = secrets.token_urlsafe(16)
+    redis = _redis
+    claimed = None if redis is None else await _claim(redis, key, token, ttl_seconds)
+    if claimed is None:
+        logger.warning("In-flight limit held per process - %s", surface)
+        redis = None
+        claimed = key not in _held_here
+        if claimed:
+            _held_here.add(key)
+    if not claimed:
+        raise RateLimitError(message=message, details={"retry_after_seconds": 1})
+    try:
+        yield
+    finally:
+        if redis is None:
+            _held_here.discard(key)
+        else:
+            await _release(redis, key, token)
 
 
 def dictation_limit() -> Limit:
@@ -332,6 +445,58 @@ async def public_artifact_allowed(public_key: str) -> Decision:
     )
 
 
+async def form_page_allowed(token: str) -> Decision:
+    """Whether a workflow's public form may be read again right now.
+
+    Keyed on the form, for `hosted_admission_allowed`'s reason: the page asks for
+    it server-side, so the address is the frontend's own.
+    """
+    return await consume(
+        surface="workflow_form_page",
+        caller=f"form:{token}",
+        limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
+async def form_submission_allowed(token: str) -> Decision:
+    """Whether a workflow's public form may take another submission right now.
+
+    Per form: each submission starts a run its publisher pays for, and the
+    console's server is the one caller every visitor arrives as.
+    """
+    return await consume(
+        surface="workflow_form_submission",
+        caller=f"form:{token}",
+        limit=Limit(attempts=settings.RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE),
+    )
+
+
+async def workflow_webhook_allowed(exposure_id: str) -> Decision:
+    """Whether a workflow's webhook may start another run right now.
+
+    Per exposure, and spent only once a delivery's signature has verified and it
+    would start a run: a stranger who knows the address must not be able to use
+    up the real sender's allowance.
+    """
+    return await consume(
+        surface="workflow_webhook",
+        caller=f"exposure:{exposure_id}",
+        limit=Limit(attempts=settings.RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE),
+    )
+
+
+async def workflow_webhook_ip_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may send the webhook doors another request right now.
+
+    Counted before the exposure is looked up, so probing for live ids is not free.
+    """
+    return await consume(
+        surface="workflow_webhook_ip",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE),
+    )
+
+
 ARTIFACT_CONTENT_LOADS_PER_MINUTE = 10
 """How often one signed artifact address may be loaded in a minute.
 
@@ -347,8 +512,11 @@ async def artifact_content_allowed(token: str) -> Decision:
     Keyed on the address, not the caller's. The token is minted by this server -
     behind a grant, or behind the public link's own limit - so it cannot be
     varied for free the way a visitor key can, and one leaked address replayed
-    from anywhere spends one allowance. Getting more means minting more, which
-    is metered where it happens. The address is also the one thing every viewer
+    from anywhere spends one allowance. Getting more means minting more: through
+    a public link that spends the link's own allowance, but a member's
+    `GET /artifacts/{id}/view` mints one per call with no limit of its own, so
+    for somebody the artifact's access rules admit this caps one address, not
+    how often they load the page. The address is also the one thing every viewer
     has of their own: counting per network address would put a whole office
     behind one proxy in one bucket.
 

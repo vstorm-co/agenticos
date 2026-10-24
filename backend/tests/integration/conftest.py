@@ -17,8 +17,9 @@ failures (#189). The schema is built once now and the reset between tests is
 per-process name still earns its place. `tests/conftest.py` derives it; this
 module owns its lifecycle.
 
-The whole module is skipped when no database is reachable, so `make test` on a
-laptop without Docker still runs everything else.
+The whole module is skipped when no database is reachable. `make test` starts a
+throwaway Postgres for it (`make docker-test-db`), so that only happens when
+`TEST_DB=external` points at a database that is not there.
 """
 
 import asyncio
@@ -152,7 +153,7 @@ def database_url() -> Iterator[str]:
                 "service container did not come up; refusing to skip the integration "
                 "suite and report a green build."
             )
-        pytest.skip("No database reachable - start one with `make docker-db`")
+        pytest.skip("No database reachable - start one with `make docker-test-db`")
 
     drop = f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'
     asyncio.run(_outside_a_transaction(maintenance, drop))
@@ -229,17 +230,33 @@ def schema_url(database_url: str) -> str:
 async def _reset(engine: AsyncEngine) -> None:
     """Return the database to the modelled schema with every table empty.
 
-    `TRUNCATE ... RESTART IDENTITY CASCADE` over every model table empties them
-    in one statement, no DDL and no ordering to get right. Unlike rolling back a
-    transaction it also clears rows a test committed through the real
-    `get_db_session` - which the API-flow tests in `test_platform_flows.py` and
-    the dispatch-ordering tests do by design, so a rollback-only reset would not
-    be enough on its own.
+    `TRUNCATE ... RESTART IDENTITY CASCADE` empties the tables in one statement,
+    no DDL and no ordering to get right. Unlike rolling back a transaction it also
+    clears rows a test committed through the real `get_db_session` - which the
+    API-flow tests in `test_platform_flows.py` and the dispatch-ordering tests do
+    by design, so a rollback-only reset would not be enough on its own.
+
+    Only the tables that hold a row are truncated. `TRUNCATE` gives every table
+    it touches a new relation file - several, with its indexes and TOAST - and
+    Postgres fsyncs each one; over every model table that was ~600 files per test,
+    and on a slow-fsync disk (WSL2, a Docker volume) it dominated the run. A test
+    touches a handful of tables, so one `EXISTS` per table finds them and the
+    other ~80 are left alone. A table with a row is always truncated, and
+    `CASCADE` still reaches whatever references it.
+
+    Sequences are reset separately, for all of them: `RESTART IDENTITY` only
+    reaches the tables truncated, and an *empty* table's identity may still have
+    advanced (a row inserted and then deleted, or rolled back). `setval` does it in
+    place, writing no new file.
 
     A test may also create a table *outside* the models - a runtime
     `rag_<collection>`, one of the ordering probes. Those are dropped first, so
     each test starts from the modelled schema and nothing else regardless of the
     order the suite ran in.
+
+    The `EXISTS` probe is not the lock barrier a `TRUNCATE` of every table was: a
+    stray background writer committing after the probe would leave its row behind.
+    Tests must not leave background writers running.
     """
     async with engine.begin() as connection:
         present = await connection.execute(
@@ -252,8 +269,23 @@ async def _reset(engine: AsyncEngine) -> None:
         # parameters, so they are quoted and interpolated.
         for name in (row[0] for row in present if row[0] not in modelled):
             await connection.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
-        tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
-        await connection.execute(text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
+        probes = " UNION ALL ".join(
+            f"SELECT '{table.name}' WHERE EXISTS (SELECT 1 FROM \"{table.name}\")"  # noqa: S608 - model table names
+            for table in Base.metadata.sorted_tables
+        )
+        populated = [row[0] for row in await connection.execute(text(probes))]
+        if populated:
+            tables = ", ".join(f'"{name}"' for name in populated)
+            await connection.execute(text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
+        # `last_value` is NULL until a sequence is first used, and `setval(..., false)`
+        # leaves it NULL again, so this touches only the sequences that moved.
+        await connection.execute(
+            text(
+                "SELECT setval(format('%I.%I', schemaname, sequencename)::regclass, "
+                "start_value, false) FROM pg_sequences "
+                "WHERE schemaname = 'public' AND last_value IS NOT NULL"
+            )
+        )
 
 
 @pytest.fixture

@@ -63,6 +63,8 @@ browser is pointed at the deployment's browser service
 | `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | as-is |
 | `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required | as-is |
 | `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
+| `virtual_tables` | Tables | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | as-is |
+| `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | as-is |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
@@ -84,7 +86,7 @@ browser is pointed at the deployment's browser service
 | `compaction` | Long conversations | utility | none, by design | — | — | no effect |
 | `media` | Media offload | utility | none, by design | — | — | no effect |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — | as-is |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | as-is |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
@@ -727,7 +729,11 @@ the API image: `cdp_url` points at a browser service an operator runs and isolat
 The compose files carry one behind the `browser` profile — `docker compose --profile
 browser up -d browser`, reached as `http://browser:9222`. The host must be on
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
-default — refuses browser automation outright, at publish.
+default — refuses browser automation outright. The host of
+[`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts) is refused
+even when the allowlist names it: that browser draws people's pages for
+`preview_artifact` and is never an author's. Checked **at publish**, when the
+spec is saved, rather than on every run.
 
 The compose browser sits on a Docker network of its own, which only the API and the
 worker join to reach it: a page it opens, or is redirected to, cannot reach the
@@ -1389,10 +1395,18 @@ See [Visuals](../artifacts.md#visuals).
 summary - under a stable link.*
 `read_artifact` — *Read the current version of a page this agent published, as it
 was written.*
+`list_artifacts` — *List the pages this agent published that this run may open,
+newest first.*
+`preview_artifact` — *See a page you published as somebody opening it would: a
+picture, and what went wrong.*
+`share_artifact` — *Ask for a page you published to be shared with more people; this
+shares nothing itself.*
 
 Publishes one self-contained HTML or Markdown document as an
 [app](../artifacts.md): a shared resource with an owner, a visibility and
-grants, opened in a browser under a link that stays put. No configuration.
+grants, opened in a browser under a link that stays put. One setting:
+`preview_screenshot` (default on) hands the model the picture a preview draws;
+turn it off for a model that cannot read images.
 
 **The name is the identity.** `(organization, agent, environment, name)` picks the
 app, so the next run of the same agent that publishes `weekly-report` - from
@@ -1416,6 +1430,26 @@ only what the run's person may open in the console, and nothing on a public
 widget, an embed, a schedule or an event trigger, where no identified person is
 listening.
 
+**Listing.** `list_artifacts` returns JSON: this agent's pages in the run's
+environment, newest first and at most 50, with `total`, each with its name, title,
+version, format, bindings, visibility, public link, publication time, console
+`url` and `may_edit` (whether a publish under that name from this run updates
+it). It is read as the person listening, by the console's listing rule; in a
+group chat only organization-wide pages are listed, never one that person reaches
+alone. Nothing is listed where no identified person is listening.
+
+**Preview.** `preview_artifact` draws the current version 1280 pixels wide, at
+most 2400 tall, in a browser the operator runs
+([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), with its data
+read as the person listening. In a group chat it opens only an
+organization-wide page, and draws it without data; so it does for a run nobody
+answers for, such as one a webhook or a form started. It returns a text report
+(data per binding, uncaught errors, console errors, policy refusals, refused
+requests, dialogs, the publish warnings) and the picture as an image part. Every
+request of the render is answered by the API or refused. Without a renderer or
+the `browser` extra, or past a 15-second deadline, the report comes alone and
+says why. [Seeing the page](../artifacts.md#seeing-the-page-preview) has the rest.
+
 **Not side-effecting.** A first publication is private to the person the run was
 for, and only a person widens who reads it, so the approval gate would only
 park the scheduled report this exists for. An author who wants each republish of
@@ -1425,6 +1459,75 @@ a shared page approved sets `tool_approval` on `publish_artifact`.
 policy with `connect-src 'none'`, and the tool text tells the model to inline its
 own data and load charts from the deployment's [library set](../artifacts.md#the-library-set)
 rather than a CDN. See [how the page is isolated](../artifacts.md#how-the-page-is-isolated).
+
+**What a page looks like.** The capability adds a short, static page contract to
+the agent's instructions: the skeleton, the kit's most-used classes, Lucide icons
+rather than emoji, and `AO.records` for bound data. When the run offers the
+`artifact-pages` skill unloaded, the first whole HTML page of the run is a retry
+asking the model to load it and rebuild; once a run, and on the last attempt the
+page publishes with that advice instead. Every published HTML page is checked,
+and the result's `warning` lists what looks wrong, one problem a line - see
+[the page contract and the publish warnings](../artifacts.md#the-page-contract-and-the-publish-warnings).
+A warning never stops a publish.
+
+**Live data.** `bindings` on `publish_artifact` bind an HTML page to table data as
+`{name: query}`. A query names a `table` (id or exact name, from `list_tables`) or a saved
+`view` (id or exact name, from `list_views`), never both, and `fields`, which maps each name
+the page reads to a column by id or label. Optional: `filters` (`[{column, op, value}]`, all of
+which must hold, added to a view's; a choice by its label), `sort` (`{by, direction}`) and
+`limit` (at most and by default 1,000), which replace the view's. A view's filters and sort are
+**copied** when the page is published, and later edits to the view change nothing; its
+`visible_columns` and `group_by` are ignored, and a view that has a free-text search, or a
+filter on a column that is gone, is refused. Omit `bindings` to keep the page's current ones;
+`{}` removes them.
+
+The agent's spec must grant read on the table, and the person behind the run must read every
+table the query reaches, linked ones included. The page calls `agenticos.onData(render)`,
+which runs with the first data and on every refresh; `agenticos.data` is a Promise of the first
+data. **Everyone who opens the page reads the same records, read with its owner's access**, once
+the owner has confirmed sharing them; bind only what all of them may see. A binding that
+cannot be served arrives `unavailable`. Names are `^[a-z_][a-z0-9_]{0,63}$`, at most 5 bindings
+and 50 fields each. [Live data](../artifacts.md#live-data) has the limits.
+
+**The publish result.** It echoes each query in words - `table`, `filters`, `sort`, `limit`
+and each field with what it reads (`Status (single_select)`, `Pay band: formula over Salary,
+Level`) - or `kept` for a binding carried forward; that echo is what the owner consents to, so the
+agent checks it. `consent` says where the version's data stands (`not_needed`, `pending`,
+`consented`, `declined`, `withdrawn`), and `audience` says what everyone else sees while it
+waits: "the audience still sees v2 until Alex confirms". A `pending` version is for the person to
+confirm in the console; the agent tells them. A new page is private to the person the run is
+for.
+
+**Actions.** `actions` on `publish_artifact` declares up to five workflows the page's
+buttons may ask to start, as `[{workflow, label}]` - a workflow by id or exact name, and what the
+page calls it. Each must be bound in the agent's [Workflows](#workflows) capability, live and
+started from **Manual** or **API request**, and one the person behind the run may view and run;
+one the person cannot reach is refused as if unbound, and an archived or not
+hand-started one they can reach is refused by name. Omit `actions` to keep the
+current ones, `[]` removes them, and a run with no person behind it cannot change them.
+The result's `actions` lists each by name and label, or `kept`. The agent starts nothing: the
+viewer confirms every run in the console, and it runs as them. The page calls `AO.run`. See
+[Actions](../artifacts.md#actions).
+
+**`share_artifact(name, visibility?, people?)`.** Asks for a page to be shared. It never
+shares anything and is **not** gated by a tool approval: it files an `audience`
+[request](../artifacts.md#share-requests) as the run's person - the owner's own run
+included - and answers "Waiting for Alex to approve in the page's Share dialog". The owner
+answers in the console, signed in as themselves. `visibility` is `team` or `org`, there is no
+`public`, and `people` are members by full name or email and groups by name, each asked at view
+level; a name that matches nobody or several is reported, never guessed. A run with no person
+behind it, and a group chat's page that is not organization-wide, cannot ask. It is
+`side_effecting=False`: the call applies nothing.
+
+**A run with no person.** A page with bindings is published only by a run acting
+for a member: the signed-in member (web chat, HTTP API), a linked channel sender
+or a schedule's creator. A widget, embed or hosted-page visitor, an unlinked
+channel sender, an agent event trigger's delivery (GitHub, email, webhook relay)
+and a workflow run admitted by a public door, or anywhere in such a run's chain,
+publish no bound page. An author who wants each republish of a bound page
+approved sets `tool_approval` on `publish_artifact`. A run with no person may republish a
+bound page only unchanged, and an editor's publish is refused when the page's owner cannot
+read a table it reaches.
 
 ## Delegation
 
@@ -1909,6 +2012,62 @@ than a name from config, the same decision
 
 On any error, or when the reserved budget is already spent, it falls back to the
 goal-reanchor line. A failed generation never blocks the run.
+
+## Tables { #tables }
+
+Reads and writes the [Virtual Tables](../virtual-tables.md) the binding grants. The
+Builder's panel lists the organization's tables. Tick one and choose what the agent
+may do in it: read, add, update and delete records. An upsert needs both add and
+update, because it creates the record when nothing holds its key.
+
+The grants are part of the published spec, which the model cannot change. A call
+naming another table, or an operation the grant leaves out, is refused before
+anything is read. Every call also runs the table service's own access check as the
+member the run acts for, rebuilt from their membership on each call, so a table
+unshared or a role narrowed mid-run stops the next call.
+
+`create_table` is offered only with **Allow create**, and the member still needs
+`tables:create`. Record tools never create tables. A table the agent makes is usable
+for the rest of that run.
+
+`list_views` returns the saved views of the tables the agent may read, with each
+view's id, its columns and whether it is shared. A page can start its query from one, which
+copies the view's filters and sort; nothing about the view is linked afterwards, and a view
+with a search cannot be bound. [Pages and views](../virtual-tables.md#views-for-pages) says how a
+page reads a table. The `share_view` tool no longer exists, and a spec that still gates or renames it
+loads without it, with a warning in the log.
+
+The write tools are side-effecting per tool, so an approval policy gates them and
+not the reads. A write's operation key comes from the run and the tool call, so a
+retried call replays its first answer. Values are keyed by column id or label, and a
+select's choice is its option label, written, filtered and read back alike.
+Conflicts, validation, quotas, history and audit are the same as in the console and
+the API, because every tool calls the same service.
+
+## Workflows { #workflows }
+
+Lets the agent start the published [workflows](../workflows.md) its binding names,
+and read how they went. The Builder's panel lists the organization's workflows, one
+row each, and a ticked row is one the agent may start. A workflow that is a draft,
+or that starts from a webhook, a schedule, a chat message or a table, is shown but
+cannot be ticked: an agent starts only what starts by hand, by the API or by
+another workflow's call. **Wait for a run** caps how long a call waits, 60 seconds
+unless set, between 5 and 300.
+
+`list_workflows` names the ones the agent may start with the input fields each
+declares. `run_workflow` starts one with those fields and waits for its answer,
+and `get_workflow_run` reads a run still going when the wait ended. Each start is
+the API's own request, made as the member the run acts for, rebuilt from their
+membership on each call: their access, the declared input, budgets and admission
+quotas all hold, and the run says it was started by **An agent**.
+
+A workflow outside the binding is refused before anything starts. `run_workflow` is
+side-effecting, so an approval policy can gate it while the reads run freely. An
+agent running as a workflow's own step starts nothing this way: a **Run a
+workflow** step calls another workflow, keeping the chain's loop and depth limits.
+That is also why the step's own agent dialog does not offer this capability.
+A run with no member behind it (a widget, embed or hosted-page visitor, an
+unlinked channel sender, an agent event trigger's delivery) starts none.
 
 ## Date and time
 
@@ -2411,8 +2570,11 @@ the agent is assembled:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `tables:read` | `virtual_tables`, and every [table workflow node](workflow-nodes.md#virtual-tables) |
+| `tables:write` | the table workflow nodes that write |
+| `workflows:run` | `workflows` |
 
-!!! note "All eight are granted by default today"
+!!! note "All eleven are granted by default today"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
     Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check

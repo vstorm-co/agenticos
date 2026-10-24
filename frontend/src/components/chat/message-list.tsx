@@ -120,6 +120,41 @@ export function requestOf(messages: ChatMessage[], index: number): string | unde
   return undefined;
 }
 
+/** Linear transcript layout; long segmented turns never rescan earlier rows. */
+export function messagePresentation(messages: ChatMessage[]) {
+  const groups = new Map<string, { count: number; first: number; last: number }>();
+  messages.forEach((message, index) => {
+    if (!message.groupId) return;
+    const group = groups.get(message.groupId);
+    if (group) {
+      group.count++;
+      group.last = index;
+    } else groups.set(message.groupId, { count: 1, first: index, last: index });
+  });
+  let request: string | undefined;
+  let usage: TurnUsage | undefined;
+  return messages.map((message, index) => {
+    if (message.role === "user") request = message.content || undefined;
+    if (!continuesTurn(messages, index)) usage = undefined;
+    if (message.usage !== undefined) usage = message.usage;
+    const group = message.groupId ? groups.get(message.groupId) : undefined;
+    const groupPosition: "first" | "middle" | "last" | "single" | undefined = !group
+      ? undefined
+      : group.count === 1
+        ? "single"
+        : group.first === index
+          ? "first"
+          : group.last === index
+            ? "last"
+            : "middle";
+    return {
+      groupPosition,
+      usage,
+      request: message.role === "assistant" && endsTurn(messages, index) ? request : undefined,
+    };
+  });
+}
+
 export function MessageList({ messages, onRegenerate, pins }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
@@ -130,19 +165,7 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
   const byId = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
   const router = useRouter();
 
-  const getGroupPosition = (
-    message: ChatMessage,
-  ): "first" | "middle" | "last" | "single" | undefined => {
-    if (!message.groupId) return undefined;
-
-    const groupMessages = messages.filter((m) => m.groupId === message.groupId);
-    if (groupMessages.length <= 1) return "single";
-
-    const groupIndex = groupMessages.findIndex((m) => m.id === message.id);
-    if (groupIndex === 0) return "first";
-    if (groupIndex === groupMessages.length - 1) return "last";
-    return "middle";
-  };
+  const presentation = messagePresentation(messages);
 
   // Only allow regenerating the most recent assistant message - older ones
   // would diverge the transcript in a confusing way.
@@ -179,14 +202,14 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
           <MessageItem
             message={message}
             agent={message.agentId ? byId.get(message.agentId) : undefined}
-            groupPosition={getGroupPosition(message)}
+            groupPosition={presentation[index]?.groupPosition}
             continuesTurn={continuesTurn(messages, index)}
             endsTurn={endsTurn(messages, index)}
-            turnUsage={turnUsage(messages, index)}
+            turnUsage={presentation[index]?.usage}
             openLastStep={index === openStepsAt}
             pins={pins}
             agents={agents}
-            request={pins ? undefined : requestOf(messages, index)}
+            request={pins ? undefined : presentation[index]?.request}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? () => onRegenerate(message.id)

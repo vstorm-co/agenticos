@@ -1,5 +1,5 @@
 ---
-source_sha: "6ebeadc2957b"
+source_sha: "3775ad1b4704"
 ---
 
 # Konfiguracja { #configuration }
@@ -435,8 +435,9 @@ ustawienie poniżej dotyczy jednego procesu workera.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host |
+| `WORKER_POOLS` | `agent,ingest,system,workflow` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host. Do listy ustawionej, zanim pula `workflow` istniała, trzeba ją dopisać, inaczej żaden worker nie wykona węzłów workflowów |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Runy agentów i odpalenia triggerów naraz |
+| `WORKER_WORKFLOW_CONCURRENCY` | `5` | Węzły workflowów naraz. Dobierz pamięć workera do tylu węzłów trzymających największy plik, jaki węzeł może trzymać |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Sprzątanie, porządki i raporty naraz |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` w dostarczanych plikach compose) | Procesy potomne do parsowania i embeddingów, każdy z jednym zadaniem naraz |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | Ile może zająć jeden proces potomny razem z tym, co uruchomił, zanim zatrzyma go watchdog |
@@ -515,6 +516,70 @@ przestawiony z powrotem przez własny zapis końcowy — więc ustaw go daleko z
 najdłuższym uprawnionym runem i nie bliżej. Zobacz
 [Governance](governance.md#a-run-whose-process-died).
 
+### Runy workflowów { #workflow-runs }
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | Największy ładunek, z jakim można uruchomić run, jako zwarty JSON. Jest przechowywany w runie dla jego węzła `core.input`, więc większy zostaje odrzucony z `413`, zanim run zostanie przyjęty |
+| `WORKFLOW_RUN_MAX_FILE_BYTES` | `1073741824` | Najwięcej bajtów plików, jakie może zapisać jeden run, wszystkie jego kroki plikowe razem. Krok, którego plik by go przekroczył, kończy się błędem `FILE_QUOTA_EXCEEDED` i niczego nie zapisuje |
+| `WORKFLOW_ORG_MAX_FILE_BYTES` | `21474836480` | To samo dla jednej organizacji, we wszystkich runach, które nadal przechowują swoje pliki |
+| `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | Jak długo dostarczenie webhooka, którego graf ma krok Respond to webhook, czeka na odpowiedź, zanim dostanie `202`, a run toczy się dalej. Proxy przed nim z krótszym limitem odczytu przerywa czekanie wcześniej |
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Jak długo trzyma się claim, który worker bierze na węzeł workflowu, zanim zostanie uznany za porzucony. Worker odnawia go co jedną trzecią tego czasu, dopóki węzeł działa, więc ta wartość ogranicza, jak długo martwy worker pozostaje niezauważony, a nie jak długo może działać węzeł |
+| `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba nieudanych lub przerwanych prób węzła: prób zakończonych błędem i prób przerwanych śmiercią workera. Próba, która czeka - na zatwierdzenie albo na backoff, o który poprosił węzeł - się nie liczy, więc to, jak często węzeł czeka, ogranicza tylko termin runa, jego budżet albo anulowanie |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie. Te trzy ustawienia dotyczą węzła, którego `policy.retry` nie ustala własnych |
+| `WORKFLOW_NODE_MAX_OUTPUT_BYTES` | `10485760` | Łączny kompaktowy JSON UTF-8 wyniku próby, wyjścia runa i odpowiedzi webhooka. Przekroczenie daje `NODE_OUTPUT_TOO_LARGE` bez automatycznego retry, z zachowaniem kosztu. Split out sprawdza limit 10 000 rozwiniętych elementów i konserwatywny rozmiar przed kopiowaniem |
+| `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` | `67108864` | Rezerwacje wejść, snapshotów draftu, payloadów Wait i wyników runa; małe końcowe rekordy kontrolne są wyjątkiem |
+| `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` | `1073741824` | Rezerwacje payloadów wszystkich zachowanych runów organizacji; retencja zwalnia je przez liczniki |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Najdłuższa lista, po której iteruje `control.foreach`. Dłuższa kończy pętlę błędem `FOREACH_TOO_MANY_ITEMS` zamiast zostać przycięta |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Największa lista, jaką pętla zamraża, jako JSON. Większa kończy pętlę błędem `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Najnowsze wyniki yield i nieobsłużone błędy wraz z narzutem kolekcji, mierzone przed pobraniem JSON. Większa kolekcja kończy się `FOREACH_OUTPUT_TOO_LARGE`; zwracaj mniejsze wartości lub referencje plików |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Jak głęboko mogą się zagnieżdżać pętle. Grafu z głębszymi pętlami nie da się opublikować |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | Najwięcej przebiegów węzłów, jakie może utworzyć jeden run, łącznie z iteracjami pętli. Iteracja, która by go przekroczyła, kończy run błędem `NODE_RUN_LIMIT` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Ile oczekującej lub działającej pracy węzłów może naraz trzymać jedna organizacja. Start rezerwuje na poczet tego limitu liczbę węzłów swojego grafu, a start ponad limit jest odrzucany z `429`, dopóki działająca praca nie zejdzie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Ten sam limit dla pojedynczego wołającego, liczony we wszystkich organizacjach, w których uruchamia runy, żeby osoba mogąca tworzyć organizacje nie zwielokrotniła swojego przydziału, rozkładając runy między nie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
+
+Limit runów na wołającego (`RATE_LIMIT_RUN_PER_MINUTE`) nalicza jeden token na
+start i nie odróżni grafu z jednym węzłem od grafu z pięciuset. Te dwa limity to
+potrafią: ograniczają oczekującą i działającą pracę węzłów za współdzielonym
+runnerem, żeby jeden wołający nie mógł uruchomić wielu szerokich grafów poniżej
+limitu tempa i narastać zaległości, które zagłodzą innych najemców.
+
+Run workflowu to łańcuch jobów. Każda próba węzła to jeden job
+`workflow-dispatch-node` w puli workflow, zakolejkowany w tej samej transakcji co
+wiersz wysyłki węzła, więc run nigdy nie startuje bez swojego joba, a wycofany
+start go nie zostawia. Timer albo opóźnienie ponowienia to ten sam job z
+`run_after` ustawionym na czas, w którym ma ruszyć. Pozycję runu trzyma wiersz w
+bazie, a nie job: job wykonuje się raz, a worker, który padł w trakcie węzła,
+jest odzyskiwany przez poniższe sweepy, nie przez ponawianie joba.
+
+W puli system
+działa pięć sweepów: `workflow-dispatch-poll` (co minutę) kolejkuje job dla
+gotowego węzła, którego własny job się nie wykonał, `workflow-reconcile` (co 30
+sekund) odzyskuje claimy i próby pozostawione przez martwego workera,
+`workflow-schedules-check` (co minutę) uruchamia harmonogramy workflowów,
+`workflow-table-triggers` (co 10 sekund) obsługuje wyzwalacze na rekordach
+tabel, a `workflow-run-retention` (codziennie) usuwa runy po okresie retencji
+ich workflowu.
+
+Joby węzłów mają własną pulę, więc rozgałęzienie nie zajmie miejsc, na które
+czekają uruchomienia agentów, a agent, który woła workflow i czeka na niego, nie
+czeka na miejsce we własnej puli. `WORKER_WORKFLOW_CONCURRENCY` ogranicza liczbę
+węzłów wykonywanych naraz na każdym workerze. Run, na którego wynik ktoś czeka
+(odpowiedź webhooka, czat, API), wyprzedza taki, który uruchomił się sam, a
+workflow wołany przez inny dziedziczy priorytet runu, który go zawołał.
+
+Węzeł
+działa w pętli zdarzeń i pamięci samego workera: dobierz pamięć workera do
+`WORKER_WORKFLOW_CONCURRENCY` węzłów, z których każdy trzyma największy plik, jaki
+węzeł może trzymać (`WORKFLOW_RUN_MAX_FILE_BYTES`), bo worker zabity przez jądro
+traci wszystkie joby, które wykonywał. Takie śmierci nie liczą się do
+`WORKER_BREAKER_DEATHS`: jeden crash kończy wszystkie węzły, które worker trzymał,
+a węzeł, który ciągle zabija workera, zatrzymuje własny limit ponowień workflowu. Strona
+Background jobs pokazuje jeden job na próbę węzła, a sweepy dokładają około
+14 400 wierszy dziennie, przechowywanych przez `BACKGROUND_JOB_RETENTION_DAYS`.
+Anulowania zakolejkowanego joba węzła tam nie ma: anuluj run.
+
 ### Tura czatu zostawiona w trakcie { #a-chat-turn-left-running }
 
 | Zmienna | Domyślnie | Opis |
@@ -525,6 +590,12 @@ Odpowiedź trafia do rozmowy, a jej osoba dostaje powiadomienie, więc to ograni
 wydatki na odpowiedź, której może nikt nie przeczytać, a nie wyłącza czegokolwiek.
 Musi objąć Twoją najdłuższą turę researchu albo przeglądania; run i tak trzyma się
 budżetu agenta. Zobacz [Konsola](console.md#chat).
+
+Limity plików i tabel organizacji nie ograniczają łącznego storage deploymentu.
+Bez `max_organizations_per_user` konto może posiadać dowolnie wiele organizacji
+i mnożyć limity tenantów. Ustaw skończony limit właścicielstwa w ustawieniach
+deploymentu, zapewnij i monitoruj wspólny storage oraz uwzględnij historię przebiegów.
+Platforma obecnie nie egzekwuje globalnego budżetu storage.
 
 ## Modele AI — konfigurowane w aplikacji, nie tutaj { #ai-models-configured-in-the-app-not-here }
 
@@ -761,7 +832,9 @@ serwowane. Zobacz [Aplikacje](artifacts.md).
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Jedna wersja jednej strony. Publikacja powyżej tej wartości jest odrzucana z komunikatem, który czyta model |
 | `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na aplikację. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
+| `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | Najwięcej bajtów rekordów, jakie jeden proces API trzyma przez 30 sekund dla [publicznych linków i embedów stron](artifacts.md#the-cache-and-the-cap). Tylko w pamięci procesu, nigdy w Redisie. Najdawniej używane odczyty odpadają pierwsze, a odczyt ponad budżet nie jest zachowywany. Co najmniej 1024 |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
+| `ARTIFACT_RENDER_CDP_URL` | (puste) | Endpoint Chromium DevTools, w którym [`preview_artifact`](artifacts.md#seeing-the-page-preview) rysuje strony, np. `http://artifact-render:9222`. To wyłącznie konfiguracja wdrożenia: nie jest sprawdzana względem `BROWSER_CDP_ALLOWED_HOSTS`, która wymienia, czym mogą sterować autorzy agentów, a agent przeglądający strony dostaje odmowę dla tego hosta, nawet gdy ta lista go wymienia. Backend potrzebuje dodatku `browser`. Gdy jest puste, podgląd zwraca raport bez obrazu |
 | `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Puste rysuje mapę jako zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (puste) | Atrybucja pokazywana pod mapą na własnym serwerze kafelków, np. `© OpenStreetMap contributors`. Wymagana przy szablonie URL; preset ma własną |
 
@@ -775,10 +848,30 @@ powinien mieć własny serwer albo płatnego dostawcę. *Admin → System* pokaz
 serwer odpowiada.
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
-podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.
+podpisuje na nim adresy treści, a frontend dodaje jego ścieżkę treści,
+`/api/v1/artifact-content/`, do `frame-src` konsoli.
 Ustaw je w środowisku backendu i w środowisku frontendu; pliki compose przekazują
 je obu. Wartość tylko w jednym z nich daje pustą ramkę, bo przeglądarka odmawia
 załadowania strony z originu, na który konsola nie pozwoliła.
+
+**Gdy `ARTIFACT_ORIGIN` jest puste, `PUBLIC_API_URL` frontendu musi być dokładnie
+równe `PUBLIC_BASE_URL` backendu, łącznie ze ścieżką.** Backend podpisuje wtedy
+adresy treści na `PUBLIC_BASE_URL`, a `frame-src` konsoli wskazuje trasę treści pod
+`PUBLIC_API_URL`, więc `https://example.com/agenticos` po jednej stronie i
+`https://example.com` po drugiej to ta sama pusta ramka.
+
+**Renderer to osobna przeglądarka, bez sieci.** Compose dostarcza go jako
+opcjonalny profil `artifact-render`: przypięty bezgłowy Chromium w sieci
+wewnętrznej, do której dołączają tylko API i worker. Na każde żądanie,
+które wysyła render, odpowiada API - stroną, jej plikami bibliotek i dokumentem
+hosta - albo je odrzuca, więc przeglądarka nie potrzebuje drogi na zewnątrz. A
+ponieważ renderuje rekordy ludzi, nie może być przeglądarką, którą steruje
+[agent przeglądający strony](reference/capabilities.md#browser-automation-choose).
+Uruchom go przez `docker compose --profile artifact-render up -d`, a potem ustaw
+`ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Nie dodawaj
+`artifact-render` do `BROWSER_CDP_ALLOWED_HOSTS`: ta lista jest dla agentów
+przeglądających strony, a renderer nie potrzebuje w niej wpisu. Jeden proces
+rysuje naraz dwie strony, każdą w ciągu 15 sekund.
 
 ## Workspace'y agentów { #agent-workspaces }
 
@@ -1191,15 +1284,22 @@ Walidacja produkcyjna: `CORS_ORIGINS` nie może zawierać `"*"` przy
 Stosowane do powierzchni, do których może sięgnąć obcy, i tylko do nich: publicznego
 API runów, skryptu widżetu, jego configu, handshake'u socketu którejkolwiek z tych
 powierzchni, configu i logo hostowanej strony oraz uploadu, dyktowania i rozmowy głosowej odwiedzającego. Własne
-trasy konsoli są za sesją i nie są mierzone — czy całe API powinno nosić sufit, to
-osobna decyzja, nie ta.
+trasy konsoli są za sesją i nie są mierzone, z jednym wyjątkiem: zapisami do
+[Virtual Tables](virtual-tables.md), które przechowują migawkę każdej zmiany. Czy całe
+API powinno nosić sufit, to osobna decyzja, nie ta.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, na wołającego |
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Każda trasa z `auth.py` — logowanie, rejestracja, odświeżenie, trasy prośby i weryfikacji dla resetu i magic linku. Liczone **per IP oraz, gdy treść go niesie, per przesłany adres**. Zobacz niżej |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
-| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. [Formularz](workflows.md#from-a-form) workflow jest odczytywany na liczniku tej wielkości, na formularz. Zobacz niżej |
+| `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Dostarczenia, które przyjmuje jeden [webhook](workflows.md) workflow albo wyzwalacz GitHub, **na webhook**, liczone, gdy podpis się zgadza, a dostarczenie uruchomiłoby run, więc obcy i pominięte dostarczenia nic z niego nie zużywają: każde to run |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Żądania, które jeden adres może wysłać pod adresy webhooków workflow i wyzwalaczy GitHub w ciągu minuty, niezależnie od treści, liczone zanim cokolwiek zostanie odczytane. Szeroki, bo nadawcy tacy jak GitHub dostarczają dla wielu hooków z kilku adresów |
+| `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unikalni odbiorcy e-maili workflow na użytkownika, łącznie dla kluczy i organizacji; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unikalni odbiorcy e-maili workflow na organizację; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unikalni odbiorcy e-maili workflow w całym deploymencie; [email.send](reference/workflow-nodes.md#email-send) |
 | `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kafelki map, które jeden adres może pobrać przez [ścieżkę kafelków](artifacts.md#visuals) deploymentu, **na adres**. Mapa to kilkadziesiąt kafelków, a przesuwanie dodaje kolejne; limit nie pozwala zrobić z deploymentu darmowego proxy do serwera kafelków |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
@@ -1209,6 +1309,9 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji. Zużywane dopiero po wpuszczeniu odwiedzającego |
 | `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Rozmowy głosowe](channels.md#voice-calls-on-a-widget-or-a-hosted-page) rozpoczynane w widżecie albo na hostowanej stronie, na adres, a w widżecie `jwt` także na subject tokena odwiedzającego. Adres jest liczony, zanim klucz zostanie odnaleziony; każda rozmowa to płatna sesja realtime |
 | `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem, zużywane dopiero po wpuszczeniu odwiedzającego. Razem z `VOICE_MAX_CALLS_PER_EMBED` wyżej — sufit tego, ile kosztuje wyciekły link |
+| `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Ile razy dane jednej strony mogą być czytane z jej tabel dla odwiedzających jej publiczny link albo embedy, **per strona dla wszystkich odwiedzających łącznie**. Ładowanie, które musi czytać z tabel, liczy się raz, a to obsłużone z 30-sekundowego [cache](artifacts.md#the-cache-and-the-cap) nie; po przekroczeniu limitu strona ładuje się bez tych danych |
+| `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` | `10` | Runy, które jeden członek może uruchomić z [akcji](artifacts.md#actions) jednej strony w ciągu minuty, **na członka, organizację i stronę**. Każdy run członek najpierw potwierdza; limit ogranicza stronę, która prosi w pętli. Po jego przekroczeniu wywołanie strony jest odrzucane jako `rate_limited` |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli oraz zapisanie, zmiana lub usunięcie zapisanego widoku. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z
@@ -1328,6 +1431,38 @@ współdzielony.
 
     Przy dwóch proxy z przodu zwiń nagłówek do jednego przeskoku na swojej krawędzi
     — wiarygodny jest tylko ostatni przeskok.
+
+## Limity i retencja Virtual Tables { #virtual-tables-limits-and-retention }
+
+Ile jedna organizacja może przechowywać w [Virtual Tables](virtual-tables.md#limits-and-retention)
+i jak długo trzymane są kopie, które zostawia zapis. Zapis ponad limit jest odrzucany
+kodem `QUOTA_EXCEEDED` (402) i wpisem audytu, który nazywa limit, nigdy treść.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabele na organizację. Zarchiwizowane się liczą, bo nic nie usuwa tabeli |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Rekordy w jednej tabeli |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Rozmiar zserializowanych wartości jednego rekordu w bajtach. Minimum `1`. Ogranicza też to, co trzymają wiersz history przy create i delete oraz receipt; rekord już ponad limitem nadal się usuwa, zachowując znacznik z liczbą bajtów zamiast wartości |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | `1073741824` | Bajty danych JSONB PostgreSQL na organizację łącznie dla rekordów, historii, potwierdzeń i outboxa; narzut tabel i indeksów jest osobny |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | Jak długo idempotentny receipt odpowiada na ponowienie. Potem ten sam klucz to nowy zapis |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Jak długo trzymany jest wysłany wiersz outbox |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Jak długo trzymany jest niewysłany wiersz outbox. Heartbeat [wyzwalaczy tabel](virtual-tables.md#triggers) oznacza każdy oceniony wiersz, więc wiersz tak stary znaczy, że worker tyle nie działał. To dead-letter cutoff, a nie deklaracja, że zdarzenie zostało dostarczone - po tym czasie wiersz znika i dla tego rekordu żaden wyzwalacz nie wystartuje |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | Jak długo trzymana jest history rekordu, liczona od zmiany, także dla usuniętego rekordu |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Ile wpisów audytu odmowy limitu ten proces zapisuje naraz, żeby seria odmów nie otwierała nieograniczonej liczby połączeń do bazy. Reszta serii czeka na to ograniczenie |
+
+Trzy okresy retencji stosuje codzienny [sweep retencji](governance.md#retention), dla
+każdej organizacji; nie są ustawieniami per organizacja.
+
+Budżet jednego przebiegu dla tych trzech klas skaluje się z `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
+zamiast ze stałej liczby batchy - ale ten limit jest per *członek* (`limit_table_write` liczy
+zapisy każdego członka na jego własnym koncie), więc budżet skaluje się też z liczbą aktywnych
+członków organizacji: aż do `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` wierszy na
+aktywnego członka dziennie, w batchach po 500.
+
+Ta liczba jest podwajana dla zapasu, żeby istniejąca zaległość się kurczyła, a nie tylko
+utrzymywała na stałym poziomie, i ograniczona do 50 członków, żeby jedna nietypowo duża
+organizacja nie rozrastała własnego przebiegu bez końca - nadal się drenuje, tylko w kilku
+przebiegach, tak jak każda inna klasa retencji, gdy zaległość przerośnie swój budżet.
 
 ## Worker, którego pętla zdarzeń przestała się kręcić { #a-worker-whose-event-loop-has-stopped-turning }
 

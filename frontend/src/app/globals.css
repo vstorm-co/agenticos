@@ -1064,6 +1064,49 @@
     stroke-dashoffset: -8;
   }
 }
+
+/* A workflow run on the canvas (#1933): dashes travelling along the wire into
+   the step running now, a slow glow on that step, and one shake when a step
+   fails while the run is watched. The reduced-motion block below stills all
+   three, like every other animation. */
+.run-flow {
+  animation: run-flow 0.7s linear infinite;
+}
+@keyframes run-flow {
+  to {
+    stroke-dashoffset: -15;
+  }
+}
+.run-breathe {
+  animation: run-breathe 1.6s ease-in-out infinite;
+}
+@keyframes run-breathe {
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in oklch, var(--color-success) 12%, transparent);
+  }
+}
+.run-crash {
+  animation: run-crash 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) 1;
+}
+@keyframes run-crash {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(3px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-5px);
+  }
+  40%,
+  60% {
+    transform: translateX(5px);
+  }
+}
 @keyframes pop-in {
   from {
     opacity: 0;

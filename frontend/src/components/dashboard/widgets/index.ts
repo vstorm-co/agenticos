@@ -50,6 +50,8 @@ import { ChannelsWidget } from "./channels";
 import { RoutinesWidget } from "./routines";
 import { SuggestionsWidget } from "./suggestions";
 import { KnowledgeWidget } from "./knowledge";
+import { TablesWidget } from "./tables-widget";
+import { WorkflowsWidget } from "./workflows-widget";
 import { SummaryWidget } from "./summary";
 import { SurfacesWidget } from "./surfaces";
 import { TopOrgsWidget } from "./top-orgs";
@@ -63,6 +65,8 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   routines: RoutinesWidget,
   suggestions: SuggestionsWidget,
   knowledge: KnowledgeWidget,
+  tables: TablesWidget,
+  workflows: WorkflowsWidget,
   platform: PlatformWidget,
   health: HealthWidget,
   "background-jobs": BackgroundJobsWidget,

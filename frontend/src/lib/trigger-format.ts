@@ -167,6 +167,34 @@ export function eventFilterConfig(
   return Object.keys(config).length ? config : undefined;
 }
 
+/** A schedule's cadence, wherever one is kept - an agent's trigger or a workflow's. */
+export type ScheduleCadence = Pick<
+  Trigger,
+  "schedule_kind" | "interval_seconds" | "cron_expression"
+>;
+
+/** When a schedule fires, reduced for display. */
+export function scheduleSummary(schedule: ScheduleCadence): TriggerSummary {
+  if (schedule.schedule_kind === "cron") {
+    const expression = schedule.cron_expression ?? "";
+    const parsed = parseCron(expression);
+    switch (parsed.freq) {
+      case "daily":
+        return { kind: "cronDaily", time: parsed.time };
+      case "everyNDays":
+        return { kind: "interval", unit: "days", count: Math.max(1, Number(parsed.everyDays)) };
+      case "weekly":
+        return { kind: "cronWeekly", time: parsed.time, weekdays: parsed.weekdays };
+      case "monthly":
+        return { kind: "cronMonthly", time: parsed.time, day: Number(parsed.dayOfMonth) };
+      case "advanced":
+        return { kind: "cron", expression };
+    }
+  }
+  const { unit, count } = intervalToUnit(schedule.interval_seconds ?? MINUTE);
+  return { kind: "interval", unit, count };
+}
+
 /**
  * The fields that decide what fires a trigger - all a cadence line reads, so a
  * template's suggested cadence can be described before any trigger exists.
@@ -190,24 +218,7 @@ export function triggerSummary(trigger: FiringShape): TriggerSummary {
     }
     return { kind: "event", source: trigger.event_source ?? "github" };
   }
-  if (trigger.schedule_kind === "cron") {
-    const expression = trigger.cron_expression ?? "";
-    const parsed = parseCron(expression);
-    switch (parsed.freq) {
-      case "daily":
-        return { kind: "cronDaily", time: parsed.time };
-      case "everyNDays":
-        return { kind: "interval", unit: "days", count: Math.max(1, Number(parsed.everyDays)) };
-      case "weekly":
-        return { kind: "cronWeekly", time: parsed.time, weekdays: parsed.weekdays };
-      case "monthly":
-        return { kind: "cronMonthly", time: parsed.time, day: Number(parsed.dayOfMonth) };
-      case "advanced":
-        return { kind: "cron", expression };
-    }
-  }
-  const { unit, count } = intervalToUnit(trigger.interval_seconds ?? MINUTE);
-  return { kind: "interval", unit, count };
+  return scheduleSummary(trigger);
 }
 
 /** The event phrase for a portal preset, as a fixed key under `triggers.event`. */
@@ -238,7 +249,15 @@ function presetEventKey(portalKey: string): string {
  * branches that interpolate.
  */
 export function cadenceText(trigger: FiringShape, t: Translate): string {
-  const summary = triggerSummary(trigger);
+  return summaryText(triggerSummary(trigger), t);
+}
+
+/** When a schedule fires, in one line - `cadenceText` for a cadence alone. */
+export function scheduleText(schedule: ScheduleCadence, t: Translate): string {
+  return summaryText(scheduleSummary(schedule), t);
+}
+
+function summaryText(summary: TriggerSummary, t: Translate): string {
   switch (summary.kind) {
     case "interval":
       if (summary.unit === "days") return t("cadence.everyDays", { count: summary.count });

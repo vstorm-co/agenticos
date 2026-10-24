@@ -80,9 +80,13 @@ import * as skillChanges from "./skill-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
+import * as tables from "./tables/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
+import * as workflowApprovals from "./workflow-approvals/[[...path]]/route";
+import * as workflowRuns from "./workflow-runs/[[...path]]/route";
+import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
@@ -169,9 +173,13 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["skills", skills],
   ["spend", spend],
   ["stats", stats],
+  ["tables", tables],
   ["trigger-portals", triggerPortals],
   ["triggers", triggers],
   ["users/[userId]", users],
+  ["workflow-approvals", workflowApprovals],
+  ["workflow-runs", workflowRuns],
+  ["workflows", workflows],
   ["users/me/locale", userLocale],
   ["voice", voice],
   ["me/permissions", permissions],

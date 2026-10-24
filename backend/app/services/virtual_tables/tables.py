@@ -1,0 +1,571 @@
+"""Tables and their schemas: create, list, describe, rename, archive, restore, change columns."""
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Literal
+from uuid import UUID, uuid4
+
+from pydantic import TypeAdapter
+from pydantic import ValidationError as PydanticValidationError
+
+from app.core.audit import record_audit
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
+from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
+from app.db.models.virtual_table import VirtualTable
+from app.db.updates import writable
+from app.repositories import virtual_table_repo
+from app.schemas.virtual_table import (
+    MAX_LABEL,
+    MAX_OPTIONS,
+    CellValue,
+    ColumnDef,
+    ColumnTypeName,
+    OperationKey,
+    OptionDef,
+    SchemaUpdate,
+    SchemaVersionList,
+    SchemaVersionRead,
+    TableCreate,
+    TableList,
+    TableListItem,
+    TableRead,
+    TableSummary,
+    TableUpdate,
+)
+from app.services.access import TABLE, accessible_ids, visible_resource_ids
+from app.services.virtual_tables._base import Operations
+from app.services.virtual_tables.conversions import convert, option_labels
+from app.services.virtual_tables.deadline import ReadDeadline
+from app.services.virtual_tables.dependencies import find_dependents
+from app.services.virtual_tables.exceptions import (
+    InvalidSchemaError,
+    SchemaDependencyError,
+    SchemaVersionConflictError,
+)
+from app.services.virtual_tables.quotas import enforce_table_count
+from app.services.virtual_tables.receipts import run_once
+from app.services.virtual_tables.schema import build_columns, diff
+from app.services.virtual_tables.types import COMPUTED_TYPES, READ_THROUGH_LINK, CellProblem
+
+_OPERATION_KEY = TypeAdapter(OperationKey)
+
+
+@dataclass(frozen=True)
+class TableSource:
+    """A table as a page query reads it: its name, whether it is archived, and its columns."""
+
+    id: UUID
+    name: str
+    archived: bool
+    columns: list[ColumnDef]
+    """The columns of its current schema version, archived ones included."""
+
+
+def _checked_key(value: str | None) -> str | None:
+    """An operation key held to the limits a route puts on one, for a direct caller."""
+    if value is None:
+        return None
+    try:
+        return _OPERATION_KEY.validate_python(value)
+    except PydanticValidationError as invalid:
+        raise InvalidSchemaError(
+            "operation_key", invalid.errors(include_url=False, include_input=False)[0]["msg"]
+        ) from None
+
+
+def _dump(columns: list[ColumnDef]) -> list[dict[str, object]]:
+    return [column.model_dump(mode="json") for column in columns]
+
+
+class TableOperations(Operations):
+    """Everything about a table that is not one of its records."""
+
+    async def create_table(
+        self, ctx: AuthContext, data: TableCreate, *, operation_key: str | None = None
+    ) -> TableRead:
+        """Create a table with its first schema version.
+
+        With an `operation_key` a retry returns the table the first call made
+        rather than making a second one - what an agent tool call re-sent after a
+        timeout, or a workflow step redispatched after a crash, needs. The key is
+        the caller's, scoped to them like a record write's, and reusing it with a
+        different table is refused.
+
+        Raises:
+            AuthorizationError: The caller lacks `tables:create`.
+            AlreadyExistsError: A live table already has this name.
+            QuotaExceededError: The organization already has as many tables as it may.
+            InvalidSchemaError: The columns are inconsistent.
+            IdempotencyKeyReuseError: The key was used before for a different table.
+        """
+        if not ctx.has(Perm.TABLES_CREATE):
+            raise AuthorizationError(
+                message="You cannot create tables", details={"required": [Perm.TABLES_CREATE.value]}
+            )
+
+        async def action() -> TableRead:
+            columns = build_columns(data.columns, [])
+            await self._check_references(ctx, columns, [])
+            await self._claim_name(ctx, data.name)
+            await enforce_table_count(self.db, ctx)
+            table = await virtual_table_repo.create_table(
+                self.db,
+                organization_id=ctx.organization_id,
+                owner_user_id=ctx.subject_id,
+                name=data.name,
+                description=data.description,
+                visibility=data.visibility,
+            )
+            await virtual_table_repo.add_schema_version(
+                self.db,
+                table_id=table.id,
+                version=1,
+                columns=_dump(columns),
+                created_by=ctx.subject_id,
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="table.created",
+                target_type="table",
+                target_id=str(table.id),
+                details={"name": table.name, "columns": len(columns)},
+            )
+            return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
+
+        created, _replayed = await run_once(
+            self.db,
+            ctx,
+            operation="table.create",
+            operation_key=_checked_key(operation_key),
+            payload=data.model_dump(mode="json"),
+            outcome_type=TableRead,
+            action=action,
+        )
+        return created
+
+    async def list_tables(
+        self,
+        ctx: AuthContext,
+        *,
+        include_archived: bool = False,
+        search: str | None = None,
+        sort: Literal["name", "updated_at"] = "name",
+        skip: int = 0,
+        limit: int = 50,
+    ) -> TableList:
+        """The tables this caller may see: their own, the org-visible ones and those shared."""
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=TABLE, perm=Perm.TABLES_VIEW
+        )
+        items, total = await virtual_table_repo.list_tables_visible(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=shared is None,
+            shared_ids=shared or [],
+            include_archived=include_archived,
+            search=search,
+            sort=sort,
+            skip=skip,
+            limit=limit,
+        )
+        # One grant query for the whole page rather than one per row: `_can_edit`
+        # is right for a single table, but a page of fifty would cost fifty
+        # queries for a caller whose role alone does not already reach
+        # `TABLES_EDIT` on every one of them.
+        editable = await accessible_ids(self.db, ctx, items, Perm.TABLES_EDIT, resource_type=TABLE)
+        # What each holds, the same way: a query for the page, not one per card.
+        records = await virtual_table_repo.record_counts(
+            self.db, organization_id=ctx.organization_id, table_ids=[item.id for item in items]
+        )
+        columns = await virtual_table_repo.current_columns(self.db, tables=items)
+        summaries = [
+            TableListItem.model_validate(
+                {
+                    **TableSummary.model_validate(item).model_dump(),
+                    # An archived table refuses every write regardless of the grant
+                    # (`_ensure_live`), so `can_edit` says so - this list is the only
+                    # place `include_archived` surfaces one without a caller opening it.
+                    "can_edit": item.id in editable and item.archived_at is None,
+                    "record_count": records.get(item.id, 0),
+                    "column_count": sum(
+                        1 for column in columns.get(item.id, []) if not column.get("archived")
+                    ),
+                }
+            )
+            for item in items
+        ]
+        return TableList(items=summaries, total=total)
+
+    async def describe_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:
+        """One table with the columns of its current schema."""
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        return self._read(
+            table,
+            await self._columns(table),
+            can_edit=await self._can_edit(ctx, table),
+            can_restore=await self._can_restore(ctx, table),
+        )
+
+    async def table_source(
+        self, ctx: AuthContext, table_id: UUID, *, deadline: ReadDeadline | None = None
+    ) -> TableSource:
+        """The table as a page query reads it, if `ctx` may read it; an archived one too.
+
+        With a `deadline`, each statement is armed with it first.
+
+        Raises:
+            NotFoundError: No such table in `ctx`'s organization, or one `ctx` may not read.
+            DeadlineReached: Too little of `deadline` is left for the next statement.
+        """
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW, deadline=deadline)
+        return TableSource(
+            id=table.id,
+            name=table.name,
+            archived=table.archived_at is not None,
+            columns=await self._columns(table, deadline=deadline),
+        )
+
+    async def list_schema_versions(self, ctx: AuthContext, table_id: UUID) -> SchemaVersionList:
+        """Every schema version the table has had, oldest first."""
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        versions = await virtual_table_repo.list_schema_versions(self.db, table_id=table.id)
+        return SchemaVersionList(
+            items=[SchemaVersionRead.model_validate(version) for version in versions]
+        )
+
+    async def update_table(self, ctx: AuthContext, table_id: UUID, data: TableUpdate) -> TableRead:
+        """Rename a table or change its description."""
+        # Locked, so an archive in flight is waited for and then seen: an unlocked read passes
+        # `_ensure_live` on the old row and the update would rename a table archived a moment
+        # ago. The row lock comes before the name lock `_claim_name` takes, the same order as
+        # every other path that takes both (`create_table` locks no existing row).
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        self._ensure_live(table)
+        changes = writable(data, over=VirtualTable)
+        if "name" in changes and changes["name"] != table.name:
+            await self._claim_name(ctx, changes["name"])
+        table = await virtual_table_repo.update_table(self.db, table=table, update_data=changes)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="table.updated",
+            target_type="table",
+            target_id=str(table.id),
+            details={"fields": sorted(changes)},
+        )
+        return self._read(table, await self._columns(table), can_edit=True)
+
+    async def archive_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:
+        """Archive a table: its records stay readable and it refuses writes.
+
+        Archiving twice is not an error. A table that workflows, views or triggers
+        still depend on is refused, naming them.
+        """
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        columns = await self._columns(table)
+        # An archived table refuses every write, so neither answer below offers one. The
+        # caller passed the edit check `unarchive_table` makes, so both offer the way back.
+        if table.archived_at is not None:
+            return self._read(table, columns, can_edit=False, can_restore=True)
+        await self._refuse_dependents(ctx, table, column_ids=None)
+        table = await virtual_table_repo.update_table(
+            self.db, table=table, update_data={"archived_at": datetime.now(UTC)}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="table.archived",
+            target_type="table",
+            target_id=str(table.id),
+        )
+        return self._read(table, columns, can_edit=False, can_restore=True)
+
+    async def unarchive_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:
+        """Restore an archived table: it takes writes again, under the name it had.
+
+        Asks for the same edit right archiving does. Its records, columns, views and
+        history are as archiving left them.
+
+        Raises:
+            NotFoundError: The table is out of reach, or this caller may not edit it.
+            BadRequestError: The table is not archived.
+            AlreadyExistsError: A live table has taken its name since it was archived.
+        """
+        # The row lock before the name lock, the order `update_table` takes them in.
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        if table.archived_at is None:
+            raise BadRequestError(
+                message=f"Table '{table.name}' is not archived", details={"table_id": table.id}
+            )
+        try:
+            await self._claim_name(ctx, table.name)
+        except AlreadyExistsError:
+            # An archived table cannot be renamed, so the name to change is the live one's.
+            raise AlreadyExistsError(
+                message=f"A table named '{table.name}' already exists. Rename it "
+                "before restoring this one.",
+                details={"name": table.name},
+            ) from None
+        table = await virtual_table_repo.update_table(
+            self.db, table=table, update_data={"archived_at": None}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="table.unarchived",
+            target_type="table",
+            target_id=str(table.id),
+        )
+        return self._read(table, await self._columns(table), can_edit=True)
+
+    async def update_schema(
+        self, ctx: AuthContext, table_id: UUID, data: SchemaUpdate
+    ) -> TableRead:
+        """Append the next schema version.
+
+        A submission that builds to exactly the current columns changes nothing: no version
+        is appended and the current table is returned. A stale `expected_version` is still a
+        conflict, because it is checked first.
+
+        Records are not rewritten. Each keeps the version it was written under and
+        is read through the current columns, so a column added later is simply empty
+        on older records.
+
+        Raises:
+            SchemaVersionConflictError: `expected_version` is not the current one.
+            InvalidSchemaError: The columns are inconsistent, or a column that already
+                has empty cells was made required.
+            SchemaDependencyError: Something depends on a column this archives.
+        """
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        self._ensure_live(table)
+        if data.expected_version != table.schema_version:
+            raise SchemaVersionConflictError(
+                expected_version=data.expected_version, current_version=table.schema_version
+            )
+        previous = await self._columns(table)
+        columns = build_columns(data.columns, previous)
+        if columns == previous:
+            # Identical to what the table has, ids, order, labels and options included.
+            # A new version, an audit row and a bumped `schema_version` would make every other
+            # client's `expected_version` stale for a change that changed nothing.
+            return self._read(table, previous, can_edit=True)
+        await self._check_references(ctx, columns, previous)
+        change = diff(previous, columns)
+        await self._refuse_dependents(ctx, table, column_ids=change.archived | change.retyped)
+        columns = await self._retype(table, previous, columns, change.retyped)
+        await self._refuse_empty_required(table, columns, change.required)
+        version = table.schema_version + 1
+        await virtual_table_repo.add_schema_version(
+            self.db,
+            table_id=table.id,
+            version=version,
+            columns=_dump(columns),
+            created_by=ctx.subject_id,
+        )
+        table = await virtual_table_repo.update_table(
+            self.db, table=table, update_data={"schema_version": version}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="table.schema_changed",
+            target_type="table",
+            target_id=str(table.id),
+            details={"version": version, "archived_columns": len(change.archived)},
+        )
+        return self._read(table, columns, can_edit=True)
+
+    async def _retype(
+        self,
+        table: VirtualTable,
+        previous: list[ColumnDef],
+        columns: list[ColumnDef],
+        retyped: frozenset[UUID],
+    ) -> list[ColumnDef]:
+        """Rewrite every record's value of each column whose type changed, or refuse.
+
+        All of a change's values are converted before any is written, so a change
+        some value does not survive writes nothing. Text that becomes a choice
+        gains an option for each distinct value it holds.
+
+        Raises:
+            InvalidSchemaError: A value does not read as its column's new type, or
+                text holds more distinct values than a choice column can have.
+        """
+        if not retyped:
+            return columns
+        before = {column.id: column for column in previous}
+        result = list(columns)
+        rewrites: list[tuple[UUID, list[tuple[UUID, CellValue]]]] = []
+        for index, column in enumerate(columns):
+            if column.id not in retyped:
+                continue
+            old = before[column.id]
+            held = await virtual_table_repo.column_values(
+                self.db, table_id=table.id, column_id=column.id
+            )
+            if column.type == "single_select" and old.type in ("text", "long_text"):
+                column = _with_choices(index, column, [value for _record, value in held])
+                result[index] = column
+            converted: list[tuple[UUID, CellValue]] = []
+            refused: list[CellValue] = []
+            for record_id, value in held:
+                try:
+                    new = convert(value, old, column)
+                except CellProblem:
+                    refused.append(value)
+                    continue
+                if new is None and not column.nullable:
+                    refused.append(value)
+                    continue
+                converted.append((record_id, new))
+            if refused:
+                raise InvalidSchemaError(
+                    f"columns.{index}.type",
+                    f"{len(refused)} records hold a value that does not read as {column.type}, "
+                    f"such as {str(refused[0])[:40]!r}. Change them first, or add a new column.",
+                )
+            rewrites.append((column.id, converted))
+        for column_id, converted in rewrites:
+            await virtual_table_repo.rewrite_column(
+                self.db, table_id=table.id, column_id=column_id, values=converted
+            )
+        return result
+
+    async def _check_references(
+        self, ctx: AuthContext, columns: list[ColumnDef], previous: list[ColumnDef]
+    ) -> None:
+        """Each new or changed link names a live table the caller can see, and each
+        lookup and rollup a column of it that its reading suits.
+
+        A column the change leaves as it was is not asked again: a linked table
+        archived since, or a column it read archived since, leaves the column
+        reading nothing rather than blocking every later edit of this table.
+        """
+        unchanged = {column.id: column for column in previous}
+        # The table each link column reads, which `build_columns` checked every
+        # lookup and rollup names.
+        linked = {
+            column.id: column.link_table_id
+            for column in columns
+            if column.type == "link" and column.link_table_id is not None
+        }
+        for index, column in enumerate(columns):
+            if column.archived or unchanged.get(column.id) == column:
+                continue
+            if column.type == "link" and column.link_table_id is not None:
+                await self._linked_table(ctx, column.link_table_id, f"columns.{index}")
+            elif column.type in READ_THROUGH_LINK and column.link_column_id is not None:
+                where = f"columns.{index}"
+                target = await self._linked_table(ctx, linked[column.link_column_id], where)
+                _check_reading(index, column, await self._columns(target))
+
+    async def _linked_table(self, ctx: AuthContext, table_id: UUID, where: str) -> VirtualTable:
+        try:
+            table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        except NotFoundError:
+            raise InvalidSchemaError(
+                f"{where}.link_table_id", "That table does not exist or you cannot see it"
+            ) from None
+        if table.archived_at is not None:
+            raise InvalidSchemaError(f"{where}.link_table_id", "That table is archived")
+        return table
+
+    async def _claim_name(self, ctx: AuthContext, name: str) -> None:
+        """Refuse a name a live table holds, serialized so two creates cannot both pass."""
+        await hold_subject(self.db, LockScope.VIRTUAL_TABLE_NAMES_PER_ORG, ctx.organization_id)
+        if await virtual_table_repo.get_live_table_by_name(
+            self.db, name, organization_id=ctx.organization_id
+        ):
+            raise AlreadyExistsError(
+                message=f"A table named '{name}' already exists. Choose a different name.",
+                details={"name": name},
+            )
+
+    async def _refuse_empty_required(
+        self, table: VirtualTable, columns: list[ColumnDef], required: frozenset[UUID]
+    ) -> None:
+        for index, column in enumerate(columns):
+            if column.id in required and await virtual_table_repo.count_records_without_value(
+                self.db, table_id=table.id, column_id=column.id
+            ):
+                raise InvalidSchemaError(
+                    f"columns.{index}.nullable",
+                    "Some records have no value for this column, so it cannot become required. "
+                    "Fill them in first.",
+                )
+
+    async def _refuse_dependents(
+        self, ctx: AuthContext, table: VirtualTable, *, column_ids: frozenset[UUID] | None
+    ) -> None:
+        if column_ids is not None and not column_ids:
+            return
+        dependents = await find_dependents(
+            self.db,
+            organization_id=ctx.organization_id,
+            table_id=table.id,
+            column_ids=column_ids,
+            caller=ctx,
+        )
+        if dependents:
+            raise SchemaDependencyError(
+                [
+                    {"kind": dependent.kind, "id": dependent.id, "name": dependent.name}
+                    for dependent in dependents
+                ]
+            )
+
+
+_SUMMED: frozenset[ColumnTypeName] = frozenset({"number", "integer", "rating"})
+_ORDERED: frozenset[ColumnTypeName] = frozenset({"number", "integer", "rating", "date", "datetime"})
+
+
+def _check_reading(index: int, column: ColumnDef, target_columns: list[ColumnDef]) -> None:
+    """The linked table's column a lookup or rollup reads exists, and suits what it does."""
+    if column.target_column_id is None:  # a rollup that counts the links reads no column
+        return
+    where = f"columns.{index}.target_column_id"
+    target = next((c for c in target_columns if c.id == column.target_column_id), None)
+    if target is None or target.archived:
+        raise InvalidSchemaError(where, "That is not a live column of the linked table")
+    if target.type in COMPUTED_TYPES or target.type == "link":
+        raise InvalidSchemaError(
+            where, "A lookup reads a column holding values, not another link or worked-out one"
+        )
+    if column.aggregate in ("sum", "avg") and target.type not in _SUMMED:
+        raise InvalidSchemaError(where, f"A {column.aggregate} reads a column of numbers")
+    if column.aggregate in ("min", "max") and target.type not in _ORDERED:
+        raise InvalidSchemaError(where, f"A {column.aggregate} reads a column of numbers or dates")
+
+
+def _with_choices(index: int, column: ColumnDef, values: list[CellValue]) -> ColumnDef:
+    """A text column becoming a choice, with an option for each distinct value it holds."""
+    live = {option.label for option in column.options if not option.archived}
+    missing = [label for label in option_labels(values) if label not in live]
+    if len(column.options) + len(missing) > MAX_OPTIONS:
+        raise InvalidSchemaError(
+            f"columns.{index}.type",
+            f"It holds {len(live) + len(missing)} different values, more than the "
+            f"{MAX_OPTIONS} choices a column can have.",
+        )
+    if any(len(label) > MAX_LABEL for label in missing):
+        raise InvalidSchemaError(
+            f"columns.{index}.type",
+            f"Some values are longer than {MAX_LABEL} characters, the most a choice can be.",
+        )
+    added = [OptionDef(id=uuid4(), label=label, archived=False) for label in missing]
+    return column.model_copy(update={"options": [*column.options, *added]})

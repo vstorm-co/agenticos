@@ -66,7 +66,7 @@ from app.agents.capabilities.browser_use._direct import (
     page_report,
 )
 from app.agents.capabilities.browser_use._elements import Snapshot
-from app.agents.capabilities.browser_use._endpoint import EndpointError
+from app.agents.capabilities.browser_use._endpoint import EndpointError, is_renderer
 from app.agents.capabilities.browser_use._loop import (
     BrowseResult,
     BrowseSession,
@@ -467,6 +467,13 @@ def build_toolset(
 
     async def open_tab(ctx: RunContext[AgentDeps], url: str) -> BrowseSession | str:
         """Open the run's tab on `url`, or say in a sentence why the browser is not there."""
+        if is_renderer(cdp_url):
+            # Checked again here, not only at publish: an agent published before the
+            # operator named its browser the page renderer would otherwise drive it.
+            return (
+                "This browser is the deployment's page renderer, which a browsing agent "
+                "may not drive. Ask an administrator for a browser of its own."
+            )
         person = _signed_in_as(ctx.deps)
         # Never into a hosted browser: its address is the agent's author's choice,
         # not an operator's, and a kept sign-in sent there is a person's session

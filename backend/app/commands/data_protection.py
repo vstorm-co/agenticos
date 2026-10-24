@@ -63,6 +63,7 @@ from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.db.models.visual import Visual
+from app.db.models.workflow_file import WorkflowFile
 from app.db.session import get_db_context
 
 # Every column holding a path under `MEDIA_DIR`. The unreferenced-file scan is
@@ -81,6 +82,7 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
     DeploymentSettings.logo_path,
     DeploymentSettings.favicon_path,
     ArtifactVersion.storage_path,
+    WorkflowFile.storage_path,
     Visual.thumbnail_path,
     GeneratedMedia.storage_path,
 )
@@ -169,6 +171,11 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "thinking",
         "tool_output_limits",
         "tool_search",
+        # Records are rows in this deployment's own database.
+        "virtual_tables",
+        # A run is one of this deployment's own workflows, carried out by its
+        # worker; whatever a step reaches is that workflow's, not this capability's.
+        "workflows",
     }
 )
 

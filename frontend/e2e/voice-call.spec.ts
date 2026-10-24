@@ -108,7 +108,7 @@ test("a call shows captions, an approval with the exact arguments, a warning and
   await readiness(page, READINESS);
   // The conversation the stubbed call names, read again as turns are saved: empty,
   // because nothing reached a real server.
-  await page.route(`**/api/conversations/${READY.conversation_id}/messages`, (route: Route) =>
+  await page.route(`**/api/conversations/${READY.conversation_id}/messages*`, (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -224,7 +224,7 @@ test("a call shows captions, an approval with the exact arguments, a warning and
 test("the end of a call stays above the composer that comes back", async ({ page }) => {
   await stubPeerConnection(page);
   await readiness(page, READINESS);
-  await page.route(`**/api/conversations/${READY.conversation_id}/messages`, (route: Route) =>
+  await page.route(`**/api/conversations/${READY.conversation_id}/messages*`, (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

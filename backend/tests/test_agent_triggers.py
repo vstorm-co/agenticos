@@ -2025,6 +2025,56 @@ class TestFiringAnEvent:
         assert runner.execute.call_args.args[2] == "Triage it\n\nA GitHub issue #7 was opened"
 
 
+class TestWhoIsBehindAFire:
+    """Whether the run a fire opens has a member behind it (F3).
+
+    A delivery is written by whoever opened the issue or sent the email, not by
+    the trigger's creator, so its run carries a public origin. A schedule, and a
+    "Run now" of any trigger, is the creator's own.
+    """
+
+    @staticmethod
+    async def _fire(trigger: MagicMock, *, event_context: str | None = None) -> AsyncMock:
+        agent = _agent(agent_id=trigger.agent_id)
+        service = _service(agent)
+        run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(return_value=("done", run))
+            await service.fire(trigger.id, event_context=event_context)
+        return runner.execute
+
+    @pytest.mark.security
+    async def test_an_event_fire_runs_with_a_public_origin(self):
+        execute = await self._fire(
+            _event_trigger(conversation_id=uuid.uuid4()),
+            event_context="A GitHub issue #7 was opened",
+        )
+
+        assert execute.call_args.kwargs["public_origin"] is True
+
+    async def test_a_scheduled_fire_runs_without_a_public_origin(self):
+        execute = await self._fire(_trigger(conversation_id=uuid.uuid4()))
+
+        assert execute.call_args.kwargs["public_origin"] is False
+
+    async def test_run_now_of_an_event_trigger_keeps_its_creator(self):
+        """Run now dispatches the fire with no delivery, so nobody outside wrote
+        its input and the creator who pressed it is behind the run."""
+        execute = await self._fire(_event_trigger(conversation_id=uuid.uuid4()))
+
+        assert execute.call_args.kwargs["public_origin"] is False
+        assert execute.call_args.args[0].user_id == _CALLER
+
+
 class TestEventTriggerRestrictions:
     async def test_retiming_an_event_trigger_is_refused(self):
         """A cadence is meaningless on an event trigger, and setting one would trip

@@ -8,6 +8,7 @@ delete. The base methods raise `WebhookRegistrationUnavailable`, so a portal is
 at a time - the same shape `app/services/channels/base.py` uses.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -76,9 +77,16 @@ class PortalAdapter:
         return []
 
     async def register_webhook(
-        self, *, access_token: str, target: str | None, webhook_url: str, secret: str
+        self,
+        *,
+        access_token: str,
+        target: str | None,
+        webhook_url: str,
+        secret: str,
+        events: Sequence[str] | None = None,
     ) -> RegisteredWebhook:
-        """Register `webhook_url` at the provider, signed with `secret`.
+        """Register `webhook_url` at the provider, signed with `secret`, for `events` -
+        the provider's own event names, or the ones its presets need when `None`.
 
         Raises:
             WebhookRegistrationUnavailable: The default - a portal with no

@@ -317,6 +317,9 @@ class Worker:
 
     async def _count_death(self, db: AsyncSession, kind: str, organization_id: UUID | None) -> None:
         """Count a death in the job's own scope: its organization's, or the kind's if it has none."""
+        task = self.tasks.get(kind)
+        if task is not None and not task.counts_deaths:
+            return
         deaths = await kind_repo.record_death(db, kind, organization_id)
         if deaths < self.settings.breaker_deaths:
             return

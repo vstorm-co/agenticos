@@ -595,7 +595,7 @@ async def check_organization_servers(db: AsyncSession) -> dict[str, int]:
     counts = {"answered": 0, "unreachable": 0, "skipped": 0}
     targets: list[tuple[McpConnection, dict[str, str]]] = []
     for connection in await mcp_connection_repo.list_org_servers_to_check(db):
-        headers = await _resolve_auth_headers(db, connection)
+        headers = await resolve_auth_headers(db, connection)
         if headers is None:
             counts["skipped"] += 1
             continue
@@ -622,7 +622,7 @@ async def _record_run_reachability(observed: list[tuple[UUID, bool]]) -> None:
                 await record_reachability(db, connection, reachable=reachable)
 
 
-async def _resolve_auth_headers(
+async def resolve_auth_headers(
     db: AsyncSession, connection: McpConnection
 ) -> dict[str, str] | None:
     """Auth headers to reach *connection*, or None if it can't be used right now
@@ -845,7 +845,7 @@ class McpConnectionService:
         self, db_connection: McpConnection
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Talk to the server, record what happened, and report its tools."""
-        headers = await _resolve_auth_headers(self.db, db_connection)
+        headers = await resolve_auth_headers(self.db, db_connection)
         if headers is None:
             # A grant to renew, not a server that stopped answering: no outage
             # is opened or closed by it.
@@ -2264,7 +2264,7 @@ async def build_toolsets_for_agent(
                 organization_id,
             )
             continue
-        headers = await _resolve_auth_headers(db, connection)
+        headers = await resolve_auth_headers(db, connection)
         if headers is None:
             # OAuth not authorized / expired, or an undecryptable bearer token.
             # Warning rather than info: this server was bound on purpose, so
@@ -2417,7 +2417,7 @@ async def _own_specs(
     accounts: list[_OwnAccount] = []
     taken: set[str] = set()
     for account in [primary, *(other for other in owned if other is not primary)]:
-        headers = await _resolve_auth_headers(db, account)
+        headers = await resolve_auth_headers(db, account)
         if headers is None:
             logger.info(
                 "Skipping one of the sender's own %r connections for this run: "
@@ -2455,7 +2455,7 @@ async def watched_connection_spec(
     listed; the watch keeps only the tools the server marks read-only, so the
     approval policy here never comes into play.
     """
-    headers = await _resolve_auth_headers(db, connection)
+    headers = await resolve_auth_headers(db, connection)
     if headers is None:
         return None
     return McpServerSpec(

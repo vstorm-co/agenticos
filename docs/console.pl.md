@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "c74cc1214d3a"
 ---
 
 # Konsola { #the-console }
@@ -18,7 +18,7 @@ ustawieniach czatu, pod suwakami obok mikrofonu.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje czterdzieści sześć kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -267,6 +267,16 @@ bo [każda powierzchnia przechodzi przez jeden runner](channels.md).
 Wątek, którego run wciąż pracuje, ma kręcący się wskaźnik i czas trwania; wątek
 z odpowiedzią, której nie widziałeś od ostatniego otwarcia, ma kropkę, a otwarcie
 go ją gasi - tylko dla ciebie, bo udostępniony wątek każdy czytelnik czyta osobno.
+
+Po ponownym otwarciu rozmowy zobaczysz jej 100 najnowszych wiadomości.
+**Wczytaj starsze wiadomości** u góry dodaje poprzednią stronę, zachowując pozycję
+czytanego fragmentu. Nowe odpowiedzi i koszt nadal dotyczą bieżącej rozmowy.
+
+Otwarcie czatu pobiera metadane rozmowy bez całej historii i podsumowania modelu.
+Streaming zachowuje komponenty niezmienionych wiadomości i grupuje ramki według
+klatek animacji, z limitem kolejki i zastępczym terminem 50 ms w karcie w tle.
+Historyczne rysunki działają blisko widocznego obszaru, a poza nim zwalniają ramki;
+rysunki trwającego wywołania nadal renderują się, aby raportować błędy narzędziu.
 
 Trzy rzeczy w kompozytorze, które warto znać.
 
@@ -615,6 +625,8 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
 | **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
 | **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
+| **Tables** | Typowane rekordy i ich kolumny, oglądane jako tabela, tablica kanban lub lista | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Wieloetapowe automatyzacje, które uruchamiają Twoje agenty, budowane na kanwie | [Workflows](workflows.md) |
 | **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
 | **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
 | **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -671,7 +683,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
+- Dashboard to **czterdzieści sześć widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

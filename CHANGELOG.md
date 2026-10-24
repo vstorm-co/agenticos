@@ -19,6 +19,1064 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Bound cumulative inline workflow results per run and organization, including
+  loop-generated outputs, with compact counters and retained-history backfill.
+  Preserve fees and stop automatic retry when a result cannot be stored.
+- Import pinned nested file references safely across retention, charge each eval
+  case against run limits, and narrow resumed agents to current workflow funds.
+- Preserve canvas notes during paste, apply mixed note/step changes together and
+  retain newer test examples when older responses arrive later.
+
+- Reserve workflow email deliveries against shared issuer, organization and
+  deployment allowances before sending; refuse delivery when Redis is unavailable.
+  Preserve webhook delivery tombstones after run retention, enforce public-link
+  expiry on existing content tokens and return typed datetime overflow failures.
+
+- Require member consent when publishing or enabling unattended workflow triggers;
+  enforce current MCP visibility and tool allowlists at publish and dispatch.
+- Bound public form request streams and DOCX XML extraction before materialization.
+  Keep private views usable after column retyping, save Kanban grouping, load more
+  cards per lane and timestamp table events against trigger activation's wall clock.
+
+- Load complete skill/context choices for inline workflow agents, reject unusable
+  eval inputs and clean up partial PDF/sandbox file batches after failure.
+
+- Preserve organization-key scopes on workflow sockets, including worker admission
+  and stream reauthorization; refuse keys accessing private runs or personal chats.
+
+- Bound inline workflow outcomes to a configurable 10 MiB total and refuse Split out
+  expansion above 10,000 items or projected bytes before copying repeated fields.
+  Oversized terminal outcomes preserve fees and never automatically replay effects.
+
+- **Organization-key access to Virtual Tables and workflow runs.** External
+  clients use the shared table routes with scoped organization keys, including
+  receipt-backed writes, revision checks and bounded column selection. Workflow
+  workers retain the key's admitted scopes, recheck its current authority before
+  every step and stop after revocation, expiry or deletion; key-started chains
+  cannot reach the issuer's personal state. Workflow authoring remains session-only.
+- **A page can start a workflow, as the person viewing it, after they confirm.**
+  An agent declares up to five actions when it publishes - workflows its Workflows
+  capability binds that start from Manual or API request and that the person behind
+  the run may run - and the page's buttons call `agenticos.run` (`AO.run` in the page
+  kit). The console accepts the request only from the page's own frame and under its
+  nonce, lists only the actions the viewer may run on the version they are served, and
+  asks every time in a dialog titled with the workflow's own name that quotes the page's
+  label and shows each input value, with a delayed Run; one question is open at a time
+  and three declines stop the questions until the page is reopened. The run is the
+  viewer's - their access, budget and runs page - with a new `app` trigger and the page and version recorded on
+  it; the page reads back only its status, answer text, structured answer without files
+  and a short error. Public links, embeds, previews, history and impersonated sessions
+  get no actions. New `artifact_versions.actions`, `workflow_runs.source_artifact_id`
+  and `source_version_number` (migration `0213_artifact_actions`), the setting
+  `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` and the audit entry `artifact.action_started`.
+  (#1976) [Artifacts](docs/artifacts.md#actions) has the rules.
+
+- **A page's public link and embeds can show live table data, behind two confirmations.**
+  An Owner or Admin turns on **Public pages with live data** in the organization's
+  settings (off by default, as themselves, audited); then the page's owner, or an Owner or
+  Admin for them, confirms its data for the link after a screen that names the queries and
+  who can reach them - anyone with the link, its password and expiry, each embedding site.
+  The confirmation is bound to the queries and that audience, and turning the link off,
+  removing its password, adding an embedding site, a new owner, a withdrawn member consent
+  or archiving clears it; replacing the key, changing the expiry or pin, and switching the
+  organization off do not. Every load re-checks the link's key, expiry, password, switch and
+  consents before reading: a replaced or removed key is a 404 at once, anything else renders the page
+  without data and without a reason. Visitors get the records as of load, with no refresh.
+  Reads are shared for 30 seconds in a byte-bounded cache in the API process, never in
+  Redis, and each page's real reads are capped per minute. Editors see why a consented
+  page shows nothing. New `organizations.public_live_data` and public data columns on
+  `artifacts` (migrations `0211_org_public_live_data`, `0212_artifact_public_data`), settings
+  `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` and `ARTIFACT_PUBLIC_DATA_CACHE_BYTES`, and
+  audit entries `organization.public_live_data_changed`, `artifact.public_data_consented`,
+  `artifact.public_data_withdrawn` and `artifact.public_data_voided`. No agent tool reaches
+  any of it. (#1975) [Artifacts](docs/artifacts.md#live-data-on-a-public-link) has the rules.
+
+- **A published page can show live table data, shared on its owner's consent.**
+  An agent binds a page to **page queries** - a table, or a saved view whose filters
+  and sort are copied, with fields, filters, a sort and a limit - and the page's
+  `agenticos.onData` is handed the records, already in the page on load and again
+  on every refresh. Everyone who opens the page reads the same records with its
+  **owner's** access, so the data reaches anyone beyond the owner and the roles that
+  open every page only after the owner confirms it: **Confirm data** shows the queries in
+  words, every linked table they reach and who will read them, and the page's audience
+  keeps the last version that was consented to, or sees "This page isn't available yet",
+  until then. Anyone who can edit the page can stop sharing its data; the owner can
+  turn on **Share new versions automatically** for their own republishes, and give
+  a person or group **Can edit, including data**. A binding goes unavailable when the
+  owner leaves or loses access, or when a column it reads changes meaning: columns now
+  carry a read-only `revision`. The owner hands a page to another member with **Change
+  owner**, which asks the new owner to confirm its data again. Widening who opens a page
+  that reads data is the owner's call; anyone else files a request, answered in a
+  **Requests** section of the Share dialog, and an editor's republish that reads more
+  waits as a request with a **Review data change** panel. A member who opens a page they
+  cannot see can **Request access**. Agents get `share_artifact`, which only asks. New
+  `artifact_share_requests`, consent columns on `artifact_versions`, `artifacts.auto_consent`,
+  the `edit_data` grant level, the `artifact_share_requested` and `artifact_owner_changed`
+  notifications (migrations `0207_artifact_consent`, `0208_artifact_owner_changed`,
+  `0209_artifact_share_requests`, `0210_grant_edit_data`) and audit entries
+  `artifact.data_consented`, `artifact.data_withdrawn`, `artifact.auto_consent_changed`,
+  `artifact.owner_changed`, `artifact.share_requested`, `artifact.share_request_approved`,
+  `artifact.share_request_declined` and `artifact.edit_data_granted`. A public link or an
+  embed carries data only under the separate switch and consent described above. A page
+  takes up to 5 bindings, 1,000 records each and 4 MiB,
+  a 5 s deadline and 30 loads a minute per viewer, and a bound page is changed only by a run
+  acting for a member (a signed-in member, a linked channel sender or a schedule's creator).
+  The viewer's strip has Refresh and an auto-refresh each viewer chooses; cards, the
+  dashboard and the viewer mark live pages. `list_views` finds a view to start a query from.
+  (#1974) [Artifacts](docs/artifacts.md#live-data) has the rules.
+
+- **A workflow run reads on the canvas.** Each step carries a pill on its
+  corner - Pending, Starting, Running with a ticking time, Waiting, Failed,
+  Needs attention, Skipped, Not reached, or the time a step that succeeded took -
+  the wire into a running step moves, a branch the run did not take fades,
+  and a failed step shows its error under its card. The editor gets a Stop
+  beside **Run**, and **Test step** a Stop of its own and a warning when the
+  tested step did not run. A run's page draws the same, still once the run
+  has ended.
+
+- **Workflow editor additions.** Typing `{{` in a text parameter suggests
+  values from earlier steps, including the fields a test run saw inside a
+  payload, and placeholders are coloured, red once the box is left when one
+  names nothing. The **Input** pane picks any earlier step to read from.
+  Hovering a step's problem mark lists its first problems and clicking it
+  opens the step, whose dialog lists every problem, a field's leading to the
+  field. **View only** shows an editor the read-only editor, whose dialogs
+  now show every setting. `Delete` deletes the selection, and a dragged field
+  scrolls the form at its edge.
+
+- **Archiving and restoring a published page.** Someone who may edit an
+  artifact archives it from **More actions** above it, after a dialog says that
+  the page, its versions and its link are kept, nobody can open it and its
+  public link is turned off. An archived page serves nothing: its view, its
+  live data, signed addresses minted earlier, the public link and the embed all
+  answer as for a missing page, and the agent's tools treat it as absent -
+  `publish_artifact` refuses the name with a message naming the archive. Its
+  editor sees when it was archived, with **Restore**; a reader is told it is not
+  available. Restoring leaves the public link off. New
+  `POST /api/v1/artifacts/{id}/archive` and `/unarchive` (audited as
+  `artifact.archived` and `artifact.unarchived`), `include_archived` on the
+  list, an **Archived included** filter and an **Archived** badge in the
+  console, and `artifacts.archived_at` (migration `0203_artifact_archive`).
+
+- **A restored page version says what it was restored from.** Restoring a
+  kept version of an artifact still adds a new version with its bytes; that
+  version now records the number it came from, and the console's version list
+  shows it as `v4 · restored from v2`. A publish leaves it empty. New
+  `restored_from` on the version read and `artifact_versions.restored_from`
+  (migration `0204_artifact_restored_from`).
+
+- **Tool-call approvals say what they will do in names.** A gated table
+  write is parked with its ids resolved, as the run's person, to the table and
+  record names that person may see, and the chat's approval card and the
+  Approvals page lead with a sentence naming them above the arguments. A capability declares the describers with `describers=` on
+  `register(...)`; one that fails or is slow parks the call without a sentence.
+  New `context` on `GET /approvals` rows, `GET /runs/{id}/parked` and the
+  `tool_approval_required` frame, and `tool_approvals.context` (migration
+  `0205_tool_approval_context`).
+
+- **Archiving and restoring a table from the console.** A member who can edit
+  a Virtual Table archives it from **More actions** on its page, after a
+  dialog says that its records stay readable, nothing can change them and it
+  can be restored; what still uses the table is listed when that refuses the
+  archive. An archived table's page says so, with **Restore** for whoever may
+  edit it, through the new `POST /api/v1/tables/{id}/unarchive`.
+  `TableRead.can_restore` says who may. The catalog can list archived tables
+  too. A restore is refused while a live table holds the archived one's name.
+
+- **A page kit an agent follows, and warnings when it does not.** Library
+  version 3 (`lib/agenticos-3.css`, `lib/agenticos-3.js`) keeps every class and
+  call of version 2 and forgives loose markup: a header's parts placed directly
+  in it, a table with no `<thead>`, text written straight into a table's wrap.
+  It adds loading, note, live, list and toolbar classes, draws icons a script
+  adds later, and `AO.records` draws bound records as a finished table. Every
+  Artifacts agent gets a short page contract in its instructions; the first
+  whole HTML page of a run offering an unloaded `artifact-pages` skill is sent
+  back once to load it; and each published HTML page is checked, with what looks
+  wrong listed in the result's `warning`. A warning never stops a publish.
+
+- **Agents can list and preview their pages.** `list_artifacts` names this
+  agent's pages that the run's person may open, newest first, with each one's
+  version, bindings, visibility and whether this run may republish it; in a
+  group chat their private pages are left out. `preview_artifact` draws a page
+  as a viewer would, with its data read as that person, and returns a picture
+  and a report of its errors, console messages, policy refusals and the publish
+  warnings. The picture needs a browser the operator runs, named by the new
+  `ARTIFACT_RENDER_CDP_URL` and shipped as the opt-in `artifact-render` compose
+  profile on a network with no egress, and the `browser` extra; without them the
+  report comes alone. `agenticos cmd doctor` checks the renderer.
+
+- **A Workflows card on the dashboard.** Real runs, failures and cost over the
+  dashboard's period across every workflow the reader can see, the five
+  busiest, and how many runs wait for a person now -
+  `GET /api/v1/workflows/summary`. The "?" on a workflow's runs page explains
+  its figures and its run list.
+
+- **Evals for a model step.** A step a model answers has an **Evals** tab:
+  cases written from the input it was last tested with, each saying where in
+  the answer to look and whether it should contain, not contain or equal a
+  value. **Try** starts a test run of the step per case and marks each passed
+  or failed as its run ends, with what the answer said and what it cost.
+  Migration `0200_workflow_step_evals`.
+
+- **Limits and figures for a workflow's runs.** A workflow's settings take how
+  many real runs may be under way at once (a start past it is refused with
+  `429`), the most one run may spend (the tighter of it and the version's
+  budget) and the most its runs may spend a calendar month, test runs included
+  (past it no run starts, with `402`). Its runs page leads with **How it ran**:
+  runs, success rate, typical and 95th-percentile time and cost over 7, 30 or
+  90 days, this month's spend against the budget, and cost and failures by
+  step - `GET /api/v1/workflows/{id}/stats`.
+
+- **Workflows started from an email.** A **Gmail** trigger starts a run for
+  each new message in the organization's connected Gmail mailbox that fits its
+  subject, sender and label filters, read by the poll that already fires
+  agents' Gmail triggers. A message read twice runs once, and one the
+  organization had no room for is read again a minute later. The step shows
+  whether a mailbox is connected and connects one; a GitHub step shows the
+  same for its account. Migration `0199_workflow_gmail_trigger`.
+
+- **Workflows started from GitHub.** A **GitHub** trigger starts a run for
+  the issues, comments, pull requests, reviews, pushes, releases or Actions
+  runs of one repository it names, optionally only for some actions. With the
+  organization's GitHub account connected, publishing registers the hook on
+  the repository for those events and keeps it in step on every publish;
+  otherwise it shows the address and secret once, to paste. Deliveries are
+  checked against GitHub's signature, a redelivery answers with its first run,
+  and a `ping` or anything not named is skipped. Migration
+  `0198_workflow_github_trigger`.
+
+- **Workflows started from a channel message.** A **Channel message** trigger
+  hands a Slack, Mattermost or Telegram bot's messages to a workflow: each one
+  the bot's agent would have answered, and that fits the trigger's chats and
+  words, starts a run as its publisher with the text, the sender and where to
+  answer. The rest still reach the bot's agent, and a bot's messages start one
+  workflow at most. Migration `0197_workflow_channel_trigger`.
+
+- **Workflows started from a form.** A **Form** trigger gives a workflow a
+  public page with the fields it declares, its own title, description, button
+  and thanks. Anyone with the link fills it in without signing in, and each
+  answer that fits starts a run as the member who published it. **Trigger**
+  shows the link, **New link** replaces it, and pausing closes the page; each
+  form takes at most `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute,
+  and a hidden field turns scripts away. Migration `0196_workflow_form_trigger`.
+
+- **Agents start workflows.** The **Workflows** capability gives an agent the
+  published workflows its spec names as tools: it reads the input each one
+  asks for, starts a run as the member it acts for and waits for the answer,
+  up to a limit set in the Builder. Each start is the API's own, so access,
+  input checks, budgets and quotas hold, and the runs page says **An agent**
+  started it. An agent running as a workflow's own step starts none. A run
+  with no member behind it (a widget, embed or hosted-page visitor, an unlinked
+  channel sender, an agent event trigger's delivery) starts none.
+  Migration `0195_workflow_run_from_agent`.
+
+- **Import a CSV file again to update a table.** With an external id column mapped,
+  **Update records already here** changes the cells a row names on the record
+  holding its external id instead of refusing it, and the import counts what it
+  added and what it updated (`update_existing` on `POST .../records/batch`).
+
+- **Table triggers on a record's change and deletion.** A workflow's **Table
+  record** trigger (formerly **New table record**) can start on records added,
+  changed or deleted, and a change only when one of the columns chosen for the
+  table changed. The run gets the record with its `event`, its values `before`
+  and the `changed` columns. Changes and deletions are queued only for a table a
+  trigger listens to. Migration `0194_table_trigger_events`.
+
+- **Formula columns.** A table column can work a value out from the record's
+  other columns - `{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
+  `DAYS({Due}, TODAY())` - with arithmetic, comparisons and a dozen functions,
+  including what a rollup worked out. Renaming a column rewrites the formulas
+  that read it, and saving one checks it and says what is wrong. Formulas run in
+  a closed interpreter of their own: nothing in one is evaluated as Python.
+
+- **Links, lookups and rollups between tables.** A `link` column holds records of
+  another table, picked by searching that table, and a record reads them back
+  named. A `lookup` shows one column of the linked records and a `rollup` counts
+  them or works out a sum, average, minimum or maximum - both worked out when the
+  record is read, so they always say what the linked records say now, and never
+  past what the reader may see. Writing a link checks every record exists in a
+  table the writer can see.
+
+- **Email, link, phone and rating columns.** A table column can hold an email
+  address, an `http(s)` link, a phone number or a 1-5 rating, each checked as it
+  is written, typed into the field a phone keyboard expects and rated with
+  stars. Text converts to each when every value reads as one, and an import
+  reads and infers them. `contains` and `starts_with` take a piece of a value,
+  so `@example.com` finds the addresses at a domain.
+
+- **MCP tool and email steps in workflows.** **Call an MCP tool** calls one tool
+  on one of the organization's MCP servers, picked with its service's mark and
+  then from the tools the server listed; by default a person approves any tool
+  the server does not mark read-only before it runs, through the same Approvals
+  inbox as **Ask for approval**. **Send an email** mails up to ten addresses, a
+  copy each, from the deployment's sender, and says when the provider only logs
+  mail rather than delivering it. A tool's arguments are one field each, from the
+  schema the server listed, since a binding can now fill one key of an open
+  object (`arguments/email`).
+
+- **Model steps and a knowledge write.** **Ask a model** answers a prompt under
+  the step's instructions, as text or an object; **Classify** puts a text in one
+  of the step's categories and branches on it; **Extract data** pulls the fields
+  a schema names out of a text; **Summarize or translate** summarizes, translates
+  or rewrites one. Each runs as the step's own agent, so the step's cost cap, the
+  workflow's budget and the organization's limit apply and the run is in
+  Activity. **Add to knowledge** puts a text or a run file into collections
+  through the same upload a collection's page uses.
+
+- **Configure an agent inside a workflow step.** An Agent step pins a catalog
+  agent or, with **Configure here**, defines its own - model, instructions,
+  capabilities with their knowledge, and MCP servers - in the Builder's own
+  editors. The agent is the workflow's: versioned with the graph, created on the
+  step's first run, republished when its spec changes, kept out of the catalog and
+  reached through the workflow's access. **Copy its configuration into this step**
+  and **Save as an agent** move between the two. `max_cost_usd` caps one execution
+  of the step. Migration `0193_workflow_agents`.
+
+- **A workflow note can be tinted** grey, yellow, green, blue, purple or red
+  from the swatches a selected note shows; the graph keeps the colour.
+- **A table column's type can change** to one its values read as: anything to
+  text, text to a number, a yes/no, a date or a single select (an option per
+  distinct value), a whole number to a number and back, a date to a date and
+  time, one choice to several and back. Saving rewrites every record's value
+  in the same change; a value that does not convert refuses it, naming how
+  many and one example, and something that uses the column refuses it as an
+  archive does. **Columns** offers only the types a column converts to.
+- **Try a chat-triggered draft in a chat panel.** Open chat in the editor
+  runs the draft as a test with each message, opens the run on the canvas and
+  shows its answer; nothing said there reaches a real conversation (#1955).
+- **Compare a version with the draft.** A version's preview draws both on one
+  canvas with every added, changed and removed step marked, and lists what
+  changed in each changed step (#1954).
+- **Export and import a workflow, and automation templates.** The editor
+  downloads a draft as a `.workflow.json` file with no ids of the deployment and
+  no secret values; Import on the list makes a new draft from one and lists
+  every step and field to choose again. New workflows can start from Lead
+  intake, Slack alert on failure or Daily summary (#1953).
+- **A code editor for the Python and JavaScript steps.** Highlighting in both
+  themes, Tab indentation, Enter that keeps the indentation, closing brackets
+  and quotes, and the keys of the bound `args` offered as they are typed; Esc
+  then Tab leaves it. It reuses highlight.js, already a dependency (#1952).
+- **Import cURL, query authentication and paging on the HTTP request step.**
+  A pasted cURL fills the method, URL, headers and JSON body; a credential in
+  it is lifted out and offered to the vault, never kept in the step. A token can
+  go in a URL parameter, on every HTTP step. A `GET` pages by next URL, cursor or
+  page number, collecting each page's items, and stops at `max_pages` (#1951).
+- **A new secret from a workflow step.** A step's secret field offers New
+  secret: the vault's form fixed to the kind the field takes, choosing the new
+  secret on save, so an HTTP credential or a decision key is added without
+  leaving the editor. Only the id reaches the graph (#1950).
+- **A webhook's test URL, and a Respond to webhook step.** Listen for test event
+  on a draft's webhook trigger opens a test URL for two minutes; the one call to
+  it is pinned as the trigger's output and never starts a run. A graph holding
+  Respond to webhook answers its sender with that step's status, headers and
+  JSON body, waited for up to `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`; a
+  graph without one answers `202` as before (#1949).
+- **Transform steps for lists of objects.** Edit fields, Sort, Limit, Remove
+  duplicates, Aggregate, Split out, Summarize, Date & time and Crypto reshape data
+  without a code step. Each is pure and typed, most take and hand on `items`, and
+  an item missing a field is handled the same way by all of them (#1948).
+- **Switch, Wait, Filter a list and Combine lists steps.** **Switch** takes the first
+  of many named rules that holds, or `otherwise`, and rejoins at a Merge. **Wait**
+  holds a run for a number of seconds or until a bound time on a durable timer that
+  survives a restart. **Filter a list** keeps the items a condition holds for, and
+  **Combine lists** appends two lists or merges them by position or by a key. Waits
+  park with the new `timer` reason (#1947).
+- **Call another workflow as a step.** A **Called by a workflow** trigger with
+  typed fields makes a workflow others run, and the **Run a workflow** step starts
+  its published version with the bound input, waits for it and hands on its output
+  or error - or goes on at once. The called run is linked to the step; a call that
+  loops back into the chain or goes more than five deep is refused. Runs gain
+  `parent_node_run_id` and can be `triggered_by` `workflow_call` (#1946).
+- **Workflow settings and error workflows.** A workflow's **Settings** name the
+  timezone its schedule's cron expression is read in, a default run deadline, an
+  error workflow, and how long runs and their files are kept, swept daily. A new
+  **On failure of a workflow** trigger makes an error workflow, started once for
+  each failed real run with the run, the failing step and the error, as the member
+  who chose it; its own failures start nothing. `PUT /workflows/{id}/settings` is
+  new, workflows gain `settings`, and runs can be `triggered_by`
+  `workflow_failed` (#1944, #1945).
+- **A run history you can debug.** Runs filter by status, draft or published
+  version and what started them, a page at a time on the server, and a new
+  **Runs** page lists every workflow's. A run's page shows each step's Input and
+  Output from that run. **Retry from failed step** starts a run in which every
+  step that succeeded hands on its earlier output, so no write is made twice, and
+  **Debug in editor** pins a run's step data onto the draft. `POST
+  /workflow-runs/{id}/retry` is new, and runs gain `retry_of_run_id` (#1943).
+- **Template fields that mix text with values from earlier steps.** A text field's
+  **Template** mode takes text such as `New lead: {{Form.payload.name}}`, with
+  **Insert a value…**, drops from the Input pane and a preview from the last test
+  run. Each placeholder is checked at publish like a binding and rendered when the
+  step runs, JSON for a list or an object; one with nothing behind it fails the
+  step with `INVALID_BINDING` naming it. Bindings gain a `template` source (#1938).
+- **Map a workflow step's field by dragging it.** A column or a field of the step
+  dialog's Input pane dropped on a setting binds it to that field, and one that
+  does not fit is refused with the reason. Inside a free-form value the type the
+  run showed decides, and the source picker now offers free-form values to any
+  setting, with the path typed beneath (#1937).
+- **See a workflow step's data, pin it and test the step alone.** The step dialog
+  shows what the step read and what it handed on in the last test run, as a table,
+  as JSON or as its fields with their types. Pinned data, typed in or kept from a
+  run, stands in for the step in test runs and is stripped at publish. **Test step**
+  runs only the step and what leads to it, the steps with known output handing it on
+  instead of running, and asks first for a step that writes. A node run read gains
+  `output`, `NodeInstance` gains `pinned_output`, and `POST /workflow-runs` takes
+  `step` (#1934, #1935, #1936).
+- **Notes on the workflow canvas, and a canvas that is quicker to work.** A note
+  of markdown sits beside the steps, moved and resized freely and kept by versions
+  and copies. A selected connection's **+** puts a step into its middle, wired on
+  both sides; **Tidy up** arranges the steps left to right in one undoable edit; a
+  minimap, **Tab** for the step picker and a **?** shortcut sheet, none of which
+  fire while typing. The graph gains `notes` (#1940, #1941).
+- **Name a workflow step, note it and switch it off.** A step's own name shows on
+  its card and in every binding list and problem, and must be unique in the graph; a
+  note is marked on the card; a switched-off step stays on the canvas, dimmed, and is
+  skipped when a run reaches it. Publishing refuses switching off the trigger or a
+  deciding step, and reading a step that is off. `NodeInstance` gains `label`,
+  `notes` and `disabled` (#1939).
+- **Find, rename, switch and retire workflows from the console.** The list
+  searches by name, description and tag, filters by tag and sorts by last edit,
+  name or age, all kept in the address. The editor renames a workflow in place and
+  tags it, and a published one with a webhook, schedule or table trigger gets an
+  **Active** switch, shown on its card too. A card's menu archives (pausing the
+  trigger), restores and deletes. New `PATCH /workflows/{id}`,
+  `PUT .../active`, `POST .../archive`, `POST .../unarchive` and
+  `DELETE /workflows/{id}`; a workflow now has `tags` (#1942, #1956).
+- **Import a CSV file into a table, and export one.** **Import** maps the file's
+  columns to the table's, reads each value in its column's type and sends the rows
+  200 at a time to a new `POST /tables/{id}/records/batch`, listing every row that
+  failed with its line and reason. **Export** saves the records on screen, in their
+  order and columns, from a new streaming `POST /tables/{id}/records/export` (#1961).
+- **A table grid that scrolls through thousands of records, and says how many.**
+  The grid loads a hundred records at a time as it scrolls and draws only the rows
+  in view; the count of matching records shows beside the view tabs, from a new
+  `POST /tables/{id}/records/count` that counts up to 100,000 (#1964).
+- **Manage a table's columns from its grid.** Each header opens a menu to sort by
+  the column, hide it in the view, rename it or archive it, and a **+** after the
+  last column adds one; a rename, an archive and an add each write the schema
+  version the Columns dialog would (#1963).
+- **Search and filter a table's records, and keep it in a view.** A search box
+  finds text in any text column or select option label, **Filter** builds
+  conditions from the operators each column type supports, and **Save view** keeps
+  both, with the sort, in the view on screen. `RecordQuery` and a view's `config`
+  take the same `search` (#1962).
+- **Add, edit and delete table records in the console.** **Add record** asks for
+  each live column in its own type and marks the ones that need a value; a cell
+  edits in place on a click, saving on Enter and leaving on Escape; ticked rows
+  delete together, each against its own revision, and the record panel deletes one.
+  A refused edit opens the record with the value kept beside a retry (#1958, #1959,
+  #1960).
+- **Run a workflow from its editor, and watch it happen.** **Run** in the editor's
+  header, or `Ctrl`/`Cmd` + `Enter`, tests the draft at once - asking first for
+  the fields its trigger declares - and the run shows on the canvas as it goes:
+  each step's status, tries and error, with a bar that opens the run's page. The
+  trigger a person starts is now **Manual**, separate from **API request** (the
+  former Manual or API, whose graphs keep starting from the API); both take
+  typed input fields (#1932, #1933).
+- **A workflow step that asks a person.** **Ask for approval** stops a run
+  until someone approves or rejects what it is about to do, then goes on by the
+  answer. The request shows its title and the details bound to it in the
+  Approvals tab, above the tool calls; named approvers are notified and are the
+  only ones who may decide it. A decision is final and audited, a request can
+  expire after a set time, and cancelling the run cancels it.
+- **A JavaScript step.** **JavaScript in a sandbox** runs a script on Node as
+  the same durable job the Python sandbox step runs, on the organization's
+  sandbox host: it reads the bound values as `args`, reads and writes the run's
+  files, may `await`, and what it returns is the step's result.
+- **Typed input for a workflow started by hand.** The **Manual or API** trigger
+  can declare **Input fields** - text, number, whole number, yes or no, date or
+  choice, each required or not. **Start a run** then asks for each by name in a
+  form, a run whose input does not fit is refused before it starts with the
+  fields that are wrong, and a binding to one is type-checked at publish.
+- **Workflow steps that read what a table is.** **List tables**, **Describe a
+  table**, **Table exists?** and **Record exists?** let a workflow find a table,
+  read its columns, create one only the first time it runs, or branch on whether
+  a matching record is already there. The two questions leave by `yes` or `no`.
+- **Workflow steps that talk in Slack, Mattermost and Telegram.** **Send a
+  message**, **Read messages**, **List people** and **Find channels** act as one
+  of the organization's channel bots, through the adapter its replies use, so a
+  workflow can post an alert, read a thread, look up who is in a channel or find
+  one by name. Acting as a bot needs `channels:manage`, checked at publish and on
+  every run, and the editor picks the bot from the organization's own.
+- **Workflow steps that decide with TypeSafe's Jev.** **Yes or no**, **Choose
+  one** (of up to 255 options) and **Score** (against a rubric of 2 to 10
+  described levels) ask Jev a typed question about a bound text with a
+  TypeSafe key from the vault, and answer in one request with a confidence.
+  The answer can only be one the step allows, and below the step's confidence
+  floor it leaves by an **Unsure** port instead, so a doubtful case goes where
+  the workflow says. A merge may rejoin a decision's branches.
+- **An agent can answer with data rather than prose.** The Builder's **Answer
+  format** turns an agent's answer into an object of named, typed fields - or
+  any JSON Schema, edited as JSON - stored as `output_schema` in the spec. The
+  model is asked for that shape through Pydantic AI's structured output, and an
+  answer that breaks the schema is sent back to be fixed before the run ends.
+  The run API returns the object as `structured`, the chat and the channels
+  show it as a JSON block, and an `agent.run` step hands it on or asks for a
+  shape of its own; a run parked on an approval resumes asking for the same
+  shape.
+- **Building a workflow is a run of clicks.** Clicking a step in the palette
+  adds it after the selected step, or at the end of the flow in view, wired in
+  when the ports fit and clear of every other step; a starting step goes before
+  the current start and becomes it. A **+** beside each output searches the
+  steps that can come next and adds one there. The new step is selected and
+  scrolled into view, a trackpad or wheel pans the canvas while a pinch zooms,
+  and steps added inside a loop now show in its body at once instead of only
+  after a reload.
+- **A table can run a workflow for every record added to it.** A workflow
+  that starts from a **New table record** trigger runs, once published, for
+  every record added to its table that matches the trigger's filters as it was
+  created - in the console, over the API, by an agent or by another workflow -
+  as the member who published it, with the whole record as its input. Only
+  records added while it is on start it. Each record is decided once per
+  trigger, and the table's **Triggers** pauses each one and shows every
+  decision without the record's values. A chain of runs writing into each
+  other's tables stops at the first trigger it already passed, and a column a
+  trigger filters on cannot be archived out from under it (#1785).
+- **Workflows can fetch, read, convert and hand on files, and run Python.** A
+  file a step makes is stored as a file of its run and passed on as a `FileRef`,
+  and a step reads one only if its own run made it or was started with it, so an
+  id alone grants nothing. `http.download` and `http.upload` stream files over
+  HTTP under the same SSRF and credential rules as `http.request`, with the type
+  read from the bytes. `file.read`, `file.write`, `text.extract` (which names the
+  pages of a scan rather than returning them empty) and four `convert.*` steps
+  handle text, JSON, CSV, PDF and DOCX. `image.transform` crops, resizes and
+  converts images within the pixel limit, with their metadata removed.
+  `code.python.simple` runs a script in the Monty sandbox, and
+  `code.python.sandbox` runs full Python with files as a durable job on the
+  organization's sandbox host, reconnecting instead of restarting. `agent.run`
+  shows bound images to the agent as pictures, and a run's page lists its files
+  for download (#1791).
+- **A workflow starts from a trigger on its canvas, and can answer in the
+  chat.** The palette's **Triggers** - **Manual or API**, **Chat message**,
+  **Webhook**, **Schedule** and **New table record** - are the first node of a
+  workflow, one per workflow, and **New workflow** starts from the one picked.
+  Publishing switches the trigger on and runs it as the publisher; the next
+  publish takes it over. A **webhook** gets an address and a signing secret,
+  shown once at that publish, and names each delivery with an `X-Delivery-Id`
+  so a retry never runs it twice; a **schedule** runs every so often, daily at
+  a time or on a cron expression, in UTC. The editor's **Trigger** sheet shows
+  the live one, pauses it and rotates a secret. `/api/v1/ws/workflow-runs`
+  starts or follows a run, resuming from a cursor after a dropped connection.
+  The chat's picker lists the workflows that start from a chat message: a
+  message starts a run, and its status card and answer land in the thread, even
+  if the chat was closed meanwhile (#1792).
+- **The workflow editor, its runs and the tables pages look and work like the
+  rest of the console.** The editor fills the window: a palette grouped the way
+  a workflow reads, with loop steps offered only inside a loop and the debug
+  nodes gone; nodes drawn as cards that say what each step is set to do and
+  label every port (**true**/**false**, **Each item**/**Done**, a red **Error**);
+  and a properties panel with a policy section for retries, a time limit and
+  error routing, a real table picker, a path box for values with no fixed shape
+  and a JSON editor for free-form literals. History moved into a sheet. A
+  workflow's **Runs** page lists its runs and starts one by hand, and a run shows
+  its figures, its error, its output, every step it took and its graph coloured
+  by what each step did, loop iterations included - read from two new routes,
+  `GET /workflow-runs/{id}/nodes` and `GET /workflow-runs/{id}/graph`. Workflows
+  and tables list as cards, and a table's select values show as chips. The
+  editor, runs and tables are on the [screens page](docs/screens.md) in both
+  themes (#1790).
+- **Workflows can loop over a list and handle their own errors.**
+  `control.foreach` runs its body once per item, in order and one at a time,
+  from `loop.item` to `loop.yield`, and hands on every result in input order.
+  The list is frozen when the loop starts, each iteration runs in its own
+  scope, and the next one is scheduled in the transaction that ends the last,
+  so a restart resumes the right iteration without repeating a confirmed
+  write; an approval inside an iteration resumes that iteration.
+  `item_error_policy` chooses between stopping at the first failed item and
+  collecting its error in place. Every node takes a `policy` with a timeout, a
+  retry schedule and `on_error: route`, which sends a failure out of the
+  node's `error` port to `error.handle`, whose branches match on error code.
+  `error.raise` fails a branch with an error the author defines. Revoked
+  access, a spent budget, a cancelled run and an uncertain effect are never
+  routed. Loops are bounded in items, stored size, nesting and total node runs
+  (`WORKFLOW_FOREACH_MAX_ITEMS`, `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES`,
+  `WORKFLOW_FOREACH_MAX_DEPTH`, `WORKFLOW_RUN_MAX_NODE_RUNS`). Cancelling a run
+  now ends every node still live in it (#1790).
+- **Agents and workflows can read and write Virtual Tables.** A new **Tables**
+  capability gives an agent eleven tools over the tables its binding grants,
+  with read, add, update and delete chosen per table in the Builder, and
+  `create_table` only when **Allow create** is on and the member holds
+  `tables:create`. A table or operation outside the grant is refused before
+  anything is read, and each call runs as the member's current membership.
+  Seven workflow nodes, `table.record.create`, `.upsert`, `.update`,
+  `.delete`, `.get`, `.query` and `table.create`, write through the same
+  service. A retried step or tool call replays its first write, and a table
+  or pinned column a live workflow uses cannot be archived. Creating a table
+  is now idempotent under an operation key; migration
+  `0180_table_create_receipts.py` (#1784).
+- **Workflows can do real work: agents, knowledge, data, branches, HTTP and
+  notifications.** Nine nodes join the palette. `core.input` and `core.output`
+  carry a run's `input` and `output` (`POST /workflow-runs` takes `input`, and
+  the run returns what the graph answered). `agent.run` asks a published agent
+  at the exact version the step pins, parks on its approvals and resumes the
+  same run, and can require a JSON answer that matches a schema before
+  anything downstream runs. `knowledge.search` returns typed sources an agent
+  can cite. `data.map` and `logic.if` evaluate JMESPath limited to pure
+  functions, so a graph never executes code. `logic.if` sends a run down one
+  branch and skips the other, node by node, to the `logic.merge` that rejoins
+  them. `http.request` calls APIs through the SSRF-pinned client, and
+  `notification.send` notifies members who can see the workflow. Every node
+  is in the new [node reference](docs/reference/workflow-nodes.md).
+  Migrations `0178_workflow_run_io.py` and `0179_workflow_notification.py`
+  (#1789).
+- **Restore a published workflow version to the draft.** **Restore to draft** in
+  a version's preview replaces the draft with that version's graph, after a
+  confirmation that unpublished draft changes are discarded. The version is not
+  changed and none is created until the draft is published. The restore is
+  guarded by `expected_revision` like a draft save, so it answers a conflict
+  rather than discarding someone else's edit, stops a queued autosave from
+  writing the old graph back, is refused for an archived workflow and without
+  `workflows:edit`, and is audited as `workflow.version_restored`.
+  `POST /api/v1/workflows/{id}/versions/{version_id}/restore` (#1915).
+- **Workflow runs execute durably.** `POST /workflow-runs` starts a run of a
+  workflow's published version, or of its draft in `test` mode, and the nodes
+  run on Prefect workers one attempt at a time: each attempt commits `in_flight`
+  before its handler runs, its result commits together with the next node's
+  dispatch, a worker that dies mid-call is recovered without assuming either
+  outcome, and a node parked on an approval is woken when the approval is
+  decided or expires. Nodes report cost into the run, and a run whose version
+  carries a budget cap ends once it is spent - though publishing does not set a
+  version's cap yet, so no run has one today. A run can carry a deadline, is
+  rate-limited on start, and re-checks the person it acts as at every node.
+  Runs, their events and cancel have routes of their own; see
+  [the HTTP API](docs/api.md#running-a-workflow) and
+  [Permissions](docs/permissions.md#workflow-runs). Migration
+  `0176_workflow_runs.py`. (#1788)
+- **Virtual Tables: typed records behind one service and an HTTP API.** A table is
+  metadata plus JSONB, never a physical SQL table, with immutable schema versions,
+  stable table, column and option ids, and nine column types (text, long text,
+  number, integer, boolean, date, datetime, single and multi select). Records carry
+  a revision: an update or delete must send `expected_revision` and a stale one is
+  a typed `REVISION_CONFLICT`. Upsert by external id is atomic, so concurrent
+  upserts create one record. Every record write commits its history row, its
+  created-event outbox row and its idempotency receipt with the change, and an
+  `Idempotency-Key` header makes a retry return the first answer. Access is
+  visibility plus grants like context files, with new `tables:view`, `tables:edit`
+  and `tables:create` permissions, and every route answers refusals in one typed
+  error envelope. Migration `0171_virtual_tables.py`; see
+  [Virtual Tables](docs/virtual-tables.md). (#1782)
+- **Virtual Tables in the console: a catalog, table/kanban/list views, and saved
+  views.** `/tables` lists, searches and creates tables. A table's page edits its
+  columns and its sharing, and shows its records as a table, a kanban board
+  grouped by a single-select column, or a list. One record sheet edits a record
+  field by field. A write refused for a stale revision keeps the typed value
+  beside a "Reload and reapply" action, and writes to one record are sent one at
+  a time, each against the revision the last one returned. Saved views keep a
+  filter, sort and grouping per kind, private or shared, under
+  `/tables/{id}/views` (paged, per kind). Archiving a column is refused only by a
+  view the caller can both see and change; any other view drops the column when
+  read instead. Also a Tables dashboard card, a sidebar entry and onboarding stops.
+  Migration `0174_table_views.py`; see
+  [saved views](docs/virtual-tables.md#saved-views). (#1783)
+
+### Fixed
+
+- Reserve workflow inputs, test snapshots and Wait payloads before storing them;
+  authenticate resume links before reading bodies. Backfill retained byte counters
+  with migration `0224_workflow_input_bytes.py` while API and worker writers stop.
+- Protect files referenced by stored graphs and retained imports during cleanup
+  and workflow deletion, and unregister GitHub hooks on successful deletion.
+- Serialize eval-case creation, refuse structured Combine keys without retries,
+  refresh terminal files independently and include all workflows in dashboard totals.
+- Cover storage lifecycle locks and editor workflow changes in regression fixtures.
+
+
+- Open chat without downloading full transcripts for project metadata or decoding
+  model summaries. Reuse unchanged message renders, lay out long turns in linear
+  work, batch replay frames and release offscreen historical drawing frames (#2469).
+
+- Reopen long conversations at the newest messages and load older pages on
+  demand, preserving scroll position and live answers (#2468).
+
+- Bound foreach output collection before loading JSONB, validate terminal node
+  results without retrying completed effects, and keep summary group keys intact.
+- Preserve app-admin authority on workflow sockets and error workflows; page the
+  version history without fetching graphs, with incremental loading and retry in
+  the editor. Document the inherited deployment-wide storage quota gap.
+
+- Reject JSONB-incompatible workflow draft values after authorization and revision
+  checks, before persistence, using the same validation as run admission.
+
+- Stream table exports through one bounded cursor instead of rescanning byte-sized
+  pages. Concurrent edits cannot mix record snapshots; early close releases the cursor.
+
+- Bound table export pages by decoded JSON bytes, serialize exports per organization
+  and rate-limit their starts. Redact echoed MCP credentials, share one image-attachment
+  byte ceiling and normalize workflow filenames before persistence.
+- Preserve current app-admin authority for unattended workflow admissions; reject
+  JSONB-incompatible run inputs, keep missing join keys unmatched and support CSV
+  fields above Python's implicit parser limit with typed parsing failures.
+
+- Preserve numeric workflow settings, including exponent notation and sub-minute
+  deadlines; validate field limits before saving and support keyboard submission.
+
+- Preserve monthly workflow budget accounting when history retention removes paid
+  runs. Only amounts and admission times survive, with deletion and accounting
+  committed atomically; history cleanup no longer replenishes the budget.
+
+- Workflow retry refuses missing successful outputs, cyclic ancestry and deleted
+  called-run history instead of repeating effects. Called-run cancellation,
+  budget and revoked-principal failures retain their non-bypassable outcome.
+
+- Webhook test and live deliveries enforce body limits during streaming; bodyless
+  HTTP statuses send an empty response. PDF image conversion checks its page
+  ceiling before page enumeration. Rollups keep large averages finite and expose
+  overflowing sums as empty; malformed bracketed URLs produce cell errors.
+- Agent table grants and linked-column pickers load the complete visible catalog,
+  including tables beyond the first 100, with retryable catalog errors.
+
+- Workflow model steps now use the remaining run budget, called workflows inherit
+  budgets and deadlines, and descendant spend is included without double booking
+  repeated settlements. Workflow totals, daily charts and call-step statistics
+  include called-run fees consistently. Retrying calls preserves successful child effects and
+  imports their output files after rechecking access.
+- Decision and knowledge-search steps record model and embedding fees, including
+  fees incurred before a search fails, in the organization bill even after run
+  retention. Migration `0219_workflow_node_spend.py` retains these direct fees;
+  `0218_workflow_child_cost.py` rolls existing child spend up to callers.
+  Organization keys cannot inspect or import
+  files from personal workflow runs.
+- Deferred table deletion keeps the organization selected when it was requested;
+  version comparison fits narrow editor panels.
+
+- **Workflow review follow-ups.** Organization keys cannot consent to page data or
+  start human-only page actions. Named MCP approvers need decision permission both
+  at publish and when asked. Resume bodies stop at the workflow input cap while
+  streaming. Retries import reused file outputs; retention keeps their producers
+  and active retry sources. Table mutations atomically enforce a per-organization
+  aggregate JSONB storage ceiling across records, history, receipts and outbox.
+
+- **Workflow file processing stays within its limits before saving.** CSV
+  conversions cap dimensions and encoded output, PDF extraction stops at its
+  page and text limits, downloads classify only a prefix, and sandbox reads
+  stop while streaming past the remaining byte allowance. URL filenames cannot
+  carry NULs into storage, and HTTP credentials are removed after JSON decoding
+  as well as in URL-encoded echoes.
+- **Workflow references keep their authority and meaning.** Admission rechecks
+  access to literal files; named approvers must still be able to decide;
+  retention keeps called results while their caller is pending; exporting an
+  inline agent preserves application values that look like UUIDs.
+- **Workflow autosave reuses the saved graph.** Saving no longer fetches the
+  same detail again or invalidates immutable version graphs on every edit.
+
+- **Reloading and restoring workflow drafts keep their editor.** A response that
+  arrives after opening another workflow no longer replaces its graph or marks
+  it conflicted. A failed conflict reload keeps local changes, shows the error
+  beside the controls and lets the editor try again. A publish conflict also
+  marks a clean draft unsaved, so Overwrite saves the visible graph before
+  Run or Publish can use it.
+
+- **A Gmail portal card asked for GitHub credentials.** The card a portal
+  shows when its OAuth app is missing or stored twice named GitHub whatever the
+  portal; it names the portal now.
+
+- **Workflow approvals reach the console.** The Approvals tab's "Workflow steps
+  waiting on you" card read `/api/workflow-approvals`, which the console never
+  forwarded, so a waiting **Ask for approval** step showed as nothing waiting.
+
+- **An agent and a workflow name a select's choice by its label.** The
+  schema an agent reads lists a select's options by label, yet its table tools
+  wrote, filtered and read back option ids, so writing `Won` was refused and a
+  workflow condition on `fields.Stage` never matched. Agent tools, table steps
+  and the New table record trigger now take a label (or an id) and read
+  choices back as labels; a value naming no option is refused with the
+  options the column has.
+- **A Wait can wait for a call.** #1947 proposed a Wait until a resume
+  webhook, and only waits for a time shipped. With **Wait for a call to the
+  run's resume link**, the step goes on when the address a new **Resume
+  link** step hands on is called, taking the JSON sent as `body`, or when
+  its time runs out. `POST /api/v1/workflow-resume/{run_id}/{token}` needs
+  no sign-in - the link, a MAC of the run under `SECRET_KEY`, is the
+  credential - and answers `404` for a link that is not the run's and
+  `WORKFLOW_NOT_WAITING` (409) when nothing waits. Migration
+  `0192_node_run_resume_payload.py`.
+- **A test run on the canvas, and a step switched off, as proposed.** A
+  connection says how many items went along it when the step before handed
+  on a list, and an edit that ends the run's overlay leaves a bar with
+  **Open run** (#1933). A step switched off hands on what came into it, so a
+  later step may read a field arriving there; publishing refuses only a read
+  it could not answer (#1939). A step that waited and went on - a called
+  run, a timer - counts one try, where it showed two.
+- **The Transform reference shows the steps chained.** #1948 asked that they
+  compose without a code step in the reference's examples, which it had none
+  of: it now has three, and a test runs two of them end to end.
+- **What the workflow issues proposed and the first pass left out.** The
+  description is edited in the editor's header like the name (#1942). Run
+  history narrows by when a run started (#1943). A date step that names no
+  timezone writes in the workflow's, kept on the run from its start in
+  `workflow_runs.timezone` (migration `0191_workflow_run_timezone.py`, #1944).
+  A called run links back to its caller and the calling step to the run it
+  started (#1946). Before any run a step's panes list the fields it declares,
+  and a long table can show every row (#1934). The code editor boxes the
+  bracket beside the cursor with its match (#1952). A missing value is said
+  once its field is left, and a description that only repeats its label
+  becomes a hint on it (#1957).
+- **A table can be created from a CSV file.** #1961 asked for it and only
+  importing into an existing table shipped: **Start from a CSV file** in New
+  table reads the columns and their types from the file, and its rows are
+  imported, already mapped, once the table exists.
+- **Records written together keep their order.** A batch, an imported file
+  or a workflow's loop writes its records in one transaction, and each took
+  that transaction's start as its `created_at`, so the default listing's id
+  tiebreak shuffled them. A record is now stamped when it is written.
+- **Archiving a column says what still uses it.** A refused archive, from the
+  header menu or the Columns dialog, lists the workflows (linked), saved views
+  and triggers that use the column instead of a notice naming nothing - #1963
+  asked for it. `SCHEMA_DEPENDENCY` now gives each dependent's `name`, null for
+  a trigger in a workflow the caller cannot open.
+- **Arrow keys move between a table's cells.** #1959 asked for it; the grid
+  edited a cell in place but only the mouse or Tab moved between them.
+- **A record delete can be undone.** Deleting from the grid or the record panel
+  waits a few seconds with Undo in its notice before it is sent, the records
+  leaving every view at once - #1960 asked for it and it was missing.
+- **A table's grid adds records as you type.** The new-record line under the
+  rows, which #1958 asked for, was missing: what is typed goes into the first
+  text column and Enter creates the record, or opens Add record with it when
+  another column is required.
+- **A required setting left empty stops "Ready to publish".** An agent, a
+  table or the people to tell that a step still needs is now marked in the
+  editor, as publishing would refuse it, instead of the badge saying the draft
+  is ready.
+- **A secret for "Something else" can take any shape.** The vault form offers
+  every kind for it, but the server stored only an API key that way and refused
+  the rest - which left an HTTP step's credential, a kind no listed service
+  takes, impossible to add.
+- **Headers can be edited on a step.** A step's headers - an HTTP request's,
+  a download's, an upload's, a webhook answer's - showed as an empty text box
+  that could not hold them; each is now a row of a name and its value. The list
+  a Filter, Combine or Transform step works on is also a required input, shown
+  at once rather than folded under More options.
+
+- **Deleting every step of a workflow no longer fails its autosave.** A draft
+  with no steps is stored as no graph, the draft a new workflow starts with,
+  instead of being refused and retried behind "Save failed".
+- **The sandbox script steps run on a real sandbox host.** They asked for a
+  connection kind no host can be registered as, so every run failed with
+  `SANDBOX_UNAVAILABLE` and every publish was refused. They now run on a
+  `sandboxd` connection as it is registered, and the editor picks the host from
+  the organization's own instead of asking for its id.
+- **The workflow editor opens read-only for a workflow the caller cannot
+  edit.** It decided from the role alone, so a builder opening another
+  builder's private workflow got the full editor and an autosave that failed on
+  every write; the workflow's detail now carries `can_edit`, resolved for that
+  workflow (#1925).
+- **A run page shows every step of a long loop.** It read the first 500 steps
+  only, so later iterations and their failures were missing from the counts,
+  the canvas and the step list; it now reads every page (#1925).
+- **A trigger switched off while the consumer was judging a record starts
+  nothing**, because each trigger is re-read under its lock before it admits a
+  run. Two mapping keys that are the same once trimmed are refused instead of
+  one silently replacing the other (#1785).
+- **A `notification.send` three loops deep notifies instead of failing** on an
+  occurrence id longer than its column, and an `http.request` or
+  `http.upload` can no longer put its operation key in a header the transport
+  or the credential owns, such as `Authorization` or `Host` (#1925).
+- **A table step retried after its write committed replays it instead of
+  failing.** An update, upsert or delete with no revision bound read the record's
+  revision before writing, so a retry after the first write had moved it on sent a
+  different request under the same key and was refused as `IDEMPOTENCY_KEY_REUSED`
+  (or, for a delete, found no record). The revision is now read under the record's
+  lock and left out of the request the key is tied to, so the retry replays the
+  first write (#1793).
+- **A list binds to a tuple and back.** Publishing refused binding a
+  `table.record.query`'s `records` into a loop's `items`, because one is a tuple
+  and the other a list; both are one JSON array, so only their element types are
+  compared now. The editor also stopped flagging bindings through a value with
+  no declared shape, and routed error ports, that publishing accepts (#1790).
+- **Starting or reading a workflow run from the console reached nothing.** The
+  console never forwarded `/workflow-runs`, so nothing it asked about runs got an
+  answer; it does now (#1790).
+- **Virtual Tables: what a tenant can store is now bounded.** History, receipts and
+  the outbox had no ceiling, so one member could grow the shared database with tiny
+  requests (#1823). A record's values are capped at `TABLES_MAX_RECORD_BYTES`
+  (1 MB), which bounds the snapshots a create, a delete and a receipt keep, and an
+  update's history row keeps only the cells that changed. An organization is capped
+  at `TABLES_MAX_PER_ORGANIZATION` tables and a table at `TABLES_MAX_RECORDS_PER_TABLE`
+  records; a write over a limit is a `QUOTA_EXCEEDED` (402) naming the quota, audited
+  without the content. The daily retention sweep now removes receipts after 24
+  hours, dispatched outbox rows after 3 days and record history after 365 days
+  (`TABLES_RECEIPT_TTL_HOURS`, `TABLES_OUTBOX_RETENTION_DAYS`,
+  `TABLES_HISTORY_RETENTION_DAYS`), with one audit entry per organization naming the
+  class and count. Table writes, in the console as much as over the API, are limited
+  to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) per member and organization. A
+  retried write whose receipt has expired now executes as a new write. A record
+  already over the size limit still deletes, keeping a byte-count marker in its
+  history row instead of the values; a duplicate external id on a full table
+  answers `ALREADY_EXISTS` rather than `QUOTA_EXCEEDED`; and the daily sweep's
+  budget for receipts, outbox rows and history now scales with
+  `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`, so one pass keeps draining a member
+  writing at the limit instead of falling behind it. Migration
+  `0172_virtual_table_sweep_indexes.py`; see [Virtual Tables](docs/virtual-tables.md).
+
+### Security
+
+- **Workflow steps no longer hand back a Basic credential, unpack a DOCX
+  bomb, or fetch unbounded sandbox output.** A Basic-authenticated
+  `http.request` or `http.upload` whose far side echoed the `Authorization`
+  header returned the base64 `username:password` pair, because only the raw
+  password was scrubbed; both forms are now. `text.extract` expands a Word
+  document under the member and total bounds a chat upload has, failing
+  `DOCUMENT_TOO_LARGE` past them. `code.python.sandbox` measures what a job
+  left inside the sandbox and refuses more than 20 files, 100 MB or a 10 MB log
+  before fetching any of it into the worker.
+- **Starting a run over the workflow-run WebSocket spends the per-minute run
+  allowance** that `POST /workflow-runs` does. Before, one socket could start
+  runs past the limit.
+- **An HTTP credential only goes where its secret says.** A workflow's HTTP step
+  authenticates with a new `http_credential` vault kind: a token sealed with
+  the origins it may be sent to. The origin is checked on the URL about to be
+  dialled, after binding and on every redirect, so a URL typed by an editor or
+  taken from a run's input cannot aim the organization's credential at
+  another server. The response never carries it back (#1789).
+- **Workflow starts are bounded by node work, not just start count.** The
+  per-minute run limit charges one token per start, which let an authenticated
+  caller start many wide graphs below the limit and grow a persistent backlog on
+  the runner shared with ingestion, triggers, approvals and notifications -
+  starving other tenants. A run now reserves its graph's node count against a
+  ceiling on the queued and running node work one organization
+  (`WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG`), and one caller across every
+  organization they run in (`…_PER_PRINCIPAL`), may hold at once - so a person
+  who can create organizations cannot multiply their allowance across them. Each
+  run reserves its whole graph node count on its row, and the ceiling is measured
+  against the sum of those over live runs, so a wide graph holds its reservation
+  from the instant it is admitted - not once its nodes fan out - and the check is
+  serialized per organization and per principal so it cannot be raced. A start
+  over the ceiling is refused with `429` `WORKFLOW_ADMISSION_QUOTA_EXCEEDED` until
+  running work drains. Migration `0177_workflow_run_node_count.py`. (#1907)
+
+### Changed
+
+- **Workflow runs run on the Postgres job queue.** Every node attempt is a
+  `workflow-dispatch-node` job on the agent pool, queued in the same transaction as
+  its outbox row, so a run never starts without its job and a rolled-back start
+  leaves none; a timer or a retry's backoff is the same job with `run_after` set to
+  the time it is due. The row, not the job, still holds the run's position, and the
+  job runs once. Five sweeps - `workflow-dispatch-poll` and `workflow-schedules-check`
+  every minute, `workflow-reconcile` every 30 seconds, `workflow-table-triggers`
+  every 10 seconds and `workflow-run-retention` daily - are the backstop, and a run
+  someone is waiting on (a webhook answering, a chat, the API) goes ahead of one
+  that started itself. Node jobs share `WORKER_AGENT_CONCURRENCY` and the worker's
+  memory with agent runs. [Configuration](docs/configuration.md#workflow-runs) has
+  the job volume.
+- **A click selects a workflow step and a double click opens it**, so a step
+  can be picked out to move, copy or delete without its dialog opening.
+- **A workflow's save status no longer pushes the header around.** "Unsaved
+  changes" and "Saved" sit under the title after its tags, where a status that
+  changes length moves nothing, instead of beside the header's buttons.
+- **An agent step shows which agent it runs.** The picker lists each agent
+  with its face and description, and each version with the live one marked,
+  its date and release note; the step's card and dialog wear the agent's face,
+  and a card that pins an agent, a table or a workflow names it under its title.
+- **A Filter or If card reads its condition** - "score ≥ 80 and stage ≠ Won" -
+  rather than the expression, which shows only when the builder cannot read
+  it; and a workflow's description is edited as the text it is, not in a box.
+- **A table step's data reads as the table does.** Its records show in the
+  table's column order, which the stored run data cannot keep, with the
+  column's name ahead of its quieter `fields.` prefix; a table step's column
+  list names each type in words with its icon; a yes/no cell is a tick; a
+  filter's value field says so; and a run that waited a day reads "22 h 14
+  min" rather than "80,081.7 s".
+- **A table's layout and its saved view are one control.** Table, Kanban and
+  List are a segmented switch with icons, followed by the view picker and the
+  **+** that saves the screen as a new view; search and filters stay on the
+  right.
+- **A select's dropdown shows its choices tinted as the grid does**, in a cell,
+  the record panel and a multi-select's list, with the chosen one tinted too.
+- **A kanban card lists up to four of the screen's columns** under its title,
+  leaving out empty ones, and a table's record count sits under its name beside
+  who may reach it, not beside the view tabs.
+- **Tables say more and ask less.** A table's card reads "14 records · 6
+  columns" and when it changed, with who may reach it as an icon; the table
+  list returns `record_count` and `column_count`. The grid shows each column's
+  type by an icon, right-aligns numbers and writes dates the way the viewer's
+  locale does; the record panel is titled by the record's first column and says
+  when it was added and changed. A kanban board with no view asks which
+  single-select column makes its lanes instead of sending you to save a view
+  first. **Import** and **Export** moved under **…**, the unsaved screen reads
+  **All records**, **Columns** has a **Required** switch and an **Archived
+  columns** section with **Restore**, and **New table** starts with a **Name**
+  column and labelled fields.
+- **A workflow step's dialog works the way n8n's does.** **Parameters** holds
+  what the step works on and is set to do in one list, the list it works on
+  first, and **Settings** how it runs: **Run this step**, what it does when it
+  is slow or fails, and a note. A text parameter takes typed text and values
+  from earlier steps in one box, with **Data** to insert one; any other
+  parameter has **Data** beside it to read its value from a step, shown as
+  *Run an agent › text* with an x to type one again - no more **Value / From a
+  step / Template** switch. **Filter a list**, **If** and **Switch** build their
+  condition from rows - field, check, value, all or any - still stored as the
+  JMESPath expression, which stays editable as one. **Input** says **Not
+  connected yet** for a step nothing leads to, names each step it reads with its
+  icon, and fields read "text", "number", "list" rather than type tokens;
+  pinned data is **test data**, and **Test step** is the main button until
+  there is some. A problem shows under the step's name, a missing value only
+  once its field was left, and labels read "URL", "Header name". Connecting a
+  step that works on a list after one that hands on exactly one binds that
+  list.
+- **A right click on the workflow canvas opens the step picker.** The same
+  searchable list the "+" opens, where the click was, with **Add a note** and
+  **Paste** beneath it, instead of a menu three levels deep; a step's own
+  right-click menu is unchanged. Searching puts a step whose name matches
+  before one whose description only mentions it.
+- **A workflow run's page shows its answer, not the envelope around it.** The
+  Output card reads the run's text, its structured result, the passages it drew
+  on and how many files it made, with the JSON folded under **Raw output**; the
+  steps count reads "3 of 3", and the step list sits above the files. In the
+  runs list a test run's version reads **Draft (test)** and a real one's
+  **Published**, a run started from the console or the API **Console or API**,
+  and each filter says what it narrows nothing to - **Any status**, **Any
+  version**, **Any trigger**, **Any time**. A workflow's timezone setting says
+  what time it is there now and refuses a zone the browser does not know.
+- **A workflow's card on the list says what starts it and how it last ran.**
+  Beside the trigger's icon: "Schedule · 4 steps", one **Live** or **Draft**
+  status, and the last run's status and when - "Not run yet" until then, with
+  who may reach it as an icon beside it. The slug, the "No description yet." line and the edit button are gone, and
+  the status filter reads **Any status** and **Live**.
+- **The workflow editor's header says where the workflow stands.** Under the
+  name: **Draft, not published**, or **Live · version 3** with **Unpublished
+  changes** once the draft differs from it the way a publish would carry.
+  Runs, Versions, Run and Publish stay in the header; Trigger, Settings and
+  Export workflow moved under **More**. The canvas says **No problems** rather
+  than "Ready to publish", the version list marks the live one, and publishing
+  names the version it makes and says when nothing changed since the live one.
+  The editor and a run's page wait for the step catalog before drawing, so a
+  connection is not drawn before the card it attaches to.
+- **A workflow's steps say what they do.** A card now reads "First 3",
+  "By score ↓", "Sum of amount by region" or "Every day at 09:00" for the
+  Transform steps and a schedule, and a step with its own name shows what kind
+  of step it is under it. Its dialog is renamed in its header, switched off
+  with **Run this step** beside **Delete step**, and names its sections
+  **Settings** and **What it works on**. A list of records typed in as a value
+  shows as JSON instead of an empty box. On a run's page a step opens on its
+  Input and Output, with the settings it ran with folded underneath.
+- **A workflow step's settings stay short, and quiet until you act.** Optional
+  settings at their defaults fold under **More options**; the failure policy and the
+  note open on request or once set; a missing required value is flagged beside its
+  field only after a run or publish is tried - the canvas mark still shows it (#1957).
+- **The workflow editor gives the canvas the whole width.** The node palette and
+  the properties panel are gone: steps are added from a picker - a quiet **+** at
+  the canvas's corner, **Add step** on an empty canvas, the **+** beside an output,
+  or a right click where the step should go - that lists sections, then groups
+  such as Slack or Tables, then their steps. A step's settings open in a dialog
+  when it is clicked, and open by themselves when a step that has any is added.
+  Right-clicking a step duplicates or deletes it. Each field says beside its label
+  whether it holds a value or one from an earlier step. Every tile is neutral, and
+  a card shows its group under its name instead of a truncated description. The
+  editor's **History** is now **Versions**, so it is not mistaken for its runs.
+- **Slack, Mattermost and Telegram have steps of their own.** The generic channel
+  steps became one group per platform - Send a message, Read messages, List
+  members and Find channels where the platform allows them - each taking only a
+  bot of its platform, checked at publish and on every run.
+- **The workflow editor points at what stops a publish.** A step with a
+  problem is marked on the canvas, each problem names its step and field, and
+  choosing one selects the step and brings it into view; the publish dialog
+  lists them open. A step's name carries a short id only when two steps share
+  it, and a picker is labelled once, by its field.
+- **A stale revision on a workflow table step is no longer retried.**
+  `REVISION_CONFLICT` from `table.record.update`, `.upsert` or `.delete` fails
+  the step at once, because the same revision would conflict on every retry;
+  route it with `error.handle` to a fresh read instead (#1790).
 ## [1.16.0] - 2026-10-23
 
 ### Added
