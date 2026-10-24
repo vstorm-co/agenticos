@@ -13,6 +13,7 @@ why a plain forward walk is not enough.
 """
 
 import json
+import math
 from typing import Any, Literal
 from uuid import UUID
 
@@ -41,6 +42,24 @@ class NodePosition(BaseModel):
 
 MAX_PINNED_BYTES = 64_000
 """How much data one step may have pinned: enough to stand in for a real output."""
+
+
+def jsonb_value_fits(value: object) -> None:
+    """Refuse workflow text and numeric values PostgreSQL JSONB cannot represent."""
+    if isinstance(value, str):
+        if "\x00" in value or any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+            raise ValueError("Input strings must be representable in PostgreSQL JSONB")
+    elif isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("Workflow numbers must be finite")
+    elif isinstance(value, BaseModel):
+        jsonb_value_fits(value.model_dump(mode="json"))
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            jsonb_value_fits(key)
+            jsonb_value_fits(item)
+    elif isinstance(value, list | tuple):
+        for item in value:
+            jsonb_value_fits(item)
 
 
 def pinned_output_fits(value: dict[str, Any]) -> dict[str, Any]:

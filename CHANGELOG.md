@@ -643,6 +643,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reject JSONB-incompatible workflow draft values after authorization and revision
+  checks, before persistence, using the same validation as run admission.
+
 - Stream table exports through one bounded cursor instead of rescanning byte-sized
   pages. Concurrent edits cannot mix record snapshots; early close releases the cursor.
 

@@ -75,7 +75,7 @@ from app.services.workflow_execution.exceptions import (
 )
 from app.workflows.contracts.io import FileRef, TableIORef
 from app.workflows.graph.errors import GraphValidationError
-from app.workflows.graph.model import WorkflowGraph
+from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.step import step_subgraph
 from app.workflows.graph.validate import file_binding_problems, validate_graph
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
@@ -115,19 +115,6 @@ def causes_public(run: WorkflowRun) -> bool:
     return run.public_origin or run.triggered_by in dispatcher.PUBLIC_TRIGGERS
 
 
-def _check_jsonb_strings(value: object) -> None:
-    if isinstance(value, str):
-        if "\x00" in value or any(0xD800 <= ord(char) <= 0xDFFF for char in value):
-            raise ValueError("Input strings must be representable in PostgreSQL JSONB")
-    elif isinstance(value, dict):
-        for key, item in value.items():
-            _check_jsonb_strings(key)
-            _check_jsonb_strings(item)
-    elif isinstance(value, list | tuple):
-        for item in value:
-            _check_jsonb_strings(item)
-
-
 def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
     """`run_input` as a run stores it, refused when it is over the size limit.
 
@@ -137,7 +124,7 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
     """
     payload = run_input or {}
     try:
-        _check_jsonb_strings(payload)
+        jsonb_value_fits(payload)
         size = len(
             json.dumps(payload, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
         )

@@ -869,3 +869,22 @@ class TestRestoreVersion:
             )
         assert result.draft_graph is not None
         assert result.draft_graph.nodes[0].definition_version == 99
+
+
+@pytest.mark.parametrize("value", ["name\x00.txt", "name\ud800.txt", float("nan")])
+async def test_draft_storage_rejects_jsonb_incompatible_config_without_writing(value):
+    ctx = _ctx(OrgRoleName.OWNER.value)
+    workflow = _workflow(ctx)
+    payload = _empty_graph().model_dump(mode="json")
+    payload["nodes"][0]["config"] = {"filename": value}
+    with (
+        patch(
+            f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)
+        ),
+        patch(f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock()) as update,
+        pytest.raises(GraphValidationError),
+    ):
+        await WorkflowRegistryService(_db()).update_draft(
+            ctx, workflow.id, WorkflowDraftUpdate(graph=payload, expected_revision=0)
+        )
+    update.assert_not_called()

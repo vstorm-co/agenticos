@@ -62,7 +62,7 @@ from app.services.workflow_triggers import WorkflowTriggerSync
 from app.workflows._registry import all_node_definitions
 from app.workflows.contracts.io import TableIORef
 from app.workflows.graph.errors import GraphValidationError
-from app.workflows.graph.model import WorkflowGraph
+from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
 from app.workflows.triggers import WORKFLOW_FAILED
 
@@ -244,6 +244,12 @@ def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
     quadratic dominator computation that graph's own `graph_size_problems`
     docstring explains.
     """
+    try:
+        jsonb_value_fits(raw)
+    except (ValueError, RecursionError) as exc:
+        raise GraphValidationError(
+            [("graph", "Use finite JSON values without NUL or unpaired surrogates")]
+        ) from exc
     try:
         graph = WorkflowGraph.model_validate(raw)
     except PydanticValidationError as exc:

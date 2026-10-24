@@ -722,7 +722,7 @@ class TestApprovingAnAudienceRequest:
         await world.publish("<p>v1</p>")
         bea = await world.member(page=GrantLevel.EDIT, reads_table=True)
         ann = await world.member()
-        request = await self._asked(world, bea, ann)
+        await self._asked(world, bea, ann)
         group = Group(organization_id=world.org.id, name="Ops")
         db.add(group)
         await db.flush()

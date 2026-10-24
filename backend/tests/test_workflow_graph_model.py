@@ -212,3 +212,11 @@ def test_a_graph_holds_a_bounded_number_of_canvas_notes():
                 "notes": [{"id": str(uuid4()), "layout": {"x": 0, "y": 0}} for _ in range(51)],
             }
         )
+
+
+def test_workflow_jsonb_validation_understands_typed_graph_parts():
+    from app.workflows.graph.model import jsonb_value_fits
+
+    with pytest.raises(ValueError, match="JSONB"):
+        jsonb_value_fits(_node(config={"filename": "name\x00.txt"}))
+    jsonb_value_fits(_node(config={"filename": "日本語.txt"}))
