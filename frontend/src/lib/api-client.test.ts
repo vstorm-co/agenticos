@@ -250,6 +250,23 @@ describe("recovering from an expired token", () => {
     },
   );
 
+  it.each([
+    "/auth/login",
+    "/auth/ldap/login?invitation_flow=flow",
+    "/auth/register?invitation_flow=flow",
+    "/auth/password-reset/confirm",
+    "/auth/magic-link/verify",
+    "/auth/email-change/confirm",
+    "/auth/oauth-callback",
+  ])("does not refresh or end the browser session for a credential refusal at %s", async (path) => {
+    useAuthStore.setState({ isAuthenticated: true, sessionOwnerId: "signed-in" });
+    fetchMock.mockResolvedValueOnce(refused(401, { code: "AUTHENTICATION_ERROR" }));
+    await expect(apiClient.post(path, { token: "expired" })).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().sessionOwnerId).toBe("signed-in");
+  });
+
   it("keeps the impersonation exit when a retried request reports it ended", async () => {
     useAuthStore.setState({ isAuthenticated: true, impersonationRevoked: false });
     markRefreshed();

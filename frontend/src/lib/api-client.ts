@@ -105,11 +105,20 @@ export function sendWithProgress(
 // The proxy route that mints a fresh access token from the refresh cookie.
 const REFRESH_ENDPOINT = "/auth/refresh";
 
-// Endpoints where a 401 is the answer, not an expired access token, so a refresh
-// and retry would be wrong: the refresh route itself (would loop), and a
-// password change, whose 401 means the current password was wrong - retrying
-// resubmits it and burns the rate limit twice (#1517).
-const NO_REFRESH_RETRY: ReadonlySet<string> = new Set([REFRESH_ENDPOINT, "/auth/password/change"]);
+// These 401s reject a submitted credential, not the browser's existing session.
+// Refreshing would resubmit the same bad credential and could sign out a valid
+// session when the retried answer is refused too.
+const NO_REFRESH_RETRY: ReadonlySet<string> = new Set([
+  REFRESH_ENDPOINT,
+  "/auth/password/change",
+  "/auth/login",
+  "/auth/ldap/login",
+  "/auth/register",
+  "/auth/password-reset/confirm",
+  "/auth/magic-link/verify",
+  "/auth/email-change/confirm",
+  "/auth/oauth-callback",
+]);
 
 // Endpoints whose proxy route refreshes on the server when the access cookie has
 // expired, and so spends the refresh cookie like a refresh does. Sent under the
@@ -245,7 +254,7 @@ class ApiClient {
     // Transparent 401 recovery: refresh once, then retry the request once.
     // Never on an endpoint whose 401 is the answer rather than an expired token,
     // and only a single time per call.
-    if (response.status === 401 && !NO_REFRESH_RETRY.has(endpoint)) {
+    if (response.status === 401 && !NO_REFRESH_RETRY.has(endpoint.split("?", 1)[0] ?? endpoint)) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         retriedAfterRefresh = true;
