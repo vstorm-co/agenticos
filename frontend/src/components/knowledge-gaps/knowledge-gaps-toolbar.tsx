@@ -52,6 +52,7 @@ export function KnowledgeGapsToolbar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="open">{t("statusOpen")}</SelectItem>
+          <SelectItem value="covered">{t("statusCovered")}</SelectItem>
           <SelectItem value="dismissed">{t("statusDismissed")}</SelectItem>
         </SelectContent>
       </Select>

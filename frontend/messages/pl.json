@@ -4256,7 +4256,7 @@
       },
       "kb-gaps": {
         "title": "Na co nie znalazła odpowiedzi",
-        "body": "Pytania, dla których agenci przeszukali tę kolekcję i nie znaleźli nic trafnego, pogrupowane w tematy. Dodaj brakujący dokument albo odrzuć temat, który go nie wymaga."
+        "body": "Pytania, dla których agenci przeszukali tę kolekcję i nie znaleźli nic trafnego, pogrupowane w tematy. Otwórz temat, żeby napisać brakującą treść albo dokończyć szkic modelu, i dodaj ją do tej bazy wiedzy - albo odrzuć temat, który jej nie wymaga."
       },
       "kb-gaps-check": {
         "title": "Sprawdź też odpowiedzi",
@@ -7652,7 +7652,7 @@
     "loadFailedBody": "To nie jest pusta lista: żądanie się nie powiodło. Spróbuj ponownie.",
     "retry": "Spróbuj ponownie",
     "topic": "Temat",
-    "topicSummary": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} w {knowledgeBase}",
+    "topicSummary": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} przez {askers, plural, one {jedną osobę} few {# osoby} many {# osób} other {# osoby}} w {knowledgeBase}",
     "questions": "Pytania",
     "noConversation": "Dla tego runu nie zachowano rozmowy, więc znane jest tylko wyszukiwanie.",
     "searchedFor": "Szukano: {query}",
@@ -7677,7 +7677,7 @@
     "draftAgain": "Napisz szkic ponownie",
     "drafting": "Piszę szkic…",
     "draftReady": "Szkic gotowy - sprawdź go, zanim go dodasz",
-    "draftNotice": "Napisany przez model na podstawie pytań powyżej. Sprawdź każdy fakt i uzupełnij miejsca do wypełnienia, zanim dodasz go do bazy wiedzy - nic nie zostanie dodane za ciebie.",
+    "draftNotice": "Napisany przez model na podstawie pytań powyżej. Osoba, która może zmieniać tę bazę wiedzy, sprawdza każdy fakt, uzupełnia brakujące dane i go dodaje.",
     "draftSources": "Na czym się opiera",
     "openDraftRun": "Otwórz run",
     "editDrafter": "Edytuj instrukcje autora szkiców luk",
@@ -7687,7 +7687,33 @@
     "draftUnverified": "{count, plural, one {Jednego wskazanego źródła nie udało się zweryfikować i zostało pominięte.} few {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} many {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} other {# wskazanego źródła nie udało się zweryfikować i zostały pominięte.}}",
     "aiOff": "Wsparcie AI jest wyłączone w tej organizacji, więc nie da się napisać szkicu. Wykrywanie i grupowanie luk działa dalej.",
     "enableAi": "Włącz wsparcie AI",
-    "askAdmin": "Poproś administratora o włączenie."
+    "askAdmin": "Poproś administratora o włączenie.",
+    "statusCovered": "Uzupełnione",
+    "emptyCovered": "Brak uzupełnionych tematów",
+    "emptyCoveredBody": "Tu pojawiają się tematy, których treść dodano do bazy wiedzy, dopóki ten dokument nie zostanie usunięty.",
+    "contentTitle": "Tytuł",
+    "contentBody": "Treść",
+    "contentPlaceholder": "Napisz fragment, który odpowiada na te pytania, w Markdownie, jako ogólną wiedzę dla każdego, kto pyta.",
+    "blanks": "Do uzupełnienia",
+    "blanksToFill": "{count, plural, one {Jedna informacja jest jeszcze do uzupełnienia. Zastąp ją, zanim dodasz treść.} few {# informacje są jeszcze do uzupełnienia. Zastąp je, zanim dodasz treść.} many {# informacji jest jeszcze do uzupełnienia. Zastąp je, zanim dodasz treść.} other {# informacji jest jeszcze do uzupełnienia. Zastąp je, zanim dodasz treść.}}",
+    "flagsTitle": "Ta treść może kogoś identyfikować",
+    "flagShared": "„{value}” występuje też w pytaniach lub odpowiedziach, jak numer zamówienia albo konta.",
+    "flagPersonalData": "{count, plural, one {Jedno trafienie: {category}} few {# trafienia: {category}} many {# trafień: {category}} other {# trafienia: {category}}}",
+    "flagCategories": {
+      "email": "adres e-mail",
+      "credit_card": "numer karty",
+      "iban": "numer rachunku bankowego",
+      "us_ssn": "numer ubezpieczenia społecznego",
+      "phone": "numer telefonu"
+    },
+    "flagsConfirm": "Sprawdzone: nic z tego nie identyfikuje osoby albo powinno być w bazie wiedzy.",
+    "addToKnowledgeBase": "Dodaj do {knowledgeBase}",
+    "saveContent": "Zapisz",
+    "contentSaved": "Treść zapisana",
+    "contentAdded": "Dodano do {knowledgeBase}. Dokument jest przetwarzany.",
+    "coveredBy": "Uzupełnione dokumentem <link>{name}</link>, dodanym do bazy wiedzy z tego tematu.",
+    "alreadyCoveredBy": "Autor szkiców luk uznał, że na te pytania odpowiada już {sources}. Jeśli tak, odrzuć temat zamiast dodawać treść.",
+    "alreadyCovered": "Autor szkiców luk uznał, że na te pytania jest już odpowiedź. Jeśli tak, odrzuć temat zamiast dodawać treść."
   },
   "apiKeys": {
     "title": "Klucze API",

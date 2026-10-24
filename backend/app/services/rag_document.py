@@ -139,6 +139,7 @@ class RAGDocumentService:
         embedding_model: str | None = None,
         organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
+        knowledge_gap_topic_id: UUID | None = None,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -169,6 +170,9 @@ class RAGDocumentService:
         `sync_source_id` is the source a connector sync ingested this for, and
         the row is opened claimed by it: that claim is what lets a later run of
         the source remove it once it is no longer listed (`unlisted_by_source`).
+
+        `knowledge_gap_topic_id` is the knowledge gap topic a person wrote the
+        document for, when they added it from the topic.
         """
         if source_path:
             await rag_document_repo.discard_failed(
@@ -197,6 +201,7 @@ class RAGDocumentService:
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
+            knowledge_gap_topic_id=knowledge_gap_topic_id,
         )
 
     async def dispatch_upload(
@@ -212,6 +217,7 @@ class RAGDocumentService:
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
         organizational_unit: str | None = None,
+        knowledge_gap_topic_id: UUID | None = None,
     ) -> RAGIngestResponse:
         """Validate, persist, and queue an uploaded file for ingestion.
 
@@ -301,6 +307,7 @@ class RAGDocumentService:
             embedding_model=collection.embedding_model,
             organizational_unit=blank_is_absent(organizational_unit),
             initiated_by_user_id=ctx.user_id,
+            knowledge_gap_topic_id=knowledge_gap_topic_id,
         )
         doc_id = rag_doc.id
 

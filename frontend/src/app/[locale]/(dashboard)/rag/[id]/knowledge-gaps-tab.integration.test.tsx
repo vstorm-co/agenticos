@@ -52,12 +52,15 @@ const TOPIC = {
   status: "open",
   label: "How long is parental leave?",
   question_count: 4,
+  asker_count: 1,
   last_asked_at: "2026-10-12T09:00:00Z",
   examples: [],
   agents: [
     { id: "a1", name: "HR helper", slug: "hr-helper", has_avatar: false, avatar_color: null },
   ],
   dismissed_at: null,
+  covered_at: null,
+  covered_by: null,
   has_draft: false,
   can_edit: false,
 };
@@ -69,7 +72,9 @@ function mockApi({ canEdit = false } = {}) {
     if (endpoint.startsWith(`/knowledge-gaps/collections/${KB_ID}`)) {
       return Promise.resolve({ items: [topic], total: 1, ungrouped: 0, can_regroup: canEdit });
     }
-    if (endpoint === "/knowledge-gaps/t1") return Promise.resolve({ ...topic, questions: [] });
+    if (endpoint === "/knowledge-gaps/t1") {
+      return Promise.resolve({ ...topic, questions: [], draft: null });
+    }
     return Promise.resolve({ items: [], total: 0 });
   });
 }
@@ -135,7 +140,12 @@ describe("the knowledge gaps tab on a collection", () => {
   it("offers grouping now and Dismiss to a caller the collection lets edit it", async () => {
     perms.add("collections:view").add("runs:view");
     mockApi({ canEdit: true });
-    vi.mocked(apiClient.post).mockResolvedValue({ ...TOPIC, status: "dismissed", questions: [] });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      ...TOPIC,
+      status: "dismissed",
+      questions: [],
+      draft: null,
+    });
     await renderPage();
     await userEvent.click(await screen.findByRole("tab", { name: "Knowledge gaps" }));
 

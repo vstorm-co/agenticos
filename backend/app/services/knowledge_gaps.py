@@ -8,18 +8,24 @@ collection's own embedding space, into topics a person can act on: add the
 missing document, or turn the questions into dataset cases to check it.
 
 Grouping embeds queries but asks no model to write anything, so it runs for
-every organization, like ingestion embeddings do. Nothing here ever adds a
-document to a collection.
+every organization, like ingestion embeddings do.
 
 A model is asked only on request, as the person asking: to draft a topic's
 missing passage, or to read a knowledge base's recent answers - and the
 thumbs-down comments on them - for the questions it could not answer, which
 retrieval alone does not see.
+
+A document reaches a knowledge base only when a person with edit access to it
+adds a topic's content, drafted or their own. The drafter is shown the
+questions with what identifies people taken out, and content that still repeats
+a number or code from them, or holds personal data, is added only once that
+person confirms it.
 """
 
 import asyncio
 import logging
 import re
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -30,27 +36,61 @@ from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.knowledge._log import MAX_QUERY_CHARS
+from app.agents.spec import AgentSpec
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
-from app.core.audit import current_impersonator
+from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    IdentifyingContentError,
+    NotFoundError,
+)
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.core.phone import phone_text_error
 from app.db.locks import LockScope, hold_subject
+from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.knowledge_gap import GapSignal, KnowledgeGapTopic, KnowledgeSearch, TopicStatus
+from app.db.models.knowledge_gap import (
+    DraftAuthor,
+    GapSignal,
+    KnowledgeGapTopic,
+    KnowledgeSearch,
+    TopicStatus,
+)
 from app.db.models.rag_document import RAGDocument
-from app.repositories import agent_repo, knowledge_base_repo, knowledge_gap_repo, member_repo
-from app.repositories.knowledge_gap import CandidateRow, DraftingRow, TopicRow, Verdict
+from app.repositories import (
+    agent_repo,
+    context_repo,
+    knowledge_base_repo,
+    knowledge_gap_repo,
+    member_repo,
+)
+from app.repositories.knowledge_gap import (
+    REFUSED,
+    CandidateRow,
+    DraftingRow,
+    QuestionRow,
+    TopicRow,
+    Verdict,
+)
 from app.schemas.knowledge_gap import (
     MAX_DRAFT_SOURCES,
     ClassifiedAnswer,
+    DecidedStatusLiteral,
     KnowledgeGapAgent,
     KnowledgeGapCasesAdded,
     KnowledgeGapClassification,
     KnowledgeGapCollectionCount,
+    KnowledgeGapContent,
+    KnowledgeGapContentAdd,
+    KnowledgeGapDocument,
     KnowledgeGapDraft,
     KnowledgeGapDraftRead,
+    KnowledgeGapFlag,
     KnowledgeGapQuestion,
     KnowledgeGapReport,
     KnowledgeGapSource,
@@ -60,11 +100,14 @@ from app.schemas.knowledge_gap import (
     KnowledgeGapTopicRead,
     TopicStatusLiteral,
 )
-from app.services.access import AGENT, resolve_access
+from app.services.access import AGENT, CONTEXT, resolve_access
 from app.services.collection_access import readable_kb, writable_kb
+from app.services.context import ContextService
 from app.services.dataset import DatasetService
 from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
-from app.services.rag.vectorstore import embedder_for
+from app.services.ml import pii
+from app.services.rag.vectorstore import BaseVectorStore, embedder_for
+from app.services.rag_document import RAGDocumentService
 from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
@@ -83,6 +126,13 @@ DRAFT_QUESTIONS = 20
 
 DRAFT_DOCUMENTS = 20
 """The most documents a drafting model is offered to cite."""
+
+DRAFT_CONTEXT_FILES = 10
+"""The most of the agents' context files a drafting model is shown."""
+
+DRAFT_CONTEXT_CHARS = 4_000
+"""How much of each context file a drafting model is shown."""
+
 
 EXAMPLES = 3
 
@@ -146,6 +196,16 @@ def _assign(
     return clusters
 
 
+def _require_open(row: TopicRow) -> None:
+    """Refuse writing a topic's content unless it is open: dismissing or covering it was a
+    decision, which reopening undoes first."""
+    if row.status != TopicStatus.OPEN.value:
+        raise BadRequestError(
+            message="Reopen this topic before you write its content",
+            details={"topic_id": row.topic.id, "status": row.status},
+        )
+
+
 def _require_runs_view(ctx: AuthContext) -> None:
     """Refuse a caller who may not read every run: a topic is made of people's questions."""
     if ctx.scope_for(Perm.RUNS_VIEW) < Scope.ALL:
@@ -172,6 +232,95 @@ def _clip(text: str | None, limit: int) -> str:
     return text if len(text) <= limit else f"{text[:limit]}..."
 
 
+_TOKEN = re.compile(r"[^\W_][\w-]*")
+
+_NUMBER = "[number]"
+
+
+def _identifying(token: str) -> bool:
+    """Whether a token reads like an order, account or ticket number rather than a fact.
+
+    Four digits or more, or three with a letter: `7781`, `ORD-123`. A figure a
+    policy states - `30` days, `$500` - is shorter, and is kept.
+    """
+    digits = sum(character.isdigit() for character in token)
+    return digits >= 4 or (digits >= 3 and any(character.isalpha() for character in token))
+
+
+def _personal_data_out(text: str) -> str:
+    """Text with credentials and the personal data the detectors find taken out."""
+    return pii.scan(_redacted(text)).redacted_text
+
+
+def _private(text: str) -> str:
+    """People's text as a drafting model is shown it, with what identifies them taken out.
+
+    Credentials, the personal data the detectors find - e-mail addresses,
+    phone, card and account numbers - and every identifying number or code.
+    Applied to what the drafter reads, never to what a person writes.
+    """
+    found = _personal_data_out(text)
+    return _TOKEN.sub(
+        lambda match: _NUMBER if _identifying(match.group(0)) else match.group(0), found
+    )
+
+
+def _identifying_tokens(texts: list[str]) -> dict[str, str]:
+    """Each identifying token in these texts, by its lower case, as first written."""
+    found: dict[str, str] = {}
+    for text in texts:
+        for token in _TOKEN.findall(text):
+            if _identifying(token):
+                found.setdefault(token.lower(), token)
+    return found
+
+
+def _flags(text: str, *, sources: list[str], known: list[str]) -> list[KnowledgeGapFlag]:
+    """What in content for a knowledge base may identify somebody.
+
+    Personal data the detectors find, wherever it came from, and each
+    identifying number or code the content repeats from `sources` - people's
+    questions, answers and comments - unless `known`, the agents' context
+    files, states it too.
+    """
+    categories = (
+        None
+        if phone_text_error(text, pii.PHONE_REGIONS) is None
+        else [name for name in pii.known_categories() if name != pii.PHONE]
+    )
+    report = pii.scan(text, categories=categories)
+    flags = [
+        KnowledgeGapFlag(kind="personal_data", value=entry.category, count=entry.count)
+        for entry in report.counts
+        if entry.count
+    ]
+    written = Counter(token.lower() for token in _TOKEN.findall(text) if _identifying(token))
+    shared = written.keys() & _identifying_tokens(sources).keys()
+    shared -= _identifying_tokens(known).keys()
+    first = _identifying_tokens([text])
+    flags.extend(
+        KnowledgeGapFlag(kind="shared", value=first[token], count=written[token])
+        for token in sorted(shared)
+    )
+    return flags
+
+
+_BLANK = re.compile(r"\{\{([^{}]{1,200})\}\}")
+
+
+def _blanks(text: str) -> list[str]:
+    """The details content still asks somebody to fill in, each written `{{...}}`."""
+    return list(dict.fromkeys(blank.strip() for blank in _BLANK.findall(text) if blank.strip()))
+
+
+_UNSAFE_NAME = re.compile(r"[^\w-]+")
+
+
+def _filename(title: str) -> str:
+    stem = _UNSAFE_NAME.sub("-", title.lower()).strip("-_")[:80].strip("-_")
+    return f"{stem or 'knowledge-gap'}.md"
+
+
 # How the knowledge capability names the document a passage came from.
 _FOUND_SOURCE = re.compile(
     r"^\[\d+\] Source: (.+?)"
@@ -189,15 +338,42 @@ def _found_filenames(material: list[DraftingRow]) -> list[str]:
 
 
 def _drafting_prompt(
-    knowledge_base: str, material: list[DraftingRow], documents: list[RAGDocument]
+    knowledge_base: str,
+    material: list[DraftingRow],
+    documents: list[RAGDocument],
+    context_files: list[ContextFile],
 ) -> str:
-    """The questions a draft is for and the documents it may cite, each numbered."""
+    """The questions a draft is for, and the documents and context files it may cite, numbered.
+
+    The rules are here rather than only in the drafter's instructions, which
+    the organization may edit: what reaches a knowledge base reaches everybody
+    its agents answer.
+    """
     parts = [
-        f'The knowledge base "{knowledge_base}" could not answer these questions. '
-        "Draft the passage that would answer them. In `questions`, list the numbers of "
-        "the questions your draft answers; in `documents`, the numbers of the documents "
-        "below whose content your draft builds on. Cite only numbers listed here.",
+        f'The knowledge base "{knowledge_base}" could not answer these questions. Draft the '
+        "passage that would answer them, as general knowledge for everybody who asks - never "
+        "about one person, order or case.\n"
+        "- Write consistently with the context files below: they are rules the agent already "
+        "follows. When a context file or a document already answers the questions, set "
+        "`already_covered`, cite it, and say in the content which one answers them instead of "
+        "repeating it.\n"
+        "- Where the answer needs a fact you are not given - a figure, a date, a name, a rule "
+        "- write `{{what to fill in}}` in its place, such as {{refund window in days}}. Never "
+        "invent one, and never use square brackets for it.\n"
+        f"- What identified people was replaced with [redacted:...] and {_NUMBER}; leave it "
+        "out.\n"
+        "In `questions`, list the numbers of the questions your draft answers; in `documents` "
+        "and `context_files`, the numbers of those below your draft builds on or that answer "
+        "the questions. Cite only numbers listed here.",
     ]
+    if context_files:
+        parts.append(
+            "## Context files the agent reads\n"
+            + "\n\n".join(
+                f"### Context file {n}: {file.name}\n{_clip(file.content, DRAFT_CONTEXT_CHARS)}"
+                for n, file in enumerate(context_files, start=1)
+            )
+        )
     if documents:
         parts.append(
             "## Documents the agent found\n"
@@ -206,11 +382,11 @@ def _drafting_prompt(
     for number, row in enumerate(material, start=1):
         parts.append(
             f"## Question {number}\n"
-            f"Asked: {_clip(row.question, 1_000)}\n"
-            f"Searched for: {_clip(row.search.query, 500)}\n"
-            f"Found: {_clip(row.found, 2_000)}\n"
-            f"Answered: {_clip(row.answer, 1_500)}\n"
-            f"Reader's comment: {_clip(row.down_rating_comment, 500)}"
+            f"Asked: {_private(_clip(row.question, 1_000))}\n"
+            f"Searched for: {_private(_clip(row.search.query, 500))}\n"
+            f"Found: {_personal_data_out(_clip(row.found, 2_000))}\n"
+            f"Answered: {_private(_clip(row.answer, 1_500))}\n"
+            f"Reader's comment: {_private(_clip(row.down_rating_comment, 500))}"
         )
     return "\n\n".join(parts)
 
@@ -230,10 +406,14 @@ def _classification_prompt(knowledge_base: str, candidates: list[CandidateRow]) 
         "- `missing_information`: the answer does not say so, but a reader's comment "
         "says the information it needed was missing, outdated or incomplete - content "
         "to add or bring up to date.\n"
+        "- `refused`: the question asked for what the agent's rules or purpose do not allow - "
+        "to ignore its instructions, grant an exception, or help with something it is not "
+        "for - and the answer rightly refused. A question the agent should answer, refused "
+        "because it had no information, is `did_not_know`, not `refused`.\n"
         "- `no_gap`: anything else. An answer that applied a policy or a rule wrongly is "
         "`no_gap`: the rule was there and the agent misused it. So is a comment about "
         "that, about tone, length or format, or saying the answer should have refused, "
-        "and so is a refusal of a question the agent is not for.",
+        "and so is a refusal of something the rules allow.",
     ]
     for number, candidate in enumerate(candidates, start=1):
         comments = "\n".join(f"- {_clip(comment, 600)}" for comment in candidate.comments)
@@ -246,12 +426,13 @@ def _classification_prompt(knowledge_base: str, candidates: list[CandidateRow]) 
     return "\n\n".join(parts)
 
 
-_SIGNALS: dict[str, GapSignal | None] = {
-    "did_not_know": GapSignal.ANSWER,
-    "missing_information": GapSignal.RATING,
-    "no_gap": None,
+_VERDICTS: dict[str, tuple[str, GapSignal | None]] = {
+    "did_not_know": (GapSignal.ANSWER.value, GapSignal.ANSWER),
+    "missing_information": (GapSignal.RATING.value, GapSignal.RATING),
+    "no_gap": ("none", None),
+    "refused": (REFUSED, None),
 }
-"""What each of the classifying model's labels records."""
+"""What each of the classifying model's labels is remembered as, and the miss it records."""
 
 
 def _verdicts(candidates: list[CandidateRow], answers: list[ClassifiedAnswer]) -> list[Verdict]:
@@ -259,22 +440,30 @@ def _verdicts(candidates: list[CandidateRow], answers: list[ClassifiedAnswer]) -
 
     A number that names no candidate is dropped, and a candidate the model
     skipped gets no verdict, so it waits for the next check rather than being
-    remembered as read.
+    remembered as read. A run whose search already missed records no second
+    miss: it is counted once, and the verdict is remembered.
     """
     decided: dict[int, ClassifiedAnswer] = {}
     for answer in answers:
         if 1 <= answer.number <= len(candidates):
             decided.setdefault(answer.number, answer)
-    return [
-        Verdict(
-            candidate=candidates[number - 1],
-            signal=_SIGNALS[answer.signal],
-            query=(candidates[number - 1].question or candidates[number - 1].answer)[
-                :MAX_QUERY_CHARS
-            ],
+    verdicts: list[Verdict] = []
+    for number, answer in sorted(decided.items()):
+        candidate = candidates[number - 1]
+        verdict, signal = _VERDICTS[answer.signal]
+        verdicts.append(
+            Verdict(
+                candidate=candidate,
+                verdict=verdict,
+                signal=None if candidate.missed else signal,
+                query=(candidate.question or candidate.answer)[:MAX_QUERY_CHARS],
+            )
         )
-        for number, answer in sorted(decided.items())
-    ]
+    return verdicts
+
+
+def _covering(document: RAGDocument) -> KnowledgeGapDocument:
+    return KnowledgeGapDocument(id=document.id, filename=document.filename, status=document.status)
 
 
 def _cited[T](numbers: list[int], numbered: list[T]) -> tuple[list[T], int]:
@@ -326,18 +515,33 @@ class KnowledgeGapService:
             self.db, sorted({row.topic.knowledge_base_id for row in rows})
         )
         writable = {kb_id for kb_id, kb in bases.items() if await writable_kb(self.db, ctx, kb)}
+        covered = {
+            row.topic.id: document_id
+            for row in rows
+            if row.status == TopicStatus.COVERED.value
+            and (document_id := row.topic.covered_by_document_id) is not None
+        }
+        documents = await knowledge_gap_repo.documents_by_id(
+            self.db, list(covered.values()), organization_id=ctx.organization_id
+        )
+        covering = {topic_id: _covering(documents[doc]) for topic_id, doc in covered.items()}
         return [
             KnowledgeGapTopicRead(
                 id=row.topic.id,
                 knowledge_base_id=row.topic.knowledge_base_id,
                 knowledge_base_name=bases[row.topic.knowledge_base_id].name,
-                status=TopicStatus(row.topic.status).value,
+                status=TopicStatus(row.status).value,
                 label=row.queries[0] if row.queries else "",
                 question_count=row.question_count,
+                asker_count=row.asker_count,
                 last_asked_at=row.last_asked_at,
                 examples=_distinct(row.queries, keep=EXAMPLES),
                 agents=[agents[a] for a in row.agent_ids if a in agents],
                 dismissed_at=row.topic.dismissed_at,
+                covered_at=row.topic.covered_at
+                if row.status == TopicStatus.COVERED.value
+                else None,
+                covered_by=covering.get(row.topic.id),
                 has_draft=row.topic.draft_content is not None,
                 can_edit=row.topic.knowledge_base_id in writable,
             )
@@ -425,7 +629,6 @@ class KnowledgeGapService:
             self.db,
             knowledge_base_id,
             organization_id=ctx.organization_id,
-            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
             since=datetime.now(UTC) - CLASSIFY_WINDOW,
         )
 
@@ -509,31 +712,17 @@ class KnowledgeGapService:
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, topic_id)
-        threshold = settings.KNOWLEDGE_GAP_MIN_SIMILARITY
-        rows, _ = await knowledge_gap_repo.list_topics(
-            self.db,
-            organization_id=ctx.organization_id,
-            knowledge_base_ids=[topic.knowledge_base_id],
-            threshold=threshold,
-            status=None,
-            agent_id=None,
-            topic_id=topic.id,
-            skip=0,
-            limit=1,
-        )
-        if not rows:
-            # Every question it held is gone, or no longer counts as a miss.
-            raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
+        row = await self._row(ctx, topic)
         questions = await knowledge_gap_repo.list_questions(
             self.db,
             topic.id,
             organization_id=ctx.organization_id,
-            threshold=threshold,
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
             agent_id=None,
             limit=TOPIC_QUESTIONS,
         )
         agents = await self._agents(ctx, sorted({q.search.agent_id for q in questions}))
-        [summary] = await self._reads(ctx, rows)
+        [summary] = await self._reads(ctx, [row])
         return KnowledgeGapTopicDetail(
             **summary.model_dump(),
             questions=[
@@ -553,8 +742,64 @@ class KnowledgeGapService:
                 )
                 for q in questions
             ],
-            draft=await self._draft_read(ctx, topic),
+            draft=await self._draft_read(ctx, topic, row, questions if summary.can_edit else None),
         )
+
+    async def _row(self, ctx: AuthContext, topic: KnowledgeGapTopic) -> TopicRow:
+        """What a topic's searches add up to now.
+
+        Raises:
+            NotFoundError: When every question it held is gone, or no longer
+                counts as a miss.
+        """
+        rows, _ = await knowledge_gap_repo.list_topics(
+            self.db,
+            organization_id=ctx.organization_id,
+            knowledge_base_ids=[topic.knowledge_base_id],
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+            status=None,
+            agent_id=None,
+            topic_id=topic.id,
+            skip=0,
+            limit=1,
+        )
+        if not rows:
+            raise NotFoundError(message="Topic not found", details={"topic_id": topic.id})
+        return rows[0]
+
+    async def _context_files(self, ctx: AuthContext, agent_ids: list[UUID]) -> list[ContextFile]:
+        """The enabled context files these agents' published versions read, as the caller may.
+
+        An agent reads its context files whoever runs it; a draft quotes them back
+        to the caller, so only the files the caller may view are taken.
+        """
+        agents = await agent_repo.get_many(self.db, agent_ids, organization_id=ctx.organization_id)
+        bound: list[UUID] = []
+        for agent_id in sorted(agents):
+            version_id = agents[agent_id].current_version_id
+            version = (
+                await agent_repo.get_version(
+                    self.db, version_id, organization_id=ctx.organization_id
+                )
+                if version_id is not None
+                else None
+            )
+            if version is not None:
+                bound.extend(AgentSpec.model_validate(version.spec).context_ids)
+        resolved = await ContextService(self.db).resolve_for_agent(ctx, list(dict.fromkeys(bound)))
+        readable = [
+            file
+            for file in resolved
+            if await resolve_access(self.db, ctx, file, Perm.CONTEXT_VIEW, resource_type=CONTEXT)
+        ]
+        return readable[:DRAFT_CONTEXT_FILES]
+
+    async def _flags(
+        self, ctx: AuthContext, row: TopicRow, questions: list[QuestionRow], text: str
+    ) -> list[KnowledgeGapFlag]:
+        sources = await knowledge_gap_repo.source_texts(self.db, questions)
+        known = [file.content for file in await self._context_files(ctx, row.agent_ids)]
+        return _flags(text, sources=sources, known=known)
 
     async def draft(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapTopicDetail:
         """Ask the drafting agent for the passage a topic's questions need, and keep it.
@@ -563,10 +808,12 @@ class KnowledgeGapService:
         refused while the organization has AI assistance switched off, metered
         against the drafter's and the organization's budgets, and listed in
         Activity. It is shown the topic's newest questions, the answers they got,
-        what each search returned and what readers said. What it writes is kept
-        on the topic as a draft for a person; nothing is added to the knowledge
-        base. It replaces the topic's draft, so it takes what dismissing does: a
-        caller who may change the topic's knowledge base.
+        what each search returned and what readers said - with what identifies
+        people taken out - and the context files of the agents that were asked,
+        those the caller may read. What it writes is kept on the topic as a
+        draft for a person; nothing is added to the knowledge base. It replaces
+        the topic's draft, so it takes what dismissing does: a caller who may
+        change the topic's knowledge base.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
@@ -598,16 +845,20 @@ class KnowledgeGapService:
             organization_id=ctx.organization_id,
             limit=DRAFT_DOCUMENTS,
         )
+        context_files = await self._context_files(
+            ctx, list(dict.fromkeys(row.search.agent_id for row in material))
+        )
         result = await SystemAgentRunner(self.db).run(
             ctx,
             key=KNOWLEDGE_GAP_DRAFTER.key,
-            prompt=_drafting_prompt(kb.name, material, documents),
+            prompt=_drafting_prompt(kb.name, material, documents, context_files),
             output_type=KnowledgeGapDraft,
         )
         cited_documents, unknown_documents = _cited(result.output.documents, documents)
         cited_questions, unknown_questions = _cited(
             result.output.questions, [row.search for row in material]
         )
+        cited_context, unknown_context = _cited(result.output.context_files, context_files)
         await self.record_draft(
             ctx,
             KnowledgeGapReport(
@@ -617,10 +868,12 @@ class KnowledgeGapService:
                 sources=[
                     *(KnowledgeGapSource(kind="document", id=doc.id) for doc in cited_documents),
                     *(KnowledgeGapSource(kind="question", id=s.id) for s in cited_questions),
+                    *(KnowledgeGapSource(kind="context", id=f.id) for f in cited_context),
                 ],
+                already_covered=result.output.already_covered,
             ),
             run_id=result.run.id,
-            unverified=unknown_documents + unknown_questions,
+            unverified=unknown_documents + unknown_questions + unknown_context,
         )
         return await self.read(ctx, topic.id)
 
@@ -636,7 +889,8 @@ class KnowledgeGapService:
 
         The one way a passage reaches a topic, whoever drafted it. Every source is
         verified first: a document must belong to the topic's knowledge base, a
-        question must be one of the topic's searches. One that is not is left
+        question must be one of the topic's searches, a context file must be one
+        the caller may read. One that is not is left
         out and counted with `unverified` - which the caller passes for sources
         it could not even resolve - so the draft never shows a source nobody
         checked. At most :data:`MAX_DRAFT_SOURCES` are kept. Any credential the
@@ -658,11 +912,15 @@ class KnowledgeGapService:
             [source_id for kind, source_id in named if kind == "document"],
             organization_id=ctx.organization_id,
         )
+        context_files = await self._readable_context(
+            ctx, [source_id for kind, source_id in named if kind == "context"]
+        )
         verified = [
             {"kind": kind, "id": str(source_id)}
             for kind, source_id in named
             if (kind == "document" and source_id in documents)
             or (kind == "question" and source_id in questions)
+            or (kind == "context" and source_id in context_files)
         ]
         await knowledge_gap_repo.update_topic(
             self.db,
@@ -672,16 +930,39 @@ class KnowledgeGapService:
                 "draft_content": _redacted(report.content),
                 "draft_sources": verified[:MAX_DRAFT_SOURCES],
                 "draft_unverified": unverified + len(named) - len(verified),
+                "draft_already_covered": report.already_covered,
+                "draft_author": DraftAuthor.MODEL.value,
                 "draft_run_id": run_id,
                 "drafted_by_user_id": ctx.user_id,
                 "drafted_at": datetime.now(UTC),
             },
         )
 
+    async def _readable_context(
+        self, ctx: AuthContext, context_ids: list[UUID]
+    ) -> dict[UUID, ContextFile]:
+        """The organization's context files among these ids that the caller may read."""
+        found = await context_repo.get_many(
+            self.db, context_ids, organization_id=ctx.organization_id
+        )
+        return {
+            file_id: file
+            for file_id, file in found.items()
+            if await resolve_access(self.db, ctx, file, Perm.CONTEXT_VIEW, resource_type=CONTEXT)
+        }
+
     async def _draft_read(
-        self, ctx: AuthContext, topic: KnowledgeGapTopic
+        self,
+        ctx: AuthContext,
+        topic: KnowledgeGapTopic,
+        row: TopicRow,
+        asked: list[QuestionRow] | None,
     ) -> KnowledgeGapDraftRead | None:
-        """A topic's draft, with each source named - and left out if it is gone since."""
+        """A topic's draft, with each source named - and left out if it is gone since.
+
+        With what is still to fill in, and what may identify somebody when the
+        topic's questions are `asked`: only somebody who may add it is shown that.
+        """
         if topic.draft_content is None or topic.drafted_at is None:
             return None
         questions = await knowledge_gap_repo.member_queries(
@@ -692,6 +973,9 @@ class KnowledgeGapService:
             topic.knowledge_base_id,
             [UUID(s["id"]) for s in topic.draft_sources if s["kind"] == "document"],
             organization_id=ctx.organization_id,
+        )
+        context_files = await self._readable_context(
+            ctx, [UUID(s["id"]) for s in topic.draft_sources if s["kind"] == "context"]
         )
         sources: list[KnowledgeGapSourceRead] = []
         for source in topic.draft_sources:
@@ -708,22 +992,199 @@ class KnowledgeGapService:
                         kind="question", id=source_id, label=questions[source_id]
                     )
                 )
+            elif source["kind"] == "context" and source_id in context_files:
+                sources.append(
+                    KnowledgeGapSourceRead(
+                        kind="context", id=source_id, label=context_files[source_id].name
+                    )
+                )
+        title = topic.draft_title or ""
         return KnowledgeGapDraftRead(
-            title=topic.draft_title or "",
+            title=title,
             content=topic.draft_content,
             sources=sources,
             unverified=topic.draft_unverified,
             drafted_at=topic.drafted_at,
             run_id=topic.draft_run_id,
+            already_covered=topic.draft_already_covered,
+            blanks=_blanks(f"{title}\n{topic.draft_content}"),
+            flags=[]
+            if asked is None
+            else await self._flags(ctx, row, asked, f"{title}\n{topic.draft_content}"),
         )
 
-    async def set_status(
-        self, ctx: AuthContext, topic_id: UUID, status: TopicStatusLiteral
+    async def save_content(
+        self, ctx: AuthContext, topic_id: UUID, data: KnowledgeGapContent
     ) -> KnowledgeGapTopicDetail:
-        """Dismiss a topic that needs no content, or reopen one.
+        """Keep what a person wrote, or kept of a draft, as the topic's content.
+
+        Nothing is added to the knowledge base. It replaces the draft's text, so
+        it takes what drafting does: a caller who may change the topic's
+        knowledge base. Any credential the text holds is redacted; nothing else
+        a person writes is changed.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a topic in a knowledge base the caller may not change.
+            BadRequestError: For a topic that is not open: reopen it first.
+        """
+        _require_runs_view(ctx)
+        topic = await self._topic(ctx, topic_id, edit=True)
+        _require_open(await self._row(ctx, topic))
+        await self._keep(ctx, topic, data)
+        return await self.read(ctx, topic.id)
+
+    async def _keep(
+        self, ctx: AuthContext, topic: KnowledgeGapTopic, data: KnowledgeGapContent
+    ) -> KnowledgeGapTopic:
+        """Replace a topic's draft text with a person's.
+
+        A model's draft kept as it was stays the model's, with its run and its
+        sources. Changed, it is the person's: what the model cited and found no
+        longer speaks for it.
+        """
+        title, content = _redacted(data.title), _redacted(data.content)
+        if (title, content) == (topic.draft_title, topic.draft_content):
+            return topic
+        return await knowledge_gap_repo.update_topic(
+            self.db,
+            topic=topic,
+            update_data={
+                "draft_title": title,
+                "draft_content": content,
+                "draft_sources": [],
+                "draft_unverified": 0,
+                "draft_already_covered": False,
+                "draft_author": DraftAuthor.PERSON.value,
+                "draft_run_id": None,
+                "drafted_by_user_id": ctx.user_id,
+                "drafted_at": datetime.now(UTC),
+            },
+        )
+
+    async def add_content(
+        self,
+        ctx: AuthContext,
+        topic_id: UUID,
+        data: KnowledgeGapContentAdd,
+        *,
+        vector_store: BaseVectorStore,
+    ) -> KnowledgeGapTopicDetail:
+        """Add a topic's content to its knowledge base as a document, and mark the topic covered.
+
+        The content is kept as the topic's draft and uploaded as a Markdown
+        document through the same path a file upload takes - the budget, the
+        embedding model and the parsing queue - recorded as added from the
+        topic by the caller. Adding changes the knowledge base, so it takes a
+        caller who may change it, by their role or a grant on it, and it is
+        audited.
+
+        Content still asking for a detail to fill in, written `{{...}}`, is
+        refused. So is content flagged as possibly identifying somebody -
+        personal data, or a number or code it repeats from people's questions -
+        unless the caller confirms each flag it holds now, with at least as many
+        matches: one that appeared since the caller looked - a new category, or
+        more of one - is not confirmed by having confirmed the others.
+        A topic covered by a document already takes no second one.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a topic in a knowledge base the caller may not
+                change, or one with no questions left.
+            AlreadyExistsError: For a topic a document covers already.
+            BadRequestError: For a dismissed topic; naming `title` or `content`, for a
+                detail still to fill in, or for content with more digits than the
+                phone number check reads.
+            IdentifyingContentError: For a flag the caller did not confirm.
+        """
+        _require_runs_view(ctx)
+        topic = await self._topic(ctx, topic_id, edit=True)
+        kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+        # Held to the commit, so two additions at once find the first one's document.
+        topic = await knowledge_gap_repo.lock_topic(self.db, topic)
+        row = await self._row(ctx, topic)
+        if row.status == TopicStatus.COVERED.value:
+            raise AlreadyExistsError(
+                message="A document covers this topic already; reopen it to add another",
+                details={"topic_id": topic.id, "document_id": topic.covered_by_document_id},
+            )
+        _require_open(row)
+        for field, value in (("title", data.title), ("content", data.content)):
+            blanks = _blanks(value)
+            if blanks:
+                raise refused_field(
+                    field, f"Fill in or remove what is still to fill in: {', '.join(blanks)}"
+                )
+        text = f"{data.title}\n{data.content}"
+        if phone_text_error(text, pii.PHONE_REGIONS) is not None:
+            raise refused_field(
+                "content",
+                "This holds more digits than can be checked for phone numbers; split it "
+                "into smaller documents.",
+            )
+        questions = await knowledge_gap_repo.list_questions(
+            self.db,
+            topic.id,
+            organization_id=ctx.organization_id,
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+            agent_id=None,
+            limit=None,
+        )
+        flags = await self._flags(ctx, row, questions, text)
+        confirmed = {(flag.kind, flag.value): flag.count for flag in data.confirmed}
+        if any(confirmed.get((flag.kind, flag.value), 0) < flag.count for flag in flags):
+            raise IdentifyingContentError(
+                details={"flags": [flag.model_dump(mode="json") for flag in flags]}
+            )
+        topic = await self._keep(ctx, topic, data)
+        title, content = topic.draft_title or "", topic.draft_content or ""
+        uploaded = await RAGDocumentService(self.db).dispatch_upload(
+            ctx=ctx,
+            collection=kb,
+            file_data=f"# {title}\n\n{content}\n".encode(),
+            filename=_filename(title),
+            replace=False,
+            vector_store=vector_store,
+            organization_id=ctx.organization_id,
+            knowledge_base_id=kb.id,
+            knowledge_gap_topic_id=topic.id,
+        )
+        document_id = UUID(uploaded.id)
+        await knowledge_gap_repo.update_topic(
+            self.db,
+            topic=topic,
+            update_data={
+                "status": TopicStatus.COVERED.value,
+                "covered_by_document_id": document_id,
+                "covered_by_user_id": ctx.user_id,
+                "covered_at": datetime.now(UTC),
+            },
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="knowledge_gap.content_added",
+            target_type="knowledge_gap_topic",
+            target_id=str(topic.id),
+            details={
+                "knowledge_base_id": str(kb.id),
+                "document_id": str(document_id),
+                "flags": len(flags),
+                "confirmed_identifying": bool(flags),
+            },
+        )
+        return await self.read(ctx, topic.id)
+
+    async def set_status(
+        self, ctx: AuthContext, topic_id: UUID, status: DecidedStatusLiteral
+    ) -> KnowledgeGapTopicDetail:
+        """Dismiss a topic that needs no content, or reopen one - a covered one too.
 
         A dismissed topic keeps taking the questions that belong to it, so it
-        does not come back as a new topic the next time one is asked.
+        does not come back as a new topic the next time one is asked. Either
+        leaves the topic no longer covered; the document stays in the
+        knowledge base.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
@@ -739,6 +1200,9 @@ class KnowledgeGapService:
                 "status": status,
                 "dismissed_by_user_id": ctx.user_id if dismissed else None,
                 "dismissed_at": datetime.now(UTC) if dismissed else None,
+                "covered_by_document_id": None,
+                "covered_by_user_id": None,
+                "covered_at": None,
             },
         )
         return await self.read(ctx, topic.id)

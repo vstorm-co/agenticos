@@ -144,7 +144,7 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
     log_extra = {
         "error_code": exc.code,
         "status_code": exc.status_code,
-        "details": exc.details,
+        "details": exc.logged_details,
         **_connection_meta(request),
     }
 

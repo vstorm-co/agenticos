@@ -4369,7 +4369,7 @@
       },
       "kb-gaps": {
         "title": "Was sie nicht beantworten konnte",
-        "body": "Fragen, zu denen Agents diese Collection durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert. Fügen Sie das fehlende Dokument hinzu oder verwerfen Sie ein Thema, das keines braucht."
+        "body": "Fragen, zu denen Agents diese Collection durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert. Öffnen Sie ein Thema, um den fehlenden Inhalt zu schreiben oder den Entwurf eines Modells fertigzustellen, und fügen Sie ihn dieser Wissensdatenbank hinzu - oder verwerfen Sie ein Thema, das keinen braucht."
       },
       "kb-gaps-check": {
         "title": "Auch die Antworten prüfen",
@@ -7762,7 +7762,7 @@
     "loadFailedBody": "Das ist keine leere Liste: Die Anfrage ist fehlgeschlagen. Versuchen Sie es erneut.",
     "retry": "Erneut versuchen",
     "topic": "Thema",
-    "topicSummary": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}} in {knowledgeBase}",
+    "topicSummary": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}} von {askers, plural, =1 {einer Person} other {# Personen}} in {knowledgeBase}",
     "questions": "Fragen",
     "noConversation": "Zu diesem Run ist kein Gespräch gespeichert, daher ist nur die Suche bekannt.",
     "searchedFor": "Gesucht nach: {query}",
@@ -7787,7 +7787,7 @@
     "draftAgain": "Neu entwerfen",
     "drafting": "Wird entworfen…",
     "draftReady": "Entwurf fertig - prüfen Sie ihn, bevor Sie ihn hinzufügen",
-    "draftNotice": "Von einem Modell aus den Fragen oben geschrieben. Prüfen Sie jede Angabe und füllen Sie die Platzhalter aus, bevor Sie ihn der Wissensdatenbank hinzufügen - nichts wird für Sie hinzugefügt.",
+    "draftNotice": "Von einem Modell aus den Fragen oben geschrieben. Wer diese Wissensdatenbank ändern darf, prüft jede Angabe, ergänzt, was fehlt, und fügt ihn hinzu.",
     "draftSources": "Worauf er sich stützt",
     "openDraftRun": "Run öffnen",
     "editDrafter": "Anweisungen des Lücken-Entwerfers bearbeiten",
@@ -7797,7 +7797,33 @@
     "draftUnverified": "{count, plural, =1 {Eine genannte Quelle ließ sich nicht prüfen und wurde weggelassen.} other {# genannte Quellen ließen sich nicht prüfen und wurden weggelassen.}}",
     "aiOff": "Die KI-Unterstützung ist in dieser Organisation ausgeschaltet, daher kann kein Entwurf geschrieben werden. Lücken werden weiterhin gefunden und gruppiert.",
     "enableAi": "KI-Unterstützung einschalten",
-    "askAdmin": "Bitten Sie einen Administrator, sie einzuschalten."
+    "askAdmin": "Bitten Sie einen Administrator, sie einzuschalten.",
+    "statusCovered": "Abgedeckt",
+    "emptyCovered": "Keine abgedeckten Themen",
+    "emptyCoveredBody": "Themen, deren Inhalt der Wissensdatenbank hinzugefügt wurde, erscheinen hier, bis dieses Dokument gelöscht wird.",
+    "contentTitle": "Titel",
+    "contentBody": "Inhalt",
+    "contentPlaceholder": "Schreiben Sie den Abschnitt, der diese Fragen beantwortet, in Markdown, als allgemeines Wissen für alle, die fragen.",
+    "blanks": "Noch auszufüllen",
+    "blanksToFill": "{count, plural, =1 {Eine Angabe ist noch auszufüllen. Ersetzen Sie sie, bevor Sie den Inhalt hinzufügen.} other {# Angaben sind noch auszufüllen. Ersetzen Sie sie, bevor Sie den Inhalt hinzufügen.}}",
+    "flagsTitle": "Dieser Inhalt könnte jemanden identifizieren",
+    "flagShared": "„{value}“ steht auch in Fragen oder Antworten, wie eine Bestell- oder Kontonummer.",
+    "flagPersonalData": "{count, plural, =1 {Ein Treffer: {category}} other {# Treffer: {category}}}",
+    "flagCategories": {
+      "email": "E-Mail-Adresse",
+      "credit_card": "Kartennummer",
+      "iban": "Bankkontonummer",
+      "us_ssn": "Sozialversicherungsnummer",
+      "phone": "Telefonnummer"
+    },
+    "flagsConfirm": "Ich habe es geprüft: Nichts davon identifiziert eine Person, oder es gehört in die Wissensdatenbank.",
+    "addToKnowledgeBase": "Zu {knowledgeBase} hinzufügen",
+    "saveContent": "Speichern",
+    "contentSaved": "Inhalt gespeichert",
+    "contentAdded": "Zu {knowledgeBase} hinzugefügt. Das Dokument wird verarbeitet.",
+    "coveredBy": "Abgedeckt durch <link>{name}</link>, aus diesem Thema der Wissensdatenbank hinzugefügt.",
+    "alreadyCoveredBy": "Der Lücken-Entwerfer fand diese Fragen bereits beantwortet, durch {sources}. Wenn ja, verwerfen Sie das Thema, statt Inhalt hinzuzufügen.",
+    "alreadyCovered": "Der Lücken-Entwerfer fand diese Fragen bereits beantwortet. Wenn ja, verwerfen Sie das Thema, statt Inhalt hinzuzufügen."
   },
   "apiKeys": {
     "title": "API-Schlüssel",

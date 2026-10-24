@@ -3,10 +3,19 @@
  * nothing relevant to, grouped into topics.
  *
  * Mirrors `app/schemas/knowledge_gap.py`. A topic belongs to one knowledge base;
- * nothing is ingested on its account - a person adds the missing document.
+ * nothing is ingested on its account until a person adds its content as a document.
  */
 
-export type KnowledgeGapStatus = "open" | "dismissed";
+/** `covered` once a person added its content; a topic whose document went reads open. */
+export type KnowledgeGapStatus = "open" | "dismissed" | "covered";
+
+/** The document a person added to cover a topic. */
+export interface KnowledgeGapDocument {
+  id: string;
+  filename: string;
+  /** The document's ingestion status. */
+  status: string;
+}
 
 export interface KnowledgeGapAgent {
   id: string;
@@ -24,13 +33,18 @@ export interface KnowledgeGapTopic {
   /** The topic's first question, as the agent searched it. */
   label: string;
   question_count: number;
+  /** Distinct people who asked; everybody who asked anonymously counts as one. */
+  asker_count: number;
   last_asked_at: string;
   /** Up to three of the questions, as searched. */
   examples: string[];
   agents: KnowledgeGapAgent[];
   dismissed_at: string | null;
+  covered_at: string | null;
+  /** The document added for it, while it is covered. */
+  covered_by: KnowledgeGapDocument | null;
   has_draft: boolean;
-  /** Whether the caller may dismiss or reopen it: they may change its knowledge base. */
+  /** Whether the caller may dismiss, reopen, draft or add its content: they may change its knowledge base. */
   can_edit: boolean;
 }
 
@@ -75,15 +89,24 @@ export interface KnowledgeGapQuestion {
   asked_at: string;
 }
 
-/** What a draft rests on, verified when it was kept: a document, or one of the topic's questions. */
+/** What a draft rests on, verified when it was kept: a document, a question or a context file. */
 export interface KnowledgeGapSource {
-  kind: "document" | "question";
+  kind: "document" | "question" | "context";
   id: string;
-  /** The document's file name, or the question as searched. */
+  /** The document's file name, the question as searched, or the context file's name. */
   label: string;
 }
 
-/** The passage a drafting agent proposed for a topic. Never added to a collection by itself. */
+/** Something in a topic's content that may identify a person, for somebody to check. */
+export interface KnowledgeGapFlag {
+  /** `personal_data` for a detector's match, `shared` for a number repeated from the questions. */
+  kind: "personal_data" | "shared";
+  /** The detector's category, or the repeated token. */
+  value: string;
+  count: number;
+}
+
+/** A topic's content, drafted or written. Added to a collection only by a person. */
 export interface KnowledgeGapDraft {
   title: string;
   /** Markdown. */
@@ -93,8 +116,14 @@ export interface KnowledgeGapDraft {
   /** Sources the draft named that could not be verified, and were left out. */
   unverified: number;
   drafted_at: string;
-  /** The run that wrote it, in Activity. */
+  /** The run that wrote it, in Activity; null for content a person wrote. */
   run_id: string | null;
+  /** The drafter found the questions answered by a source it cites. */
+  already_covered: boolean;
+  /** Details still to fill in, each written `{{...}}` in the content. */
+  blanks: string[];
+  /** What may identify somebody; adding the content asks to confirm it. */
+  flags: KnowledgeGapFlag[];
 }
 
 export interface KnowledgeGapTopicDetail extends KnowledgeGapTopic {

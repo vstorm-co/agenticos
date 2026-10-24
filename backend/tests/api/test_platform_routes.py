@@ -352,6 +352,18 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/knowledge-gaps/{topic_id}/reopen", Perm.RUNS_VIEW),
     Call("POST", "/knowledge-gaps/{topic_id}/draft", Perm.RUNS_VIEW),
     Call(
+        "PUT",
+        "/knowledge-gaps/{topic_id}/draft",
+        Perm.RUNS_VIEW,
+        body={"title": "Parking", "content": "Visitors park on level -1."},
+    ),
+    Call(
+        "POST",
+        "/knowledge-gaps/{topic_id}/document",
+        Perm.RUNS_VIEW,
+        body={"title": "Parking", "content": "Visitors park on level -1."},
+    ),
+    Call(
         "POST",
         "/knowledge-gaps/{topic_id}/dataset",
         Perm.RUNS_VIEW,

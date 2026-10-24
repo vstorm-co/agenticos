@@ -170,6 +170,7 @@ async def create(
     embedding_model: str | None = None,
     organizational_unit: str | None = None,
     initiated_by_user_id: UUID | None = None,
+    knowledge_gap_topic_id: UUID | None = None,
 ) -> RAGDocument:
     """Create a new RAG document record, claimed by `sync_source_id` when a sync opens it."""
     doc = RAGDocument(
@@ -188,6 +189,7 @@ async def create(
         embedding_model=embedding_model,
         organizational_unit=organizational_unit,
         initiated_by_user_id=initiated_by_user_id,
+        knowledge_gap_topic_id=knowledge_gap_topic_id,
     )
     db.add(doc)
     await db.flush()

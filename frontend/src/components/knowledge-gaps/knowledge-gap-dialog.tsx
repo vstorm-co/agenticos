@@ -39,6 +39,7 @@ export function KnowledgeGapDialog({ topicId, onClose }: KnowledgeGapDialogProps
             {topic
               ? t("topicSummary", {
                   count: topic.question_count,
+                  askers: topic.asker_count,
                   knowledgeBase: topic.knowledge_base_name,
                 })
               : t("nothingAutomatic")}

@@ -26,12 +26,15 @@ const TOPIC = {
   status: "open",
   label: "How long is parental leave?",
   question_count: 3,
+  asker_count: 1,
   last_asked_at: "2026-10-12T09:00:00Z",
   examples: [],
   agents: [
     { id: "a1", name: "HR helper", slug: "hr-helper", has_avatar: false, avatar_color: null },
   ],
   dismissed_at: null,
+  covered_at: null,
+  covered_by: null,
   has_draft: false,
   can_edit: false,
 };
