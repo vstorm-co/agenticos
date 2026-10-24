@@ -1175,13 +1175,14 @@ class TestTheTestUrl:
         with pytest.raises(NotFoundError):
             await service.catch(token, body=b"{}", headers={})
 
-    async def test_a_call_it_cannot_keep_leaves_it_listening(self, db, tenant):
+    @pytest.mark.parametrize("payload_size", [70_000, 63_980])
+    async def test_a_call_it_cannot_keep_leaves_it_listening(self, db, tenant, payload_size):
         owner, org, workflow = tenant
         ctx = _ctx(owner, org)
         service, token, _redis = await _listening(db, ctx, workflow)
         with pytest.raises(BadRequestError):
             await service.catch(token, body=b"[1]", headers={})
-        huge = json.dumps({"text": "x" * 70_000}).encode()
+        huge = json.dumps({"text": "x" * payload_size}).encode()
         with pytest.raises(WebhookTestTooLargeError):
             await service.catch(token, body=huge, headers={})
         assert (await service.caught(ctx, workflow.id, token)).state == "listening"
