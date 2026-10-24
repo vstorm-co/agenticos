@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useConversations, type ConversationQuery } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
 import * as invalidation from "@/lib/coalesced-invalidation";
+import { qk } from "@/lib/query-keys";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -24,6 +25,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryDefaults(qk.organizations.list(), { staleTime: Infinity });
+  client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -211,6 +214,8 @@ describe("the conversation list", () => {
     // One key for two lists is the search box answering with the previous
     // search's rows, which is what putting the parameters in the key prevents.
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryDefaults(qk.organizations.list(), { staleTime: Infinity });
+    client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
     const shared = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
@@ -412,7 +417,7 @@ describe("the conversation named in the address bar", () => {
               created_at: "2026-10-24T00:00:00Z",
             },
           });
-        else useOrgStore.getState().setActiveOrgId("next-org");
+        else await act(async () => useOrgStore.getState().setActiveOrgId("next-org"));
         await act(async () => {
           finish();
           await fetching;

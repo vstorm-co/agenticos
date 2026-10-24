@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
+import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSoon } from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
@@ -165,6 +166,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const conversationApi = useConversationStore.useApi();
   const selectionApi = useAgentSelectionStore.useApi();
   const scoped = useInChatScope();
+  const tenant = useTenantId();
+  const stillSameTenant = useTenantGuard();
   // State, not a ref, because it is returned. Reading a ref to build the return
   // value hands whoever asked a value React will never re-render them for - a
   // "load more" control driven by it would stay on screen after the last page
@@ -293,11 +296,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     async (signal?: AbortSignal) => {
       if (signal?.aborted) return;
       const startedAs = useAuthStore.getState().user?.id;
-      const startedIn = useOrgStore.getState().activeOrgId;
+      const startedIn = tenant;
       const stillCurrent = () =>
-        !signal?.aborted &&
-        stillSameAccount(startedAs) &&
-        useOrgStore.getState().activeOrgId === startedIn;
+        !signal?.aborted && stillSameAccount(startedAs) && stillSameTenant(startedIn);
       // The list query auto-fetches and dedupes; force a fresh pull here to keep
       // the previous explicit-refresh semantics (e.g. after a new conversation is
       // created over WS).
@@ -337,6 +338,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       clearMessages,
       conversationApi,
       scoped,
+      tenant,
+      stillSameTenant,
     ],
   );
 
