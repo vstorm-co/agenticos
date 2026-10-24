@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Session cookies no longer overwrite another app's login cookies on the same
+  hostname.** The console uses `agenticos_access_token` and
+  `agenticos_refresh_token` for sign-in, refresh and logout. **After upgrading,
+  sign in again once:** existing cookies with the generic names are ignored and
+  left untouched. HTTP API token fields are unchanged. Use separate hostnames
+  for unrelated apps to keep authentication cookies from reaching another app's
+  server; different ports and cookie names do not provide that isolation.
+
 ## [1.16.0] - 2026-10-23
 
 ### Added

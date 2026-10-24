@@ -131,7 +131,7 @@ describe("staging a token", () => {
 });
 
 describe("accepting after sign-in", () => {
-  const staged = { access_token: "jwt", [stageCookie(FLOW)]: "h" };
+  const staged = { agenticos_access_token: "jwt", [stageCookie(FLOW)]: "h" };
 
   it("refuses without a session", async () => {
     const response = await acceptPending(
@@ -144,7 +144,7 @@ describe("accepting after sign-in", () => {
 
   it("is a clean miss when no invitation was staged for the flow", async () => {
     const response = await acceptPending(
-      request({ access_token: "jwt" }, undefined, forFlow(FLOW)),
+      request({ agenticos_access_token: "jwt" }, undefined, forFlow(FLOW)),
     );
 
     expect(response.status).toBe(404);
@@ -218,7 +218,7 @@ describe("accepting after sign-in", () => {
     );
 
     const response = await acceptPending(
-      request({ ...staged, access_token: "stale" }, undefined, forFlow(FLOW)),
+      request({ ...staged, agenticos_access_token: "stale" }, undefined, forFlow(FLOW)),
     );
 
     expect(response.status).toBe(401);

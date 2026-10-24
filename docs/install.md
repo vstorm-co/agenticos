@@ -42,6 +42,16 @@ there is no step it takes that you cannot.
     The Makefile and the shell helpers assume bash. **WSL2** or **Git Bash**.
     Once you are inside one, everything below is identical.
 
+!!! note "Login cookies and shared hosts"
+
+    The console uses `agenticos_access_token` and `agenticos_refresh_token`
+    cookies to avoid accidental overwrites by apps with generic cookie names.
+    After upgrading from the old names, sign in again once.
+
+    Give unrelated apps separate hostnames. Cookies are shared across ports on
+    the same hostname; app-specific names prevent accidental collisions, but do
+    not stop another app on that hostname from receiving your tokens.
+
 ## Run it from the published images
 
 The product is two images, `ghcr.io/vstorm-co/agenticos-backend` and

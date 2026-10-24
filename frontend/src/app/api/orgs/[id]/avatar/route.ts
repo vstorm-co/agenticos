@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bffRefusal } from "@/lib/server-api";
 import { IMAGE_TYPES, baseContentType } from "@/lib/proxy-content-type";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
     const formData = await request.formData();
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
     const response = await fetch(`${BACKEND_URL}/api/v1/orgs/${encodeURIComponent(id)}/avatar`, {

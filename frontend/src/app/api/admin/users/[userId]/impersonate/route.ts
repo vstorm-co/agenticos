@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 import { requireAdmin } from "@/lib/admin-auth";
 
 interface RouteParams {
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     );
     const response = bffJson(impersonation);
-    response.cookies.set("access_token", access_token, {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, access_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",

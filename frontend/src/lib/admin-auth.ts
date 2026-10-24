@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { backendFetch, bffRefusal } from "@/lib/server-api";
 import { isAppAdmin } from "@/lib/utils";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 /**
  * The token behind an `/api/admin/*` route, or the refusal to answer with.
@@ -12,7 +13,7 @@ import { isAppAdmin } from "@/lib/utils";
 export async function requireAdmin(
   request: NextRequest,
 ): Promise<{ error: NextResponse } | { accessToken: string }> {
-  const accessToken = request.cookies.get("access_token")?.value;
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
 
   if (!accessToken) {
     return { error: bffRefusal("NOT_AUTHENTICATED", 401) };

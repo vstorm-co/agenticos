@@ -1,5 +1,5 @@
 ---
-source_sha: "f7e7980c4123"
+source_sha: "86a6f70a9b26"
 ---
 
 # Sicherheit { #security }
@@ -31,7 +31,7 @@ Anfrage auf ihrem Weg zu den Daten überschreitet.
 
 | Grenze | Was sie überschreitet | Auf der anderen Seite vertrauenswürdig? |
 |---|---|---|
-| Browser → BFF (die Next.js-Route-Handler) | Ein Session-Cookie, der Organisations-Header, Formulareingaben | Nein — aber das BFF prüft das Cookie nicht: es liest das `httpOnly`-`access_token` und reicht es als Bearer-Header weiter (`frontend/src/lib/platform-proxy.ts`). Es ist eine Grenze, die ein Credential weiterreicht; die Prüfung ist Aufgabe der API |
+| Browser → BFF (die Next.js-Route-Handler) | Ein Session-Cookie, der Organisations-Header, Formulareingaben | Nein — aber das BFF prüft das Cookie nicht: es liest das `httpOnly`-`agenticos_access_token` und reicht es als Bearer-Header weiter (`frontend/src/lib/platform-proxy.ts`). Es ist eine Grenze, die ein Credential weiterreicht; die Prüfung ist Aufgabe der API |
 | BFF → API (FastAPI) | Ein an eine DB-Session gebundenes JWT, der Header `X-Organization-Id` | Nein — das Token wird pro Anfrage geprüft, die Session auf Widerruf kontrolliert und die Organisation aus dem Token aufgelöst |
 | API → PostgreSQL / Redis | Queries und Cache-Lesezugriffe, über TLS, wenn konfiguriert | Ja — der Speicher gehört dem Betreiber; was er im Ruhezustand schützt, steht unter „Was wo verschlüsselt ist“ |
 | API / Worker → Modell-Provider, Kanäle, MCP-Server, Suchanbieter, Logfire | Prompts, Tool-Aufrufe, Anfragen, Antworten, Traces | Nein — das sind Dritte; was sie erreicht, ist eine Entscheidung pro Agent, außer beim deploymentweiten Tracing (unten) |

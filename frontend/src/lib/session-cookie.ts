@@ -1,5 +1,9 @@
 import type { NextRequest } from "next/server";
 
+// App-specific names avoid overwriting another app's cookies on the same host.
+export const ACCESS_TOKEN_COOKIE = "agenticos_access_token";
+export const REFRESH_TOKEN_COOKIE = "agenticos_refresh_token";
+
 /**
  * Whether a session cookie set in answer to this request may carry `Secure`.
  *
