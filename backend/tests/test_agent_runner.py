@@ -2807,6 +2807,7 @@ class TestParking:
             # What the request asked for, so the continuation is the same run rather
             # than a default-mode one wearing its id (#1326, #1343, #788).
             "admitted_as": {
+                "local": None,
                 "approval_mode": "follow_agent",
                 "acts_for_sender": False,
                 "audience_user_id": None,

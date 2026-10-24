@@ -33,9 +33,11 @@ async def _client(
     apns: MagicMock | None = None,
     deployment: MagicMock | None = None,
     admin: bool = False,
+    session_id: UUID | None = None,
 ) -> AsyncIterator[AsyncClient]:
     user = MagicMock(id=user_id, is_app_admin=admin)
     app.dependency_overrides[deps.get_current_user] = lambda: user
+    app.dependency_overrides[deps.get_current_session_id] = lambda: session_id
     app.dependency_overrides[deps.get_web_push_service] = lambda: push
     app.dependency_overrides[deps.get_push_service] = lambda: push
     app.dependency_overrides[deps.get_apns_service] = lambda: apns or MagicMock()
@@ -55,7 +57,8 @@ async def test_a_browser_gets_the_key_subscribes_and_unsubscribes() -> None:
     push = MagicMock(
         public_key=AsyncMock(return_value="BPub"), subscribe=AsyncMock(), unsubscribe=AsyncMock()
     )
-    async with _client(push, user_id) as client:
+    session_id = uuid4()
+    async with _client(push, user_id, session_id=session_id) as client:
         key = await client.get("/api/v1/push/key")
         subscribed = await client.post(
             "/api/v1/push/subscriptions",
@@ -67,7 +70,7 @@ async def test_a_browser_gets_the_key_subscribes_and_unsubscribes() -> None:
         )
     assert key.json() == {"public_key": "BPub"}
     assert (subscribed.status_code, unsubscribed.status_code) == (204, 204)
-    assert push.subscribe.await_args.kwargs == {"user_agent": "Chrome"}
+    assert push.subscribe.await_args.kwargs == {"user_agent": "Chrome", "session_id": session_id}
     assert push.subscribe.await_args.args[0] == user_id
     push.unsubscribe.assert_awaited_once_with(user_id, ENDPOINT)
 
@@ -102,14 +105,15 @@ async def test_anybody_reads_whether_iphones_get_push_and_registers_their_own() 
     apns = MagicMock(
         read=AsyncMock(return_value=READ), register=AsyncMock(), unregister=AsyncMock()
     )
-    async with _client(MagicMock(), user_id, apns=apns) as client:
+    session_id = uuid4()
+    async with _client(MagicMock(), user_id, apns=apns, session_id=session_id) as client:
         read = await client.get("/api/v1/push/apns")
         registered = await client.post("/api/v1/push/apns/devices", json={"token": TOKEN})
         refused = await client.post("/api/v1/push/apns/devices", json={"token": "not-hex"})
         forgotten = await client.delete("/api/v1/push/apns/devices", params={"token": TOKEN})
     assert read.json()["configured"] is True and "private_key" not in read.json()
     assert (registered.status_code, refused.status_code, forgotten.status_code) == (204, 422, 204)
-    apns.register.assert_awaited_once_with(user_id, TOKEN)
+    apns.register.assert_awaited_once_with(user_id, TOKEN, session_id=session_id)
     apns.unregister.assert_awaited_once_with(user_id, TOKEN)
 
 

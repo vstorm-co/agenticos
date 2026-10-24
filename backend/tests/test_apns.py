@@ -241,7 +241,7 @@ class TestDevices:
             patch(f"{MODULE}.device_repo.upsert", new=upsert),
         ):
             await ApnsService(AsyncMock()).register(user_id, TOKEN)
-        assert upsert.await_args.kwargs == {"user_id": user_id, "token": TOKEN}
+        assert upsert.await_args.kwargs == {"user_id": user_id, "token": TOKEN, "session_id": None}
 
     async def test_forgetting_one_that_was_never_there_is_a_404(self) -> None:
         with (

@@ -7835,7 +7835,7 @@
       },
       "connection": {
         "title": "Jak przeglądarka wychodzi do sieci",
-        "description": "Wbudowana używa przeglądarki wdrożenia i jego adresu. Proxy wysyła przeglądanie przez Twój własny adres - domowy albo regionalny, który strony blokują rzadziej. Hostowana przeglądarka uruchamia je w płatnej usłudze przeglądarki, z którą łączy się przez CDP."
+        "description": "Wbudowana używa przeglądarki wdrożenia i jego adresu. Proxy wysyła przeglądanie przez Twój własny adres - domowy albo regionalny, który strony blokują rzadziej. Hostowana przeglądarka uruchamia je w płatnej usłudze przeglądarki, z którą łączy się przez CDP. Opcja „Ten komputer” wymaga sparowanej aplikacji desktopowej i wybrania lokalnej przeglądarki dla tego czatu."
       },
       "proxy_url": {
         "title": "Adres proxy",
@@ -8315,7 +8315,7 @@
     "computer_use": {
       "desktop": {
         "title": "Pulpit",
-        "description": "Własny sandbox agenta z pulpitem albo komputer, który uruchamiasz sam. Sandbox wymaga możliwości Sandbox na połączeniu z sandboxem."
+        "description": "Własny sandbox agenta z pulpitem, komputer, który uruchamiasz sam, albo własny komputer użytkownika, gdy czat na nim pracuje. Sandbox wymaga możliwości Sandbox na połączeniu z sandboxem."
       },
       "daemon_url": {
         "title": "Adres daemona",

@@ -493,7 +493,16 @@ class TestInlineSpecialists:
     async def test_a_specialists_desktop_with_no_sandbox_to_run_in_is_refused(self):
         """The parent's check, run on the specialist, or its first screenshot fails instead."""
         problems = await _problems(
-            _ctx(), _delegating({"inline": [_specialist(capabilities=[{"id": "computer_use"}])]})
+            _ctx(),
+            _delegating(
+                {
+                    "inline": [
+                        _specialist(
+                            capabilities=[{"id": "computer_use", "config": {"desktop": "sandbox"}}]
+                        )
+                    ]
+                }
+            ),
         )
 
         assert problems == [
@@ -511,7 +520,11 @@ class TestInlineSpecialists:
         spec = _delegating(
             {
                 "share_with_delegates": ["sandbox"],
-                "inline": [_specialist(capabilities=[{"id": "computer_use"}])],
+                "inline": [
+                    _specialist(
+                        capabilities=[{"id": "computer_use", "config": {"desktop": "sandbox"}}]
+                    )
+                ],
             },
             capabilities=[sandbox],
         )
@@ -528,7 +541,11 @@ class TestInlineSpecialists:
         spec = _delegating(
             {
                 "share_with_delegates": ["sandbox"],
-                "inline": [_specialist(capabilities=[{"id": "computer_use"}, own])],
+                "inline": [
+                    _specialist(
+                        capabilities=[{"id": "computer_use", "config": {"desktop": "sandbox"}}, own]
+                    )
+                ],
             },
             capabilities=[_desktop_sandbox()],
         )
@@ -570,7 +587,10 @@ class TestInlineSpecialists:
         spec = _delegating(
             {"share_with_delegates": share},
             subagents=[_pin(delegate.id, version.id)],
-            capabilities=[_desktop_sandbox(runtime=runtime), {"id": "computer_use"}],
+            capabilities=[
+                _desktop_sandbox(runtime=runtime),
+                {"id": "computer_use", "config": {"desktop": "sandbox"}},
+            ],
         )
         service = AgentRegistryService(_db())
 

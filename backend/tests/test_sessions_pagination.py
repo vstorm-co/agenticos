@@ -49,6 +49,10 @@ async def test_a_page_reports_the_total_not_its_own_length(service: SessionServi
 
     with (
         patch(
+            "app.repositories.push_subscription.sessions_with_push",
+            new=AsyncMock(return_value={page[0].id}),
+        ),
+        patch(
             "app.repositories.session.get_user_sessions", new=AsyncMock(return_value=page)
         ) as fetch,
         patch(
@@ -59,6 +63,7 @@ async def test_a_page_reports_the_total_not_its_own_length(service: SessionServi
 
     assert len(result.items) == 2
     assert result.total == 17
+    assert [item.push for item in result.items] == [True, False]
     kwargs = fetch.await_args.kwargs
     assert (kwargs["open_only"], kwargs["skip"], kwargs["limit"]) == (True, 10, 2)
     # The same cutoff in both statements. A session lapsing between them would

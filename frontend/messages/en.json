@@ -8050,7 +8050,7 @@
       },
       "connection": {
         "title": "How the browser reaches the web",
-        "description": "Built in uses the deployment's browser and its address. A proxy sends the browses through an address of your own - a residential or regional one sites block less. A hosted browser runs them in a browser service you pay for, reached over CDP."
+        "description": "Built in uses the deployment's browser and its address. A proxy sends the browses through an address of your own - a residential or regional one sites block less. A hosted browser runs them in a browser service you pay for, reached over CDP. This computer requires a paired desktop and local browsing selected for this chat."
       },
       "proxy_url": {
         "title": "Proxy address",
@@ -8530,7 +8530,7 @@
     "computer_use": {
       "desktop": {
         "title": "Desktop",
-        "description": "The agent's own sandbox, with a desktop in it, or a computer you run. The sandbox needs the Sandbox capability on a sandbox connection."
+        "description": "The agent's own sandbox, with a desktop in it, a computer you run, or the person's own computer when their chat works on it. The sandbox needs the Sandbox capability on a sandbox connection."
       },
       "daemon_url": {
         "title": "Daemon URL",

@@ -43,6 +43,10 @@ async def test_the_list_names_the_app_and_marks_the_callers_own_session(
     app_row, browser_row = _row("macos"), _row(None)
     with (
         patch(
+            "app.repositories.push_subscription.sessions_with_push",
+            new=AsyncMock(return_value={app_row.id}),
+        ),
+        patch(
             "app.repositories.session.get_user_sessions",
             new=AsyncMock(return_value=[app_row, browser_row]),
         ),
@@ -51,6 +55,7 @@ async def test_the_list_names_the_app_and_marks_the_callers_own_session(
         page = await service.list_sessions(uuid4(), current_session_id=app_row.id)
 
     first, second = page.items
+    assert first.push is True and second.push is False
     assert (first.app_platform, first.app_version, first.is_current) == ("macos", "0.2.0", True)
     assert (second.app_platform, second.app_version, second.is_current) == (None, None, False)
 

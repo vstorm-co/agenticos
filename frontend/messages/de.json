@@ -7929,7 +7929,7 @@
       },
       "connection": {
         "title": "Wie der Browser ins Netz geht",
-        "description": "Eingebaut nutzt den Browser des Deployments und dessen Adresse. Ein Proxy schickt die Browses über eine eigene Adresse - eine private oder regionale, die Websites seltener sperren. Ein gehosteter Browser führt sie in einem bezahlten Browser-Dienst aus, erreicht über CDP."
+        "description": "Eingebaut nutzt den Browser des Deployments und dessen Adresse. Ein Proxy schickt die Browses über eine eigene Adresse - eine private oder regionale, die Websites seltener sperren. Ein gehosteter Browser führt sie in einem bezahlten Browser-Dienst aus, erreicht über CDP. „Dieser Computer“ erfordert eine gekoppelte Desktop-App und lokales Browsing für diesen Chat."
       },
       "proxy_url": {
         "title": "Proxy-Adresse",
@@ -8409,7 +8409,7 @@
     "computer_use": {
       "desktop": {
         "title": "Desktop",
-        "description": "Die eigene Sandbox des Agenten mit einem Desktop darin, oder ein Computer, den Sie selbst betreiben. Die Sandbox braucht die Sandbox-Fähigkeit auf einer Sandbox-Verbindung."
+        "description": "Die eigene Sandbox des Agenten mit einem Desktop darin, ein selbst betriebener Computer oder der eigene Computer der Person, wenn ihr Chat darauf arbeitet. Die Sandbox braucht die Sandbox-Fähigkeit auf einer Sandbox-Verbindung."
       },
       "daemon_url": {
         "title": "Daemon-URL",
