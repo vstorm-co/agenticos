@@ -313,6 +313,23 @@ class TestKeepingATurn:
         ]
         assert frames[-1] == (live_turn.END, {"conversation_id": CONVERSATION})
 
+    async def test_a_writer_that_died_without_a_terminal_frame_is_not_waited_on(
+        self, store: _Store
+    ) -> None:
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "partial"})
+        if turn.beat is not None:
+            turn.beat.cancel()
+            await asyncio.gather(turn.beat, return_exceptions=True)
+            turn.beat = None
+        await store.delete(turn.key("alive"))
+
+        frames = [frame async for frame in live_turn.follow(CONVERSATION, turn.token)]
+        assert [(frame["type"], frame["data"]) for frame in frames] == [
+            ("text_delta", {"content": "partial"})
+        ]
+        assert await live_turn.live_token(CONVERSATION) is None
+
     async def test_a_trace_ended_while_subscribing_is_refetched_without_replay(
         self, store: _Store
     ) -> None:

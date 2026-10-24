@@ -303,9 +303,6 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
         for frame in frames:
             last = frame["seq"]
             yield frame
-            if frame["type"] == END:
-                await _forget(turn)
-                return
         if not await _alive(turn):
             return
         while True:
