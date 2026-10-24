@@ -735,7 +735,12 @@ class ScoringService:
     async def evaluate(
         self, ctx: AuthContext, case: CaseView, answer: ScoredAnswer, scoring: DatasetScoring
     ) -> Evaluation:
-        """Every configured scorer's result for one answer, without keeping them."""
+        """Every configured scorer's result for one answer, without keeping them.
+
+        Initial scoring uses the original answer in memory, before evidence is
+        redacted for storage in Review and eval attempts. Rescoring reads the
+        retained, redacted answer; raw secrets are never recovered for a scorer.
+        """
         results: list[ScorerResult] = []
         judged = []
         if scoring.checks.enabled:

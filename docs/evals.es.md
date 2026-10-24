@@ -1,5 +1,5 @@
 ---
-source_sha: "b668fac0818b"
+source_sha: "e60db061f5bf"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -646,3 +646,5 @@ la grabación desde la que se respondió. Se borra con su run, y un run con su
 agent o su dataset; borrar la conversación de la que se tomó un caso no borra
 los resultados ya producidos a partir de él. [Protección de
 datos](data-protection.md) lo enumera junto a los demás almacenes.
+
+Los secretos reconocidos en respuestas guardadas, llamadas a herramientas y errores se sustituyen por los mismos marcadores que en Review y los casos del dataset. La evaluación inicial usa la respuesta original en memoria antes de guardarla; una nueva evaluación usa los datos guardados con los secretos eliminados. La actualización también limpia los resultados existentes; revertir la migración no restaura los secretos eliminados.

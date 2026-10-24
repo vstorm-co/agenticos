@@ -25,8 +25,10 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import JsonValue, TypeAdapter
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import ToolCallPart
+from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.context import ContextBody
@@ -82,6 +84,23 @@ logger = logging.getLogger(__name__)
 _FULL_BACKOFF_SECONDS = 2.0
 _STARTER_GONE = "Whoever started this eval is no longer a member."
 _NO_LONGER_RUNS = "Whoever started this eval may no longer run its agent or its dataset."
+
+
+_JSON = TypeAdapter(JsonValue)
+
+
+def _redact_evidence(value: JsonValue) -> JsonValue:
+    """Redact every string in persisted evidence, retaining its JSON structure."""
+    if isinstance(value, str):
+        verdict = redact_secrets(value)
+        if verdict.action == "replace" and isinstance(verdict.replacement, str):
+            return verdict.replacement
+        return value
+    if isinstance(value, list):
+        return [_redact_evidence(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_evidence(item) for key, item in value.items()}
+    return value
 
 
 @dataclass(frozen=True)
@@ -604,7 +623,13 @@ class EvalRunWorker:
     async def _finish(
         self, db: AsyncSession, attempt: EvalRunCase, *, values: dict[str, Any]
     ) -> None:
-        if not await eval_run_repo.finish_case(db, case=attempt, values=values):
+        # Grade the original answer in memory; only its persisted copy is redacted,
+        # with the same detector Review uses. Failed and ungraded attempts pass here too.
+        kept = dict(values)
+        for field in ("answer", "calls", "error"):
+            if field in kept:
+                kept[field] = _redact_evidence(_JSON.validate_python(kept[field]))
+        if not await eval_run_repo.finish_case(db, case=attempt, values=kept):
             logger.warning(
                 "eval_case_closed_meanwhile",
                 extra={"eval_run_id": str(self.eval_run_id), "case_id": str(attempt.id)},

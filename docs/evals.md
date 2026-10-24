@@ -603,3 +603,5 @@ was answered from. It is deleted with its run, and a run with its agent or its
 dataset; deleting the conversation a case was taken from does not delete
 results already produced from it. [Data protection](data-protection.md)
 lists it with the other stores.
+
+Recognized secrets in retained answers, tool-call evidence and errors are replaced with the same placeholders used in Review and dataset cases. Initial scoring evaluates the original answer in memory before persistence; rescoring uses the retained, redacted evidence. The upgrade also redacts existing results and cannot restore removed secrets on downgrade.

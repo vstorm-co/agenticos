@@ -1,5 +1,5 @@
 ---
-source_sha: "b668fac0818b"
+source_sha: "e60db061f5bf"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -691,3 +691,5 @@ seinem Run gelöscht, und ein Run mit seinem Agent oder seinem Dataset; das
 Löschen der Conversation, aus der ein Fall stammt, löscht keine bereits daraus
 erzeugten Ergebnisse. [Datenschutz](data-protection.md) führt es mit den
 anderen Speichern auf.
+
+Erkannte Geheimnisse in gespeicherten Antworten, Werkzeugaufrufen und Fehlern werden durch dieselben Platzhalter wie in Review und Dataset-Fällen ersetzt. Die erste Bewertung prüft die Originalantwort im Arbeitsspeicher vor dem Speichern; eine erneute Bewertung verwendet die gespeicherten, bereinigten Daten. Das Upgrade bereinigt auch vorhandene Ergebnisse; ein Downgrade stellt entfernte Geheimnisse nicht wieder her.

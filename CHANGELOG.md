@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Eval results redact recognized secrets before storage.** Answers, nested
+  tool-call evidence and errors use the same detector as Review. Existing
+  results are redacted on upgrade; grading still reads the original answer in
+  memory before it is stored (#2375).
+
 - **Queued case generation retains API key permissions.** Workers recheck the
   original key's current scopes and membership before reading sources, and stop
   explicitly if it was revoked, expired or deleted (#2429).

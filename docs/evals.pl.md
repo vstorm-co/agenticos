@@ -1,5 +1,5 @@
 ---
-source_sha: "b668fac0818b"
+source_sha: "e60db061f5bf"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -656,3 +656,5 @@ którego odpowiadano. Jest usuwany razem ze swoim runem, a run razem z agentem
 lub datasetem; usunięcie konwersacji, z której wzięto przypadek, nie usuwa
 wyników już z niego uzyskanych. [Ochrona danych](data-protection.md) wymienia
 go razem z innymi magazynami.
+
+Rozpoznane sekrety w zapisanych odpowiedziach, danych wywołań narzędzi i błędach są zastępowane takimi samymi znacznikami jak w Review i przypadkach datasetu. Pierwsza ocena korzysta z oryginalnej odpowiedzi w pamięci przed zapisem; ponowna ocena używa zachowanych danych z usuniętymi sekretami. Aktualizacja usuwa również sekrety z istniejących wyników; wycofanie migracji ich nie przywraca.
