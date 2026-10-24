@@ -107,6 +107,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Organization usage reports open their Dashboard with the correct organization;
+  agent reports keep their detail links, and the email button names the report (#2455).
+
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
   workspace. When the sandbox service refused to open a session, that copy
