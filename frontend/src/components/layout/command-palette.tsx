@@ -150,7 +150,7 @@ export function CommandPalette() {
       label={t("commandPalette")}
       shouldFilter
       overlayClassName="fixed inset-0 z-[60] bg-black/40"
-      contentClassName="panel text-foreground fixed left-1/2 top-[calc(var(--shell-inset-top,0px)+1rem)] z-[61] flex max-h-[var(--dialog-available-height)] w-[min(92vw,640px)] -translate-x-1/2 flex-col overflow-hidden sm:top-[min(12dvh,6rem)] rounded-2xl"
+      contentClassName="panel text-foreground fixed left-1/2 top-[calc(var(--shell-inset-top,0px)+1rem)] z-[61] flex max-h-[var(--dialog-available-height)] w-[min(92vw,640px)] -translate-x-1/2 flex-col overflow-hidden rounded-2xl"
     >
       <div className="border-foreground/10 flex items-center gap-3 border-b px-4 py-3">
         <Search className="text-muted-foreground h-4 w-4" />

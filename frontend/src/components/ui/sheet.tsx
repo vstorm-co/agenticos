@@ -65,7 +65,7 @@ export function SheetContent({ children, className, side = "left" }: SheetConten
           "panel-strong fixed z-50 flex min-h-0 max-w-full flex-col overflow-y-auto overscroll-contain outline-none",
           "data-[state=open]:animate-in data-[state=closed]:animate-out duration-200",
           side === "bottom"
-            ? "slide-in-from-bottom data-[state=closed]:slide-out-to-bottom inset-x-0 bottom-0 max-h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px)-1rem)] rounded-t-2xl pb-[var(--safe-bottom)]"
+            ? "slide-in-from-bottom data-[state=closed]:slide-out-to-bottom inset-x-0 bottom-[max(0px,calc(100dvh-var(--app-height,100dvh)))] max-h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px)-1rem)] rounded-t-2xl pb-[var(--safe-bottom)]"
             : "top-0 h-[var(--app-height,100dvh)] w-72",
           side === "left" && "slide-in-from-left data-[state=closed]:slide-out-to-left left-0",
           side === "right" && "slide-in-from-right data-[state=closed]:slide-out-to-right right-0",
