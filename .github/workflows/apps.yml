@@ -51,7 +51,7 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
       - name: Build debug APK
         working-directory: mobile
-        run: bun install --frozen-lockfile && bunx tauri android build --debug --target aarch64 --apk --ci
+        run: bun install --frozen-lockfile && bunx tauri android build --debug --target aarch64 --apk --ci -- --locked
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: android-debug
@@ -68,4 +68,4 @@ jobs:
         run: rustup target add aarch64-apple-ios-sim
       - name: Build iOS simulator with extensions
         working-directory: mobile
-        run: bun install --frozen-lockfile && bunx tauri ios build --target aarch64-sim --no-sign --archive-only --ci
+        run: bun install --frozen-lockfile && bunx tauri ios build --target aarch64-sim --no-sign --archive-only --ci -- --locked

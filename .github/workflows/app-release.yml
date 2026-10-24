@@ -109,7 +109,7 @@ jobs:
           projectPath: desktop
           releaseId: ${{ needs.resolve.outputs.id }}
           tagName: ${{ needs.resolve.outputs.tag }}
-          args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ runner.os == 'Windows' && '--config src-tauri/tauri.windows.release.conf.json' || '' }}
+          args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ runner.os == 'Windows' && '--config src-tauri/tauri.windows.release.conf.json' || '' }} -- --locked
           includeUpdaterJson: true
   android:
     needs: resolve
@@ -142,7 +142,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: bun install --frozen-lockfile && bunx tauri android build --target aarch64 --apk --ci
+        run: bun install --frozen-lockfile && bunx tauri android build --target aarch64 --apk --ci -- --locked
       - name: Attach APK to the existing release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -221,7 +221,7 @@ jobs:
           set -euo pipefail
           cp "$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY}.p8" "$APPLE_API_KEY_PATH"
           bun install --frozen-lockfile
-          bunx tauri ios build --target aarch64 --export-method app-store-connect --build-number "$BUILD_NUMBER" --ci
+          bunx tauri ios build --target aarch64 --export-method app-store-connect --build-number "$BUILD_NUMBER" --ci -- --locked
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ios-distribution
