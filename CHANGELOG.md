@@ -107,6 +107,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- End live chat traces even when setup is cancelled before the model starts,
+  discard dead writers and show completed replayed answers from the transcript
+  without typing them out again when a conversation is reopened (#2454).
+
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
   workspace. When the sandbox service refused to open a session, that copy
