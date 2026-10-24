@@ -163,10 +163,12 @@ test("test questions, review and improvement publish keep a guarded environment 
   const editCase = editor.getByRole("button", { name: "Edit", exact: true });
   await expect(editCase).toBeVisible();
   await editCase.click();
-  await expect(editor.getByLabel("Input", { exact: true })).toHaveValue("Return policy question 1");
+  await expect(editor.getByRole("textbox", { name: "Input", exact: true })).toHaveValue(
+    "Return policy question 1",
+  );
   expect(
     await editor
-      .getByLabel("Input", { exact: true })
+      .getByRole("textbox", { name: "Input", exact: true })
       .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
   ).toBeGreaterThanOrEqual(16);
   await capture(page, info, "case-editor");
