@@ -1323,41 +1323,40 @@ def _attempt_status(result: NodeResult) -> str:
     raise TypeError(f"Unknown NodeResult variant: {result!r}")  # pragma: no cover - closed union
 
 
+def _outcome_payloads_fit(payloads: tuple[object, ...]) -> None:
+    remaining = settings.WORKFLOW_NODE_MAX_OUTPUT_BYTES
+    for payload in payloads:
+        if payload is not None:
+            remaining -= json_byte_size(payload, limit=remaining)
+
+
 def _persistable_outcome(outcome: HandlerOutcome) -> tuple[HandlerOutcome, dict[str, JsonValue]]:
     """An invalid output is a terminal, non-retryable failure; incurred fees survive."""
-    code = "INVALID_NODE_OUTPUT"
-    message = "The node returned data PostgreSQL JSONB cannot store"
     try:
+        # Check repeated model fields before model_dump materializes their copies.
+        _outcome_payloads_fit((outcome.result, outcome.run_output, outcome.webhook_response))
         serialized: dict[str, JsonValue] = outcome.result.model_dump(mode="json")
         jsonb_value_fits(serialized)
         jsonb_value_fits(outcome.run_output)
         jsonb_value_fits(outcome.webhook_response)
-        remaining = settings.WORKFLOW_NODE_MAX_OUTPUT_BYTES
-        try:
-            for payload in (serialized, outcome.run_output, outcome.webhook_response):
-                if payload is not None:
-                    remaining -= json_byte_size(payload, limit=remaining)
-        except PayloadTooLarge:
-            code = "NODE_OUTPUT_TOO_LARGE"
-            message = "The node exceeded the inline output byte limit; return file references"
-            raise
+        _outcome_payloads_fit((serialized, outcome.run_output, outcome.webhook_response))
+    except PayloadTooLarge:
+        code = "NODE_OUTPUT_TOO_LARGE"
+        message = "The node exceeded the inline output byte limit; return file references"
     except ValueError, TypeError, RecursionError:
-        failed = Failed(
-            error=WorkflowError(
-                code=code,
-                message=message,
-                retryable=False,
-            )
-        )
-        safe = replace(
-            outcome,
-            result=failed,
-            run_output=None,
-            webhook_response=None,
-            waiting_agent_run_id=None,
-        )
-        return safe, failed.model_dump(mode="json")
-    return outcome, serialized
+        code = "INVALID_NODE_OUTPUT"
+        message = "The node returned data PostgreSQL JSONB cannot store"
+    else:
+        return outcome, serialized
+    failed = Failed(error=WorkflowError(code=code, message=message, retryable=False))
+    safe = replace(
+        outcome,
+        result=failed,
+        run_output=None,
+        webhook_response=None,
+        waiting_agent_run_id=None,
+    )
+    return safe, failed.model_dump(mode="json")
 
 
 async def settle(

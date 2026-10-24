@@ -3068,3 +3068,17 @@ def test_node_output_budget_counts_all_persisted_payloads_together(monkeypatch):
     monkeypatch.setattr(dispatcher.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 1000)
     safe, _ = dispatcher._persistable_outcome(outcome)
     assert isinstance(safe.result, Failed) and safe.result.error.code == "NODE_OUTPUT_TOO_LARGE"
+
+
+def test_repeated_output_is_bounded_before_model_dump_copies_it(monkeypatch):
+    from app.workflows.nodes._transform import ItemsOutput
+
+    output = ItemsOutput(items=[{"shared": "x" * 1000}] * 100)
+    result = Completed[ItemsOutput](output=output)
+    outcome = dispatcher.HandlerOutcome(result=result)
+    monkeypatch.setattr(dispatcher.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 2000)
+    with patch.object(
+        type(result), "model_dump", side_effect=AssertionError("Must refuse before copying")
+    ):
+        safe, _ = dispatcher._persistable_outcome(outcome)
+    assert isinstance(safe.result, Failed) and safe.result.error.code == "NODE_OUTPUT_TOO_LARGE"

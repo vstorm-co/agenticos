@@ -1,8 +1,10 @@
 """Inline JSON uses encoded bytes, with refusal before accumulating serialized text."""
 
 import json
+from datetime import UTC, datetime
 
 import pytest
+from pydantic import BaseModel
 
 from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 
@@ -25,3 +27,11 @@ def test_invalid_json_is_not_disguised_as_a_size_failure(value):
     with pytest.raises((ValueError, TypeError)) as raised:
         json_byte_size(value, limit=1000)
     assert not isinstance(raised.value, PayloadTooLarge)
+
+
+def test_models_are_projected_shallowly_and_scalar_adapters_are_supported():
+    class Output(BaseModel):
+        at: datetime
+
+    value = Output(at=datetime(2026, 10, 24, tzinfo=UTC))
+    assert json_byte_size(value, limit=100) == len('{"at":"2026-10-24T00:00:00Z"}')

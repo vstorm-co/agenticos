@@ -1,5 +1,5 @@
 ---
-source_sha: "1c8da8a2ed22"
+source_sha: "036b06965e44"
 ---
 
 # Workflows { #workflows }
@@ -924,6 +924,8 @@ bez automatycznego ponowienia i z zachowaniem poniesionych kosztów. Zewnętrzna
 operacja mogła już się zakończyć; sprawdź ją przed ręcznym powtórzeniem węzła.
 
 Wyniki węzła mają wspólny limit `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (domyślnie 10 MiB): wynik próby, wyjście runa i odpowiedź webhooka łącznie. Przekroczenie daje `NODE_OUTPUT_TOO_LARGE`, zachowuje koszty i nie uruchamia automatycznego retry. Split out sprawdza liczbę po rozwinięciu (maks. 10 000) przed kopiowaniem oraz konserwatywnie szacuje rozmiar powielonych pól. Przekroczenie daje `SPLIT_OUTPUT_TOO_LARGE`. Większe dane przekazuj przez referencje plików.
+
+Kontrola płytkiej projekcji pól modelu odrzuca też powielone duże wartości przed skopiowaniem całego wyniku przez serializację.
 
 ## Podsumowanie { #recap }
 
