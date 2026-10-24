@@ -712,6 +712,7 @@ export const qk = {
     // Every `list(...)` page at once: what creating, renaming or archiving a
     // table invalidates, without refetching every cached table's records.
     lists: () => ["tables", "list"] as const,
+    catalog: () => ["tables", "list", "catalog"] as const,
     detail: (id: string) => ["tables", id] as const,
     schemaVersions: (id: string) => ["tables", id, "schema-versions"] as const,
     // The workflows a table runs when a record is added, and what each record led to.

@@ -11,6 +11,7 @@ reader cannot see leaves its links unnamed and every column read through them
 empty, rather than showing a private table's values to someone outside it.
 """
 
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -225,10 +226,19 @@ def _work_out(
     numbers = [
         item for item in read if isinstance(item, int | float) and not isinstance(item, bool)
     ]
-    if column.aggregate == "sum":
-        return sum(numbers) if numbers else None
-    if column.aggregate == "avg":
-        return sum(numbers) / len(numbers) if numbers else None
+    if column.aggregate in {"sum", "avg"}:
+        if not numbers:
+            return None
+        total = sum(numbers)
+        if column.aggregate == "avg":
+            # Keep the usual arithmetic for small values, and avoid an
+            # overflowing intermediate sum for finite large averages.
+            total = (
+                total / len(numbers)
+                if math.isfinite(total)
+                else sum(number / len(numbers) for number in numbers)
+            )
+        return total if math.isfinite(total) else None
     if numbers:
         return min(numbers) if column.aggregate == "min" else max(numbers)
     # Dates and timestamps are stored ISO 8601, UTC, so text order is time order.

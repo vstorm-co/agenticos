@@ -1,5 +1,5 @@
 ---
-source_sha: "1553c86cf8e5"
+source_sha: "8321b14fa263"
 ---
 
 # Workflows { #workflows }
@@ -719,6 +719,13 @@ mehr ausführen darf, weist seine Zustellungen ab, und ein solcher Zeitplan wird
 abgeschaltet und im Audit-Trail vermerkt. **Pause** im Sheet **Trigger** hält beide
 ohne Veröffentlichung an, und **New secret** ersetzt das Secret eines Webhooks; das
 alte verifiziert sofort nicht mehr.
+
+Webhook-Inhalte werden beim Streamen begrenzt, auch ohne Content-Length. Testaufrufe
+haben die 64-KB-Grenze angehefteter Daten; reguläre Webhook- und GitHub-Aufrufe nutzen
+`WORKFLOW_RUN_MAX_INPUT_BYTES`. Antworten mit Status 204, 205 oder 304 enthalten
+gemäß HTTP keinen Body, behalten aber erlaubte Header. PDF-Bildkonvertierung lehnt
+Dokumente mit mehr als 2.000 Seiten ab, bevor Seitengrößen gelesen werden, auch wenn
+nur eine Seite angefordert wurde.
 
 ### Wenn ein Tabellen-Datensatz hinzukommt, sich ändert oder gelöscht wird { #when-a-table-record-is-added }
 

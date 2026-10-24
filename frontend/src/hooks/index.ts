@@ -82,7 +82,7 @@ export { useUrlSort, type UrlSort } from "./use-url-sort";
 export { useModelProviders, useProviderCatalog, useProviderModels } from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
-export { useTables, useTable } from "./use-tables";
+export { useTables, useTable, useAllTables } from "./use-tables";
 export { useTableRecords } from "./use-table-records";
 export { useTableRecordCount, useTableRecordPages } from "./use-table-record-pages";
 export { useTableViews } from "./use-table-views";

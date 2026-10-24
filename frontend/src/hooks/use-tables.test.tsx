@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTable, useTables } from "./use-tables";
+import { useTable, useTables, useAllTables } from "./use-tables";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 
@@ -273,4 +273,20 @@ describe("what a table write refreshes", () => {
       for (const key of [...UNDER_T1, OTHER_TABLE]) expect(invalidated(key)).toBe(false);
     },
   );
+});
+
+describe("useAllTables", () => {
+  it("keeps complete picker catalogs under the table-list invalidation prefix", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "t1", name: "First" }], total: 2 })
+      .mockResolvedValueOnce({ items: [{ id: "t2", name: "Second" }], total: 2 });
+    const { result } = renderHook(() => useAllTables(), { wrapper });
+    await waitFor(() => expect(result.current.tables).toHaveLength(2));
+    expect(qk.tables.catalog().slice(0, 2)).toEqual(qk.tables.lists());
+  });
+
+  it("does not fetch a picker that is not needed", () => {
+    renderHook(() => useAllTables(false), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
 });

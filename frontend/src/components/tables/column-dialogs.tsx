@@ -22,7 +22,8 @@ import {
 } from "@/components/ui";
 import { useChanged } from "@/hooks/use-changed";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
-import { useTable, useTables } from "@/hooks";
+import { ErrorState } from "@/components/states";
+import { useTable, useAllTables } from "@/hooks";
 
 import { FormulaField } from "./formula-field";
 import { AGGREGATES, COLUMN_TYPES, REFERENCE_TYPES } from "@/types/tables";
@@ -152,7 +153,8 @@ function ReferenceFields({
   onChange: (next: Reference) => void;
 }) {
   const t = useTranslations("tables.columnMenu");
-  const { tables } = useTables({ limit: 100 });
+  const tc = useTranslations("common");
+  const { tables, error, refetch } = useAllTables(type === "link");
   const links = columns.filter((column) => column.type === "link" && !column.archived);
   const link = links.find((column) => column.id === value.linkColumnId) ?? null;
   const { table: target } = useTable(link?.link_table_id ?? null);
@@ -165,6 +167,12 @@ function ReferenceFields({
     return (
       <div className="space-y-1.5">
         <Label htmlFor="new-column-link-table">{t("linkTable")}</Label>
+        {error && (
+          <ErrorState
+            className="py-6"
+            cta={{ label: tc("retry"), onClick: () => void refetch() }}
+          />
+        )}
         <Select
           value={value.linkTableId}
           onValueChange={(next) => onChange({ ...value, linkTableId: next })}

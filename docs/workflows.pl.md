@@ -1,5 +1,5 @@
 ---
-source_sha: "1553c86cf8e5"
+source_sha: "8321b14fa263"
 ---
 
 # Workflows { #workflows }
@@ -656,6 +656,13 @@ workflow, odrzuca dostarczenia, a taki harmonogram jest wyłączany i odnotowywa
 dzienniku audytu. **Pause** w arkuszu **Trigger** zatrzymuje każdy z nich bez
 publikacji, a **New secret** wymienia sekret webhooka; stary od razu przestaje
 przechodzić weryfikację.
+
+Treść webhooków jest ograniczana podczas strumieniowania, również bez Content-Length.
+Testowe dostarczenie ma limit przypiętych danych 64 KB; webhooki produkcyjne i GitHub
+używają `WORKFLOW_RUN_MAX_INPUT_BYTES`. Odpowiedzi webhooka o statusie 204, 205 lub
+304 nie mają treści, zgodnie z HTTP, ale zachowują dozwolone nagłówki. Konwersja PDF
+do obrazów odrzuca dokumenty ponad 2 000 stron przed odczytaniem rozmiarów stron,
+nawet gdy wybrano tylko jedną stronę.
 
 ### Gdy rekord tabeli zostanie dodany, zmieniony lub usunięty { #when-a-table-record-is-added }
 

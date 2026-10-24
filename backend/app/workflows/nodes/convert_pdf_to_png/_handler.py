@@ -71,6 +71,8 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         )
     try:
         sizes = await asyncio.to_thread(_documents.pdf_page_sizes, stored.data)
+    except _documents.DocumentTooLarge:
+        return files.failed("DOCUMENT_TOO_LARGE", "This PDF has more pages than the step allows")
     except _documents.DocumentEncrypted:
         return files.failed("DOCUMENT_ENCRYPTED", "This document is protected by a password")
     except _documents.DocumentCorrupt:

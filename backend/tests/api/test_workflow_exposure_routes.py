@@ -178,3 +178,62 @@ class TestTheSocketRoute:
         assert made.call_args.kwargs == {"organization_id": organization.id, "auth_token": "token"}
         session.handle_frame.assert_awaited_once_with({"type": "attach", "run_id": "r"})
         session.stop.assert_awaited_once()
+
+
+@pytest.mark.security
+async def test_chunked_test_webhook_stops_at_the_pin_limit_before_token_lookup(wired):
+    client, _service = wired
+    service = MagicMock(catch=AsyncMock())
+    app.dependency_overrides[deps.get_workflow_webhook_test_service] = lambda: service
+    consumed: list[int] = []
+
+    async def chunks() -> AsyncIterator[bytes]:
+        for index in range(10):
+            consumed.append(index)
+            yield b"x" * 40_000
+
+    answered = await client.post(
+        f"{settings.API_V1_STR}/workflow-webhook-tests/invalid-token", content=chunks()
+    )
+    assert answered.status_code == 413, answered.text
+    assert answered.json()["error"]["code"] == "WEBHOOK_TEST_TOO_LARGE"
+    assert consumed == [0, 1]
+    service.catch.assert_not_called()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("door", ["workflow-webhooks", "workflow-github"])
+async def test_chunked_live_webhooks_stop_at_the_input_limit(wired, monkeypatch, door):
+    client, service = wired
+    service.receive_webhook = AsyncMock()
+    service.receive_github = AsyncMock()
+    monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", 8)
+    consumed: list[int] = []
+
+    async def chunks() -> AsyncIterator[bytes]:
+        for index in range(10):
+            consumed.append(index)
+            yield b"12345"
+
+    answered = await client.post(f"{settings.API_V1_STR}/{door}/{uuid.uuid4()}", content=chunks())
+    assert answered.status_code == 413, answered.text
+    assert consumed == [0, 1]
+    service.receive_webhook.assert_not_called()
+    service.receive_github.assert_not_called()
+
+
+@pytest.mark.parametrize("status_code", [204, 205, 304])
+async def test_bodyless_webhook_statuses_send_no_json_body(wired, status_code):
+    client, service = wired
+    service.receive_webhook = AsyncMock(
+        return_value=WebhookAnswer(
+            status_code=status_code, headers={"X-Result": "done"}, body={"ignored": True}
+        )
+    )
+    answered = await client.post(
+        f"{settings.API_V1_STR}/workflow-webhooks/{uuid.uuid4()}", content=b"{}"
+    )
+    assert answered.status_code == status_code
+    assert answered.content == b""
+    assert answered.headers["x-result"] == "done"
+    assert "content-type" not in answered.headers

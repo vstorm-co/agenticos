@@ -80,6 +80,8 @@ def pdf_page_sizes(data: bytes) -> tuple[tuple[float, float], ...]:
     """Every page's width and height in points - known before anything is drawn."""
     document = _open_pdf(data)
     try:
+        if int(document.page_count) > MAX_PDF_PAGES:
+            raise DocumentTooLarge(f"The PDF has more than {MAX_PDF_PAGES} pages")
         sizes: list[tuple[float, float]] = []
         for number in range(int(document.page_count)):
             rect = document[number].rect

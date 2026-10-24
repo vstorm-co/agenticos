@@ -7,11 +7,12 @@ import { useTranslations } from "next-intl";
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { Badge, Checkbox, Label, Skeleton } from "@/components/ui";
-import { useTables } from "@/hooks";
+import { useAllTables } from "@/hooks";
 import { capabilityConfigErrors } from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { ErrorState } from "@/components/states";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, JsonSchema } from "@/types/agents";
 
 /** What a grant lets the agent do - `TableOperation` on the backend. */
@@ -78,7 +79,8 @@ export function TablesSection({
   configProblems,
 }: TablesSectionProps) {
   const t = useTranslations("agents");
-  const { tables, isLoading } = useTables({ limit: 100 });
+  const tc = useTranslations("common");
+  const { tables, isLoading, error, refetch } = useAllTables();
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
 
   if (!definition) return null;
@@ -89,7 +91,7 @@ export function TablesSection({
   // Kept on screen rather than dropped, the collection picker's rule: an id that
   // quietly disappears from the form is still in the spec, and publish is where
   // it would surface.
-  const orphaned = grants.filter((grant) => !isLoading && !known.has(grant.table_id));
+  const orphaned = grants.filter((grant) => !isLoading && !error && !known.has(grant.table_id));
 
   const write = (next: TableGrant[]) =>
     onChange({ ...binding, config: { ...binding.config, tables: next } });
@@ -120,7 +122,9 @@ export function TablesSection({
         <p className="text-muted-foreground text-xs">{t("tablesGrantsDetail")}</p>
       </div>
 
-      {isLoading ? (
+      {error ? (
+        <ErrorState className="py-6" cta={{ label: tc("retry"), onClick: () => void refetch() }} />
+      ) : isLoading ? (
         <div className="space-y-2">
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />

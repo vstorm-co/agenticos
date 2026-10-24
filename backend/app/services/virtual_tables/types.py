@@ -108,7 +108,10 @@ def _email(value: object, column: ColumnDef, writing: bool) -> CellValue:
 
 def _url(value: object, column: ColumnDef, writing: bool) -> CellValue:
     text = str(_text_of(MAX_URL)(value, column, writing))
-    parsed = urlsplit(text)
+    try:
+        parsed = urlsplit(text)
+    except ValueError:
+        raise CellProblem("Expected a web address starting with http:// or https://") from None
     if parsed.scheme not in ("http", "https") or not parsed.hostname or " " in text:
         raise CellProblem("Expected a web address starting with http:// or https://")
     return text

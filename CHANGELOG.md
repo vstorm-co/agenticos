@@ -643,6 +643,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Webhook test and live deliveries enforce body limits during streaming; bodyless
+  HTTP statuses send an empty response. PDF image conversion checks its page
+  ceiling before page enumeration. Rollups keep large averages finite and expose
+  overflowing sums as empty; malformed bracketed URLs produce cell errors.
+- Agent table grants and linked-column pickers load the complete visible catalog,
+  including tables beyond the first 100, with retryable catalog errors.
+
 - Workflow model steps now use the remaining run budget, called workflows inherit
   budgets and deadlines, and descendant spend is included without double booking
   repeated settlements. Workflow totals, daily charts and call-step statistics

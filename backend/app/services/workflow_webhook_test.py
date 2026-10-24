@@ -14,7 +14,7 @@ an at-rest record - for `KEEP_SECONDS`, and only the workflow's editors read it.
 
 import json
 import secrets
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -33,9 +33,13 @@ from app.schemas.workflow_exposure import (
 )
 from app.services import trigger_events
 from app.services.access import WORKFLOW, resolve_access
-from app.services.workflow_execution.exceptions import WorkflowArchivedError
+from app.services.workflow_execution.exceptions import (
+    WorkflowArchivedError,
+    WorkflowRunInputTooLargeError,
+)
+from app.services.workflow_execution.resume import read_workflow_body
 from app.services.workflow_exposure import parse_webhook_body
-from app.workflows.graph.model import WorkflowGraph, pinned_output_fits
+from app.workflows.graph.model import MAX_PINNED_BYTES, WorkflowGraph, pinned_output_fits
 from app.workflows.nodes._triggers import WebhookTriggerOutput
 from app.workflows.triggers import WEBHOOK
 
@@ -56,6 +60,14 @@ class WebhookTestTooLargeError(AppException):
     message = "A test call's body may take at most 64 KB, the size of a step's pinned data"
     code = "WEBHOOK_TEST_TOO_LARGE"
     status_code = 413
+
+
+async def read_test_webhook_body(chunks: AsyncIterator[bytes]) -> bytes:
+    """Stop raw test deliveries at the pin limit, before buffering or parsing."""
+    try:
+        return await read_workflow_body(chunks, limit=MAX_PINNED_BYTES)
+    except WorkflowRunInputTooLargeError as exc:
+        raise WebhookTestTooLargeError() from exc
 
 
 class WorkflowWebhookTestService:
@@ -104,6 +116,8 @@ class WorkflowWebhookTestService:
             BadRequestError: A body that is not a JSON object.
             WebhookTestTooLargeError: A body too big to pin.
         """
+        if len(body) > MAX_PINNED_BYTES:
+            raise WebhookTestTooLargeError()
         if not await self.redis.exists(_OPEN.format(token=token)):
             raise NotFoundError(message="No test webhook is listening here")
         delivery_id = next(

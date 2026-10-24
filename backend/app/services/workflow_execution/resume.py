@@ -33,9 +33,9 @@ from app.services.workflow_exposure import parse_webhook_body
 WAIT = "flow.wait"
 
 
-async def read_resume_body(chunks: AsyncIterator[bytes]) -> bytes:
+async def read_workflow_body(chunks: AsyncIterator[bytes], *, limit: int | None = None) -> bytes:
     """Read at most one workflow input, including bodies without Content-Length."""
-    limit = settings.WORKFLOW_RUN_MAX_INPUT_BYTES
+    limit = settings.WORKFLOW_RUN_MAX_INPUT_BYTES if limit is None else limit
     body = bytearray()
     async for chunk in chunks:
         size = len(body) + len(chunk)

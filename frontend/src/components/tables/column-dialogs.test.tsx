@@ -11,7 +11,7 @@ const hooks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks", () => ({
-  useTables: () => ({ tables: hooks.tables }),
+  useAllTables: () => ({ tables: hooks.tables }),
   useTable: (tableId: string | null) => {
     hooks.asked.push(tableId);
     return { table: tableId ? hooks.linked : undefined };
@@ -204,7 +204,10 @@ describe("AddColumnDialog", () => {
   it("links a column to a table the member chooses", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
-    hooks.tables = [{ id: "t-products", name: "Products" }];
+    hooks.tables = [
+      ...Array.from({ length: 100 }, (_, i) => ({ id: `t-${i}`, name: `Table ${i}` })),
+      { id: "t-products", name: "Products" },
+    ];
     render(
       <AddColumnDialog open columns={[]} onOpenChange={vi.fn()} onAdd={onAdd} isSaving={false} />,
     );

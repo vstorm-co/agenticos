@@ -11,6 +11,7 @@ import {
   getRecord,
   getTable,
   listTables,
+  listAllTables,
   queryRecords,
   unarchiveTable,
   updateRecord,
@@ -196,5 +197,34 @@ it("pins the organization for a delayed record deletion", async () => {
   await deleteRecord("t1", "r1", 3, "org-a");
   expect(apiClient.delete).toHaveBeenCalledWith("/tables/t1/records/r1?expected_revision=3", {
     headers: { "X-Organization-Id": "org-a" },
+  });
+});
+
+describe("listAllTables", () => {
+  it("loads tables beyond the first page for complete resource pickers", async () => {
+    const first = Array.from({ length: 100 }, (_, i) => ({ id: `t-${i}`, name: `Table ${i}` }));
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: first, total: 101 })
+      .mockResolvedValueOnce({ items: [{ id: "t-last", name: "Last" }], total: 101 });
+    const all = await listAllTables();
+    expect(all).toHaveLength(101);
+    expect(all.at(-1)?.id).toBe("t-last");
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/tables", {
+      params: { skip: "100", limit: "100" },
+    });
+  });
+
+  it("does not present a partial catalog as complete when another page fails", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "t1" }], total: 2 })
+      .mockRejectedValueOnce(new Error("second page failed"));
+    await expect(listAllTables()).rejects.toThrow("second page failed");
+  });
+
+  it("stops on an empty page when tables were removed during paging", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "t1" }], total: 2 })
+      .mockResolvedValueOnce({ items: [], total: 2 });
+    expect(await listAllTables()).toHaveLength(1);
   });
 });

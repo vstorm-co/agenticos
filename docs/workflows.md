@@ -631,6 +631,13 @@ refuses its deliveries, and such a schedule is switched off and recorded in the
 audit trail. **Pause** in the **Trigger** sheet stops either without a publish, and
 **New secret** replaces a webhook's secret; the old one stops verifying at once.
 
+Webhook bodies are bounded while streaming, even without Content-Length. Test
+deliveries stop at the 64 KB pin limit; live webhook and GitHub deliveries use
+`WORKFLOW_RUN_MAX_INPUT_BYTES`. A Respond to webhook step using status 204, 205 or
+304 sends no body, as HTTP requires, while preserving its permitted headers.
+PDF image conversion refuses documents over 2,000 pages before enumerating their
+page sizes, even when only one page was requested.
+
 ### When a table record is added, changed or deleted { #when-a-table-record-is-added }
 
 A **Table record** trigger names a table, the record `events` it starts on - added,

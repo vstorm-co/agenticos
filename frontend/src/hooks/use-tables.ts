@@ -11,6 +11,7 @@ import {
   createTable,
   getTable,
   listTables,
+  listAllTables,
   unarchiveTable,
   updateSchema,
   updateTable,
@@ -65,6 +66,16 @@ export function useTables(query: TableListQuery = {}) {
     refetch,
     create,
   };
+}
+
+/** Complete catalog used where a partial page would misclassify valid references. */
+export function useAllTables(enabled = true) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.tables.catalog(),
+    queryFn: listAllTables,
+    enabled,
+  });
+  return { tables: data ?? [], isLoading, error, refetch };
 }
 
 /** One table, with the columns of its current schema. */

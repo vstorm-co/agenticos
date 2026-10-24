@@ -276,3 +276,11 @@ def test_a_worked_out_column_is_never_written_or_filtered(type_):
         validate_cell(_column(type_), 3)
     with pytest.raises(CellProblem, match="cannot be filtered"):
         validate_filter(_column(type_), "is_null", True)
+
+
+@pytest.mark.parametrize(
+    "value", ["http://[x", "https://[::1", "http://[wrong]/", "https://user@[bad]"]
+)
+def test_malformed_bracketed_url_hosts_are_cell_problems(value):
+    with pytest.raises(CellProblem, match="web address"):
+        validate_cell(_column("url"), value)

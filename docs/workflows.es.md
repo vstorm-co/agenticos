@@ -1,5 +1,5 @@
 ---
-source_sha: "1553c86cf8e5"
+source_sha: "8321b14fa263"
 ---
 
 # Workflows { #workflows }
@@ -676,6 +676,13 @@ rechaza sus entregas, y una programación así se desactiva y queda registrada e
 registro de auditoría. **Pause**, en la hoja **Trigger**, detiene cualquiera de los
 dos sin publicar, y **New secret** sustituye el secreto de un webhook; el anterior
 deja de verificarse al instante.
+
+El cuerpo de los webhooks se limita durante la transmisión, incluso sin Content-Length.
+Las entregas de prueba tienen el límite de datos fijados de 64 KB; las entregas
+normales y de GitHub usan `WORKFLOW_RUN_MAX_INPUT_BYTES`. Los estados 204, 205 y
+304 responden sin cuerpo, como exige HTTP, conservando las cabeceras permitidas.
+La conversión de PDF a imágenes rechaza documentos de más de 2.000 páginas antes
+de enumerar sus tamaños, aunque solo se solicite una página.
 
 ### Cuando se añade, cambia o borra un registro de una tabla { #when-a-table-record-is-added }
 

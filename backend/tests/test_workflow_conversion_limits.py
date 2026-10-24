@@ -92,3 +92,52 @@ def test_url_filenames_cannot_carry_a_nul_to_the_database() -> None:
 
     assert _filename_from("https://example.com/report%00.txt") == "report.txt"
     assert _filename_from("https://example.com/%00") is None
+
+
+@pytest.mark.security
+def test_pdf_image_sizes_reject_an_excessive_page_tree_before_enumeration(monkeypatch):
+    document = MagicMock(page_count=_documents.MAX_PDF_PAGES + 1)
+    monkeypatch.setattr(_documents, "_open_pdf", lambda _: document)
+    with pytest.raises(_documents.DocumentTooLarge, match="pages"):
+        _documents.pdf_page_sizes(b"compact huge page tree")
+    document.__getitem__.assert_not_called()
+    document.close.assert_called_once()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_pdf_image_conversion_maps_the_page_limit_to_a_controlled_refusal(monkeypatch):
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    from app.workflows import files
+    from app.workflows.contracts.io import FileRef
+    from app.workflows.contracts.results import Failed
+    from app.workflows.nodes.convert_csv_to_json._handler import ConvertFileInput
+    from app.workflows.nodes.convert_pdf_to_png import _handler
+
+    monkeypatch.setattr(
+        files,
+        "load",
+        AsyncMock(
+            return_value=files.StoredFile(
+                data=b"pdf", content_type="application/pdf", filename="many.pdf"
+            )
+        ),
+    )
+    saved = AsyncMock()
+    monkeypatch.setattr(files, "save", saved)
+
+    def too_many_pages(_data: bytes) -> tuple[tuple[float, float], ...]:
+        raise _documents.DocumentTooLarge()
+
+    monkeypatch.setattr(_documents, "pdf_page_sizes", too_many_pages)
+
+    result = await _handler.handle(
+        _handler.ConvertPdfToPngConfig(),
+        ConvertFileInput(
+            file=FileRef(file_id=uuid4(), content_type="application/pdf", byte_size=3)
+        ),
+    )
+    assert isinstance(result, Failed) and result.error.code == "DOCUMENT_TOO_LARGE"
+    saved.assert_not_called()

@@ -23,6 +23,7 @@ import type {
   SchemaUpdate,
   TableCreate,
   TableList,
+  TableListItem,
   TableRead,
   TableUpdate,
 } from "@/types/tables";
@@ -44,6 +45,18 @@ export function listTables(query: TableListQuery = {}): Promise<TableList> {
   params.skip = String(query.skip ?? 0);
   params.limit = String(query.limit ?? 50);
   return apiClient.get<TableList>("/tables", { params });
+}
+
+/** Complete live catalog for grant and link pickers, beyond the first 100 tables. */
+export async function listAllTables(): Promise<TableListItem[]> {
+  const tables = new Map<string, TableListItem>();
+  let skip = 0;
+  for (;;) {
+    const page = await listTables({ skip, limit: 100 });
+    for (const table of page.items) tables.set(table.id, table);
+    skip += page.items.length;
+    if (page.items.length === 0 || skip >= page.total) return [...tables.values()];
+  }
 }
 
 export function createTable(data: TableCreate): Promise<TableRead> {

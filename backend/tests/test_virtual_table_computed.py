@@ -83,3 +83,29 @@ def test_reach_follows_nothing_from_what_is_not_a_column():
     reached = reach([*COLUMNS, stray], [stray.id])
 
     assert reached == Reach(columns=frozenset({stray.id, unknown}), linked={})
+
+
+def test_rollups_return_json_safe_values_when_finite_inputs_overflow_the_sum():
+    import json
+
+    from app.services.virtual_tables.computed import _Linked, _work_out
+
+    amount = ColumnDef(id=AMOUNT, label="Amount", type="number")
+    linked = _Linked(
+        columns=[amount],
+        values={
+            "a": {str(AMOUNT): 1e308},
+            "b": {str(AMOUNT): 1e308},
+        },
+        names={},
+    )
+    assert _work_out(TOTAL, ["a", "b"], linked) is None
+    average = TOTAL.model_copy(update={"aggregate": "avg"})
+    assert _work_out(average, ["a", "b"], linked) == 1e308
+    json.dumps(
+        {
+            "sum": _work_out(TOTAL, ["a", "b"], linked),
+            "avg": _work_out(average, ["a", "b"], linked),
+        },
+        allow_nan=False,
+    )

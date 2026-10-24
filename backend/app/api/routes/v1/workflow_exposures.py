@@ -25,7 +25,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.api.deps import (
     Auth,
@@ -49,6 +49,8 @@ from app.schemas.workflow_exposure import (
     WorkflowFormSubmission,
     WorkflowFormSubmitted,
 )
+from app.services.workflow_execution.resume import read_workflow_body
+from app.services.workflow_webhook_test import read_test_webhook_body
 
 router = APIRouter()
 webhook_router = APIRouter()
@@ -127,7 +129,9 @@ async def receive_workflow_webhook_test(
     """Keep one call to an open test URL for the editor to show. No run starts,
     and no signature is checked: the draft has no secret yet, and the token is
     the credential."""
-    return await service.catch(token, body=await request.body(), headers=dict(request.headers))
+    return await service.catch(
+        token, body=await read_test_webhook_body(request.stream()), headers=dict(request.headers)
+    )
 
 
 @webhook_router.post(
@@ -150,9 +154,11 @@ async def receive_workflow_webhook(
     headers and JSON body instead, once it runs - see
     `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` for how long it is waited for."""
     received = await service.receive_webhook(
-        exposure_id, body=await request.body(), headers=dict(request.headers)
+        exposure_id, body=await read_workflow_body(request.stream()), headers=dict(request.headers)
     )
     if isinstance(received, WebhookAnswer):
+        if received.status_code in {204, 205, 304}:
+            return Response(status_code=received.status_code, headers=received.headers)
         return JSONResponse(
             content=received.body, status_code=received.status_code, headers=received.headers
         )
@@ -176,7 +182,7 @@ async def receive_workflow_github(
     `ping` GitHub sends when the hook is created among them - is answered with
     `skipped` and starts nothing."""
     return await service.receive_github(
-        exposure_id, body=await request.body(), headers=dict(request.headers)
+        exposure_id, body=await read_workflow_body(request.stream()), headers=dict(request.headers)
     )
 
 

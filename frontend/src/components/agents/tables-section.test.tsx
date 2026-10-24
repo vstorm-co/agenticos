@@ -11,7 +11,7 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
  */
 
 const tables = vi.fn();
-vi.mock("@/hooks", () => ({ useTables: () => tables() }));
+vi.mock("@/hooks", () => ({ useAllTables: () => tables() }));
 
 const LEADS = { id: "t-leads", name: "Leads", description: "Inbound leads" };
 const ORDERS = { id: "t-orders", name: "Orders", description: null };
@@ -197,4 +197,22 @@ describe("grantsOf", () => {
     ]);
     expect(grantsOf({ tables: "nope" })).toEqual([]);
   });
+});
+
+it("keeps a grant on the second catalog page available for editing", () => {
+  const all = Array.from({ length: 101 }, (_, i) => ({ id: `t-${i}`, name: `Table ${i}` }));
+  tables.mockReturnValue({ tables: all, isLoading: false });
+  mount({ tables: [{ table_id: "t-100", operations: ["read"] }] });
+  expect(screen.getByRole("checkbox", { name: "Let the agent use Table 100" })).toBeChecked();
+  expect(screen.queryByText("t-100")).not.toBeInTheDocument();
+});
+
+it("shows a retry after a catalog failure without calling valid grants orphaned", async () => {
+  const refetch = vi.fn();
+  tables.mockReturnValue({ tables: [], isLoading: false, error: new Error("offline"), refetch });
+  mount({ tables: [{ table_id: "t-100", operations: ["read"] }] });
+  expect(screen.queryByText("t-100")).not.toBeInTheDocument();
+  expect(screen.queryByText(/There are no tables yet/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(refetch).toHaveBeenCalled();
 });
