@@ -656,7 +656,8 @@ async def test_concurrent_storage_reservations_do_not_cross_the_ceiling_or_tenan
             return False
         return True
 
-    assert sorted(await asyncio.gather(write("xx1"), write("xx2"))) == [False, True]
+    outcomes = await asyncio.gather(write("xx1"), write("xx2"))
+    assert sorted(outcomes) == [False, True]
     await _call(
         factory,
         lambda service: service.create_record(other, other_table.id, RecordCreate(values={})),

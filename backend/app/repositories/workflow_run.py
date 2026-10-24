@@ -407,7 +407,9 @@ async def run_figures(
                 select(
                     WorkflowRun.status,
                     func.count().label("runs"),
-                    func.coalesce(func.sum(WorkflowRun.spent_cost), 0).label("cost"),
+                    func.coalesce(
+                        func.sum(WorkflowRun.spent_cost + WorkflowRun.child_cost), 0
+                    ).label("cost"),
                     func.coalesce(func.bool_or(WorkflowRun.cost_is_partial), False).label(
                         "partial"
                     ),
@@ -445,7 +447,9 @@ async def runs_by_day(
                     day,
                     WorkflowRun.status,
                     func.count().label("runs"),
-                    func.coalesce(func.sum(WorkflowRun.spent_cost), 0).label("cost"),
+                    func.coalesce(
+                        func.sum(WorkflowRun.spent_cost + WorkflowRun.child_cost), 0
+                    ).label("cost"),
                 )
                 .where(
                     WorkflowRun.organization_id == organization_id,
@@ -469,6 +473,13 @@ async def step_figures(
         .where(NodeAttempt.node_run_id == NodeRun.id)
         .scalar_subquery()
     )
+    called = aliased(WorkflowRun)
+    called_cost = (
+        select(func.coalesce(func.sum(called.spent_cost + called.child_cost), 0))
+        .where(called.parent_node_run_id == NodeRun.id, called.organization_id == organization_id)
+        .correlate(NodeRun)
+        .scalar_subquery()
+    )
     took = func.extract("epoch", NodeRun.ended_at - NodeRun.started_at)
     return list(
         (
@@ -477,7 +488,7 @@ async def step_figures(
                     NodeRun.node_instance_id,
                     func.count().label("runs"),
                     func.count().filter(NodeRun.status == "failed").label("failed"),
-                    func.coalesce(func.sum(attempt_cost), 0).label("cost"),
+                    func.coalesce(func.sum(attempt_cost + called_cost), 0).label("cost"),
                     func.avg(took).label("avg_seconds"),
                 )
                 .join(WorkflowRun, WorkflowRun.id == NodeRun.workflow_run_id)

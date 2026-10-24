@@ -1,5 +1,5 @@
 ---
-source_sha: "eec229796bb3"
+source_sha: "1553c86cf8e5"
 ---
 
 # Workflows { #workflows }
@@ -844,6 +844,8 @@ eine laufende externe Anfrage kann noch enden. Ein erneuter Aufruf verwendet die
 erfolgreichen Schritte des ursprünglichen, eingefrorenen Kindes. Ein noch laufendes
 Kind muss zuerst enden oder gestoppt werden. Ergebnisdateien werden ausdrücklich in
 den Aufrufer importiert; beim Fortsetzen wird der Zugriff erneut geprüft.
+
+Tagesdiagramm und Schrittstatistiken des Aufrufers enthalten ebenfalls die Gebühren aufgerufener Läufe.
 
 ### Von einem Agenten { #from-an-agent }
 

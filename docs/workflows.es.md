@@ -1,5 +1,5 @@
 ---
-source_sha: "eec229796bb3"
+source_sha: "1553c86cf8e5"
 ---
 
 # Workflows { #workflows }
@@ -796,6 +796,8 @@ al hijo antes del siguiente paso; una solicitud externa en curso puede terminar.
 Reintentar una llamada reutiliza los pasos exitosos del hijo original con su versión
 fijada. Si ese hijo sigue activo, debe terminar o detenerse primero. Los archivos de
 salida se importan explícitamente al llamador y el acceso se comprueba al reanudar.
+
+El gráfico diario y las estadísticas por paso del llamador también incluyen los cargos de las ejecuciones llamadas.
 
 ### Desde un agente { #from-an-agent }
 

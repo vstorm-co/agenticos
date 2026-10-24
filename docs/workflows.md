@@ -747,6 +747,8 @@ steps of its original, frozen child rather than repeating their effects. A still
 running original child must finish or be stopped first. File outputs are explicitly
 imported into the caller, and callee access is rechecked when a waiting call resumes.
 
+The caller's daily chart and per-step statistics include called-run fees too.
+
 ### From an agent { #from-an-agent }
 
 An agent with the [Workflows](reference/capabilities.md#workflows) capability

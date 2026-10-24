@@ -1,5 +1,5 @@
 ---
-source_sha: "eec229796bb3"
+source_sha: "1553c86cf8e5"
 ---
 
 # Workflows { #workflows }
@@ -772,6 +772,8 @@ kolejnym krokiem; rozpoczęte żądanie zewnętrzne może się zakończyć. Pono
 korzysta z udanych kroków pierwotnej, zamrożonej wersji podprocesu. Jeśli podproces
 nadal działa, trzeba go najpierw zakończyć lub zatrzymać. Pliki wynikowe są jawnie
 importowane do przebiegu nadrzędnego, a wznowienie oczekiwania ponownie sprawdza dostęp.
+
+Wykres dzienny i statystyki kroków przebiegu nadrzędnego także obejmują opłaty podprocesu.
 
 ### Z agenta { #from-an-agent }
 

@@ -641,10 +641,25 @@ async def test_a_called_workflow_inherits_remaining_budget_and_deadline_and_roll
         caller = await seed_run(engine, graph, member=member)
         deadline = datetime.now(UTC) + timedelta(hours=1)
         async with caller.factory() as db:
+            from app.repositories import workflow as workflow_repo
+
+            version = await workflow_repo.create_version(
+                db,
+                workflow_id=caller.run.workflow_id,
+                organization_id=caller.org.id,
+                version=1,
+                graph=graph.model_dump(mode="json"),
+                note=None,
+                published_by_user_id=caller.principal.id,
+                budget_limit=None,
+            )
             await workflow_run_repo.update_run(
                 db,
                 run=caller.run,
                 update_data={
+                    "mode": "real",
+                    "workflow_version_id": version.id,
+                    "draft_graph_snapshot": None,
                     "budget_limit": Decimal("1"),
                     "spent_cost": Decimal("0.2"),
                     "deadline_at": deadline,
@@ -664,6 +679,21 @@ async def test_a_called_workflow_inherits_remaining_budget_and_deadline_and_roll
         async with caller.factory() as db:
             read = await WorkflowExecutionService(db).get(caller.ctx, caller.run.id)
             assert read.spent_cost == 0.5 and read.own_cost == 0.2
+            since = deadline - timedelta(days=1)
+            figures = await workflow_run_repo.run_figures(
+                db, organization_id=caller.org.id, workflow_id=caller.run.workflow_id, since=since
+            )
+            assert figures["counts"]["succeeded"][1] == Decimal("0.5")
+            days = await workflow_run_repo.runs_by_day(
+                db, organization_id=caller.org.id, workflow_id=caller.run.workflow_id, since=since
+            )
+            assert sum(day.cost for day in days) == Decimal("0.5")
+            steps = await workflow_run_repo.step_figures(
+                db, organization_id=caller.org.id, workflow_id=caller.run.workflow_id, since=since
+            )
+            assert next(row.cost for row in steps if row.node_instance_id == step.id) == Decimal(
+                "0.3"
+            )
             assert await workflow_run_repo.spent_since(
                 db,
                 organization_id=caller.org.id,

@@ -645,7 +645,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Workflow model steps now use the remaining run budget, called workflows inherit
   budgets and deadlines, and descendant spend is included without double booking
-  repeated settlements. Retrying calls preserves successful child effects and
+  repeated settlements. Workflow totals, daily charts and call-step statistics
+  include called-run fees consistently. Retrying calls preserves successful child effects and
   imports their output files after rechecking access.
 - Decision and knowledge-search steps record model and embedding fees, including
   fees incurred before a search fails, in the organization bill even after run
