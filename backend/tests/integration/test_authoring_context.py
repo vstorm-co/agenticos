@@ -27,7 +27,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.context import ContextFile
@@ -270,6 +270,31 @@ async def test_a_context_change_is_checked_on_an_agent_that_binds_it(db):
     ):
         with pytest.raises(reason):
             await service.check_context(ctx, file.id, check)
+
+
+@pytest.mark.security
+async def test_checking_a_context_change_needs_runs_view(db):
+    ctx, agent, file, run_id = await _bound(db)
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="returns-cases"))
+    await datasets.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "30 days"}]),
+    )
+    service = AuthoringService(db)
+    body = ProposalCheck(dataset_id=dataset.id, agent_id=agent.id, proposal_id=proposal.id)
+    held = AuthContext.has
+
+    def has(caller: AuthContext, perm: Perm) -> bool:
+        return perm != Perm.RUNS_VIEW and held(caller, perm)
+
+    for start in (service.estimate_context_check, service.check_context):
+        with patch.object(AuthContext, "has", has), pytest.raises(AuthorizationError) as refused:
+            await start(ctx, file.id, body)
+        assert refused.value.details == {"permission": "runs:view"}
 
 
 async def test_a_context_change_checked_on_a_suite_keeps_the_suite_it_ran_on(db):

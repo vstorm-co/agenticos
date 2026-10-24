@@ -110,6 +110,21 @@ describe("the publish-state badge", () => {
     expect(screen.queryByRole("button", { name: "Test draft" })).toBeNull();
   });
 
+  it("shows an editor who may not read runs that a test of the draft needs it", () => {
+    render(
+      <PublishState
+        agentId="a-1"
+        production={production()}
+        draftSpec={spec({ instructions: "Be terse." })}
+        testNeedsRunsView
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: /Test draft/ });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("title", "Needs permission to read runs");
+  });
+
   it("does not read key order as a difference", () => {
     // The comparison is over sorted-keys YAML, the same serialization the diff
     // reads. `JSON.stringify` equality - what the "Unsaved" badge uses for the

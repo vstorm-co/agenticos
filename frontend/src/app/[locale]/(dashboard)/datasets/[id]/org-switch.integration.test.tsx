@@ -43,6 +43,7 @@ const DATASET = {
   case_count: 0,
   can_edit: true,
   can_run: true,
+  run_needs: [],
   scoring: DEFAULT_SCORING,
   judge_name: null,
   stats: {},

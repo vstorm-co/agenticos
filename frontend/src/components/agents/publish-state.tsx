@@ -8,6 +8,7 @@ import { Badge, Button } from "@/components/ui";
 import { useDraftBase } from "@/hooks";
 import type { AgentEnvironment, AgentSpec } from "@/types/agents";
 
+import { NeedsRunsView } from "@/components/evals/needs-runs-view";
 import { specText } from "./version-history";
 
 interface PublishStateProps {
@@ -18,6 +19,8 @@ interface PublishStateProps {
   draftSpec: AgentSpec;
   /** Test the draft against its base; offered only while the two differ. */
   onTest?: () => void;
+  /** Shown disabled instead, to an editor who may not read runs. */
+  testNeedsRunsView?: boolean;
 }
 
 /**
@@ -39,7 +42,13 @@ interface PublishStateProps {
  * "draft", and there is no version to differ from - and quiet until the
  * version arrives.
  */
-export function PublishState({ agentId, production, draftSpec, onTest }: PublishStateProps) {
+export function PublishState({
+  agentId,
+  production,
+  draftSpec,
+  onTest,
+  testNeedsRunsView = false,
+}: PublishStateProps) {
   const t = useTranslations("agents");
   const { base } = useDraftBase(agentId);
   const differs = useMemo(
@@ -76,6 +85,12 @@ export function PublishState({ agentId, production, draftSpec, onTest }: Publish
               <FlaskConical className="h-3 w-3" aria-hidden />
               {t("testDraft")}
             </Button>
+          )}
+          {!onTest && testNeedsRunsView && (
+            <NeedsRunsView size="sm" variant="outline" className="h-6 px-2 text-xs">
+              <FlaskConical className="h-3 w-3" aria-hidden />
+              {t("testDraft")}
+            </NeedsRunsView>
           )}
         </>
       ) : (

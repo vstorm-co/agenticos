@@ -16,6 +16,7 @@ vi.mock("sonner", () => ({ toast: { error: toastError } }));
 const state = vi.hoisted(() => ({
   authoring: null as AgentAuthoring | null,
   enabled: true as boolean | null,
+  runsView: true,
   published: undefined as { spec: unknown } | undefined,
   decide: vi.fn(),
   dismissAll: vi.fn(),
@@ -28,7 +29,9 @@ vi.mock("@/hooks/use-organizations", () => ({
 vi.mock("@/hooks", () => ({
   useDraftBase: () => ({ base: state.published }),
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => state.runsView }),
+}));
 vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEveryDataset: () => ({ datasets: [{ id: "ds-1", name: "Refund cases" }] }),
@@ -78,6 +81,7 @@ function strip(persist = vi.fn().mockResolvedValue(true), onDraft = vi.fn()) {
 }
 
 beforeEach(() => {
+  state.runsView = true;
   state.authoring = agentAuthoring();
   state.enabled = true;
   state.published = { spec: DRAFT };
@@ -146,6 +150,38 @@ describe("AssistantStrip", () => {
     expect(state.dismissAll).toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));
     expect(await screen.findByRole("heading", { name: "Check with evals" })).toBeInTheDocument();
+  });
+
+  it("says a check with evals needs runs:view to somebody who may not read runs", async () => {
+    state.runsView = false;
+    const { rerender } = render(
+      <AssistantStrip
+        agentId="agent-1"
+        storedDraft={DRAFT}
+        canCheck={false}
+        checkNeedsRunsView
+        persist={vi.fn()}
+        onDraft={vi.fn()}
+      />,
+    );
+
+    const check = screen.getByRole("button", { name: /Check with evals/ });
+    expect(check).toHaveAttribute("aria-disabled", "true");
+    expect(check).toHaveAttribute("title", "Needs permission to read runs");
+    await userEvent.click(check);
+    expect(screen.queryByRole("heading", { name: "Check with evals" })).toBeNull();
+
+    // Nothing to run a check on either: reading runs would not be enough, so no reason is given.
+    rerender(
+      <AssistantStrip
+        agentId="agent-1"
+        storedDraft={DRAFT}
+        canCheck={false}
+        persist={vi.fn()}
+        onDraft={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /Check with evals/ })).toBeNull();
   });
 
   it("offers no new request until it knows whether one is already at work", () => {

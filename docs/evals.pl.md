@@ -1,5 +1,5 @@
 ---
-source_sha: "94e8bac713d5"
+source_sha: "b668fac0818b"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -612,7 +612,13 @@ włączył. Slack nie jest jeszcze kanałem powiadomień.
 
 ## Dostęp { #access }
 
-Uruchomienie runa wymaga `datasets:run` na datasecie i `agents:run` na agencie,
+Uruchomienie runa - albo pytanie, ile by kosztował - wymaga najpierw
+`runs:view`: za run się płaci, a kto nie mógłby go odczytać ani anulować, nie
+może go uruchomić, jakiekolwiek granty ma. Tam, gdzie konsola zaproponowałaby mu
+kontrolkę startu, pokazuje ją wyłączoną i mówi dlaczego. Każdy sposób startu
+pyta o to samo: Run evals, suita, Test draft i Sprawdź evalami asystenta.
+
+Start wymaga następnie `datasets:run` na datasecie i `agents:run` na agencie,
 każde rozstrzygane z grantami zasobu. Uruchomienie draftu wymaga też
 `agents:edit` na agencie, bo draft to praca w toku edytorów. Sędzia, gdy ocenia
 dataset, wymaga tego, co mówi [ocenianie](datasets.md#scoring).

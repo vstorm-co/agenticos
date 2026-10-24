@@ -1,5 +1,5 @@
 ---
-source_sha: "94e8bac713d5"
+source_sha: "b668fac0818b"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -646,7 +646,14 @@ eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
 
 ## Zugriff { #access }
 
-Einen Run zu starten erfordert `datasets:run` auf dem Dataset und `agents:run`
+Einen Run zu starten - oder zu fragen, was er kosten würde - erfordert zuerst
+`runs:view`: Ein Run kostet Geld, und wer ihn nicht lesen oder abbrechen könnte,
+darf ihn nicht starten, welche Grants er auch hat. Wo die Konsole ihm sonst ein
+Start-Bedienelement anbieten würde, zeigt sie es deaktiviert und sagt warum.
+Jeder Weg, einen zu starten, fragt dasselbe: Run evals, eine Suite, Test draft
+und Mit Evals prüfen des Assistenten.
+
+Ein Start erfordert dann `datasets:run` auf dem Dataset und `agents:run`
 auf dem Agent, jeweils mit den Grants der Ressource aufgelöst. Den Draft
 laufen zu lassen erfordert außerdem `agents:edit` auf dem Agent, weil der Draft
 die laufende Arbeit der Bearbeiter ist. Der Judge braucht, wenn er das Dataset

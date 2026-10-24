@@ -1,5 +1,5 @@
 ---
-source_sha: "2a87b6edd493"
+source_sha: "4ac3639e1702"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -671,13 +671,27 @@ Berechtigungen für Datasets:
 |---|---|---|
 | `datasets:view` | Fälle und Versionen eines Datasets lesen und exportieren | `read` |
 | `datasets:edit` | Datasets anlegen, Fälle ändern, importieren, löschen, freigeben | `edit` |
-| `datasets:run` | Evals über ein Dataset ausführen | `use` |
+| `datasets:run` | Evals über ein Dataset ausführen, mit `runs:view` | `use` (nicht mehr angeboten, siehe unten) |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
 | `datasets:view` | all | all | all | all | shared | shared |
 | `datasets:edit` | all | all | shared | - | own | - |
 | `datasets:run` | all | all | all | all | shared | - |
+
+Ein Eval zu starten erfordert vor allem `runs:view`: Ein Run kostet Geld, und
+wer ihn nicht lesen darf, darf ihn nicht starten. Jede eingebaute Rolle, die
+Runs liest, hat `datasets:run` bereits in der ganzen Organisation, und ein
+Member, dessen `datasets:run` nur geteilte Datasets erreicht, liest keine Runs.
+Ein `use`-Grant auf ein Dataset ließe niemanden ein Eval starten, das er ohne
+ihn nicht starten könnte, deshalb bietet die Freigabe für ein Dataset nur Lesen
+und Bearbeiten an; `use` kommt mit benutzerdefinierten Rollen zurück.
+
+Ein früher erteilter `use`-Grant bleibt bestehen und bewirkt nichts; seine Zeile
+sagt das, und er lässt sich entfernen. Wer ein Dataset ausführen darf, aber
+keine Runs lesen, sieht auf seiner Seite Run evals deaktiviert, mit dem Hinweis,
+dass Runs lesen nötig ist; wer es gar nicht ausführen darf, bekommt es nicht
+angeboten. Siehe [Eval-Runs](evals.md#access).
 
 Ein Mitglied ohne Zugriff auf ein Dataset erhält auf jeder Route „nicht
 gefunden“, gleich was seine Rolle anderswo erlaubt - ob ein privates Dataset

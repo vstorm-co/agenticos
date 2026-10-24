@@ -43,6 +43,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.dataset import Dataset
+from app.db.models.eval_run import EvalRun
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.notification import Notification
 from app.db.models.organization import Organization, OrganizationMember
@@ -1747,3 +1748,27 @@ async def test_after_a_result_that_could_not_be_compared_the_next_run_sets_a_new
     beside = await service.evals.get(ctx, third.eval_run_id)
     assert beside.paired and [arm.role for arm in beside.arms] == ["candidate", "baseline"]
     assert fourth.baseline_eval_run_id == third.eval_run_id
+
+
+@pytest.mark.security
+async def test_an_owner_who_can_no_longer_read_runs_starts_no_run(db) -> None:
+    """A Member still runs the agent and the dataset, but starting an eval needs
+    runs:view - so the scheduled run is refused before anything is spent."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    suite = await EvalSuiteService(db).create(
+        builder, agent.id, _suite_data(dataset, on_publish=True)
+    )
+    await _role(db, ctx, builder.user_id, OrgRoleName.MEMBER)
+
+    await AgentRegistryService(db).publish(ctx, agent.id)
+    await EvalSuiteService(db).start_due(now=datetime.now(UTC))
+
+    row = await db.get(EvalSuite, suite.id)
+    assert row is not None and (row.is_active, row.paused_reason) == (False, "owner_lacks_access")
+    [result] = await _results(db, suite.id)
+    assert (result.status, result.reason) == ("error", "owner_lacks_access")
+    assert (await db.scalar(select(func.count()).select_from(EvalRun))) == 0
+

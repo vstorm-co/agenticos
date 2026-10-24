@@ -310,8 +310,15 @@ class DatasetRead(BaseSchema):
         default=False,
         description=(
             "Whether the caller may run this dataset - start an eval on it, or score "
-            "an answer against it. Resolved per caller: a run grant on one dataset "
-            "reads true where the role alone would not, and a read grant reads false."
+            "an answer against it. Needs `runs:view` and `datasets:run` on this "
+            "dataset, resolved per caller: a run grant counts, a read grant does not."
+        ),
+    )
+    run_needs: list[Literal["runs:view", "datasets:run"]] = Field(
+        default_factory=list,
+        description=(
+            "What the caller lacks to run this dataset, empty when `can_run`: reading "
+            "runs, running this dataset, or both - so a disabled control can say which."
         ),
     )
     pending_proposals: int = Field(

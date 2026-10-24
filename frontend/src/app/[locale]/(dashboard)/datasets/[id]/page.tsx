@@ -118,9 +118,9 @@ export default function DatasetPage({ params }: PageProps) {
         onShare={() => setDialog("share")}
         onDelete={() => setDialog("delete")}
         actions={
-          canViewRuns && dataset.case_count > 0 ? (
-            <DatasetRunEvalsButton datasetId={id} />
-          ) : undefined
+          // The button decides for itself, so a reader missing only runs:view
+          // sees it disabled, saying why.
+          dataset.case_count > 0 ? <DatasetRunEvalsButton datasetId={id} /> : undefined
         }
       />
 

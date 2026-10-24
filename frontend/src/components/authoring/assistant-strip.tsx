@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { NeedsRunsView } from "@/components/evals/needs-runs-view";
 import { specText } from "@/components/agents/version-history";
 import { useDraftBase } from "@/hooks";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
@@ -37,6 +38,7 @@ export function AssistantStrip({
   agentId,
   storedDraft,
   canCheck,
+  checkNeedsRunsView = false,
   persist,
   onDraft,
 }: {
@@ -45,6 +47,8 @@ export function AssistantStrip({
   storedDraft: AgentSpec;
   /** Whether this caller may run the draft on a dataset, which checking does. */
   canCheck: boolean;
+  /** Whether it could, but for reading runs - the check is then shown disabled, saying so. */
+  checkNeedsRunsView?: boolean;
   /** Store the page's draft; false when it did not store. */
   persist: () => Promise<boolean>;
   onDraft: (spec: AgentSpec) => void;
@@ -125,6 +129,11 @@ export function AssistantStrip({
                 <Button size="sm" variant="outline" onClick={() => setChecking(true)}>
                   {t("check")}
                 </Button>
+              )}
+              {checkNeedsRunsView && (
+                <NeedsRunsView size="sm" variant="outline">
+                  {t("check")}
+                </NeedsRunsView>
               )}
               <Button
                 size="sm"

@@ -413,12 +413,19 @@ class EvalRunService:
 
         Raises:
             NotFoundError: The agent, dataset or environment cannot be reached.
-            AuthorizationError: Running the draft without edit access to it.
-            BadRequestError: An empty dataset version, or one whose every case
-                was anonymised, scoring that decides nothing, an unpublished
-                agent asked for a version, or a baseline with no earlier version
-                to be.
+            AuthorizationError: A caller without `runs:view` - every start and
+                estimate is refused, whatever grants they hold - or one running
+                the draft without edit access to it.
+            BadRequestError: An empty dataset version or one whose every case was anonymised, scoring that decides
+                nothing, an unpublished agent asked for a version, or a
+                baseline with no earlier version to be.
         """
+        if not ctx.has(Perm.RUNS_VIEW):
+            # Checked before the grants: a run is paid for, and somebody who
+            # could not read it or cancel it should not be able to start one.
+            raise AuthorizationError(
+                message="Starting an eval needs runs:view", details={"permission": "runs:view"}
+            )
         dataset = await self.datasets.get(ctx, request.dataset_id, perm=Perm.DATASETS_RUN)
         dataset_version = await self._dataset_version(ctx, dataset, request.dataset_version)
         cases = await dataset_repo.list_cases(

@@ -19,10 +19,12 @@ import {
 import { GroupIcon } from "@/components/groups/group-icon";
 import type { Group } from "@/types/groups";
 import type { OrganizationMember } from "@/types";
-import type { GrantLevel, ShareInput } from "@/types/sharing";
-import { encodeSubject, LEVEL_OPTIONS, parseSubject, shareInput, toLevel } from "./grants";
+import type { GrantLevel, SharingResourceType, ShareInput } from "@/types/sharing";
+import { encodeSubject, levelOptions, parseSubject, shareInput, toLevel } from "./grants";
 
 interface AddShareProps {
+  /** Which levels this kind of resource offers. */
+  resourceType: SharingResourceType;
   /** Members who do not reach the resource yet - the owner and the shared already left out. */
   members: OrganizationMember[];
   /** Groups the resource is not shared with yet. */
@@ -39,7 +41,7 @@ interface AddShareProps {
  * top of the panel, as a document's share box does: adding somebody is what the
  * panel is opened for, and the list under it is what that changed.
  */
-export function AddShare({ members, groups, pending, onShare }: AddShareProps) {
+export function AddShare({ resourceType, members, groups, pending, onShare }: AddShareProps) {
   const t = useTranslations("sharing");
   const [subject, setSubject] = useState("");
   const [level, setLevel] = useState<GrantLevel>("read");
@@ -100,7 +102,7 @@ export function AddShare({ members, groups, pending, onShare }: AddShareProps) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {LEVEL_OPTIONS.map((option) => (
+            {levelOptions(resourceType).map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {t(option.words)}
               </SelectItem>

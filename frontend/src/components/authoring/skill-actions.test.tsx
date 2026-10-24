@@ -128,15 +128,18 @@ describe("the context file buttons", () => {
     expect(await screen.findByText(/It will read 2 runs/)).toBeInTheDocument();
   });
 
-  it("are absent for somebody who may not read runs", () => {
+  it("say why they cannot be used by somebody who may not read runs", () => {
     state.runsView = false;
-    const { container } = render(
+    render(
       <>
         <ImproveContextButton contextId="ctx-1" />
         <ContextCheckButton contextId="ctx-1" proposalId="change-1" agents={[]} />
       </>,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("button", { name: "Improve with the assistant" })).toBeNull();
+    const check = screen.getByRole("button", { name: /Check with evals/ });
+    expect(check).toHaveAttribute("aria-disabled", "true");
+    expect(check).toHaveAttribute("title", "Needs permission to read runs");
   });
 
   it("wait for unsaved changes, since the assistant reads the stored file", () => {

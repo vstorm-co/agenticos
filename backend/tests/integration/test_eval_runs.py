@@ -934,18 +934,13 @@ async def test_running_the_draft_needs_edit_access_to_the_agent(db) -> None:
 
 
 @pytest.mark.security
-async def test_a_grant_on_the_dataset_lets_a_member_run_it(db) -> None:
+async def test_a_grant_on_the_dataset_is_not_enough_to_start_without_runs_view(db) -> None:
+    """A Member with a use grant on the dataset could start a run they then could not
+    read or cancel; starting is refused before the grants are looked at."""
     owner = await _owner(db)
     agent, _ = await _agent(db, owner)
     dataset = await _dataset(db, owner, cases=2)
-    dataset.visibility = "private"
-    await db.flush()
     member = await _member(db, owner, OrgRoleName.MEMBER)
-    service = EvalRunService(db)
-    request = EvalRunRequest(dataset_id=dataset.id)
-
-    with pytest.raises(NotFoundError):
-        await service.estimate(member, agent.id, request)
     db.add(
         ResourceGrant(
             organization_id=owner.organization_id,
@@ -956,7 +951,31 @@ async def test_a_grant_on_the_dataset_lets_a_member_run_it(db) -> None:
         )
     )
     await db.flush()
-    assert (await service.estimate(member, agent.id, request)).cases == 2
+    service = EvalRunService(db)
+    request = EvalRunRequest(dataset_id=dataset.id)
+
+    for start in (service.estimate, service.start):
+        with pytest.raises(AuthorizationError) as refused:
+            await start(member, agent.id, request)
+        assert refused.value.details == {"permission": "runs:view"}
+    assert await eval_run_repo.list_for_agent(
+        db, agent.id, organization_id=owner.organization_id
+    ) == ([], 0)
+
+
+async def test_whoever_may_read_runs_starts_sees_and_cancels_the_run_they_start(db) -> None:
+    owner = await _owner(db)
+    agent, _ = await _agent(db, owner)
+    dataset = await _dataset(db, owner, cases=2)
+    builder = await _member(db, owner, OrgRoleName.BUILDER)
+    service = EvalRunService(db)
+
+    started = await service.start(builder, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    seen = await service.get(builder, started.id)
+    cancelled = await service.cancel(builder, started.id)
+
+    assert (started.cases, seen.id) == (2, started.id)
+    assert cancelled.status == "cancelled"
 
 
 @pytest.mark.security

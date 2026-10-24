@@ -1830,7 +1830,9 @@ async def test_a_link_opens_one_case_as_its_version_holds_it(db) -> None:
 
 @pytest.mark.security
 async def test_whether_the_caller_may_run_a_dataset_is_read_per_dataset(db) -> None:
-    """What the eval start dialog offers: a read grant shows a dataset but runs nothing."""
+    """What the eval start dialog offers: a read grant shows a dataset but runs nothing,
+    and running one needs runs:view too - which a Member's use grant does not give, so
+    the dataset says what is missing rather than offering a run."""
     owner = await _owner(db)
     member = await _member(db, Organization(id=owner.organization_id), OrgRoleName.MEMBER)
     service = DatasetService(db)
@@ -1849,10 +1851,11 @@ async def test_whether_the_caller_may_run_a_dataset_is_read_per_dataset(db) -> N
     await db.flush()
 
     listed = await service.list_readable(member, sort="name")
-    assert [(item.name, item.can_run) for item in listed.items] == [
-        ("readable", False),
-        ("usable", True),
+    assert [(item.name, item.can_run, item.run_needs) for item in listed.items] == [
+        ("readable", False, ["runs:view", "datasets:run"]),
+        ("usable", False, ["runs:view"]),
     ]
-    assert (await service.read(member, readable.id)).can_run is False
-    assert (await service.read(member, usable.id)).can_run is True
-    assert (await service.read(owner, readable.id)).can_run is True
+    assert (await service.read(member, readable.id)).run_needs == ["runs:view", "datasets:run"]
+    assert (await service.read(member, usable.id)).run_needs == ["runs:view"]
+    owned = await service.read(owner, readable.id)
+    assert (owned.can_run, owned.run_needs) == (True, [])

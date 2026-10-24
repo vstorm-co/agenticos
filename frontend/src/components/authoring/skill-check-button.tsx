@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
+import { NeedsRunsView } from "@/components/evals/needs-runs-view";
 import { useContextAuthoring, useSkillAuthoring } from "@/hooks/use-authoring";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
@@ -66,7 +67,13 @@ function CheckButton({
   const router = useRouter();
   const [checking, setChecking] = useState(false);
   // A check is an eval run, whose results are runs.
-  if (!usePermissions().can(Perm.runsView)) return null;
+  if (!usePermissions().can(Perm.runsView)) {
+    return (
+      <NeedsRunsView variant="ghost" size="sm">
+        {label}
+      </NeedsRunsView>
+    );
+  }
   return (
     <>
       {/* Checking comes first: applying the change goes live at once. */}

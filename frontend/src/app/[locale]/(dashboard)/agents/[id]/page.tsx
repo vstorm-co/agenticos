@@ -385,11 +385,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
   // An eval needs a dataset with a case this caller may run - a grant on one is
   // enough - asked only for who may start one.
-  const mayStartEvals = canViewRuns && !isSystem && agent?.can_run === true;
-  const runsADataset = useRunsADataset({ enabled: mayStartEvals });
-  const canStartEvals = mayStartEvals && runsADataset;
+  const couldStartEvals = !isSystem && agent?.can_run === true;
+  const runsADataset = useRunsADataset({ enabled: couldStartEvals && (canViewRuns || canEdit) });
+  const canStartEvals = canViewRuns && couldStartEvals && runsADataset;
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft = canStartEvals && canEdit;
+  // An editor who could test it but for reading runs sees why they cannot.
+  const testNeedsRunsView = !canViewRuns && couldStartEvals && runsADataset && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
   useTestShortcut(canEdit && !isSystem, () => toggleTesting(!testing));
 
@@ -963,6 +965,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 production={environments.find((environment) => environment.is_default)}
                 draftSpec={agent.draft_spec}
                 onTest={canTestDraft ? () => setTestingDraft(true) : undefined}
+                testNeedsRunsView={testNeedsRunsView}
               />
               {/* And this one: is my edit stored. The draft saves itself; this
                 says where that stands. Quiet when everything is stored -
@@ -1428,6 +1431,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 agentId={id}
                 storedDraft={agent.draft_spec}
                 canCheck={canTestDraft}
+                checkNeedsRunsView={testNeedsRunsView}
                 persist={persist}
                 onDraft={setSpec}
               />
