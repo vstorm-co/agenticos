@@ -620,13 +620,9 @@ itself something they may not learn. A grant widens access to one dataset and
 never changes a role. See [Permissions](permissions.md) for how scopes and
 grants combine.
 
-A score's answer is the agent's, so reading it takes access to that agent as
-well: a reader of the dataset who may not view the agent that answered
-(`agents:view` on it, by role or by a grant) reads the score's outcome, status
-and case, and the answer is hidden - with every reason, quote and judge's answer
-that can repeat it. This holds wherever scores are read: the Review tab, the
-review queue and a judge's Datasets tab. An answer whose run or agent is gone is
-shown only to somebody who may view every agent of the organization.
+A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
+
+Review answers, reviewer notes and grading evidence need `runs:view` and access to the answering agent. Without either, the outcome and status remain visible but answer text, reasons, rules and quotes are removed. Before Add to dataset copies another person's private conversation, the dialog names its owner and warns that dataset readers who can read runs will see its text.
 
 ## Personal data { #personal-data }
 

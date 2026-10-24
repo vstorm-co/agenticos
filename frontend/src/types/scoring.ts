@@ -103,6 +103,7 @@ export interface CaseScore {
   judge_model: string | null;
   /** True for a reader who may not view the agent that answered: the answer, and every result's reason and quotes, are left out. */
   answer_hidden: boolean;
+  case_masked?: boolean;
   /** The eval run that scored it; null for a score asked for by hand. */
   eval_run_id: string | null;
   results: ScorerResult[];

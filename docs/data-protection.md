@@ -100,6 +100,10 @@ parent's check.
 | `agent_workspaces`, `sandbox_operations` | Files an agent worked on and the log of what it ran | For the `state` backend the files themselves, as JSON; for a container the session id and every command, target and result summary | The sandbox. See [The sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Credentials and where they point | Sealed ciphertext only, with a hint; the provider, model and `base_url` in clear | Reaching providers. See [Secrets](secrets.md) |
 
+A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
+
+Review answers, reviewer notes and grading evidence need `runs:view` and access to the answering agent. Without either, the outcome and status remain visible but answer text, reasons, rules and quotes are removed. Before Add to dataset copies another person's private conversation, the dialog names its owner and warns that dataset readers who can read runs will see its text.
+
 `messages.search_vector` is a full-text index over the same content, and
 `conversations.summary_messages` is a model-written compression of it. Both
 are copies of the chat and go with it.

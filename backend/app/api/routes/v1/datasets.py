@@ -30,6 +30,7 @@ from app.schemas.dataset import (
     DatasetList,
     DatasetRead,
     DatasetSort,
+    DatasetSourcePrivacy,
     DatasetUpdate,
     DatasetVersionList,
     DatasetVersionRead,
@@ -54,6 +55,12 @@ from app.schemas.scoring import (
 from app.services.dataset_files import MAX_IMPORT_BYTES
 
 router = APIRouter()
+
+
+@router.get("/messages/{message_id}/source", response_model=DatasetSourcePrivacy)
+async def dataset_source_privacy(message_id: UUID, service: DatasetSvc, ctx: Auth) -> Any:
+    """Check the source's privacy before copying an answer into a dataset."""
+    return await service.source_privacy(ctx, message_id)
 
 
 @router.get("", response_model=DatasetList, dependencies=[Depends(require(Perm.DATASETS_VIEW))])

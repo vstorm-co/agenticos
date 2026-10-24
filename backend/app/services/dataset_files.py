@@ -5,8 +5,9 @@ in one and edited by hand imports back in the other. A CSV row holds the
 structured fields (`history`, `expected_tool_calls`, `checks`) as JSON text in
 their cells and the tags comma-separated; a JSONL line holds them as JSON.
 
-**An export imports back unchanged.** That is the contract this module is
-written to, and it decides two things a plain export would get wrong:
+**An authorized export imports back unchanged.** A public read may instead pass
+masked cases: their placeholders disclose no source text and are not runnable
+training cases. For unmasked records, two details preserve the round trip:
 
 - An empty field is an empty cell, never `null`, `[]` or `None`, and an empty
   cell reads back as the field's empty value.
@@ -95,7 +96,7 @@ def _sorted(value: dict[str, Any], *, first: str | None = None) -> dict[str, Any
     return {**head, **{key: value[key] for key in sorted(value) if key != first}}
 
 
-def _record(case: DatasetCase) -> dict[str, Any]:
+def _record(case: DatasetCase | DatasetCaseRead) -> dict[str, Any]:
     """One case as its fields, every object in it with its keys in a fixed order.
 
     `jsonb` keeps an object's keys in an order of its own, not the order they
@@ -123,7 +124,7 @@ def _csv_cell(column: str, value: Any) -> str:
     return "" if value is None else _escape(value)
 
 
-def render(cases: Iterable[DatasetCase], fmt: DatasetFileFormat) -> str:
+def render(cases: Iterable[DatasetCase | DatasetCaseRead], fmt: DatasetFileFormat) -> str:
     """Cases as a whole CSV or JSONL document, in the order given."""
     records = [_record(case) for case in cases]
     if fmt == "jsonl":

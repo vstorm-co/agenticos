@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { useAddToDataset } from "@/hooks/use-datasets";
+import { useAddToDataset, useDatasetSource } from "@/hooks/use-datasets";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -70,6 +70,7 @@ export function AddToDatasetDialog({
   const { editable, isLoading, search, target, returnTo, choose, remember, create } =
     useDatasetTarget();
   const add = useAddToDataset();
+  const source = useDatasetSource(messageId, open);
   const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
   const [withHistory, setWithHistory] = useState(false);
   const [newName, setNewName] = useState(t("newDatasetFromActivity"));
@@ -111,6 +112,19 @@ export function AddToDatasetDialog({
             )}
           </DialogDescription>
         </DialogHeader>
+        {source.data?.private_to_other && (
+          <p role="note" className="rounded-md border p-3 text-sm">
+            {t("privateConversationWarning", {
+              name: source.data.owner_name ?? t("anotherMember"),
+            })}
+          </p>
+        )}
+        {source.isLoading && <p className="text-muted-foreground text-sm">{t("checkingSource")}</p>}
+        {source.error && (
+          <p role="alert" className="text-destructive text-sm">
+            {getErrorMessage(source.error, tErrors)}
+          </p>
+        )}
         <DatasetTargetFields
           editable={editable}
           isLoading={isLoading}
@@ -135,6 +149,8 @@ export function AddToDatasetDialog({
           </Button>
           <Button
             disabled={
+              source.data === undefined ||
+              source.error !== null ||
               add.isPending ||
               create.isPending ||
               (target === undefined && !(making && newName.trim() !== ""))

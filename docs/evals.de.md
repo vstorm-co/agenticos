@@ -368,7 +368,7 @@ Version einen anderen Entwurf getestet haben - eine Prüfung erst, wenn einer ih
 Vorschläge angenommen wurde: den Test, von dem sich der Entwurf entfernt hat. Eine
 Prüfung, die am Entwurf selbst gemessen wurde, zählt in keinem von beiden.
 
-Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens einem ausgewählten Tag gelten. Wählen Sie unter **Grading** die Tags und prüfen Sie die Anzahl; ein Fall mit mehreren passenden Tags zählt einmal. Nicht passende Kriterien werden vollständig ausgelassen und können den Fall weder scheitern noch unentschieden lassen. Review-Notizen können Kriterien für einen ausgewählten Fall-Tag werden. Eine Bereichsänderung ändert den Bewertungsfingerabdruck; Wächter übernehmen sie erst nach einem autorisierten Verschieben der Anheftung.
+Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens einem ausgewählten Tag gelten. Wählen Sie unter **Bewertung** (Grading) die Tags und prüfen Sie die Anzahl; ein Fall mit mehreren passenden Tags zählt einmal. Nicht passende Kriterien werden vollständig ausgelassen und können den Fall weder scheitern noch unentschieden lassen. Prüfungsnotizen können Kriterien für einen ausgewählten Fall-Tag werden. Eine Bereichsänderung ändert den Bewertungsfingerabdruck; Wächter übernehmen sie erst nach einem autorisierten Verschieben der Anheftung.
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
 

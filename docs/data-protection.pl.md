@@ -1,5 +1,5 @@
 ---
-source_sha: "91e271c9bbbc"
+source_sha: "4977d2226d50"
 ---
 
 # Ochrona danych { #data-protection }
@@ -103,6 +103,10 @@ przez sprawdzenie rodzica.
 | `ml_service_calls` | Każde wywołanie [usług ML](ml-services.md) i każda transkrypcja: dyktowanie, wiadomość głosowa z kanału, API, dyktowanie odwiedzającego na hostowanej stronie albo w widgecie | Organizacja, kto poprosił, która usługa, liczby bajtów i jednostek, czas trwania i sposób zakończenia; przy transkrypcji także provider i model, identyfikator klucza z vaultu, z którym ją wysłano, skąd przyszła, agent i bot kanału, dla których była, oraz długość nagrania. Wiersz wiadomości głosowej z kanału wskazuje osobę, z którą powiązane jest konto nadawcy, a przy niepowiązanym nadawcy nikogo. Wiersz odwiedzającego nie wskazuje nikogo - ani odwiedzającego, który nie ma konta, ani tego, kto opublikował stronę. Usunięcie osoby, agenta, bota albo klucza czyści powiązanie i zostawia wiersz - **nic z tego, co wysłano, i nic z tego, co wróciło** | Raportowanie zużycia i wgląd operatora w integrację, która się psuje |
 | `agent_workspaces`, `sandbox_operations` | Pliki, na których pracował agent, i log tego, co uruchomił | Dla backendu `state` same pliki, jako JSON; dla kontenera id sesji oraz każda komenda, cel i podsumowanie wyniku | Sandbox. Zobacz [Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Poświadczenia i to, gdzie wskazują | Wyłącznie zapieczętowany szyfrogram, z podpowiedzią; provider, model i `base_url` jawnie | Sięganie do providerów. Zobacz [Sekrety](secrets.md) |
+
+Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub dostępem do rozmowy źródłowej. Pozostali widzą metadane i placeholder, zarówno w najnowszej i historycznych wersjach, jak i eksportach CSV/JSONL. Brak źródła nie odsłania tekstu. Czytelnik nie może edytować ukrytej treści, a zmiana metadanych jej nie ujawnia. Ewaluacje nadal wykonują pełną zapisaną rewizję.
+
+Odpowiedzi, notatki recenzenta i dowody oceny w przeglądzie wymagają `runs:view` oraz dostępu do odpowiadającego agenta. Bez któregoś z nich pozostają wynik i status, ale tekst odpowiedzi, uzasadnienia, reguły i cytaty są usuwane. Przed dodaniem cudzej prywatnej rozmowy dialog wskazuje jej właściciela i ostrzega, że czytelnicy datasetu mogący odczytywać runy zobaczą jej tekst.
 
 `messages.search_vector` to indeks pełnotekstowy nad tą samą treścią,
 a `conversations.summary_messages` to jej kompresja napisana przez model. Oba są

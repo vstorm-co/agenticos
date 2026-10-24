@@ -7885,7 +7885,7 @@
       "agentGone": "An agent that is gone",
       "agentVersion": "{name} · v{version}",
       "answer": "Answer",
-      "answerHidden": "Answer hidden: you cannot view the agent that gave it, so its answer and the reasons that quote it are left out.",
+      "answerHidden": "Answer and grading evidence hidden: reading them needs runs:view and access to the answering agent.",
       "answerGone": "The answer is not kept.",
       "showAll": "Show all",
       "showLess": "Show less",
@@ -7955,7 +7955,8 @@
       "criterionEveryCase": "Every case",
       "criterionCoverage": "Applies to {count} of {total} cases",
       "noteForTag": "for cases tagged {tag}",
-      "noteAddedToTags": "The note is now a judge criterion for cases tagged {tags}."
+      "noteAddedToTags": "The note is now a judge criterion for cases tagged {tags}.",
+      "maskedConversation": "From a conversation you cannot open"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
@@ -8216,7 +8217,11 @@
     "newDatasetName": "New dataset",
     "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
     "newDatasetFromActivity": "Answers from Activity",
-    "backToDataset": "Back to {name}"
+    "backToDataset": "Back to {name}",
+    "maskedConversation": "From a conversation you cannot open",
+    "privateConversationWarning": "This conversation is private to {name}. Its text will be visible to readers of this dataset who can read runs.",
+    "anotherMember": "another member",
+    "checkingSource": "Checking source privacy…"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",

@@ -1,5 +1,5 @@
 ---
-source_sha: "9ae4dab40365"
+source_sha: "03b13de372e9"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -701,14 +701,9 @@ existiert, ist selbst etwas, das es nicht erfahren darf. Ein Grant erweitert den
 Zugriff auf ein Dataset und ändert nie eine Rolle. Wie Scopes und Grants
 zusammenwirken, steht unter [Berechtigungen](permissions.md).
 
-Die Antwort eines Ergebnisses gehört dem Agent, also braucht ihr Lesen auch
-Zugriff auf diesen Agent: Wer das Dataset lesen, den antwortenden Agent aber
-nicht sehen darf (`agents:view` darauf, per Rolle oder Grant), liest Ergebnis,
-Status und Fall, und die Antwort ist ausgeblendet - mit jeder Begründung, jedem
-Zitat und jeder Antwort des Bewerters, die sie wiederholen kann. Das gilt
-überall, wo Ergebnisse gelesen werden: im Tab Prüfung, in der Prüfwarteschlange
-und im Tab Datasets eines Bewerters. Eine Antwort, deren Run oder Agent nicht
-mehr existiert, sieht nur, wer jeden Agent der Organisation sehen darf.
+Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
+
+Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
 
 ## Personenbezogene Daten { #personal-data }
 

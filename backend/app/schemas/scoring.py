@@ -436,6 +436,7 @@ class CaseScoreRead(BaseSchema):
     agent_version: int | None = None
     judge_model: str | None = None
     answer_hidden: bool = False
+    case_masked: bool = False
     eval_run_id: UUID | None = None
     results: list[ScorerResult]
     judge: JudgePin | None = None

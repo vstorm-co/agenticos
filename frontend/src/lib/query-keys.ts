@@ -370,6 +370,7 @@ export const qk = {
     public: (key: string) => ["artifacts", "public", key] as const,
   },
   datasets: {
+    sourceMessage: (messageId: string) => ["datasets", "source-message", messageId] as const,
     all: () => ["datasets"] as const,
     /** Every dataset the caller sees, all pages read - the eval start dialog's picker. */
     every: () => ["datasets", "every"] as const,

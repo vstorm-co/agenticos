@@ -41,8 +41,10 @@ function Bubble({ speaker, children }: { speaker: "user" | "assistant"; children
  * A case as it reads: the conversation up to the input as bubbles, what a good
  * and a bad answer are, the tools and the checks, and its labels.
  */
-export function CaseView({ content }: { content: DatasetCaseContent }) {
+export function CaseView({ content }: { content: DatasetCaseContent & { masked?: boolean } }) {
   const t = useTranslations("datasets");
+  if (content.masked)
+    return <p className="text-muted-foreground text-sm">{t("maskedConversation")}</p>;
   return (
     <div className="space-y-5">
       <Section label={t("field.input")}>

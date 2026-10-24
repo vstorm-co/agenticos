@@ -1,5 +1,5 @@
 ---
-source_sha: "9ae4dab40365"
+source_sha: "03b13de372e9"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -669,14 +669,9 @@ algo que no debe saber. Un grant amplía el acceso a un dataset y nunca cambia u
 rol. Consulta [Permisos](permissions.md) para ver cómo se combinan los ámbitos y
 los grants.
 
-La respuesta de una puntuación es del agent, así que leerla exige también acceso
-a ese agent: quien lee el dataset pero no puede ver el agent que respondió
-(`agents:view` sobre él, por rol o por un grant) lee el resultado, el estado y
-el caso, y la respuesta queda oculta, junto con cada motivo, cita y respuesta
-del juez que pueda repetirla. Vale en todo lugar donde se leen puntuaciones: la
-pestaña Review, la cola de revisión y la pestaña Datasets de un juez. Una
-respuesta cuyo run o agent ya no existe solo la ve quien puede ver todos los
-agents de la organización.
+El texto de un caso copiado de una conversación solo es visible para lectores con `runs:view` o acceso a la conversación original. Los demás ven metadatos y un marcador, tanto en versiones actuales e históricas como en exportaciones CSV/JSONL. Si falta la fuente, el texto sigue oculto. No se puede editar texto oculto ni revelarlo al cambiar metadatos. Las evaluaciones siguen ejecutando la revisión completa almacenada.
+
+Las respuestas, notas de Review y pruebas de evaluación requieren `runs:view` y acceso al agente que respondió. Si falta alguno, se conservan el resultado y el estado, pero se eliminan el texto de respuesta, motivos, reglas y citas. Antes de copiar la conversación privada de otra persona, el diálogo identifica a su propietario y avisa de que los lectores del dataset que puedan leer runs verán su texto.
 
 ## Datos personales { #personal-data }
 

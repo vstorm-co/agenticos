@@ -1,5 +1,5 @@
 ---
-source_sha: "91e271c9bbbc"
+source_sha: "4977d2226d50"
 ---
 
 # Datenschutz { #data-protection }
@@ -108,6 +108,10 @@ des Elternteils.
 | `ml_service_calls` | Jeder Aufruf der [ML-Dienste](ml-services.md) und jede Transkription: Diktat, eine Sprachnachricht in einem Kanal, die API, das Diktat eines Besuchers auf einer gehosteten Seite oder in einem Widget | Die Organisation, wer gefragt hat, welcher Dienst, Byte- und Einheitenzahlen, die Dauer und wie es endete; bei einer Transkription außerdem Provider und Modell, die ID des Vault-Schlüssels, mit dem sie gesendet wurde, woher sie kam, der Agent und der Kanal-Bot, für die sie war, und die Länge der Aufnahme. Die Zeile einer Sprachnachricht in einem Kanal nennt die Person, mit der das Konto des Absenders verknüpft ist, und bei einem nicht verknüpften Absender niemanden. Die Zeile eines Besuchers nennt niemanden - weder den Besucher, der kein Konto hat, noch den, der die Seite veröffentlicht hat. Das Löschen der Person, des Agents, des Bots oder des Schlüssels entfernt die Verknüpfung und behält die Zeile - **nichts von dem, was eingereicht wurde, und nichts von dem, was zurückkam** | Nutzungsberichte und der Blick eines Betreibers auf eine Integration, die scheitert |
 | `agent_workspaces`, `sandbox_operations` | Dateien, an denen ein Agent gearbeitet hat, und das Log dessen, was er ausgeführt hat | Beim `state`-Backend die Dateien selbst, als JSON; bei einem Container die Session-Id und jedes Kommando, Ziel und Ergebnis-Resümee | Die Sandbox. Siehe [Die Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Zugangsdaten und wohin sie zeigen | Nur versiegelter Chiffretext, mit einem Hinweis; Provider, Model und `base_url` im Klartext | Provider erreichen. Siehe [Secrets](secrets.md) |
+
+Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
+
+Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
 
 `messages.search_vector` ist ein Volltextindex über denselben Inhalt, und
 `conversations.summary_messages` ist eine vom Model geschriebene Verdichtung

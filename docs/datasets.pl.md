@@ -1,5 +1,5 @@
 ---
-source_sha: "9ae4dab40365"
+source_sha: "03b13de372e9"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -657,14 +657,9 @@ prywatnego datasetu jest czymś, czego nie może się dowiedzieć. Grant poszerz
 dostęp do jednego datasetu i nigdy nie zmienia roli. Jak łączą się zakresy i
 granty, opisuje strona [Uprawnienia](permissions.md).
 
-Odpowiedź w wyniku należy do agenta, więc jej odczyt wymaga też dostępu do tego
-agenta: czytelnik datasetu, który nie może zobaczyć agenta, który odpowiedział
-(`agents:view` na nim, z roli albo z grantu), widzi wynik, status i przypadek, a
-odpowiedź jest ukryta - razem z każdym uzasadnieniem, cytatem i odpowiedzią
-sędziego, które mogą ją powtarzać. Dotyczy to każdego miejsca, w którym czyta
-się wyniki: zakładki Przegląd, kolejki przeglądu i zakładki Datasets sędziego.
-Odpowiedź, której run albo agent już nie istnieje, widzi tylko ktoś, kto może
-zobaczyć każdego agenta organizacji.
+Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub dostępem do rozmowy źródłowej. Pozostali widzą metadane i placeholder, zarówno w najnowszej i historycznych wersjach, jak i eksportach CSV/JSONL. Brak źródła nie odsłania tekstu. Czytelnik nie może edytować ukrytej treści, a zmiana metadanych jej nie ujawnia. Ewaluacje nadal wykonują pełną zapisaną rewizję.
+
+Odpowiedzi, notatki recenzenta i dowody oceny w przeglądzie wymagają `runs:view` oraz dostępu do odpowiadającego agenta. Bez któregoś z nich pozostają wynik i status, ale tekst odpowiedzi, uzasadnienia, reguły i cytaty są usuwane. Przed dodaniem cudzej prywatnej rozmowy dialog wskazuje jej właściciela i ostrzega, że czytelnicy datasetu mogący odczytywać runy zobaczą jej tekst.
 
 ## Dane osobowe { #personal-data }
 

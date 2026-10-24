@@ -7768,7 +7768,7 @@
       "agentGone": "Ein Agent, den es nicht mehr gibt",
       "agentVersion": "{name} · v{version}",
       "answer": "Antwort",
-      "answerHidden": "Antwort ausgeblendet: Sie können den Agent, der sie gab, nicht sehen, daher fehlen sie und die Begründungen, die sie zitieren.",
+      "answerHidden": "Antwort und Bewertungsbelege sind verborgen: Zum Lesen sind runs:view und Zugriff auf den antwortenden Agenten erforderlich.",
       "answerGone": "Die Antwort ist nicht gespeichert.",
       "showAll": "Alles anzeigen",
       "showLess": "Weniger anzeigen",
@@ -7838,7 +7838,8 @@
       "criterionEveryCase": "Jeden Fall",
       "criterionCoverage": "Gilt für {count} von {total} Fällen",
       "noteForTag": "für Fälle mit Tag {tag}",
-      "noteAddedToTags": "Die Notiz ist jetzt ein Bewerterkriterium für Fälle mit den Tags {tags}."
+      "noteAddedToTags": "Die Notiz ist jetzt ein Bewerterkriterium für Fälle mit den Tags {tags}.",
+      "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
@@ -8099,7 +8100,11 @@
     "newDatasetName": "Neues Dataset",
     "newDatasetHere": "Sie haben noch kein Dataset, dem Sie etwas hinzufügen können, daher legt diese Antwort eines an, sichtbar für die ganze Organisation.",
     "newDatasetFromActivity": "Antworten aus Aktivität",
-    "backToDataset": "Zurück zu {name}"
+    "backToDataset": "Zurück zu {name}",
+    "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können",
+    "privateConversationWarning": "Diese Unterhaltung ist privat und gehört {name}. Ihr Text wird für Leser dieses Datasets sichtbar, die Runs lesen dürfen.",
+    "anotherMember": "einem anderen Mitglied",
+    "checkingSource": "Privatsphäre der Quelle wird geprüft…"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

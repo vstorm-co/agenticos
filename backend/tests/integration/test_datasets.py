@@ -24,7 +24,12 @@ from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.permissions import AuthContext, OrgRoleName, Scope
 from app.db.models.agent import Agent, AgentVersion
@@ -1026,7 +1031,7 @@ async def test_a_member_the_dataset_was_not_shared_with_cannot_read_or_change_it
 
     builder = await _member(db, org, OrgRoleName.BUILDER)
     assert (await service.read(builder, dataset.id)).can_edit is False
-    with pytest.raises(NotFoundError):
+    with pytest.raises(AuthorizationError):
         await service.add_case(
             builder, dataset.id, DatasetCaseCreate(input="mine now", reference_answer="yes")
         )

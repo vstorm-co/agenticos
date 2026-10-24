@@ -198,6 +198,9 @@ class DatasetCaseRead(StoredCaseContent):
     id: UUID
     case_id: UUID
     source: CaseSourceLiteral
+    masked: bool = Field(
+        default=False, description="Source conversation text is hidden from this reader"
+    )
     source_run_id: UUID | None = None
     source_conversation_id: UUID | None = None
     source_message_id: UUID | None = None
@@ -372,6 +375,13 @@ class DatasetVersionList(BaseSchema):
 
 AnswerAs = Literal["counter_example", "reference_answer"]
 """Whether an answer taken from a conversation shows what a good answer is not, or is."""
+
+
+class DatasetSourcePrivacy(BaseSchema):
+    """Whether copying an accessible message exposes another person's private conversation."""
+
+    private_to_other: bool
+    owner_name: str | None = None
 
 
 class DatasetCaseFromMessage(BaseSchema):

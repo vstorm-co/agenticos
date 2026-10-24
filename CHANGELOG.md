@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Dataset access no longer exposes private source conversations.** Case reads,
+  historical versions and exports mask inaccessible conversation text. Review
+  answers and evidence require run-reading access, hidden text cannot be
+  edited, and copying another person’s private conversation shows a warning
+  before adding it. Eval execution keeps the full stored text (#2372).
+
 - **Eval refusals explain what needs changing.** Unknown environments return
   404, concurrent suite-name conflicts return 409, and visible datasets name
   missing permissions. Draft validation talks about evaluation. Agent and

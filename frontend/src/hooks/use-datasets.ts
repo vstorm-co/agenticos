@@ -301,3 +301,15 @@ export function useAddToDataset() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
   });
 }
+
+/** Source access is checked before copying an answer, so a private-conversation warning is never skipped. */
+export function useDatasetSource(messageId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.datasets.sourceMessage(messageId),
+    queryFn: () =>
+      apiClient.get<{ private_to_other: boolean; owner_name: string | null }>(
+        `/datasets/messages/${messageId}/source`,
+      ),
+    enabled,
+  });
+}

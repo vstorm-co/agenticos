@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   create: vi.fn(),
   asked: null as string | null,
   push: vi.fn(),
+  source: { private_to_other: false, owner_name: null as string | null },
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -40,6 +41,7 @@ vi.mock("@/hooks/use-datasets", () => ({
     };
   },
   useAddToDataset: () => ({ mutateAsync: state.add, isPending: false }),
+  useDatasetSource: () => ({ data: state.source, error: null, isLoading: false }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from "sonner";
@@ -56,6 +58,7 @@ describe("Add to dataset", () => {
       { id: "d3", name: "returns", can_edit: true },
     ];
     state.isLoading = false;
+    state.source = { private_to_other: false, owner_name: null };
     state.total = 0;
     state.asked = null;
   });
@@ -277,3 +280,25 @@ describe("Add to dataset", () => {
     expect(history()).toBeNull();
   });
 });
+
+it.each([true, false])(
+  "warns before copying somebody else's private conversation (%s)",
+  async (privateToOther) => {
+    state.granted = [Perm.datasetsEdit];
+    state.datasets = [{ id: "d1", name: "refunds", can_edit: true }];
+    state.isLoading = false;
+    state.source = { private_to_other: privateToOther, owner_name: privateToOther ? "Pat" : null };
+    render(
+      <AddToDatasetDialog
+        open
+        onOpenChange={vi.fn()}
+        messageId="m-private"
+        answerAs="counter_example"
+        askAnswerAs
+      />,
+    );
+    if (privateToOther)
+      expect(screen.getByRole("note")).toHaveTextContent("This conversation is private to Pat.");
+    else expect(screen.queryByRole("note")).toBeNull();
+  },
+);

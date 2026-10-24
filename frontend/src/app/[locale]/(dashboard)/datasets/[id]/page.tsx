@@ -275,7 +275,7 @@ export default function DatasetPage({ params }: PageProps) {
           knownTools={[
             ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
           ]}
-          onSave={editable ? save : undefined}
+          onSave={editable && !editing.item?.masked ? save : undefined}
           twins={
             editing.item === null
               ? {

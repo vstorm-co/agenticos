@@ -115,7 +115,7 @@ describe("ScoreCard", () => {
   it("says the answer is hidden from a reader who may not view the agent that gave it", () => {
     render(<ScoreCard score={score({ answer: null, answer_hidden: true })} />);
 
-    expect(screen.getByText(/^Answer hidden: you cannot view the agent/)).toBeInTheDocument();
+    expect(screen.getByText(/^Answer and grading evidence hidden:/)).toBeInTheDocument();
     expect(screen.queryByText("The answer is not kept.")).toBeNull();
   });
 

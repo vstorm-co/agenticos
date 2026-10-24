@@ -2013,7 +2013,7 @@ class TestVerdicts:
         )
         assert [r.status for r in hidden.results] == [r.status for r in owned.results]
         assert (hidden.outcome, hidden.question) == (owned.outcome, owned.question)
-        assert (granted.answer, granted.answer_hidden) == (owned.answer, False)
+        assert (granted.answer, granted.answer_hidden) == (None, True)
 
     @pytest.mark.security
     async def test_an_answer_whose_run_is_gone_is_read_only_by_who_sees_every_agent(

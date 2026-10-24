@@ -7658,7 +7658,7 @@
       "agentGone": "Agent, którego już nie ma",
       "agentVersion": "{name} · v{version}",
       "answer": "Odpowiedź",
-      "answerHidden": "Odpowiedź ukryta: nie masz dostępu do agenta, który jej udzielił, więc pomijamy ją i uzasadnienia, które ją cytują.",
+      "answerHidden": "Odpowiedź i dowody oceny są ukryte: ich odczyt wymaga runs:view oraz dostępu do odpowiadającego agenta.",
       "answerGone": "Odpowiedź nie jest przechowywana.",
       "showAll": "Pokaż całość",
       "showLess": "Pokaż mniej",
@@ -7728,7 +7728,8 @@
       "criterionEveryCase": "Każdego przypadku",
       "criterionCoverage": "Dotyczy {count} z {total} przypadków",
       "noteForTag": "dla przypadków z tagiem {tag}",
-      "noteAddedToTags": "Notatka jest teraz kryterium sędziego dla przypadków z tagami {tags}."
+      "noteAddedToTags": "Notatka jest teraz kryterium sędziego dla przypadków z tagami {tags}.",
+      "maskedConversation": "Z rozmowy, do której nie masz dostępu"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",
@@ -7989,7 +7990,11 @@
     "newDatasetName": "Nowy dataset",
     "newDatasetHere": "Nie masz jeszcze datasetu, do którego można dodać odpowiedź, więc ta odpowiedź go zakłada, widoczny dla całej organizacji.",
     "newDatasetFromActivity": "Odpowiedzi z Aktywności",
-    "backToDataset": "Wróć do {name}"
+    "backToDataset": "Wróć do {name}",
+    "maskedConversation": "Z rozmowy, do której nie masz dostępu",
+    "privateConversationWarning": "Ta rozmowa jest prywatna i należy do {name}. Jej tekst będzie widoczny dla czytelników datasetu, którzy mogą odczytywać runy.",
+    "anotherMember": "innego członka",
+    "checkingSource": "Sprawdzanie prywatności źródła…"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

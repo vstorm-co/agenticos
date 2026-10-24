@@ -49,6 +49,7 @@ export interface DatasetCaseContent {
 }
 
 export interface DatasetCase extends DatasetCaseContent {
+  masked?: boolean;
   id: string;
   case_id: string;
   source: CaseSource;

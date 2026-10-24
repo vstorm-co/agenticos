@@ -12,6 +12,7 @@ type Expected = Pick<
   CaseScore,
   | "dataset_id"
   | "case_id"
+  | "case_masked"
   | "question"
   | "case_tags"
   | "reference_answer"
@@ -36,7 +37,7 @@ export function ScoreExpectation({ score }: { score: Expected }) {
             href={`${ROUTES.DATASET_DETAIL(score.dataset_id)}?tab=cases&case=${score.case_id}`}
             className="block font-medium break-words whitespace-pre-wrap hover:underline"
           >
-            {score.question}
+            {score.case_masked ? t("maskedConversation") : score.question}
           </Link>
           {score.case_tags.length > 0 && (
             <span className="flex flex-wrap gap-1">

@@ -1,5 +1,5 @@
 ---
-source_sha: "91e271c9bbbc"
+source_sha: "4977d2226d50"
 ---
 
 # Protección de datos { #data-protection }
@@ -106,6 +106,10 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `ml_service_calls` | Cada llamada a los [servicios de ML](ml-services.md) y cada transcripción: dictado, un mensaje de voz de un canal, la API, el dictado de un visitante en una página alojada o un widget | La organización, quién pidió, qué servicio, recuentos de bytes y unidades, la duración y cómo terminó; en una transcripción también el proveedor y el modelo, el id de la clave del vault con la que se envió, por dónde llegó, el agent y el bot de canal para los que fue y la duración de la grabación. La fila de un mensaje de voz de un canal nombra a la persona con la que está vinculada la cuenta del remitente, y a nadie si el remitente no está vinculado. La fila de un visitante no nombra a nadie - ni al visitante, que no tiene cuenta, ni a quien publicó la página. Borrar a la persona, el agent, el bot o la clave quita el vínculo y conserva la fila - **nada de lo que se envió y nada de lo que volvió** | Informe de uso, y la vista de un operador sobre una integración que falla |
 | `agent_workspaces`, `sandbox_operations` | Archivos sobre los que trabajó un agent y el registro de lo que ejecutó | Para el backend `state`, los propios archivos, en JSON; para un contenedor, el id de sesión y cada comando, destino y resumen del resultado | La sandbox. Consulta [La sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Credenciales y hacia dónde apuntan | Solo el cifrado sellado, con una pista; el provider, el modelo y la `base_url` en claro | Llegar a los providers. Consulta [Secretos](secrets.md) |
+
+El texto de un caso copiado de una conversación solo es visible para lectores con `runs:view` o acceso a la conversación original. Los demás ven metadatos y un marcador, tanto en versiones actuales e históricas como en exportaciones CSV/JSONL. Si falta la fuente, el texto sigue oculto. No se puede editar texto oculto ni revelarlo al cambiar metadatos. Las evaluaciones siguen ejecutando la revisión completa almacenada.
+
+Las respuestas, notas de Review y pruebas de evaluación requieren `runs:view` y acceso al agente que respondió. Si falta alguno, se conservan el resultado y el estado, pero se eliminan el texto de respuesta, motivos, reglas y citas. Antes de copiar la conversación privada de otra persona, el diálogo identifica a su propietario y avisa de que los lectores del dataset que puedan leer runs verán su texto.
 
 `messages.search_vector` es un índice de texto completo sobre el mismo
 contenido, y `conversations.summary_messages` es una compresión de él escrita

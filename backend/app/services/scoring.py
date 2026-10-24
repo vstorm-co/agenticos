@@ -939,8 +939,6 @@ class ScoringService:
         outcome: ScoreOutcome | None = None,
         agent_id: UUID | None = None,
         eval_run_id: UUID | None = None,
-        judge_version_id: UUID | None = None,
-        judge_pinned: bool = False,
         judge_id: UUID | None = None,
         tag: str | None = None,
         skip: int = 0,
@@ -1042,6 +1040,18 @@ class ScoringService:
         agent, since nothing is left to check the reader against.
         """
         reads = [CaseScoreRead.model_validate(score) for score in scores]
+        cases = await self.datasets.case_reads(ctx, [score.case_revision for score in scores])
+        for index, case in enumerate(cases):
+            if case.masked:
+                reads[index] = reads[index].model_copy(
+                    update={
+                        "question": case.input,
+                        "reference_answer": None,
+                        "expected_tool_calls": [],
+                        "checks": [],
+                        "case_masked": True,
+                    }
+                )
         models = await credential_repo.get_profiles_by_ids(
             self.db,
             list(
@@ -1073,7 +1083,11 @@ class ScoringService:
         for read in reads:
             agent = None if read.agent_id is None else agents.get(read.agent_id)
             unchecked = agent is None and read.answer is not None and not sees_every_agent
-            if unchecked or (agent is not None and agent.id in hidden):
+            if (
+                not ctx.has(Perm.RUNS_VIEW)
+                or unchecked
+                or (agent is not None and agent.id in hidden)
+            ):
                 read = _without_answer(read)
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
             judged_on = (
@@ -1272,9 +1286,16 @@ def _without_answer(read: CaseScoreRead) -> CaseScoreRead:
         update={
             "answer": None,
             "answer_hidden": True,
+            "human_note": None,
             "results": [
                 result.model_copy(
-                    update={"reason": "", "unverified_quotes": [], "judge_said": None}
+                    update={
+                        "name": result.scorer,
+                        "reason": "",
+                        "unverified_quotes": [],
+                        "judge_said": None,
+                        "rule": None,
+                    }
                 )
                 for result in read.results
             ],

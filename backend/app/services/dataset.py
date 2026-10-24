@@ -12,7 +12,7 @@ case is stored, on every way in.
 
 import logging
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import takewhile
@@ -54,6 +54,7 @@ from app.repositories import (
     personal_data_repo,
     promotion_gate_repo,
     resource_grant_repo,
+    user_repo,
 )
 from app.schemas.dataset import (
     MAX_HISTORY_TURNS,
@@ -68,6 +69,7 @@ from app.schemas.dataset import (
     DatasetList,
     DatasetRead,
     DatasetSort,
+    DatasetSourcePrivacy,
     DatasetStats,
     DatasetUpdate,
     DatasetVersionList,
@@ -337,6 +339,10 @@ class DatasetService:
         dataset = await dataset_repo.get(self.db, dataset_id, organization_id=ctx.organization_id)
         if dataset is None:
             raise NotFoundError(message="Dataset not found")
+        await self._require_access(ctx, dataset, perm)
+        return dataset
+
+    async def _require_access(self, ctx: AuthContext, dataset: Dataset, perm: Perm) -> None:
         if not await resolve_access(self.db, ctx, dataset, perm, resource_type=DATASET):
             if perm is not Perm.DATASETS_VIEW and await resolve_access(
                 self.db, ctx, dataset, Perm.DATASETS_VIEW, resource_type=DATASET
@@ -345,7 +351,6 @@ class DatasetService:
                     message=f"Needs {perm.value}", details={"permission": perm.value}
                 )
             raise NotFoundError(message="Dataset not found")
-        return dataset
 
     async def _can_edit(self, ctx: AuthContext, dataset: Dataset) -> bool:
         return await resolve_access(
@@ -699,7 +704,82 @@ class DatasetService:
         )
         total = held.case_count if same_input is None else len(cases)
         return DatasetCaseList(
-            items=[_case_read(case) for case in cases], total=total, version=held.number
+            items=await self.case_reads(ctx, cases), total=total, version=held.number
+        )
+
+    async def case_reads(
+        self, ctx: AuthContext, cases: Sequence[DatasetCase]
+    ) -> list[DatasetCaseRead]:
+        """Apply conversation privacy to public case reads, including historical versions and exports.
+
+        Internal execution reads repository revisions directly; this mask never changes stored content.
+        Access is checked once per source conversation in the batch, including shares and project access.
+        A removed source fails closed, since no conversation remains to authorize.
+        """
+        reads = [_case_read(case) for case in cases]
+        if ctx.has(Perm.RUNS_VIEW):
+            return reads
+        accessible: dict[UUID, bool] = {}
+        conversations = ConversationService(self.db)
+        for case, read in zip(cases, reads, strict=True):
+            if case.source != CaseSource.CONVERSATION.value and case.source_conversation_id is None:
+                continue
+            source = case.source_conversation_id
+            if source is not None and source not in accessible:
+                allowed = False
+                if ctx.subject_id is not None:
+                    try:
+                        await conversations.get_conversation(
+                            source,
+                            organization_id=ctx.organization_id,
+                            user_id=ctx.subject_id,
+                            ctx=ctx,
+                            include_favourite=False,
+                        )
+                        allowed = True
+                    except NotFoundError:
+                        allowed = False
+                accessible[source] = allowed
+            if source is not None and accessible[source]:
+                continue
+            read.input = "From a conversation you cannot open"
+            read.history = []
+            read.reference_answer = None
+            read.counter_example = None
+            read.expected_tool_calls = []
+            read.checks = []
+            read.note = None
+            read.masked = True
+        return reads
+
+    async def source_privacy(self, ctx: AuthContext, message_id: UUID) -> DatasetSourcePrivacy:
+        """Warn before a curator copies another person's private conversation.
+
+        Uses the same source access as Add to dataset, and exposes no owner metadata
+        unless the caller may read the conversation or its recorded runs.
+        """
+        message = await conversation_repo.get_message_by_id(self.db, message_id)
+        if message is None or (not ctx.has(Perm.RUNS_VIEW) and ctx.subject_id is None):
+            raise NotFoundError(message="Message not found")
+        conversation = await ConversationService(self.db).get_conversation(
+            message.conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=None if ctx.has(Perm.RUNS_VIEW) else ctx.subject_id,
+            ctx=ctx,
+            include_favourite=False,
+        )
+        private = (
+            conversation.project_id is None
+            and conversation.user_id is not None
+            and conversation.user_id != ctx.subject_id
+        )
+        owner = (
+            await user_repo.get_by_id(self.db, conversation.user_id)
+            if private and conversation.user_id
+            else None
+        )
+        return DatasetSourcePrivacy(
+            private_to_other=private, owner_name=owner.full_name if owner else None
         )
 
     async def _mint(
@@ -810,8 +890,9 @@ class DatasetService:
     async def _locked(self, ctx: AuthContext, dataset_id: UUID) -> Dataset:
         """The dataset locked for minting, once the caller is known to may edit it."""
         dataset = await dataset_repo.lock(self.db, dataset_id, organization_id=ctx.organization_id)
-        if dataset is None or not await self._can_edit(ctx, dataset):
-            raise NotFoundError(message="Dataset not found", details={"dataset_id": dataset_id})
+        if dataset is None:
+            raise NotFoundError(message="Dataset not found")
+        await self._require_access(ctx, dataset, Perm.DATASETS_EDIT)
         return dataset
 
     def _revision(
@@ -990,7 +1071,9 @@ class DatasetService:
                 version does not hold the case.
         """
         dataset = await self.get(ctx, dataset_id)
-        return _case_read(await self.case_at(ctx, dataset, case_id, version=version))
+        return (
+            await self.case_reads(ctx, [await self.case_at(ctx, dataset, case_id, version=version)])
+        )[0]
 
     async def case_at(
         self, ctx: AuthContext, dataset: Dataset, case_id: UUID, *, version: int | None = None
@@ -1021,6 +1104,13 @@ class DatasetService:
         """Edit a case. The edit is a new revision in a new version; the old one stays readable."""
         dataset = await self._locked(ctx, dataset_id)
         previous, current, position = await self._held_case(ctx, dataset, case_id)
+        [visible] = await self.case_reads(ctx, [current])
+        hidden_fields = data.model_fields_set - {"tags", "order_mode"}
+        if visible.masked and hidden_fields:
+            raise AuthorizationError(
+                message="The source conversation must be readable before its text can be edited",
+                details={"permission": "runs:view", "fields": sorted(hidden_fields)},
+            )
         merged = {
             **DatasetCaseRead.model_validate(current).model_dump(),
             **writable(data, over=DatasetCase),
@@ -1067,7 +1157,7 @@ class DatasetService:
             replaced=(current, revision, position),
             redacted=redacted,
         )
-        return _case_read(revision)
+        return (await self.case_reads(ctx, [revision]))[0]
 
     async def remove_case(self, ctx: AuthContext, dataset_id: UUID, case_id: UUID) -> None:
         """Leave a case out of a new version. The versions that held it still do."""
@@ -1122,7 +1212,7 @@ class DatasetService:
         version: int | None,
         fmt: DatasetFileFormat,
     ) -> ExportResult:
-        """One version's cases as a file that imports back unchanged.
+        """One version's cases as a file with source privacy applied.
 
         Audited like every bulk export: a dataset's cases are often copied from
         real conversations, and who took a copy of them away is worth recording.
@@ -1136,7 +1226,7 @@ class DatasetService:
             if held is not None
             else []
         )
-        content = dataset_files.render(cases, fmt)
+        content = dataset_files.render(await self.case_reads(ctx, cases), fmt)
         number = held.number if held is not None else 0
         await record_audit(
             self.db,
