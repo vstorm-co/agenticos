@@ -8647,7 +8647,12 @@
       "change": "Ordner ändern",
       "disconnect": "Trennen",
       "connecting": "Verbinden…",
-      "activeAccess": "Aktueller Zugriff: {mode}"
+      "activeAccess": "Aktueller Zugriff: {mode}",
+      "fileLocation": "Dateispeicherort",
+      "localFiles": "Dieser Computer",
+      "sharedFiles": "Gemeinsame Projektdateien",
+      "refresh": "Dateien aktualisieren",
+      "previewHint": "Vorschau von bis zu 500 lokalen Einträgen. Generierte Ordner wie node_modules und .git werden übersprungen. Die Dateien bleiben auf diesem Computer."
     }
   },
   "voiceGlow": {

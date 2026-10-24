@@ -26,15 +26,63 @@ import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useProjectFolder } from "@/hooks/use-project-folder";
 import { ProjectFolderChoice } from "./project-folder-choice";
+import { ProjectFolderExplorer } from "./project-folder-explorer";
 
 /**
  * The project's container, browsable - and, for whoever may work in it, the
  * place to put files and folders every agent in the project then finds.
  */
 export function ProjectFiles({ project }: { project: Project }) {
-  const t = useTranslations("projects");
   const shell = useShell();
   const local = useProjectFolder(project.id);
+  if (!project.can_use || !isDesktopShell(shell) || !local.available) {
+    return <SharedProjectFiles project={project} />;
+  }
+  return <DesktopProjectFiles key={project.id} project={project} />;
+}
+
+function DesktopProjectFiles({ project }: { project: Project }) {
+  const t = useTranslations("projects.localFolder");
+  const local = useProjectFolder(project.id);
+  const [view, setView] = useState<"local" | "shared">("local");
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-4">
+      <ProjectFolderChoice
+        value={local.target}
+        onChange={(target) => {
+          local.bind(project.id, target);
+          setView(target ? "local" : "shared");
+        }}
+      />
+      {local.target && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t("fileLocation")}>
+          <Button
+            variant={view === "local" ? "secondary" : "ghost"}
+            aria-pressed={view === "local"}
+            onClick={() => setView("local")}
+          >
+            {t("localFiles")}
+          </Button>
+          <Button
+            variant={view === "shared" ? "secondary" : "ghost"}
+            aria-pressed={view === "shared"}
+            onClick={() => setView("shared")}
+          >
+            {t("sharedFiles")}
+          </Button>
+        </div>
+      )}
+      {local.target && view === "local" ? (
+        <ProjectFolderExplorer root={local.target.folder} />
+      ) : (
+        <SharedProjectFiles project={project} />
+      )}
+    </div>
+  );
+}
+
+function SharedProjectFiles({ project }: { project: Project }) {
+  const t = useTranslations("projects");
   const { files, isLoading, error, upload, uploads, addFolder, remove } = useProjectFiles(
     project.id,
   );
@@ -131,14 +179,6 @@ export function ProjectFiles({ project }: { project: Project }) {
     // Down to the bottom of the screen, as the folder page's reader is: the files
     // are what the tab is for, and a fixed floor left half the screen empty.
     <div className="flex min-h-[calc(100dvh-17rem)] flex-1 flex-col">
-      {project.can_use && isDesktopShell(shell) && local.available && (
-        <div className="mb-4">
-          <ProjectFolderChoice
-            value={local.target}
-            onChange={(target) => local.bind(project.id, target)}
-          />
-        </div>
-      )}
       {/* A file dropped anywhere on the tab lands in the project, as one dropped
           on a knowledge base lands in it - for whoever may add files. */}
       {project.can_use ? (

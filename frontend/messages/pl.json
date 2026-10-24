@@ -8553,7 +8553,12 @@
       "change": "Zmień folder",
       "disconnect": "Odłącz",
       "connecting": "Łączenie…",
-      "activeAccess": "Aktualny dostęp: {mode}"
+      "activeAccess": "Aktualny dostęp: {mode}",
+      "fileLocation": "Lokalizacja plików",
+      "localFiles": "Ten komputer",
+      "sharedFiles": "Wspólne pliki projektu",
+      "refresh": "Odśwież pliki",
+      "previewHint": "Podgląd maksymalnie 500 lokalnych elementów. Foldery generowane, np. node_modules i .git, są pomijane. Pliki pozostają na tym komputerze."
     }
   },
   "voiceGlow": {
