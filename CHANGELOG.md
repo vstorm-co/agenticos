@@ -33,6 +33,22 @@ Two things are versioned separately from this file and worth knowing about:
   for unrelated apps to keep authentication cookies from reaching another app's
   server; different ports and cookie names do not provide that isolation.
 
+- Sandbox launchers use Docker Desktop's VM socket group on macOS, retain the
+  socket group on Linux and respect explicit `DOCKER_GID` overrides (#2296).
+
+- Return to sign-in when refreshed session cookies are still refused, including
+  when another tab recently refreshed, instead of leaving agent pages loading (#2269).
+
+- Connect the worker wake-up listener with PostgreSQL TLS settings and cap its
+  reconnect delay without overflowing during a long database outage (#2453).
+
+- End live chat traces even when setup is cancelled before the model starts,
+  discard dead writers and show completed replayed answers from the transcript
+  without typing them out again when a conversation is reopened (#2454).
+
+- Organization usage reports open the organization Dashboard for the report
+  window and tenant; the shared email button accurately says Open console (#2455).
+
 - Keep Stop available while chat waits on a question, approval or account
   connection, including reloaded parked runs. Cancelling a parked run closes
   pending calls without continuing the model and preserves its recorded spend.
