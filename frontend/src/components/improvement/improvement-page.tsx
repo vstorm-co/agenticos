@@ -7,7 +7,7 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { WizardNav, WizardSteps } from "@/components/ui/wizard-steps";
 import { usd } from "@/components/evals/format";
-import { ChangePreview } from "@/components/authoring/result-dialog";
+import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
 import { useImprovement } from "@/hooks/use-improvements";
@@ -18,7 +18,7 @@ import { Perm } from "@/types/permissions";
 import type { Improvement } from "@/types/improvement";
 import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
-import { RoundResults } from "./round-results";
+import { RoundResults, RoundHistory } from "./round-results";
 import { Understand, TestQuestions, Today } from "./session-inputs";
 
 const STEPS = ["understand", "testSet", "today", "changes", "check", "result", "accept"] as const;
@@ -81,6 +81,9 @@ function Session({
   const [error, setError] = useState<string | null>(null);
   const [automatic, setAutomatic] = useState(true);
   const [confirm, setConfirm] = useState(false);
+  const [draftSelection, setDraftSelection] = useState<{ roundId: string; ids: string[] } | null>(
+    null,
+  );
   async function act(action: () => Promise<void>) {
     setError(null);
     try {
@@ -103,8 +106,17 @@ function Session({
   const active = ["queued", "running"].includes(session.status);
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
   const selectedBatch = authoring?.batch?.id === chosen?.batch_id ? authoring?.batch : null;
+  const measuredIds =
+    chosen?.included_hunk_ids ??
+    selectedBatch?.hunks.filter((h) => h.status === "pending").map((h) => h.id) ??
+    [];
+  const included =
+    draftSelection && draftSelection.roundId === chosen?.id ? draftSelection.ids : measuredIds;
+  const selectionDirty =
+    JSON.stringify([...included].sort()) !== JSON.stringify([...measuredIds].sort());
+  const missingBatch = !selectedBatch;
   const blockedChanges = selectedBatch?.hunks.some(
-    (hunk) => hunk.status === "pending" && hunk.blocked !== null,
+    (hunk) => hunk.status === "pending" && measuredIds.includes(hunk.id) && hunk.blocked !== null,
   );
   return (
     <div className="space-y-6">
@@ -171,8 +183,19 @@ function Session({
       {step === "today" && <Today session={session} />}
       {step === "changes" && (
         <section className="space-y-4" data-tour="improvement-changes">
-          {selectedBatch?.hunks.length ? (
-            selectedBatch.hunks.map((h) => <ChangePreview key={h.id} hunk={h} />)
+          {chosen && selectedBatch?.hunks.length ? (
+            <ChangeSelection
+              session={session}
+              round={chosen}
+              hunks={selectedBatch.hunks}
+              included={included}
+              onChange={(ids) => setDraftSelection({ roundId: chosen.id, ids })}
+              onStarted={() => {
+                setDraftSelection(null);
+                setSelected(null);
+                setConfirm(false);
+              }}
+            />
           ) : (
             <p className="rounded-xl border p-6 text-sm">
               {t(active ? "changesWorking" : "noChanges")}
@@ -183,9 +206,17 @@ function Session({
       {(step === "check" || step === "result") && (
         <section className="space-y-4" data-tour="improvement-results">
           {active && <p role="status">{t("background")}</p>}
-          {session.iterations.map((round) => (
-            <RoundResults key={round.id} session={session} round={round} />
-          ))}
+          {session.iterations.map((round) =>
+            (
+              active
+                ? round.number === session.iteration
+                : round.id === session.best_iteration_id || !session.best_iteration_id
+            ) ? (
+              <RoundResults key={round.id} session={session} round={round} />
+            ) : (
+              <RoundHistory key={round.id} session={session} round={round} />
+            ),
+          )}
         </section>
       )}
       {(step === "changes" || step === "result") && <KnowledgeDrafts session={session} />}
@@ -195,6 +226,11 @@ function Session({
           <p className="text-sm">{t("acceptBody")}</p>
           {session.status === "ready" && (
             <>
+              {missingBatch && (
+                <p role="status" className="text-sm">
+                  {t("changesPending")}
+                </p>
+              )}
               {blockedChanges && (
                 <p role="alert" className="text-warning text-sm">
                   {t("blockedChanges")}
@@ -219,7 +255,13 @@ function Session({
               <div className="flex flex-wrap gap-3">
                 <Button
                   variant="outline"
-                  disabled={!confirm || blockedChanges || actions.finish.isPending}
+                  disabled={
+                    !confirm ||
+                    missingBatch ||
+                    selectionDirty ||
+                    blockedChanges ||
+                    actions.finish.isPending
+                  }
                   onClick={() =>
                     void act(async () => {
                       await actions.finish.mutateAsync({
@@ -234,7 +276,13 @@ function Session({
                 </Button>
                 {canPublish && (
                   <Button
-                    disabled={!confirm || blockedChanges || actions.finish.isPending}
+                    disabled={
+                      !confirm ||
+                      missingBatch ||
+                      selectionDirty ||
+                      blockedChanges ||
+                      actions.finish.isPending
+                    }
                     onClick={() =>
                       void act(async () => {
                         await actions.finish.mutateAsync({
@@ -256,6 +304,11 @@ function Session({
           </Link>
         </section>
       )}
+      {selectionDirty && (
+        <p role="alert" className="text-sm">
+          {t("selectionNeedsCheck")}
+        </p>
+      )}
       <WizardNav
         backLabel={t("previousStep")}
         backIsStep={STEPS.indexOf(step) > 0}
@@ -268,6 +321,7 @@ function Session({
         {session.status === "ready" && (
           <Button
             variant={Number(chosen?.verdict_detail?.broken ?? 0) > 0 ? "outline" : "default"}
+            disabled={selectionDirty || missingBatch}
             onClick={() => setSelected("accept")}
           >
             {t("accept")}

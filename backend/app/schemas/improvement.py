@@ -56,6 +56,8 @@ class ImprovementIterationRead(BaseSchema):
     batch_id: UUID | None
     eval_run_ids: list[UUID]
     candidate_spec_hash: str | None
+    included_hunk_ids: list[UUID] | None = None
+    previous_eval_run_ids: list[UUID] = Field(default_factory=list)
     attribution_eval_run_ids: dict[UUID, UUID] = Field(default_factory=dict)
     dropped_hunk_ids: list[UUID]
     dropped: list[DroppedHunk] = Field(default_factory=list)
@@ -166,3 +168,26 @@ class ImprovementEvidence(BaseSchema):
     items: list[ImprovementEvidenceItem]
     sample_limit: int
     training_failures: int
+
+
+class ImprovementSelection(BaseSchema):
+    hunk_ids: list[UUID] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def _distinct(self) -> ImprovementSelection:
+        if len(set(self.hunk_ids)) != len(self.hunk_ids):
+            raise ValueError("Choose each change once")
+        return self
+
+
+class SelectionEstimate(BaseSchema):
+    suggestions: int
+    total_usd: Decimal
+    affordable: bool
+    candidate_hash: str
+
+
+class SelectionConsent(ImprovementSelection):
+    confirmed: Literal[True]
+    estimate_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
+    candidate_hash: str = Field(min_length=64, max_length=64)

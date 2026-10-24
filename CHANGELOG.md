@@ -106,6 +106,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Recheck a selected subset of improvement suggestions with a confirmed estimate; retain earlier measurements and accept only the tested selection. Show distinct mixed and worse results, and attribute only confirmed differences.
+
 - **An agent can override its speech and video settings per clip.** The voice,
   resolution, shape, length and sound an author sets are now defaults the
   agent may change for one clip. The limits are the author's: a list of

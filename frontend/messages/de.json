@@ -10557,6 +10557,21 @@
     }
   },
   "improvement": {
+    "resultDetailsUnavailable": "Öffnen Sie den vollständigen Test für Ergebnisdetails.",
+    "worseResult": "Schlechter: {broken} Fragen werden neu falsch beantwortet.",
+    "attributionUnconfirmed": "Änderung {number}: Das Ergebnis ist nicht bestätigt.",
+    "includeInTest": "Im Test berücksichtigen",
+    "includeChange": "Änderung {number} im Test berücksichtigen",
+    "selectionBody": "Eine geänderte Auswahl muss vor der Annahme erneut getestet werden. Ausgeschlossene Vorschläge bleiben unentschieden. Die Schätzung umfasst beide Seiten, bestätigende Wiederholungen und eine Wiederholung bei unklarem Ergebnis.",
+    "selectSomeChanges": "Wählen Sie mindestens eine Änderung zum Testen.",
+    "estimateSelection": "Test ausgewählter Änderungen schätzen",
+    "selectionQuote": "{count} ausgewählte Änderungen testen: bis zu {cost} (Schätzung).",
+    "confirmSelection": "Bestätigen und ausgewählte Änderungen testen",
+    "selectionNeedsCheck": "Die Auswahl wurde geändert. Testen Sie sie unter Änderungen erneut, bevor Sie sie annehmen.",
+    "changesPending": "Die ausgewählten Vorschläge werden geladen.",
+    "earlierChecks": "Frühere Tests",
+    "earlierCheck": "Früherer Test {number}",
+    "handledChange": "Über alle geprüften Fragen: {before} → {after} von {total} gut beantwortet.",
     "baselineUnavailable": "Die Ausgangsmessung wurde nicht erfolgreich abgeschlossen. Öffnen Sie den vollständigen Test für die Ursache; dies ist kein gemessenes Ergebnis.",
     "trainQuestion": "Trainingsfrage",
     "holdoutQuestion": "Zurückgehaltene Frage",
@@ -10663,7 +10678,7 @@
     },
     "verdict": {
       "better": "Besser: verbessert {fixed}, verschlechtert nichts",
-      "regression": "Gemischt oder schlechter: verbessert {fixed}, verschlechtert {broken}",
+      "regression": "Gemischt: verbessert {fixed}, verschlechtert {broken}",
       "no_change": "Keine reproduzierbare Änderung",
       "inconclusive": "Kein verlässlich messbares Ergebnis"
     },

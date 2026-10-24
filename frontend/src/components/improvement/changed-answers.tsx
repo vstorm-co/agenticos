@@ -83,15 +83,20 @@ function ChangeCause({ caseId, runId, number }: { caseId: string; runId: string;
   return (
     <p className="text-muted-foreground">
       {t(
-        error || runError || (run && !["queued", "running", "completed"].includes(run.status))
+        error ||
+          runError ||
+          comparison?.verdict === "invalid" ||
+          (run && !["queued", "running", "completed"].includes(run.status))
           ? "attributionFailed"
           : !comparison
             ? "attributionWorking"
-            : item?.flip === "regression"
-              ? "changeBroke"
-              : item?.flip === "fixed"
-                ? "changeFixed"
-                : "changeUnchanged",
+            : item && !item.confirmed && (item.flip === "regression" || item.flip === "fixed")
+              ? "attributionUnconfirmed"
+              : item?.flip === "regression"
+                ? "changeBroke"
+                : item?.flip === "fixed"
+                  ? "changeFixed"
+                  : "changeUnchanged",
         { number },
       )}
     </p>

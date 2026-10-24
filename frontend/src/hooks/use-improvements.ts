@@ -11,6 +11,7 @@ import type {
   Improvement,
   ImprovementEstimate,
   ImprovementEvidence,
+  SelectionEstimate,
   ImprovementTarget,
 } from "@/types/improvement";
 
@@ -98,6 +99,30 @@ export function useImprovement(agentId: string, runId: string) {
       }),
     onSuccess: refresh,
   });
+  const estimateSelection = useMutation({
+    mutationFn: ({ number, hunkIds }: { number: number; hunkIds: string[] }) =>
+      apiClient.post<SelectionEstimate>(`${base}/rounds/${number}/selection/estimate`, {
+        hunk_ids: hunkIds,
+      }),
+  });
+  const checkSelection = useMutation({
+    mutationFn: ({
+      number,
+      hunkIds,
+      quote,
+    }: {
+      number: number;
+      hunkIds: string[];
+      quote: SelectionEstimate;
+    }) =>
+      apiClient.post<Improvement>(`${base}/rounds/${number}/selection`, {
+        hunk_ids: hunkIds,
+        confirmed: true,
+        estimate_usd: quote.total_usd,
+        candidate_hash: quote.candidate_hash,
+      }),
+    onSuccess: refresh,
+  });
   const finish = useMutation({
     mutationFn: (body: { confirmed: true; publish: boolean; automatic_check: boolean }) =>
       apiClient.post<{ session: Improvement; version_id: string | null; version: number | null }>(
@@ -109,6 +134,8 @@ export function useImprovement(agentId: string, runId: string) {
   return {
     estimateKnowledge,
     checkKnowledge,
+    estimateSelection,
+    checkSelection,
     finish,
     session: query.data,
     isLoading: query.isLoading,

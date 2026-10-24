@@ -34,6 +34,12 @@ export function RoundResults({
     }
   }
   const selectable = ["ready", "stopped"].includes(session.status);
+  const latestCheck = round.eval_run_ids.at(-1);
+  const fixed = round.verdict_detail?.fixed;
+  const broken = round.verdict_detail?.broken;
+  const countsKnown =
+    fixed !== undefined && fixed !== null && broken !== undefined && broken !== null;
+  const worse = round.verdict === "regression" && countsKnown && Number(fixed) === 0;
   return (
     <section className="space-y-4 rounded-xl border p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -47,36 +53,63 @@ export function RoundResults({
           round.verdict === "better"
             ? "text-success"
             : round.verdict === "regression"
-              ? "text-warning"
+              ? worse
+                ? "text-destructive"
+                : "text-warning"
               : "text-muted-foreground"
         }
       >
         {round.verdict
-          ? t(`verdict.${round.verdict}`, {
-              fixed: Number(round.verdict_detail?.fixed ?? 0),
-              broken: Number(round.verdict_detail?.broken ?? 0),
-            })
-          : t("working")}
+          ? countsKnown
+            ? t(worse ? "worseResult" : `verdict.${round.verdict}`, {
+                fixed: Number(fixed),
+                broken: Number(broken),
+              })
+            : t("resultDetailsUnavailable")
+          : t(
+              ["queued", "running"].includes(session.status) ? "working" : "attributionUnavailable",
+            )}
       </p>
       {round.id === session.best_iteration_id && (
         <p className="text-sm font-medium">{t("selected")}</p>
       )}
-      {selectable && round.verdict && round.id !== session.best_iteration_id && (
-        <Button
-          variant="outline"
-          disabled={actions.selectRound.isPending}
-          onClick={() =>
-            void act(async () => {
-              await actions.selectRound.mutateAsync(round.number);
-            })
-          }
-        >
-          {t("selectRound")}
-        </Button>
+      {selectable &&
+        round.verdict &&
+        (round.id !== session.best_iteration_id || session.status === "stopped") && (
+          <Button
+            variant="outline"
+            disabled={actions.selectRound.isPending}
+            onClick={() =>
+              void act(async () => {
+                await actions.selectRound.mutateAsync(round.number);
+              })
+            }
+          >
+            {t("selectRound")}
+          </Button>
+        )}
+      {latestCheck && (
+        <MeasuredResult runId={latestCheck} attributions={round.attribution_eval_run_ids} />
       )}
-      {round.eval_run_ids.map((id) => (
-        <MeasuredResult key={id} runId={id} attributions={round.attribution_eval_run_ids} />
-      ))}
+      {[...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])].length > 0 && (
+        <details className="rounded-lg border p-3">
+          <summary className="cursor-pointer text-sm font-medium">{t("earlierChecks")}</summary>
+          <div className="mt-3 space-y-2">
+            {[...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])].map(
+              (id, index) => (
+                <Link
+                  key={id}
+                  className="block text-sm underline underline-offset-4"
+                  href={`/agents/${session.agent_id}/evals/${id}`}
+                >
+                  {t("earlierCheck", { number: index + 1 })}
+                </Link>
+              ),
+            )}
+          </div>
+        </details>
+      )}
+
       {selectable && round.verdict && Object.keys(round.attribution_eval_run_ids).length === 0 && (
         <div className="space-y-3 border-t pt-4">
           <p className="text-muted-foreground text-sm">{t("attributionBody")}</p>
@@ -152,6 +185,26 @@ function MeasuredResult({
   const tErrors = useTranslations("errors");
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   if (!run) return <p role="status">{t("loading")}</p>;
+  if (run.status !== "completed")
+    return (
+      <div className="space-y-2 text-sm">
+        <p role={run.status === "queued" || run.status === "running" ? "status" : "alert"}>
+          {t(
+            run.status === "queued" || run.status === "running"
+              ? "background"
+              : "attributionUnavailable",
+          )}
+        </p>
+        <Link
+          className="underline underline-offset-4"
+          href={`/agents/${run.agent_id}/evals/${runId}`}
+        >
+          {t("openCheck")}
+        </Link>
+      </div>
+    );
+  const baseline = run.arms.find((arm) => arm.role === "baseline");
+  const candidate = run.arms.find((arm) => arm.role === "candidate");
   return (
     <div className="space-y-4">
       {run.review && <ReviewReevaluationNote review={run.review} />}
@@ -166,6 +219,16 @@ function MeasuredResult({
         </details>
       )}
       {comparisonError && <p role="alert">{getErrorMessage(comparisonError, tErrors)}</p>}
+      {!comparison && !comparisonError && <p role="status">{t("loading")}</p>}
+      {baseline && candidate && (
+        <p className="text-base font-medium">
+          {t("handledChange", {
+            before: baseline.summary.passed,
+            after: candidate.summary.passed,
+            total: candidate.summary.cases,
+          })}
+        </p>
+      )}
       {comparison && (
         <p className="text-sm">
           {t("heldoutResult", {
@@ -194,26 +257,27 @@ function MeasuredResult({
           })}
         </p>
       )}
-      {comparison?.baseline &&
-      comparison.cases.some((c) => c.flip === "regression" || c.flip === "fixed") ? (
-        <ChangedAnswers
-          runId={runId}
-          agentId={run.agent_id}
-          caseIds={comparison.cases
-            .filter((c) => c.flip === "regression" || c.flip === "fixed")
-            .map((c) => c.case_id)}
-          baselineId={comparison.baseline.arm_id}
-          candidateId={comparison.candidate.arm_id}
-          attributions={attributions}
-        />
-      ) : (
-        <div className="space-y-2">
-          <p className="text-muted-foreground text-sm">{t("noChangedQuestions")}</p>
-          <Link className="text-sm underline" href={`/agents/${run.agent_id}/evals/${runId}`}>
-            {t("openCheck")}
-          </Link>
-        </div>
-      )}
+      {comparison &&
+        (comparison.baseline &&
+        comparison.cases.some((c) => c.flip === "regression" || c.flip === "fixed") ? (
+          <ChangedAnswers
+            runId={runId}
+            agentId={run.agent_id}
+            caseIds={comparison.cases
+              .filter((c) => c.flip === "regression" || c.flip === "fixed")
+              .map((c) => c.case_id)}
+            baselineId={comparison.baseline.arm_id}
+            candidateId={comparison.candidate.arm_id}
+            attributions={attributions}
+          />
+        ) : (
+          <div className="space-y-2">
+            <p className="text-muted-foreground text-sm">{t("noChangedQuestions")}</p>
+            <Link className="text-sm underline" href={`/agents/${run.agent_id}/evals/${runId}`}>
+              {t("openCheck")}
+            </Link>
+          </div>
+        ))}
     </div>
   );
 }
@@ -225,24 +289,58 @@ function AttributionResult({ runId, agentId }: { runId: string; agentId: string 
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
+  const confirmed =
+    comparison?.cases.filter(
+      (c) => c.confirmed && (c.flip === "regression" || c.flip === "fixed"),
+    ) ?? [];
+  const unavailable =
+    comparisonError ||
+    comparison?.verdict === "invalid" ||
+    (run && !["queued", "running", "completed"].includes(run.status));
   return (
     <div className="space-y-2 text-sm">
-      {comparisonError || (run && !["queued", "running", "completed"].includes(run.status)) ? (
+      {unavailable ? (
         <p role="alert">{t("attributionUnavailable")}</p>
-      ) : run?.status !== "completed" ? (
-        <p>{t("working")}</p>
+      ) : run?.status !== "completed" || !comparison ? (
+        <p role="status">{t("working")}</p>
+      ) : confirmed.length ? (
+        confirmed.map((c) => (
+          <p key={c.case_id}>
+            {t(c.flip === "regression" ? "causedBreak" : "causedFix", { question: c.input })}
+          </p>
+        ))
       ) : (
-        comparison?.cases
-          .filter((c) => c.flip === "regression" || c.flip === "fixed")
-          .map((c) => (
-            <p key={c.case_id}>
-              {t(c.flip === "regression" ? "causedBreak" : "causedFix", { question: c.input })}
-            </p>
-          ))
+        <p>{t("noChangedQuestions")}</p>
       )}
       <Link className="underline underline-offset-4" href={`/agents/${agentId}/evals/${runId}`}>
         {t("openCheck")}
       </Link>
     </div>
+  );
+}
+
+export function RoundHistory({
+  session,
+  round,
+}: {
+  session: Improvement;
+  round: ImprovementIteration;
+}) {
+  const t = useTranslations("improvement");
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="rounded-xl border p-4"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="cursor-pointer text-sm font-medium">
+        {t("round", { number: round.number, max: session.max_iterations })}
+      </summary>
+      {open && (
+        <div className="mt-4">
+          <RoundResults session={session} round={round} />
+        </div>
+      )}
+    </details>
   );
 }

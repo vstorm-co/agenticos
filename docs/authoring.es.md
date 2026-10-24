@@ -1,5 +1,5 @@
 ---
-source_sha: "1440cbfd57d8"
+source_sha: "bdf1062a20ed"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -340,6 +340,8 @@ Tras finalizar, `/{run_id}/rounds/{number}/select` convierte una ronda medida en
 Abra **Improve** en la cabecera del agente o en el dashboard para iniciar una sesión en `/agents/<agent>/improve/<session>`. Puede cerrar la página y volver mientras continúa el trabajo. Elija preguntas, revise la estimación completa y confirme un límite de gasto antes de empezar. Si no hay preguntas, estime y confirme primero su preparación; la acción de referencia comprueba las respuestas actuales. Las opciones avanzadas de agentes auxiliares permanecen plegadas.
 
 Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}/retry`; varios clics no crean otro trabajo. Los reintentos automáticos nunca repiten llamadas pagadas. Las decisiones humanas actualizan la sesión a aceptada, publicada o descartada. La acción confirmada `/{run_id}/finish` acepta los cambios comprobados y opcionalmente los publica en una transacción. Puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales; los entornos protegidos esperan sus comprobaciones. Las propuestas editadas después de la medición deben comprobarse de nuevo.
+
+En la pantalla Cambios, seleccione un subconjunto con **Incluir en la prueba**. Calcule y confirme la nueva prueba antes de gastar; cambiar la selección o una propuesta invalida la estimación. Los cambios seleccionados se miden con la misma base y las preguntas fijadas. Las pruebas anteriores permanecen en el historial de la ronda. Las propuestas excluidas o añadidas después quedan pendientes; solo se puede aceptar la selección medida. Esta prueba no solicita automáticamente otra propuesta. Los resultados individuales atribuyen únicamente diferencias confirmadas al repetir las respuestas; una prueba inválida o incompleta no atribuye efectos.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 

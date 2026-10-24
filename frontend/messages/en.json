@@ -10674,6 +10674,21 @@
     }
   },
   "improvement": {
+    "resultDetailsUnavailable": "Open the full check for result details.",
+    "worseResult": "Worse: breaks {broken} questions.",
+    "attributionUnconfirmed": "Change {number}: the result is not confirmed.",
+    "includeInTest": "Include in the test",
+    "includeChange": "Include change {number} in the test",
+    "selectionBody": "Changing this selection requires a new check before accepting. Excluded suggestions remain undecided. The estimate includes both sides, confirming repeats and one inconclusive repeat.",
+    "selectSomeChanges": "Select at least one change to check.",
+    "estimateSelection": "Estimate checking selected changes",
+    "selectionQuote": "Check {count} selected changes: up to {cost} (estimate).",
+    "confirmSelection": "Confirm and check selected changes",
+    "selectionNeedsCheck": "The selection changed. Recheck it from Changes before accepting.",
+    "changesPending": "Waiting for the selected suggestions to load.",
+    "earlierChecks": "Earlier checks",
+    "earlierCheck": "Earlier check {number}",
+    "handledChange": "Across checked questions: {before} → {after} of {total} handled well.",
     "baselineUnavailable": "The baseline did not finish successfully. Open the full check to see why; this is not a measured result.",
     "trainQuestion": "Training question",
     "holdoutQuestion": "Held-out question",
@@ -10780,7 +10795,7 @@
     },
     "verdict": {
       "better": "Better: fixes {fixed}, breaks nothing",
-      "regression": "Mixed or worse: fixes {fixed}, breaks {broken}",
+      "regression": "Mixed: fixes {fixed}, breaks {broken}",
       "no_change": "No reproducible change",
       "inconclusive": "We could not measure a reliable result"
     },

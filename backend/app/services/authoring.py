@@ -72,6 +72,7 @@ from app.repositories import (
     authoring_repo,
     context_proposal_repo,
     eval_run_repo,
+    improvement_repo,
     organization_repo,
     skill_proposal_repo,
 )
@@ -685,10 +686,26 @@ class AuthoringService:
         quotes = ctx.has(Perm.RUNS_VIEW)
         names = await ConfigurationService(self.db).names(ctx, hunks)
         waiting = [hunk for hunk in hunks if hunk.status == HunkStatus.PENDING.value]
-        combination = authoring_hunks.projection(spec, waiting)[0]
+        measured = (
+            await improvement_repo.measured_hunks(
+                self.db, organization_id=ctx.organization_id, batch_id=batch.id
+            )
+            if batch.improvement_run_id is not None
+            else None
+        )
         gates = {
             hunk.id: await self._model_gate(
-                ctx, batch, combination, skills=authoring_hunks.projected_skills(waiting)
+                ctx,
+                batch,
+                authoring_hunks.projection(
+                    spec,
+                    selected := [
+                        item
+                        for item in waiting
+                        if measured is None or hunk.id not in measured or item.id in measured
+                    ],
+                )[0],
+                skills=authoring_hunks.projected_skills(selected),
             )
             for hunk in waiting
             if _changes_model(hunk)
@@ -1017,12 +1034,21 @@ class AuthoringService:
                 details={"problems": problems},
             )
         if _changes_model(hunk):
+            measured = (
+                await improvement_repo.measured_hunks(
+                    self.db, organization_id=ctx.organization_id, batch_id=batch.id
+                )
+                if batch.improvement_run_id is not None
+                else None
+            )
             others = [
                 other
                 for other in await authoring_repo.list_hunks(
                     self.db, organization_id=ctx.organization_id, batch_id=batch.id
                 )
-                if other.status == HunkStatus.PENDING.value and other.id != hunk.id
+                if other.status == HunkStatus.PENDING.value
+                and other.id != hunk.id
+                and (measured is None or hunk.id not in measured or other.id in measured)
             ]
             combination = authoring_hunks.projection(written, others)[0]
             reason = await self._model_gate(
@@ -1229,11 +1255,15 @@ class AuthoringService:
             ),
         )
 
-    async def projected_skills(self, ctx: AuthContext, batch_id: UUID) -> dict[UUID, SkillBody]:
+    async def projected_skills(
+        self, ctx: AuthContext, batch_id: UUID, *, hunk_ids: Sequence[UUID] | None = None
+    ) -> dict[UUID, SkillBody]:
         hunks = await authoring_repo.list_hunks(
             self.db, organization_id=ctx.organization_id, batch_id=batch_id
         )
-        return authoring_hunks.projected_skills(hunks)
+        return authoring_hunks.projected_skills(
+            hunks if hunk_ids is None else [hunk for hunk in hunks if hunk.id in hunk_ids]
+        )
 
     async def estimate_check(
         self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck

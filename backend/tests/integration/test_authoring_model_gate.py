@@ -112,3 +112,46 @@ async def test_an_edit_of_the_draft_makes_the_check_out_of_date(db):
 
     with pytest.raises(BadRequestError, match="out of date"):
         await service.decide(ctx, agent.id, model.id, HunkDecision(action="accept"))
+
+
+async def test_session_model_gate_ignores_later_unmeasured_suggestions(db):
+    from app.repositories import authoring_repo, improvement_repo
+    from app.schemas.improvement import ImprovementStart
+    from app.services.improvement_pipeline import ImprovementPipelineService
+
+    ctx, agent, dataset, service, model, window = await _model_and_window(db)
+    await _checked(db, ctx, agent, dataset, service)
+    session = await ImprovementPipelineService(db).start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
+    )
+    batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    batch.improvement_run_id = session.id
+    iteration = await improvement_repo.get_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=1
+    )
+    await improvement_repo.update_iteration(
+        db,
+        iteration=iteration,
+        values={"batch_id": batch.id, "included_hunk_ids": [model.id, window.id]},
+    )
+    [later] = await authoring_repo.add_hunks(
+        db,
+        organization_id=ctx.organization_id,
+        batch_id=batch.id,
+        hunks=[
+            {
+                "kind": "instructions",
+                "origin": "verify",
+                "old_text": "Be brief.",
+                "new_text": "Be verbose.",
+            }
+        ],
+    )
+    assert await _blocked(ctx, agent, service, model.id) is None
+    accepted = await service.decide(ctx, agent.id, model.id, HunkDecision(action="accept"))
+    assert accepted.draft_spec["model_profile_id"] == model.new_value
+    assert later.status == "pending"

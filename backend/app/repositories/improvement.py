@@ -299,3 +299,18 @@ async def has_active_check(db: AsyncSession, run_id: UUID, *, organization_id: U
             .limit(1)
         )
     )
+
+
+async def measured_hunks(
+    db: AsyncSession, *, organization_id: UUID, batch_id: UUID
+) -> list[UUID] | None:
+    """The measured selection for a session batch, or legacy full-proposal semantics."""
+    return await db.scalar(
+        select(ImprovementIteration.included_hunk_ids)
+        .join(ImprovementRun, ImprovementRun.id == ImprovementIteration.run_id)
+        .where(
+            ImprovementRun.organization_id == organization_id,
+            ImprovementIteration.organization_id == organization_id,
+            ImprovementIteration.batch_id == batch_id,
+        )
+    )

@@ -1,5 +1,5 @@
 ---
-source_sha: "1440cbfd57d8"
+source_sha: "bdf1062a20ed"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -334,6 +334,8 @@ Po zakończeniu `/{run_id}/rounds/{number}/select` ustawia zmierzoną rundę jak
 Otwórz **Popraw** w nagłówku agenta lub na dashboardzie, aby rozpocząć sesję pod adresem `/agents/<agent>/improve/<session>`. Możesz zamknąć stronę i wrócić, gdy praca trwa w tle. Wybierz pytania, sprawdź pełny szacowany koszt i potwierdź limit wydatków. Bez pytań najpierw oszacuj i potwierdź przygotowanie zestawu; akcja punktu odniesienia sprawdza dzisiejsze odpowiedzi. Zaawansowany wybór agentów pomocniczych pozostaje zwinięty.
 
 Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/retry`; powtórne kliknięcia nie tworzą kolejnego zadania. Automatyczne ponowienia zadań nie powtarzają płatnych wywołań. Decyzje człowieka zmieniają stan sesji na zaakceptowaną, opublikowaną lub odrzuconą. Potwierdzona akcja `/{run_id}/finish` akceptuje sprawdzone zmiany i opcjonalnie publikuje je w jednej transakcji. Może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji; chronione środowiska czekają na sprawdzenia. Propozycje zmienione po pomiarze wymagają ponownego sprawdzenia.
+
+Przełącznikiem **Uwzględnij w teście** na ekranie zmian wybierz część sugestii. Przed wydaniem środków wyceń i potwierdź nowe sprawdzenie; zmiana wyboru albo treści sugestii unieważnia wycenę. Wybrane zmiany są mierzone względem tej samej bazy i przypiętych pytań. Wcześniejsze sprawdzenia pozostają w historii rundy. Wykluczone lub później dodane sugestie pozostają nierozstrzygnięte, a przyjąć można tylko zmierzony wybór. Takie sprawdzenie nie zamawia automatycznie kolejnej propozycji. Wyniki pojedynczych zmian przypisują tylko różnice potwierdzone powtórzeniem odpowiedzi; nieprawidłowe lub niedokończone sprawdzenie nie przypisuje skutków.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

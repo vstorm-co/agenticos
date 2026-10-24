@@ -1,5 +1,5 @@
 ---
-source_sha: "1440cbfd57d8"
+source_sha: "bdf1062a20ed"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -350,6 +350,8 @@ Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum
 Öffnen Sie **Verbessern** im Agentenkopf oder Dashboard, um eine Sitzung unter `/agents/<agent>/improve/<session>` zu starten. Die Seite lässt sich schließen und bei laufender Hintergrundarbeit erneut öffnen. Wählen Sie Testfragen, prüfen Sie die vollständige Kostenschätzung und bestätigen Sie ein Ausgabenlimit. Ohne Fragen schätzen und bestätigen Sie zuerst das Schreiben eines Testsatzes; die Ausgangswert-Aktion prüft die heutigen Antworten. Erweiterte Hilfsagenten bleiben eingeklappt.
 
 Ein fehlgeschlagener Vorschlags- oder Eval-Schritt lässt sich ausdrücklich mit `/{run_id}/retry` wiederholen; mehrfache Klicks erzeugen kein weiteres Kind. Automatische Job-Wiederholungen wiederholen keinen bezahlten Aufruf. Menschliche Entscheidungen setzen den Sitzungsstatus auf angenommen, veröffentlicht oder verworfen. Die bestätigte Aktion `/{run_id}/finish` übernimmt die geprüften Änderungen und veröffentlicht sie optional in derselben Transaktion. Sie kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiterhin; geschützte Umgebungen warten auf ihre Prüfungen. Nach der Messung bearbeitete Vorschläge müssen erneut geprüft werden.
+
+Wählen Sie auf dem Bildschirm Änderungen mit **Im Test berücksichtigen** eine Teilmenge aus. Lassen Sie die neue Prüfung schätzen und bestätigen Sie sie vor der Ausgabe; eine geänderte Auswahl oder ein bearbeiteter Vorschlag macht die Schätzung ungültig. Die ausgewählten Änderungen werden mit derselben Basis und den festgelegten Fragen gemessen. Frühere Prüfungen bleiben im Rundenverlauf. Ausgeschlossene oder später ergänzte Vorschläge bleiben unentschieden; nur die gemessene Auswahl kann angenommen werden. Diese Prüfung fordert nicht automatisch einen weiteren Vorschlag an. Einzelprüfungen ordnen nur Unterschiede zu, die durch wiederholte Antworten bestätigt wurden; ungültige oder unvollständige Prüfungen liefern keine Zuordnung.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

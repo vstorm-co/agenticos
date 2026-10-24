@@ -78,11 +78,14 @@ from app.schemas.improvement import (
     ImprovementFinished,
     ImprovementIterationRead,
     ImprovementRead,
+    ImprovementSelection,
     ImprovementStart,
     ImprovementTarget,
     KnowledgeCheckConsent,
     KnowledgeCheckEstimate,
     KnowledgeCheckTarget,
+    SelectionConsent,
+    SelectionEstimate,
 )
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks
@@ -152,6 +155,13 @@ class KnowledgePlan:
     contexts: dict[UUID, ContextBody]
     record: ProposalCheckRecord
     quote: KnowledgeCheckEstimate
+
+
+@dataclass(frozen=True)
+class SelectionPlan:
+    session: ImprovementRun
+    iteration: ImprovementIteration
+    quote: SelectionEstimate
 
 
 class ImprovementPipelineService:
@@ -527,6 +537,11 @@ class ImprovementPipelineService:
         hunks = await authoring_repo.list_hunks(
             self.db, organization_id=ctx.organization_id, batch_id=batch.id
         )
+        hunks = [
+            h
+            for h in hunks
+            if selected.included_hunk_ids is None or h.id in selected.included_hunk_ids
+        ]
         agent = await self.authoring._editable(ctx, agent_id)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), hunks
@@ -733,6 +748,11 @@ class ImprovementPipelineService:
             hunks = await authoring_repo.list_hunks(
                 self.db, organization_id=run.organization_id, batch_id=batch.id
             )
+            hunks = [
+                h
+                for h in hunks
+                if selected.included_hunk_ids is None or h.id in selected.included_hunk_ids
+            ]
             accepted = any(h.status == HunkStatus.ACCEPTED for h in hunks)
             pending = any(h.status == HunkStatus.PENDING for h in hunks)
             if batch.status == BatchStatus.PUBLISHED:
@@ -1099,8 +1119,23 @@ class ImprovementPipelineService:
                 inputs.agent, run, iteration, filter_policy=True
             )
             assert iteration.batch_id is not None
+            measured = await authoring_repo.list_hunks(
+                self.db, organization_id=run.organization_id, batch_id=iteration.batch_id
+            )
+            await improvement_repo.update_iteration(
+                self.db,
+                iteration=iteration,
+                values={
+                    "included_hunk_ids": [
+                        h.id for h in measured if h.status == HunkStatus.PENDING.value
+                    ]
+                },
+            )
             candidate_hash = spec_hash(
-                projected, await self.authoring.projected_skills(ctx, iteration.batch_id)
+                projected,
+                await self.authoring.projected_skills(
+                    ctx, iteration.batch_id, hunk_ids=iteration.included_hunk_ids
+                ),
             )
             await improvement_repo.update_iteration(
                 self.db, iteration=iteration, values={"candidate_spec_hash": candidate_hash}
@@ -1132,12 +1167,18 @@ class ImprovementPipelineService:
         iteration: ImprovementIteration,
         *,
         filter_policy: bool = False,
+        hunk_ids: list[UUID] | None = None,
     ) -> tuple[AgentSpec, int]:
         assert iteration.batch_id is not None
         hunks = await authoring_repo.list_hunks(
             self.db, organization_id=run.organization_id, batch_id=iteration.batch_id
         )
-        pending = [h for h in hunks if h.status == HunkStatus.PENDING.value]
+        included = iteration.included_hunk_ids if hunk_ids is None else hunk_ids
+        pending = [
+            h
+            for h in hunks
+            if h.status == HunkStatus.PENDING.value and (included is None or h.id in included)
+        ]
         draft = AgentSpec.model_validate(agent.draft_spec)
         dropped: list[UUID] = []
         reasons: list[DroppedHunk] = []
@@ -1267,7 +1308,9 @@ class ImprovementPipelineService:
             run.agent_id,
             request,
             candidate_spec=projected,
-            candidate_skills=await self.authoring.projected_skills(ctx, batch.id),
+            candidate_skills=await self.authoring.projected_skills(
+                ctx, batch.id, hunk_ids=iteration.included_hunk_ids
+            ),
             baseline_spec=baseline,
             scoring=scoring,
             exclude_conversations=batch.evidence_conversation_ids,
@@ -1288,7 +1331,9 @@ class ImprovementPipelineService:
             run.agent_id,
             request,
             candidate_spec=projected,
-            candidate_skills=await self.authoring.projected_skills(ctx, batch.id),
+            candidate_skills=await self.authoring.projected_skills(
+                ctx, batch.id, hunk_ids=iteration.included_hunk_ids
+            ),
             baseline_spec=baseline,
             scoring=scoring,
             exclude_conversations=batch.evidence_conversation_ids,
@@ -1353,7 +1398,7 @@ class ImprovementPipelineService:
         )
         spent = await improvement_repo.spent(self.db, run.id, organization_id=run.organization_id)
         previous_cost = sum(
-            (item.cost_usd for item in rounds if item.number < iteration.number), Decimal(0)
+            (item.cost_usd for item in rounds if item.id != iteration.id), Decimal(0)
         )
         await improvement_repo.update_iteration(
             self.db,
@@ -1398,7 +1443,8 @@ class ImprovementPipelineService:
                 (item.verdict_detail or {}).get("candidate_pass_rate"),
             )
             for item in rounds
-            if item.verdict is not None and item.number <= iteration.number
+            if item.verdict is not None
+            and (bool(iteration.previous_eval_run_ids) or item.number <= iteration.number)
         ]
         best_number = rules.best_round(results)
         best = next((item for item in rounds if item.number == best_number), None)
@@ -1409,7 +1455,9 @@ class ImprovementPipelineService:
         if transition.status.active:
             await self._move(run, transition)
             return
-        if verdict != ImprovementVerdict.BETTER:
+        # Archived measurements mark a person's selected recheck; only the
+        # initial automatic measurement may propose another round on its own.
+        if verdict != ImprovementVerdict.BETTER and not iteration.previous_eval_run_ids:
             reason = rules.round_stop(results, maximum=run.max_iterations)
             if reason is None:
                 target = ImprovementTarget(
@@ -1470,17 +1518,7 @@ class ImprovementPipelineService:
     async def select_round(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, number: int
     ) -> ImprovementRead:
-        await self.authoring._editable(ctx, agent_id)
-        self.authoring._require_runs_view(ctx)
-        run = await self._row(ctx, agent_id, run_id, lock=True)
-        if run.status not in {Status.READY, Status.STOPPED}:
-            raise BadRequestError(message="Choose a round after the session finishes")
-        await self.ensure_current(ctx, run.id, allow_finished=True)
-        iteration = await improvement_repo.get_iteration(
-            self.db, organization_id=run.organization_id, run_id=run.id, number=number
-        )
-        if iteration is None or iteration.verdict is None or iteration.batch_id is None:
-            raise NotFoundError(message="A measured round is not available")
+        run, iteration, _ = await self._attribution_target(ctx, agent_id, run_id, number)
         transition = await self._expose(run, iteration)
         if transition.status == Status.READY:
             await improvement_repo.update_run(
@@ -1505,7 +1543,9 @@ class ImprovementPipelineService:
         if topic.knowledge_base_id not in base.collection_ids:
             raise BadRequestError(message="The selected round does not search this knowledge base")
         assert iteration.batch_id is not None
-        skills = await self.authoring.projected_skills(ctx, iteration.batch_id)
+        skills = await self.authoring.projected_skills(
+            ctx, iteration.batch_id, hunk_ids=iteration.included_hunk_ids
+        )
         if spec_hash(base, skills) != iteration.candidate_spec_hash:
             raise ConcurrentChangeError(
                 message="The selected changes no longer match the measured round"
@@ -1775,11 +1815,172 @@ class ImprovementPipelineService:
     async def _attribution_target(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, number: int
     ) -> tuple[ImprovementRun, ImprovementIteration, Inputs]:
+        run, iteration, inputs = await self._finished_round(ctx, agent_id, run_id, number)
+        projected, _ = await self._candidate(inputs.agent, run, iteration)
+        assert iteration.batch_id is not None
+        skills = await self.authoring.projected_skills(
+            ctx, iteration.batch_id, hunk_ids=iteration.included_hunk_ids
+        )
+        if spec_hash(projected, skills) != iteration.candidate_spec_hash:
+            raise ConcurrentChangeError(
+                message="The changes differ from the measured round; check them again"
+            )
+        return run, iteration, inputs
+
+    async def _selection_plan(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        run_id: UUID,
+        number: int,
+        data: ImprovementSelection,
+    ) -> SelectionPlan:
+        run, iteration, inputs = await self._finished_round(ctx, agent_id, run_id, number)
+        assert iteration.batch_id is not None
+        batch = await authoring_repo.get_batch(
+            self.db, iteration.batch_id, organization_id=ctx.organization_id
+        )
+        if batch is None:
+            raise NotFoundError(message="The suggestions are no longer available")
+        hunks = await authoring_repo.list_hunks(
+            self.db, organization_id=ctx.organization_id, batch_id=batch.id
+        )
+        pending = {h.id for h in hunks if h.status == HunkStatus.PENDING.value}
+        if not set(data.hunk_ids) <= pending:
+            raise BadRequestError(message="Select pending changes from this round only")
+        projected, count = await self._candidate(
+            inputs.agent, run, iteration, hunk_ids=data.hunk_ids
+        )
+        skills = await self.authoring.projected_skills(ctx, batch.id, hunk_ids=data.hunk_ids)
+        quote = await self.evals.estimate(
+            ctx,
+            agent_id,
+            self._eval_request(inputs, run),
+            candidate_spec=projected,
+            candidate_skills=skills,
+            baseline_spec=AgentSpec.model_validate(inputs.agent.draft_spec),
+            scoring=DatasetScoring.model_validate(run.pinned_scoring),
+            exclude_conversations=batch.evidence_conversation_ids,
+            judge_version_id=run.judge_version_id,
+            judge_pinned=True,
+        )
+        total = (quote.total_usd + quote.rerun_ceiling_usd) * (1 + rules.INCONCLUSIVE_RERUNS)
+        spent = await improvement_repo.spent(self.db, run.id, organization_id=ctx.organization_id)
+        org_left = await self.evals._org_left(ctx)
+        return SelectionPlan(
+            run,
+            iteration,
+            SelectionEstimate(
+                suggestions=count,
+                total_usd=total,
+                candidate_hash=spec_hash(projected, skills),
+                affordable=rules.affordable(spent=spent, step_estimate=total, budget=run.budget_usd)
+                and (org_left is None or total <= org_left),
+            ),
+        )
+
+    async def estimate_selection(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        run_id: UUID,
+        number: int,
+        data: ImprovementSelection,
+    ) -> SelectionEstimate:
+        return (await self._selection_plan(ctx, agent_id, run_id, number, data)).quote
+
+    async def check_selection(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        run_id: UUID,
+        number: int,
+        data: SelectionConsent,
+    ) -> ImprovementRead:
+        """Queue the chosen changes only after consent to their hash and full price.
+
+        Prior combined and attribution checks remain in the round's history.
+        Excluded suggestions stay undecided; accepting the session applies only
+        its measured selection through normal authoring decisions.
+        """
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
+            raise NotFoundError(message="Agent not found")
+        existing = await self._row(ctx, agent_id, run_id, lock=True)
+        if Status(existing.status).active:
+            current = await improvement_repo.get_iteration(
+                self.db, organization_id=ctx.organization_id, run_id=run_id, number=number
+            )
+            if (
+                current is not None
+                and current.included_hunk_ids is not None
+                and set(current.included_hunk_ids) == set(data.hunk_ids)
+                and current.candidate_spec_hash == data.candidate_hash
+            ):
+                return await self._read(ctx, existing)
+            raise self._already_running(existing)
+        plan = await self._selection_plan(ctx, agent_id, run_id, number, data)
+        run, iteration, quote = plan.session, plan.iteration, plan.quote
+        if quote.candidate_hash != data.candidate_hash or quote.total_usd != data.estimate_usd:
+            raise ConcurrentChangeError(
+                message="The selected changes or their estimate changed; review them again"
+            )
+        if not quote.affordable:
+            raise PaymentRequiredError(
+                message="The complete selected check exceeds the remaining budget"
+            )
+        active = await improvement_repo.get_active(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
+        if active is not None:
+            raise self._already_running(active)
+        if await improvement_repo.has_active_check(
+            self.db, run.id, organization_id=ctx.organization_id
+        ):
+            raise ConcurrentChangeError(message="Wait for the current checks to finish")
+        await improvement_repo.update_iteration(
+            self.db,
+            iteration=iteration,
+            values={
+                "included_hunk_ids": list(data.hunk_ids),
+                "candidate_spec_hash": quote.candidate_hash,
+                "previous_eval_run_ids": list(
+                    dict.fromkeys(
+                        [
+                            *iteration.previous_eval_run_ids,
+                            *iteration.eval_run_ids,
+                            *(UUID(value) for value in iteration.attribution_eval_run_ids.values()),
+                        ]
+                    )
+                ),
+                "eval_run_ids": [],
+                "attribution_eval_run_ids": {},
+                "verdict": None,
+                "verdict_detail": None,
+                "ended_at": None,
+            },
+        )
+        await improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={
+                "iteration": number,
+                "error": None,
+            },
+        )
+        await self._audit(run, "selection_confirmed", actor_user_id=ctx.subject_id)
+        await self._move(run, rules.Transition(Status.RUNNING, Stage.EVALUATING))
+        return await self._read(ctx, run)
+
+    async def _finished_round(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, number: int
+    ) -> tuple[ImprovementRun, ImprovementIteration, Inputs]:
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
         run = await self._row(ctx, agent_id, run_id, lock=True)
         if run.status not in {Status.READY, Status.STOPPED}:
-            raise BadRequestError(message="Attribution is available after the session finishes")
+            raise BadRequestError(message="Checks are available after the session finishes")
         await self.ensure_current(ctx, run_id, allow_finished=True)
         iteration = await improvement_repo.get_iteration(
             self.db, organization_id=run.organization_id, run_id=run.id, number=number
@@ -1805,7 +2006,10 @@ class ImprovementPipelineService:
         )
         changes: list[tuple[UUID, AgentSpec, Decimal]] = []
         for hunk in hunks:
-            if hunk.status != HunkStatus.PENDING.value:
+            if hunk.status != HunkStatus.PENDING.value or (
+                iteration.included_hunk_ids is not None
+                and hunk.id not in iteration.included_hunk_ids
+            ):
                 continue
             candidate, skipped = authoring_hunks.projection(baseline, [hunk])
             if skipped:

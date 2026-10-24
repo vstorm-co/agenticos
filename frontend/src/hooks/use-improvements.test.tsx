@@ -112,3 +112,22 @@ it("separates the free preview from pinned session evidence", async () => {
     }),
   );
 });
+
+it("binds selected checks to their choices, complete price and candidate hash", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready" });
+  const quote = { suggestions: 1, total_usd: "0.04", affordable: true, candidate_hash: "hash" };
+  vi.mocked(apiClient.post).mockResolvedValue(quote);
+  const { result } = renderHook(() => useImprovement("a1", "s1"), { wrapper });
+  await result.current.estimateSelection.mutateAsync({ number: 1, hunkIds: ["h1"] });
+  expect(apiClient.post).toHaveBeenLastCalledWith(
+    "/agents/a1/improvements/s1/rounds/1/selection/estimate",
+    { hunk_ids: ["h1"] },
+  );
+  await result.current.checkSelection.mutateAsync({ number: 1, hunkIds: ["h1"], quote });
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/rounds/1/selection", {
+    hunk_ids: ["h1"],
+    confirmed: true,
+    estimate_usd: "0.04",
+    candidate_hash: "hash",
+  });
+});

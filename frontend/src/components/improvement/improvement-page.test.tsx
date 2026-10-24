@@ -6,6 +6,8 @@ import { ImprovementPage } from "./improvement-page";
 import { hunk } from "@/test-utils/authoring";
 import type { Hunk } from "@/types/authoring";
 const actions = vi.hoisted(() => ({
+  estimateSelection: { mutateAsync: vi.fn(), isPending: false },
+  checkSelection: { mutateAsync: vi.fn(), isPending: false },
   cancel: { mutateAsync: vi.fn(), isPending: false },
   retry: { mutateAsync: vi.fn(), isPending: false },
   selectRound: { mutateAsync: vi.fn(), isPending: false },
@@ -182,3 +184,29 @@ vi.mock("./session-inputs", () => ({
   TestQuestions: () => <p>Pinned questions fixture</p>,
   Today: () => <p>Baseline fixture</p>,
 }));
+
+it("keeps changed inclusion choices across steps and blocks accepting the old measurement", async () => {
+  state.hunks = [hunk({ id: "h1" }), hunk({ id: "h2" })];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Previous step" }));
+  await userEvent.click(screen.getByRole("button", { name: "Previous step" }));
+  await userEvent.click(screen.getByRole("checkbox", { name: "Include change 2 in the test" }));
+  expect(screen.getByText(/The selection changed/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+  await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+  expect(screen.getByRole("button", { name: "Accept these changes" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Previous step" }));
+  await userEvent.click(screen.getByRole("button", { name: "Previous step" }));
+  expect(screen.getByRole("checkbox", { name: "Include change 2 in the test" })).not.toBeChecked();
+  await userEvent.click(screen.getByRole("checkbox", { name: "Include change 2 in the test" }));
+  expect(screen.queryByText(/The selection changed/)).not.toBeInTheDocument();
+  expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
+});
+it("can read an early session without a selected round", () => {
+  state.session!.status = "queued";
+  state.session!.stage = null;
+  state.session!.best_iteration_id = null;
+  state.session!.iterations = [];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText("Source examples fixture")).toBeInTheDocument();
+});

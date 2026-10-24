@@ -319,6 +319,14 @@ class ImprovementIteration(Base):
         nullable=True,
     )
     candidate_spec_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Freeze exactly what was measured; later Verify suggestions remain excluded.
+    # Null preserves legacy rounds created before selections were recorded.
+    included_hunk_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
+    previous_eval_run_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
     dropped_hunk_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )

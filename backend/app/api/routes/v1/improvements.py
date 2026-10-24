@@ -15,11 +15,14 @@ from app.schemas.improvement import (
     ImprovementFinish,
     ImprovementFinished,
     ImprovementRead,
+    ImprovementSelection,
     ImprovementStart,
     ImprovementTarget,
     KnowledgeCheckConsent,
     KnowledgeCheckEstimate,
     KnowledgeCheckTarget,
+    SelectionConsent,
+    SelectionEstimate,
 )
 
 router = APIRouter(prefix="/agents/{agent_id}/improvements")
@@ -96,6 +99,32 @@ async def read_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc
 async def stop_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
     """Stop new work and cancel children, as the creator or an organization administrator."""
     return await service.cancel(ctx, agent_id, run_id)
+
+
+@router.post("/{run_id}/rounds/{number}/selection/estimate", response_model=SelectionEstimate)
+async def estimate_selection(
+    agent_id: UUID,
+    run_id: UUID,
+    number: int,
+    data: ImprovementSelection,
+    service: ImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Quote a selected subset against the same pinned baseline, including repeats."""
+    return await service.estimate_selection(ctx, agent_id, run_id, number, data)
+
+
+@router.post("/{run_id}/rounds/{number}/selection", response_model=ImprovementRead)
+async def check_selection(
+    agent_id: UUID,
+    run_id: UUID,
+    number: int,
+    data: SelectionConsent,
+    service: ImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Recheck only explicitly confirmed changes; keep earlier checks and their costs."""
+    return await service.check_selection(ctx, agent_id, run_id, number, data)
 
 
 @router.post("/{run_id}/rounds/{number}/select", response_model=ImprovementRead)

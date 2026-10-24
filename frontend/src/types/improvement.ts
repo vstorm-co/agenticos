@@ -37,6 +37,8 @@ export interface ImprovementIteration {
   batch_id: string | null;
   eval_run_ids: string[];
   candidate_spec_hash: string | null;
+  included_hunk_ids?: string[] | null;
+  previous_eval_run_ids?: string[];
   attribution_eval_run_ids: Record<string, string>;
   dropped_hunk_ids: string[];
   dropped: { hunk_id: string; reason: string }[];
@@ -117,4 +119,11 @@ export interface ImprovementEvidence {
   items: ImprovementEvidenceItem[];
   sample_limit: number;
   training_failures: number;
+}
+
+export interface SelectionEstimate {
+  suggestions: number;
+  total_usd: string;
+  affordable: boolean;
+  candidate_hash: string;
 }

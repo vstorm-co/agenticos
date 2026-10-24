@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   error: null as Error | null,
   loading: false,
   status: "completed",
+  confirmed: true,
+  invalid: false,
 }));
 const comparisonOptions = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -25,13 +27,20 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRun: () => ({ run: { status: state.status } }),
   useEvalComparison: (_id: string, options: { live: boolean }) => {
     comparisonOptions(options);
-    return { comparison: { cases: [{ case_id: "case-1", flip: "fixed" }] } };
+    return {
+      comparison: {
+        verdict: state.invalid ? "invalid" : "better",
+        cases: [{ case_id: "case-1", flip: "fixed", confirmed: state.confirmed }],
+      },
+    };
   },
 }));
 beforeEach(() => {
   state.error = null;
   state.loading = false;
   state.status = "completed";
+  state.confirmed = true;
+  state.invalid = false;
   comparisonOptions.mockClear();
 });
 it.each(["failed", "cancelled", "budget_exceeded"])(
@@ -99,4 +108,22 @@ it("shows an unavailable result instead of an empty successful comparison", () =
   );
   expect(screen.getByRole("alert")).toBeInTheDocument();
   expect(screen.queryByText("30 days")).not.toBeInTheDocument();
+});
+
+it("does not attribute an unconfirmed flip or an invalid comparison", () => {
+  state.confirmed = false;
+  const props = {
+    runId: "r1",
+    agentId: "a1",
+    caseIds: ["case-1"],
+    baselineId: "before",
+    candidateId: "after",
+    attributions: { h1: "attr" },
+  };
+  const view = render(<ChangedAnswers {...props} />);
+  expect(screen.getByText("Change 1: the result is not confirmed.")).toBeInTheDocument();
+  expect(screen.queryByText("Change 1: newly fixed")).not.toBeInTheDocument();
+  state.invalid = true;
+  view.rerender(<ChangedAnswers {...props} />);
+  expect(screen.getByText("The check of change 1 could not be read.")).toBeInTheDocument();
 });
