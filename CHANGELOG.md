@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Update FastMCP to 4.1.2, filelock to 4.2.1 and Pydantic AI harness to
+  0.59.0 to address the dependency audit advisories. Pydantic AI and its graph
+  package resolve to 2.59.0 for the harness and the web-fetch security fix.
+
 ## [1.16.0] - 2026-10-23
 
 ### Added
