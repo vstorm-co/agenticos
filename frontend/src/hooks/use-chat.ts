@@ -3,6 +3,8 @@
 import type { Mentionable } from "@/types/mention";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
@@ -247,12 +249,6 @@ export function useChat(options: UseChatOptions = {}) {
   // is three chances for them to disagree.
   const activeConversationId = currentConversationIdFromStore || conversationId || null;
 
-  const [cancellableParked, setCancellableParked] = useState<{
-    runId: string;
-    messageId: string;
-  } | null>(null);
-  const stopLookedUp = useRef(new Set<string>());
-  const [stopLookupRevision, setStopLookupRevision] = useState(0);
   const [isStopping, setIsStopping] = useState(false);
   const stoppingRef = useRef<object | null>(null);
   useEffect(
@@ -1388,8 +1384,6 @@ export function useChat(options: UseChatOptions = {}) {
     queueBelongsTo.current = tenantId;
     stoppingRef.current = null;
     setIsStopping(false);
-    setCancellableParked(null);
-    stopLookedUp.current = new Set();
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
@@ -1451,8 +1445,6 @@ export function useChat(options: UseChatOptions = {}) {
     if (previous === activeConversationId || previous === null) return;
     stoppingRef.current = null;
     setIsStopping(false);
-    setCancellableParked(null);
-    stopLookedUp.current = new Set();
     setDelegations([]);
     setBrowses([]);
     setSteers([]);
@@ -1481,7 +1473,7 @@ export function useChat(options: UseChatOptions = {}) {
   // The caller's permissions, for the restore effect below: rebuilding the
   // approval panel reads an endpoint gated on `approvals:decide`, so a caller
   // without it is not asked to 403 on every reopened conversation.
-  const { can } = usePermissions();
+  const { can, isLoaded: permissionsLoaded } = usePermissions();
   const canDecide = can(Perm.approvalsDecide);
 
   // The other direction of `tool_approval_required`: that frame exists only for
@@ -1749,54 +1741,37 @@ export function useChat(options: UseChatOptions = {}) {
     })();
   }, [messages, pendingQuestions, isProcessing, activeConversationId, offerParkedQuestion]);
 
-  // Owning a parked run permits stopping it even when deciding approvals does
-  // not. Look up that authority independently of the permission-gated panel.
-  useEffect(() => {
-    if (canDecide || isProcessing || pendingApproval !== null || cancellableParked !== null) return;
-    const message = [...messages]
-      .reverse()
-      .find(
-        (entry) =>
-          entry.runId !== undefined &&
-          !stopLookedUp.current.has(entry.runId) &&
-          (entry.toolCalls ?? []).some((call) => call.status === "awaiting_approval"),
-      );
-    if (message?.runId === undefined) return;
-    const runId = message.runId;
-    const conversation = activeConversationId;
-    const tenant = queueBelongsTo.current;
-    const account = useAuthStore.getState().user?.id;
-    stopLookedUp.current.add(runId);
-    void (async () => {
-      try {
-        const allowed = await apiClient.get<boolean>(`/runs/${runId}/can-stop`);
-        if (
-          allowed === true &&
-          panelsBelongTo.current === conversation &&
-          queueBelongsTo.current === tenant &&
-          useAuthStore.getState().user?.id === account
-        ) {
-          setCancellableParked({ runId, messageId: message.id });
-        } else if (
-          panelsBelongTo.current === conversation &&
-          queueBelongsTo.current === tenant &&
-          useAuthStore.getState().user?.id === account
-        ) {
-          setStopLookupRevision((current) => current + 1);
-        }
-      } catch {
-        stopLookedUp.current.delete(runId);
+  // Stop belongs to the run's owner independently of the decision panel.
+  // Query owns retries and cancellation; deriving the control from the current
+  // permission and transcript prevents late responses from reviving stale UI.
+  const stopAccountId = useAuthStore((state) => state.user?.id ?? null);
+  const queryClient = useQueryClient();
+  const stopCandidates = useMemo(() => {
+    const candidates = new Map<string, { runId: string; messageId: string }>();
+    if (!permissionsLoaded || canDecide || isProcessing || pendingApproval !== null) return [];
+    for (const message of [...messages].reverse()) {
+      if (message.runId === undefined || candidates.has(message.runId)) continue;
+      if ((message.toolCalls ?? []).some((call) => call.status === "awaiting_approval")) {
+        candidates.set(message.runId, { runId: message.runId, messageId: message.id });
       }
-    })();
-  }, [
-    messages,
-    canDecide,
-    isProcessing,
-    pendingApproval,
-    cancellableParked,
-    activeConversationId,
-    stopLookupRevision,
-  ]);
+    }
+    return [...candidates.values()];
+  }, [messages, permissionsLoaded, canDecide, isProcessing, pendingApproval]);
+  const stopAuthority = useQueries({
+    queries: stopCandidates.map(({ runId }) => ({
+      queryKey: qk.runs.canStop(tenantId, stopAccountId, runId),
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        apiClient.get<boolean>(`/runs/${runId}/can-stop`, { signal }),
+      retry: 2,
+    })),
+  });
+  const cancellableParked =
+    stopCandidates.find(
+      (_, index) =>
+        stopAuthority[index]?.isSuccess &&
+        !stopAuthority[index]?.isFetching &&
+        stopAuthority[index]?.data === true,
+    ) ?? null;
 
   const sendResumeDecisions = useCallback(
     async (decisions: Decision[]) => {
@@ -2021,7 +1996,7 @@ export function useChat(options: UseChatOptions = {}) {
         queueBelongsTo.current === tenant &&
         useAuthStore.getState().user?.id === account;
       const dismiss = () => {
-        setCancellableParked((current) => (current?.runId === parked.runId ? null : current));
+        queryClient.setQueryData(qk.runs.canStop(tenantId, stopAccountId, parked.runId), false);
         if (parkedQuestion?.runId === parked.runId) {
           setParkedQuestion(null);
           setPendingQuestions(null);
@@ -2082,6 +2057,9 @@ export function useChat(options: UseChatOptions = {}) {
     endTurnLocally,
     parkedQuestion,
     cancellableParked,
+    queryClient,
+    tenantId,
+    stopAccountId,
     pendingApproval,
     activeConversationId,
     chatApi,

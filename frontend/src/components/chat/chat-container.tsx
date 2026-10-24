@@ -1518,6 +1518,7 @@ function ChatUI({
                           }
                           isProcessing={isProcessing}
                           canStop={
+                            isStopping ||
                             canStopParked ||
                             isProcessing ||
                             !!pendingApproval ||
