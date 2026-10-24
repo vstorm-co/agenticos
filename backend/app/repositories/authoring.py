@@ -12,7 +12,7 @@ from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, upd
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
-from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.authoring import (
     AuthoringRequest,
     AuthoringStatus,
@@ -25,6 +25,7 @@ from app.db.models.conversation import Message, ToolCall
 from app.db.models.message_rating import MessageRating
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
+from app.repositories.agent_run import served_runs
 
 
 async def create_request(
@@ -423,24 +424,6 @@ class EvidenceRun:
     commenters: list[UUID] = dataclasses.field(default_factory=list)
 
 
-def _readable_runs(*, organization_id: UUID, since: datetime) -> list[Any]:
-    """What makes a run evidence at all.
-
-    Never an eval run: the assistant is checked by evals, so the runs those
-    produce - the cases, their reruns, the judge and the assistant's own - stay
-    out of what it reads. Never a Builder test run, which is the author trying
-    things rather than a reader being served, and never a delegate's run, whose
-    prompt is its parent's wording rather than a person's.
-    """
-    return [
-        AgentRun.organization_id == organization_id,
-        AgentRun.surface != RunSurface.EVAL.value,
-        AgentRun.is_test.is_(False),
-        AgentRun.parent_run_id.is_(None),
-        AgentRun.started_at >= since,
-    ]
-
-
 async def evidence_runs(
     db: AsyncSession,
     *,
@@ -514,7 +497,7 @@ async def evidence_runs(
     statement = (
         select(AgentRun, rating.c.worst, rating.c.best, rating.c.comments, rating.c.commenters)
         .outerjoin(rating, rating.c.run_id == AgentRun.id)
-        .where(*_readable_runs(organization_id=organization_id, since=since))
+        .where(*served_runs(organization_id=organization_id, since=since))
         .where(or_(worst < 0, failed, rating.c.best > 0))
     )
     if agent_id is not None:

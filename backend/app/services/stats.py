@@ -15,6 +15,7 @@ deciding fact decides), where the deciding fact is the `scope` parameter
 rather than a grant on a row.
 """
 
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -23,8 +24,11 @@ from typing import TYPE_CHECKING, Literal
 
 from app.core.exceptions import AuthorizationError, NotFoundError, ValidationError
 from app.core.permissions import Perm
+from app.db.models.eval_suite import EvalSuiteResultStatus
 from app.repositories import (
+    agent_repo,
     agent_run_repo,
+    eval_suite_repo,
     group_repo,
     ingestion_spend_repo,
     member_repo,
@@ -33,6 +37,8 @@ from app.repositories import (
 from app.repositories.agent_run import RunFilter
 from app.schemas.stats import (
     ActiveUsers,
+    AgentAttention,
+    AgentAttentionList,
     AgentCount,
     CostBlock,
     DayCount,
@@ -49,6 +55,7 @@ from app.schemas.stats import (
     UsageStats,
     VersionUsageRow,
 )
+from app.services.access import AGENT, accessible_ids
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -587,3 +594,67 @@ class StatsService:
         return ScopedRatingSummary(
             from_date=window.from_date, to_date=window.to_date, scope=scope, **summary
         )
+
+    async def attention(
+        self, ctx: AuthContext, *, from_date: date | None = None, to_date: date | None = None
+    ) -> AgentAttentionList:
+        """The agents the caller may see that need a look: answers rated down and
+        own runs failed in the window, and eval suites whose latest result alerts.
+
+        Counts only, over everybody's runs, so it demands `runs:view` as
+        `scope=org` does; an agent the caller may not view is left out however
+        much it would count.
+
+        Raises:
+            AuthorizationError: Without `runs:view`.
+        """
+        self._scope_filter(ctx, "org")
+        window = resolve_window(from_date, to_date)
+        org = ctx.organization_id
+        rated = await message_rating_repo.down_rated_by_agent(
+            self.db, organization_id=org, start=window.start, end=window.end
+        )
+        failed = await agent_run_repo.failed_by_agent(
+            self.db, organization_id=org, start=window.start, end=window.end
+        )
+        suites = [
+            suite
+            for suite in await eval_suite_repo.list_for_organization(self.db, organization_id=org)
+            if suite.is_active
+        ]
+        latest = await eval_suite_repo.latest_results(
+            self.db, [suite.id for suite in suites], organization_id=org
+        )
+        failing = Counter(
+            suite.agent_id
+            for suite in suites
+            if suite.id in latest and EvalSuiteResultStatus(latest[suite.id].status).alerting
+        )
+        agents = await agent_repo.get_many(
+            self.db, sorted({*rated, *failed, *failing}), organization_id=org
+        )
+        visible = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        editable = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_EDIT, resource_type=AGENT
+        )
+        items = [
+            AgentAttention(
+                agent_id=agent.id,
+                name=agent.name,
+                rated_down=rated.get(agent.id, 0),
+                failed_runs=failed.get(agent.id, 0),
+                failing_suites=failing[agent.id],
+                can_edit=agent.id in editable,
+            )
+            for agent in agents.values()
+            if agent.id in visible
+        ]
+        items.sort(
+            key=lambda item: (
+                -(item.rated_down + item.failed_runs + item.failing_suites),
+                item.name,
+            )
+        )
+        return AgentAttentionList(from_date=window.from_date, to_date=window.to_date, items=items)

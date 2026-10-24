@@ -294,3 +294,37 @@ class UsageStats(BaseSchema):
     by_version: list[VersionUsageRow] | None = None
     by_user: list[PersonUsageRow] | None = None
     by_hour: list[HourCount] | None = None
+
+
+class AgentAttention(BaseSchema):
+    """One agent with something to look at in the window.
+
+    Counts only: the answers, runs and results behind them stay behind each
+    one's own gate.
+
+    Attributes:
+        agent_id: The agent.
+        name: Its name.
+        rated_down: Answers of its runs in the window somebody rated down, each
+            counted once - only the runs improving it reads as evidence.
+        failed_runs: Those runs that failed, ran out of budget or were stopped in
+            a loop - not an eval's, a test's or a delegate's.
+        failing_suites: Its active eval suites whose latest result alerts its owner -
+            anything but a pass, as `EvalSuiteResultStatus.alerting` says.
+        can_edit: Whether the caller may edit it, a grant included - where Improve is offered.
+    """
+
+    agent_id: UUID
+    name: str
+    rated_down: int
+    failed_runs: int
+    failing_suites: int
+    can_edit: bool
+
+
+class AgentAttentionList(BaseSchema):
+    """The agents that need attention in a window, those with the most first."""
+
+    from_date: date = Field(alias="from")
+    to_date: date = Field(alias="to")
+    items: list[AgentAttention]

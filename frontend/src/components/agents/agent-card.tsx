@@ -34,6 +34,8 @@ import type { Agent } from "@/types/agents";
 import { useLocale, useTranslations } from "next-intl";
 
 import { groupsLabel } from "@/components/sharing/audience-chip";
+import { attentionParts } from "@/lib/attention";
+import type { AgentAttention } from "@/types/stats";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
 const CHANNEL_LABEL: Record<string, string> = {
@@ -86,6 +88,7 @@ export function AgentCard({
   actions,
   busy,
   footer,
+  attention,
 }: {
   agent: Agent;
   canEdit: boolean;
@@ -94,8 +97,11 @@ export function AgentCard({
   busy?: boolean;
   /** A line under the labels, such as the datasets a judge grades. */
   footer?: ReactNode;
+  /** What makes the agent need a look lately, for a reader who may see runs. */
+  attention?: AgentAttention;
 }) {
   const t = useTranslations("agents");
+  const tAttention = useTranslations("attention");
   const tc = useTranslations("common");
   const locale = useLocale();
   const archived = agent.status === "archived";
@@ -153,6 +159,15 @@ export function AgentCard({
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <AccessChip agent={agent} />
+                {attention && (
+                  <Badge
+                    variant="warning"
+                    className="font-normal"
+                    title={attentionParts(attention, tAttention).join(" · ")}
+                  >
+                    {tAttention("badge")}
+                  </Badge>
+                )}
                 {agent.system_key && (
                   <Badge variant="secondary" className="font-normal" title={t("defaultJudgeHint")}>
                     {t("defaultJudge")}

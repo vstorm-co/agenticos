@@ -173,6 +173,8 @@ TENANT_REQUIRED = [
     (agent_repo, "get_version_by_number"),
     (agent_repo, "version_before"),
     (agent_run_repo, "average_cost"),
+    (agent_run_repo, "failed_by_agent"),
+    (message_rating_repo, "down_rated_by_agent"),
     (agent_run_repo, "cost_of_runs"),
     (eval_suite_repo, "create"),
     (eval_suite_repo, "get"),

@@ -21,6 +21,7 @@ import { BackgroundJobsWidget } from "./background-jobs";
 import { HealthWidget } from "./health";
 import { KnowledgeFreshnessWidget } from "./knowledge-freshness";
 import { KnowledgeGapsWidget } from "./knowledge-gaps";
+import { NeedsAttentionWidget } from "./needs-attention";
 import { LatencyWidget } from "./latency";
 import { McpHealthWidget } from "./mcp-health";
 import { MembersWidget } from "./members";
@@ -101,6 +102,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   artifacts: ArtifactsWidget,
   datasets: DatasetsWidget,
   "knowledge-gaps": KnowledgeGapsWidget,
+  "needs-attention": NeedsAttentionWidget,
   "review-queue": ReviewQueueWidget,
   "eval-runs": EvalRunsWidget,
   "eval-suites": EvalSuitesWidget,

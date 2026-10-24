@@ -70,7 +70,8 @@ export type WidgetId =
   | "voice-minutes"
   | "projects"
   | "recent-visuals"
-  | "knowledge-gaps";
+  | "knowledge-gaps"
+  | "needs-attention";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -496,6 +497,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "attention",
     seeAll: ROUTES.RAG,
+  },
+  // The agents with answers rated down, failed runs or a failing suite, gated on
+  // what `GET /stats/attention` asks: it counts over everybody's runs.
+  "needs-attention": {
+    id: "needs-attention",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "attention",
   },
   // `runs:view`, not `collections:view`: a topic is made of people's questions,
   // which `GET /knowledge-gaps` shows only to a member who reads every run.

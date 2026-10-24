@@ -2747,6 +2747,15 @@
         "skillChanges": "Skill · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
         "contextChanges": "Plik kontekstu · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
         "newSkills": "{count, plural, one {1 zaproponowany nowy skill} few {# zaproponowane nowe skille} many {# zaproponowanych nowych skilli} other {# zaproponowanego nowego skilla}}"
+      },
+      "needs-attention": {
+        "title": "Agenci wymagający uwagi",
+        "description": "Agenci z odpowiedziami ocenionymi w dół, nieudanymi runami albo oblaną suitą ewaluacji w tym okresie, każdy o kliknięcie od ulepszenia.",
+        "empty": {
+          "title": "Nic nie wymaga uwagi",
+          "description": "W tym okresie nikt nie ocenił odpowiedzi w dół, żaden run nie zakończył się błędem, a każda suita przeszła."
+        },
+        "improve": "Ulepsz"
       }
     },
     "edit": {
@@ -9685,5 +9694,11 @@
     "someoneWhoLeft": "Osoba, która odeszła",
     "readFailed": "Nie udało się odczytać ewaluacji strzegących tego środowiska.",
     "retry": "Spróbuj ponownie"
+  },
+  "attention": {
+    "badge": "Wymaga uwagi",
+    "rated": "{count, plural, one {1 odpowiedź oceniona w dół} few {# odpowiedzi ocenione w dół} many {# odpowiedzi ocenionych w dół} other {# odpowiedzi ocenionej w dół}}",
+    "failed": "{count, plural, one {1 nieudany run} few {# nieudane runy} many {# nieudanych runów} other {# nieudanego runu}}",
+    "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}"
   }
 }

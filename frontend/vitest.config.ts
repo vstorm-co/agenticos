@@ -83,6 +83,7 @@ export default defineConfig({
         "src/components/evals/**/*.{ts,tsx}",
         "src/components/datasets/**/*.{ts,tsx}",
         "src/components/dashboard/widgets/knowledge-gaps.tsx",
+        "src/components/dashboard/widgets/needs-attention.tsx",
         "src/components/knowledge-gaps/**/*.tsx",
         "src/components/dashboard/widgets/voice-minutes.tsx",
         "src/components/dashboard/widgets/projects.tsx",

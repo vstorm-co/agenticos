@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Fifty cards exist. You will not see all of them: **a card is gated on the
+Fifty-one cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -24,10 +24,16 @@ may open. Everybody opens on **Me**:
 
 | View | Answers |
 |---|---|
-| **Me** | A greeting, your period and everything waiting on you, in two sentences - calls, answers to review, failing suites, the assistant's suggestions; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents, what was shared with you, your [datasets](datasets.md) with what their cases test against, the latest eval runs and suites, the assistant's suggestions by agent, skill and file, and knowledge gaps |
+| **Me** | A greeting, your period and everything waiting on you, in two sentences - calls, answers to review, failing suites, the assistant's suggestions; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, the agents that need attention, your agents, what was shared with you, your [datasets](datasets.md) with what their cases test against, the latest eval runs and suites, the assistant's suggestions by agent, skill and file, and knowledge gaps |
 | **Organization** | The arrangeable page below |
 | **Group** | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
+
+On **Me**, **Agents that need attention** lists the agents you may see with
+answers rated down, failed runs or a failing eval suite in the period - counts
+only, never what was said - with **Improve** on those you may edit. The Agents
+gallery marks the same agents over the last thirty days with a **Needs
+attention** badge that says why on hover. Both need `runs:view`.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
@@ -574,7 +580,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **fifty widgets** you arrange yourself, saved per
+- The dashboard is **fifty-one widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs
