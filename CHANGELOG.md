@@ -25,7 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Commit rotating OAuth credentials independently of agent preparation, drain cancellation through persistence, and serialize mailbox polls without holding credential row locks.
 
-- Bound scheduled MCP health checks to 64 oldest-first servers and eight simultaneous probes; advance unauthorized accounts so they cannot starve the queue.
+- Bound scheduled MCP health checks to 64 oldest-first servers and eight simultaneous probes; advance unauthorized accounts so they cannot starve the queue; use a separate indexed health clock so OAuth renewal cannot postpone probes.
 
 ### Fixed
 

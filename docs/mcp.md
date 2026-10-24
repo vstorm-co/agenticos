@@ -1058,3 +1058,5 @@ console's language when asked - out of the box.
   tools.
 
 OAuth refresh owns a short, independent transaction: it locks and rechecks the account, rotates the credential and commits before returning a token. Cancellation waits for this unit to settle; a later run rollback cannot undo it. If persistence fails after the provider rotates, the request fails explicitly and the account may need authorization again. Mailbox polling holds a separate per-account advisory lock; each mailbox commits its cursor together with queued fires, and a malformed response rolls back only that mailbox’s work.
+
+Health admission uses its own indexed timestamp. Renewing OAuth credentials or polling a mailbox cannot postpone a server’s next health check. Existing servers enter the queue as never checked after the migration.

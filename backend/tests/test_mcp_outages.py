@@ -237,7 +237,8 @@ class TestTheScheduledCheck:
         assert counts["skipped"] == 25
         assert update.await_count == 25
         assert all(
-            set(call.kwargs["update_data"]) == {"last_checked_at"} for call in update.call_args_list
+            set(call.kwargs["update_data"]) == {"last_checked_at", "health_checked_at"}
+            for call in update.call_args_list
         )
 
 

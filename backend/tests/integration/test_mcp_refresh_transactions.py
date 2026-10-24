@@ -140,3 +140,70 @@ async def test_a_portal_poll_claim_does_not_block_its_credential_refresh(
         assert payload is not None and payload.access_token is not None
         assert payload.access_token.get_secret_value() == "new"
         assert await mcp_connection_repo.claim_portal_grant_to_poll(other, **kwargs) is not None
+
+
+async def test_oauth_renewal_does_not_push_servers_to_the_back_of_the_health_queue(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rows = await _rows(db)
+    oldest, newer = rows
+    oldest.health_checked_at = datetime(2020, 1, 1, tzinfo=UTC)
+    newer.health_checked_at = datetime(2021, 1, 1, tzinfo=UTC)
+    await db.commit()
+    _independent_context(monkeypatch, engine)
+    monkeypatch.setattr(
+        service.mcp_oauth,
+        "refresh_tokens",
+        AsyncMock(
+            return_value=OAuthToken(access_token="new", refresh_token="next", expires_in=3600)
+        ),
+    )
+    await service.sweep_oauth_connections(db)
+    assert oldest.last_checked_at is not None and oldest.last_checked_at.year > 2021
+    assert [row.id for row in await mcp_connection_repo.list_org_servers_to_check(db, limit=1)] == [
+        oldest.id
+    ]
+    await service._record_check(db, oldest, [], None)
+    assert [row.id for row in await mcp_connection_repo.list_org_servers_to_check(db, limit=1)] == [
+        newer.id
+    ]
+
+
+async def test_a_mailbox_sql_failure_rolls_back_its_work_and_does_not_poison_the_next_tenant(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sqlalchemy import text
+
+    from app.worker.tasks import trigger_tasks
+
+    first = (await _rows(db, portal=True))[0]
+    second = (await _rows(db, portal=True))[0]
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    seen: list[UUID] = []
+
+    @asynccontextmanager
+    async def context() -> AsyncIterator[AsyncSession]:
+        async with factory() as session, session.begin():
+            yield session
+
+    async def poll(session: AsyncSession, grant: McpConnection, source: str) -> int:
+        seen.append(grant.id)
+        if len(seen) == 1:
+            await session.execute(text("SELECT 1 / 0"))
+        await service.McpConnectionService(session).store_poll_cursor(
+            grant, cursor={"history_id": "9"}
+        )
+        return 0
+
+    monkeypatch.setattr(trigger_tasks, "get_worker_db_context", context)
+    monkeypatch.setattr(trigger_tasks, "_ensure_trigger_dedupe", AsyncMock())
+    monkeypatch.setattr(trigger_tasks, "_poll_one_grant", poll)
+    async with asyncio.timeout(10):
+        await trigger_tasks.poll_portal_grants()
+    assert set(seen) == {first.id, second.id}
+    failed = await db.get(McpConnection, seen[0], populate_existing=True)
+    succeeded = await db.get(McpConnection, seen[1], populate_existing=True)
+    assert failed is not None and succeeded is not None
+    assert failed.poll_cursor is None and failed.last_status == "error"
+    assert failed.polled_at is not None
+    assert succeeded.poll_cursor == {"history_id": "9"} and succeeded.polled_at is not None

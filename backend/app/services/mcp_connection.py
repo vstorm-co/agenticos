@@ -574,13 +574,15 @@ async def _record_check(
     db: AsyncSession, connection: McpConnection, tools: list[McpToolInfo], error: str | None
 ) -> McpConnection:
     """Write one check's outcome where the console reads it."""
+    checked_at = datetime.now(UTC)
     return await mcp_connection_repo.update(
         db,
         db_connection=connection,
         update_data={
             "last_status": "error" if error else "ok",
             "last_error": error,
-            "last_checked_at": datetime.now(UTC),
+            "last_checked_at": checked_at,
+            "health_checked_at": checked_at,
             # Only on a probe that answered. A failed one says nothing about
             # what the server offers, and blanking the list would leave an
             # agent author with nothing to choose from because the server
@@ -657,7 +659,10 @@ async def check_organization_servers(db: AsyncSession) -> dict[str, int]:
             await mcp_connection_repo.update(
                 db,
                 db_connection=connection,
-                update_data={"last_checked_at": datetime.now(UTC)},
+                update_data={
+                    "last_checked_at": datetime.now(UTC),
+                    "health_checked_at": datetime.now(UTC),
+                },
             )
             continue
         tools, error = outcome

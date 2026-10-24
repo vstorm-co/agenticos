@@ -527,3 +527,49 @@ class TestTheRefusalsAroundIt:
 
         with pytest.raises(WebhookRegistrationUnavailable):
             await PortalAdapter().poll(access_token="t", cursor=None)
+
+
+@pytest.mark.parametrize("missing", [False, True])
+async def test_one_poll_claim_is_rechecked_and_processing_failure_is_recorded(monkeypatch, missing):
+    from app.services import mcp_connection as module
+
+    grant, db = _grant(), MagicMock()
+    expected = None if missing else grant
+    claim = AsyncMock(return_value=expected)
+    monkeypatch.setattr(module.mcp_connection_repo, "claim_portal_grant_to_poll", claim)
+    monkeypatch.setattr(module.mcp_connection_repo, "get_by_id", AsyncMock(return_value=expected))
+    connection_service = module.McpConnectionService(db)
+    failure = AsyncMock()
+    monkeypatch.setattr(connection_service, "_record_poll_failure", failure)
+    assert (
+        await connection_service.claim_grant_to_poll(connection_id=grant.id, portal_keys=["google"])
+        is expected
+    )
+    assert claim.await_args.kwargs["connection_id"] == grant.id
+    assert claim.await_args.kwargs["not_polled_since"] < datetime.now(UTC)
+    await connection_service.record_poll_processing_failure(grant.id)
+    assert failure.await_count == (0 if missing else 1)
+
+
+@pytest.mark.parametrize("missing", [False, True])
+async def test_a_claimed_candidate_without_a_pollable_source_is_skipped(monkeypatch, missing):
+    from contextlib import asynccontextmanager
+
+    from app.worker.tasks import trigger_tasks
+
+    grant = _grant(portal_key="unknown")
+    connections = MagicMock(
+        portal_poll_candidates=AsyncMock(return_value=[grant.id]),
+        claim_grant_to_poll=AsyncMock(return_value=None if missing else grant),
+        record_poll_processing_failure=AsyncMock(),
+    )
+
+    @asynccontextmanager
+    async def context():
+        yield MagicMock()
+
+    monkeypatch.setattr(trigger_tasks, "get_worker_db_context", context)
+    monkeypatch.setattr(trigger_tasks, "_ensure_trigger_dedupe", AsyncMock())
+    with patch("app.services.mcp_connection.McpConnectionService", return_value=connections):
+        await trigger_tasks.poll_portal_grants()
+    assert connections.record_poll_processing_failure.await_count == (0 if missing else 1)

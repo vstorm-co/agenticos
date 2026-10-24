@@ -365,7 +365,7 @@ async def list_org_servers_to_check(db: AsyncSession, *, limit: int = 64) -> lis
             McpConnection.scope == "org",
             McpConnection.is_enabled.is_(True),
         )
-        .order_by(McpConnection.last_checked_at.asc().nulls_first(), McpConnection.id.asc())
+        .order_by(McpConnection.health_checked_at.asc(), McpConnection.id.asc())
         .limit(limit)
     )
     return list(result.scalars().all())
