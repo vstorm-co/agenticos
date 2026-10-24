@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Return to sign-in when refreshed session cookies are still refused, including
+  when another tab recently refreshed, instead of leaving agent pages loading (#2269).
+
 ## [1.16.0] - 2026-10-23
 
 ### Added
@@ -106,9 +111,6 @@ Two things are versioned separately from this file and worth knowing about:
   another name in the draft, and publish it.
 
 ### Fixed
-
-- Return to sign-in when refreshed session cookies are still refused, including
-  when another tab recently refreshed, instead of leaving agent pages loading (#2269).
 
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
