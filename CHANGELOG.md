@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Erase mem0 memory using the SDK's supported user identifier. Include draft
+  and retained version destinations, clear all owners when clearing an agent,
+  and report unavailable credentials or incomplete erasure as failures.
+
 - Keep trigger histories in separate conversation-specific cache entries,
   ignore stale admin-user search responses and own file-preview blob URLs
   through committed subscriptions so Strict Mode cannot revoke a live preview.
