@@ -22,6 +22,10 @@ import { useProjectFiles } from "@/hooks/use-projects";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import type { FileSource } from "@/lib/workspace-files";
 import type { Project } from "@/types/projects";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
+import { useProjectFolder } from "@/hooks/use-project-folder";
+import { ProjectFolderChoice } from "./project-folder-choice";
 
 /**
  * The project's container, browsable - and, for whoever may work in it, the
@@ -29,6 +33,8 @@ import type { Project } from "@/types/projects";
  */
 export function ProjectFiles({ project }: { project: Project }) {
   const t = useTranslations("projects");
+  const shell = useShell();
+  const local = useProjectFolder(project.id);
   const { files, isLoading, error, upload, uploads, addFolder, remove } = useProjectFiles(
     project.id,
   );
@@ -125,6 +131,14 @@ export function ProjectFiles({ project }: { project: Project }) {
     // Down to the bottom of the screen, as the folder page's reader is: the files
     // are what the tab is for, and a fixed floor left half the screen empty.
     <div className="flex min-h-[calc(100dvh-17rem)] flex-1 flex-col">
+      {project.can_use && isDesktopShell(shell) && local.available && (
+        <div className="mb-4">
+          <ProjectFolderChoice
+            value={local.target}
+            onChange={(target) => local.bind(project.id, target)}
+          />
+        </div>
+      )}
       {/* A file dropped anywhere on the tab lands in the project, as one dropped
           on a knowledge base lands in it - for whoever may add files. */}
       {project.can_use ? (

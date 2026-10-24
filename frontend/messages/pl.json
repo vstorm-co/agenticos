@@ -8545,7 +8545,16 @@
     "uploadFailed": "Przesyłanie się nie udało",
     "noFilesYet": "W tym projekcie nie ma jeszcze plików",
     "noFilesHint": "Upuść tu pliki albo cały folder, albo je prześlij. Każdy czat w projekcie je czyta i na nich pracuje.",
-    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj."
+    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj.",
+    "localFolder": {
+      "title": "Folder na tym komputerze",
+      "hint": "Pracuj na plikach bez wysyłania ich kopii. To powiązanie dotyczy tylko Ciebie na tym komputerze; inni członkowie projektu korzystają ze współdzielonych plików.",
+      "connect": "Podepnij folder",
+      "change": "Zmień folder",
+      "disconnect": "Odłącz",
+      "connecting": "Łączenie…",
+      "activeAccess": "Aktualny dostęp: {mode}"
+    }
   },
   "voiceGlow": {
     "title": "Animacja dyktowania",

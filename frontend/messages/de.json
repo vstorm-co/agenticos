@@ -8639,7 +8639,16 @@
     "uploadFailed": "Der Upload ist fehlgeschlagen",
     "noFilesYet": "Noch nichts in diesem Projekt",
     "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
-    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
+    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier.",
+    "localFolder": {
+      "title": "Ordner auf diesem Computer",
+      "hint": "Dateien direkt verwenden, ohne eine Kopie hochzuladen. Diese Verbindung gilt nur für Sie auf diesem Computer; andere Projektmitglieder verwenden gemeinsame Dateien.",
+      "connect": "Ordner verbinden",
+      "change": "Ordner ändern",
+      "disconnect": "Trennen",
+      "connecting": "Verbinden…",
+      "activeAccess": "Aktueller Zugriff: {mode}"
+    }
   },
   "voiceGlow": {
     "title": "Diktieranimation",

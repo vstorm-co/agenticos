@@ -8760,7 +8760,16 @@
     "uploadFailed": "The upload failed",
     "noFilesYet": "Nothing in this project yet",
     "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
-    "noFilesViewer": "Files added to the project will appear here."
+    "noFilesViewer": "Files added to the project will appear here.",
+    "localFolder": {
+      "title": "Folder on this computer",
+      "hint": "Use files in place, without uploading a copy. This connection is only for you on this computer; other project members keep using shared files.",
+      "connect": "Connect a folder",
+      "change": "Change folder",
+      "disconnect": "Disconnect",
+      "connecting": "Connecting…",
+      "activeAccess": "Current access: {mode}"
+    }
   },
   "voiceGlow": {
     "title": "Voice glow",
