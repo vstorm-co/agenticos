@@ -210,3 +210,14 @@ it("can read an early session without a selected round", () => {
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.getByText("Source examples fixture")).toBeInTheDocument();
 });
+
+it("lets the person inspect a pinned step directly without claiming it published", async () => {
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const questions = screen.getByRole("button", { name: "Test set" });
+  expect(questions).toHaveAccessibleDescription("Done");
+  await userEvent.click(questions);
+  expect(screen.getByText("Pinned questions fixture")).toBeInTheDocument();
+  expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Result" }));
+  expect(screen.getByText("Better: fixes 3, breaks nothing")).toBeInTheDocument();
+});

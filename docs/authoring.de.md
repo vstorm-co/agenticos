@@ -1,5 +1,5 @@
 ---
-source_sha: "47187230b1ef"
+source_sha: "2690172f722d"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -358,6 +358,8 @@ Die Sitzungsschätzung umfasst die Einordnung schlechter Chatantworten anhand be
 Ein Klassifizierungsfehler wird angezeigt; Quellgespräche bleiben verfügbar. Eine reine Wissenssitzung endet mit prüfbaren Entwürfen, ohne leere Agentenversion. Eine Entwurfsprüfung erfordert weiterhin eine eigene Schätzung und Bestätigung; das Hinzufügen bleibt eine gesonderte menschliche Entscheidung.
 
 Eine menschliche Bewertung und ihr Widerruf berechnen die aktuell gemessene Runde in derselben Transaktion wie Test- und Prüfergebnisse neu. Die ausgewählte Runde und ihre Kosten bleiben bestehen. Frühere Messungen und Einzelprüfungen ersetzen nicht das aktuelle Gesamturteil. Eine Prüfung startet keinen neuen Modellaufruf, keine Veröffentlichung und keinen Umgebungswechsel. Darf der ursprüngliche Anfragende den Vergleich nicht mehr lesen, wird die Runde unentschieden, statt ein grünes Urteil zu behalten. Live-Dataset-Ereignisse aktualisieren Test-, Prüfungs-, Sitzungs- und Umgebungsansichten.
+
+Die Schrittleiste unterscheidet erledigte, laufende, entscheidungsbedürftige, übersprungene und noch nicht begonnene Arbeit. Wählen Sie einen Schritt zur Ansicht; dies startet keine kostenpflichtige Aktion. Beim erneuten Öffnen erscheint die aktuelle Arbeit, während jeder Schritt seinen Zustand behält. Auf dem Telefon stehen der aktuelle Schritt und sein Status unter den Markierungen.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

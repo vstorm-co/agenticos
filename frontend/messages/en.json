@@ -10759,7 +10759,6 @@
     "permission": "Editing this agent and viewing runs are required to improve it.",
     "retryRead": "Try reading again",
     "stepsLabel": "Improvement steps",
-    "stepStatus": "{step} · {status}",
     "running": "Running",
     "needsYou": "Needs you",
     "done": "Done",
@@ -10873,6 +10872,13 @@
     "knowledgeSearchDisabled": "This measured candidate has knowledge search disabled. Test with temporary context, or enable search and start a new session.",
     "knowledgeEstimate": "Includes {cost} for sorting the source answers, grouping missing knowledge and up to three drafts per knowledge base (estimate).",
     "classificationFailed": "We couldn’t finish grouping the feedback. The source conversations remain available; unknown causes are left for the agent changes.",
-    "draftingFailed": "We couldn’t finish preparing the knowledge drafts. Any completed drafts remain available to review; nothing was added automatically."
+    "draftingFailed": "We couldn’t finish preparing the knowledge drafts. Any completed drafts remain available to review; nothing was added automatically.",
+    "stepState": {
+      "done": "Done",
+      "running": "Running",
+      "needs_you": "Needs you",
+      "skipped": "Skipped",
+      "pending": "Not started"
+    }
   }
 }

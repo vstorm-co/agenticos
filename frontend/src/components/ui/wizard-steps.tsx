@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { useId, type ReactNode } from "react";
+import { ArrowLeft, ArrowRight, Check, Minus } from "lucide-react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,8 @@ export interface WizardStep {
   id: string;
   /** Already translated, in sentence case; the stepper styles it, the caller words it. */
   label: string;
+  status?: "done" | "running" | "needs_you" | "skipped" | "pending";
+  statusLabel?: string;
 }
 
 interface WizardStepsProps {
@@ -21,6 +24,8 @@ interface WizardStepsProps {
    * less than the form under it.
    */
   compact?: boolean;
+  responsive?: boolean;
+  onSelect?: (id: string) => void;
 }
 
 /**
@@ -34,25 +39,69 @@ interface WizardStepsProps {
  * on screen is the only label in full ink. On a phone only its name is written
  * out: four names do not fit a row there, and the bars still count the rest.
  */
-export function WizardSteps({ steps, current, compact = false }: WizardStepsProps) {
+function StepTrigger({
+  step,
+  onSelect,
+  children,
+}: {
+  step: WizardStep;
+  onSelect?: (id: string) => void;
+  children: ReactNode;
+}) {
+  const descriptionId = useId();
+  return onSelect ? (
+    <button
+      type="button"
+      aria-label={step.label}
+      aria-describedby={step.statusLabel ? descriptionId : undefined}
+      className="focus-visible:ring-ring block min-h-11 w-full rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
+      onClick={() => onSelect(step.id)}
+    >
+      {children}
+      {step.statusLabel && (
+        <span id={descriptionId} className="sr-only">
+          {step.statusLabel}
+        </span>
+      )}
+    </button>
+  ) : (
+    <>{children}</>
+  );
+}
+
+export function WizardSteps({
+  steps,
+  current,
+  compact = false,
+  responsive = false,
+  onSelect,
+}: WizardStepsProps) {
   const currentIdx = steps.findIndex((step) => step.id === current);
   if (compact) {
     return (
       <div className="mt-2 flex items-center justify-center gap-2.5">
-        <ol className="flex h-5 items-center gap-1.5">
+        <ol className={cn("flex items-center gap-1.5", onSelect ? "h-11" : "h-5")}>
           {steps.map((step, i) => {
             const active = i === currentIdx;
             return (
               <li key={step.id} aria-current={active ? "step" : undefined} className="flex">
-                <span
-                  aria-hidden
-                  className={cn(
-                    "block h-1.5 rounded-full transition-all duration-300 ease-[var(--ease-out)]",
-                    active ? "w-5" : "w-1.5",
-                    i <= currentIdx ? "bg-foreground" : "bg-muted-foreground/30",
-                  )}
-                />
-                <span className="sr-only">{step.label}</span>
+                <StepTrigger step={step} onSelect={onSelect}>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "block h-1.5 rounded-full transition-all duration-300 ease-[var(--ease-out)]",
+                      active ? "w-5" : "w-1.5",
+                      step.status
+                        ? ["done", "running", "needs_you"].includes(step.status)
+                          ? "bg-foreground"
+                          : "bg-muted-foreground/30"
+                        : i <= currentIdx
+                          ? "bg-foreground"
+                          : "bg-muted-foreground/30",
+                    )}
+                  />
+                  <span className="sr-only">{step.label}</span>
+                </StepTrigger>
               </li>
             );
           })}
@@ -64,44 +113,75 @@ export function WizardSteps({ steps, current, compact = false }: WizardStepsProp
     );
   }
   return (
-    <ol className="mt-4 flex gap-3">
-      {steps.map((step, i) => {
-        const done = i < currentIdx;
-        const active = i === currentIdx;
-        return (
-          <li key={step.id} aria-current={active ? "step" : undefined} className="min-w-0 flex-1">
-            <span className="bg-muted block h-1 overflow-hidden rounded-full">
-              <span
-                className={cn(
-                  "bg-foreground block h-full origin-left rounded-full transition-transform duration-500 ease-[var(--ease-out)]",
-                  done || active ? "scale-x-100" : "scale-x-0",
-                )}
-              />
-            </span>
-            <span className="mt-2 flex min-w-0 items-center gap-2">
-              <span
-                className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums transition-colors duration-300",
-                  done || active
-                    ? "bg-foreground text-background"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {done ? <Check className="h-3 w-3" strokeWidth={3} /> : i + 1}
-              </span>
-              <span
-                className={cn(
-                  "truncate text-sm font-medium transition-colors duration-300",
-                  active ? "text-foreground" : "text-muted-foreground max-sm:hidden",
-                )}
-              >
-                {step.label}
-              </span>
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+    <div>
+      <ol className="mt-4 flex gap-3">
+        {steps.map((step, i) => {
+          const done = step.status ? step.status === "done" : i < currentIdx;
+          const active = i === currentIdx;
+          const working = step.status === "running";
+          const filled = step.status
+            ? ["done", "running", "needs_you"].includes(step.status)
+            : done || active;
+          return (
+            <li key={step.id} aria-current={active ? "step" : undefined} className="min-w-0 flex-1">
+              <StepTrigger step={step} onSelect={onSelect}>
+                <span className="bg-muted block h-1 overflow-hidden rounded-full">
+                  <span
+                    className={cn(
+                      "bg-foreground block h-full origin-left rounded-full transition-transform duration-500 ease-[var(--ease-out)]",
+                      filled ? "scale-x-100" : "scale-x-0",
+                    )}
+                  />
+                </span>
+                <span className="mt-2 flex min-w-0 items-center gap-2">
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums transition-colors duration-300",
+                      filled ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
+                      responsive &&
+                        active &&
+                        "ring-foreground/20 ring-offset-background ring-2 ring-offset-2",
+                    )}
+                  >
+                    {working ? (
+                      <Spinner className="h-3 w-3" />
+                    ) : done ? (
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    ) : step.status === "skipped" ? (
+                      <Minus className="h-3 w-3" />
+                    ) : (
+                      i + 1
+                    )}
+                  </span>
+                  <span
+                    className={cn(
+                      "truncate text-sm font-medium transition-colors duration-300",
+                      active ? "text-foreground" : "text-muted-foreground max-sm:hidden",
+                      responsive && "max-sm:sr-only",
+                    )}
+                  >
+                    {step.label}
+                    {step.statusLabel && (
+                      <span className="text-muted-foreground block truncate text-xs font-normal">
+                        {step.statusLabel}
+                      </span>
+                    )}
+                  </span>
+                </span>
+              </StepTrigger>
+            </li>
+          );
+        })}
+      </ol>
+      {responsive && (
+        <p className="mt-3 text-sm sm:hidden">
+          {steps[currentIdx]?.label}
+          {steps[currentIdx]?.statusLabel && (
+            <span className="text-muted-foreground"> · {steps[currentIdx]?.statusLabel}</span>
+          )}
+        </p>
+      )}
+    </div>
   );
 }
 

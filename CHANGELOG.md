@@ -108,6 +108,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Improvement steps show their actual work state and can be inspected directly, with keyboard access and a compact phone layout.
+
 - Improvement sessions classify source answers and draft missing knowledge within their confirmed budget, preserving source isolation, API-key scopes and embedding spend. Knowledge-only sessions can check drafts without publishing an empty agent version.
 
 - Recheck a selected subset of improvement suggestions with a confirmed estimate; retain earlier measurements and accept only the tested selection. Show distinct mixed and worse results, and attribute only confirmed differences.

@@ -15,14 +15,17 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { useOrgStore } from "@/stores/org-store";
 import { Perm } from "@/types/permissions";
-import type { Improvement } from "@/types/improvement";
 import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
 import { RoundResults, RoundHistory } from "./round-results";
 import { Understand, TestQuestions, Today } from "./session-inputs";
 
-const STEPS = ["understand", "testSet", "today", "changes", "check", "result", "accept"] as const;
-type Step = (typeof STEPS)[number];
+import {
+  IMPROVEMENT_STEPS as STEPS,
+  currentImprovementStep,
+  improvementStepStates,
+  type ImprovementStep as Step,
+} from "@/lib/improvement-steps";
 export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessionId: string }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
@@ -50,18 +53,6 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
       )}
     </div>
   );
-}
-function currentStep(session: Improvement): Step {
-  if (session.status === "accepted" || session.status === "published") return "accept";
-  if (session.status !== "queued" && session.status !== "running") return "result";
-  if (session.stage === "evaluating" || session.stage === "judging") return "check";
-  if (
-    session.stage === "proposing" ||
-    session.stage === "filtering" ||
-    session.stage === "drafting"
-  )
-    return "changes";
-  return "understand";
 }
 function Session({
   agentId,
@@ -101,7 +92,8 @@ function Session({
         cta={{ label: t("retryRead"), onClick: () => void actions.refetch() }}
       />
     );
-  const current = currentStep(session);
+  const current = currentImprovementStep(session);
+  const states = improvementStepStates(session);
   const step = selected ?? current;
   const active = ["queued", "running"].includes(session.status);
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
@@ -120,49 +112,22 @@ function Session({
   );
   return (
     <div className="space-y-6">
-      <div data-tour="improvement-steps">
-        <div className="sm:hidden">
-          <WizardSteps
-            compact
-            steps={STEPS.map((id) => ({ id, label: t(`steps.${id}`) }))}
-            current={current}
-          />
-        </div>
-        <div className="hidden sm:block">
-          <WizardSteps
-            steps={STEPS.map((id) => ({ id, label: t(`steps.${id}`) }))}
-            current={current}
-          />
-        </div>
-        <details className="mt-4">
-          <summary className="text-muted-foreground cursor-pointer text-sm">
-            {t("stepsLabel")}
-          </summary>
-          <nav aria-label={t("stepsLabel")} className="mt-4 flex flex-wrap gap-2">
-            {STEPS.map((id, index) => (
-              <Button
-                key={id}
-                variant={step === id ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setSelected(id)}
-              >
-                {t("stepStatus", {
-                  step: t(`steps.${id}`),
-                  status: t(
-                    id === current
-                      ? active
-                        ? "running"
-                        : "needsYou"
-                      : index < STEPS.indexOf(current)
-                        ? "done"
-                        : "waiting",
-                  ),
-                })}
-              </Button>
-            ))}
-          </nav>
-        </details>
-      </div>
+      <nav data-tour="improvement-steps" aria-label={t("stepsLabel")}>
+        <WizardSteps
+          responsive
+          steps={STEPS.map((id) => ({
+            id,
+            label: t(`steps.${id}`),
+            status: states[id],
+            statusLabel: t(`stepState.${states[id]}`),
+          }))}
+          current={step}
+          onSelect={(id) => {
+            const target = STEPS.find((item) => item === id);
+            if (target) setSelected(target);
+          }}
+        />
+      </nav>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm">
         <p role="status">{t(`status.${session.status}`)}</p>
         <p>

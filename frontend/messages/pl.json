@@ -10542,7 +10542,6 @@
     "permission": "Poprawianie wymaga uprawnień do edycji tego agenta i przeglądania runów.",
     "retryRead": "Spróbuj odczytać ponownie",
     "stepsLabel": "Kroki poprawiania",
-    "stepStatus": "{step} · {status}",
     "running": "W toku",
     "needsYou": "Wymaga Twojej decyzji",
     "done": "Gotowe",
@@ -10656,6 +10655,13 @@
     "knowledgeSearchDisabled": "W tej sprawdzonej propozycji wyszukiwanie wiedzy jest wyłączone. Sprawdź szkic jako tymczasowy kontekst albo włącz wyszukiwanie i rozpocznij nową sesję.",
     "knowledgeEstimate": "W tym {cost} na klasyfikację odpowiedzi źródłowych, grupowanie braków wiedzy i do trzech szkiców na bazę wiedzy (szacunek).",
     "classificationFailed": "Nie udało się dokończyć grupowania opinii. Rozmowy źródłowe pozostają dostępne; nieznane przyczyny są przekazywane do propozycji zmian agenta.",
-    "draftingFailed": "Nie udało się dokończyć przygotowania szkiców wiedzy. Gotowe szkice pozostają do przejrzenia; nic nie zostało dodane automatycznie."
+    "draftingFailed": "Nie udało się dokończyć przygotowania szkiców wiedzy. Gotowe szkice pozostają do przejrzenia; nic nie zostało dodane automatycznie.",
+    "stepState": {
+      "done": "Gotowe",
+      "running": "W trakcie",
+      "needs_you": "Wymaga decyzji",
+      "skipped": "Pominięto",
+      "pending": "Jeszcze nie rozpoczęto"
+    }
   }
 }

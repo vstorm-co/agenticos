@@ -10642,7 +10642,6 @@
     "permission": "Zum Verbessern benötigen Sie Bearbeitungszugriff auf diesen Agenten und Leserechte für Runs.",
     "retryRead": "Erneut laden",
     "stepsLabel": "Verbesserungsschritte",
-    "stepStatus": "{step} · {status}",
     "running": "In Bearbeitung",
     "needsYou": "Ihre Entscheidung nötig",
     "done": "Erledigt",
@@ -10756,6 +10755,13 @@
     "knowledgeSearchDisabled": "Die Wissenssuche ist für diesen gemessenen Kandidaten deaktiviert. Prüfe mit temporärem Kontext oder aktiviere die Suche und starte eine neue Sitzung.",
     "knowledgeEstimate": "Enthält {cost} für die Einordnung der Quellantworten, Gruppierung fehlenden Wissens und bis zu drei Entwürfe je Wissensbasis (Schätzung).",
     "classificationFailed": "Die Rückmeldungen konnten nicht vollständig gruppiert werden. Die Quellgespräche bleiben verfügbar; unbekannte Ursachen werden bei den Agentenänderungen berücksichtigt.",
-    "draftingFailed": "Die Wissensentwürfe konnten nicht vollständig vorbereitet werden. Fertige Entwürfe bleiben zur Prüfung verfügbar; nichts wurde automatisch hinzugefügt."
+    "draftingFailed": "Die Wissensentwürfe konnten nicht vollständig vorbereitet werden. Fertige Entwürfe bleiben zur Prüfung verfügbar; nichts wurde automatisch hinzugefügt.",
+    "stepState": {
+      "done": "Erledigt",
+      "running": "Läuft",
+      "needs_you": "Ihre Entscheidung",
+      "skipped": "Übersprungen",
+      "pending": "Noch nicht begonnen"
+    }
   }
 }

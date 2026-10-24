@@ -1,5 +1,5 @@
 ---
-source_sha: "47187230b1ef"
+source_sha: "2690172f722d"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -348,6 +348,8 @@ La estimación incluye clasificar respuestas de chat incorrectas con las bases d
 Un fallo del clasificador se muestra y conserva las conversaciones fuente. Una sesión solo de conocimiento termina con borradores para revisar, sin una versión vacía. Probar un borrador exige su propia estimación y confirmación; añadir contenido sigue siendo una decisión humana.
 
 Una decisión humana y su retirada recalculan la ronda medida actual en la misma transacción que los resultados del test y de las comprobaciones automáticas. Se conservan la ronda seleccionada y su coste. Las mediciones anteriores y las pruebas individuales no reemplazan el veredicto conjunto actual. Una revisión no inicia llamadas al modelo, publicaciones ni cambios de entorno. Si el solicitante original ya no puede leer la comparación, la ronda queda inconclusa en vez de conservar un resultado favorable. Los eventos del dataset actualizan las vistas de pruebas, comprobaciones, sesión y entorno.
+
+La barra distingue el trabajo terminado, en curso, pendiente de su decisión, omitido y aún no iniciado. Seleccione cualquier paso para inspeccionarlo; esto no inicia una acción de pago. Al abrir de nuevo la sesión aparece el trabajo actual, mientras cada paso conserva su estado. En el teléfono, el paso actual y su estado aparecen debajo de los indicadores.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 

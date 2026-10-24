@@ -327,6 +327,8 @@ A failed classifier is shown explicitly and leaves the source conversations avai
 
 A human review decision and its withdrawal recompute the current measured round in the same transaction as the test and suite results. The selected round and its spend remain unchanged. Earlier measurements and individual-change checks cannot replace the current combined verdict. No new model call, publication or environment move follows a review. If the original requester can no longer read the comparison, the cached round becomes inconclusive instead of retaining a green verdict. Live dataset events refresh the test, suite, session and environment views.
 
+The step bar distinguishes completed work, running work, steps needing your decision, skipped work and steps not started. Select any step to inspect it; this does not start a paid action. Reopening a session shows its current work, while the bar keeps each step’s recorded state. On a phone the current step and its status appear below the markers.
+
 ### Proposing a new skill { #proposing-a-new-skill }
 
 The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.
