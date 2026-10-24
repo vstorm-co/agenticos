@@ -1,5 +1,5 @@
 ---
-source_sha: "196d7df536d6"
+source_sha: "581c5abd1cab"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -103,6 +103,13 @@ Su ventana es transparente, lo que en macOS necesita `macOSPrivateApi` en
 autoalojada no iba a ir de todos modos.
 
 ## Pregunta rápida y voz { #quick-ask-and-voice }
+
+**Abrir AgenticOS** (`⌘⇧O` en macOS, `Ctrl+Shift+O` en los demás sistemas) trae
+la consola al frente desde cualquier app. Cambia o borra la combinación en
+**Ajustes → Atajos**. La barra de menús y los menús de la bandeja y de Blobby
+muestran los atajos activos para abrir AgenticOS, Pregunta rápida y Captura a un
+chat nuevo. Se actualizan al cambiar una combinación. El menú no anuncia atajos
+que no se hayan podido registrar.
 
 **Pregunta rápida** (`⌥Space`, configurable) abre un panel flotante para preguntar
 a cualquier agent desde cualquier sitio, sin traer la consola al frente. En macOS

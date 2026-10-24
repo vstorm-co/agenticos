@@ -97,6 +97,12 @@ console was going.
 
 ## Quick ask and voice
 
+**Open AgenticOS** (`⌘⇧O` on macOS, `Ctrl+Shift+O` elsewhere) brings the console
+forward from any app. Change or clear it in **Settings → Shortcuts**. The menu bar,
+tray and Blobby menus show the active shortcuts for opening AgenticOS, Quick Ask
+and Screenshot to New Chat, and update when a binding changes. A shortcut that
+could not be registered is not advertised in the menu.
+
 **Quick ask** (`⌥Space`, rebindable) opens a floating panel to ask any agent from
 anywhere, without bringing the console forward. On macOS it can carry what you
 were looking at: the text selected in another app, the clipboard, or the files

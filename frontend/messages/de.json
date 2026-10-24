@@ -8742,6 +8742,17 @@
         "removeNamed": "{name} entfernen",
         "add": "Dienst verbinden",
         "confirm": "In der App bestätigen…"
+      },
+      "shortcuts": {
+        "open_console": {
+          "label": "AgenticOS öffnen",
+          "hint": "Das Hauptfenster von AgenticOS in den Vordergrund bringen."
+        }
+      }
+    },
+    "welcome": {
+      "shortcuts": {
+        "open_console": "AgenticOS öffnen"
       }
     }
   },

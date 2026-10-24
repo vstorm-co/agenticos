@@ -8923,6 +8923,10 @@
         "headingHint": "Global: they work whichever application is in front.",
         "title": "Global shortcuts",
         "description": "Click a field, then hold the modifiers and press a key. Escape cancels; a combination needs at least one modifier.",
+        "open_console": {
+          "label": "Open AgenticOS",
+          "hint": "Bring the main AgenticOS window to the front."
+        },
         "quick_ask": {
           "label": "Quick ask",
           "hint": "A floating panel to ask any agent, over whatever you are doing."
@@ -9021,6 +9025,7 @@
       "shortcuts": {
         "title": "Shortcuts that work anywhere",
         "body": "They work whichever application is in front.",
+        "open_console": "Open AgenticOS",
         "quick_ask": "Ask any agent",
         "screenshot_chat": "Screenshot to a new chat",
         "off": "Off",

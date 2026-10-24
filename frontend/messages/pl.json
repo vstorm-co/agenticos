@@ -8708,6 +8708,10 @@
         "headingHint": "Globalne: działają niezależnie od tego, która aplikacja jest z przodu.",
         "title": "Skróty globalne",
         "description": "Kliknij pole, przytrzymaj modyfikatory i naciśnij klawisz. Escape anuluje; kombinacja wymaga co najmniej jednego modyfikatora.",
+        "open_console": {
+          "label": "Otwórz AgenticOS",
+          "hint": "Pokaż główne okno AgenticOS na pierwszym planie."
+        },
         "quick_ask": {
           "label": "Quick ask",
           "hint": "Pływający panel, w którym zapytasz dowolnego agenta, nad czymkolwiek właśnie robisz."
@@ -8806,6 +8810,7 @@
       "shortcuts": {
         "title": "Skróty, które działają wszędzie",
         "body": "Działają niezależnie od tego, która aplikacja jest z przodu.",
+        "open_console": "Otwórz AgenticOS",
         "quick_ask": "Zapytaj dowolnego agenta",
         "screenshot_chat": "Zrzut ekranu do nowego czatu",
         "off": "Wyłączony",

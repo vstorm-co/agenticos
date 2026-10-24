@@ -862,6 +862,21 @@ impl ShellMenu {
         })
     }
 
+    /// Global shortcuts are registered after the menus exist, and can be changed
+    /// or cleared in Settings. Shared items update the menu bar, tray and Blobby.
+    fn reflect_shortcuts(&self, app: &AppHandle) -> tauri::Result<()> {
+        for binding in shortcuts::views(app, &settings::current(app).shortcuts) {
+            let item = match binding.action {
+                settings::Action::OpenConsole => &self.open_console,
+                settings::Action::QuickAsk => &self.quick_ask,
+                settings::Action::ScreenshotChat => &self.screenshot,
+                _ => continue,
+            };
+            item.set_accelerator(binding.menu_accelerator())?;
+        }
+        Ok(())
+    }
+
     /// The local stack's controls are live only while the app runs one.
     fn reflect_deployment(&self, deployment: Option<Deployment>) -> tauri::Result<()> {
         for item in &self.local {

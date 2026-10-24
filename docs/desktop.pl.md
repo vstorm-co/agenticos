@@ -1,5 +1,5 @@
 ---
-source_sha: "196d7df536d6"
+source_sha: "581c5abd1cab"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -101,6 +101,12 @@ Jego okno jest przezroczyste, co na macOS wymaga `macOSPrivateApi` w
 konsola i tak się nie wybierała.
 
 ## Szybkie pytanie i głos { #quick-ask-and-voice }
+
+**Otwórz AgenticOS** (`⌘⇧O` na macOS, `Ctrl+Shift+O` na pozostałych systemach)
+pokazuje konsolę z dowolnej aplikacji. Zmień lub wyczyść skrót w **Ustawienia →
+Skróty**. Pasek menu oraz menu zasobnika i Blobby pokazują aktywne skróty otwierania
+AgenticOS, szybkiego pytania i zrzutu ekranu do nowego czatu. Oznaczenia odświeżają
+się po zmianie skrótu. Menu nie pokazuje skrótu, którego nie udało się zarejestrować.
 
 **Szybkie pytanie** (`⌥Space`, do zmiany) otwiera pływający panel, żeby zapytać
 dowolnego agenta z dowolnego miejsca, bez wysuwania konsoli na wierzch. Na macOS

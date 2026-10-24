@@ -1,4 +1,4 @@
-//! Global shortcuts: the screenshot to a new chat, quick ask, push-to-talk
+//! Global shortcuts: opening the console, the screenshot to a new chat, quick ask, push-to-talk
 //! dictation into it, and a voice call.
 
 use std::collections::HashMap;
@@ -33,6 +33,7 @@ fn perform(app: &AppHandle, action: Action, state: ShortcutState) {
             crate::quick_ask::dictate(app, settings.server_url.as_ref(), settings.appearance, pressed)
         }
         _ if !pressed => Ok(()),
+        Action::OpenConsole => crate::bring_console(app),
         Action::ScreenshotChat => {
             crate::screenshot_to_chat(app);
             Ok(())
@@ -77,6 +78,9 @@ pub fn register_all(app: &AppHandle, shortcuts: &settings::Shortcuts) {
             }
         }
     }
+    if let Err(e) = app.state::<crate::ShellMenu>().reflect_shortcuts(app) {
+        eprintln!("shortcut menu: {e}");
+    }
 }
 
 /// One shortcut as configured, and what is wrong with it if anything is.
@@ -85,6 +89,17 @@ pub struct Binding {
     pub action: Action,
     pub accelerator: Option<String>,
     pub problem: Option<String>,
+}
+
+impl Binding {
+    /// A menu must not advertise a shortcut that could not be registered.
+    pub fn menu_accelerator(&self) -> Option<&str> {
+        if self.problem.is_some() {
+            None
+        } else {
+            self.accelerator.as_deref()
+        }
+    }
 }
 
 pub fn view(configured: Option<&String>, held: Option<&String>, action: Action) -> Binding {
@@ -127,16 +142,35 @@ pub fn set_shortcut(app: AppHandle, action: Action, accelerator: Option<String>)
                     eprintln!("could not put {old} back: {e}");
                 }
             }
+            if let Err(e) = app.state::<crate::ShellMenu>().reflect_shortcuts(&app) {
+                eprintln!("shortcut menu: {e}");
+            }
             return Err(refusal);
         }
     }
     settings::update(&app, |settings| settings.shortcuts.set(action, wanted.clone()))?;
+    app.state::<crate::ShellMenu>()
+        .reflect_shortcuts(&app)
+        .map_err(|e| e.to_string())?;
     Ok(wanted)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{view, Action};
+
+    #[test]
+    fn menus_follow_registered_custom_shortcuts_and_hide_unavailable_ones() {
+        let wanted = "Ctrl+Shift+K".to_owned();
+        for action in [Action::OpenConsole, Action::QuickAsk, Action::ScreenshotChat] {
+            assert_eq!(
+                view(Some(&wanted), Some(&wanted), action).menu_accelerator(),
+                Some(wanted.as_str())
+            );
+            assert_eq!(view(Some(&wanted), None, action).menu_accelerator(), None);
+            assert_eq!(view(None, None, action).menu_accelerator(), None);
+        }
+    }
 
     #[test]
     fn a_binding_another_application_took_is_named_as_a_problem() {

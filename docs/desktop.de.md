@@ -1,5 +1,5 @@
 ---
-source_sha: "196d7df536d6"
+source_sha: "581c5abd1cab"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -107,6 +107,13 @@ braucht - und das schließt den Mac App Store aus, wohin eine selbst gehostete
 Konsole ohnehin nicht wollte.
 
 ## Schnelle Frage und Sprache { #quick-ask-and-voice }
+
+**AgenticOS öffnen** (`⌘⇧O` unter macOS, sonst `Ctrl+Shift+O`) bringt die Konsole
+aus jeder App nach vorne. Ändern oder löschen Sie die Belegung unter
+**Einstellungen → Tastenkürzel**. Menüleiste, Tray und Blobby zeigen die aktiven
+Kürzel zum Öffnen von AgenticOS, für Schnelle Frage und Screenshot zu neuem Chat.
+Änderungen werden sofort übernommen. Nicht registrierbare Kürzel erscheinen
+nicht im Menü.
 
 **Schnelle Frage** (`⌥Space`, änderbar) öffnet ein schwebendes Feld, um einen
 beliebigen Agent von überall zu fragen, ohne die Konsole nach vorn zu holen. Auf

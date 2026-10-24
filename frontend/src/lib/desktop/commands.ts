@@ -40,7 +40,13 @@ export interface BlobbySettings {
   position: { x: number; y: number } | null;
 }
 
-export const SHORTCUT_ACTIONS = ["quick_ask", "screenshot_chat", "dictate", "voice_call"] as const;
+export const SHORTCUT_ACTIONS = [
+  "open_console",
+  "quick_ask",
+  "screenshot_chat",
+  "dictate",
+  "voice_call",
+] as const;
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 
 export interface ShortcutBinding {

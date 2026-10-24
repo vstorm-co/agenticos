@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Desktop shortcuts in native menus.** Open AgenticOS has a configurable global
+  shortcut (`CmdOrCtrl+Shift+O`), and its menu entry, Quick Ask and Screenshot to
+  New Chat show their active bindings, including changes made in Settings.
+
 - **Clearer desktop work location controls.** Cloud and This computer share a
   segmented selector; folder access has a labelled dropdown and explanation,
   followed by a full-width folder picker.
