@@ -62,6 +62,7 @@ function dataset(overrides: Partial<Dataset> = {}): Dataset {
     description: null,
     visibility: "org",
     owner_user_id: null,
+    agent_id: null,
     latest_version: 1,
     case_count: 2,
     can_edit: true,

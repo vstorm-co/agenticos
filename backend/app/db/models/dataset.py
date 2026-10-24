@@ -118,6 +118,14 @@ class Dataset(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # The agent the dataset was made to test, when one was named; an agent's test
+    # set is found by it, never by a name somebody may change.
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # Kept in step with the newest version under the minting row lock, so a listing
     # needs no aggregate; 0 means no case was ever added.
     latest_version: Mapped[int] = mapped_column(

@@ -25,6 +25,7 @@ async def create_generation(
     requested_by_user_id: UUID | None,
     sources: list[str],
     requested_count: int,
+    auto_accept: bool = False,
 ) -> CaseGeneration:
     generation = CaseGeneration(
         organization_id=organization_id,
@@ -33,6 +34,7 @@ async def create_generation(
         requested_by_user_id=requested_by_user_id,
         sources=sources,
         requested_count=requested_count,
+        auto_accept=auto_accept,
     )
     db.add(generation)
     await db.flush()

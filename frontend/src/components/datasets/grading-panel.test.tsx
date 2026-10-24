@@ -88,6 +88,7 @@ function dataset(scoring: DatasetScoring, overrides: Partial<Dataset> = {}): Dat
     description: "Returns and refunds",
     visibility: "org",
     owner_user_id: null,
+    agent_id: null,
     latest_version: 1,
     case_count: 2,
     can_edit: true,

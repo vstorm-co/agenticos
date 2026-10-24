@@ -1,5 +1,5 @@
 ---
-source_sha: "49ae67313c88"
+source_sha: "7e7f2f752192"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -282,6 +282,47 @@ dürfen, wird mit Namen abgelehnt statt stillschweigend ausgelassen:
 Nur Mitglieder, die das Dataset bearbeiten dürfen, sehen seine Entwürfe. Ein
 Entwurf aus einem Gespräch ist Text, den die übrigen Leser des Datasets nicht zu
 sehen bekommen haben; angenommen ist er ein Fall wie jeder andere.
+
+**Eine Generierung ist ein Hintergrundjob.** Sie wird mit der Anfrage, die sie
+startet, in die Warteschlange gestellt und übersteht einen Neustart der API oder
+des Workers. Der Worker entwirft als die Person, die gefragt hat, mit ihrem
+Zugriff, wie er zu diesem Zeitpunkt ist; eine Generierung, deren Worker
+abgestürzt ist, wird als fehlgeschlagen markiert, sodass nichts ewig auf sie
+wartet.
+
+### Das Testset eines Agents { #agent-test-set }
+
+Eine Verbesserung lässt sich nur an Testfragen messen. `POST
+/agents/{id}/test-set` erstellt sie für einen Agent in einem Aufruf, und der
+Verbesserungsassistent ruft es auf, wenn der Agent keine hat:
+
+- der erste Aufruf legt "<agent> - test questions" an, ein privates Dataset, das
+  den Agent nennt, sodass die kopierten Fragen niemanden sonst erreichen, bis es
+  geteilt wird (**⋯ → Teilen** auf seiner Seite); spätere Aufrufe fügen ihm die neuesten bewerteten Antworten als
+  neue Version hinzu und behalten, was es enthielt (`since` nimmt nur die seitdem
+  bewerteten Antworten);
+- eine positiv bewertete Antwort wird zu einer Frage mit dieser Antwort als
+  Referenzantwort, eine negativ bewertete zu einer Frage mit ihr als
+  Gegenbeispiel und dem Kommentar zur negativen Bewertung als Notiz. Jede Frage
+  kommt für sich, ohne das Gespräch davor, und nur aus Gesprächen, die der
+  Aufrufer öffnen darf; das Ergebnis zählt die aus Gesprächen anderer Leute;
+- der Fallgenerator wird um weitere Fragen gebeten, bis fünf bewertet werden
+  können, oder um `more` davon. Sie kommen als neue Version ins Testset, sobald
+  sie geschrieben sind - nur diese Generierung wird ohne einen Menschen
+  angenommen - und das Ergebnis sagt, um wie viele gebeten wurde, damit jemand
+  sie danach prüft;
+- die Bewertung vergleicht Antworten mit der Referenzantwort und lässt eine
+  durchfallen, die das Gegenbeispiel wiederholt, mit einem Bewerter auf einem
+  anderen Modell als dem des Agents. Ist nur ein Modell eingerichtet, die
+  KI-Unterstützung ausgeschaltet oder darf der Aufrufer den Bewerter nicht
+  veröffentlichen, sagt das Ergebnis das ausdrücklich. Eine Bewertung, die schon
+  jemand im Testset eingerichtet hat, bleibt, wie sie ist; das Ergebnis sagt, wenn
+  sie auf demselben Modell wie der Agent läuft.
+
+Weniger als drei bewertbare Fragen sind zu wenige, um eine Änderung zu messen,
+und das Ergebnis sagt das. `POST /agents/{id}/test-set/estimate` beziffert die
+Kosten der Fragen, die es schreiben würde. Beide brauchen `datasets:edit` und
+Zugriff auf den Agent.
 
 ## Zugangsdaten werden geschwärzt { #credentials }
 

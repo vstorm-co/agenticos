@@ -95,6 +95,8 @@ export interface Dataset {
   description: string | null;
   visibility: Visibility;
   owner_user_id: string | null;
+  /** The agent the dataset was made to test - an agent's test set names it. */
+  agent_id: string | null;
   latest_version: number;
   case_count: number;
   /** Whether the caller may change this dataset's cases. */

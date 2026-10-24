@@ -1001,6 +1001,9 @@ RESOURCE_AWARE_SERVICES = (
     # Generated cases ride on their dataset: drafting and deciding them is
     # `datasets:edit` on that dataset, resolved against its grants in the service.
     deps.get_case_generation_service,
+    # An agent's test set acts on one agent, resolved against its grants in the
+    # service, which also refuses a role that may not edit datasets.
+    deps.get_agent_test_set_service,
     # An eval run acts on one agent and one dataset, each resolved against its
     # grants in the service.
     deps.get_eval_run_service,

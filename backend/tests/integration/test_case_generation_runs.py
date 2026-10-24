@@ -31,6 +31,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import (
     AiAssistanceDisabledError,
+    BadRequestError,
     NotFoundError,
     SystemAgentOutputError,
     SystemAgentRunError,
@@ -40,6 +41,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.background_job import BackgroundJob
 from app.db.models.case_generation import CaseGeneration, CaseOrigin, CaseProposal
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization
@@ -51,14 +53,18 @@ from app.schemas.case_generation import CaseGenerationRequest
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset import DatasetCreate
 from app.services import agent_runner, change_feed
-from app.services.case_generation import CaseGenerationService, facade, generation
+from app.services.case_generation import CaseGenerationService, worker
 from app.services.case_generation.drafts import DraftedCase, DraftedCases, split
 from app.services.case_generation.generation import FAILED, NOTHING_KEPT, generate
 from app.services.case_generation.sources import SourceGatherer
+from app.services.case_generation.worker import CaseGenerationWorker
 from app.services.dataset import DatasetService
 from app.services.rag.models import DocumentChunk
 from app.services.system_agent_runner import SystemAgentResult, SystemAgentRunner
 from app.services.system_agents import SystemAgentService
+from app.worker.handlers import settle_ended
+from app.worker.jobs import GenerateCases
+from app.worker.tasks import case_generation_tasks
 from tests.integration import case_generation_world as world
 
 pytestmark = pytest.mark.anyio
@@ -226,18 +232,10 @@ async def test_with_ai_assistance_off_neither_an_estimate_nor_a_start_is_made(db
     assert await db.scalar(select(func.count(CaseGeneration.id))) == 0
 
 
-async def test_a_start_queues_a_running_generation_for_after_the_commit(db, monkeypatch) -> None:
+async def test_a_start_queues_a_running_generation_as_a_job(db, monkeypatch) -> None:
     owner, _, agent, dataset, _ = await _setup(db)
-    queued: list[tuple[str, object]] = []
-
-    def spawn(session, coro, *, name: str) -> None:
-        assert session is db
-        queued.append((name, coro))
-        coro.close()
-
     # The generator's own readiness is the runner's to prove; this is about queueing.
     monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock())
-    monkeypatch.setattr(facade, "spawn_after_commit", spawn)
 
     started = await _service(db).start(owner, dataset.id, _request(agent, "knowledge", count=4))
 
@@ -246,7 +244,14 @@ async def test_a_start_queues_a_running_generation_for_after_the_commit(db, monk
         4,
         ["knowledge"],
     )
-    assert [name for name, _ in queued] == [f"case-generation-{started.id}"]
+    job = (await db.execute(select(BackgroundJob))).scalar_one()
+    assert (job.kind, job.payload, job.organization_id) == (
+        "generate-cases",
+        {"generation_id": str(started.id), "organization_id": str(owner.organization_id)},
+        owner.organization_id,
+    )
+    row = await db.get(CaseGeneration, started.id)
+    assert row is not None and row.auto_accept is False
     audit = (
         await db.execute(
             select(AppAdminAuditLog.details).where(
@@ -254,11 +259,15 @@ async def test_a_start_queues_a_running_generation_for_after_the_commit(db, monk
             )
         )
     ).scalar_one()
-    assert audit == {"agent_id": str(agent.id), "sources": ["knowledge"], "count": 4}
+    assert audit == {
+        "agent_id": str(agent.id),
+        "sources": ["knowledge"],
+        "count": 4,
+        "auto_accept": False,
+    }
 
 
 async def test_a_start_the_generator_would_refuse_is_refused_up_front(db, monkeypatch) -> None:
-    monkeypatch.setattr(facade, "spawn_after_commit", lambda *a, **k: a[1].close())
     owner, org, agent, dataset, _ = await _setup(db, with_model=False)
 
     with pytest.raises(SystemAgentUnavailableError) as unpublished:
@@ -275,7 +284,6 @@ async def test_a_start_the_generator_would_refuse_is_refused_up_front(db, monkey
 
 
 async def test_a_generator_whose_model_is_gone_refuses_a_start_up_front(db, monkeypatch) -> None:
-    monkeypatch.setattr(facade, "spawn_after_commit", lambda *a, **k: a[1].close())
     owner, org, agent, dataset, _ = await _setup(db)
     generator = await SystemAgentService(db).ensure(organization_id=org.id, key="case_generator")
     assert generator.current_version_id is not None
@@ -293,7 +301,6 @@ async def test_a_generator_whose_model_is_gone_refuses_a_start_up_front(db, monk
 
 
 async def test_a_member_who_may_not_run_the_generator_cannot_start_one(db, monkeypatch) -> None:
-    monkeypatch.setattr(facade, "spawn_after_commit", lambda *a, **k: a[1].close())
     owner, org, agent, dataset, _ = await _setup(db)
     viewer = await world.member(db, org, OrgRoleName.VIEWER)
     db.add(
@@ -654,21 +661,46 @@ async def test_a_generation_whose_dataset_went_meanwhile_records_nothing(db, mon
     assert await db.scalar(select(func.count(CaseProposal.id))) == 0
 
 
-async def test_a_queued_generation_runs_on_a_session_of_its_own(db, monkeypatch) -> None:
-    owner, _, agent, dataset, _ = await _setup(db)
-    row, material, quotas = await _generation(db, owner, dataset, agent, [CaseOrigin.AGENT], 1)
-
+def _sessions(db):
     @asynccontextmanager
     async def session():
         yield db
 
-    monkeypatch.setattr(generation, "get_db_context", session)
-    _answer(
+    return session
+
+
+def _worker(db, row: CaseGeneration) -> CaseGenerationWorker:
+    return CaseGenerationWorker(
+        row.id,
+        row.organization_id,
+        sessions=_sessions(db),
+        vector_store=_Chunks(),  # ty: ignore[invalid-argument-type]
+    )
+
+
+async def _queued(db, owner, agent, dataset, *, count: int = 1, auto_accept: bool = False):
+    row = CaseGeneration(
+        organization_id=owner.organization_id,
+        dataset_id=dataset.id,
+        agent_id=agent.id,
+        requested_by_user_id=owner.user_id,
+        sources=["agent"],
+        requested_count=count,
+        auto_accept=auto_accept,
+    )
+    db.add(row)
+    await db.commit()
+    return row
+
+
+async def test_a_queued_generation_runs_as_its_requester_and_says_so(db, monkeypatch) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    row = await _queued(db, owner, agent, dataset)
+    calls = _answer(
         monkeypatch,
         DraftedCases(cases=[DraftedCase(origin="agent", input="Q?", reference_answer="A.")]),
         run=await _run_row(db, owner, agent),
     )
-
     published: list[ChangeEvent] = []
 
     async def publish(event: ChangeEvent) -> None:
@@ -676,17 +708,12 @@ async def test_a_queued_generation_runs_on_a_session_of_its_own(db, monkeypatch)
 
     monkeypatch.setattr(change_feed, "publish", publish)
 
-    await generation.run_generation(
-        generation_id=row.id,
-        dataset_id=dataset.id,
-        ctx=owner,
-        prompt="p",
-        material=material,
-        quotas=quotas,
-    )
+    await _worker(db, row).run()
 
     await db.refresh(row)
-    assert row.status == "ready"
+    assert (row.status, row.proposed_count) == ("ready", 1)
+    assert calls.await_args is not None
+    assert calls.await_args.args[0].user_id == owner.user_id
     [event] = published
     assert (event.resource, event.id, event.action, event.surface) == (
         "dataset",
@@ -695,3 +722,180 @@ async def test_a_queued_generation_runs_on_a_session_of_its_own(db, monkeypatch)
         "run",
     )
     assert event.actor_user_id == owner.user_id
+    # A second delivery of the job finds it ended and does nothing.
+    await _worker(db, row).run()
+    assert calls.await_count == 1
+    await CaseGenerationWorker(uuid.uuid4(), owner.organization_id, sessions=_sessions(db)).run()
+
+
+async def test_a_queued_generation_fails_when_its_requester_or_agent_is_gone(
+    db, monkeypatch
+) -> None:
+    owner, org, agent, dataset, _ = await _setup(db)
+    calls = _answer(monkeypatch, RuntimeError("no model may be called"))
+    monkeypatch.setattr(change_feed, "publish", AsyncMock())
+    left = await _queued(db, owner, agent, dataset)
+    left.requested_by_user_id = None
+    agentless = await _queued(db, owner, agent, dataset)
+    agentless.agent_id = None
+    refused = await _queued(db, owner, agent, dataset)
+    await db.commit()
+    org.ai_assistance_enabled = False
+    await db.commit()
+
+    for row in (left, agentless, refused):
+        await _worker(db, row).run()
+        await db.refresh(row)
+
+    assert [(row.status, row.error) for row in (left, agentless)] == [
+        ("failed", worker.REQUESTER_GONE),
+        ("failed", worker.AGENT_GONE),
+    ]
+    assert refused.status == "failed"
+    assert refused.error is not None and "AI assistance is switched off" in refused.error
+    calls.assert_not_awaited()
+
+
+async def test_a_requester_who_left_the_organization_is_no_one_to_run_as(db) -> None:
+    owner, org, agent, dataset, _ = await _setup(db)
+    row = await _queued(db, owner, agent, dataset)
+    stranger = await world.user(db)
+    row.requested_by_user_id = stranger.id
+
+    assert await worker.requester(db, row) is None
+
+
+async def test_an_auto_accepted_generation_becomes_a_version_on_its_own(db, monkeypatch) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    row = await _queued(db, owner, agent, dataset, count=2, auto_accept=True)
+    _answer(
+        monkeypatch,
+        DraftedCases(
+            cases=[
+                DraftedCase(origin="agent", input="One?", reference_answer="A."),
+                DraftedCase(origin="agent", input="Two?", reference_answer="B."),
+            ]
+        ),
+        run=await _run_row(db, owner, agent),
+    )
+    monkeypatch.setattr(change_feed, "publish", AsyncMock())
+
+    await _worker(db, row).run()
+
+    await db.refresh(row)
+    assert (row.status, row.proposed_count, row.accepted_count) == ("ready", 2, 2)
+    held = await DatasetService(db).list_cases(owner, dataset.id)
+    assert [(case.input, case.source) for case in held.items] == [
+        ("One?", "synthetic"),
+        ("Two?", "synthetic"),
+    ]
+    assert await db.scalar(select(func.count(CaseProposal.id))) == 0
+    audit = (
+        await db.execute(
+            select(AppAdminAuditLog.details).where(
+                AppAdminAuditLog.action == "dataset.proposals_auto_accepted"
+            )
+        )
+    ).scalar_one()
+    assert audit == {
+        "name": dataset.name,
+        "generation_id": str(row.id),
+        "accepted": 2,
+        "version": 1,
+    }
+
+
+async def test_an_auto_accept_the_dataset_refuses_leaves_the_drafts_waiting(
+    db, monkeypatch
+) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    row = await _queued(db, owner, agent, dataset, auto_accept=True)
+    _answer(
+        monkeypatch,
+        DraftedCases(cases=[DraftedCase(origin="agent", input="One?", reference_answer="A.")]),
+        run=await _run_row(db, owner, agent),
+    )
+    monkeypatch.setattr(change_feed, "publish", AsyncMock())
+    monkeypatch.setattr(
+        DatasetService,
+        "add_generated",
+        AsyncMock(side_effect=BadRequestError(message="This dataset is full")),
+    )
+
+    await _worker(db, row).run()
+
+    await db.refresh(row)
+    assert (row.status, row.accepted_count) == ("ready", 0)
+    assert await db.scalar(select(func.count(CaseProposal.id))) == 1
+
+
+async def test_a_failed_or_already_decided_generation_accepts_nothing(db, monkeypatch) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    row = await _queued(db, owner, agent, dataset, auto_accept=True)
+    _answer(monkeypatch, RuntimeError("socket closed"))
+    monkeypatch.setattr(change_feed, "publish", AsyncMock())
+
+    await _worker(db, row).run()
+
+    await db.refresh(row)
+    assert (row.status, row.error) == ("failed", FAILED)
+    service = _service(db)
+    assert await service.accept_drafted(owner, row) is None
+    assert (await DatasetService(db).read(owner, dataset.id)).latest_version == 0
+
+
+async def test_a_generation_whose_job_died_is_failed_by_its_settler(db, monkeypatch) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    running = await _queued(db, owner, agent, dataset)
+    ended = await _queued(db, owner, agent, dataset)
+    ended.status = "ready"
+    await db.commit()
+    monkeypatch.setattr(worker, "get_worker_db_context", _sessions(db))
+
+    for row in (running, ended):
+        await settle_ended(
+            "generate-cases",
+            {"generation_id": str(row.id), "organization_id": str(owner.organization_id)},
+            "the worker was killed",
+        )
+        await db.refresh(row)
+
+    assert [(row.status, row.error) for row in (running, ended)] == [
+        ("failed", worker.STOPPED),
+        ("ready", None),
+    ]
+
+
+async def test_the_job_hands_its_generation_to_the_worker(monkeypatch) -> None:
+    ran: list[tuple[uuid.UUID, uuid.UUID]] = []
+
+    class Worker:
+        def __init__(self, generation_id, organization_id) -> None:
+            ran.append((generation_id, organization_id))
+
+        async def run(self) -> None:
+            return None
+
+    monkeypatch.setattr(worker, "CaseGenerationWorker", Worker)
+    job = GenerateCases(generation_id=uuid.uuid4(), organization_id=uuid.uuid4())
+
+    await case_generation_tasks.generate_cases(job)
+
+    assert ran == [(job.generation_id, job.organization_id)]
+
+
+async def test_a_worker_reads_knowledge_through_the_process_s_vector_store(monkeypatch) -> None:
+    store = _Chunks()
+    made: list[object] = []
+
+    def process_vector_store(rag, embedder) -> _Chunks:
+        made.append((rag, embedder))
+        return store
+
+    monkeypatch.setattr(worker, "process_vector_store", process_vector_store)
+    monkeypatch.setattr(worker, "EmbeddingService", lambda rag: "embedder")
+    job = CaseGenerationWorker(uuid.uuid4(), uuid.uuid4())
+
+    assert job._store() is store
+    assert job._store() is store
+    assert len(made) == 1

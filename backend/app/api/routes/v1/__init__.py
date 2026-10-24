@@ -47,7 +47,7 @@ from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import datasets
 from app.api.routes.v1 import dataset_generations
-from app.api.routes.v1 import eval_runs, eval_suites
+from app.api.routes.v1 import agent_test_sets, eval_runs, eval_suites
 from app.api.routes.v1 import knowledge_gaps
 from app.api.routes.v1 import authoring
 from app.api.routes.v1 import memory as memory_files
@@ -121,6 +121,7 @@ v1_router.include_router(
 )
 v1_router.include_router(eval_runs.router, tags=["evals"])
 v1_router.include_router(eval_suites.router, tags=["evals"])
+v1_router.include_router(agent_test_sets.router, tags=["datasets"])
 v1_router.include_router(knowledge_gaps.router, prefix="/knowledge-gaps", tags=["knowledge-gaps"])
 v1_router.include_router(authoring.router, tags=["authoring"])
 # Apps were called artifacts until #2071. The old paths stay as deprecated

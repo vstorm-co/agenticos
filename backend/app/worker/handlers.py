@@ -48,6 +48,7 @@ def production() -> Handlers:
     from app.worker.tasks import (
         approval_tasks,
         authoring_tasks,
+        case_generation_tasks,
         eval_suite_tasks,
         eval_tasks,
         invitation_tasks,
@@ -72,6 +73,7 @@ def production() -> Handlers:
             Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
             Handler(jobs.DRAFT_GAPS, knowledge_gap_tasks.draft_knowledge_gaps),
+            Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
@@ -118,9 +120,12 @@ def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[Non
 
 @cache
 def _settlers() -> dict[str, Settler]:
-    from app.worker.tasks import authoring_tasks, eval_tasks, rag_tasks
+    from app.worker.tasks import authoring_tasks, case_generation_tasks, eval_tasks, rag_tasks
 
     return {
+        jobs.GENERATE_CASES.kind: _settler(
+            jobs.GENERATE_CASES, case_generation_tasks.settle_lost_generation
+        ),
         jobs.INGEST_DOCUMENT.kind: _settler(jobs.INGEST_DOCUMENT, rag_tasks.settle_lost_ingest),
         jobs.SYNC_COLLECTION.kind: _settler(
             jobs.SYNC_COLLECTION, rag_tasks.settle_lost_collection_sync
@@ -138,9 +143,10 @@ async def settle_ended(kind: str, payload: dict[str, JsonValue], why: str) -> No
 
     The ingestion kinds leave a document `processing` or a sync log `running`
     when their process dies - the handler never reaches its own cleanup - and
-    nothing else would ever finish them (Codex, #2248). An eval run or an
-    authoring request left live would hold its suite, its gate and its eval
-    slots until a sweep gave up on it. Every other kind leaves nothing behind.
+    nothing else would ever finish them (Codex, #2248); a case generation is
+    left `running` the same way. An eval run or an authoring request left live
+    would hold its suite, its gate and its eval slots until a sweep gave up on
+    it. Every other kind leaves nothing behind.
     """
     settle = _settlers().get(kind)
     if settle is not None:
