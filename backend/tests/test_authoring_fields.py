@@ -385,6 +385,7 @@ class TestPolicy:
             "approval": "writes",
         }
 
+    @pytest.mark.security
     def test_widening_to_every_tool_offered_adds_them_all_and_keeps_a_stricter_approval(self):
         spec = _spec(
             mcp_servers=[
@@ -406,6 +407,7 @@ class TestPolicy:
         assert written is not None
         assert written.model_dump(mode="json")["mcp_servers"][0]["approval"] == "all"
 
+    @pytest.mark.security
     def test_narrowing_or_removing_adds_nothing_and_raises_no_approval(self):
         spec = _spec()
         path = "mcp_servers/personal:notion/allowed_tools"

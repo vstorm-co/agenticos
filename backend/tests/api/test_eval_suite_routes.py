@@ -176,6 +176,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     assert listed.json()["items"][0]["status"] == "running"
 
 
+@pytest.mark.security
 async def test_moving_a_pin_without_the_override_permission_is_forbidden(
     client: OpenClient, service: MagicMock
 ) -> None:

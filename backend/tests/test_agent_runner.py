@@ -1361,7 +1361,7 @@ class TestAPlanThatOutlivesTheTurn:
                 "generated_files": ["a1b2_image.png"],
             },
         )
-        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id, kind="agent")
         spec = AgentSpec(name="Support")
         stale = MagicMock(
             overhead_tokens=None,

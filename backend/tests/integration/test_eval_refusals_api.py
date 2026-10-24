@@ -78,6 +78,7 @@ async def test_missing_environment_is_404_and_concurrent_duplicate_creates_are_2
         app.dependency_overrides.update(overrides)
 
 
+@pytest.mark.security
 async def test_a_visible_dataset_refuses_with_its_permission_but_another_tenant_gets_no_details(
     db,
 ) -> None:

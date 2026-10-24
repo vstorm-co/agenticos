@@ -888,7 +888,7 @@ class TestProbeSuccess:
         session.list_tools = AsyncMock(return_value=MagicMock(tools=[claims, denies, silent]))
         monkeypatch.setattr(
             "app.agents.mcp._mcp_transport",
-            lambda url, headers: _acm((MagicMock(), MagicMock())),
+            lambda url, headers, *, timeout: _acm((MagicMock(), MagicMock())),
         )
         monkeypatch.setattr("mcp.ClientSession", lambda read, write: _acm(session))
 

@@ -473,6 +473,7 @@ async def test_a_pass_graded_under_other_scoring_than_the_pin_is_stale(db) -> No
     assert [g.state for g in (await _check(db, ctx, agent, env_id, second)).guards] == ["stale"]
 
 
+@pytest.mark.security
 async def test_moving_a_pin_needs_the_permission_and_is_recorded(db) -> None:
     ctx = await _owner(db)
     agent, first = await _agent(db, ctx)
@@ -950,7 +951,8 @@ async def test_a_pass_beside_one_environments_version_does_not_open_another(db) 
 
     assert (await _check(db, ctx, agent, staging_id, third)).passing
     production_gate = await _check(db, ctx, agent, production.id, third)
-    assert [g.state for g in production_gate.guards] == ["unchecked"]
+    assert not production_gate.passing
+    assert [g.state for g in production_gate.guards] == ["stale"]
     # Production's own run is a check of its own, not absorbed into staging's.
     await PromotionGateService(db).run(
         ctx, agent.id, production.id, PromotionGateRun(version_id=third.id)

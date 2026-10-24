@@ -180,6 +180,7 @@ async def test_attribution_needs_consent_to_the_current_price_and_is_idempotent(
     assert (await service.estimate_attribution(ctx, agent.id, started.id, 2)).already_started
 
 
+@pytest.mark.security
 async def test_the_next_round_cannot_start_when_its_whole_forecast_exceeds_budget(db):
     ctx, agent, _ = await _setup(db)
     dataset = await _dataset(db, ctx, cases=5)
@@ -237,6 +238,7 @@ async def test_round_loop_stops_without_overwriting_a_persons_batch(db, markers,
         assert not stopped.iterations[1].eval_run_ids
 
 
+@pytest.mark.security
 async def test_attribution_refuses_a_changed_base_and_an_exhausted_session_budget(db):
     from app.core.exceptions import PaymentRequiredError
 

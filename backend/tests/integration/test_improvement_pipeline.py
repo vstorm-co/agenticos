@@ -257,6 +257,7 @@ async def test_changed_inputs_stop_the_session_as_stale(db, change: str):
     assert row is not None and row.status == "stale"
 
 
+@pytest.mark.security
 async def test_worker_rebuilds_permissions_and_cancel_remains_available_to_creator(db):
     ctx, agent, _, read = await _started(db)
     membership = await db.scalar(
@@ -271,6 +272,7 @@ async def test_worker_rebuilds_permissions_and_cancel_remains_available_to_creat
     assert stopped.timeline[-1].reason == "permission"
 
 
+@pytest.mark.security
 async def test_budget_is_checked_again_before_the_paid_proposal(db):
     ctx, agent, _, read = await _started(db)
     for _ in range(2):
@@ -285,6 +287,7 @@ async def test_budget_is_checked_again_before_the_paid_proposal(db):
     assert stopped.iterations[0].authoring_request_id is None
 
 
+@pytest.mark.security
 async def test_start_refuses_unfunded_session_and_private_progress_cannot_cross_tenants(db):
     ctx, agent, dataset, read = await _started(db)
     stranger = await _owner(db)
@@ -338,6 +341,7 @@ async def test_an_expensive_eval_is_not_started_after_proposing(db):
     assert stopped.spent_usd == Decimal("0.02")
 
 
+@pytest.mark.security
 async def test_candidate_policy_drops_weakening_and_requires_approval_for_new_mcp_writes(db):
     from app.db.models.authoring import HunkKind
     from app.services.authoring_fields import Staged, stage

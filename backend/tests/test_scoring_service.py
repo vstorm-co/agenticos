@@ -164,7 +164,10 @@ async def test_a_score_no_judge_graded_is_scored_again_without_asking_the_judge(
 
 
 @pytest.mark.parametrize("pinned", [JUDGE_PROMPT_VERSION - 1, None])
-async def test_an_eval_runs_score_graded_from_another_prompt_is_not_graded_again(pinned) -> None:
+async def test_an_eval_runs_score_graded_from_another_prompt_is_not_graded_again(
+    pinned, monkeypatch
+) -> None:
+    monkeypatch.setattr("app.services.scoring.eval_run_repo.get", AsyncMock(return_value=None))
     service = ScoringService(AsyncMock())
     service.judge = MagicMock(require_runnable=AsyncMock())
     score = MagicMock(

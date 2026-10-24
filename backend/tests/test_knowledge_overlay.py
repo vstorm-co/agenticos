@@ -20,6 +20,7 @@ def _doc():
     )
 
 
+@pytest.mark.security
 def test_only_the_exact_tenant_and_collection_can_search_the_overlay():
     doc = _doc()
     overlay = KnowledgeOverlay((doc,))

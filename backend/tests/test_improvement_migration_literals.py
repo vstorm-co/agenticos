@@ -6,9 +6,11 @@ for the one-session-per-agent index, silently stop guarding.
 """
 
 import importlib.util
+import re
 from enum import StrEnum
 from pathlib import Path
 from types import ModuleType
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import Index
@@ -27,8 +29,8 @@ from app.db.models.improvement import (
 _MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0186_knowledge_gap_causes.py"
 
 
-def _migration() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("improvement_sessions_migration", _MIGRATION)
+def _migration(path: Path = _MIGRATION) -> ModuleType:
+    spec = importlib.util.spec_from_file_location("improvement_sessions_migration", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -53,7 +55,6 @@ def _predicate(name: str) -> str:
     [
         ("_STATUSES", ImprovementStatus),
         ("_STAGES", ImprovementStage),
-        ("_STOP_REASONS", StopReason),
         ("_VERDICTS", ImprovementVerdict),
         ("_ACTIVE", ACTIVE_STATUSES),
         ("_OPEN", ACTIVE_STATUSES + WAITING_STATUSES),
@@ -71,3 +72,16 @@ def test_the_migration_lists_every_value_the_model_allows(
 )
 def test_the_partial_indexes_cover_the_same_statuses(index: str, constant: str) -> None:
     assert _predicate(index) == f"status IN ({getattr(_migration(), constant)})"
+
+
+def test_the_latest_stop_reason_constraint_matches_the_model() -> None:
+    migration = _migration(_MIGRATION.with_name("0197_improvement_rounds.py"))
+    with patch.object(migration, "op") as operations:
+        migration.upgrade()
+    name, table, condition = operations.create_check_constraint.call_args.args
+    assert (name, table) == ("ck_improvement_run_stop_reason", "improvement_runs")
+    matched = re.fullmatch(r"stop_reason IS NULL OR stop_reason IN \((.+)\)", condition)
+    assert matched is not None
+    assert set(re.findall(r"'([^']+)'", matched.group(1))) == {
+        reason.value for reason in StopReason
+    }

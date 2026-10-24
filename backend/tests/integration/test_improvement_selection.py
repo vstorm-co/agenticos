@@ -159,6 +159,7 @@ async def test_quote_refuses_changed_choices_and_invalid_round_members_before_pa
     assert (await service.read(ctx, agent.id, ready.id)).status == "ready"
 
 
+@pytest.mark.security
 async def test_budget_and_a_running_child_prevent_reserving_a_selected_check(db):
     ctx, agent, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)

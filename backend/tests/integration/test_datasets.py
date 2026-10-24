@@ -1884,6 +1884,7 @@ async def test_rubric_coverage_groups_count_a_case_once_when_it_has_several_tags
     assert all(g.reference for g in read.stats.tag_groups)
 
 
+@pytest.mark.security
 async def test_a_visible_dataset_names_the_missing_permission_but_an_outsider_learns_nothing(
     db,
 ) -> None:

@@ -62,6 +62,7 @@ async def test_an_empty_collection_needs_no_persistent_table_to_check_a_draft(en
     assert await store.search(collection, "returns", scope) == []
 
 
+@pytest.mark.security
 async def test_tenant_business_and_document_filters_still_deny_the_overlay(engine):
     store, collection, org, doc = await _world(engine)
     overlay = KnowledgeOverlay((doc,))

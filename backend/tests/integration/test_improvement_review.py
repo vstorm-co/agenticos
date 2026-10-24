@@ -120,6 +120,7 @@ async def test_a_departed_requester_cannot_leave_a_cached_green_verdict_after_re
     assert current.iterations[0].verdict_detail["reason"] == "review_access_unavailable"
 
 
+@pytest.mark.security
 async def test_review_lookup_is_tenant_scoped_and_ignores_unrelated_checks(db):
     ctx, _, ready = await _ready_proposal(db)
     check_id = ready.iterations[0].eval_run_ids[-1]

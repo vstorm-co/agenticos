@@ -72,6 +72,7 @@ async def test_consent_starts_one_next_round_without_accepting_or_replacing_the_
     assert agent.draft_spec == before
 
 
+@pytest.mark.security
 async def test_budget_resume_preserves_old_checks_and_starts_only_one_new_check(db):
     ctx, agent, ready = await _ready_proposal(db)
     row = await db.get(ImprovementRun, ready.id)
@@ -113,6 +114,7 @@ async def test_a_failed_proposal_retry_gets_a_new_child_within_the_same_round(db
 
 
 @pytest.mark.parametrize("reason", ["repeat_candidate", "inconclusive", "max_iterations"])
+@pytest.mark.security
 async def test_hard_stop_conditions_cannot_be_bypassed_by_increasing_the_budget(db, reason):
     ctx, agent, ready = await _ready_proposal(db)
     row = await db.get(ImprovementRun, ready.id)
@@ -309,6 +311,7 @@ async def test_two_inconclusive_measurements_stop_without_another_paid_proposal(
     assert await db.scalar(select(func.count()).select_from(AuthoringRequest)) == requests
 
 
+@pytest.mark.security
 async def test_a_budget_stopped_classifier_is_resumed_under_a_fresh_quote(db):
     from app.worker.tasks.knowledge_gap_tasks import classify_knowledge_gaps
     from tests.integration.test_improvement_knowledge_steps import _job, _providers, _start, _world

@@ -68,6 +68,7 @@ async def test_no_projection_adds_no_cost_and_an_unprofiled_body_uses_the_fallba
     assert await service._projected_input_cost(ctx, with_body) > 0
 
 
+@pytest.mark.security
 def test_retrieval_embeddings_and_repeats_are_visible_and_can_exhaust_the_budget():
     from app.schemas.eval_run import EvalRunEstimate, KnowledgeCheckRecord, ProposalCheckRecord
 
