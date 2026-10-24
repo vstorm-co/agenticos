@@ -107,7 +107,7 @@ describe("the phone composer's sheet", () => {
 
     expect(screen.getByRole("dialog")).toHaveClass(
       "inset-x-0",
-      "bottom-0",
+      "bottom-[max(0px,calc(100dvh-var(--app-height,100dvh)))]",
       "pb-[var(--safe-bottom)]",
     );
   });

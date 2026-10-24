@@ -40,7 +40,7 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
   const t = useTranslations("nav");
   const tNotifications = useTranslations("notifications");
   const { count: unread, approximate } = useUnreadNotificationCount();
-  const label = unread > 0 ? tNotifications("unreadCount", { count: unread }) : t("notifications");
+  const label = tNotifications("triggerLabel", { count: unread });
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -49,6 +49,7 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
           <button
             type="button"
             data-tour="notification-bell"
+            aria-label={label}
             className="text-muted-foreground hover:bg-accent/60 hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-1"
           >
             {/* The bare bell here, not `BellGlyph`: this row already ends in a

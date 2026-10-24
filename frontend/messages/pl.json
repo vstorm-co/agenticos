@@ -6977,7 +6977,8 @@
       "description": "Alerty o budżecie, zatwierdzenia, nieudane runy i więcej pojawią się tutaj."
     },
     "clearAll": "Wyczyść",
-    "dismissRow": "Odrzuć"
+    "dismissRow": "Odrzuć",
+    "triggerLabel": "Powiadomienia{count, plural, =0 {} one {, # nieprzeczytane} few {, # nieprzeczytane} many {, # nieprzeczytanych} other {, # nieprzeczytanego}}"
   },
   "artifacts": {
     "title": "Aplikacje",

@@ -7202,7 +7202,8 @@
       "description": "Budget alerts, approvals, run failures and more will show up here."
     },
     "clearAll": "Clear all",
-    "dismissRow": "Dismiss"
+    "dismissRow": "Dismiss",
+    "triggerLabel": "Notifications{count, plural, =0 {} other {, # unread}}"
   },
   "artifacts": {
     "title": "Apps",

@@ -7081,7 +7081,8 @@
       "description": "Budget-Warnungen, Freigaben, fehlgeschlagene Runs und mehr erscheinen hier."
     },
     "clearAll": "Alle löschen",
-    "dismissRow": "Ausblenden"
+    "dismissRow": "Ausblenden",
+    "triggerLabel": "Benachrichtigungen{count, plural, =0 {} other {, # ungelesen}}"
   },
   "artifacts": {
     "title": "Apps",

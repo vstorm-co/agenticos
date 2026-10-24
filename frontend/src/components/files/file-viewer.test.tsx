@@ -235,8 +235,9 @@ describe("how big the dialog is", () => {
     // of source all want the room, and prose does not suffer from having it.
     for (const name of ["handbook.pdf", "chart.png", "demo.mp4", "rows.csv", "report.md"]) {
       const { unmount } = open({ name });
-      expect(dialog()).toContain("w-[calc(100vw-4rem)]");
-      expect(dialog()).toContain("h-[calc(100vh-4rem)]");
+      expect(dialog()).toContain("w-[calc(100%-1.5rem)]");
+      expect(dialog()).toContain("sm:w-[calc(100%-4rem)]");
+      expect(dialog()).toContain("h-[var(--dialog-available-height)]");
       unmount();
     }
   });
