@@ -621,7 +621,10 @@ async def test_a_confirmed_regression_fails_the_suite_by_default(db) -> None:
     assert result.status == "failed"
     assert result.summary is not None
     assert result.summary["regressions_confirmed"] == 1
-    assert [r["code"] for r in result.summary["reasons"]] == ["regressions"]
+    assert [r["code"] for r in result.summary["reasons"]] == [
+        "pass_rate_below",
+        "regressions",
+    ]
     assert result.summary["failing_cases"][0] == {
         "case_id": result.summary["failing_cases"][0]["case_id"],
         "input": "Question 2",

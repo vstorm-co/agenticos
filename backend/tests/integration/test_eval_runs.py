@@ -386,7 +386,8 @@ async def test_a_run_past_the_budget_is_refused_before_anything_is_written(db) -
     assert estimate.total_usd == Decimal("1.00")
     assert estimate.arms[0].basis == "fallback"
     assert not estimate.affordable
-    assert estimate.org_after_usd == Decimal("-0.50")
+    assert estimate.rerun_ceiling_usd == Decimal("2.00")
+    assert estimate.org_after_usd == Decimal("-2.50")
     assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
 
 
@@ -1533,8 +1534,9 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     assert estimate.judge_usd == Decimal("0.20")
     assert estimate.total_usd == Decimal("0.40")
     assert estimate.agent_remaining_usd == Decimal("2")
-    # The judge bills to its own agent; the evaluated agent keeps $2 - $0.20.
-    assert estimate.agent_after_usd == Decimal("1.80")
+    # The evaluated agent reserves its $0.20 run plus both confirmation repeats.
+    # Judge spend belongs to the judge; the organization reserves both.
+    assert estimate.agent_after_usd == Decimal("1.40")
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
 
     # A draft with a looser cap against v7: v7 stops first, so its cap decides.

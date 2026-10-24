@@ -142,12 +142,10 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
     fired-run context whose `user_id` is the trigger *creator* (the authority an
     unattended run executes under), which must not become a memory end-user (#788)
     - unless the creator let that trigger act as them, which is why the trigger
-    site sets it from the row rather than to a constant (#2027) - and
-    `services/eval_run_worker.py` mints the same for an eval run's starter, whose
-    cases run unattended in a worker, `services/eval_suite.py` for a suite's owner,
-    whom a scheduled or triggered eval run is started as, and
-    `services/authoring_worker.py` for the person who asked the authoring
-    assistant, whose request runs in a worker too.
+    site sets it from the row rather than to a constant (#2027).
+    `services/eval_suite.py` mints a suite owner's context for scheduled or
+    triggered checks, and `services/api_key.py` centralizes the queued requester context used by eval
+    and authoring workers, retaining the original API key restrictions.
     """
     app_root = Path(__file__).resolve().parents[2] / "app"
     setters = {
@@ -160,7 +158,6 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
     assert setters == {
         "services/access.py": ["True"],
         "services/agent_trigger.py": ["not trigger.runs_as_creator"],
-        "services/eval_run_worker.py": ["True"],
-        "services/authoring_worker.py": ["True"],
+        "services/api_key.py": ["True"],
         "services/eval_suite.py": ["True"],
     }, setters

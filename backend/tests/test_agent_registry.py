@@ -3827,6 +3827,10 @@ class TestWhatANewAgentOpensWith:
     ) -> dict:
         skills = [] if skill_id is None else [MagicMock(id=skill_id)]
         with (
+            patch(
+                f"{REGISTRY_PATH}.SandboxConnectionService.can_provide",
+                new=AsyncMock(return_value=True),
+            ),
             patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=MagicMock())
@@ -3854,7 +3858,10 @@ class TestWhatANewAgentOpensWith:
         assert written["name"] == "Support"
         assert written["instructions"] == starter.instructions
         assert [binding["id"] for binding in written["capabilities"]] == [
-            binding["id"] for binding in agent_templates.for_this_deployment(starter.capabilities)
+            binding["id"]
+            for binding in agent_templates.for_this_deployment(
+                starter.capabilities, container_workspace=True
+            )
         ]
         assert written["mcp_servers"] == [
             {"account": "platform", "allowed_tools": None, "approval": "writes"}
@@ -4566,6 +4573,7 @@ class TestAgentTemplates:
             {"id": "sandbox", "config": {"backend": "service", "include_execute": True}},
         )
         template.skills, template.mcp, template.attach, template.budget_usd = (), (), (), None
+        template.avatar = None
         created = MagicMock()
         created.id, created.slug, created.name = uuid4(), "coder", template.name
         org = _ctx()
@@ -5072,7 +5080,9 @@ class TestSwitchingOnACapabilityFromTheChat:
         assert answer.published is True
         saved = service.save_draft.await_args.args[2]
         # Bound as the starter binds it, config and all.
-        recommended = agent_templates.starter_capabilities()["web_research"]
+        recommended = agent_templates.starter_capabilities(container_workspace=False)[
+            "web_research"
+        ]
         assert saved.capabilities == [CapabilityBindingSpec.model_validate(recommended)]
         service.validate_spec.assert_awaited_once()
         assert service.publish.await_args.kwargs["note"].startswith("Switched on")

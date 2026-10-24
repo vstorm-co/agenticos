@@ -228,3 +228,90 @@ async def test_a_suite_session_pins_check_settings_but_ignores_a_display_name_ch
     await db.flush()
     with pytest.raises(ConcurrentChangeError, match="stale"):
         await service.ensure_current(ctx, session.id)
+
+
+@pytest.mark.parametrize("child", ["check", "proposal", "classify", "draft"])
+async def test_continuation_waits_for_every_existing_paid_child(
+    db: AsyncSession, child: str
+) -> None:
+    from app.db.models.background_job import BackgroundJob
+
+    ctx, agent, session = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, session.id)
+    iteration = await improvement_repo.get_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=1
+    )
+    assert row is not None and iteration is not None
+    row.max_iterations = 3
+    if child == "proposal":
+        request = await db.get(AuthoringRequest, iteration.authoring_request_id)
+        assert request is not None
+        request.status = "running"
+    elif child in {"classify", "draft"}:
+        job = BackgroundJob(
+            kind="improvement_classify" if child == "classify" else "improvement_draft",
+            pool="agent",
+            organization_id=ctx.organization_id,
+            max_attempts=1,
+        )
+        db.add(job)
+        await db.flush()
+        if child == "classify":
+            iteration.classify_job_id = job.id
+        else:
+            iteration.draft_job_id = job.id
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    before = await db.scalar(select(func.count()).select_from(AuthoringRequest))
+    with (
+        patch(
+            "app.services.improvement_pipeline.improvement_repo.has_active_check",
+            AsyncMock(return_value=child == "check"),
+        ),
+        pytest.raises(ConcurrentChangeError, match="Wait"),
+    ):
+        await service.estimate_continuation(
+            ctx, agent.id, session.id, ImprovementContinue(budget_usd=Decimal("5"))
+        )
+    assert row.status == "ready" and row.iteration == 1
+    assert await db.scalar(select(func.count()).select_from(AuthoringRequest)) == before
+
+
+@pytest.mark.parametrize("candidate", ["missing", "changed"])
+async def test_budget_resume_requires_the_same_existing_candidate(
+    db: AsyncSession, candidate: str
+) -> None:
+    ctx, agent, session = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, session.id)
+    iteration = await improvement_repo.get_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=1
+    )
+    assert row is not None and iteration is not None
+    row.status, row.stage, row.stop_reason = "stopped", "evaluating", "budget"
+    before = list(iteration.eval_run_ids)
+    if candidate == "missing":
+        iteration.batch_id = None
+    else:
+        iteration.candidate_spec_hash = "0" * 64
+    await db.flush()
+    expected = NotFoundError if candidate == "missing" else ConcurrentChangeError
+    with pytest.raises(expected, match=r"candidate|suggestions"):
+        await ImprovementPipelineService(db).estimate_continuation(
+            ctx, agent.id, session.id, ImprovementContinue(budget_usd=Decimal("5"))
+        )
+    assert row.status == "stopped" and iteration.eval_run_ids == before
+
+
+async def test_a_failed_unmeasured_knowledge_step_requires_a_new_session(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, _, session = await _started(db)
+    row = await db.get(ImprovementRun, session.id)
+    assert row is not None
+    row.status, row.stage, row.stop_reason = "failed", "classifying", "proposal"
+    await db.flush()
+    with pytest.raises(BadRequestError, match="new session"):
+        await ImprovementPipelineService(db).estimate_continuation(
+            ctx, agent.id, session.id, ImprovementContinue(budget_usd=Decimal("5"))
+        )
+    assert row.status == "failed"

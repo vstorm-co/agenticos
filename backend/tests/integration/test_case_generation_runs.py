@@ -33,8 +33,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import (
     AiAssistanceDisabledError,
+    AuthorizationError,
     BadRequestError,
-    NotFoundError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
@@ -325,7 +325,7 @@ async def test_a_member_who_may_not_run_the_generator_cannot_start_one(db, monke
     with pytest.raises(SystemAgentUnavailableError) as refused:
         await _service(db).start(viewer, dataset.id, _request(agent, "agent"))
     assert refused.value.reason == "no_access"
-    with pytest.raises(NotFoundError):
+    with pytest.raises(AuthorizationError, match="datasets:edit"):
         await _service(db).estimate(
             await world.member(db, org, OrgRoleName.VIEWER), dataset.id, _request(agent, "agent")
         )

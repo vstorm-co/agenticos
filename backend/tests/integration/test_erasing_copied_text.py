@@ -271,6 +271,7 @@ class _World:
                 dataset_id=self.dataset_id,
                 case_revision_id=revision.id,
                 case_id=revision.case_id,
+                agent_id=self.agent.id,
                 run_id=None,
                 eval_run_id=run.id,
                 answer=f"Answering {revision.input}",
@@ -350,6 +351,7 @@ class _World:
             embedding_model="m",
             draft_title="Parking",
             draft_content=draft,
+            draft_author="model",
             draft_sources=[{"kind": "question", "id": str(searches[0].id)}],
             drafted_at=datetime.now(UTC),
         )
@@ -723,7 +725,7 @@ async def _from_answer(world: _World, answer_id: UUID, **kwargs) -> DatasetCase:
     added = await world.datasets.add_from_message(
         world.ctx,
         world.dataset_id,
-        DatasetCaseFromMessage(message_id=answer_id),
+        DatasetCaseFromMessage(message_id=answer_id, with_history=True),
         **kwargs,
     )
     revision = await world.db.get(DatasetCase, added.id)
@@ -1155,6 +1157,7 @@ class TestTheirScoredAnswers:
             dataset_id=world.dataset_id,
             case_revision_id=revision.id,
             case_id=revision.case_id,
+            agent_id=world.agent.id,
             run_id=run.id,
             eval_run_id=None,
             answer=f"Here you go, {MARKER}",

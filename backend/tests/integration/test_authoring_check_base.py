@@ -111,7 +111,37 @@ async def _shop_dataset(db: AsyncSession, ctx: AuthContext) -> Any:
         dataset.id,
         DatasetCaseCreate(input=WINDOW, checks=[{"type": "contains", "value": "30 days"}]),
     )
+    for index in range(5):
+        await datasets.add_case(
+            ctx,
+            dataset.id,
+            DatasetCaseCreate(
+                input=f"Stable control {index}", checks=[{"type": "contains", "value": "days"}]
+            ),
+        )
+    # This fixture tests baseline identity and review, independently of random
+    # case allocation: the training question and six held-out questions are fixed.
+    cases = await db.scalars(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id))
+    for case in cases:
+        case.improvement_partition = "train" if case.input == "Stable control 0" else "holdout"
+    await db.flush()
     return dataset
+
+
+def _record(record: ProposalCheckRecord | None, *, base: int | None, draft: bool) -> None:
+    assert record is not None
+    assert (record.kind, record.base_version, record.on_draft, record.suggestions) == (
+        "agent",
+        base,
+        draft,
+        2,
+    )
+    assert record.evidence_run_ids
+    assert record.measurement is not None
+    assert record.measurement.gradable_holdout == 6
+    assert len(record.measurement.train_case_ids) == 1
+    assert len(record.measurement.holdout_case_ids) == 6
+    assert not record.measurement.excluded_case_ids
 
 
 async def _publish_held_back(db: AsyncSession, ctx: AuthContext, agent: Agent) -> None:
@@ -139,8 +169,8 @@ async def test_a_check_measures_the_suggestions_on_the_latest_version_not_on_pro
     await _finish(db, ctx, started.id)
     read = await evals.get(ctx, started.id)
 
-    checked = ProposalCheckRecord(kind="agent", base_version=2, on_draft=False, suggestions=2)
-    assert estimate.proposal_check == checked and read.proposal_check == checked
+    _record(estimate.proposal_check, base=2, draft=False)
+    assert read.proposal_check == estimate.proposal_check
     assert [(arm.role, arm.version_number) for arm in estimate.arms] == [
         ("candidate", None),
         ("baseline", 2),
@@ -166,9 +196,7 @@ async def test_a_draft_moved_from_its_base_is_the_baseline_itself(db):
     await _finish(db, ctx, started.id)
     read = await EvalRunService(db).get(ctx, started.id)
 
-    assert read.proposal_check == ProposalCheckRecord(
-        kind="agent", base_version=1, on_draft=True, suggestions=2
-    )
+    _record(read.proposal_check, base=1, draft=True)
     # The draft runs as a second side of its own, never served from an earlier run.
     assert [(arm.role, arm.source) for arm in estimate.arms] == [
         ("candidate", "explicit"),
@@ -274,9 +302,7 @@ async def test_an_agent_never_published_is_checked_against_its_draft(db):
 
     started = await AuthoringService(db).check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
 
-    assert started.proposal_check == ProposalCheckRecord(
-        kind="agent", base_version=None, on_draft=True, suggestions=2
-    )
+    _record(started.proposal_check, base=None, draft=True)
     assert [(arm.role, arm.source) for arm in started.arms] == [
         ("candidate", "explicit"),
         ("baseline", "draft"),

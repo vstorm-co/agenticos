@@ -50,7 +50,7 @@ from tests.integration.test_authoring import (
     COMMENT,
     Improver,
     _answering,
-    _assert_reads_no_eval,
+    _assert_nontraining_eval_secrets_not_learned,
     _clerk,
     _environment,  # noqa: F401 - the autouse fixture that scripts the improver's model
     _eval_secrets,
@@ -127,9 +127,9 @@ async def _pending(db: AsyncSession, file: ContextFile) -> list[ContextProposal]
 
 
 @pytest.mark.security
-async def test_improving_a_file_never_reads_an_eval_run_a_score_or_a_dataset(db):
+async def test_improving_a_file_does_not_learn_from_unfinished_eval_data(db):
     """The second way into the improver: the runs of every agent bound to the file,
-    and still no eval run, score or dataset case among them."""
+    with no unfinished evaluation data reaching the model."""
     ctx, agent, file, run_id = await _bound(db)
     await _eval_secrets(db, ctx, agent)
     model = _proposes(db, run_id)
@@ -137,7 +137,7 @@ async def test_improving_a_file_never_reads_an_eval_run_a_score_or_a_dataset(db)
     started = await AuthoringService(db).start_context(ctx, file.id, AuthoringStart())
     request, read = await _read_while_working(db, ctx, started.id, model)
 
-    _assert_reads_no_eval(model, read)
+    _assert_nontraining_eval_secrets_not_learned(model, read)
     assert request.evidence["runs"] == 1
     (proposal,) = await _pending(db, file)
     assert proposal.content == "Returns take 30 days."

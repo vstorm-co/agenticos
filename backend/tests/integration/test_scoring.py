@@ -2222,7 +2222,7 @@ class TestRefusals:
             await service.score_run(
                 member, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
             )
-        with pytest.raises(NotFoundError):
+        with pytest.raises(AuthorizationError, match="datasets:edit"):
             await service.set_scoring(builder, dataset.id, _change(DatasetScoring()))
 
     async def test_a_viewer_reads_scores_but_cannot_score_or_decide(self, db, judge) -> None:
@@ -2236,11 +2236,11 @@ class TestRefusals:
         viewer = await _join(db, tenant, OrgRoleName.VIEWER)
 
         assert (await service.list_scores(viewer, dataset.id)).total == 1
-        with pytest.raises(NotFoundError):
+        with pytest.raises(AuthorizationError, match="datasets:run"):
             await service.score_run(
                 viewer, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
             )
-        with pytest.raises(NotFoundError):
+        with pytest.raises(AuthorizationError, match="datasets:edit"):
             await service.set_verdict(viewer, dataset.id, scored.id, CaseVerdict(passed=True))
 
     async def test_scoring_needs_runs_view_as_well(self, db, judge) -> None:
@@ -2372,7 +2372,7 @@ class TestRefusals:
         )
         viewer = await _join(db, tenant, OrgRoleName.VIEWER)
 
-        with pytest.raises(NotFoundError):
+        with pytest.raises(AuthorizationError, match="datasets:edit"):
             await service.withdraw_reviews(
                 viewer, dataset.id, ReviewRequest(score_ids=[waiting.id])
             )

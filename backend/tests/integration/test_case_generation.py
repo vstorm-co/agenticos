@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy import func, select
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import OrgRoleName
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.case_generation import CaseOrigin, CaseProposal, GenerationStatus
@@ -222,13 +222,13 @@ async def test_only_an_editor_of_the_dataset_sees_or_decides_its_drafts(db) -> N
     await db.flush()
 
     assert (await DatasetService(db).read(viewer, dataset.id)).pending_proposals == 0
-    with pytest.raises(NotFoundError):
+    with pytest.raises(AuthorizationError, match="datasets:edit"):
         await service.list_proposals(viewer, dataset.id)
-    with pytest.raises(NotFoundError):
+    with pytest.raises(AuthorizationError, match="datasets:edit"):
         await service.list_generations(viewer, dataset.id)
-    with pytest.raises(NotFoundError):
+    with pytest.raises(AuthorizationError, match="datasets:edit"):
         await service.accept(viewer, dataset.id, _accept(drafted[0].id))
-    with pytest.raises(NotFoundError):
+    with pytest.raises(AuthorizationError, match="datasets:edit"):
         await service.dismiss(viewer, dataset.id, CaseProposalDismiss(ids=[drafted[0].id]))
 
     shared.level = GrantLevel.EDIT.value
