@@ -17,7 +17,7 @@ from app.main import app
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
-@pytest.mark.parametrize("status", [204, 400, 403, 404])
+@pytest.mark.parametrize("status", [200, 400, 403, 404])
 async def test_the_service_decides_whether_the_session_can_stop_the_run(status: int) -> None:
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="viewer")
     run_id = uuid4()
@@ -26,7 +26,9 @@ async def test_the_service_decides_whether_the_session_can_stop_the_run(status: 
         403: AuthorizationError(message="Not yours"),
         404: NotFoundError(message="Run not found"),
     }
-    cancel = AsyncMock(side_effect=refused.get(status))
+    cancel = AsyncMock(
+        return_value="Not performed: the run was stopped.", side_effect=refused.get(status)
+    )
     service = MagicMock(cancel_parked=cancel)
     app.dependency_overrides[deps.get_auth_context] = lambda: ctx
     app.dependency_overrides[deps.get_agent_runner_service] = lambda: service
@@ -35,8 +37,8 @@ async def test_the_service_decides_whether_the_session_can_stop_the_run(status: 
             response = await client.post(f"/api/v1/runs/{run_id}/cancel")
         assert response.status_code == status, response.text
         cancel.assert_awaited_once_with(ctx, run_id)
-        if status == 204:
-            assert response.content == b""
+        if status == 200:
+            assert response.json() == "Not performed: the run was stopped."
     finally:
         app.dependency_overrides.clear()
 

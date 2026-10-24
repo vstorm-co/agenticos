@@ -41,7 +41,7 @@ from app.schemas.conversation import (
 from app.schemas.mention import Mentionable
 from app.services.conversation import ConversationService
 from app.services.project import ProjectService
-from app.services.transcript import what_arrived
+from app.services.transcript import STOPPED_TOOL_RESULT, what_arrived
 from app.services.usage_report import UsageReport
 
 logger = logging.getLogger(__name__)
@@ -511,7 +511,7 @@ async def persist_assistant_turn(
                     )
                     result = tc.get("result")
                     if stopped and tc["tool_call_id"] in parked_tool_call_ids:
-                        result = "Not performed: the run was stopped."
+                        result = STOPPED_TOOL_RESULT
                     if result:
                         await conv_service.complete_tool_call(
                             tc_obj.id,

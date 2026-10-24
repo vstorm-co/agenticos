@@ -451,15 +451,16 @@ async def can_stop_parked_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) 
     return await service.can_stop_parked(ctx, run_id)
 
 
-@router.post("/runs/{run_id}/cancel", status_code=204, response_model=None, openapi_extra=INTERNAL)
+@router.post("/runs/{run_id}/cancel", response_model=str | None, openapi_extra=INTERNAL)
 async def cancel_parked_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     """Stop a run waiting for a question or approval, without resuming it.
 
     Console sessions only. The initiating person can stop their run; an approval
     decider can stop one waiting on approval. Completed and running runs are
     refused. Spend is preserved, pending calls are closed and the stop is audited.
+    Returns the persisted tool result, or null if the run was already cancelled.
     """
-    await service.cancel_parked(ctx, run_id)
+    return await service.cancel_parked(ctx, run_id)
 
 
 @router.get("/runs/{run_id}/questions", response_model=list[ParkedQuestion])

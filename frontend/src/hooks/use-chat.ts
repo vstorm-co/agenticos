@@ -2030,15 +2030,20 @@ export function useChat(options: UseChatOptions = {}) {
       };
       void (async () => {
         try {
-          await apiClient.post(`/runs/${parked.runId}/cancel`);
+          const settled = await apiClient.post<string | null>(`/runs/${parked.runId}/cancel`);
           if (!stillHere()) return;
+          if (settled === null) {
+            dismiss();
+            onTurnInterrupted?.();
+            return;
+          }
           for (const message of chatApi.getState().messages) {
             if (message.runId !== parked.runId) continue;
             for (const call of message.toolCalls ?? []) {
               if (call.status === "awaiting_answer" || call.status === "awaiting_approval") {
                 updateToolCallPart(message.id, call.id, {
                   status: "completed",
-                  result: "Not performed: the run was stopped.",
+                  result: settled,
                 });
               }
             }
