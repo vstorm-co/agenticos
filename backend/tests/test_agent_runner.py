@@ -6066,6 +6066,28 @@ class TestAFailedRunOverTheApi:
             await service.execute(_ctx(), uuid.uuid4(), "hi", reports_failure=True)
 
     @pytest.mark.anyio
+    async def test_pool_exhaustion_reaches_the_busy_handler_without_reading_an_expired_run(self):
+        from unittest.mock import PropertyMock
+
+        from sqlalchemy.exc import PendingRollbackError
+        from sqlalchemy.exc import TimeoutError as PoolTimeoutError
+
+        failure = PoolTimeoutError("pool exhausted")
+        service, run = self._service(failure)
+        with (
+            patch.object(
+                type(run),
+                "id",
+                PropertyMock(side_effect=PendingRollbackError("expired after failed flush")),
+                create=True,
+            ),
+            pytest.raises(PoolTimeoutError) as raised,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hi", reports_failure=True)
+
+        assert raised.value is failure
+
+    @pytest.mark.anyio
     async def test_other_surfaces_keep_the_original_exception(self):
         service, _run = self._service(RuntimeError("boom"))
 

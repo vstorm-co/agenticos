@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve database pool exhaustion as a retryable 503 during agent execution,
+  without masking it by reading a run expired by a failed transaction.
+
 - Enforce the state workspace cap after concurrent merges, preserve rejected snapshots as access-controlled recovery copies, cascade their deletion and report persistence failures to runs and project uploads.
 
 - Commit rotating OAuth credentials independently of agent preparation, drain cancellation through persistence, and serialize mailbox polls without holding credential row locks.

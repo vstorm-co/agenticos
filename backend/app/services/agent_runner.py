@@ -90,6 +90,7 @@ from pydantic_ai.workspaces import Workspace
 from pydantic_ai_harness.ask_user import DECLINED, AskUserRequest, ask_user_result
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.guardrails import GuardrailResult
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
@@ -4996,9 +4997,10 @@ class AgentRunnerService:
                 stream=stream,
             )
         except Exception as exc:
-            # A refusal of ours already says what it means; only a failure the
-            # run recorded as one is renamed.
-            if not reports_failure or isinstance(exc, AppException):
+            # Failed SQL can expire the row and leave the transaction unusable.
+            # Preserve the database error (including pool exhaustion's 503)
+            # without loading attributes from that failed transaction.
+            if not reports_failure or isinstance(exc, (AppException, SQLAlchemyError)):
                 raise
             raise failed_run_error(prepared.run, exc) from exc
         if outbound is not None:
