@@ -1185,6 +1185,7 @@
         },
         "model": "Model for this chat",
         "agentModel": "Agent’s configured model",
+        "accessHint": "Use an agent with Sandbox enabled. Folder access mode controls file and shell tools. Browser and MCP use the permissions you approve separately.",
         "mcpLimit": "Choose up to 8 local MCP services per chat.",
         "localBrowser": "Browse on this computer (separate profile)"
       }
@@ -3046,7 +3047,6 @@
     "pushOnHint": "This device receives push notifications"
   },
   "errors": {
-    "localFolderRequired": "Select a local folder first.",
     "authorizationFailed": "Authorization failed",
     "avatarNotAvailable": "Avatar not available",
     "backendUnavailable": "Backend service unavailable",

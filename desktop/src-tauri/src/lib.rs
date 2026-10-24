@@ -32,7 +32,9 @@ mod settings;
 mod shortcuts;
 mod updater;
 
+#[cfg(target_os = "macos")]
 use std::fs;
+#[cfg(target_os = "macos")]
 use std::io::ErrorKind;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{mpsc, Mutex};
@@ -83,6 +85,7 @@ const PROBE_DEADLINE: Duration = Duration::from_secs(2);
 const PENDING_SCREENSHOT_TTL: Duration = Duration::from_secs(120);
 /// Where the traffic lights sit on macOS: inset into the console's own sidebar
 /// header, vertically centred on its 56px row, the way Finder and Notes put them.
+#[cfg(target_os = "macos")]
 const TRAFFIC_LIGHTS: (f64, f64) = (18.0, 22.0);
 /// The console's background in each mode, painted behind the page while it loads.
 /// A transparent window with nothing painted yet shows the desktop through it.
@@ -267,7 +270,9 @@ fn screen_capture_allowed() -> bool {
     false
 }
 
+#[cfg(target_os = "macos")]
 const SCREEN_RECORDING_REFUSED: &str = "Allow screen recording, then restart me.";
+#[cfg(target_os = "macos")]
 const SCREEN_RECORDING_PANE: &str = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
 
 /// Let the person pick a region, and hand back the PNG - or nothing, if they pressed Escape.

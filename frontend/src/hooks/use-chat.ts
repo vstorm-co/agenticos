@@ -1300,7 +1300,7 @@ export function useChat(options: UseChatOptions = {}) {
       // time like the agent. The desktop app checks both against what the person
       // granted on that computer, whatever this frame says.
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
-      if (local) payload.local = { folder: local.folder, mode: local.mode };
+      if (local) payload.local = { ...local };
       const test = testingRef.current;
       if (test) {
         payload.test = true;

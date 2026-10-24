@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useEffectEvent, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -115,12 +115,16 @@ export function useSetShortcut() {
  * render does not re-subscribe - which, with a listener registered over IPC,
  * would leave a window between the old one going and the new one arriving.
  */
-export function useShellEvent(event: string, handler: (payload: unknown) => void): void {
+export function useShellEvent(
+  event: string,
+  handler: (payload: unknown) => void,
+  enabled = true,
+): void {
   const shell = useShell();
   const onEvent = useEffectEvent(handler);
 
   useEffect(() => {
-    if (!shell) return;
+    if (!shell || !enabled) return;
     let unlisten: (() => void) | null = null;
     let gone = false;
     listenShell(event, (payload) => onEvent(payload))
@@ -133,7 +137,7 @@ export function useShellEvent(event: string, handler: (payload: unknown) => void
       gone = true;
       unlisten?.();
     };
-  }, [event, shell]);
+  }, [event, shell, enabled]);
 }
 
 /**
@@ -143,16 +147,11 @@ export function useShellEvent(event: string, handler: (payload: unknown) => void
 export function useDeviceStatus() {
   const shell = useShell();
   const queryClient = useQueryClient();
-  const onStatus = useEffectEvent((payload: unknown) =>
-    queryClient.setQueryData(qk.desktop.device(), parseDeviceStatus(payload)),
+  useShellEvent(
+    DEVICE_STATUS_EVENT,
+    (payload) => queryClient.setQueryData(qk.desktop.device(), parseDeviceStatus(payload)),
+    isDesktopShell(shell),
   );
-  useEffect(() => {
-    if (!isDesktopShell(shell)) return;
-    const unlisten = listenShell(DEVICE_STATUS_EVENT, (payload) => onStatus(payload));
-    return () => {
-      void unlisten.then((stop) => stop()).catch(() => undefined);
-    };
-  }, [shell]);
   return useQuery({
     queryKey: qk.desktop.device(),
     queryFn: getDeviceStatus,
@@ -223,10 +222,7 @@ export function useLocalWorkspace(root: string | null, ownerLabel: string) {
   const enabled = isDesktopShell(shell) && root !== null;
   const { data, error } = useQuery({
     queryKey: qk.desktop.localFiles(root ?? "none"),
-    queryFn: () => {
-      if (root === null) throw new Error(tErrors("localFolderRequired"));
-      return listLocalFiles(root);
-    },
+    queryFn: root === null ? skipToken : () => listLocalFiles(root),
     enabled,
     retry: false,
   });

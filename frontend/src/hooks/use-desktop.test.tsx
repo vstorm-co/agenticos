@@ -8,6 +8,10 @@ import type { DesktopState } from "@/lib/desktop/commands";
 import { qk } from "@/lib/query-keys";
 
 import {
+  useDeviceStatus,
+  useDeviceLink,
+  useLocalFolders,
+  useLocalWorkspace,
   useDesktopState,
   useSetBlobby,
   useSetPinned,
@@ -17,6 +21,14 @@ import {
 } from "./use-desktop";
 
 const shell = vi.hoisted(() => ({
+  getDeviceStatus: vi.fn(),
+  linkDevice: vi.fn(),
+  unlinkDevice: vi.fn(),
+  getLocalState: vi.fn(),
+  pickLocalFolder: vi.fn(),
+  revokeLocalFolder: vi.fn(),
+  listLocalFiles: vi.fn(),
+  createPairingCode: vi.fn(),
   getDesktopState: vi.fn(),
   setBlobby: vi.fn(),
   setShortcut: vi.fn(),
@@ -29,6 +41,13 @@ const shell = vi.hoisted(() => ({
 
 vi.mock("@/lib/desktop/commands", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/commands")>()),
+  getDeviceStatus: shell.getDeviceStatus,
+  linkDevice: shell.linkDevice,
+  unlinkDevice: shell.unlinkDevice,
+  getLocalState: shell.getLocalState,
+  pickLocalFolder: shell.pickLocalFolder,
+  revokeLocalFolder: shell.revokeLocalFolder,
+  listLocalFiles: shell.listLocalFiles,
   getDesktopState: shell.getDesktopState,
   setBlobby: shell.setBlobby,
   setShortcut: shell.setShortcut,
@@ -41,6 +60,7 @@ vi.mock("@/lib/desktop/shell", async (original) => ({
   listenShell: shell.listenShell,
   reportShellFailure: shell.reportShellFailure,
 }));
+vi.mock("@/lib/pairing-api", () => ({ createPairingCode: shell.createPairingCode }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const STATE: DesktopState = {
@@ -79,6 +99,10 @@ beforeEach(() => {
   };
   vi.clearAllMocks();
   shell.getDesktopState.mockResolvedValue(STATE);
+  shell.listenShell.mockReset();
+  shell.listenShell.mockResolvedValue(vi.fn());
+  shell.getDeviceStatus.mockResolvedValue({ linked: true, connected: true });
+  shell.getLocalState.mockResolvedValue({ grants: [], modes: ["read_only"] });
 });
 
 afterEach(() => {
@@ -225,5 +249,90 @@ describe("useShellEvent", () => {
     delete window.__AGENTICOS_SHELL__;
     renderHook(() => useShellEvent("desktop:say", () => {}));
     expect(shell.listenShell).not.toHaveBeenCalled();
+  });
+});
+
+describe("paired devices and native folders", () => {
+  it("updates device state from native events and removes the listener", async () => {
+    const stop = vi.fn();
+    let emit: (payload: unknown) => void = () => {};
+    shell.listenShell.mockImplementation(
+      async (_name: string, handler: (payload: unknown) => void) => {
+        emit = handler;
+        return stop;
+      },
+    );
+    const { result, unmount } = renderHook(() => useDeviceStatus(), { wrapper });
+    await waitFor(() => expect(result.current.data?.connected).toBe(true));
+    act(() => emit({ linked: true, connected: false }));
+    await waitFor(() => expect(result.current.data?.connected).toBe(false));
+    unmount();
+    expect(stop).toHaveBeenCalledOnce();
+  });
+  it("mints one pairing code and keeps the native link/unlink result", async () => {
+    shell.createPairingCode.mockResolvedValue({ code: "one-time" });
+    shell.linkDevice.mockResolvedValue({ linked: true, connected: false });
+    shell.unlinkDevice.mockResolvedValue({ linked: false, connected: false });
+    const { result } = renderHook(() => useDeviceLink(), { wrapper });
+    await act(() => result.current.link.mutateAsync());
+    expect(shell.linkDevice).toHaveBeenCalledWith("one-time");
+    expect(client.getQueryData(qk.desktop.device())).toEqual({ linked: true, connected: false });
+    await act(() => result.current.unlink.mutateAsync());
+    expect(client.getQueryData(qk.desktop.device())).toEqual({ linked: false, connected: false });
+  });
+  it("reports link and unlink failures without changing cached authority", async () => {
+    shell.createPairingCode.mockRejectedValueOnce(new Error("offline"));
+    shell.unlinkDevice.mockRejectedValueOnce(new Error("offline"));
+    const { result } = renderHook(() => useDeviceLink(), { wrapper });
+    await act(() => result.current.link.mutateAsync().catch(() => undefined));
+    await act(() => result.current.unlink.mutateAsync().catch(() => undefined));
+    expect(toast.error).toHaveBeenCalledTimes(2);
+    expect(client.getQueryData(qk.desktop.device())).toBeUndefined();
+  });
+  it("refreshes granted folders after a native selection and applies revocation", async () => {
+    const grant = { path: "/approved", mode: "read_only" } as const;
+    shell.pickLocalFolder.mockResolvedValue(grant);
+    shell.revokeLocalFolder.mockResolvedValue({ grants: [], modes: ["read_only"] });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useLocalFolders(), { wrapper });
+    await waitFor(() => expect(result.current.state.data).toBeDefined());
+    await act(() => result.current.pick.mutateAsync("read_only"));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.desktop.local() });
+    await act(() => result.current.revoke.mutateAsync(grant.path));
+    expect(client.getQueryData(qk.desktop.local())).toEqual({ grants: [], modes: ["read_only"] });
+    shell.pickLocalFolder.mockRejectedValueOnce(new Error("refused"));
+    shell.revokeLocalFolder.mockRejectedValueOnce(new Error("refused"));
+    await act(() => result.current.pick.mutateAsync("read_only").catch(() => undefined));
+    await act(() => result.current.revoke.mutateAsync(grant.path).catch(() => undefined));
+    expect(shell.reportShellFailure).toHaveBeenCalledWith("revoking a folder", expect.any(Error));
+    expect(toast.error).toHaveBeenCalledOnce();
+  });
+  it("presents bounded native files through the shared workspace contract", async () => {
+    shell.listLocalFiles.mockResolvedValue([
+      { path: "note.txt", size: 5, is_dir: false, modified: 1 },
+      { path: "folder", size: null, is_dir: true, modified: null },
+    ]);
+    const { result } = renderHook(() => useLocalWorkspace("/approved", "This computer"), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.workspace?.total).toBe(2));
+    expect(result.current.workspace).toMatchObject({
+      scope: "local",
+      bytes_total: 5,
+      owner_label: "This computer",
+    });
+    expect(result.current.workspace?.items[0]?.modified_at).toBe("1970-01-01T00:00:01.000Z");
+    await act(() => result.current.refresh());
+    expect(shell.listLocalFiles).toHaveBeenCalledWith("/approved");
+  });
+  it("does not read an unselected folder and reports a native read failure", async () => {
+    const unset = renderHook(() => useLocalWorkspace(null, "This computer"), { wrapper });
+    await act(() => unset.result.current.refresh());
+    expect(unset.result.current.workspace).toBeNull();
+    expect(shell.listLocalFiles).not.toHaveBeenCalled();
+    shell.listLocalFiles.mockRejectedValueOnce(new Error("refused"));
+    const selected = renderHook(() => useLocalWorkspace("/missing", "This computer"), { wrapper });
+    await waitFor(() => expect(selected.result.current.error).not.toBeNull());
+    expect(selected.result.current.workspace).toBeNull();
   });
 });

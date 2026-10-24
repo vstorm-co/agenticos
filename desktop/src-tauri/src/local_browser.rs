@@ -245,7 +245,7 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
             return Err("The device disconnected while opening the browser.".into());
         }
         registry.windows.insert(id.clone(), browser);
-        return Ok(serde_json::from_value(serde_json::json!({"id":id})).map_err(|e| e.to_string())?);
+        return serde_json::from_value(serde_json::json!({"id":id})).map_err(|e| e.to_string());
     }
     let id = args
         .get("id")

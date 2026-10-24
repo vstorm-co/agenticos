@@ -68,8 +68,7 @@ export function LocalServiceSettings() {
             value={kind}
             onChange={(event) => {
               const next = event.target.value;
-              if (next !== "model" && next !== "mcp") return;
-              setKind(next);
+              setKind(next === "mcp" ? "mcp" : "model");
               setEndpoint(
                 next === "model" ? "http://127.0.0.1:11434/v1" : "http://127.0.0.1:8000/mcp",
               );

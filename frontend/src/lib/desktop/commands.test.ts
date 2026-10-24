@@ -232,3 +232,30 @@ describe("local files and service grants", () => {
     await expect(commands.getLocalServices()).rejects.toThrow("malformed");
   });
 });
+
+describe("paired device and folder grants", () => {
+  it("validates native device state and sends only the pairing code", async () => {
+    invoke.mockResolvedValue({ linked: true, connected: false });
+    expect(await commands.getDeviceStatus()).toEqual({ linked: true, connected: false });
+    await commands.linkDevice("once");
+    expect(invoke).toHaveBeenLastCalledWith("device_link", { code: "once" });
+    await commands.unlinkDevice();
+    expect(invoke).toHaveBeenLastCalledWith("device_unlink");
+    expect(() => commands.parseDeviceStatus({ linked: "yes", connected: true })).toThrow();
+  });
+  it("keeps native folder modes and cancellation distinct from an empty grant", async () => {
+    const grant = { path: "/approved", mode: "read_only" };
+    invoke.mockResolvedValue({ grants: [grant], modes: ["read_only", "future_mode"] });
+    expect(await commands.getLocalState()).toEqual({ grants: [grant], modes: ["read_only"] });
+    await commands.revokeLocalFolder(grant.path);
+    expect(invoke).toHaveBeenLastCalledWith("local_revoke", { path: grant.path });
+    invoke.mockResolvedValue(grant);
+    expect(await commands.pickLocalFolder("read_only")).toEqual(grant);
+    invoke.mockResolvedValue(null);
+    expect(await commands.pickLocalFolder("read_only")).toBeNull();
+    expect(() => commands.parseLocalState({})).toThrow();
+    expect(() =>
+      commands.parseLocalState({ grants: [{ path: "/bad", mode: "unknown" }], modes: [] }),
+    ).toThrow();
+  });
+});

@@ -57,6 +57,10 @@ class OrgE2BBackend(E2BSandboxBackend):
             raise WorkspaceUnavailableError(
                 "E2B refused this organization's key. Check the sandbox connection's key."
             ) from exc
+        except e2b.ServiceBusyException as exc:
+            raise WorkspaceUnavailableError(
+                "E2B is busy; try creating the sandbox again later."
+            ) from exc
         except e2b.SandboxException as exc:
             raise WorkspaceUnavailableError(f"E2B could not start a sandbox: {exc}") from exc
         except TimeoutError as exc:
@@ -64,16 +68,22 @@ class OrgE2BBackend(E2BSandboxBackend):
 
     async def _attach(self, sandbox_id: str) -> e2b.AsyncSandbox:
         try:
-            return await e2b.AsyncSandbox.connect(
-                sandbox_id, timeout=LIFETIME_SECONDS, api_key=self._api_key
-            )
+            with anyio.fail_after(CREATE_SECONDS):
+                return await e2b.AsyncSandbox.connect(
+                    sandbox_id, timeout=LIFETIME_SECONDS, api_key=self._api_key
+                )
         except e2b.AuthenticationException as exc:
             raise WorkspaceUnavailableError(
                 "E2B refused this organization's key. Check the sandbox connection's key."
             ) from exc
-        except e2b.SandboxException as exc:
+        except (e2b.SandboxException, e2b.ServiceBusyException) as exc:
             raise WorkspaceUnavailableError(
-                "This E2B sandbox is gone; its files went with it."
+                "E2B could not reconnect to this sandbox; check its state and this connection. "
+                "No replacement was created."
+            ) from exc
+        except TimeoutError as exc:
+            raise WorkspaceUnavailableError(
+                "E2B did not reconnect in time. No replacement was created."
             ) from exc
 
 

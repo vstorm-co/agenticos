@@ -5233,6 +5233,17 @@ class TestTheSharedSandboxdClient:
 
 
 class TestLocalDeviceSelection:
+    async def test_a_local_target_is_not_silently_ignored_without_a_sandbox(self, mock_db_session):
+        from app.schemas.local_target import LocalTarget
+
+        with pytest.raises(BadRequestError, match="Sandbox capability"):
+            await SandboxWorkspaceService(mock_db_session).open(
+                AgentSpec(name="Plain"),
+                ctx=_ctx(),
+                identity=_identity(),
+                local=LocalTarget(folder="/approved"),
+            )
+
     @pytest.mark.parametrize("mode", ["read_only", "workspace_write", "full_access"])
     async def test_only_the_callers_device_is_resolved(self, mode, monkeypatch, mock_db_session):
         from app.schemas.local_target import LocalTarget

@@ -193,7 +193,7 @@ fn list_files(root: &Path) -> Result<Vec<LocalFile>, String> {
                         .map(|part| part.as_os_str().to_string_lossy())
                         .collect::<Vec<_>>()
                         .join("/"),
-                    size: (!kind.is_dir()).then(|| metadata.len()),
+                    size: (!kind.is_dir()).then_some(metadata.len()),
                     is_dir: kind.is_dir(),
                     modified: modified
                         .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
@@ -208,7 +208,7 @@ fn list_files(root: &Path) -> Result<Vec<LocalFile>, String> {
             }
         }
     }
-    found.sort_by(|a, b| b.0.cmp(&a.0));
+    found.sort_by_key(|entry| std::cmp::Reverse(entry.0));
     Ok(found.into_iter().take(LISTED).map(|(_, file)| file).collect())
 }
 

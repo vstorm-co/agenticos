@@ -32,7 +32,12 @@ async def test_e2b_create_attach_and_destroy_never_use_the_process_key(
 
 @pytest.mark.parametrize(
     "failure",
-    [e2b.AuthenticationException("bad"), e2b.SandboxException("gone"), TimeoutError("late")],
+    [
+        e2b.AuthenticationException("bad"),
+        e2b.SandboxException("gone"),
+        e2b.ServiceBusyException("busy"),
+        TimeoutError("late"),
+    ],
 )
 async def test_e2b_creation_failure_is_explicit(
     monkeypatch: pytest.MonkeyPatch, failure: Exception
@@ -43,7 +48,14 @@ async def test_e2b_creation_failure_is_explicit(
 
 
 @pytest.mark.parametrize(
-    "failure", [e2b.AuthenticationException("bad"), e2b.SandboxException("gone")]
+    "failure",
+    [
+        e2b.AuthenticationException("bad"),
+        e2b.SandboxException("gone"),
+        e2b.RateLimitException("busy"),
+        e2b.ServiceBusyException("busy"),
+        TimeoutError("late"),
+    ],
 )
 async def test_e2b_attach_failure_never_creates_a_replacement(
     monkeypatch: pytest.MonkeyPatch, failure: Exception
@@ -51,6 +63,7 @@ async def test_e2b_attach_failure_never_creates_a_replacement(
     create = AsyncMock()
     monkeypatch.setattr(e2b.AsyncSandbox, "create", create)
     monkeypatch.setattr(e2b.AsyncSandbox, "connect", AsyncMock(side_effect=failure))
-    with pytest.raises(WorkspaceUnavailableError):
+    with pytest.raises(WorkspaceUnavailableError) as refused:
         await module.OrgE2BBackend(api_key="key")._attach("kept")
+    assert "files went" not in str(refused.value)
     create.assert_not_called()

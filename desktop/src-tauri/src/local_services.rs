@@ -54,10 +54,10 @@ fn checked(mut service: Service) -> Result<Service, String> {
     }
     match service.kind {
         Kind::Model
-            if service
+            if !service
                 .model
-                .as_ref()
-                .is_none_or(|m| m.trim().is_empty() || m.chars().count() > 200) =>
+                .as_deref()
+                .is_some_and(|m| !m.trim().is_empty() && m.chars().count() <= 200) =>
         {
             return Err("Name the model installed in this service.".into())
         }
@@ -109,10 +109,8 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
         .ok_or("This local service has not been approved, or was removed.")?;
     let service = checked(service)?;
     if op == "service.describe" {
-        return Ok(
-            serde_json::from_value(serde_json::to_value(service).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?,
-        );
+        return serde_json::from_value(serde_json::to_value(service).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string());
     }
     if op != "service.request" {
         return Err("Unknown local service operation.".into());
@@ -136,10 +134,8 @@ async fn request(service: &Service, args: &Map<String, Value>) -> Result<Map<Str
     }
     // Streamable HTTP's optional server event stream is not used by this relay.
     if method == "GET" {
-        return Ok(
-            serde_json::from_value(serde_json::json!({"status":405,"headers":{},"body":""}))
-                .map_err(|e| e.to_string())?,
-        );
+        return serde_json::from_value(serde_json::json!({"status":405,"headers":{},"body":""}))
+            .map_err(|e| e.to_string());
     }
     let raw = args.get("body").and_then(Value::as_str).unwrap_or("");
     if raw.len() > LIMIT * 2 {
@@ -203,7 +199,7 @@ async fn request(service: &Service, args: &Map<String, Value>) -> Result<Map<Str
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(serde_json::from_value(serde_json::json!({"status":status,"headers":headers,"body":base64::engine::general_purpose::STANDARD.encode(body)})).map_err(|e| e.to_string())?)
+    serde_json::from_value(serde_json::json!({"status":status,"headers":headers,"body":base64::engine::general_purpose::STANDARD.encode(body)})).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

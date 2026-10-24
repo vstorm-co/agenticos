@@ -1185,6 +1185,7 @@
         },
         "model": "Modell für diesen Chat",
         "agentModel": "Konfiguriertes Modell des Agenten",
+        "accessHint": "Wähle einen Agent mit aktiviertem Sandbox. Der Ordnerzugriffsmodus gilt für Datei- und Shell-Werkzeuge. Browser und MCP nutzen separat bestätigte Berechtigungen.",
         "mcpLimit": "Wähle bis zu 8 lokale MCP-Dienste pro Chat.",
         "localBrowser": "Auf diesem Computer browsen (separates Profil)"
       }
@@ -3046,7 +3047,6 @@
     "pushOnHint": "Dieses Gerät erhält Push-Benachrichtigungen"
   },
   "errors": {
-    "localFolderRequired": "Wähle zuerst einen lokalen Ordner aus.",
     "authorizationFailed": "Autorisierung fehlgeschlagen",
     "avatarNotAvailable": "Avatar nicht verfügbar",
     "backendUnavailable": "Backend-Dienst nicht verfügbar",

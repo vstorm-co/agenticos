@@ -22,9 +22,11 @@ use tauri::{AppHandle, Manager};
 /// A file larger than this is named, not read.
 const MAX_FILE_BYTES: u64 = 20 * 1024 * 1024;
 /// Finder's selection, at most: a chat message is not a file transfer.
+#[cfg(target_os = "macos")]
 const MAX_FILES: usize = 5;
 /// The selection and the clipboard, cut here: a page of text is context, a
 /// whole document pasted from the clipboard is not.
+#[cfg(any(target_os = "macos", test))]
 const MAX_TEXT_CHARS: usize = 8_000;
 
 /// What the panel shows as chips.
@@ -47,6 +49,7 @@ pub struct ActiveContext {
 #[derive(Default)]
 pub struct CapturedFiles(Mutex<Vec<PathBuf>>);
 
+#[cfg(any(target_os = "macos", test))]
 fn cut(text: String) -> Option<String> {
     let text = text.trim();
     if text.is_empty() {

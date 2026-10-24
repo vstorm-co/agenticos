@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { useChat } from "./use-chat";
 import { useVisualImagesStore, useVisualStreamStore } from "@/stores/visual-stream-store";
 import { ApiError } from "@/lib/api-error";
@@ -3970,4 +3971,22 @@ describe("useChat - the outbox (#2097)", () => {
     expect(result.current.queuedMessages).toEqual([]);
     expect(keepOutbox).not.toHaveBeenCalled();
   });
+});
+
+it("sends the chosen folder, browser, model and MCP grants with a new turn", () => {
+  const target = {
+    folder: "/approved",
+    mode: "read_only" as const,
+    browser: true,
+    model_service: "model-grant",
+    mcp_services: ["mcp-grant"],
+  };
+  useWorkOnStore.getState().set(null, target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("read the project"));
+    expect(lastFrame().local).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
 });

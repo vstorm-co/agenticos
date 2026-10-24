@@ -1185,6 +1185,7 @@
         },
         "model": "Model dla tego czatu",
         "agentModel": "Model skonfigurowany dla agenta",
+        "accessHint": "Wybierz agenta z włączonym Sandbox. Tryb dostępu do folderu obejmuje narzędzia plików i powłoki. Przeglądarka i MCP korzystają z uprawnień zatwierdzanych osobno.",
         "mcpLimit": "Wybierz maksymalnie 8 lokalnych usług MCP dla czatu.",
         "localBrowser": "Przeglądaj na tym komputerze (osobny profil)"
       }
@@ -3046,7 +3047,6 @@
     "pushOnHint": "To urządzenie otrzymuje powiadomienia push"
   },
   "errors": {
-    "localFolderRequired": "Najpierw wybierz lokalny folder.",
     "authorizationFailed": "Autoryzacja nie powiodła się",
     "avatarNotAvailable": "Awatar jest niedostępny",
     "backendUnavailable": "Serwer jest niedostępny",

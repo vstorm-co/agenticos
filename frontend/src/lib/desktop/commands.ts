@@ -331,7 +331,7 @@ export type LocalMode = "read_only" | "workspace_write" | "full_access";
 
 const LOCAL_MODES: readonly LocalMode[] = ["read_only", "workspace_write", "full_access"];
 const isLocalMode = (value: unknown): value is LocalMode =>
-  LOCAL_MODES.includes(value as LocalMode);
+  LOCAL_MODES.some((mode) => mode === value);
 
 /** Where a run works on the person's own computer: a granted folder and a mode within it. */
 export interface LocalTarget {
@@ -361,8 +361,10 @@ function parseLocalGrant(value: unknown): LocalGrant {
 
 export function parseLocalState(value: unknown): LocalState {
   const fields = record(value, "the granted folders");
-  const grants = Array.isArray(fields.grants) ? fields.grants : [];
-  const modes = Array.isArray(fields.modes) ? fields.modes : [];
+  if (!Array.isArray(fields.grants) || !Array.isArray(fields.modes))
+    throw new ShellError("malformed", "the granted folders");
+  const grants = fields.grants;
+  const modes = fields.modes;
   return { grants: grants.map(parseLocalGrant), modes: modes.filter(isLocalMode) };
 }
 

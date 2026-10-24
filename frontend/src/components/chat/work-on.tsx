@@ -161,6 +161,9 @@ function ComputerWorkOn() {
               {t("localBrowser")}
             </label>
           )}
+          {target !== null && (
+            <p className="text-muted-foreground text-xs leading-relaxed">{t("accessHint")}</p>
+          )}
           {target !== null && services.length > 0 && (
             <div className="space-y-2 py-2">
               <label className="block text-xs">
