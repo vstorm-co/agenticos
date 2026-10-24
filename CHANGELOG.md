@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- End console voice calls and pending microphone/setup/reconnect work on
+  tenant or account changes. Ignore stale media and transcript callbacks,
+  and keep late failures from ending a newer call. Public embeds retain
+  their separate visitor scope.
+
 - Show failed context-detail, retention-policy, environment and watch reads
   with retry controls instead of endless loading or misleading empty states.
 
