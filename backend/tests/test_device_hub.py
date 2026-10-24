@@ -231,3 +231,24 @@ async def test_waiting_selects_the_requested_computer_and_stops_on_timeout(
     connected.side_effect = None
     assert await _hub.wait_for(user, selected, timeout=0) is None
     assert await _hub.wait_for(user, selected, timeout=0.001) is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "text", ["x" * 17, "ą" * 9, "😀" * 5], ids=["ascii", "two-byte", "four-byte"]
+)
+async def test_frame_limits_count_utf8_bytes_before_parsing(
+    monkeypatch: pytest.MonkeyPatch, text: str
+) -> None:
+    monkeypatch.setattr(_hub, "MAX_FRAME_BYTES", 16)
+    socket = MagicMock(
+        receive=AsyncMock(return_value={"type": "websocket.receive", "text": text}),
+        close=AsyncMock(),
+    )
+    redis = MagicMock()
+    device = _hub.Device(user_id=uuid4(), session_id=uuid4(), platform="macos")
+    await _hub._read(socket, redis, device)
+    socket.close.assert_awaited_once_with(
+        code=1008, reason="Frames are JSON text within the size limit"
+    )
+    redis.raw.publish.assert_not_called()

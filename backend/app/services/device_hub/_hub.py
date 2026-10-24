@@ -346,7 +346,7 @@ async def _read(websocket: Socket, redis: RedisClient, device: Device) -> None:
         if received["type"] == "websocket.disconnect":
             return
         text = received.get("text")
-        if not isinstance(text, str) or len(text) > MAX_FRAME_BYTES:
+        if not isinstance(text, str) or len(text.encode("utf-8")) > MAX_FRAME_BYTES:
             await websocket.close(code=1008, reason="Frames are JSON text within the size limit")
             return
         try:
