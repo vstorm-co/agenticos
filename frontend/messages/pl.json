@@ -1045,7 +1045,8 @@
       "saved": "Zapisano pomocników AI",
       "save": "Zapisz",
       "cancel": "Anuluj"
-    }
+    },
+    "publishedSpec": "Opublikowany spec"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

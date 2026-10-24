@@ -540,3 +540,17 @@ describe("a history longer than a page", () => {
     expect(screen.getByLabelText("Compare from")).toHaveTextContent("v12");
   });
 });
+
+it("opens a frozen publication when a completion link names the same version on both sides", () => {
+  mount({
+    compareFrom: 1,
+    compareTo: 1,
+    draftSpec: spec({ instructions: "A later unpublished edit" }),
+  });
+  const snapshot = screen.getByRole("textbox", { name: "Published specification" });
+  expect(snapshot).toHaveAttribute("readonly");
+  if (!(snapshot instanceof HTMLTextAreaElement))
+    throw new Error("Expected a read-only spec field");
+  expect(snapshot.value).toContain("Be terse.");
+  expect(snapshot.value).not.toContain("A later unpublished edit");
+});

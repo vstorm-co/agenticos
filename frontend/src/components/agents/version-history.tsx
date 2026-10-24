@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { EntityAvatar } from "@/components/ui";
+import { CodeArea } from "@/components/ui/code-area";
 import { displayName, type IdentifiedMember } from "@/components/orgs/member-identity";
 import { LoadingState } from "@/components/states";
 import {
@@ -441,6 +442,13 @@ export function VersionHistory({
 
         {left.isLoading || right.isLoading ? (
           <LoadingState variant="skeleton-list" rows={4} />
+        ) : leftId !== null && leftId === rightId && left.version ? (
+          <CodeArea
+            name="agent.yaml"
+            aria-label={t("publishedSpec")}
+            readOnly
+            value={specText(left.version.spec)}
+          />
         ) : comparing && left.version && rightSpec ? (
           <SpecDiff before={left.version.spec} after={rightSpec} />
         ) : (

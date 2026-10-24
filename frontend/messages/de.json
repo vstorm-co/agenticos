@@ -1045,7 +1045,8 @@
       "saved": "KI-Helfer gespeichert",
       "save": "Speichern",
       "cancel": "Abbrechen"
-    }
+    },
+    "publishedSpec": "Veröffentlichte Spec"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

@@ -123,6 +123,26 @@ test("test questions, review and improvement publish keep a guarded environment 
   await capture(page, info, "datasets");
   await page.goto(`/agents/${id(agent)}?tab=evals`);
   await expect(page.getByText(String(dataset.name), { exact: false }).first()).toBeVisible();
+  const measuredRow = page.locator(`a[href="/agents/${id(agent)}/evals/${id(initial)}"]`).first();
+  await expect(measuredRow).toBeVisible();
+  const clipped = await measuredRow.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const outside: string[] = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      if (
+        [...range.getClientRects()].some(
+          (rect) =>
+            rect.width > 0 && (rect.right > bounds.right + 1 || rect.left < bounds.left - 1),
+        )
+      )
+        outside.push(node.textContent ?? "");
+    }
+    return outside;
+  });
+  expect(clipped, "model labels and prices must fit inside the phone's run card").toEqual([]);
   await capture(page, info, "agent-evals");
   const judge = await write(api, "post", "/agents/system", headers, {
     kind: "judge",
@@ -140,7 +160,9 @@ test("test questions, review and improvement publish keep a guarded environment 
   await capture(page, info, "dataset-cases");
   await page.getByRole("button", { name: /^Return policy question 1\b/ }).click();
   const editor = page.getByRole("dialog");
-  await editor.getByRole("button", { name: "Edit case", exact: true }).click();
+  const editCase = editor.getByRole("button", { name: "Edit", exact: true });
+  await expect(editCase).toBeVisible();
+  await editCase.click();
   await expect(editor.getByLabel("Input", { exact: true })).toHaveValue("Return policy question 1");
   expect(
     await editor
@@ -259,7 +281,11 @@ test("test questions, review and improvement publish keep a guarded environment 
   expect(after?.version_id).toBe(originalVersion);
   expect(published.published_version_id).not.toBe(originalVersion);
   await page.reload();
-  await expect(page.getByRole("link", { name: "Open version 2" })).toBeVisible();
+  await page.getByRole("link", { name: "Open version 2" }).click();
+  await expect(page.getByRole("textbox", { name: "Published specification" })).toHaveValue(
+    /PONG-IMPROVEMENT-AFTER/,
+  );
+  await capture(page, info, "published-version");
 });
 
 async function capture(page: Page, info: TestInfo, name: string) {

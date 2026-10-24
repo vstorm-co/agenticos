@@ -74,7 +74,7 @@ export function EvalRunRow({ run, agentName }: { run: EvalRun; agentName?: strin
         href={`${ROUTES.AGENTS}/${run.agent_id}/evals/${run.id}`}
         className="hover:bg-accent/40 flex flex-wrap items-center justify-between gap-3 rounded-md px-2 py-3"
       >
-        <span className="min-w-0 space-y-1">
+        <span className="max-w-full min-w-0 space-y-1">
           <span className="text-foreground block truncate text-sm font-medium">
             {agentName ? t("row.agent", { agent: agentName, title }) : title}
           </span>
@@ -82,12 +82,12 @@ export function EvalRunRow({ run, agentName }: { run: EvalRun; agentName?: strin
             {formatDateTime(run.created_at, locale)}
           </span>
         </span>
-        <span className="flex shrink-0 flex-wrap items-center gap-3 text-xs">
+        <span className="flex w-full max-w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-xs sm:w-auto sm:shrink-0">
           <VerdictChip run={run} />
           {candidates.map((arm) => (
             <span
               key={arm.id}
-              className="text-foreground tabular-nums"
+              className="text-foreground max-w-full min-w-0 break-words tabular-nums"
               title={t("row.firstRate", { rate: percent(arm.summary.first_pass_rate, locale) })}
             >
               {t("row.rate", {
