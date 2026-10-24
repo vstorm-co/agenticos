@@ -38,9 +38,10 @@ from app.core.exceptions import (
     NotFoundError,
     PaymentRequiredError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.api_key import ApiKey
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
@@ -53,11 +54,13 @@ from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
 from app.repositories import authoring_repo, eval_suite_repo
+from app.schemas.api_key import ApiKeyCreate
 from app.schemas.authoring import AuthoringStart, FileWaiting, HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.scoring import DatasetScoring
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
+from app.services.api_key import KEY_GONE, ApiKeyService
 from app.services.authoring import AuthoringService
 from app.services.authoring_worker import AuthoringWorker
 from app.services.dataset import DatasetService
@@ -1636,3 +1639,58 @@ async def test_the_improver_never_reads_an_eval_run_a_score_or_a_dataset(db):
     assert batch is not None
     (hunk,) = batch.hunks
     assert hunk.effect is not None and hunk.effect["runs"] == 1
+
+
+class TestARequestStartedWithAnApiKey:
+    """The assistant's job does no more than the request that started it could do now.
+
+    No route that starts one accepts a key today; this holds the worker to it.
+    """
+
+    async def _started(self, db: AsyncSession):
+        ctx, agent, _ = await _setup(db)
+        created = await ApiKeyService(db).create(
+            ctx,
+            ApiKeyCreate(
+                name="ci",
+                scopes=[Perm.RUNS_VIEW, Perm.AGENTS_VIEW, Perm.AGENTS_EDIT, Perm.AGENTS_RUN],
+            ),
+        )
+        keyed = await ApiKeyService(db).context_for_key(
+            created.id, organization_id=ctx.organization_id
+        )
+        started = await AuthoringService(db).start_agent(keyed, agent.id, AuthoringStart())
+        return ctx, created.id, started
+
+    @pytest.mark.security
+    async def test_a_key_narrowed_since_stops_it_before_it_reads_a_run(self, db):
+        ctx, key_id, started = await self._started(db)
+        key = await db.get(ApiKey, key_id)
+        assert key is not None
+        key.scopes = [Perm.AGENTS_VIEW.value, Perm.AGENTS_EDIT.value]
+        await db.flush()
+
+        await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+
+        request = await authoring_repo.get_request(
+            db, started.id, organization_id=ctx.organization_id
+        )
+        assert request is not None
+        assert (request.status, request.error) == (
+            "failed",
+            "Whoever started this may no longer read runs.",
+        )
+        assert request.run_ids == []
+
+    @pytest.mark.security
+    async def test_a_key_revoked_since_stops_it(self, db):
+        ctx, key_id, started = await self._started(db)
+        await ApiKeyService(db).revoke(ctx, key_id)
+
+        await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+
+        request = await authoring_repo.get_request(
+            db, started.id, organization_id=ctx.organization_id
+        )
+        assert request is not None
+        assert (request.status, request.error) == ("failed", KEY_GONE)

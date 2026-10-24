@@ -1,5 +1,5 @@
 ---
-source_sha: "605bfd669efa"
+source_sha: "0d1ca0b45262"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -139,6 +139,19 @@ HTTP-Anfrage.
 Ein Refresh startet keine neue Session — das Refresh-Token rotiert an Ort und
 Stelle und das Access-Token nennt weiterhin dieselbe —, sodass eine langlebige
 Verbindung von einem routinemäßigen Refresh nicht gekappt wird.
+
+### Arbeit, die nach der Anfrage läuft { #work-that-runs-after-the-request }
+
+Ein [Eval-Run](evals.md) oder eine Anfrage an den
+[Authoring-Assistenten](authoring.md) lässt sich nicht mit einem
+Organisationsschlüssel starten: Diese Routen sind für angemeldete Personen, und
+ein Schlüssel erhält dort `403`. Arbeit, die später im Hintergrund läuft, ist an
+die Befugnisse der Person gebunden, die sie gestartet hat, so wie sie zu Beginn
+der Arbeit stehen - eine seither verlorene Rolle stoppt sie. Dürfte ein
+Schlüssel je solche Arbeit starten, gälte dasselbe für ihn: seine
+Berechtigungen, wie sie dann stehen, und ein seither widerrufener, abgelaufener
+oder gelöschter Schlüssel stoppte die Arbeit, mit einem Grund am Run oder an der
+Anfrage.
 
 ## Der Organisations-Header { #the-organization-header }
 

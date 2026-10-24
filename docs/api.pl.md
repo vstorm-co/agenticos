@@ -1,5 +1,5 @@
 ---
-source_sha: "605bfd669efa"
+source_sha: "0d1ca0b45262"
 ---
 
 # API HTTP { #the-http-api }
@@ -129,6 +129,17 @@ tylko następne żądanie HTTP.
 Odświeżenie nie zaczyna nowej sesji — refresh token rotuje w miejscu, a access
 token dalej nazywa tę samą sesję — więc długo żyjące połączenie nie zostaje
 przerwane przez rutynowe odświeżenie.
+
+### Praca, która działa po żądaniu { #work-that-runs-after-the-request }
+
+[Eval run](evals.md) ani żądanie do [asystenta tworzenia](authoring.md) nie
+mogą zostać rozpoczęte kluczem organizacji: te trasy są dla osób zalogowanych, a
+klucz dostaje na nich `403`. Praca, która wykonuje się później, w tle, podlega
+uprawnieniom osoby, która ją rozpoczęła, w ich stanie z chwili, gdy praca się
+zaczyna - rola utracona w międzyczasie ją zatrzymuje. Gdyby klucz kiedyś mógł
+rozpocząć taką pracę, to samo dotyczyłoby klucza: liczyłyby się jego uprawnienia
+w ówczesnym stanie, a klucz unieważniony, wygasły albo usunięty w międzyczasie
+zatrzymywałby pracę, z powodem zapisanym na runie albo żądaniu.
 
 ## Nagłówek organizacji { #the-organization-header }
 

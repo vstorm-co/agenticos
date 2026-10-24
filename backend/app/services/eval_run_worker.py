@@ -37,11 +37,12 @@ from app.agents.spec import AgentSpec
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
+    AuthenticationError,
     BadRequestError,
     NotFoundError,
     NothingToScoreError,
 )
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import DatasetCase
@@ -57,15 +58,17 @@ from app.db.models.eval_run import (
 from app.db.models.intercepted_tool_call import InterceptedToolCall, InterceptionOutcome
 from app.db.session import get_worker_db_context
 from app.repositories import (
+    agent_repo,
     dataset_repo,
     eval_run_repo,
     intercepted_tool_call_repo,
-    member_repo,
     personal_data_repo,
 )
 from app.schemas.scoring import DatasetScoring
+from app.services.access import AGENT, DATASET, resolve_access
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
+from app.services.api_key import job_context
 from app.services.eval_comparison import Flip, classify
 from app.services.eval_run import EvalRunService
 from app.services.message_history import HistoryMessage, build_message_history
@@ -77,6 +80,8 @@ logger = logging.getLogger(__name__)
 
 #: How long a drainer waits when the organization has no free slot.
 _FULL_BACKOFF_SECONDS = 2.0
+_STARTER_GONE = "Whoever started this eval is no longer a member."
+_NO_LONGER_RUNS = "Whoever started this eval may no longer run its agent or its dataset."
 
 
 @dataclass(frozen=True)
@@ -301,14 +306,25 @@ class EvalRunWorker:
             )
             if run is None or EvalRunStatus(run.status).terminal:
                 return None
-            ctx = await self._creator(db, run)
+            try:
+                ctx = await job_context(
+                    db,
+                    organization_id=run.organization_id,
+                    user_id=run.created_by_user_id,
+                    api_key_id=run.created_by_api_key_id,
+                )
+                lost = None if ctx is not None else _STARTER_GONE
+            except AuthenticationError as refused:
+                ctx, lost = None, refused.message
+            if ctx is not None and not await self._may_still_run(db, ctx, run):
+                ctx, lost = None, _NO_LONGER_RUNS
             if ctx is None:
                 await eval_run_repo.update_run(
                     db,
                     run=run,
                     values={
                         "status": EvalRunStatus.FAILED.value,
-                        "error": "Whoever started this eval is no longer a member.",
+                        "error": lost,
                         "ended_at": datetime.now(UTC),
                     },
                 )
@@ -322,28 +338,21 @@ class EvalRunWorker:
             return ctx
 
     @staticmethod
-    async def _creator(db: AsyncSession, run: EvalRun) -> AuthContext | None:
-        """The starter's authority as it is now - a role changed since applies.
+    async def _may_still_run(db: AsyncSession, ctx: AuthContext, run: EvalRun) -> bool:
+        """Whether the authority rebuilt for the run still runs its agent and its dataset.
 
-        An active membership only: a deactivated account keeps its membership
-        row, and must not keep spending. Like a trigger's fire, a case is not
-        the starter talking, so it reads and writes none of their personal memory.
+        Checked when the run starts rather than only when it was asked for: a role
+        lost, or a key narrowed, in between must not leave the run spending on
+        what its starter could no longer start.
         """
-        user_id = run.created_by_user_id
-        membership = (
-            None
-            if user_id is None
-            else await member_repo.get_active(
-                db, organization_id=run.organization_id, user_id=user_id
-            )
-        )
-        if user_id is None or membership is None:
-            return None
-        return AuthContext(
-            user_id=user_id,
-            organization_id=run.organization_id,
-            role=membership.role,
-            subject_is_publisher_fallback=True,
+        org = run.organization_id
+        agent = await agent_repo.get(db, run.agent_id, organization_id=org)
+        dataset = await dataset_repo.get(db, run.dataset_id, organization_id=org)
+        return (
+            agent is not None
+            and dataset is not None
+            and await resolve_access(db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
+            and await resolve_access(db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET)
         )
 
     async def _wave(self, ctx: AuthContext) -> None:

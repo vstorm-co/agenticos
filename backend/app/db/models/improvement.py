@@ -180,8 +180,10 @@ class ImprovementRun(Base):
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # No foreign key, as on `eval_runs`: keys are hard-deleted, and a reference set
+    # to null would let the run fall back to the issuer's full role.
     created_by_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True
+        PG_UUID(as_uuid=True), nullable=True
     )
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ImprovementStatus.QUEUED.value

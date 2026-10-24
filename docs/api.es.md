@@ -1,5 +1,5 @@
 ---
-source_sha: "605bfd669efa"
+source_sha: "0d1ca0b45262"
 ---
 
 # La API HTTP { #the-http-api }
@@ -134,6 +134,18 @@ cierra el socket, no solo la siguiente petición HTTP.
 Renovar no abre una sesión nueva — el refresh token rota en su sitio y el access
 token sigue nombrando la misma — así que una conexión de larga vida no se corta
 por una renovación rutinaria.
+
+### Trabajo que se ejecuta después de la petición { #work-that-runs-after-the-request }
+
+Una clave de la organización no puede iniciar un [eval run](evals.md) ni una
+petición al [asistente de autoría](authoring.md): esas rutas son para personas
+con sesión iniciada, y a una clave se le responde `403` en ellas. El trabajo que
+se ejecuta más tarde, en segundo plano, se ciñe a la autoridad de quien lo
+inició tal como está cuando el trabajo empieza - un rol perdido desde entonces
+lo detiene. Si alguna vez se dejara a una clave iniciar ese trabajo, lo mismo
+valdría para ella: sus permisos tal como estén entonces, y una clave revocada,
+caducada o eliminada desde entonces detendría el trabajo, con un motivo en el
+run o en la petición.
 
 ## La cabecera de organización { #the-organization-header }
 

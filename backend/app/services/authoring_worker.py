@@ -33,7 +33,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import REGISTRY, TOOL_NAME_PATTERN, ToolOverride, load_builtins
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
-from app.core.exceptions import AppException, SystemAgentOutputError, SystemAgentRunError
+from app.core.exceptions import (
+    AppException,
+    AuthenticationError,
+    SystemAgentOutputError,
+    SystemAgentRunError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.authoring import (
@@ -55,7 +60,6 @@ from app.repositories import (
     authoring_repo,
     context_proposal_repo,
     context_repo,
-    member_repo,
     skill_proposal_repo,
     skill_repo,
 )
@@ -75,6 +79,7 @@ from app.schemas.authoring import (
 )
 from app.services import authoring_hunks
 from app.services.access import AGENT, CONTEXT, SKILL, resolve_access
+from app.services.api_key import job_context
 from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import (
     EvidencePack,
@@ -943,26 +948,6 @@ class AuthoringRun:
         )
 
 
-async def creator(db: AsyncSession, request: AuthoringRequest) -> AuthContext | None:
-    """The starter's authority as it is now, or `None` once they left the organization."""
-    user_id = request.created_by_user_id
-    membership = (
-        None
-        if user_id is None
-        else await member_repo.get_active(
-            db, organization_id=request.organization_id, user_id=user_id
-        )
-    )
-    if user_id is None or membership is None:
-        return None
-    return AuthContext(
-        user_id=user_id,
-        organization_id=request.organization_id,
-        role=membership.role,
-        subject_is_publisher_fallback=True,
-    )
-
-
 class AuthoringWorker:
     """Carries one request to its end, recording why when it cannot."""
 
@@ -984,7 +969,16 @@ class AuthoringWorker:
             )
             if request is None or request.status != AuthoringStatus.QUEUED.value:
                 return
-            ctx = await creator(db, request)
+            try:
+                ctx = await job_context(
+                    db,
+                    organization_id=request.organization_id,
+                    user_id=request.created_by_user_id,
+                    api_key_id=request.created_by_api_key_id,
+                )
+            except AuthenticationError as refused:
+                await self._fail(db, request, refused.message)
+                return
             if ctx is None:
                 await self._fail(db, request, "Whoever started this is no longer a member.")
                 return

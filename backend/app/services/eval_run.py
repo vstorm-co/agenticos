@@ -1028,6 +1028,7 @@ class EvalRunService:
             dataset_version_id=plan.dataset_version.id,
             environment_id=plan.environment_id,
             created_by_user_id=ctx.user_id,
+            created_by_api_key_id=ctx.api_key_id,
             status=EvalRunStatus.QUEUED.value,
             purpose=plan.purpose.value,
             paired=plan.paired,

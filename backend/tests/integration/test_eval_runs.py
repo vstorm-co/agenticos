@@ -42,6 +42,7 @@ from app.core.exceptions import (
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.api_key import ApiKey
 from app.db.models.case_score import CaseScore
 from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
@@ -54,6 +55,7 @@ from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
 from app.repositories import eval_run_repo
 from app.schemas.agent_environment import EnvironmentCreate
+from app.schemas.api_key import ApiKeyCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
 from app.schemas.scoring import CaseVerdict, RescoreRequest
@@ -64,6 +66,7 @@ from app.services.agent_registry import (
     UnpublishedCandidate,
 )
 from app.services.agent_runner import AgentRunnerService
+from app.services.api_key import KEY_GONE, ApiKeyService
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
@@ -208,7 +211,7 @@ class Model:
 
     async def execute(self, runner: AgentRunnerService, ctx: AuthContext, agent_id, prompt, **kw):
         call = len(self.calls)
-        self.calls.append({"prompt": prompt, **kw})
+        self.calls.append({"prompt": prompt, "ctx": ctx, **kw})
         if self.before is not None:
             await self.before(call)
         failure = self.raises(call)
@@ -2891,3 +2894,119 @@ async def test_who_may_publish_an_agent_is_read_per_agent_not_off_the_role(db) -
         assert {row.id: row.can_publish for row in rows}[agent.id] is publishable
     # A Member edits the agent they own - only publishing it is out of reach.
     assert await registry.may_edit(member, own) is True
+
+
+async def _key(db: AsyncSession, ctx: AuthContext, *scopes: Perm) -> uuid.UUID:
+    created = await ApiKeyService(db).create(ctx, ApiKeyCreate(name="ci", scopes=list(scopes)))
+    return created.id
+
+
+_STARTS_EVALS = (
+    Perm.RUNS_VIEW,
+    Perm.DATASETS_VIEW,
+    Perm.DATASETS_RUN,
+    Perm.AGENTS_VIEW,
+    Perm.AGENTS_RUN,
+)
+
+
+class TestAnEvalStartedWithAnApiKey:
+    """A job does no more than the request that started it could do now.
+
+    No route that starts an eval accepts a key today; these hold the worker to
+    it for the day one does, through the real start and the real worker.
+    """
+
+    async def _started(self, db: AsyncSession):
+        ctx = await _owner(db)
+        agent, _ = await _agent(db, ctx)
+        dataset = await _dataset(db, ctx, cases=1)
+        key_id = await _key(db, ctx, *_STARTS_EVALS)
+        keyed = await ApiKeyService(db).context_for_key(key_id, organization_id=ctx.organization_id)
+        started = await EvalRunService(db).start(
+            keyed, agent.id, EvalRunRequest(dataset_id=dataset.id)
+        )
+        return ctx, key_id, started
+
+    async def _worked(self, db: AsyncSession, ctx: AuthContext, run_id: uuid.UUID) -> EvalRun:
+        await EvalRunWorker(
+            run_id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock()
+        ).run()
+        run = await eval_run_repo.get(db, run_id, organization_id=ctx.organization_id)
+        assert run is not None
+        await db.refresh(run)
+        attempts = await eval_run_repo.list_cases(db, run_id, organization_id=ctx.organization_id)
+        assert all(attempt.agent_run_id is None for attempt in attempts)
+        return run
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("taken", [Perm.AGENTS_RUN, Perm.DATASETS_RUN])
+    async def test_a_key_narrowed_since_stops_the_run_before_it_spends(
+        self, db, taken: Perm
+    ) -> None:
+        ctx, key_id, started = await self._started(db)
+        key = await db.get(ApiKey, key_id)
+        assert key is not None
+        key.scopes = [perm.value for perm in _STARTS_EVALS if perm != taken]
+        await db.flush()
+
+        run = await self._worked(db, ctx, started.id)
+
+        assert (run.status, run.error) == (
+            "failed",
+            "Whoever started this eval may no longer run its agent or its dataset.",
+        )
+
+    @pytest.mark.security
+    async def test_an_issuer_who_lost_their_role_since_stops_the_run(self, db) -> None:
+        """The key is unchanged; the role it is narrowed from is what moved."""
+        ctx, _, started = await self._started(db)
+        member = (
+            await db.execute(
+                select(OrganizationMember).where(
+                    OrganizationMember.organization_id == ctx.organization_id,
+                    OrganizationMember.user_id == ctx.user_id,
+                )
+            )
+        ).scalar_one()
+        member.role = OrgRoleName.VIEWER.value
+        await db.flush()
+
+        run = await self._worked(db, ctx, started.id)
+
+        assert run.status == "failed"
+
+    @pytest.mark.security
+    async def test_a_key_revoked_since_stops_the_run(self, db) -> None:
+        ctx, key_id, started = await self._started(db)
+        await ApiKeyService(db).revoke(ctx, key_id)
+
+        run = await self._worked(db, ctx, started.id)
+
+        assert (run.status, run.error) == ("failed", KEY_GONE)
+
+    @pytest.mark.security
+    async def test_a_key_of_another_organization_stops_the_run(self, db) -> None:
+        ctx, _, started = await self._started(db)
+        other = await _owner(db)
+        foreign = await _key(db, other, Perm.RUNS_VIEW)
+        run = await eval_run_repo.get(db, started.id, organization_id=ctx.organization_id)
+        assert run is not None
+        run.created_by_api_key_id = foreign
+        await db.flush()
+
+        worked = await self._worked(db, ctx, started.id)
+
+        assert (worked.status, worked.error) == ("failed", KEY_GONE)
+
+    async def test_a_run_started_signed_in_records_no_key(self, db) -> None:
+        ctx = await _owner(db)
+        agent, _ = await _agent(db, ctx)
+        dataset = await _dataset(db, ctx, cases=1)
+
+        started = await EvalRunService(db).start(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id)
+        )
+
+        run = await eval_run_repo.get(db, started.id, organization_id=ctx.organization_id)
+        assert run is not None and run.created_by_api_key_id is None
