@@ -1,5 +1,5 @@
 ---
-source_sha: "2ebe68f45e29"
+source_sha: "5cc2bcefa96b"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -466,14 +466,14 @@ Cualquier combinación de:
 - **Al promocionar** - una versión promocionada al entorno de la suite (el
   predeterminado cuando no nombra ninguno), medida frente a la versión a la que
   sustituyó.
-- **Cuando cambia una dependencia** - se edita un skill que enlaza la versión
-  comprobada, o se añade, se vuelve a procesar o se borra un documento de una
-  base de conocimiento que consulta. Los especialistas que define la versión
-  cuentan como la versión. Una ráfaga de cambios es una ejecución, que toca
-  `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` después del primero. Un perfil de
-  modelo no se puede cambiar en su sitio - apuntar un agent a otro es una
-  publicación - y un proveedor que cambia el modelo detrás es lo que detecta el
-  horario.
+- **Cuando cambia una dependencia** - se edita un skill o un archivo de contexto
+  que enlaza la versión comprobada, o se añade, se vuelve a procesar o se borra
+  un documento de una base de conocimiento que consulta. Los especialistas que
+  define la versión cuentan como la versión. Una ráfaga de cambios es una
+  ejecución, que toca `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` después del
+  primero. Un perfil de modelo no se puede cambiar en su sitio - apuntar un
+  agent a otro es una publicación - y un proveedor que cambia el modelo detrás
+  es lo que detecta el horario.
 - **Ejecutar ahora** - a mano, como quien lo pulsa.
 
 Una suite que espera comprobar una versión absorbe el siguiente disparador para
@@ -572,7 +572,7 @@ Slack todavía no es un canal de notificaciones.
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Cuántos runs recientes promedia la estimación |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Cuánto puede estar parado un run en marcha, con su worker callado, antes de que el barrido lo dé por fallido |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Cada cuánto avisa un run que trabaja de que sigue vivo |
-| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Cuánto espera una suite tras cambiar un skill o una base de conocimiento, para que una ráfaga de cambios sea una ejecución |
+| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Cuánto espera una suite tras cambiar un skill, un archivo de contexto o una base de conocimiento, para que una ráfaga de cambios sea una ejecución |
 
 ## Acceso { #access }
 

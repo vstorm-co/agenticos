@@ -1,5 +1,5 @@
 ---
-source_sha: "559f7f49a4d9"
+source_sha: "9b416555caa2"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -103,9 +103,24 @@ stosowane: czeka nad listą na stronie Context, z uzasadnieniem, runami, na
 których się opiera, i agentami, do których plik jest podpięty.
 
 Zastosowanie jej to to samo co ręczna edycja pliku - działa od razu dla każdego
-podpiętego agenta - więc każdą zmianę można najpierw sprawdzić evalami, na
-jednym z tych agentów. Plik, który ktoś edytował po zaproponowaniu zmiany,
+agenta, którego opublikowana wersja czyta plik - więc najpierw jest
+**Sprawdź evalami**, na jednym z tych agentów. Obok **Zastosuj** zmiana mówi, co
+robi jej zastosowanie: dla jakich agentów i środowisk zacznie działać, które
+suity evali ustawi w kolejce i którzy strażnicy sprawdzą ją dopiero przy
+następnej promocji agenta. Plik, który ktoś edytował po zaproponowaniu zmiany,
 odrzuca ją; ta edycja nigdy nie zostaje nadpisana.
+
+Ponowna prośba do asystenta przepisuje czekającą zmianę, zamiast dodawać drugą.
+Decyzja wskazuje wersję zmiany, którą przeczytałeś, więc z dwóch podjętych
+naraz liczy się tylko jedna, a strona otwarta przed przepisaniem jest odrzucana
+z komunikatem „The proposal changed since you opened it”, dopóki nie przejrzysz
+nowej wersji. Zmiana, która mówi to, co plik już mówi, w ogóle nie jest
+proponowana.
+
+Każda edycja pliku - zastosowana albo zrobiona ręcznie - i jego usunięcie
+ustawiają w kolejce suity evali uruchamiane po zmianie zależności, dla każdego
+agenta, który go czyta, a zastosowanie zmiany powiadamia właścicieli tych
+agentów.
 
 ## Dostęp { #access }
 

@@ -226,10 +226,17 @@ and with the agents bound to the file - as far as you may see them. One change
 waits for each file at a time.
 
 Applying it is live, as for a skill: every agent bound to the file reads the new
-body on its next run. So it can be checked with evals first, on an agent that
-uses the file, with only the file's body different. A file edited since the
-change was proposed cannot have the change applied: compare the two and edit the
-file by hand, or ask the assistant again.
+body on its next run. So **Check with evals** is the first action, on an agent
+that uses the file, with only the file's body different, and **Apply** says
+before you press it which agents and environments the change goes live for,
+which eval suites it queues and which guards check it only at the next
+promotion. Applying tells those agents' owners. A file edited
+since the change was proposed cannot have the change applied: compare the two
+and edit the file by hand, or ask the assistant again.
+
+The assistant never proposes the body as it stands, and a new request rewrites
+the change already waiting. Apply and Discard name the version of it you read,
+and are refused once it changed since, for a skill change as for a file.
 
 ## Describing a new agent { #describing-a-new-agent }
 

@@ -188,6 +188,14 @@ The [authoring assistant](authoring.md#skills) proposes skill changes the same w
 with its rationale and the runs behind it. Its change records the skill version it
 was written against, and Apply refuses it once somebody has changed the skill since.
 
+Each change says, beside **Apply**, which agents' published versions read the
+skill, which eval suites applying it queues and which guards check it only at
+the next promotion, and **Check with evals** comes first.
+Applying tells those agents' owners. A decision names the version of the change
+you read: a change rewritten since - by a later turn or a new request - is
+refused with "The proposal changed since you opened it", and of two decisions
+made at once only one counts.
+
 ## Getting skills into an organization
 
 **Write one.** Skills → New, in the UI. This is the normal path.

@@ -7,7 +7,14 @@ evals on one of them first.
 
 Applying needs edit access to the file, and refuses once the file changed since
 the proposal was written: the reviewer compares the two versions themselves
-rather than have somebody's edit thrown away. Both decisions are final.
+rather than have somebody's edit thrown away. A decision names the revision the
+reviewer read and changes the proposal only while it is pending at it, so of
+two made at once exactly one wins, and one made on a revision a newer run
+replaced is refused. Both decisions are final.
+
+Applying goes live at once for every agent whose served version reads the file:
+the reviewer is told which and where, their eval suites are queued, and their
+owners hear of it.
 """
 
 import logging
@@ -24,9 +31,11 @@ from app.db.models.skill_proposal import ProposalStatus
 from app.repositories import context_proposal_repo, context_repo
 from app.schemas.context import ContextFileUpdate
 from app.schemas.context_proposal import ContextProposalList, ContextProposalRead
-from app.schemas.resource_usage import AgentUsage
+from app.schemas.resource_usage import AgentUsage, ProposalDecision, ReachedAgent
+from app.services import proposal_reach
 from app.services.access import CONTEXT, accessible_ids
 from app.services.context import ContextService
+from app.services.notifications import NotificationService
 from app.services.resource_usage import agents_using
 
 logger = logging.getLogger(__name__)
@@ -55,8 +64,25 @@ class ContextProposalService:
             self.db, ctx, list(files.values()), Perm.CONTEXT_VIEW, resource_type=CONTEXT
         )
         used = await agents_using(self.db, ctx, field="context_ids", resource_ids=sorted(visible))
+        waiting = sorted(
+            {
+                proposal.context_id
+                for proposal in proposals
+                if proposal.context_id in visible
+                and proposal.status == ProposalStatus.PENDING.value
+            }
+        )
+        reaches = await proposal_reach.reach(
+            self.db, organization_id=ctx.organization_id, kind="context", resource_ids=waiting
+        )
         items = [
-            self._read(ctx, proposal, files[proposal.context_id], used[proposal.context_id])
+            self._read(
+                ctx,
+                proposal,
+                files[proposal.context_id],
+                used[proposal.context_id],
+                await self._reached(ctx, proposal, reaches),
+            )
             for proposal in proposals
             if proposal.context_id in visible
         ]
@@ -65,11 +91,31 @@ class ContextProposalService:
     async def read(self, ctx: AuthContext, proposal_id: UUID) -> ContextProposalRead:
         proposal, file = await self._get(ctx, proposal_id)
         used = await agents_using(self.db, ctx, field="context_ids", resource_ids=[file.id])
-        return self._read(ctx, proposal, file, used[file.id])
+        reaches = await proposal_reach.reach(
+            self.db, organization_id=ctx.organization_id, kind="context", resource_ids=[file.id]
+        )
+        return self._read(
+            ctx, proposal, file, used[file.id], await self._reached(ctx, proposal, reaches)
+        )
+
+    async def _reached(
+        self,
+        ctx: AuthContext,
+        proposal: ContextProposal,
+        reaches: dict[UUID, list[proposal_reach.Reach]],
+    ) -> tuple[list[ReachedAgent], int]:
+        """Where applying a waiting proposal goes live; a decided one goes nowhere now."""
+        if proposal.status != ProposalStatus.PENDING.value:
+            return [], 0
+        return await proposal_reach.reached(self.db, ctx, reaches[proposal.context_id])
 
     @staticmethod
     def _read(
-        ctx: AuthContext, proposal: ContextProposal, file: ContextFile, used: list[AgentUsage]
+        ctx: AuthContext,
+        proposal: ContextProposal,
+        file: ContextFile,
+        used: list[AgentUsage],
+        reached: tuple[list[ReachedAgent], int],
     ) -> ContextProposalRead:
         """One proposal as a reviewer reads it - quotes only for a reader of runs."""
         quotes = ctx.has(Perm.RUNS_VIEW)
@@ -94,6 +140,9 @@ class ContextProposalService:
             expected_effect=proposal.expected_effect,
             authoring_request_id=proposal.authoring_request_id,
             used_by=used,
+            revision=proposal.revision,
+            reaches=reached[0],
+            reaches_hidden=reached[1],
             created_at=proposal.created_at,
             updated_at=proposal.updated_at,
         )
@@ -118,7 +167,8 @@ class ContextProposalService:
         return proposal, file
 
     @staticmethod
-    def _refuse_second_decision(proposal: ContextProposal) -> None:
+    def _refuse_second_decision(proposal: ContextProposal, revision: int) -> None:
+        """Refuse, before anything is locked, what can be told from the row as read."""
         if proposal.status != ProposalStatus.PENDING.value:
             raise AlreadyExistsError(
                 message=(
@@ -127,17 +177,26 @@ class ContextProposalService:
                 ),
                 details={"proposal_id": proposal.id, "status": proposal.status},
             )
+        if proposal.revision != revision:
+            raise _changed(proposal)
 
-    async def apply(self, ctx: AuthContext, proposal_id: UUID) -> ContextProposalRead:
+    async def apply(
+        self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
+    ) -> ContextProposalRead:
         """Write the proposed body to the file, then mark the proposal applied.
+
+        It goes live at once for every agent whose served version reads the file:
+        their eval suites are queued with the edit, and their owners hear of it.
 
         Raises:
             NotFoundError: As :meth:`read`, or the caller may not edit the file.
             AlreadyExistsError: It was already decided.
-            ConcurrentChangeError: The file changed since the proposal was written.
+            ConcurrentChangeError: The file changed since the proposal was written,
+                or the proposal since the reviewer read it - another decision, or a
+                newer run - and nothing is written.
         """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
-        self._refuse_second_decision(proposal)
+        self._refuse_second_decision(proposal, decision.revision)
         # Locking re-reads the row into `file`: an edit committed meanwhile is seen.
         await context_repo.lock(self.db, file.id, organization_id=ctx.organization_id)
         if file.updated_at != proposal.base_updated_at:
@@ -148,37 +207,93 @@ class ContextProposalService:
                 ),
                 details={"proposal_id": proposal.id, "context_id": file.id},
             )
+        decided = await self._claim(ctx, proposal, decision, ProposalStatus.APPLIED)
         await self.contexts.update(
             ctx,
             file.id,
-            ContextFileUpdate(description=proposal.description, content=proposal.content),
+            ContextFileUpdate(description=decided.description, content=decided.content),
         )
-        return await self._decide(ctx, proposal, file, ProposalStatus.APPLIED)
+        reaches = (
+            await proposal_reach.reach(
+                self.db, organization_id=ctx.organization_id, kind="context", resource_ids=[file.id]
+            )
+        )[file.id]
+        notifications = NotificationService(self.db)
+        for item in reaches:
+            await notifications.shared_change_applied(
+                agent=item.agent,
+                kind="context",
+                resource=file,
+                occurrence=f"{decided.id}:{decided.revision}",
+                actor_user_id=ctx.user_id,
+            )
+        return await self._decided(
+            ctx, decided, file, agents=sorted(str(item.agent.id) for item in reaches)
+        )
 
-    async def discard(self, ctx: AuthContext, proposal_id: UUID) -> ContextProposalRead:
-        """Refuse a change, keeping the record of what was proposed."""
+    async def discard(
+        self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
+    ) -> ContextProposalRead:
+        """Refuse a change, keeping the record of what was proposed.
+
+        Raises:
+            NotFoundError: As :meth:`read`, or the caller may not edit the file.
+            AlreadyExistsError: It was already decided.
+            ConcurrentChangeError: The proposal changed since the reviewer read it.
+        """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
-        self._refuse_second_decision(proposal)
-        return await self._decide(ctx, proposal, file, ProposalStatus.DISCARDED)
+        self._refuse_second_decision(proposal, decision.revision)
+        decided = await self._claim(ctx, proposal, decision, ProposalStatus.DISCARDED)
+        return await self._decided(ctx, decided, file, agents=None)
 
-    async def _decide(
+    async def _claim(
+        self,
+        ctx: AuthContext,
+        proposal: ContextProposal,
+        decision: ProposalDecision,
+        status: ProposalStatus,
+    ) -> ContextProposal:
+        """Decide the proposal if it is still pending at the revision read, or refuse."""
+        decided = await context_proposal_repo.decide_if(
+            self.db,
+            proposal_id=proposal.id,
+            organization_id=ctx.organization_id,
+            revision=decision.revision,
+            status=status,
+            decided_by=ctx.subject_id,
+        )
+        if decided is None:
+            raise _changed(proposal)
+        return decided
+
+    async def _decided(
         self,
         ctx: AuthContext,
         proposal: ContextProposal,
         file: ContextFile,
-        status: ProposalStatus,
+        *,
+        agents: list[str] | None,
     ) -> ContextProposalRead:
-        decided = await context_proposal_repo.decide(
-            self.db, proposal=proposal, status=status, decided_by=ctx.subject_id
-        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
-            action=f"context.change_{status.value}",
+            action=f"context.change_{proposal.status}",
             target_type="context",
             target_id=str(file.id),
-            details={"name": file.name, "proposal_id": str(proposal.id)},
+            details={
+                "name": file.name,
+                "proposal_id": str(proposal.id),
+                "revision": proposal.revision,
+                **({"agents": agents} if agents is not None else {}),
+            },
         )
         used = await agents_using(self.db, ctx, field="context_ids", resource_ids=[file.id])
-        return self._read(ctx, decided, file, used[file.id])
+        return self._read(ctx, proposal, file, used[file.id], ([], 0))
+
+
+def _changed(proposal: ContextProposal) -> ConcurrentChangeError:
+    return ConcurrentChangeError(
+        message="The proposal changed since you opened it. Review the new version.",
+        details={"proposal_id": proposal.id, "reason": "proposal_changed"},
+    )

@@ -182,13 +182,17 @@ async def test_each_context_route_answers_with_its_status(
         assert (await http.post(_url(f"{context}/check"), json=check)).status_code == 201
         waiting = await http.get(_url("/context-changes?status=pending"))
         assert (await http.get(_url(f"/context-changes/{proposal}"))).status_code == 200
-        assert (await http.post(_url(f"/context-changes/{proposal}/apply"))).status_code == 200
-        assert (await http.post(_url(f"/context-changes/{proposal}/discard"))).status_code == 200
+        decision = {"revision": 2}
+        applied = await http.post(_url(f"/context-changes/{proposal}/apply"), json=decision)
+        discarded = await http.post(_url(f"/context-changes/{proposal}/discard"), json=decision)
+        assert (applied.status_code, discarded.status_code) == (200, 200)
+        assert (await http.post(_url(f"/context-changes/{proposal}/apply"))).status_code == 422
 
     assert listed.status_code == 200 and len(listed.json()) == 1
     assert waiting.json()["total"] == 1
     assert changes.list_read.await_args.kwargs == {"status": "pending"}
     assert changes.apply.await_args.args[1] == proposal
+    assert changes.apply.await_args.args[2].revision == 2
 
 
 async def test_what_waits_is_answered(client: OpenClient) -> None:

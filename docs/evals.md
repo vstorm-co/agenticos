@@ -434,9 +434,9 @@ Any combination of:
   in the same eval run.
 - **On promotion** - a version promoted onto the suite's environment (the
   default one when it names none), measured against the version it replaced.
-- **When a dependency changes** - a skill the checked version binds is edited,
-  or a document in a knowledge base it searches is added, reingested or
-  deleted. Specialists the version defines count as the version. A burst of
+- **When a dependency changes** - a skill or a context file the checked version
+  binds is edited, or a document in a knowledge base it searches is added,
+  reingested or deleted. Specialists the version defines count as the version. A burst of
   changes is one run, due `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` after the
   first. A model profile cannot change in place - pointing an agent at another
   one is a publish - and a provider changing the model behind it is what the
@@ -532,7 +532,7 @@ channel yet.
 | `EVAL_ESTIMATE_SAMPLE` | `50` | How many recent runs the estimate averages |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | How long a running run may stand still, its worker silent, before the sweep fails it |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | How often a working run says it is alive |
-| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | How long a suite waits after a skill or knowledge base changed, so a burst of changes is one run |
+| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | How long a suite waits after a skill, context file or knowledge base changed, so a burst of changes is one run |
 
 ## Access { #access }
 

@@ -4,6 +4,7 @@ import {
   Bell,
   CheckCircle2,
   Database,
+  GitPullRequest,
   KeyRound,
   ListChecks,
   ShieldAlert,
@@ -52,6 +53,7 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   background_task_paused: { icon: PauseCircle, tone: BAD },
   eval_suite_failed: { icon: ListChecks, tone: BAD },
   promotion_overridden: { icon: ShieldAlert, tone: BAD },
+  shared_change_applied: { icon: GitPullRequest, tone: HELD },
 };
 
 /** A kind this console has not met yet: a bell, rather than nothing. */

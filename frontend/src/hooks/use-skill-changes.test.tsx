@@ -34,6 +34,9 @@ function change(overrides: Partial<SkillChangeRecord> = {}): SkillChangeRecord {
     decided_at: null,
     created_at: "2026-08-03T00:00:00Z",
     updated_at: null,
+    revision: 1,
+    reaches: [],
+    reaches_hidden: 0,
     ...overrides,
   };
 }
@@ -60,10 +63,10 @@ describe("useSkillChanges", () => {
     await waitFor(() => expect(result.current.changes).toHaveLength(1));
 
     await act(async () => {
-      await result.current.apply("p-1");
+      await result.current.apply(change());
     });
 
-    expect(api.applySkillChange).toHaveBeenCalledWith("p-1");
+    expect(api.applySkillChange).toHaveBeenCalledWith(change());
     await waitFor(() => expect(api.listSkillChanges).toHaveBeenCalledTimes(2));
   });
 
@@ -72,10 +75,10 @@ describe("useSkillChanges", () => {
     await waitFor(() => expect(result.current.changes).toHaveLength(1));
 
     await act(async () => {
-      await result.current.discard("p-1");
+      await result.current.discard(change());
     });
 
-    expect(api.discardSkillChange).toHaveBeenCalledWith("p-1");
+    expect(api.discardSkillChange).toHaveBeenCalledWith(change());
     await waitFor(() => expect(api.listSkillChanges).toHaveBeenCalledTimes(2));
   });
 
@@ -90,11 +93,13 @@ describe("useSkillChanges", () => {
 
     await expect(
       act(async () => {
-        await result.current.apply("p-1");
+        await result.current.apply(change());
       }),
     ).rejects.toThrow(refused);
 
     expect(toast.error).toHaveBeenCalledWith("This change was already applied.");
+    // Read again, so a proposal a newer run rewrote comes back at its new revision.
+    await waitFor(() => expect(api.listSkillChanges).toHaveBeenCalledTimes(2));
   });
 
   it("reports a refusal to discard as well", async () => {
@@ -105,7 +110,7 @@ describe("useSkillChanges", () => {
 
     await expect(
       act(async () => {
-        await result.current.discard("p-1");
+        await result.current.discard(change());
       }),
     ).rejects.toThrow();
 

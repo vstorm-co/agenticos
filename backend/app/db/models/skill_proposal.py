@@ -105,6 +105,8 @@ class SkillProposal(Base, TimestampMixin):
     Writing them there would make a proposal indistinguishable from an applied
     change for every reader that joins on `skill_id`.
     """
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    """Raised each time a new run rewrites the pending proposal; a decision names it."""
 
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ProposalStatus.PENDING.value, index=True

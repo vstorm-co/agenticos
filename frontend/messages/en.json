@@ -4696,7 +4696,7 @@
       },
       "agent-eval-suites": {
         "title": "Suites",
-        "body": "Hold the agent to a dataset without remembering to: run it every night, on every publish or promotion, or when a skill or knowledge base it reads changes. You are told when a case breaks."
+        "body": "Hold the agent to a dataset without remembering to: run it every night, on every publish or promotion, or when a skill, knowledge base or context file it reads changes. You are told when a case breaks."
       },
       "agent-assistant-strip": {
         "title": "The authoring assistant",
@@ -5858,7 +5858,9 @@
       "prefEvalSuiteFailed": "An eval suite failed",
       "prefEvalSuiteFailedTrigger": "A suite you own fell below its threshold or could not run. Sent once per run of failures on a version, naming the cases that broke.",
       "prefPromotionOverridden": "A promotion went past its evals",
-      "prefPromotionOverriddenTrigger": "A version went to an environment past an eval suite you own that had not passed on it. Names the suites and the reason given."
+      "prefPromotionOverriddenTrigger": "A version went to an environment past an eval suite you own that had not passed on it. Names the suites and the reason given.",
+      "prefSharedChangeApplied": "A change went live for your agent",
+      "prefSharedChangeAppliedTrigger": "Somebody applied a change to a context file or skill your agent reads. Its eval suites that run on such a change were queued. Names the file or skill only if you can see it, and never its content."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -9289,10 +9291,10 @@
       "title": "You can't open this eval run",
       "body": "Reading eval runs needs permission to view runs, and access to the agent and the dataset. Ask an admin of the organization."
     },
-    "startedBySuite": "Started by the suite {name} {trigger, select, schedule {on its schedule} publish {when a version was published} promotion {when a version was promoted} dependency {after a skill or knowledge base changed} other {by hand}}.",
+    "startedBySuite": "Started by the suite {name} {trigger, select, schedule {on its schedule} publish {when a version was published} promotion {when a version was promoted} dependency {after a skill, knowledge base or context file changed} other {by hand}}.",
     "suites": {
       "title": "Suites",
-      "description": "Datasets this agent is held to, run on their own: on a schedule, when a version is published or promoted, or when a skill or knowledge base it reads changes.",
+      "description": "Datasets this agent is held to, run on their own: on a schedule, when a version is published or promoted, or when a skill, knowledge base or context file it reads changes.",
       "new": "New suite",
       "empty": {
         "line": "No suites yet, so this agent is checked only when somebody starts a run."
@@ -9321,7 +9323,7 @@
       "when": {
         "publish": "On publish",
         "promotion": "On promotion",
-        "dependency": "When a skill or knowledge base changes",
+        "dependency": "When a skill, knowledge base or context file changes",
         "manualOnly": "Only when run by hand"
       },
       "schedule": {
@@ -9415,8 +9417,8 @@
         "onPublishHint": "Each new version runs beside the one before it, so a regression is caught before anyone promotes it.",
         "onPromotion": "On promotion",
         "onPromotionHint": "When a version is promoted onto the environment above, measured against the version it replaced.",
-        "onDependency": "When a skill or knowledge base changes",
-        "onDependencyHint": "Skills and documents change with no publish. A burst of changes is one run, ten minutes after the first.",
+        "onDependency": "When a skill, knowledge base or context file changes",
+        "onDependencyHint": "Skills, documents and context files change with no publish. A burst of changes is one run, ten minutes after the first.",
         "onSchedule": "On a schedule",
         "onScheduleHint": "Run daily on the production version to catch a provider's model drifting and a knowledge base changing underneath it.",
         "frequency": "Repeats",
@@ -9818,6 +9820,16 @@
         "superseded": "A request started later had already replaced the suggestions"
       },
       "about": "About: {line}"
+    },
+    "noChange": "The assistant found nothing to change: what it proposed is what is there now.",
+    "goesLive": {
+      "now": "Goes live now for {agents}.",
+      "agent": "{name} ({environments})",
+      "hidden": "{count, plural, =1 {1 agent you cannot see} other {# agents you cannot see}}",
+      "runsNow": "Runs now: {suites}.",
+      "atPromotion": "{suites} {count, plural, =1 {checks} other {check}} it at the next promotion.",
+      "suites": "{count, plural, =1 {1 eval suite} other {# eval suites}}",
+      "nowhere": "No published agent reads it yet, so applying it changes no answers today."
     }
   },
   "promotionGate": {

@@ -4465,7 +4465,7 @@
       },
       "agent-eval-suites": {
         "title": "Suity",
-        "body": "Sprawdzaj agenta na datasecie bez pamiętania o tym: co noc, przy każdej publikacji albo promocji, albo po zmianie skilla lub bazy wiedzy, z których korzysta. Dostaniesz wiadomość, gdy jakiś przypadek przestanie przechodzić."
+        "body": "Sprawdzaj agenta na datasecie bez pamiętania o tym: co noc, przy każdej publikacji albo promocji, albo po zmianie skilla, bazy wiedzy lub pliku kontekstu, z których korzysta. Dostaniesz wiadomość, gdy jakiś przypadek przestanie przechodzić."
       },
       "agent-assistant-strip": {
         "title": "Asystent tworzenia",
@@ -5627,7 +5627,9 @@
       "prefEvalSuiteFailed": "Suita ewaluacji nie przeszła",
       "prefEvalSuiteFailedTrigger": "Twoja suita spadła poniżej progu albo nie mogła się uruchomić. Wysyłane raz na serię niepowodzeń na danej wersji, z nazwami przypadków, które się zepsuły.",
       "prefPromotionOverridden": "Promocja pominęła ewaluacje",
-      "prefPromotionOverriddenTrigger": "Wersja trafiła do środowiska z pominięciem Twojej suity ewaluacji, która na niej nie przeszła. Podaje suity i podany powód."
+      "prefPromotionOverriddenTrigger": "Wersja trafiła do środowiska z pominięciem Twojej suity ewaluacji, która na niej nie przeszła. Podaje suity i podany powód.",
+      "prefSharedChangeApplied": "Zmiana weszła dla twojego agenta",
+      "prefSharedChangeAppliedTrigger": "Ktoś zastosował zmianę pliku kontekstu albo skilla, z którego korzysta twój agent. Jego suity ewaluacji uruchamiane przy takiej zmianie trafiły do kolejki. Podaje nazwę pliku albo skilla tylko wtedy, gdy go widzisz, a treści nigdy."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -8539,10 +8541,10 @@
       "title": "Nie możesz otworzyć tego runu ewaluacji",
       "body": "Czytanie runów ewaluacji wymaga uprawnienia do podglądu runów oraz dostępu do agenta i datasetu. Poproś administratora organizacji."
     },
-    "startedBySuite": "Uruchomione przez suitę {name} {trigger, select, schedule {według harmonogramu} publish {po publikacji wersji} promotion {po promocji wersji} dependency {po zmianie skilla albo bazy wiedzy} other {ręcznie}}.",
+    "startedBySuite": "Uruchomione przez suitę {name} {trigger, select, schedule {według harmonogramu} publish {po publikacji wersji} promotion {po promocji wersji} dependency {po zmianie skilla, bazy wiedzy albo pliku kontekstu} other {ręcznie}}.",
     "suites": {
       "title": "Suity",
-      "description": "Datasety, na których sprawdzany jest ten agent, uruchamiane same: według harmonogramu, po publikacji albo promocji wersji, albo po zmianie skilla lub bazy wiedzy, z których korzysta.",
+      "description": "Datasety, na których sprawdzany jest ten agent, uruchamiane same: według harmonogramu, po publikacji albo promocji wersji, albo po zmianie skilla, bazy wiedzy lub pliku kontekstu, z których korzysta.",
       "new": "Nowa suita",
       "empty": {
         "line": "Brak suit, więc ten agent jest sprawdzany tylko wtedy, gdy ktoś uruchomi run."
@@ -8571,7 +8573,7 @@
       "when": {
         "publish": "Po publikacji",
         "promotion": "Po promocji",
-        "dependency": "Po zmianie skilla albo bazy wiedzy",
+        "dependency": "Po zmianie skilla, bazy wiedzy albo pliku kontekstu",
         "manualOnly": "Tylko ręcznie"
       },
       "schedule": {
@@ -8665,8 +8667,8 @@
         "onPublishHint": "Każda nowa wersja działa obok poprzedniej, więc regresja wychodzi, zanim ktoś ją wypromuje.",
         "onPromotion": "Po promocji",
         "onPromotionHint": "Gdy wersja trafia na środowisko wyżej, w porównaniu z wersją, którą zastąpiła.",
-        "onDependency": "Po zmianie skilla albo bazy wiedzy",
-        "onDependencyHint": "Skille i dokumenty zmieniają się bez publikacji. Seria zmian to jeden run, dziesięć minut po pierwszej.",
+        "onDependency": "Po zmianie skilla, bazy wiedzy albo pliku kontekstu",
+        "onDependencyHint": "Skille, dokumenty i pliki kontekstu zmieniają się bez publikacji. Seria zmian to jeden run, dziesięć minut po pierwszej.",
         "onSchedule": "Według harmonogramu",
         "onScheduleHint": "Uruchamiaj codziennie na wersji produkcyjnej, żeby wyłapać zmiany modelu u providera i zmiany w bazie wiedzy.",
         "frequency": "Powtarza się",
@@ -9601,6 +9603,16 @@
         "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie"
       },
       "about": "Dotyczy: {line}"
+    },
+    "noChange": "Asystent nie znalazł nic do zmiany: to, co zaproponował, już tam jest.",
+    "goesLive": {
+      "now": "Wchodzi od razu dla: {agents}.",
+      "agent": "{name} ({environments})",
+      "hidden": "{count, plural, one {# agent, którego nie widzisz} few {# agentów, których nie widzisz} many {# agentów, których nie widzisz} other {# agenta, którego nie widzisz}}",
+      "runsNow": "Uruchamia teraz: {suites}.",
+      "atPromotion": "{suites} {named, select, yes {{count, plural, one {sprawdzi} other {sprawdzą}}} other {{count, plural, one {sprawdzi} few {sprawdzą} many {sprawdzi} other {sprawdzi}}}} to przy następnej promocji.",
+      "suites": "{count, plural, one {# suita ewaluacji} few {# suity ewaluacji} many {# suit ewaluacji} other {# suity ewaluacji}}",
+      "nowhere": "Żaden opublikowany agent jeszcze go nie czyta, więc zastosowanie nie zmieni dziś żadnych odpowiedzi."
     }
   },
   "promotionGate": {

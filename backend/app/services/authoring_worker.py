@@ -198,6 +198,31 @@ def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFinding
     )
 
 
+def _unwrapped(content: str, tag: str, current: str) -> str:
+    """A proposed body without the tags its prompt wrapped the current one in.
+
+    A model copies the wrapper back often enough that, left in, it lands in the
+    file every bound agent reads - unless the body itself is wrapped in them.
+    """
+    body = content.strip()
+    opening, closing = f"<{tag}>", f"</{tag}>"
+    if current.strip().startswith(opening):
+        return content
+    if body.startswith(opening) and body.endswith(closing):
+        return body[len(opening) : -len(closing)].strip("\n")
+    return content
+
+
+def _same_text(proposed: str | None, current: str | None) -> bool:
+    """Whether two bodies read the same: line endings and trailing spaces aside."""
+
+    def plain(text: str | None) -> str:
+        lines = (text or "").replace("\r\n", "\n").split("\n")
+        return "\n".join(line.rstrip() for line in lines).strip()
+
+    return plain(proposed) == plain(current)
+
+
 def _context_prompt(
     file: ContextFile, pack: EvidencePack, digests: Sequence[RunFindings] | None
 ) -> str:
@@ -517,34 +542,36 @@ class AuthoringRun:
         digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
         proposal = await self._ask(_skill_prompt(skill, pack, digests), SkillImprovement)
         pack = await self.evidence.forget_erased(pack)
+        content = _unwrapped(proposal.content, "skill", skill.content)
+        if _same_text(content, skill.content) and _same_text(
+            proposal.description[:500], skill.description
+        ):
+            await self._finish_unchanged(proposal.summary, proposal.expected_effect)
+            return
         kept, dropped = pack.verify(proposal.evidence)
         improver = await self.runner.agents.ensure(
             organization_id=self.ctx.organization_id, key=IMPROVER.key
         )
         values = {
             "description": proposal.description[:500],
-            "content": proposal.content,
+            "content": content,
             "resources": {},
             "conversation_id": None,
         }
-        existing = await skill_proposal_repo.get_pending_for_skill(
+        proposal_row = await skill_proposal_repo.replace_pending(
             self.db,
             organization_id=self.ctx.organization_id,
             skill_id=skill.id,
             name=skill.name,
             agent_id=improver.id,
-        )
-        proposal_row = (
-            await skill_proposal_repo.replace_body(self.db, proposal=existing, **values)
-            if existing is not None
-            else await skill_proposal_repo.create(
-                self.db,
-                organization_id=self.ctx.organization_id,
-                skill_id=skill.id,
-                agent_id=improver.id,
-                name=skill.name,
-                **values,
-            )
+            **values,
+        ) or await skill_proposal_repo.create(
+            self.db,
+            organization_id=self.ctx.organization_id,
+            skill_id=skill.id,
+            agent_id=improver.id,
+            name=skill.name,
+            **values,
         )
         await skill_proposal_repo.annotate(
             self.db,
@@ -587,26 +614,27 @@ class AuthoringRun:
         digests = await self._digests(pack, f'agents using the context file "{file.name}"')
         proposal = await self._ask(_context_prompt(file, pack, digests), ContextImprovement)
         pack = await self.evidence.forget_erased(pack)
+        content = _unwrapped(proposal.content, "context", file.content)
+        if _same_text(content, file.content) and _same_text(
+            proposal.description[:500], file.description
+        ):
+            await self._finish_unchanged(proposal.summary, proposal.expected_effect)
+            return
         kept, dropped = pack.verify(proposal.evidence)
         values = {
             "base_updated_at": file.updated_at,
             "description": proposal.description[:500],
-            "content": proposal.content,
+            "content": content,
             "rationale": proposal.rationale,
             "evidence": kept,
             "evidence_dropped": dropped,
             "expected_effect": proposal.expected_effect,
             "authoring_request_id": self.request.id,
         }
-        existing = await context_proposal_repo.get_pending_for_context(
-            self.db, organization_id=org, context_id=file.id
-        )
-        row = (
-            await context_proposal_repo.update(self.db, proposal=existing, values=values)
-            if existing is not None
-            else await context_proposal_repo.create(
-                self.db, organization_id=org, context_id=file.id, values=values
-            )
+        row = await context_proposal_repo.replace_pending(
+            self.db, organization_id=org, context_id=file.id, values=values
+        ) or await context_proposal_repo.create(
+            self.db, organization_id=org, context_id=file.id, values=values
         )
         await self._finish(
             {
@@ -614,6 +642,12 @@ class AuthoringRun:
                 "expected_effect": proposal.expected_effect,
                 "context_proposal_id": str(row.id),
             }
+        )
+
+    async def _finish_unchanged(self, summary: str, expected_effect: str) -> None:
+        """A proposal that is the body as it stands: recorded as a finding, never as a change."""
+        await self._finish(
+            {"summary": summary, "expected_effect": expected_effect, "no_change": True}
         )
 
     def _record_evidence(self, pack: EvidencePack) -> None:

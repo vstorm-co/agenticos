@@ -1,5 +1,5 @@
 ---
-source_sha: "559f7f49a4d9"
+source_sha: "9b416555caa2"
 ---
 
 # Context-Dateien { #context-files }
@@ -109,9 +109,25 @@ Begründung, den Runs, auf denen es beruht, und den Agents, an die die Datei
 gebunden ist.
 
 Es anzuwenden ist dasselbe, wie die Datei von Hand zu bearbeiten - sofort
-wirksam für jeden gebundenen Agent -, deshalb lässt sich jede Änderung vorher mit
-Evals prüfen, an einem dieser Agents. Eine Datei, die jemand nach dem Vorschlag
-bearbeitet hat, lehnt die Änderung ab; die Bearbeitung wird nie überschrieben.
+wirksam für jeden Agent, dessen veröffentlichte Version die Datei liest -,
+deshalb kommt **Mit Evals prüfen** zuerst, an einem dieser Agents. Neben
+**Anwenden** sagt die Änderung, was das Anwenden bewirkt: jeder Agent und jede
+Umgebung, für die sie wirksam wird, die Eval-Suites, die es in die Warteschlange
+stellt, und die Wächter, die sie erst bei der nächsten Promotion des Agents
+prüfen. Eine Datei, die jemand nach dem Vorschlag bearbeitet hat, lehnt die
+Änderung ab; die Bearbeitung wird nie überschrieben.
+
+Den Assistenten erneut zu fragen schreibt die wartende Änderung um, statt eine
+zweite hinzuzufügen. Eine Entscheidung nennt die Version der Änderung, die Sie
+gelesen haben, sodass von zwei gleichzeitigen nur eine zählt, und eine Seite,
+die vor dem Umschreiben geöffnet wurde, wird mit „The proposal changed since you
+opened it“ abgelehnt, bis Sie die neue Version prüfen. Eine Änderung, die sagt,
+was die Datei schon sagt, wird gar nicht erst vorgeschlagen.
+
+Jede Bearbeitung einer Datei - angewendet oder von Hand - und ihr Löschen
+stellen die Eval-Suites, die laufen, wenn sich eine Abhängigkeit ändert, für
+jeden Agent in die Warteschlange, der sie liest, und das Anwenden einer Änderung
+benachrichtigt die Besitzer dieser Agents.
 
 ## Zugriff { #access }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b07994466fc2"
+source_sha: "2980e260fcea"
 ---
 
 # Skille { #skills }
@@ -194,6 +194,15 @@ a nie więcej informacji.
 sposób, razem z uzasadnieniem i runami, na których się opiera. Jego zmiana
 zapisuje wersję skilla, dla której powstała, a Apply ją odrzuca, jeśli ktoś w
 międzyczasie zmienił skill.
+
+Każda zmiana mówi, obok **Apply**, opublikowane wersje których agentów czytają
+skill, które suity evali ustawi w kolejce jej zastosowanie i którzy strażnicy
+sprawdzą ją dopiero przy następnej promocji, a pierwsze jest
+**Check with evals**. Zastosowanie powiadamia właścicieli tych agentów. Decyzja
+wskazuje wersję zmiany, którą przeczytałeś: zmiana przepisana od tego czasu -
+przez późniejszą turę albo nową prośbę - jest odrzucana z komunikatem „The
+proposal changed since you opened it”, a z dwóch decyzji podjętych naraz liczy
+się tylko jedna.
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

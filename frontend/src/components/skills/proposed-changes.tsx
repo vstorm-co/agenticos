@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui";
 import { EvidenceList } from "@/components/authoring/evidence-list";
+import { GoesLive } from "@/components/authoring/goes-live";
 import { SkillCheckButton } from "@/components/authoring/skill-check-button";
 import { useSkillChanges } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -68,8 +69,8 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
             key={change.id}
             change={change}
             disabled={isDeciding}
-            onApply={() => void apply(change.id)}
-            onDiscard={() => void discard(change.id)}
+            onApply={() => void apply(change)}
+            onDiscard={() => void discard(change)}
           />
         ))}
       </CardContent>
@@ -110,6 +111,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           <p className="text-muted-foreground text-xs">
             {change.description || t("noDescriptionWorthAdding")}
           </p>
+          <GoesLive reaches={change.reaches} hidden={change.reaches_hidden} />
           {change.conversation_id !== null && (
             <a
               className="text-muted-foreground text-xs underline"
@@ -144,6 +146,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             {t("discard")}
           </Button>
           <Button
+            variant="outline"
             size="sm"
             disabled={disabled}
             onClick={onApply}

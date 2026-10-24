@@ -40,12 +40,14 @@ describe("useContextChanges", () => {
     const { result } = renderHook(() => useContextChanges(), { wrapper });
     await waitFor(() => expect(result.current.changes).toHaveLength(1));
 
-    act(() => result.current.apply("change-1"));
+    act(() => result.current.apply(contextChange({ revision: 3 })));
 
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Applied the change to house-style"),
     );
-    expect(apiClient.post).toHaveBeenCalledWith("/context-changes/change-1/apply");
+    expect(apiClient.post).toHaveBeenCalledWith("/context-changes/change-1/apply", {
+      revision: 3,
+    });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.context.all() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.authoring.waiting() });
   });
@@ -55,12 +57,14 @@ describe("useContextChanges", () => {
     const { result } = renderHook(() => useContextChanges(), { wrapper });
     await waitFor(() => expect(result.current.changes).toHaveLength(1));
 
-    act(() => result.current.discard("change-1"));
+    act(() => result.current.discard(contextChange({ revision: 3 })));
 
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Discarded the change to house-style"),
     );
-    expect(apiClient.post).toHaveBeenCalledWith("/context-changes/change-1/discard");
+    expect(apiClient.post).toHaveBeenCalledWith("/context-changes/change-1/discard", {
+      revision: 3,
+    });
   });
 
   it("reports a refused decision and reads the changes again", async () => {
@@ -71,11 +75,11 @@ describe("useContextChanges", () => {
     const { result } = renderHook(() => useContextChanges(), { wrapper });
     await waitFor(() => expect(result.current.changes).toHaveLength(1));
 
-    act(() => result.current.apply("change-1"));
+    act(() => result.current.apply(contextChange({ revision: 3 })));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("The file changed since."));
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
 
-    act(() => result.current.discard("change-1"));
+    act(() => result.current.discard(contextChange({ revision: 3 })));
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
   });
 

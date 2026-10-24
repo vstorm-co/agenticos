@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.context_proposal import ContextProposal
@@ -28,11 +29,14 @@ async def get_pending_for_context(
 ) -> ContextProposal | None:
     """The waiting proposal a newer one replaces, so a file has one waiting at a time."""
     result = await db.execute(
-        select(ContextProposal).where(
+        select(ContextProposal)
+        .where(
             ContextProposal.organization_id == organization_id,
             ContextProposal.context_id == context_id,
             ContextProposal.status == ProposalStatus.PENDING.value,
         )
+        .order_by(ContextProposal.created_at.desc(), ContextProposal.id)
+        .execution_options(populate_existing=True)
     )
     return result.scalars().first()
 
@@ -67,25 +71,73 @@ async def create(
     return proposal
 
 
-async def update(
+async def rewrite(
     db: AsyncSession, *, proposal: ContextProposal, values: dict[str, Any]
-) -> ContextProposal:
-    for field, value in values.items():
-        setattr(proposal, field, value)
-    await db.flush()
-    await db.refresh(proposal)
-    return proposal
+) -> ContextProposal | None:
+    """Rewrite a proposal and raise its revision, only while it is pending as read.
 
-
-async def decide(
-    db: AsyncSession, *, proposal: ContextProposal, status: ProposalStatus, decided_by: UUID | None
-) -> ContextProposal:
-    return await update(
-        db,
-        proposal=proposal,
-        values={
-            "status": status.value,
-            "decided_by_user_id": decided_by,
-            "decided_at": datetime.now(UTC),
-        },
+    `None` once a decision or another run changed it since: the caller makes a new
+    proposal rather than write over a decided one, or over a rewrite it never saw.
+    """
+    result = await db.execute(
+        sql_update(ContextProposal)
+        .where(
+            ContextProposal.id == proposal.id,
+            ContextProposal.organization_id == proposal.organization_id,
+            ContextProposal.status == ProposalStatus.PENDING.value,
+            ContextProposal.revision == proposal.revision,
+        )
+        .values(**values, revision=ContextProposal.revision + 1)
+        .returning(ContextProposal)
+        .execution_options(populate_existing=True)
     )
+    return result.scalars().first()
+
+
+async def decide_if(
+    db: AsyncSession,
+    *,
+    proposal_id: UUID,
+    organization_id: UUID,
+    revision: int,
+    status: ProposalStatus,
+    decided_by: UUID | None,
+) -> ContextProposal | None:
+    """Decide a proposal only while it is pending at `revision`, or `None` when it is not.
+
+    One conditional update, so of two decisions made at once exactly one changes
+    the row - and a decision on a revision a newer run replaced changes nothing.
+    """
+    result = await db.execute(
+        sql_update(ContextProposal)
+        .where(
+            ContextProposal.id == proposal_id,
+            ContextProposal.organization_id == organization_id,
+            ContextProposal.status == ProposalStatus.PENDING.value,
+            ContextProposal.revision == revision,
+        )
+        .values(status=status.value, decided_by_user_id=decided_by, decided_at=datetime.now(UTC))
+        .returning(ContextProposal)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalars().first()
+
+
+async def replace_pending(
+    db: AsyncSession, *, organization_id: UUID, context_id: UUID, values: dict[str, Any]
+) -> ContextProposal | None:
+    """Rewrite the file's waiting proposal, or `None` when none is left to rewrite.
+
+    A decision or another run that changed the one read in between sends it back
+    to read again, as often as that happens - each miss is somebody else's write
+    landing - so runs on one file at once still leave one proposal waiting.
+    """
+    while True:
+        pending = await get_pending_for_context(
+            db, organization_id=organization_id, context_id=context_id
+        )
+        if pending is None:
+            return None
+        rewritten = await rewrite(db, proposal=pending, values=values)
+        if rewritten is not None:
+            return rewritten

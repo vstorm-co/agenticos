@@ -181,9 +181,12 @@ class TestWriting:
         assert created.conversation_id == conversation_id
         assert created.resources == {"a.md": "one"}
 
-    async def test_replacing_a_body_keeps_the_row_a_reviewer_is_looking_at(self):
-        session = _RecordingSession()
-        row = _proposal()
+    async def test_replacing_a_body_is_conditional_on_what_was_read(self):
+        """The row stays the one a reviewer is looking at, its revision moves, and
+        only while it is still pending at the revision read - a decision or another
+        rewrite since leaves nothing to rewrite."""
+        row = _proposal(revision=1)
+        session = _RecordingSession(_scalars([row]))
 
         replaced = await skill_proposal_repo.replace_body(
             session,
@@ -195,23 +198,22 @@ class TestWriting:
         )
 
         assert replaced is row
-        assert replaced.description == "Newer."
-        assert replaced.resources == {"b.md": "two"}
+        sql = str(session.statements[-1].compile(dialect=postgresql.dialect()))
+        assert "skill_proposals.status = " in sql and "skill_proposals.revision = " in sql
+        assert "revision=(skill_proposals.revision + " in sql
+        params = _filters(session)
+        assert params["status_1"] == "pending" and params["revision_1"] == 1
+        assert params["description"] == "Newer."
 
-    async def test_deciding_records_who_and_when(self):
-        """Without the timestamp there is no telling a decision made in review
-        from one made six weeks later."""
-        session = _RecordingSession()
-        row = _proposal()
-        reviewer = uuid.uuid4()
-
-        decided = await skill_proposal_repo.decide(
-            session, proposal=row, status=ProposalStatus.APPLIED, decided_by=reviewer
+        gone = await skill_proposal_repo.replace_body(
+            _RecordingSession(_scalars([])),
+            proposal=row,
+            description="Newest.",
+            content="x",
+            resources={},
+            conversation_id=None,
         )
-
-        assert decided.status == "applied"
-        assert decided.decided_by_user_id == reviewer
-        assert decided.decided_at is not None
+        assert gone is None
 
 
 def test_a_proposal_says_what_it_is_and_where_it_stands():

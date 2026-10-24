@@ -5,7 +5,7 @@ A suite is two tables:
 - `eval_suites` is the standing arrangement: which agent, which dataset, the
   environment whose version is checked and whose test connections the cases
   use, the threshold a result must meet, and when it runs - on a schedule, when
-  a version is published or promoted, when a skill or knowledge base the agent
+  a version is published or promoted, when a skill, context file or knowledge base the agent
   binds changes. It runs as its owner, the person who last configured it.
 - `eval_suite_results` is each time it ran, or was due to. A result is written
   `pending` in the same transaction as whatever made it due, so a publish and
@@ -48,7 +48,7 @@ class EvalSuiteTrigger(StrEnum):
     PUBLISH = "publish"
     PROMOTION = "promotion"
     DEPENDENCY = "dependency"
-    """A skill or knowledge base the checked version binds changed."""
+    """A skill, context file or knowledge base the checked version binds changed."""
 
     MANUAL = "manual"
     GATE = "gate"

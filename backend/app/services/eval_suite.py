@@ -9,7 +9,7 @@ version is checked and the threshold a result must meet, and it runs:
   changing underneath it;
 - when a version is published, measured against the one before it;
 - when a version is promoted onto its environment, against the one it replaced;
-- when a skill or knowledge base the checked version binds changes, once per
+- when a skill, context file or knowledge base the checked version binds changes, once per
   burst of changes;
 - when somebody presses "Run now".
 
@@ -120,9 +120,10 @@ _TRIGGERED: dict[EvalSuiteTrigger, Literal["on_publish", "on_promotion"]] = {
     EvalSuiteTrigger.PUBLISH: "on_publish",
     EvalSuiteTrigger.PROMOTION: "on_promotion",
 }
-_BOUND_FIELD: dict[DependencyKind, Literal["skill_ids", "collection_ids"]] = {
+_BOUND_FIELD: dict[DependencyKind, Literal["skill_ids", "collection_ids", "context_ids"]] = {
     "skill": "skill_ids",
     "knowledge_base": "collection_ids",
+    "context": "context_ids",
 }
 # A refusal the eval run gave that means the suite cannot run as set up, rather
 # than that its owner lost access - the reason the console words for each.
@@ -137,7 +138,8 @@ class _OverCap(Exception):
 
 
 def binds(spec: AgentSpec, kind: DependencyKind, resource_id: UUID) -> bool:
-    """Whether a version reads this skill or knowledge base - itself, or a specialist it defines.
+    """Whether a version reads this skill, knowledge base or context file - itself, or a
+    specialist it defines.
 
     A specialist is part of the version that defines it, so its skills and
     collections change that version's answers as much as the parent's do. A
@@ -1121,6 +1123,30 @@ class EvalSuiteService:
         run, on the content as it ends up.
         """
         due = datetime.now(UTC) + timedelta(seconds=settings.EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS)
+        for suite, version in await self.watching(
+            organization_id=organization_id, kind=kind, resource_id=resource_id
+        ):
+            await self._enqueue(
+                suite,
+                trigger=EvalSuiteTrigger.DEPENDENCY,
+                version=version,
+                due_at=due,
+                detail={"kind": kind, "id": str(resource_id)},
+            )
+
+    async def watching(
+        self, *, organization_id: UUID, kind: DependencyKind, resource_id: UUID
+    ) -> list[tuple[EvalSuite, AgentVersion]]:
+        """The suites a change to this resource queues, each with the version it checks."""
+        return [
+            (suite, version)
+            for suite, version in await self.watchers(organization_id=organization_id)
+            if binds(AgentSpec.model_validate(version.spec), kind, resource_id)
+        ]
+
+    async def watchers(self, *, organization_id: UUID) -> list[tuple[EvalSuite, AgentVersion]]:
+        """Every suite set to run when a dependency changes, with the version it checks."""
+        found: list[tuple[EvalSuite, AgentVersion]] = []
         for suite in await eval_suite_repo.list_watching(
             self.db, organization_id=organization_id, flag="on_dependency_change"
         ):
@@ -1129,17 +1155,9 @@ class EvalSuiteService:
             version = await self._served(
                 agent, suite.environment_id, organization_id=organization_id
             )
-            if version is None or not binds(
-                AgentSpec.model_validate(version.spec), kind, resource_id
-            ):
-                continue
-            await self._enqueue(
-                suite,
-                trigger=EvalSuiteTrigger.DEPENDENCY,
-                version=version,
-                due_at=due,
-                detail={"kind": kind, "id": str(resource_id)},
-            )
+            if version is not None:
+                found.append((suite, version))
+        return found
 
     async def _served(
         self, agent: Agent, environment_id: UUID | None, *, organization_id: UUID

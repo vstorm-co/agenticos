@@ -1000,6 +1000,7 @@ include = [
     "app/repositories/context_proposal.py",
     "app/schemas/context_proposal.py",
     "app/services/context_proposal.py",
+    "app/services/proposal_reach.py",
     "app/api/routes/v1/context_changes.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
@@ -1575,6 +1576,7 @@ include = [
     "app/repositories/context_proposal.py",
     "app/schemas/context_proposal.py",
     "app/services/context_proposal.py",
+    "app/services/proposal_reach.py",
     "app/api/routes/v1/context_changes.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for

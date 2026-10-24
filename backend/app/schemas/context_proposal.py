@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
-from app.schemas.resource_usage import AgentUsage
+from app.schemas.resource_usage import AgentUsage, ReachedAgent
 
 
 class ContextProposalRead(BaseSchema, TimestampSchema):
@@ -42,6 +42,19 @@ class ContextProposalRead(BaseSchema, TimestampSchema):
     expected_effect: str = ""
     authoring_request_id: UUID | None = None
     used_by: list[AgentUsage] = Field(default_factory=list)
+    revision: int = Field(
+        default=1, description="Raised each time a new run rewrites the pending proposal"
+    )
+    reaches: list[ReachedAgent] = Field(
+        default_factory=list,
+        description=(
+            "The agents whose served version reads it - where applying it goes live at "
+            "once - as far as the reader may see them"
+        ),
+    )
+    reaches_hidden: int = Field(
+        default=0, description="Agents it also reaches that the reader may not see"
+    )
 
 
 class ContextProposalList(BaseSchema):

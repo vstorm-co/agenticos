@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui";
 import { EvidenceList } from "@/components/authoring/evidence-list";
+import { GoesLive } from "@/components/authoring/goes-live";
 import { ContextCheckButton } from "@/components/authoring/skill-check-button";
 import { TextDiff } from "@/components/authoring/text-diff";
 import { useContextAuthoringWatch } from "@/hooks/use-authoring";
@@ -23,9 +24,10 @@ import type { ContextChange } from "@/types/authoring";
 /**
  * Context file changes the authoring assistant proposed, waiting for a person.
  *
- * Absent when nothing waits, like the skills' panel. Applying is live for every
- * agent bound to the file, so each row names those agents and offers a check
- * with evals first; a file edited since the proposal can only be discarded.
+ * Absent when nothing waits, like the skills' panel. Applying is live at once
+ * for every agent whose served version reads the file, so each row says where
+ * and behind which suites, and checking with evals is the first action; a file
+ * edited since the proposal can only be discarded.
  */
 export function ProposedContextChanges({ canEdit }: { canEdit: boolean }) {
   const t = useTranslations("authoring.contextChanges");
@@ -55,8 +57,8 @@ export function ProposedContextChanges({ canEdit }: { canEdit: boolean }) {
             key={change.id}
             change={change}
             disabled={isDeciding}
-            onApply={() => apply(change.id)}
-            onDiscard={() => discard(change.id)}
+            onApply={() => apply(change)}
+            onDiscard={() => discard(change)}
           />
         ))}
       </CardContent>
@@ -91,6 +93,7 @@ function ChangeRow({
               ? t("usedByNobody")
               : t("usedBy", { agents: change.used_by.map((agent) => agent.name).join(", ") })}
           </p>
+          <GoesLive reaches={change.reaches} hidden={change.reaches_hidden} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <ContextCheckButton
@@ -119,6 +122,7 @@ function ChangeRow({
             {t("discard")}
           </Button>
           <Button
+            variant="outline"
             size="sm"
             disabled={disabled || change.stale}
             title={t("liveHint")}

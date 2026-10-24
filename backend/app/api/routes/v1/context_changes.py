@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.deps import Auth, ContextProposalSvc, require
 from app.core.permissions import Perm
 from app.schemas.context_proposal import ContextProposalList, ContextProposalRead
+from app.schemas.resource_usage import ProposalDecision
 
 router = APIRouter()
 
@@ -43,9 +44,15 @@ async def read_context_change(proposal_id: UUID, service: ContextProposalSvc, ct
     response_model=ContextProposalRead,
     dependencies=[Depends(require(Perm.CONTEXT_EDIT))],
 )
-async def apply_context_change(proposal_id: UUID, service: ContextProposalSvc, ctx: Auth) -> Any:
-    """Write the proposed body to the file. Live for every agent bound to it."""
-    return await service.apply(ctx, proposal_id)
+async def apply_context_change(
+    proposal_id: UUID, decision: ProposalDecision, service: ContextProposalSvc, ctx: Auth
+) -> Any:
+    """Write the proposed body to the file, at the revision the reviewer read.
+
+    Live at once for every agent whose served version reads it: their eval suites
+    are queued and their owners notified. 409 when the proposal changed since.
+    """
+    return await service.apply(ctx, proposal_id, decision)
 
 
 @router.post(
@@ -53,6 +60,8 @@ async def apply_context_change(proposal_id: UUID, service: ContextProposalSvc, c
     response_model=ContextProposalRead,
     dependencies=[Depends(require(Perm.CONTEXT_EDIT))],
 )
-async def discard_context_change(proposal_id: UUID, service: ContextProposalSvc, ctx: Auth) -> Any:
+async def discard_context_change(
+    proposal_id: UUID, decision: ProposalDecision, service: ContextProposalSvc, ctx: Auth
+) -> Any:
     """Refuse the change, keeping the record of what was proposed."""
-    return await service.discard(ctx, proposal_id)
+    return await service.discard(ctx, proposal_id, decision)

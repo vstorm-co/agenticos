@@ -12,6 +12,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.resource_usage import ReachedAgent
 
 
 class SkillProposalRead(BaseSchema, TimestampSchema):
@@ -52,6 +53,19 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
         default=0, description="Evidence the assistant cited that could not be found"
     )
     expected_effect: str = ""
+    revision: int = Field(
+        default=1, description="Raised each time a new run rewrites the pending proposal"
+    )
+    reaches: list[ReachedAgent] = Field(
+        default_factory=list,
+        description=(
+            "The agents whose served version reads it - where applying it goes live at "
+            "once - as far as the reader may see them"
+        ),
+    )
+    reaches_hidden: int = Field(
+        default=0, description="Agents it also reaches that the reader may not see"
+    )
 
 
 class SkillProposalList(BaseSchema):

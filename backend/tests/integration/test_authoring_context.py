@@ -39,6 +39,7 @@ from app.repositories import authoring_repo, eval_suite_repo
 from app.schemas.authoring import AuthoringStart, ProposalCheck
 from app.schemas.context import ContextFileUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
+from app.schemas.resource_usage import ProposalDecision
 from app.services.authoring import AuthoringService
 from app.services.authoring_worker import AuthoringWorker
 from app.services.context import ContextService
@@ -163,6 +164,7 @@ async def test_improve_leaves_one_proposal_for_the_file_with_checked_evidence(db
 
     (replaced,) = await _pending(db, file)
     assert replaced.id == proposal.id and replaced.content.endswith("by post.")
+    assert (proposal.revision, replaced.revision) == (2, 2)
     listed = await AuthoringService(db).for_context(ctx, file.id)
     assert [item.context_id for item in listed] == [file.id, file.id]
     waiting = await AuthoringService(db).waiting(ctx)
@@ -178,13 +180,13 @@ async def test_apply_writes_the_file_once_and_refuses_a_file_that_moved(db):
     read = await service.read(ctx, proposal.id)
     assert (read.stale, read.current_content) == (False, "Returns take 90 days.")
     assert [usage.id for usage in read.used_by] == [agent.id]
-    applied = await service.apply(ctx, proposal.id)
+    applied = await service.apply(ctx, proposal.id, ProposalDecision(revision=1))
 
     assert applied.status == "applied"
     await db.refresh(file)
     assert (file.content, file.description) == ("Returns take 30 days.", "Returns, corrected")
     with pytest.raises(AlreadyExistsError, match="already applied"):
-        await service.apply(ctx, proposal.id)
+        await service.apply(ctx, proposal.id, ProposalDecision(revision=1))
 
     await _improve_context(db, ctx, file, _proposes(db, run_id, "Returns take 14 days."))
     (newer,) = await _pending(db, file)
@@ -194,8 +196,8 @@ async def test_apply_writes_the_file_once_and_refuses_a_file_that_moved(db):
     await db.flush()
     assert (await service.read(ctx, newer.id)).stale is True
     with pytest.raises(ConcurrentChangeError, match="changed since"):
-        await service.apply(ctx, newer.id)
-    discarded = await service.discard(ctx, newer.id)
+        await service.apply(ctx, newer.id, ProposalDecision(revision=newer.revision))
+    discarded = await service.discard(ctx, newer.id, ProposalDecision(revision=newer.revision))
     assert discarded.status == "discarded"
     listed = await service.list_read(ctx)
     assert sorted(item.status for item in listed.items) == ["applied", "discarded"]

@@ -487,3 +487,17 @@ async def started_runs(
         row.EvalSuiteResult.eval_run_id: (row.EvalSuite, row.EvalSuiteResult)
         for row in result.all()
     }
+
+
+async def names(
+    db: AsyncSession, suite_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, str]:
+    """Several suites' names at once, by id, inside one organization."""
+    if not suite_ids:
+        return {}
+    result = await db.execute(
+        select(EvalSuite.id, EvalSuite.name).where(
+            EvalSuite.id.in_(list(suite_ids)), EvalSuite.organization_id == organization_id
+        )
+    )
+    return dict(result.tuples().all())

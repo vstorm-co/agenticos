@@ -341,7 +341,7 @@ class Settings(BaseSettings):
     # `EVAL_HEARTBEAT_SECONDS` while it works.
     EVAL_ABANDONED_AFTER_MINUTES: float = 10.0
     EVAL_HEARTBEAT_SECONDS: float = 60.0
-    # A suite set to run when a skill or knowledge base changes waits this long
+    # A suite set to run when a skill, context file or knowledge base changes waits this long
     # after the first change, so a burst of them is one run on the end state.
     EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS: int = 600
     ALGORITHM: str = "HS256"
