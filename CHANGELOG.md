@@ -266,6 +266,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Keep the desktop running when switching servers.** Blobby and Quick ask now
+  navigate their existing windows to the selected server instead of destroying
+  and immediately recreating native windows.
+
 - **One language across desktop windows.** Blobby and quick ask follow the
   signed-in account on launch and when the console language changes.
 - Push subscriptions linked to a device session stop receiving deliveries when

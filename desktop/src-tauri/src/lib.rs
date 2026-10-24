@@ -448,12 +448,7 @@ fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Depl
         server.join(WELCOME).map_err(|e| e.to_string())?
     };
     window.navigate(landing).map_err(|e| e.to_string())?;
-    // Blobby and quick ask were pages of the previous server, or of none.
-    for label in [blobby::WINDOW, quick_ask::WINDOW] {
-        if let Some(stale) = app.get_webview_window(label) {
-            stale.destroy().map_err(|e| e.to_string())?;
-        }
-    }
+    retarget_companions(app, &server)?;
     start_companions(app, &server, &settings);
     app.state::<ShellMenu>()
         .reflect_deployment(settings.deployment)
@@ -790,6 +785,23 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
         }
     });
     Ok(window)
+}
+
+/// Reuse the native windows when changing servers. Destroy is queued by Tauri:
+/// immediately rebuilding can find a handle whose native window is being torn
+/// down, including Quick ask's macOS panel. Navigation replaces each document
+/// without that teardown and still drops the previous server's page state.
+fn retarget_companions<R: tauri::Runtime>(app: &AppHandle<R>, server: &Url) -> Result<(), String> {
+    for (label, path) in [(blobby::WINDOW, blobby::PATH), (quick_ask::WINDOW, quick_ask::PATH)] {
+        if let Some(window) = app.get_webview_window(label) {
+            let page = server.join(path).map_err(|e| e.to_string())?;
+            if label == quick_ask::WINDOW {
+                window.hide().map_err(|e| e.to_string())?;
+            }
+            window.navigate(page).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 /// Open the windows that live beside the console: blobby, when it is shown, and
@@ -1372,6 +1384,42 @@ mod tests {
         appearance, attach_script, loading_color, notify, reachable, Appearance, Look, Url, GO, LOADING_DARK,
         LOADING_LIGHT,
     };
+
+    #[test]
+    fn switching_servers_reuses_both_companion_windows_and_replaces_their_pages() {
+        use tauri::test::{mock_builder, mock_context, noop_assets};
+        use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+        let app = mock_builder().build(mock_context(noop_assets())).unwrap();
+        let previous = Url::parse("https://previous.example/").unwrap();
+        let windows = [super::blobby::WINDOW, super::quick_ask::WINDOW].map(|label| {
+            WebviewWindowBuilder::new(&app, label, WebviewUrl::External(previous.clone()))
+                .build()
+                .unwrap()
+        });
+        for address in [
+            "http://localhost:3000/pl/",
+            "https://next.example/",
+            "http://localhost:3000/",
+        ] {
+            let server = Url::parse(address).unwrap();
+            super::retarget_companions(app.handle(), &server).unwrap();
+            for (window, path) in windows.iter().zip([super::blobby::PATH, super::quick_ask::PATH]) {
+                assert_eq!(window.url().unwrap(), server.join(path).unwrap());
+                assert_eq!(app.get_webview_window(window.label()).unwrap(), *window);
+            }
+        }
+    }
+
+    #[test]
+    fn switching_servers_before_companions_exist_leaves_them_for_startup() {
+        use tauri::test::{mock_builder, mock_context, noop_assets};
+        use tauri::Manager;
+
+        let app = mock_builder().build(mock_context(noop_assets())).unwrap();
+        super::retarget_companions(app.handle(), &Url::parse("http://localhost:3000/").unwrap()).unwrap();
+        assert!(app.webview_windows().is_empty());
+    }
 
     #[test]
     fn the_server_argument_is_read_in_both_spellings_and_ignored_when_absent() {
