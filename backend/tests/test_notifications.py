@@ -26,6 +26,7 @@ import hashlib
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from html import escape
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1588,16 +1589,19 @@ class TestEveryLinkNamesItsOrganization:
             patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
         ):
             await NotificationService(MagicMock()).usage_report(
-                organization_id, period=period, window_start=datetime.now(UTC)
+                organization_id, period=period, window_start=datetime(2026, 10, 24, tzinfo=UTC)
             )
 
         call = written.calls[0]
-        assert call["context_url"] == f"/dashboard?org={organization_id}"
+        first = "2026-10-17" if period == "weekly" else "2026-09-24"
+        assert call["context_url"] == (
+            f"/dashboard?view=org&period={first}..2026-10-23&org={organization_id}"
+        )
         assert call["render_context"]["dashboard_url"] == f"{FRONTEND}{call['context_url']}"
 
         _, html, _ = render_email("usage_report", call["render_context"])
-        assert call["render_context"]["dashboard_url"] in html
-        assert "View usage report" in html
+        assert escape(call["render_context"]["dashboard_url"], quote=True) in html
+        assert "Open console" in html
         assert "Open agents" not in html
 
     @pytest.mark.anyio
@@ -1620,6 +1624,8 @@ class TestEveryLinkNamesItsOrganization:
         call = written.calls[0]
         assert call["context_url"] == f"/agents/{agent.id}?org={agent.organization_id}"
         assert call["render_context"]["dashboard_url"] == f"{FRONTEND}{call['context_url']}"
+        _, html, _ = render_email("usage_report", call["render_context"])
+        assert "Open console" in html
 
     def test_the_parameter_name_is_decided_in_one_place(self):
         """Four call sites inventing one is what the issue is about, one level up."""
