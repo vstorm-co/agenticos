@@ -633,6 +633,11 @@ class Settings(BaseSettings):
     # whatever they carry, counted before anything is read. Wide: senders such as
     # GitHub deliver for many hooks from a few addresses.
     RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE: int = Field(default=600, gt=0)
+    # Shared fixed-hour allowances for external workflow email, counted by
+    # unique recipient before submission, across runs, workers and organizations.
+    WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR: int = Field(default=100, gt=0)
+    WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR: int = Field(default=500, gt=0)
+    WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR: int = Field(default=1000, gt=0)
     # How many auth attempts one caller gets per minute - login, register, token
     # refresh, and the reset/magic-link request and verify routes. Counted per IP
     # and, where the body carries one, per submitted address, both in the shared

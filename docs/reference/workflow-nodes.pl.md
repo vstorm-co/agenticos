@@ -1,5 +1,5 @@
 ---
-source_sha: "f1e835b49eb5"
+source_sha: "3db7d5718cd4"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -541,6 +541,8 @@ powiadomienia.
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
 ## email.send { #email-send }
+
+Dostawcy wysyłający wiadomości rezerwują każdego unikalnego odbiorcę we współdzielonych limitach Redis przed wysłaniem całej paczki: `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` (100), `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` (500) i `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` (1000). Limit użytkownika obejmuje jego klucze i organizacje. Stałe okna godzinne obejmują różne przebiegi i workery; na granicy okien można wykorzystać podwójny limit. Wyczerpanie daje `EMAIL_DELIVERY_LIMIT`, niedostępność liczników `EMAIL_ALLOWANCE_UNAVAILABLE`, bez wysyłki. Rezerwacje są konserwatywne i nie są zwracane po częściowej rezerwacji, błędzie dostawcy ani anulowaniu. Dostawca tylko logujący nie zużywa limitu. Limit deploymentu ustaw poniżej kwoty SMTP, zachowując zapas na pocztę transakcyjną.
 
 **Send an email** wysyła maila na maksymalnie dziesięć adresów z nadawcy i
 [dostawcy poczty](../configuration.md#email-smtp) wdrożenia, osobną kopię do

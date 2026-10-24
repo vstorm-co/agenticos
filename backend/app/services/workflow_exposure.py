@@ -1079,7 +1079,7 @@ class WorkflowExposureService:
                 status, answer = await workflow_run_repo.get_run_answer(self.db, run_id)
                 if answer is not None:
                     return WebhookAnswer.model_validate(answer)
-                if status == WorkflowRunStatus.SUCCEEDED.value:
+                if status is None or status == WorkflowRunStatus.SUCCEEDED.value:
                     return None
                 if status in _TERMINAL:
                     raise WorkflowWebhookUnansweredError(run_id=run_id, status=status)

@@ -1,5 +1,5 @@
 ---
-source_sha: "33a88505219c"
+source_sha: "ae0585c30a8a"
 ---
 
 # Aplikacje { #artifacts }
@@ -1007,6 +1007,8 @@ Osadzenie niesie dane strony na tych samych zasadach co jej link; zobacz
 poszerza krąg osób czytających te dane, więc czyści zgodę na dane.
 
 ### Dane na żywo w publicznym linku { #live-data-on-a-public-link }
+
+Termin ważności linku publicznego blokuje również wcześniej wydane publiczne tokeny treści, przed odczytem bajtów dokumentu. Token wydany tuż przed terminem nie przedłuża linku o własny okres ważności. Tokeny treści członka nadal podlegają jego dostępowi i ważności tokenu.
 
 [Strona z bindingami](#live-data) pokazuje swoje rekordy w publicznym linku i w embedach
 tylko wtedy, gdy zapadły dwie osobne decyzje, a trzecia kontrola obowiązuje przy

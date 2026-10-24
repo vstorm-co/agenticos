@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Reserve workflow email deliveries against shared issuer, organization and
+  deployment allowances before sending; refuse delivery when Redis is unavailable.
+  Preserve webhook delivery tombstones after run retention, enforce public-link
+  expiry on existing content tokens and return typed datetime overflow failures.
+
 - Require member consent when publishing or enabling unattended workflow triggers;
   enforce current MCP visibility and tool allowlists at publish and dispatch.
 - Bound public form request streams and DOCX XML extraction before materialization.

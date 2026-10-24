@@ -241,11 +241,9 @@ class WorkflowWebhookDelivery(Base):
         nullable=False,
     )
     delivery_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("workflow_runs.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    # Historical identity survives content retention; the exposure and tenant
+    # remain the owners that delete the delivery tombstone.
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

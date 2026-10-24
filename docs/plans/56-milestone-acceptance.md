@@ -202,3 +202,10 @@ existing skipped events are not replayed. Regression evidence lives in
 `test_table_triggers.py`, `table-kanban-view.test.tsx` and the table page integration
 spec. Issue #1974 retains immutable, versioned queries with explicit published
 fields, as confirmed by the maintainer; edits to a source view cannot expand consent.
+
+The next review adds shared, fail-closed email delivery reservations across runs
+and workers (`test_workflow_email_send.py`, `test_workflow_email_allowance.py`),
+retained webhook tombstones (`0222_webhook_delivery_tombstones.py`), deterministic
+datetime-range failures and public-token cutoff at link expiry. Duplicate delivery
+IDs return the original run UUID even after its content has been retained away;
+old response bodies are not reconstructed.

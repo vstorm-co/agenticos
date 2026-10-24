@@ -982,6 +982,19 @@ class TestContentAudience:
         assert served.embed_origins == origins
 
     @pytest.mark.security
+    @pytest.mark.parametrize("audience", ["member", "public"])
+    async def test_public_link_expiry_cuts_off_existing_public_content_tokens(self, audience):
+        artifact, version, token = self._served(audience)
+        artifact.public_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        if audience == "public":
+            with patch(f"{PATH}._load_version", new_callable=AsyncMock) as load:
+                with pytest.raises(NotFoundError, match="App not found"):
+                    await self._content(artifact, version, token)
+                load.assert_not_awaited()
+        else:
+            assert await self._content(artifact, version, token)
+
+    @pytest.mark.security
     async def test_a_token_with_no_audience_opens_nothing(self) -> None:
         artifact, version, _ = self._served("public")
         token = jwt.encode(

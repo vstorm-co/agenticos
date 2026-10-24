@@ -1,5 +1,5 @@
 ---
-source_sha: "b5f78592a932"
+source_sha: "74490f9c2d54"
 ---
 
 # Konfiguracja { #configuration }
@@ -1295,6 +1295,9 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Dostarczenia, które przyjmuje jeden [webhook](workflows.md) workflow albo wyzwalacz GitHub, **na webhook**, liczone, gdy podpis się zgadza, a dostarczenie uruchomiłoby run, więc obcy i pominięte dostarczenia nic z niego nie zużywają: każde to run |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Żądania, które jeden adres może wysłać pod adresy webhooków workflow i wyzwalaczy GitHub w ciągu minuty, niezależnie od treści, liczone zanim cokolwiek zostanie odczytane. Szeroki, bo nadawcy tacy jak GitHub dostarczają dla wielu hooków z kilku adresów |
+| `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unikalni odbiorcy e-maili workflow na użytkownika, łącznie dla kluczy i organizacji; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unikalni odbiorcy e-maili workflow na organizację; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unikalni odbiorcy e-maili workflow w całym deploymencie; [email.send](reference/workflow-nodes.md#email-send) |
 | `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kafelki map, które jeden adres może pobrać przez [ścieżkę kafelków](artifacts.md#visuals) deploymentu, **na adres**. Mapa to kilkadziesiąt kafelków, a przesuwanie dodaje kolejne; limit nie pozwala zrobić z deploymentu darmowego proxy do serwera kafelków |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |

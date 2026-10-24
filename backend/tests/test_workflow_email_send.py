@@ -1,13 +1,15 @@
 """`email.send` around a stubbed provider: who gets a copy, and what a refusal leaves."""
 
+import asyncio
 import uuid
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
+from redis.exceptions import RedisError
 
 from app.core.permissions import AuthContext
 from app.services.email.providers.base import SendResult
@@ -32,6 +34,23 @@ class _Provider:
         self.sent.append(message)
         accepted = message.to[0] not in self.refuse
         return SendResult(provider_message_id="m", accepted=accepted, error=None)
+
+
+@pytest.fixture(autouse=True)
+def allowance_client(monkeypatch):
+    counts: dict[str, int] = {}
+    client = MagicMock()
+    client.connect = AsyncMock()
+    client.close = AsyncMock()
+
+    async def count(key: str, ttl: int) -> int:
+        assert ttl == 3600
+        counts[key] = counts.get(key, 0) + 1
+        return counts[key]
+
+    client.count_in_window = AsyncMock(side_effect=count)
+    monkeypatch.setattr(node, "RedisClient", lambda: client)
+    return client
 
 
 @pytest.fixture
@@ -71,7 +90,7 @@ async def _run(config: Any, **fields: Any):
         return await node.handle(config, node.EmailSendInput(**fields))
 
 
-async def test_each_address_gets_its_own_copy_once(provider):
+async def test_each_address_gets_its_own_copy_once(provider, allowance_client):
     result = await _run(
         node.EmailSendConfig(reply_to="sales@acme.com"),
         to=["ada@example.com", "bob@example.com", "ada@example.com"],
@@ -83,6 +102,7 @@ async def test_each_address_gets_its_own_copy_once(provider):
     assert result.output.sent_to == ("ada@example.com", "bob@example.com")
     assert result.output.delivered is True
     assert [message.to for message in provider.sent] == [["ada@example.com"], ["bob@example.com"]]
+    assert allowance_client.count_in_window.await_count == 6
     message = provider.sent[0]
     assert message.subject == "Your quote"
     assert message.reply_to == "sales@acme.com"
@@ -141,3 +161,59 @@ def test_the_template_carries_the_workflows_subject_and_text():
     assert subject == "Hello"
     assert "Line" in html and "Sent by Acme" in html
     assert text.startswith("Line")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("scope", ["PRINCIPAL", "ORG", "DEPLOYMENT"])
+async def test_a_whole_batch_reserves_every_allowance_before_any_message(
+    provider, allowance_client, monkeypatch, scope
+):
+    monkeypatch.setattr(node.settings, f"WORKFLOW_EMAIL_MAX_PER_{scope}_PER_HOUR", 1)
+    result = await _run(None, to=["ada@example.com", "bob@example.com"], subject="s", body="b")
+    assert isinstance(result, Failed) and result.error.code == "EMAIL_DELIVERY_LIMIT"
+    assert result.error.bypassable is False and result.error.retryable is False
+    assert provider.sent == []
+    allowance_client.close.assert_awaited_once()
+
+
+@pytest.mark.security
+async def test_repeated_nodes_share_the_issuers_allowance_across_runs(provider, monkeypatch):
+    monkeypatch.setattr(node.settings, "WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR", 2)
+    dispatch = _dispatch()
+    results = []
+    for _ in range(3):
+        with context.dispatching_as(dispatch):
+            results.append(
+                await node.handle(
+                    None, node.EmailSendInput(to=["ada@example.com"], subject="s", body="b")
+                )
+            )
+    assert [isinstance(result, Completed) for result in results] == [True, True, False]
+    assert len(provider.sent) == 2
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("error", [RedisError("unreachable"), OSError("offline"), TimeoutError()])
+async def test_an_unavailable_allowance_never_reaches_the_mail_provider(
+    provider, allowance_client, error
+):
+    allowance_client.count_in_window.side_effect = error
+    result = await _run(None, to=["ada@example.com"], subject="s", body="b")
+    assert isinstance(result, Failed) and result.error.code == "EMAIL_ALLOWANCE_UNAVAILABLE"
+    assert provider.sent == []
+    allowance_client.close.assert_awaited_once()
+
+
+async def test_cancellation_closes_the_allowance_client_and_propagates(provider, allowance_client):
+    allowance_client.count_in_window.side_effect = asyncio.CancelledError()
+    with pytest.raises(asyncio.CancelledError):
+        await _run(None, to=["ada@example.com"], subject="s", body="b")
+    assert provider.sent == []
+    allowance_client.close.assert_awaited_once()
+
+
+async def test_log_only_mail_does_not_need_a_delivery_reservation(provider, allowance_client):
+    provider.delivers = False
+    result = await _run(None, to=["ada@example.com"], subject="s", body="b")
+    assert isinstance(result, Completed) and result.output.delivered is False
+    allowance_client.connect.assert_not_awaited()

@@ -1,5 +1,5 @@
 ---
-source_sha: "b5f78592a932"
+source_sha: "74490f9c2d54"
 ---
 
 # Konfiguration { #configuration }
@@ -1380,6 +1380,9 @@ diese.
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Antworten, die ein [Formular](workflows.md#from-a-form) eines Workflows annimmt, **je Formular**: jede ist ein Lauf, den sein Veröffentlicher bezahlt, und der Server der Konsole leitet sie alle weiter, sodass eine Adresse niemanden zählen würde |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Zustellungen, die ein [Webhook](workflows.md) eines Workflows oder ein GitHub-Trigger annimmt, **je Webhook**, gezählt, sobald die Signatur stimmt und die Zustellung einen Lauf starten würde, sodass Fremde und übersprungene Zustellungen nichts davon verbrauchen: jede ist ein Lauf |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen, die eine Adresse in einer Minute an die Webhook- und GitHub-Trigger-Adressen von Workflows senden darf, egal was sie enthalten, gezählt, bevor irgendetwas gelesen wird. Weit gefasst, weil Absender wie GitHub für viele Hooks von wenigen Adressen aus zustellen |
+| `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Eindeutige Workflow-Mail-Empfänger je Aussteller, über Schlüssel und Organisationen; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Eindeutige Workflow-Mail-Empfänger je Organisation; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Eindeutige Workflow-Mail-Empfänger im gesamten Deployment; [email.send](reference/workflow-nodes.md#email-send) |
 | `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kartenkacheln, die eine Adresse über den [Kachelpfad](artifacts.md#visuals) des Deployments holen darf, **je Adresse**. Eine Karte sind einige Dutzend Kacheln, Verschieben bringt mehr; die Grenze verhindert, dass das Deployment jedermanns kostenloser Proxy zum Kachelserver wird |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |

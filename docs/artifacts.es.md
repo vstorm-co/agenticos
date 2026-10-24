@@ -1,5 +1,5 @@
 ---
-source_sha: "33a88505219c"
+source_sha: "ae0585c30a8a"
 ---
 
 # Aplicaciones { #artifacts }
@@ -1019,6 +1019,8 @@ Un embed lleva los datos de una página en las mismas condiciones que su enlace;
 quién lee esos datos, así que borra el consentimiento de datos.
 
 ### Datos en vivo en un enlace público { #live-data-on-a-public-link }
+
+La caducidad del enlace público también rechaza tokens de contenido público emitidos previamente, antes de cargar el documento. Un token emitido justo antes del corte no prolonga el enlace durante su propia vigencia. Los tokens de miembros siguen sujetos a su acceso y caducidad.
 
 Una [página vinculada](#live-data) muestra sus registros en su enlace público y en sus embeds
 solo cuando se han tomado dos decisiones distintas, y una tercera comprobación se cumple en cada

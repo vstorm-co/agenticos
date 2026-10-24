@@ -1,5 +1,5 @@
 ---
-source_sha: "01abee201e11"
+source_sha: "79a6161b4bee"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -368,6 +368,8 @@ Ein `start`-Frame verbraucht dasselbe Kontingent pro Minute wie `POST /workflow-
 bekommt darüber hinaus `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks und Zeitpläne { #workflow-webhooks-and-schedules }
+
+Webhook- und GitHub-Zustellungs-IDs überleben die Aufbewahrung von Ausführungsinhalten als minimale, zur Exposition und Organisation gehörende Tombstones. Ein Duplikat liefert weiterhin die ursprüngliche Ausführungs-UUID; Status und frühere Webhook-Antwort können bereits gelöscht sein. Das Löschen der Exposition oder Organisation beendet diese Deduplizierung. Die Migration `0222_webhook_delivery_tombstones.py` stellt bereits gelöschte Claims nicht wieder her; ein Downgrade entfernt verwaiste Tombstones vor Wiederherstellung des alten kaskadierenden Fremdschlüssels.
 
 Die Veröffentlichung automatischer Trigger und Änderungen ihrer Ausführungsrechte erfordern eine Mitgliedssitzung (`403` für Organisations-API-Schlüssel). Schlüssel dürfen manuelle Workflows veröffentlichen, Ausführungen innerhalb ihrer Scopes starten und Expositionen pausieren, aber nicht aktivieren, Geheimnisse/Formularlinks rotieren, Zeitpläne ändern oder eine neue Fehler-Workflow-Identität wählen. Diese Vorgänge hinterlegen Benutzerrechte für spätere Ereignisse.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "01abee201e11"
+source_sha: "79a6161b4bee"
 ---
 
 # API HTTP { #the-http-api }
@@ -337,6 +337,8 @@ sam limit na minutę co `POST /workflow-runs`, a po jego przekroczeniu dostaje
 `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooki i harmonogramy { #workflow-webhooks-and-schedules }
+
+Identyfikatory dostaw webhooka i GitHub przeżywają retencję treści runa jako minimalne tombstone należące do ekspozycji i organizacji. Duplikat nadal zwraca pierwotny UUID runa po usunięciu treści; status i dawna odpowiedź webhooka mogą być już niedostępne. Usunięcie ekspozycji lub organizacji kończy ten okres deduplikacji. Migracja `0222_webhook_delivery_tombstones.py` nie odtworzy wcześniej usuniętych claims; downgrade usuwa osierocone tombstone przed przywróceniem dawnego klucza z kaskadą.
 
 Publikacja triggerów automatycznych i zmiany uprawnień ich wykonania wymagają sesji członka (`403` dla klucza API organizacji). Klucze mogą publikować ręczne workflow, rozpoczynać przebiegi w granicach scope i wstrzymywać ekspozycje, ale nie mogą ich włączać, rotować sekretów/linków formularzy, zmieniać harmonogramów ani wybierać nowej tożsamości workflow obsługi błędów. Te operacje zachowują uprawnienia użytkownika dla przyszłych zdarzeń.
 

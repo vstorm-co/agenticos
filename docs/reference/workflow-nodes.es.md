@@ -1,5 +1,5 @@
 ---
-source_sha: "f1e835b49eb5"
+source_sha: "3db7d5718cd4"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -550,6 +550,8 @@ escribe una segunda notificación.
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
 ## email.send { #email-send }
+
+Los proveedores que envían reservan cada destinatario único mediante límites Redis compartidos antes de enviar el lote completo: `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` (100), `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` (500) y `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` (1000). El límite del usuario abarca sus claves y organizaciones. Las ventanas fijas de una hora abarcan ejecuciones y workers; en su frontera puede admitirse el doble. Agotar el límite produce `EMAIL_DELIVERY_LIMIT`; contadores no disponibles, `EMAIL_ALLOWANCE_UNAVAILABLE`, sin envío. Las reservas son conservadoras y no se devuelven tras una reserva parcial, un fallo del proveedor o una cancelación. Los proveedores que solo registran no consumen cuota. Configura el límite global por debajo de la cuota SMTP para dejar margen al correo transaccional.
 
 **Send an email** envía un correo a hasta diez direcciones desde el remitente y
 el [proveedor de correo](../configuration.md#email-smtp) del despliegue, una

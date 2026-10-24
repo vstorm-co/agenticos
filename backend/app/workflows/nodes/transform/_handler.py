@@ -444,14 +444,22 @@ async def date_time(config: BaseModel | None, node_input: BaseModel | None) -> N
         )
     moment = datetime.now(UTC) if settings.operation == "now" or bound is None else bound
     moment = moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
-    shift = timedelta(**{settings.unit: settings.amount})
-    if settings.operation == "add":
-        moment += shift
-    elif settings.operation == "subtract":
-        moment -= shift
-    running = context.active()
-    zone = settings.timezone or (running.timezone if running is not None else "UTC")
-    local = moment.astimezone(ZoneInfo(zone))
+    try:
+        shift = timedelta(**{settings.unit: settings.amount})
+        if settings.operation == "add":
+            moment += shift
+        elif settings.operation == "subtract":
+            moment -= shift
+        running = context.active()
+        zone = settings.timezone or (running.timezone if running is not None else "UTC")
+        local = moment.astimezone(ZoneInfo(zone))
+    except OverflowError:
+        return Failed(
+            error=WorkflowError(
+                code="DATETIME_OUT_OF_RANGE",
+                message="The datetime operation is outside the supported year range 1-9999",
+            )
+        )
     return Completed[DateTimeOutput](
         output=DateTimeOutput(value=local, formatted=local.strftime(settings.format))
     )

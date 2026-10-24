@@ -1,5 +1,5 @@
 ---
-source_sha: "f1e835b49eb5"
+source_sha: "3db7d5718cd4"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -566,6 +566,8 @@ zugestellt. Ein wiederholter Schritt schreibt keine zweite Benachrichtigung.
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
 ## email.send { #email-send }
+
+Versendende Anbieter reservieren vor dem gesamten Versand jeden eindeutigen Empfänger über gemeinsame Redis-Limits: `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` (100), `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` (500) und `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` (1000). Das Benutzerlimit umfasst Schlüssel und Organisationen desselben Ausstellers. Feste Stundenfenster gelten über Ausführungen und Worker hinweg; am Fensterübergang ist die doppelte Menge möglich. Erschöpfung ergibt `EMAIL_DELIVERY_LIMIT`, nicht verfügbare Zähler `EMAIL_ALLOWANCE_UNAVAILABLE`, ohne Versand. Reservierungen werden nach Teilreservierung, Anbieterfehler oder Abbruch nicht erstattet. Nur protokollierende Anbieter verbrauchen kein Versandlimit. Die Deployment-Grenze sollte unter dem SMTP-Kontingent liegen und Spielraum für Transaktionsmails lassen.
 
 **Send an email** schickt eine Mail an bis zu zehn Adressen, vom eigenen Absender
 und [E-Mail-Anbieter](../configuration.md#email-smtp) des Deployments, je eine

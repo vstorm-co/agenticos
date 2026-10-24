@@ -330,6 +330,8 @@ allowance `POST /workflow-runs` does, and past it gets `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks and schedules { #workflow-webhooks-and-schedules }
 
+Webhook and GitHub delivery IDs survive run-content retention as minimal tombstones owned by the exposure and organization. A duplicate still returns the original run UUID after its content is deleted; its status and previous webhook response may no longer be available. Deleting the exposure or organization ends that deduplication lifetime. Migration `0222_webhook_delivery_tombstones.py` cannot restore claims already deleted by older retention; downgrading removes orphan tombstones before restoring the old cascading foreign key.
+
 Unattended trigger publication and authority changes require a member session (`403` for an organization API key). Keys may publish manual workflows, start runs within their scopes and pause exposures, but cannot enable them, rotate secrets/form links, retime schedules or choose a new error-workflow identity. These operations retain a user's authority for future events.
 
 Public workflow form submissions enforce the workflow input byte limit while reading the request stream, before JSON parsing or token lookup. Oversized declared or chunked bodies return `413`; malformed JSON and invalid submission fields return `422`.

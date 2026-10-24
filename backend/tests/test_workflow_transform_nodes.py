@@ -314,3 +314,21 @@ async def test_split_checks_unexpanded_items_against_the_byte_limit(monkeypatch)
     monkeypatch.setattr(steps.settings, "WORKFLOW_NODE_MAX_OUTPUT_BYTES", 100)
     result = await steps.split_out(steps.SplitOutConfig(field="items"), _in([{"large": "x" * 100}]))
     assert isinstance(result, Failed) and result.error.code == "SPLIT_OUTPUT_TOO_LARGE"
+
+
+@pytest.mark.parametrize(
+    ("operation", "value", "zone"),
+    [
+        ("add", "9999-12-31T00:00:00Z", "UTC"),
+        ("subtract", "0001-01-01T00:00:00Z", "UTC"),
+        ("format", "9999-12-31T23:00:00Z", "Pacific/Kiritimati"),
+        ("format", "0001-01-01T00:00:00Z", "America/New_York"),
+    ],
+)
+async def test_datetime_overflow_is_a_deterministic_actionable_refusal(operation, value, zone):
+    result = await steps.date_time(
+        steps.DateTimeConfig(operation=operation, amount=1, timezone=zone),
+        steps.DateTimeInput.model_validate({"value": value}),
+    )
+    assert isinstance(result, Failed) and result.error.code == "DATETIME_OUT_OF_RANGE"
+    assert result.error.retryable is False

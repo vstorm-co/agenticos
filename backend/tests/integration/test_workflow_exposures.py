@@ -495,6 +495,33 @@ class TestPausingOne:
 
 
 class TestWebhookDeliveries:
+    @pytest.mark.security
+    async def test_retention_keeps_the_delivery_tombstone_and_prevents_reexecution(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
+        service = WorkflowExposureService(db)
+        first = await service.receive_webhook(
+            exposure_id, body=b"{}", headers=_signed(secret, b"{}")
+        )
+        run = await db.get(WorkflowRun, first.run_id)
+        assert run is not None
+        run.status = "succeeded"
+        run.ended_at = datetime.now(UTC) - timedelta(days=2)
+        workflow.settings = {"keep_succeeded_runs": False}
+        await db.flush()
+        from app.repositories import workflow_run as run_repo
+
+        removed = await run_repo.take_expired_runs(db, now=datetime.now(UTC), limit=10)
+        assert first.run_id in dict(removed)
+        again = await service.receive_webhook(
+            exposure_id, body=b"{}", headers=_signed(secret, b"{}")
+        )
+        assert again.duplicate is True and again.run_id == first.run_id
+        assert await _runs(db) == []
+        assert await service._answer(first.run_id) is None
+
     async def test_a_retried_delivery_answers_with_the_first_run_and_admits_nothing(
         self, db, tenant
     ):

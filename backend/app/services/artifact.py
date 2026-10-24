@@ -3955,7 +3955,13 @@ class ArtifactService:
             raise NotFoundError(message="App not found")
         version, artifact = found
         member = payload.get("aud") == "member"
-        if not member and not self._names_current_key(payload, artifact):
+        if not member and (
+            not self._names_current_key(payload, artifact)
+            or (
+                artifact.public_expires_at is not None
+                and artifact.public_expires_at <= datetime.now(UTC)
+            )
+        ):
             raise NotFoundError(message="App not found")
         data = await _load_version(version, missing="App not found")
         embeddable = (

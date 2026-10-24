@@ -979,6 +979,8 @@ who reads that data, so it clears the data consent.
 
 ### Live data on a public link { #live-data-on-a-public-link }
 
+The public-link expiry also rejects previously issued public content tokens before document bytes are loaded. A token minted just before the cutoff cannot extend that link by its own token lifetime. Member content tokens remain governed by member access and token expiry.
+
 A [bound page](#live-data) shows its records on its public link and in its embeds only
 when two separate decisions have been made, and a third check holds on every load.
 Without them the public page renders as published, with every binding `unavailable`.

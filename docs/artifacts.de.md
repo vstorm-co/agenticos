@@ -1,5 +1,5 @@
 ---
-source_sha: "33a88505219c"
+source_sha: "ae0585c30a8a"
 ---
 
 # Apps { #artifacts }
@@ -1116,6 +1116,8 @@ hinzuzufügen erweitert, wer diese Daten liest, und löscht daher die Einwilligu
 die Daten.
 
 ### Live-Daten auf einem öffentlichen Link { #live-data-on-a-public-link }
+
+Der Ablauf des öffentlichen Links sperrt auch bereits ausgestellte öffentliche Inhaltstoken, bevor Dokumentbytes geladen werden. Ein kurz vor Ablauf ausgestelltes Token verlängert den Link nicht um seine eigene Laufzeit. Mitgliedstoken unterliegen weiterhin dem Mitgliederzugriff und ihrer Tokenlaufzeit.
 
 Eine [gebundene Seite](#live-data) zeigt ihre Datensätze auf ihrem öffentlichen Link
 und in ihren Embeds nur, wenn zwei getrennte Entscheidungen getroffen wurden und eine
