@@ -490,3 +490,16 @@ async def test_a_credential_crossing_the_text_cap_is_scrubbed_before_truncation(
     assert isinstance(result, Completed)
     assert token[:-5] not in result.output.text
     assert result.output.text == "x" * 12 + "[redacted]"
+
+
+async def test_an_unauthenticated_mcp_connection_preserves_ordinary_tool_output(server):
+    server.headers = {}
+    server.result = CallToolResult(
+        content=[TextContent(type="text", text="Public information")],
+        structured_content={"rows": [True, 42, None, "public"]},
+    )
+    result = await _run(_config())
+    assert isinstance(result, Completed)
+    assert result.output.text == "Public information"
+    assert result.output.structured == {"rows": [True, 42, None, "public"]}
+    assert server.opened_with == [("https://mcp.example.com/mcp", {})]
