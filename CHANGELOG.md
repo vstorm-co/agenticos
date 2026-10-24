@@ -279,6 +279,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Recover from stalled phone connections.** An initial server load or native
+  sign-in return that has not completed after 30 seconds returns to the server
+  form with its saved address. Successful cached offline pages remain open;
+  completed or superseded attempts cancel their recovery wait.
+
 - **Native sharing on phones.** The share inbox and attachment picker now use
   separate native dispatchers, so opening the picker cannot replace the command
   that receives content shared from another app.

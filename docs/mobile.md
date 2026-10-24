@@ -24,6 +24,11 @@ locks behind Face ID, Touch ID or the fingerprint after five minutes away.
 "AgenticOS for iOS 0.2.0" for the app, the browser otherwise, and which of them
 receive push. Revoking one there signs that app out at once.
 
+If an initial connection or sign-in return has not finished loading after 30
+seconds, the app returns to the server form with the saved address and a
+connection message. Retry or enter another address. A cached offline page that
+loads successfully stays open.
+
 ## Push
 
 | Where | Through | Turned on in |

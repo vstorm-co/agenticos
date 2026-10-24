@@ -11,9 +11,9 @@ const form = document.getElementById("address-form");
 const field = document.getElementById("server");
 const formError = form.querySelector(".error");
 
-function show(name) {
+function show(name, focus = true) {
   for (const screen of screens) screen.hidden = screen.dataset.screen !== name;
-  if (name === "address") field.focus();
+  if (name === "address" && focus) field.focus();
 }
 
 function say(element, message) {
@@ -64,8 +64,12 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-invoke("server_url")
-  .then((url) => {
+Promise.all([invoke("server_url"), invoke("startup_notice")])
+  .then(([url, notice]) => {
     if (url) field.value = url;
+    if (notice) {
+      show("address", false);
+      say(formError, notice);
+    }
   })
   .catch((message) => say(welcomeError, message));

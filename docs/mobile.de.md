@@ -1,5 +1,5 @@
 ---
-source_sha: "078036b6a50b"
+source_sha: "dc1f3fe63a6e"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -28,6 +28,11 @@ hinter Face ID, Touch ID oder dem Fingerabdruck.
 **Aktive Sitzungen** unter Einstellungen → Profil listet jedes angemeldete Gerät:
 „AgenticOS for iOS 0.2.0“ für die App, sonst den Browser, und welche davon Push
 erhalten. Wer dort eine widerruft, meldet diese App sofort ab.
+
+Wenn die erste Verbindung oder die Rückkehr von der Anmeldung nach 30 Sekunden
+noch nicht geladen ist, kehrt die App zum Serverformular mit der gespeicherten
+Adresse und einem Verbindungshinweis zurück. Erneut versuchen oder eine andere
+Adresse eingeben. Eine erfolgreich geladene Offlinekopie bleibt geöffnet.
 
 ## Push { #push }
 
