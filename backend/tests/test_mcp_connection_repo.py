@@ -346,6 +346,9 @@ class TestOrgServersToCheck:
         sql = _sql(session)
         assert "mcp_connections.scope = %(scope_1)s" in sql
         assert "mcp_connections.is_enabled IS true" in sql
+        assert "last_checked_at ASC NULLS FIRST" in sql
+        assert "LIMIT" in sql
+        assert 64 in _filters(session).values()
         assert set(_filters(session).values()) >= {"org", "mcp"}
 
 

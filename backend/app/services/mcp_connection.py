@@ -582,26 +582,46 @@ async def record_reachability(
         )
 
 
-async def check_organization_servers(db: AsyncSession) -> dict[str, int]:
-    """Dial every enabled organization server and record whether it answered (#2100).
+_HEALTH_CHECK_BATCH = 64
+_HEALTH_CHECK_CONCURRENCY = 8
 
-    The scheduled half of the outage notice. A run finds a dead server only
-    when somebody uses an agent bound to it; this finds it within one sweep
-    either way, so whoever manages it can hear before a person does. Servers
-    are dialled concurrently and written one at a time - the session is not
-    shared across tasks. A server whose credential is not usable is skipped:
-    renewing grants is the OAuth sweep's business, not an outage.
+
+async def check_organization_servers(db: AsyncSession) -> dict[str, int]:
+    """Probe an oldest-first batch with bounded network concurrency.
+
+    Resolve credentials before writing rows. Session writes remain sequential;
+    unusable credentials advance the check time without declaring an outage.
     """
     counts = {"answered": 0, "unreachable": 0, "skipped": 0}
     targets: list[tuple[McpConnection, dict[str, str]]] = []
-    for connection in await mcp_connection_repo.list_org_servers_to_check(db):
+    skipped: list[McpConnection] = []
+    for connection in await mcp_connection_repo.list_org_servers_to_check(
+        db, limit=_HEALTH_CHECK_BATCH
+    ):
         headers = await _resolve_auth_headers(db, connection)
         if headers is None:
             counts["skipped"] += 1
+            skipped.append(connection)
             continue
         targets.append((connection, headers))
-    outcomes = await asyncio.gather(*(_reach(c.url, headers) for c, headers in targets))
-    for (connection, _), (tools, error) in zip(targets, outcomes, strict=True):
+    outcomes: list[tuple[list[McpToolInfo], str | None]] = []
+    for offset in range(0, len(targets), _HEALTH_CHECK_CONCURRENCY):
+        batch = targets[offset : offset + _HEALTH_CHECK_CONCURRENCY]
+        outcomes.extend(await asyncio.gather(*(_reach(c.url, headers) for c, headers in batch)))
+    writes = sorted(
+        [(c, outcome) for (c, _), outcome in zip(targets, outcomes, strict=True)]
+        + [(c, None) for c in skipped],
+        key=lambda item: item[0].id,
+    )
+    for connection, outcome in writes:
+        if outcome is None:
+            await mcp_connection_repo.update(
+                db,
+                db_connection=connection,
+                update_data={"last_checked_at": datetime.now(UTC)},
+            )
+            continue
+        tools, error = outcome
         connection = await _record_check(db, connection, tools, error)
         await record_reachability(db, connection, reachable=error is None)
         counts["answered" if error is None else "unreachable"] += 1

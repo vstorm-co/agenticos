@@ -615,6 +615,8 @@ that the description is honest — and a mirrored registry cannot make that prom
     because nobody looked; it is the length it is because a hand-checked list of
     things a company actually uses converges at about a hundred.
 
+Each scheduled check takes at most 64 enabled organization servers, oldest check first, and runs at most eight probes at once. Unusable credentials also advance the check time, without creating an outage. Larger deployments therefore cover all servers over successive checks.
+
 ### The registry is in the same list, and in the database
 
 So the mirror is shipped too, and **/mcp is one list of all of them** — the

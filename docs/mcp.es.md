@@ -1,5 +1,5 @@
 ---
-source_sha: "9025a904cc03"
+source_sha: "a8fe39ec824c"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1126,3 +1126,5 @@ rutina o cambia el idioma de la consola cuando se lo piden.
   reparte ninguno, y borrar una da de baja lo que registró.
 - Un servidor inalcanzable se **salta**, no lanza un error — el turno responde sin
   esas herramientas.
+
+Cada comprobación programada incluye como máximo 64 servidores activos de la organización, empezando por los comprobados hace más tiempo, y ejecuta hasta ocho sondeos simultáneos. Las credenciales inutilizables también actualizan la fecha de comprobación sin declarar una caída. Las instalaciones más grandes cubren así todos los servidores en ciclos sucesivos.

@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bound scheduled MCP health checks to 64 oldest-first servers and eight simultaneous probes; advance unauthorized accounts so they cannot starve the queue.
+
+### Fixed
+
 - Serialize draft saves, publish/rollback version allocation and environment
   changes per agent. Preserve edits waiting behind a publication, refresh
   serving pointers after lock waits and allow new runs to start during

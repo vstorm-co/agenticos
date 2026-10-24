@@ -1,5 +1,5 @@
 ---
-source_sha: "9025a904cc03"
+source_sha: "a8fe39ec824c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1094,3 +1094,5 @@ konsoli, gdy się go o to poprosi.
   żadnego, a usunięcie połączenia wyrejestrowuje to, co ono zarejestrowało.
 - Nieosiągalny serwer zostaje **pominięty**, a nie podnosi wyjątku — tura
   odpowiada bez tych narzędzi.
+
+Każda zaplanowana kontrola obejmuje najwyżej 64 aktywne serwery organizacji, zaczynając od najdawniej sprawdzanych, i wykonuje najwyżej osiem prób równocześnie. Nieużyteczne poświadczenia również aktualizują czas kontroli, bez zgłaszania awarii. Większe instalacje sprawdzają więc wszystkie serwery w kolejnych cyklach.

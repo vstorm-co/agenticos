@@ -329,8 +329,8 @@ async def list_oauth_connections(db: AsyncSession) -> list[McpConnection]:
     return list(result.scalars().all())
 
 
-async def list_org_servers_to_check(db: AsyncSession) -> list[McpConnection]:
-    """Every enabled organization server on the deployment, for the scheduled check (#2100).
+async def list_org_servers_to_check(db: AsyncSession, *, limit: int = 64) -> list[McpConnection]:
+    """A bounded batch of the least recently checked organization servers, for the scheduled check (#2100).
 
     Deliberately unscoped, like :func:`list_oauth_connections`: the check is
     about whether servers answer, and a tenant learns only about its own through
@@ -344,7 +344,8 @@ async def list_org_servers_to_check(db: AsyncSession) -> list[McpConnection]:
             McpConnection.scope == "org",
             McpConnection.is_enabled.is_(True),
         )
-        .order_by(McpConnection.created_at.asc())
+        .order_by(McpConnection.last_checked_at.asc().nulls_first(), McpConnection.id.asc())
+        .limit(limit)
     )
     return list(result.scalars().all())
 

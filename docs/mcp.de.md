@@ -1,5 +1,5 @@
 ---
-source_sha: "9025a904cc03"
+source_sha: "a8fe39ec824c"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1145,3 +1145,5 @@ Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bit
   keines heraus, und eine zu löschen meldet ab, was sie angemeldet hat.
 - Ein nicht erreichbarer Server wird **übersprungen**, nicht ausgelöst — der Zug
   antwortet ohne diese Tools.
+
+Jede geplante Prüfung umfasst höchstens 64 aktive Organisationsserver, beginnend mit der ältesten Prüfung, und führt höchstens acht Verbindungsprüfungen gleichzeitig aus. Auch unbrauchbare Zugangsdaten aktualisieren den Prüfzeitpunkt, ohne einen Ausfall zu melden. Größere Installationen prüfen dadurch alle Server über mehrere Durchläufe.
