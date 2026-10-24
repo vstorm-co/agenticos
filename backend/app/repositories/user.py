@@ -13,6 +13,11 @@ from app.db.models.user import User
 from app.repositories._search import contains_ci
 
 
+async def has_accounts(db: AsyncSession) -> bool:
+    """Whether this installation already has an account, without scanning it."""
+    return bool(await db.scalar(select(select(User.id).exists())))
+
+
 async def claim_first_account(db: AsyncSession) -> bool:
     """Claim first-account admission until the caller commits or rolls back.
 
@@ -20,11 +25,10 @@ async def claim_first_account(db: AsyncSession) -> bool:
     re-read after acquiring it, so only the account actually created first gets
     the policy exception and deployment-administrator authority.
     """
-    exists = select(select(User.id).exists())
-    if await db.scalar(exists):
+    if await has_accounts(db):
         return False
     await hold_name(db, LockScope.ACCOUNT_BOOTSTRAP, "deployment")
-    return not await db.scalar(exists)
+    return not await has_accounts(db)
 
 
 async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:

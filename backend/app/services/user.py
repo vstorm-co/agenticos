@@ -80,6 +80,17 @@ the caller's to name - so without a bound here one account can send this
 deployment's verification mail to any inbox it likes, repeatedly (#1772)."""
 
 
+async def _welcome_email(
+    user_id: UUID, email: str, name: str, login_url: str, app_name: str
+) -> None:
+    try:
+        await get_email_service().send_welcome(
+            to=email, name=name, login_url=login_url, app_name=app_name
+        )
+    except Exception:
+        logger.exception("welcome_email_failed", extra={"user_id": str(user_id)})
+
+
 class UserService:
     def __init__(self, db: AsyncSession, vector_store: BaseVectorStore | None = None):
         self.db = db
@@ -89,6 +100,23 @@ class UserService:
         # shared vector pool, so every delete path cleans up and no other route
         # pays for a store it never touches (#1131).
         self._vector_store = vector_store
+
+    async def _queue_welcome(self, user: User) -> None:
+        try:
+            app_name = await DeploymentSettingsService(self.db).effective_app_name()
+            spawn_after_commit(
+                self.db,
+                _welcome_email(
+                    user.id,
+                    user.email,
+                    user.full_name or user.email,
+                    settings.FRONTEND_URL.rstrip("/") + "/login",
+                    app_name,
+                ),
+                name="welcome-email",
+            )
+        except Exception:
+            logger.exception("welcome_email_failed", extra={"user_id": str(user.id)})
 
     async def _is_first_user(self) -> bool:
         return await user_repo.claim_first_account(self.db)
@@ -237,15 +265,24 @@ class UserService:
                 details={"email": user_in.email},
             )
 
-        is_first_user = await self._is_first_user()
+        bootstrap_candidate = not await user_repo.has_accounts(self.db)
         admission = await check_may_register(
             self.db,
             email=user_in.email,
-            is_first_user=is_first_user,
+            is_first_user=bootstrap_candidate,
             invitation_token=user_in.invitation_token,
         )
-
         hashed_password = await asyncio.to_thread(get_password_hash, user_in.password)
+        # Hash outside the global bootstrap lock. A contender that lost while
+        # hashing must satisfy the ordinary policy before it can create a row.
+        is_first_user = await self._is_first_user() if bootstrap_candidate else False
+        if bootstrap_candidate and not is_first_user:
+            admission = await check_may_register(
+                self.db,
+                email=user_in.email,
+                is_first_user=False,
+                invitation_token=user_in.invitation_token,
+            )
         user = await user_repo.create(
             self.db,
             email=user_in.email,
@@ -259,19 +296,7 @@ class UserService:
             invitation_token=user_in.invitation_token,
             admitted_by_policy=admission == "policy",
         )
-        try:
-            login_url = settings.FRONTEND_URL.rstrip("/") + "/login"
-            await get_email_service().send_welcome(
-                to=user.email,
-                name=user.full_name or user.email,
-                login_url=login_url,
-                app_name=await DeploymentSettingsService(self.db).effective_app_name(),
-            )
-        except Exception:
-            logger.exception(
-                "welcome_email_failed",
-                extra={"user_id": str(user.id), "email": user.email},
-            )
+        await self._queue_welcome(user)
         return user
 
     async def get_or_create_oauth_user(
@@ -339,19 +364,7 @@ class UserService:
             invitation_token=invitation_token,
             admitted_by_policy=admission == "policy",
         )
-        try:
-            login_url = settings.FRONTEND_URL.rstrip("/") + "/login"
-            await get_email_service().send_welcome(
-                to=user.email,
-                name=user.full_name or user.email,
-                login_url=login_url,
-                app_name=await DeploymentSettingsService(self.db).effective_app_name(),
-            )
-        except Exception:
-            logger.exception(
-                "welcome_email_failed",
-                extra={"user_id": str(user.id), "email": user.email},
-            )
+        await self._queue_welcome(user)
         return user
 
     async def authenticate(self, email: str, password: str) -> User:

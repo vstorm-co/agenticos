@@ -52,9 +52,7 @@ async def test_simultaneous_signup_claims_exactly_one_administrator(
     with (
         patch("app.repositories.user.hold_name", side_effect=lock),
         patch("app.services.user.OrganizationService.settle_new_account", AsyncMock()),
-        patch(
-            "app.services.user.get_email_service", return_value=MagicMock(send_welcome=AsyncMock())
-        ),
+        patch.object(UserService, "_queue_welcome", AsyncMock()),
         patch("app.services.user.get_password_hash", return_value="hashed-for-test"),
     ):
         async with asyncio.timeout(10):
@@ -74,9 +72,7 @@ async def test_first_oauth_account_gets_bootstrap_authority_on_a_closed_deployme
     await db.flush()
     with (
         patch("app.services.user.OrganizationService.settle_new_account", AsyncMock()),
-        patch(
-            "app.services.user.get_email_service", return_value=MagicMock(send_welcome=AsyncMock())
-        ),
+        patch.object(UserService, "_queue_welcome", AsyncMock()),
     ):
         user = await UserService(db).get_or_create_oauth_user(
             provider="google", provider_id="first", email="owner@example.com"
@@ -102,3 +98,36 @@ async def test_a_rolled_back_bootstrap_leaves_the_next_account_eligible(
             if not task.done():
                 task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.parametrize("commit", [False, True])
+async def test_welcome_mail_starts_only_after_the_account_commit(
+    db: AsyncSession, engine: AsyncEngine, commit: bool
+) -> None:
+    from app.core.background import discard_deferred, start_deferred
+
+    user = User(email="welcome@example.com", hashed_password="x")
+    db.add(user)
+    await db.flush()
+    user_id = user.id
+    delivered = asyncio.Event()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def send(**kwargs: object) -> None:
+        async with factory() as observer:
+            assert await observer.get(User, user_id) is not None
+        delivered.set()
+
+    sender = MagicMock(send_welcome=AsyncMock(side_effect=send))
+    with patch("app.services.user.get_email_service", return_value=sender):
+        await UserService(db)._queue_welcome(user)
+        sender.send_welcome.assert_not_awaited()
+        if commit:
+            await db.commit()
+            start_deferred(db)
+            await asyncio.wait_for(delivered.wait(), 10)
+            sender.send_welcome.assert_awaited_once()
+        else:
+            await db.rollback()
+            discard_deferred(db)
+            sender.send_welcome.assert_not_awaited()

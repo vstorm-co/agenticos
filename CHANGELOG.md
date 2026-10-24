@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Serialize first-account bootstrap across password and OAuth signup so only
   one account gets deployment-administrator authority. Grant that authority
   to the first OAuth account and recheck the signup policy after contention.
+  Hash passwords before taking the bootstrap lock and send best-effort welcome
+  mail only after account creation commits.
 
 - Heartbeat proactive model runs while they execute, meter each response,
   and durably settle consumed tokens on failure or cancellation, including
