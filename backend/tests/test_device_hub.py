@@ -45,6 +45,7 @@ async def _admit(session: SimpleNamespace | None, *, user_id: Any, sid: Any, mon
     return await device_hub.admit(MagicMock(), auth_token=token, user_id=user_id)
 
 
+@pytest.mark.security
 class TestWhoMayConnectAComputer:
     async def test_the_desktop_apps_own_session_is_admitted(self, monkeypatch) -> None:
         session = _session()
@@ -116,6 +117,7 @@ class TestWithoutRedis:
         made[0].connect.assert_awaited_once()
 
 
+@pytest.mark.security
 class TestTheSocketRoute:
     """`/ws/device` admits the desktop app's own session and hands the socket on."""
 
@@ -172,6 +174,7 @@ async def _no_db() -> AsyncGenerator[MagicMock]:
 
 
 @pytest.mark.parametrize("state", ["active", "revoked", "expired", "missing"])
+@pytest.mark.security
 async def test_each_operation_rechecks_the_session_before_reaching_the_computer(
     monkeypatch: pytest.MonkeyPatch, state: str
 ) -> None:

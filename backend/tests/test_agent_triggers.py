@@ -3418,6 +3418,7 @@ class TestListingPortalTargets:
 class TestRunningAsTheCreator:
     """A trigger that acts as the person who made it (#2027): their decision, on their terms."""
 
+    @pytest.mark.security
     async def test_creation_cannot_name_a_computer_without_standing_authority(self) -> None:
         from app.schemas.local_target import LocalTarget
 

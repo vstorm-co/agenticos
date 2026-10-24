@@ -58,3 +58,22 @@ async def test_listing_and_marking_a_send() -> None:
     assert await push_repo.subscribed(db, []) == set()
     await push_repo.mark_sent(db, uuid4(), datetime.now(UTC))
     assert "last_sent_at" in _sql(db)
+
+
+async def test_push_sign_ins_merge_browsers_and_phones_within_the_requested_ids() -> None:
+    db = _db()
+    assert await push_repo.sessions_with_push(db, []) == set()
+    db.execute.assert_not_awaited()
+    first, second = uuid4(), uuid4()
+    web, phones = MagicMock(), MagicMock()
+    web.scalars.return_value = [first, None, first]
+    phones.scalars.return_value = [second, first, None]
+    db.execute.side_effect = [web, phones]
+
+    assert await push_repo.sessions_with_push(db, [first, second]) == {first, second}
+    for call, table in zip(
+        db.execute.await_args_list, ("push_subscriptions", "apns_devices"), strict=True
+    ):
+        statement = call.args[0]
+        assert f"{table}.session_id IN" in str(statement)
+        assert list(statement.compile().params.values()) == [[first, second]]

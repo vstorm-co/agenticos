@@ -5271,6 +5271,7 @@ class TestLocalDeviceSelection:
         assert "/approved" in result.briefing
         await service.close(result)
 
+    @pytest.mark.security
     @pytest.mark.parametrize("identity", ["anonymous", "key", "publisher"])
     async def test_nonpersonal_runs_never_contact_a_computer(
         self, identity, monkeypatch, mock_db_session

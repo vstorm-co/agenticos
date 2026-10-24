@@ -11,6 +11,8 @@ from app.core.permissions import AuthContext
 from app.schemas.local_target import LocalTarget
 from app.services.agent_trigger import AgentTriggerService
 
+pytestmark = pytest.mark.security
+
 
 def test_creator_can_select_a_folder_and_disabling_authority_clears_it() -> None:
     owner = uuid4()
