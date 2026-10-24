@@ -129,12 +129,16 @@ async def test_a_real_agent_uses_the_local_model_without_a_cloud_fallback(
     assert (await Agent(spec.build()).run("Hello")).output == "Local answer"
     assert call.call_args.args[0] == session
     local = services.model_spec(
-        spec, session, LocalService(id="other", name="Other", kind="model", model="installed2")
+        spec.profile_id,
+        session,
+        LocalService(id="other", name="Other", kind="model", model="installed2"),
     )
     assert local.model == "installed2"
     assert local.secret_id is None and local.fallbacks == []
     with pytest.raises(BadRequestError):
-        services.model_spec(spec, session, LocalService(id="mcp", name="MCP", kind="mcp"))
+        services.model_spec(
+            spec.profile_id, session, LocalService(id="mcp", name="MCP", kind="mcp")
+        )
 
 
 def test_mcp_tools_are_namespaced_per_grant() -> None:

@@ -244,7 +244,8 @@ refused. The desktop stores the address and the API sends an opaque grant ID.
 Requests and responses are limited to 8 MiB, with a two-minute service deadline.
 MCP servers must accept requests without a token and return finite HTTP responses;
 standalone SSE subscriptions and starting stdio processes are not supported.
-Remove a grant to refuse subsequent calls. Local inference has no cloud fallback;
+Remove a grant to refuse subsequent calls. The organization profile is kept for attribution without opening its cloud credential.
+Local inference has no cloud fallback;
 other capabilities configured with separate models retain their own settings.
 
 **Local browser** routes the existing `browser_use` tools to a visible Chromium

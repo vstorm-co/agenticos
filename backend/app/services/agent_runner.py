@@ -2984,9 +2984,19 @@ class AgentRunnerService:
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
-        model_spec = await self.models.resolve(
-            models_ctx, profile_id=model_profile_id or spec.model_profile_id
-        )
+        local_model_choice: tuple[str, UUID] | None = None
+        model_spec: ModelRequestSpec | None = None
+        if local is not None and local.model_service is not None:
+            if voice is not None:
+                raise BadRequestError(message="Local models are available for text conversations")
+            profile = await self.models.profile_for_organization(
+                models_ctx.organization_id, profile_id=model_profile_id or spec.model_profile_id
+            )
+            local_model_choice = (local.model_service, profile.id)
+        else:
+            model_spec = await self.models.resolve(
+                models_ctx, profile_id=model_profile_id or spec.model_profile_id
+            )
 
         # The organization's ceiling is read here rather than passed in by the
         # surface, for the reason this module exists: a limit each caller has to
@@ -3185,9 +3195,21 @@ class AgentRunnerService:
                 channel_identity_id=ctx.channel_identity_id,
                 surface=surface.value,
                 # A call spends on its realtime model and key, not the chat profile's.
-                model_label=voice.model_label if voice is not None else model_spec.label,
-                provider=voice.provider if voice is not None else model_spec.provider,
-                secret_id=voice.secret_id if voice is not None else model_spec.secret_id,
+                model_label=voice.model_label
+                if voice is not None
+                else model_spec.label
+                if model_spec is not None
+                else "Local model",
+                provider=voice.provider
+                if voice is not None
+                else model_spec.provider
+                if model_spec is not None
+                else "ollama",
+                secret_id=voice.secret_id
+                if voice is not None
+                else model_spec.secret_id
+                if model_spec is not None
+                else None,
                 modality="voice" if voice is not None else "text",
                 started_at=datetime.now(UTC),
                 is_test=is_test,
@@ -3268,9 +3290,10 @@ class AgentRunnerService:
         # `resources`. Nothing starts here for a container-backed one: the
         # client opens its session on the first tool call, so an agent granted a
         # workspace it never touches costs nothing.
+        workspace_ctx = models_ctx if local is not None else ctx
         workspace = await self.workspaces.open(
             spec,
-            ctx=ctx,
+            ctx=workspace_ctx,
             identity=WorkspaceIdentity(
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
@@ -3285,10 +3308,10 @@ class AgentRunnerService:
                 # And a key, which is not the person it was issued by.
                 user_id=(
                     None
-                    if ctx.user_id is None
+                    if workspace_ctx.user_id is None
                     or subject_is_publisher_fallback
-                    or ctx.api_key_id is not None
-                    else str(ctx.user_id)
+                    or workspace_ctx.api_key_id is not None
+                    else str(workspace_ctx.user_id)
                 ),
                 channel_key=channel_key,
                 project_id=project.id if project is not None else None,
@@ -3324,19 +3347,19 @@ class AgentRunnerService:
             session_id = workspace.workspace.backend.session_id
             if local.browser:
                 resources["local_browser_session"] = session_id
-            if local.model_service is not None:
-                if voice is not None:
-                    raise BadRequestError(
-                        message="Local models are available for text conversations"
-                    )
-                service = await describe_service(session_id, local.model_service, "model")
-                model_spec = local_model_spec(model_spec, session_id, service)
+            if local_model_choice is not None:
+                service_id, profile_id = local_model_choice
+                service = await describe_service(session_id, service_id, "model")
+                model_spec = local_model_spec(profile_id, session_id, service)
                 run.model_label = model_spec.label
                 run.provider = model_spec.provider
                 run.secret_id = None
             for service_id in dict.fromkeys(local.mcp_services):
                 service = await describe_service(session_id, service_id, "mcp")
                 spec_toolsets.append(local_mcp_toolset(session_id, service))
+
+        # Local inference was resolved only after the workspace authenticated its owner.
+        assert model_spec is not None
 
         # What a call's realtime model is told: the briefings below describe a
         # workspace and skill files only its text twin can reach.

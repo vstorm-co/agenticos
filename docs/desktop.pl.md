@@ -1,5 +1,5 @@
 ---
-source_sha: "428e12dc6511"
+source_sha: "40175252cdca"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -246,13 +246,14 @@ uprawnienie potwierdza natywne okno. Model korzysta z endpointu HTTP Ollama lub
 OpenAI-compatible (np. `http://127.0.0.1:11434/v1`) i identyfikatora zainstalowanego
 modelu. MCP wymaga działającego serwera Streamable HTTP
 (np. `http://127.0.0.1:8000/mcp`).
+
 Dopuszczalne są tylko adresy loopback, bez
 przekierowań i danych logowania w URL. Adres przechowuje desktop, a API przesyła
 nieprzezroczysty identyfikator uprawnienia. Limit żądania i odpowiedzi wynosi 8 MiB,
 a czas usługi dwie minuty. Serwer MCP musi przyjmować żądania bez tokena i kończyć
 odpowiedzi HTTP; osobne subskrypcje SSE i uruchamianie procesów stdio nie są
-obsługiwane. Usunięcie uprawnienia blokuje kolejne wywołania. Lokalny model nie ma
-awaryjnego przełączenia na chmurę; pozostałe funkcje z osobnymi modelami zachowują
+obsługiwane. Usunięcie uprawnienia blokuje kolejne wywołania. Profil organizacji pozostaje tożsamością modelu bez otwierania jego danych logowania do chmury.
+Lokalny model nie ma awaryjnego przełączenia na chmurę; pozostałe funkcje z osobnymi modelami zachowują
 swoje ustawienia.
 
 **Lokalna przeglądarka** kieruje dotychczasowe narzędzia `browser_use` do widocznego

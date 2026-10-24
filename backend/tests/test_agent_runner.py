@@ -6131,7 +6131,18 @@ class TestPerRunLocalServices:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="Cloud"))
+                service.models,
+                "resolve",
+                new=AsyncMock(
+                    side_effect=AssertionError(
+                        "Cloud credentials must not be opened for a local model"
+                    )
+                ),
+            ),
+            patch.object(
+                service.models,
+                "profile_for_organization",
+                new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
@@ -6162,3 +6173,44 @@ class TestPerRunLocalServices:
         assert build.call_args.kwargs["resources"]["local_browser_session"] == session
         assert tools.return_value in build.call_args.kwargs["extra_toolsets"]
         assert run.model_label == "Local model" and run.secret_id is None
+
+    @pytest.mark.anyio
+    async def test_a_resumed_local_workspace_belongs_to_the_initiator(self):
+        from app.schemas.local_target import LocalTarget
+
+        owner = uuid.uuid4()
+        approver = _ctx()
+        service = AgentRunnerService(_db())
+        opened = AsyncMock(side_effect=BadRequestError(message="device boundary"))
+        with (
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="Model"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", opened),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            pytest.raises(BadRequestError, match="device boundary"),
+        ):
+            await service._assemble(
+                approver,
+                agent=MagicMock(id=uuid.uuid4()),
+                spec=AgentSpec(name="Local", model_profile_id=uuid.uuid4()),
+                existing_run=None,
+                surface=RunSurface.API,
+                conversation_id=None,
+                user_name=None,
+                extra_toolsets=None,
+                exposure=None,
+                decided={},
+                resuming={},
+                already_spent={},
+                already_started={},
+                restored_audience=RunAudience(user_id=owner),
+                local=LocalTarget(folder="/approved", browser=True),
+            )
+        assert opened.call_args.kwargs["ctx"].user_id == owner
+        assert opened.call_args.kwargs["identity"].user_id == str(owner)
+        assert approver.user_id != owner

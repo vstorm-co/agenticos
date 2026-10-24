@@ -1,5 +1,5 @@
 ---
-source_sha: "428e12dc6511"
+source_sha: "40175252cdca"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -259,6 +259,7 @@ transmite un ID opaco del permiso. Las solicitudes y respuestas tienen un límit
 de 8 MiB y un plazo de dos minutos. MCP debe aceptar solicitudes sin token y
 terminar las respuestas HTTP; no se admiten suscripciones SSE independientes ni
 el inicio de procesos stdio. Eliminar un permiso bloquea llamadas posteriores.
+El perfil de la organización se conserva para la atribución sin abrir sus credenciales de nube.
 La inferencia local no recurre a la nube; las capacidades con modelos separados
 mantienen su configuración.
 

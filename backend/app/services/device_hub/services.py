@@ -142,12 +142,12 @@ class DeviceModelSpec(ModelRequestSpec):
         )
 
 
-def model_spec(base: ModelRequestSpec, session_id: UUID, service: LocalService) -> DeviceModelSpec:
+def model_spec(profile_id: UUID, session_id: UUID, service: LocalService) -> DeviceModelSpec:
     """Keep the agent's profile attribution; inference uses the approved local model."""
     if service.kind != "model" or service.model is None:
         raise BadRequestError(message="Choose a local model service")
     return DeviceModelSpec(
-        profile_id=base.profile_id,
+        profile_id=profile_id,
         label=f"{service.name[:100]} (this computer)",
         provider="ollama",
         model=service.model,

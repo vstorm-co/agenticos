@@ -1,5 +1,5 @@
 ---
-source_sha: "428e12dc6511"
+source_sha: "40175252cdca"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -262,13 +262,15 @@ Ein nativer Dialog bestätigt jede Freigabe. Modelle verwenden einen Ollama- ode
 OpenAI-kompatiblen HTTP-Endpunkt (etwa `http://127.0.0.1:11434/v1`) und eine
 installierte Modell-ID. MCP benötigt einen laufenden Streamable-HTTP-Server
 (etwa `http://127.0.0.1:8000/mcp`).
+
 Nur Loopback-Adressen sind erlaubt, ohne
 Weiterleitungen oder Zugangsdaten in der URL. Der Desktop hält die Adresse; die
 API übermittelt eine undurchsichtige Freigabe-ID. Anfragen und Antworten sind auf
 8 MiB begrenzt, die Dienstfrist beträgt zwei Minuten. MCP-Server müssen ohne Token
 antworten und HTTP-Antworten beenden; eigenständige SSE-Abonnements und das Starten
 von stdio-Prozessen werden nicht unterstützt. Entfernen einer Freigabe verweigert
-weitere Aufrufe. Lokale Inferenz hat keinen Cloud-Fallback; Funktionen mit separat
+weitere Aufrufe. Das Organisationsprofil bleibt zur Zuordnung erhalten, ohne seine Cloud-Zugangsdaten zu öffnen.
+Lokale Inferenz hat keinen Cloud-Fallback; Funktionen mit separat
 konfigurierten Modellen behalten ihre Einstellungen.
 
 **Local browser** führt die vorhandenen `browser_use`-Werkzeuge in einem sichtbaren
