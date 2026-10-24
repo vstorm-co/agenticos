@@ -20,7 +20,7 @@ vi.mock("@/lib/server-api", async () => {
 const fetchBackend = vi.mocked(backendFetch);
 
 function request(url: string, { signedIn = false }: { signedIn?: boolean } = {}): NextRequest {
-  return new NextRequest(url, { headers: signedIn ? { cookie: "access_token=at" } : {} });
+  return new NextRequest(url, { headers: signedIn ? { cookie: "agenticos_access_token=at" } : {} });
 }
 
 afterEach(() => {

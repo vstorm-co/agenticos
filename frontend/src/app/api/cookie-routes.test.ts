@@ -29,7 +29,7 @@ function request(
   { body, signedIn = true }: { body?: unknown; signedIn?: boolean } = {},
 ): NextRequest {
   return new NextRequest(url, {
-    headers: signedIn ? { cookie: "access_token=at" } : {},
+    headers: signedIn ? { cookie: "agenticos_access_token=at" } : {},
     ...(body === undefined ? {} : { method: "POST", body: JSON.stringify(body) }),
   });
 }

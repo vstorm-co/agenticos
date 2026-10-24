@@ -1,5 +1,5 @@
 ---
-source_sha: "7a628dbf307e"
+source_sha: "3dfcb7859e41"
 ---
 
 # Instalación { #install }
@@ -48,6 +48,18 @@ paso suyo que tú no puedas dar.
 
     El Makefile y los ayudantes de shell dan por hecho bash. **WSL2** o **Git
     Bash**. Una vez dentro de uno de los dos, todo lo de abajo es idéntico.
+
+!!! note "Cookies de inicio de sesión y hosts compartidos"
+
+    La consola usa las cookies `agenticos_access_token` y
+    `agenticos_refresh_token` para evitar que aplicaciones con nombres de cookies
+    genéricos las sobrescriban por accidente. Tras actualizar desde los nombres
+    antiguos, vuelve a iniciar sesión una vez.
+
+    Asigna nombres de host distintos a las aplicaciones independientes. Las
+    cookies se comparten entre los puertos del mismo nombre de host; los nombres
+    específicos de cada aplicación evitan colisiones accidentales, pero no
+    impiden que otra aplicación en ese mismo nombre de host reciba tus tokens.
 
 ## Ejecútalo desde las imágenes publicadas { #run-it-from-the-published-images }
 

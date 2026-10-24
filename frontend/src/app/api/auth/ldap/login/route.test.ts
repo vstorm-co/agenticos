@@ -61,10 +61,14 @@ describe("signing in with a directory account", () => {
 
     const response = await ldapLogin(request(CREDENTIALS));
 
-    expect(cookie(response, "access_token")).toMatch(/^access_token=at;.*HttpOnly/);
-    expect(cookie(response, "access_token")).toContain("Max-Age=900");
-    expect(cookie(response, "refresh_token")).toMatch(/^refresh_token=rt;.*HttpOnly/);
-    expect(cookie(response, "refresh_token")).toContain("Max-Age=604800");
+    expect(cookie(response, "agenticos_access_token")).toMatch(
+      /^agenticos_access_token=at;.*HttpOnly/,
+    );
+    expect(cookie(response, "agenticos_access_token")).toContain("Max-Age=900");
+    expect(cookie(response, "agenticos_refresh_token")).toMatch(
+      /^agenticos_refresh_token=rt;.*HttpOnly/,
+    );
+    expect(cookie(response, "agenticos_refresh_token")).toContain("Max-Age=604800");
   });
 
   it("attaches the named flow's staged invitation, which the browser cannot read", async () => {
@@ -106,7 +110,7 @@ describe("signing in with a directory account", () => {
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual(envelope);
-    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
   });
 
   it("says login failed when the refusal carried no body", async () => {
