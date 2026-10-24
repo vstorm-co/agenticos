@@ -14,7 +14,7 @@ import {
 } from "./use-workflows";
 import * as api from "@/lib/workflows/workflows-api";
 import { ApiError } from "@/lib/api-error";
-import type { WorkflowGraph } from "@/lib/workflows/types";
+import type { WorkflowGraph, WorkflowVersionRead } from "@/lib/workflows/types";
 
 vi.mock("@/lib/workflows/workflows-api", () => ({
   listWorkflows: vi.fn(),
@@ -502,3 +502,64 @@ describe("importing and exporting", () => {
     expect(toast.error).toHaveBeenCalled();
   });
 });
+
+it("loads older workflow versions only on request and follows the server cursor", async () => {
+  vi.mocked(api.listWorkflowVersions)
+    .mockResolvedValueOnce({ items: [historyVersion("v3", 3)], next_before: 3 })
+    .mockResolvedValueOnce({ items: [historyVersion("v2", 2)], next_before: null });
+  const { result } = renderHook(() => useWorkflowVersions("wf-1"), { wrapper });
+  await waitFor(() => expect(result.current.hasMore).toBe(true));
+  expect(api.listWorkflowVersions).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await result.current.loadMore();
+  });
+  expect(api.listWorkflowVersions).toHaveBeenLastCalledWith("wf-1", 3);
+  await waitFor(() =>
+    expect(result.current.versions.map((version) => version.id)).toEqual(["v3", "v2"]),
+  );
+  expect(result.current.hasMore).toBe(false);
+});
+
+it("retries a failed older version page without losing the loaded history", async () => {
+  vi.mocked(api.listWorkflowVersions)
+    .mockResolvedValueOnce({ items: [historyVersion("v3", 3)], next_before: 3 })
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValueOnce({ items: [historyVersion("v2", 2)], next_before: null });
+  const { result } = renderHook(() => useWorkflowVersions("wf-1"), { wrapper });
+  await waitFor(() => expect(result.current.hasMore).toBe(true));
+  await act(async () => {
+    await result.current.loadMore();
+  });
+  await waitFor(() => expect(result.current.error).toBeTruthy());
+  expect(result.current.versions.map((version) => version.id)).toEqual(["v3"]);
+  await act(async () => {
+    await result.current.retry();
+  });
+  expect(api.listWorkflowVersions).toHaveBeenCalledTimes(3);
+  await waitFor(() =>
+    expect(result.current.versions.map((version) => version.id)).toEqual(["v3", "v2"]),
+  );
+});
+
+it("retries the first history page after a connection failure", async () => {
+  vi.mocked(api.listWorkflowVersions)
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValueOnce({ items: [] });
+  const { result } = renderHook(() => useWorkflowVersions("wf-1"), { wrapper });
+  await waitFor(() => expect(result.current.error).toBeTruthy());
+  await act(async () => {
+    await result.current.retry();
+  });
+  await waitFor(() => expect(result.current.error).toBeNull());
+});
+
+function historyVersion(id: string, version: number): WorkflowVersionRead {
+  return {
+    id,
+    version,
+    note: null,
+    published_by_user_id: null,
+    budget_limit: null,
+    created_at: null,
+  };
+}

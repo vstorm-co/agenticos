@@ -19,6 +19,7 @@ import {
   Skeleton,
   Spinner,
 } from "@/components/ui";
+import { ErrorState } from "@/components/states";
 import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { NodeDefinition, WorkflowVersionRead } from "@/lib/workflows/types";
@@ -199,13 +200,19 @@ export function VersionHistory({
   onRestore?: (version: WorkflowVersionRead) => Promise<boolean>;
 }) {
   const t = useTranslations("workflows");
-  const { versions, isLoading } = useWorkflowVersions(workflowId);
+  const tCommon = useTranslations("common");
+  const { versions, isLoading, error, hasMore, isLoadingMore, loadMore, retry } =
+    useWorkflowVersions(workflowId);
   const [selected, setSelected] = useState<WorkflowVersionRead | null>(null);
 
   return (
     <ListCard
       title={t("versionsTitle")}
-      counted={isLoading ? null : t("versionsCount", { count: versions.length })}
+      counted={
+        isLoading
+          ? null
+          : t(hasMore ? "versionsLoadedCount" : "versionsCount", { count: versions.length })
+      }
       contentClassName="p-0"
     >
       {isLoading ? (
@@ -213,6 +220,11 @@ export function VersionHistory({
           <Skeleton className="h-6 w-full" />
           <Skeleton className="h-6 w-full" />
         </div>
+      ) : error && versions.length === 0 ? (
+        <ErrorState
+          className="m-5"
+          cta={{ label: tCommon("retry"), onClick: () => void retry() }}
+        />
       ) : versions.length === 0 ? (
         <ListCardEmpty
           icon={History}
@@ -230,6 +242,26 @@ export function VersionHistory({
             />
           ))}
         </ul>
+      )}
+
+      {error && versions.length > 0 ? (
+        <ErrorState
+          className="m-5"
+          cta={{ label: tCommon("retry"), onClick: () => void retry() }}
+        />
+      ) : (
+        hasMore && (
+          <div className="border-t p-4">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isLoadingMore}
+              onClick={() => void loadMore()}
+            >
+              {isLoadingMore ? tCommon("loading") : tCommon("showMore")}
+            </Button>
+          </div>
+        )
       )}
 
       <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>

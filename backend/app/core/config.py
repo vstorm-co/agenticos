@@ -884,6 +884,8 @@ class Settings(BaseSettings):
     # iterations included, counts against the per-run ceiling.
     WORKFLOW_FOREACH_MAX_ITEMS: int = Field(default=1000, gt=0)
     WORKFLOW_FOREACH_MAX_MANIFEST_BYTES: int = Field(default=1_048_576, gt=0)
+    # Latest yielded/error payloads are measured in SQL before Python loads them.
+    WORKFLOW_FOREACH_MAX_OUTPUT_BYTES: int = Field(default=10_485_760, gt=0)
     WORKFLOW_FOREACH_MAX_DEPTH: int = Field(default=3, gt=0)
     WORKFLOW_RUN_MAX_NODE_RUNS: int = Field(default=10_000, gt=0)
 

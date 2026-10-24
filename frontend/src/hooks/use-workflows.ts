@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -226,12 +226,23 @@ export function useWorkflow(workflowId: string | null) {
 
 /** Every published version of a workflow, newest first. Lean — no graphs. */
 export function useWorkflowVersions(workflowId: string | null) {
-  const { data, isLoading } = useQuery({
+  const query = useInfiniteQuery({
     queryKey: qk.workflows.versions(workflowId ?? ""),
-    queryFn: () => listWorkflowVersions(workflowId as string),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      listWorkflowVersions(workflowId as string, pageParam === 0 ? undefined : pageParam),
+    getNextPageParam: (page) => page.next_before ?? undefined,
     enabled: !!workflowId,
   });
-  return { versions: data?.items ?? [], isLoading };
+  return {
+    versions: query.data?.pages.flatMap((page) => page.items) ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    hasMore: query.hasNextPage,
+    isLoadingMore: query.isFetchingNextPage,
+    loadMore: () => query.fetchNextPage(),
+    retry: () => (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch()),
+  };
 }
 
 /**

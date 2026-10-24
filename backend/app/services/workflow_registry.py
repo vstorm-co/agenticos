@@ -726,12 +726,20 @@ class WorkflowRegistryService:
         states = await WorkflowTriggerSync(self.db).states(workflow.organization_id, [workflow.id])
         return _detail(workflow, can_edit=can_edit, trigger_active=states.get(workflow.id))
 
-    async def list_versions(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowVersionList:
+    async def list_versions(
+        self, ctx: AuthContext, workflow_id: UUID, *, before: int | None = None, limit: int = 50
+    ) -> WorkflowVersionList:
         workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
         versions = await workflow_repo.list_versions(
-            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+            self.db,
+            workflow_id=workflow.id,
+            organization_id=ctx.organization_id,
+            before=before,
+            limit=limit,
         )
+        next_before = versions[limit - 1].version if len(versions) > limit else None
         return WorkflowVersionList(
+            next_before=next_before,
             items=[
                 WorkflowVersionRead(
                     id=version.id,
@@ -743,8 +751,8 @@ class WorkflowRegistryService:
                     else None,
                     created_at=version.created_at,
                 )
-                for version in versions
-            ]
+                for version in versions[:limit]
+            ],
         )
 
     async def get_version(

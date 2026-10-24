@@ -218,7 +218,10 @@ class WorkflowRunSocket:
             if membership is None:
                 return None
             return AuthContext(
-                user_id=user.id, organization_id=self.organization_id, role=membership.role
+                user_id=user.id,
+                organization_id=self.organization_id,
+                role=membership.role,
+                is_app_admin=user.is_app_admin,
             )
 
     async def _send(self, kind: str, **body: Any) -> None:

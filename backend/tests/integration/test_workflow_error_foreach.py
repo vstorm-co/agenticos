@@ -14,6 +14,7 @@ import uuid
 from collections.abc import Iterator
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Literal
 
 import pytest
@@ -955,3 +956,50 @@ async def test_a_run_answers_with_the_graph_it_executes_its_loops_derived(engine
     graph = WorkflowGraph.model_validate(answered.graph)
     assert {node.id for node in graph.nodes} == {node.id for node in loop.graph.nodes}
     assert [scope.scope_node_id for scope in graph.scopes] == [loop.loop.id]
+
+
+@pytest.mark.security
+async def test_cumulative_loop_outputs_are_bounded_before_materialization(engine, monkeypatch):
+    monkeypatch.setattr(dispatcher.settings, "WORKFLOW_FOREACH_MAX_OUTPUT_BYTES", 7000)
+    loop = _Loop()
+    seeded = await _run(engine, loop.graph, {"items": [{"name": "x" * 3000}] * 3})
+    ended = await drive(seeded)
+    assert ended.status == WorkflowRunStatus.FAILED.value
+    assert ended.error is not None and ended.error["code"] == "FOREACH_OUTPUT_TOO_LARGE"
+
+
+@pytest.mark.parametrize("guarantee", ["idempotent", "at_least_once"])
+async def test_invalid_terminal_json_is_recorded_without_repeating_effects(engine, guarantee):
+    class Output(BaseModel):
+        text: str
+
+    calls: list[str] = []
+
+    async def invalid(_config: BaseModel | None, _input: BaseModel | None) -> NodeResult:
+        calls.append("effect")
+        context.report_cost(Decimal("0.25"))
+        return Completed[Output](output=Output(text="invalid\x00"))
+
+    name = "test.invalid_terminal_json"
+    definition = replace(
+        _synthetic(name, invalid, effect="write", guarantee=guarantee),
+        output_schema=Output,
+        ports=(
+            Port(id="in", label="In", kind="input", schema=None),
+            Port(id="out", label="Out", kind="output", schema=Output),
+        ),
+    )
+    register(definition)
+    try:
+        entry, action = _node("core.input"), _node(name)
+        graph = WorkflowGraph(
+            entry_node_id=entry.id, nodes=(entry, action), edges=(_edge(entry, action),)
+        )
+        seeded = await _run(engine, graph)
+        ended = await drive(seeded)
+        assert ended.status == WorkflowRunStatus.FAILED.value
+        assert ended.error is not None and ended.error["code"] == "INVALID_NODE_OUTPUT"
+        assert ended.spent_cost == Decimal("0.25")
+        assert calls == ["effect"]
+    finally:
+        REGISTRY.pop(name, None)

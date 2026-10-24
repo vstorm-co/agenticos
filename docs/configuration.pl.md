@@ -1,5 +1,5 @@
 ---
-source_sha: "08d7ca0973d3"
+source_sha: "f21a1ae0c738"
 ---
 
 # Konfiguracja { #configuration }
@@ -530,6 +530,7 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie. Te trzy ustawienia dotyczą węzła, którego `policy.retry` nie ustala własnych |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Najdłuższa lista, po której iteruje `control.foreach`. Dłuższa kończy pętlę błędem `FOREACH_TOO_MANY_ITEMS` zamiast zostać przycięta |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Największa lista, jaką pętla zamraża, jako JSON. Większa kończy pętlę błędem `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Najnowsze wyniki yield i nieobsłużone błędy wraz z narzutem kolekcji, mierzone przed pobraniem JSON. Większa kolekcja kończy się `FOREACH_OUTPUT_TOO_LARGE`; zwracaj mniejsze wartości lub referencje plików |
 | `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Jak głęboko mogą się zagnieżdżać pętle. Grafu z głębszymi pętlami nie da się opublikować |
 | `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | Najwięcej przebiegów węzłów, jakie może utworzyć jeden run, łącznie z iteracjami pętli. Iteracja, która by go przekroczyła, kończy run błędem `NODE_RUN_LIMIT` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Ile oczekującej lub działającej pracy węzłów może naraz trzymać jedna organizacja. Start rezerwuje na poczet tego limitu liczbę węzłów swojego grafu, a start ponad limit jest odrzucany z `429`, dopóki działająca praca nie zejdzie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
@@ -586,6 +587,12 @@ Odpowiedź trafia do rozmowy, a jej osoba dostaje powiadomienie, więc to ograni
 wydatki na odpowiedź, której może nikt nie przeczytać, a nie wyłącza czegokolwiek.
 Musi objąć Twoją najdłuższą turę researchu albo przeglądania; run i tak trzyma się
 budżetu agenta. Zobacz [Konsola](console.md#chat).
+
+Limity plików i tabel organizacji nie ograniczają łącznego storage deploymentu.
+Bez `max_organizations_per_user` konto może posiadać dowolnie wiele organizacji
+i mnożyć limity tenantów. Ustaw skończony limit właścicielstwa w ustawieniach
+deploymentu, zapewnij i monitoruj wspólny storage oraz uwzględnij historię przebiegów.
+Platforma obecnie nie egzekwuje globalnego budżetu storage.
 
 ## Modele AI — konfigurowane w aplikacji, nie tutaj { #ai-models-configured-in-the-app-not-here }
 

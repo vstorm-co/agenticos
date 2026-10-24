@@ -194,9 +194,15 @@ async def get_workflow_stats(
 
 
 @router.get("/{workflow_id}/versions", response_model=WorkflowVersionList)
-async def list_workflow_versions(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Auth) -> Any:
-    """Every published version of this workflow, newest first. Lean - no graphs."""
-    return await service.list_versions(ctx, workflow_id)
+async def list_workflow_versions(
+    workflow_id: UUID,
+    service: WorkflowRegistrySvc,
+    ctx: Auth,
+    before: int | None = Query(default=None, ge=1),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Any:
+    """A metadata page, newest first; pass next_before for older versions. No graphs."""
+    return await service.list_versions(ctx, workflow_id, before=before, limit=limit)
 
 
 @router.get("/{workflow_id}/versions/{version_id}", response_model=WorkflowVersionDetail)

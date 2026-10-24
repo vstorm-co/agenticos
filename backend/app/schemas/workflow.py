@@ -291,6 +291,7 @@ class WorkflowVersionDetail(WorkflowVersionRead):
 
 class WorkflowVersionList(BaseSchema):
     items: list[WorkflowVersionRead]
+    next_before: int | None = None
 
 
 class NodeCatalogPort(BaseSchema):

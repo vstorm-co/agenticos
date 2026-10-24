@@ -406,9 +406,10 @@ export interface WorkflowVersionDetail extends WorkflowVersionRead {
   graph: WorkflowGraph;
 }
 
-/** Every published version, newest first. Mirrors `WorkflowVersionList`. */
+/** One published-version metadata page, newest first. Mirrors `WorkflowVersionList`. */
 export interface WorkflowVersionList {
   items: WorkflowVersionRead[];
+  next_before?: number | null;
 }
 
 /** Create a workflow. Mirrors `WorkflowCreate`. */

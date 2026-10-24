@@ -24,6 +24,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunMode, WorkflowRunTrigger
 from app.repositories import member_repo
+from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.schemas.workflow import StoredWorkflowSettings
 from app.services.access import WORKFLOW, resolve_access
@@ -74,13 +75,15 @@ async def start_error_workflow(
     membership = await member_repo.get_active(
         db, organization_id=run.organization_id, user_id=settings.error_workflow_run_as
     )
+    user = await user_repo.get_by_id(db, settings.error_workflow_run_as)
     ctx = (
         AuthContext(
             user_id=settings.error_workflow_run_as,
             organization_id=run.organization_id,
             role=membership.role,
+            is_app_admin=user.is_app_admin,
         )
-        if membership is not None
+        if membership is not None and user is not None and user.is_active
         else None
     )
     if (

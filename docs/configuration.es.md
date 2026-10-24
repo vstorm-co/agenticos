@@ -1,5 +1,5 @@
 ---
-source_sha: "08d7ca0973d3"
+source_sha: "f21a1ae0c738"
 ---
 
 # Configuración { #configuration }
@@ -542,6 +542,7 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Lo más que puede crecer una sola espera. Estos tres se aplican a un nodo cuya `policy.retry` no fija los suyos |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | La lista más larga que recorre un `control.foreach`. Una más larga hace fallar el bucle con `FOREACH_TOO_MANY_ITEMS` en lugar de truncarse |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | La lista más grande que congela un bucle, como JSON. Una mayor hace fallar el bucle con `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Últimos resultados yield y errores no gestionados, más el coste de la colección, medidos antes de cargar el JSON. Las colecciones mayores fallan con `FOREACH_OUTPUT_TOO_LARGE`; devuelve valores menores o referencias a archivos |
 | `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Cuánto pueden anidarse los bucles. Un grafo con bucles más profundos no se puede publicar |
 | `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | El máximo de ejecuciones de nodo que puede crear un run, iteraciones de bucle incluidas. Una iteración que lo superaría hace fallar el run con `NODE_RUN_LIMIT` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Cuánto trabajo de nodos en cola o en ejecución puede tener una organización a la vez. Un start reserva contra este límite el número de nodos de su grafo, y uno que lo supere se rechaza con `429` hasta que el trabajo en ejecución se drene. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
@@ -602,6 +603,13 @@ La respuesta llega a la conversación y se avisa a su persona, así que esto lim
 el gasto en una respuesta que quizá nadie lea, en lugar de apagar nada. Debe cubrir
 tu turno de investigación o navegación más largo; un run sigue sujeto al
 presupuesto de su agente. Ver [Consola](console.md#chat).
+
+Las cuotas de archivos y tablas por organización no limitan el almacenamiento
+total del despliegue. Sin `max_organizations_per_user`, una cuenta puede poseer
+organizaciones ilimitadas y multiplicar sus cuotas. Configura un límite finito de
+propiedad, dimensiona y supervisa el almacenamiento compartido y considera el
+historial de ejecuciones. Actualmente no se impone un presupuesto global de
+almacenamiento.
 
 ## Modelos de IA — se configuran en la aplicación, no aquí { #ai-models-configured-in-the-app-not-here }
 

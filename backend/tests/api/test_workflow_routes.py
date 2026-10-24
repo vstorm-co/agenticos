@@ -721,3 +721,38 @@ async def test_the_eval_routes_reach_the_service_with_the_step_and_the_case(
     assert create.await_args.args[1:3] == (workflow_id, node_id)
     assert delete.await_args.args[1:] == (workflow_id, eval_id)
     assert get_try.await_args.args[1:] == (workflow_id, eval_run_id)
+
+
+async def test_version_history_forwards_a_bounded_cursor_and_returns_the_next_page(owner_client):
+    workflow = _workflow()
+    versions = [
+        MagicMock(
+            id=uuid.uuid4(),
+            version=number,
+            note=None,
+            published_by_user_id=workflow.owner_user_id,
+            budget_limit=None,
+            created_at=None,
+        )
+        for number in (6, 5)
+    ]
+    with (
+        patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(
+            f"{REGISTRY_PATH}.workflow_repo.list_versions", new=AsyncMock(return_value=versions)
+        ) as listing,
+    ):
+        async with owner_client() as http:
+            response = await http.get(_url(f"/{workflow.id}/versions?before=7&limit=1"))
+    assert response.status_code == 200
+    assert [item["version"] for item in response.json()["items"]] == [6]
+    assert response.json()["next_before"] == 6
+    assert listing.await_args.kwargs["before"] == 7
+    assert listing.await_args.kwargs["limit"] == 1
+
+
+@pytest.mark.parametrize("query", ["limit=0", "limit=101", "before=0"])
+async def test_version_history_rejects_out_of_bounds_paging(owner_client, query):
+    async with owner_client() as http:
+        response = await http.get(_url(f"/{uuid.uuid4()}/versions?{query}"))
+    assert response.status_code == 422

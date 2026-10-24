@@ -917,10 +917,24 @@ async def get_latest_attempts(
     result = await db.execute(
         select(NodeAttempt)
         .where(NodeAttempt.node_run_id.in_(node_run_ids))
-        .order_by(NodeAttempt.attempt_no)
+        .order_by(NodeAttempt.node_run_id, NodeAttempt.attempt_no.desc())
+        .distinct(NodeAttempt.node_run_id)
     )
-    # Ascending, so each node run's last write wins.
     return {attempt.node_run_id: attempt for attempt in result.scalars().all()}
+
+
+async def latest_attempt_result_bytes(db: AsyncSession, *, node_run_ids: Sequence[UUID]) -> int:
+    """Measure latest results as decoded JSON text without sending their bodies to Python."""
+    if not node_run_ids:
+        return 0
+    latest = (
+        select(func.coalesce(func.octet_length(cast(NodeAttempt.result, String)), 0).label("bytes"))
+        .where(NodeAttempt.node_run_id.in_(node_run_ids))
+        .order_by(NodeAttempt.node_run_id, NodeAttempt.attempt_no.desc())
+        .distinct(NodeAttempt.node_run_id)
+        .subquery()
+    )
+    return int(await db.scalar(select(func.coalesce(func.sum(latest.c.bytes), 0))) or 0)
 
 
 async def settle_attempt(

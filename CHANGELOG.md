@@ -643,6 +643,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bound foreach output collection before loading JSONB, validate terminal node
+  results without retrying completed effects, and keep summary group keys intact.
+- Preserve app-admin authority on workflow sockets and error workflows; page the
+  version history without fetching graphs, with incremental loading and retry in
+  the editor. Document the inherited deployment-wide storage quota gap.
+
 - Reject JSONB-incompatible workflow draft values after authorization and revision
   checks, before persistence, using the same validation as run admission.
 

@@ -1011,6 +1011,16 @@ class TestReprs:
         # `seq` is the meaningful identity for an append-only event stream.
         assert str(event.seq) in repr(event)
         assert str(resource_ref.id) in repr(resource_ref)
+        from app.db.models.workflow_run import WorkflowRetainedSpend
+
+        retained = WorkflowRetainedSpend(
+            run_id=run.id,
+            organization_id=run.organization_id,
+            workflow_id=run.workflow_id,
+            admitted_at=run.created_at,
+            cost_usd=Decimal("0.25"),
+        )
+        assert str(run.id) in repr(retained)
 
 
 class TestGetRunForUpdate:
@@ -1379,7 +1389,7 @@ class TestLoopScopes:
         run = await _run(db, org, await _workflow(db, org))
         node_run = await _node_run(db, run)
         for attempt_no in (1, 2):
-            await workflow_run_repo.create_attempt(
+            attempt = await workflow_run_repo.create_attempt(
                 db,
                 organization_id=org.id,
                 node_run_id=node_run.id,
@@ -1388,6 +1398,12 @@ class TestLoopScopes:
                 retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
                 started_at=datetime.now(UTC),
             )
+
+            attempt.result = {"value": "x" * 3000 if attempt_no == 1 else "small"}
+        await db.flush()
+        size = await workflow_run_repo.latest_attempt_result_bytes(db, node_run_ids=[node_run.id])
+        assert 0 < size < 100
+        assert await workflow_run_repo.latest_attempt_result_bytes(db, node_run_ids=[]) == 0
 
         latest = await workflow_run_repo.get_latest_attempts(db, node_run_ids=[node_run.id])
 

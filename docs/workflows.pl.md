@@ -1,5 +1,5 @@
 ---
-source_sha: "8db3c8fd2dd9"
+source_sha: "3384b8071684"
 ---
 
 # Workflows { #workflows }
@@ -430,6 +430,11 @@ latest saved draft.* Wybierasz:
 - **Reload** — odrzuć niezapisane zmiany i weź ostatnio zapisany draft.
 
 ## Publikowanie wersji i historia wersji { #publishing-a-version-and-version-history }
+
+Historia ładuje po 50 wpisów metadanych; **More** pobiera starsze wersje. API
+przyjmuje `before` i `limit` (1–100), zwracając `next_before`, dopóki istnieją
+starsze wersje. Graf jest pobierany dopiero przy otwarciu wersji. Błąd strony
+można ponowić bez utraty już wczytanych wpisów.
 
 **Publish** zamraża bieżący draft jako niezmienną wersję, która działa — wersja nigdy
 nie jest zmieniana po utworzeniu. Okno publikowania mówi, którą wersję utworzy, i przyjmuje opcjonalną
@@ -906,6 +911,17 @@ każdego pliku, również dla powtórzonych referencji. Wyniki MCP usuwają nag�
 uwierzytelnienia i poświadczenia z tekstu oraz zagnieżdżonych danych. Nazwy plików
 są normalizowane przed zapisem, z zachowaniem rozszerzeń i limitu 255 znaków. Pola
 CSV mieszczą się w limicie bajtów kroku, do 50 MB; odmowy parsera mają jawny typ.
+
+Pętla mierzy w SQL najnowsze wyniki yield i nieobsłużone błędy przed ich pobraniem.
+`WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` domyślnie wynosi 10 MiB, łącznie z narzutem
+kolekcji; przekroczenie daje `FOREACH_OUTPUT_TOO_LARGE`. Dla dużych wyników zwracaj
+mniejsze wartości lub referencje plików. Kolizja klucza podsumowania z polem grupy
+kończy się `SUMMARY_KEY_COLLISION`.
+
+Wejścia przebiegów, konfiguracje draftów i przypięte wyniki muszą mieścić się
+w formacie JSONB PostgreSQL. Niezapisywalny wynik węzła daje `INVALID_NODE_OUTPUT`,
+bez automatycznego ponowienia i z zachowaniem poniesionych kosztów. Zewnętrzna
+operacja mogła już się zakończyć; sprawdź ją przed ręcznym powtórzeniem węzła.
 
 ## Podsumowanie { #recap }
 

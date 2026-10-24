@@ -256,3 +256,23 @@ class TestDateTimeAndCrypto:
         )
         random = await steps.crypto(steps.CryptoConfig(operation="random_hex", length=4), None)
         assert len(_out(random)["value"]) == 8
+
+
+async def test_summaries_do_not_overwrite_group_identifiers():
+    config = steps.SummarizeConfig.model_validate(
+        {
+            "group_by": ["sum_price"],
+            "summaries": [{"operation": "sum", "field": "price"}],
+        }
+    )
+    result = await steps.summarize(
+        config,
+        _in(
+            [
+                {"sum_price": "north", "price": 2},
+                {"sum_price": "south", "price": 3},
+            ]
+        ),
+    )
+    assert isinstance(result, Failed) and result.error.code == "SUMMARY_KEY_COLLISION"
+    assert result.error.details == {"keys": ["sum_price"]}

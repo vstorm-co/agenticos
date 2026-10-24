@@ -7897,6 +7897,7 @@
     "publishConfirm": "Publish version",
     "versionsTitle": "Version history",
     "versionsCount": "{count, plural, =0 {No versions} =1 {1 version} other {# versions}}",
+    "versionsLoadedCount": "Loaded {count, plural, one {# version} other {# versions}}",
     "versionsEmpty": "No versions yet",
     "versionsEmptyDetail": "Publish the draft to create the first immutable version.",
     "versionLabel": "Version {version}",

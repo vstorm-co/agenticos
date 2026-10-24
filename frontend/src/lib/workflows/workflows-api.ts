@@ -113,8 +113,14 @@ export async function deleteWorkflow(workflowId: string): Promise<void> {
 }
 
 /** Every published version of this workflow, newest first. Lean - no graphs. */
-export async function listWorkflowVersions(workflowId: string): Promise<WorkflowVersionList> {
-  return apiClient.get<WorkflowVersionList>(`${ROOT}/${workflowId}/versions`);
+export async function listWorkflowVersions(
+  workflowId: string,
+  before?: number,
+): Promise<WorkflowVersionList> {
+  const url = `${ROOT}/${workflowId}/versions`;
+  return before === undefined
+    ? apiClient.get<WorkflowVersionList>(url)
+    : apiClient.get<WorkflowVersionList>(url, { params: { before: String(before) } });
 }
 
 /** One published version with its frozen graph, for a read-only preview. */

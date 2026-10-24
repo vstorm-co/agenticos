@@ -420,6 +420,11 @@ latest saved draft.* You choose:
 
 ## Publishing a version and version history { #publishing-a-version-and-version-history }
 
+Version history loads 50 metadata entries at a time; **More** requests older
+versions. The API accepts `before` and `limit` (1–100), returning `next_before`
+until there are no older versions. Graphs are fetched only when opening a version.
+A failed page can be retried while preserving entries already loaded.
+
 **Publish** freezes the current draft as an immutable version that runs — a
 version is never changed after it is created. The publish dialog names the version it makes and takes an optional
 **Release note** describing what changed; when the draft has not changed since the live
@@ -876,6 +881,17 @@ is loaded, including repeated references. MCP results redact resolved authentica
 headers and credentials from text and nested data. Workflow filenames are normalized
 centrally before storage, preserving extensions within 255 characters. CSV fields
 can use the step’s configured file byte limit, up to 50 MB; parser refusals are typed.
+
+A loop measures its latest yielded results and unhandled errors in SQL before
+loading them. `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` defaults to 10 MiB, including
+collection overhead; exceeding it fails with `FOREACH_OUTPUT_TOO_LARGE`. Yield
+smaller values or file references for large results. A summary whose generated
+key collides with a group field fails with `SUMMARY_KEY_COLLISION`.
+
+Run inputs, draft configurations and pinned outputs must fit PostgreSQL JSONB.
+A handler result that cannot be stored becomes `INVALID_NODE_OUTPUT`, with no
+automatic retry and with incurred fees retained. An external action may already
+have completed, so inspect it before manually repeating the node.
 
 ## Recap
 

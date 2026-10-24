@@ -10,6 +10,7 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
@@ -192,16 +193,37 @@ async def get_version(
 
 
 async def list_versions(
-    db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
+    db: AsyncSession,
+    *,
+    workflow_id: UUID,
+    organization_id: UUID,
+    before: int | None = None,
+    limit: int = 50,
 ) -> list[WorkflowVersion]:
-    result = await db.execute(
+    """A bounded metadata page; graphs are forbidden from lazy-loading here."""
+    query = (
         select(WorkflowVersion)
+        .options(
+            load_only(
+                WorkflowVersion.id,
+                WorkflowVersion.version,
+                WorkflowVersion.note,
+                WorkflowVersion.published_by_user_id,
+                WorkflowVersion.budget_limit,
+                WorkflowVersion.created_at,
+                raiseload=True,
+            )
+        )
         .where(
             WorkflowVersion.workflow_id == workflow_id,
             WorkflowVersion.organization_id == organization_id,
         )
         .order_by(WorkflowVersion.version.desc())
+        .limit(limit + 1)
     )
+    if before is not None:
+        query = query.where(WorkflowVersion.version < before)
+    result = await db.execute(query)
     return list(result.scalars().all())
 
 

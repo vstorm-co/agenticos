@@ -49,7 +49,7 @@ from decimal import Decimal
 from typing import Any, Literal, TypeGuard
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, RootModel
+from pydantic import BaseModel, ConfigDict, JsonValue, RootModel
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,7 +118,7 @@ from app.workflows.contracts.results import (
     WorkflowError,
 )
 from app.workflows.files import import_output_files
-from app.workflows.graph.model import NodeInstance, WorkflowGraph
+from app.workflows.graph.model import NodeInstance, WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.validate import (
     FOREACH,
     LOOP_YIELD,
@@ -1322,6 +1322,32 @@ def _attempt_status(result: NodeResult) -> str:
     raise TypeError(f"Unknown NodeResult variant: {result!r}")  # pragma: no cover - closed union
 
 
+def _persistable_outcome(outcome: HandlerOutcome) -> tuple[HandlerOutcome, dict[str, JsonValue]]:
+    """An invalid output is a terminal, non-retryable failure; incurred fees survive."""
+    try:
+        serialized: dict[str, JsonValue] = outcome.result.model_dump(mode="json")
+        jsonb_value_fits(serialized)
+        jsonb_value_fits(outcome.run_output)
+        jsonb_value_fits(outcome.webhook_response)
+    except ValueError, TypeError, RecursionError:
+        failed = Failed(
+            error=WorkflowError(
+                code="INVALID_NODE_OUTPUT",
+                message="The node returned data PostgreSQL JSONB cannot store",
+                retryable=False,
+            )
+        )
+        safe = replace(
+            outcome,
+            result=failed,
+            run_output=None,
+            webhook_response=None,
+            waiting_agent_run_id=None,
+        )
+        return safe, failed.model_dump(mode="json")
+    return outcome, serialized
+
+
 async def settle(
     db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutcome
 ) -> list[tuple[UUID, UUID]]:
@@ -1344,7 +1370,6 @@ async def settle(
         )
         return []
     now = datetime.now(UTC)
-    result = outcome.result
     # An outcome describes this handler invocation's cumulative spend. A duplicate
     # delivery adds nothing; a late result can refine what was known of the same try.
     cost_outcome = replace(outcome, cost=max(Decimal(0), outcome.cost - attempt.cost))
@@ -1380,13 +1405,18 @@ async def settle(
         await _book_attempt_cost(db, attempt=attempt, outcome=cost_outcome)
         return []
 
+    outcome, serialized_result = _persistable_outcome(outcome)
+    result = outcome.result
+
     # A run cancelled while this handler was running must stay cancelled: the
     # attempt itself still settles honestly (what actually happened is worth
     # recording), but as a terminal `NodeRun` outcome with no run-status
     # transition and no `_advance` - `cancel()` already closed every outbox
     # row, so there is nothing left to dispatch even if this had completed.
     if WorkflowRunStatus(run.status).is_terminal:
-        await _record_attempt(db, attempt=attempt, outcome=outcome, now=now)
+        await _record_attempt(
+            db, attempt=attempt, outcome=outcome, serialized_result=serialized_result, now=now
+        )
         await _close_node_of_ended_run(db, run=run, node_run=node_run, now=now)
         # Only this attempt's own, still-open claim is closed: `cancel()`
         # already marked the row `cancelled`, and that record stays as it is.
@@ -1426,7 +1456,9 @@ async def settle(
     # until this closes it. Checking that after closing it, rather than
     # before, is what makes "no live outbox left" actually mean it.
     await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
-    await _record_attempt(db, attempt=attempt, outcome=outcome, now=now)
+    await _record_attempt(
+        db, attempt=attempt, outcome=outcome, serialized_result=serialized_result, now=now
+    )
 
     if isinstance(result, Completed):
         if outcome.run_output is not None:
@@ -1513,14 +1545,19 @@ async def _book_attempt_cost(
 
 
 async def _record_attempt(
-    db: AsyncSession, *, attempt: NodeAttempt, outcome: HandlerOutcome, now: datetime
+    db: AsyncSession,
+    *,
+    attempt: NodeAttempt,
+    outcome: HandlerOutcome,
+    serialized_result: dict[str, JsonValue],
+    now: datetime,
 ) -> None:
     """Write the attempt's terminal row: what happened, and what it cost."""
     await workflow_run_repo.settle_attempt(
         db,
         attempt=attempt,
         status=_attempt_status(outcome.result),
-        result=outcome.result.model_dump(mode="json"),
+        result=serialized_result,
         cost=outcome.cost,
         cost_is_partial=outcome.cost_is_partial,
         ended_at=now,
@@ -2189,6 +2226,7 @@ async def _close_loop(
     was handled inside the iteration and is not one of them.
     """
     loop_id = loop_run.node_instance_id
+    graph_nodes = graph.node_by_id
     node_scope = node_scope_map(graph)
     body = [node_id for node_id, owner in node_scope.items() if owner == loop_id]
     depth = len(loop_run.scope_path)
@@ -2199,8 +2237,43 @@ async def _close_loop(
         )
         if row.scope_path[:depth] == loop_run.scope_path and len(row.scope_path) == depth + 1
     ]
+    rows = [
+        row
+        for row in rows
+        if (
+            graph_nodes[row.node_instance_id].definition_id == LOOP_YIELD
+            and row.status == NodeRunStatus.SUCCEEDED.value
+        )
+        or (
+            row.status == NodeRunStatus.FAILED.value
+            and not graph_nodes[row.node_instance_id].routes_errors
+        )
+    ]
+    # Settlement holds the run lock, so another worker cannot enlarge these
+    # terminal results between measuring their bytes and fetching their bodies.
+    result_bytes = await workflow_run_repo.latest_attempt_result_bytes(
+        db, node_run_ids=[row.id for row in rows]
+    )
+    # Include the array's null slots and envelope even when no iteration yielded.
+    required = result_bytes + 5 * count + 64
+    if required > settings.WORKFLOW_FOREACH_MAX_OUTPUT_BYTES:
+        return await _fail_for_good(
+            db,
+            run=run,
+            graph=graph,
+            node_run=loop_run,
+            error=WorkflowError(
+                code="FOREACH_OUTPUT_TOO_LARGE",
+                message="Collected loop results exceed the output byte limit; yield file references or smaller values",
+                details={
+                    "limit_bytes": settings.WORKFLOW_FOREACH_MAX_OUTPUT_BYTES,
+                    "required_bytes": required,
+                },
+            ),
+            now=datetime.now(UTC),
+        )
     attempts = await workflow_run_repo.get_latest_attempts(
-        db, node_run_ids=[row.id for row in rows if row.status in _SETTLED]
+        db, node_run_ids=[row.id for row in rows]
     )
     results: list[Any] = [None] * count
     errors: list[ForeachItemError] = []
@@ -2208,12 +2281,12 @@ async def _close_loop(
         index = int(row.scope_path[-1]["index"])
         stored = attempts.get(row.id)
         stored_result = stored.result if stored is not None and stored.result else {}
-        definition_id = graph.node_by_id[row.node_instance_id].definition_id
+        definition_id = graph_nodes[row.node_instance_id].definition_id
         if definition_id == LOOP_YIELD and row.status == NodeRunStatus.SUCCEEDED.value:
             results[index] = (stored_result.get("output") or {}).get("value")
         elif (
             row.status == NodeRunStatus.FAILED.value
-            and not graph.node_by_id[row.node_instance_id].routes_errors
+            and not graph_nodes[row.node_instance_id].routes_errors
         ):
             error = WorkflowError.model_validate(stored_result.get("error"))
             errors.append(

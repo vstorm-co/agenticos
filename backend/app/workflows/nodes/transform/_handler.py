@@ -313,6 +313,15 @@ async def summarize(config: BaseModel | None, node_input: BaseModel | None) -> N
     item lacks is left out of its summary, and a missing group field groups as null."""
     if not isinstance(config, SummarizeConfig):
         return _not_configured("Summarize")
+    collisions = set(config.group_by) & {summary.key for summary in config.summaries}
+    if collisions:
+        return Failed(
+            error=WorkflowError(
+                code="SUMMARY_KEY_COLLISION",
+                message="Group fields must not share the generated summary names",
+                details={"keys": sorted(collisions)},
+            )
+        )
     groups: dict[str, tuple[dict[str, Any], list[dict[str, Any]]]] = {}
     for item in items_of(node_input):
         values = {

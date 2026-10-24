@@ -14,6 +14,7 @@ why a plain forward walk is not enough.
 
 import json
 import math
+import re
 from typing import Any, Literal
 from uuid import UUID
 
@@ -44,10 +45,13 @@ MAX_PINNED_BYTES = 64_000
 """How much data one step may have pinned: enough to stand in for a real output."""
 
 
+_JSONB_FORBIDDEN_TEXT = re.compile(r"[\x00\ud800-\udfff]")
+
+
 def jsonb_value_fits(value: object) -> None:
     """Refuse workflow text and numeric values PostgreSQL JSONB cannot represent."""
     if isinstance(value, str):
-        if "\x00" in value or any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+        if _JSONB_FORBIDDEN_TEXT.search(value) is not None:
             raise ValueError("Input strings must be representable in PostgreSQL JSONB")
     elif isinstance(value, float) and not math.isfinite(value):
         raise ValueError("Workflow numbers must be finite")

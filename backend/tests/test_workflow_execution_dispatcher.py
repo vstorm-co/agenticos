@@ -598,6 +598,7 @@ def repo():
     mocked.list_node_runs_at.return_value = []
     mocked.count_node_runs.return_value = 0
     mocked.get_latest_attempts.return_value = {}
+    mocked.latest_attempt_result_bytes.return_value = 0
     # No step waits on a run it called unless a test says so.
     mocked.get_run_called_by.return_value = None
     # A failed run's error workflow is `failure`'s, proven against a database.
@@ -2991,3 +2992,45 @@ async def test_cost_settlement_keeps_own_spend_when_parent_history_is_unavailabl
     result = await dispatcher._book_cost(MagicMock(), run=run, outcome=outcome)
     assert result.spent_cost == Decimal("0.3")
     assert repo.update_run.await_count == 1
+
+
+@pytest.mark.parametrize("field", ["result", "run_output", "webhook_response"])
+def test_terminal_outcomes_reject_jsonb_strings_without_losing_fees(field):
+    result = Completed[_EchoOutput](
+        output=_EchoOutput(echoed="bad\x00" if field == "result" else "ok")
+    )
+    outcome = dispatcher.HandlerOutcome(
+        result=result,
+        cost=Decimal("0.25"),
+        cost_is_partial=True,
+        run_output={"text": "bad\x00"} if field == "run_output" else None,
+        webhook_response={"body": "bad\x00"} if field == "webhook_response" else None,
+    )
+    safe, stored = dispatcher._persistable_outcome(outcome)
+    assert isinstance(safe.result, Failed) and safe.result.error.code == "INVALID_NODE_OUTPUT"
+    assert safe.result.error.retryable is False
+    assert (safe.cost, safe.cost_is_partial) == (Decimal("0.25"), True)
+    assert safe.run_output is None and safe.webhook_response is None
+    assert stored["status"] == "failed" and "bad" not in str(stored)
+
+
+async def test_loop_output_budget_is_checked_before_loading_results(repo, event_log, monkeypatch):
+    graph, nodes = TestLoopsWithoutADatabase._loop_graph()
+    run = _run()
+    loop_run = _node_run(
+        workflow_run_id=run.id, node_instance_id=nodes["loop"].id, status="running"
+    )
+    repo.list_node_runs_of.return_value = [
+        _node_run(
+            workflow_run_id=run.id,
+            node_instance_id=nodes["yield"].id,
+            scope_path=[{"loop_node_id": str(nodes["loop"].id), "index": 0}],
+            status="succeeded",
+        )
+    ]
+    repo.latest_attempt_result_bytes.return_value = 1000
+    monkeypatch.setattr(dispatcher.settings, "WORKFLOW_FOREACH_MAX_OUTPUT_BYTES", 100)
+    with patch(f"{DISPATCHER_PATH}._fail_for_good", new=AsyncMock(return_value=[])) as fail:
+        await dispatcher._close_loop(object(), run=run, graph=graph, loop_run=loop_run, count=3)
+    repo.get_latest_attempts.assert_not_called()
+    assert fail.await_args.kwargs["error"].code == "FOREACH_OUTPUT_TOO_LARGE"

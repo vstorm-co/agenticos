@@ -1,5 +1,5 @@
 ---
-source_sha: "8db3c8fd2dd9"
+source_sha: "3384b8071684"
 ---
 
 # Workflows { #workflows }
@@ -474,6 +474,12 @@ changes; reload replaces them with the latest saved draft.* Sie wählen:
   zuletzt gespeicherten Draft.
 
 ## Eine Version veröffentlichen und die Versionshistorie { #publishing-a-version-and-version-history }
+
+Der Verlauf lädt jeweils 50 Metadateneinträge; **More** lädt ältere Versionen.
+Die API akzeptiert `before` und `limit` (1–100) und liefert `next_before`, bis
+keine älteren Versionen bleiben. Graphen werden erst beim Öffnen einer Version
+geladen. Eine fehlgeschlagene Seite lässt sich ohne Verlust geladener Einträge
+erneut anfordern.
 
 **Publish** friert den aktuellen Draft als unveränderliche Version ein, die läuft —
 eine Version wird nach ihrer Erstellung nie geändert. Der Publish-Dialog nennt die Version, die er erzeugt, und nimmt
@@ -985,6 +991,18 @@ Authentifizierungsheader und Zugangsdaten aus Text und verschachtelten Daten.
 Dateinamen werden vor dem Speichern auf höchstens 255 Zeichen normalisiert,
 Erweiterungen bleiben erhalten. CSV-Felder können das konfigurierte Dateilimit
 bis 50 MB nutzen; Parserablehnungen haben einen definierten Fehlertyp.
+
+Eine Schleife misst neueste Yield-Ergebnisse und unbehandelte Fehler vor dem
+Laden in SQL. `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` beträgt standardmäßig 10 MiB,
+einschließlich Sammlungsaufwand; Überschreiten ergibt `FOREACH_OUTPUT_TOO_LARGE`.
+Für große Ergebnisse kleinere Werte oder Dateiverweise ausgeben. Eine Kollision
+zwischen Zusammenfassungsschlüssel und Gruppenfeld ergibt `SUMMARY_KEY_COLLISION`.
+
+Laufeingaben, Entwurfskonfigurationen und angeheftete Ergebnisse müssen in
+PostgreSQL JSONB darstellbar sein. Ein nicht speicherbares Knotenergebnis wird
+`INVALID_NODE_OUTPUT`, ohne automatische Wiederholung und mit erhaltenen Kosten.
+Eine externe Aktion kann bereits abgeschlossen sein; vor manueller Wiederholung
+prüfen.
 
 ## Zusammenfassung { #recap }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "08d7ca0973d3"
+source_sha: "f21a1ae0c738"
 ---
 
 # Konfiguration { #configuration }
@@ -554,6 +554,7 @@ legitimen Run und nicht knapper. Siehe
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Die längste Dauer, auf die eine einzelne Wartezeit anwachsen darf. Diese drei gelten für einen Knoten, dessen `policy.retry` keine eigenen setzt |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Die längste Liste, über die ein `control.foreach` iteriert. Eine längere lässt die Schleife mit `FOREACH_TOO_MANY_ITEMS` fehlschlagen, statt gekürzt zu werden |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Die größte Liste, die eine Schleife einfriert, als JSON. Eine größere lässt die Schleife mit `FOREACH_LIST_TOO_LARGE` fehlschlagen |
+| `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Neueste Yield-Ergebnisse und unbehandelte Fehler einschließlich Sammlungsaufwand, vor dem Laden des JSON gemessen. Größere Sammlungen scheitern mit `FOREACH_OUTPUT_TOO_LARGE`; kleinere Werte oder Dateiverweise ausgeben |
 | `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Wie tief Schleifen verschachtelt sein dürfen. Ein Graph mit tieferen Schleifen kann nicht veröffentlicht werden |
 | `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | Die meisten Knotenläufe, die ein Run anlegen darf, Schleifeniterationen eingeschlossen. Eine Iteration, die darüber hinausginge, lässt den Run mit `NODE_RUN_LIMIT` fehlschlagen |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Wie viel wartende oder laufende Knotenarbeit eine Organisation gleichzeitig halten darf. Ein Start reserviert die Knotenzahl seines Graphen dagegen, und ein Start darüber wird mit `429` abgewiesen, bis laufende Arbeit abfließt. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
@@ -616,6 +617,13 @@ Wert begrenzt also die Ausgaben für eine Antwort, die vielleicht nie gelesen wi
 statt etwas abzuschalten. Er muss Ihren längsten Recherche- oder Browser-Turn
 abdecken; ein Run bleibt ohnehin an das Budget seines Agenten gebunden. Siehe
 [Konsole](console.md#chat).
+
+Datei- und Tabellenquoten pro Organisation begrenzen nicht den Speicher der
+gesamten Installation. Ohne `max_organizations_per_user` kann ein Konto beliebig
+viele Organisationen besitzen und deren Kontingente vervielfachen. Ein endliches
+Eigentumslimit einstellen, gemeinsamen Speicher dimensionieren und überwachen
+sowie Laufhistorien berücksichtigen. Ein installationsweites Speicherbudget wird
+derzeit nicht erzwungen.
 
 ## KI-Modelle — in der App konfiguriert, nicht hier { #ai-models-configured-in-the-app-not-here }
 

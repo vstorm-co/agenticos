@@ -8,10 +8,12 @@ const hooks = vi.hoisted(() => ({
   tables: [] as { id: string; name: string }[],
   linked: null as { columns: ColumnDef[] } | null,
   asked: [] as (string | null)[],
+  error: null as Error | null,
+  refetch: vi.fn(),
 }));
 
 vi.mock("@/hooks", () => ({
-  useAllTables: () => ({ tables: hooks.tables }),
+  useAllTables: () => ({ tables: hooks.tables, error: hooks.error, refetch: hooks.refetch }),
   useTable: (tableId: string | null) => {
     hooks.asked.push(tableId);
     return { table: tableId ? hooks.linked : undefined };
@@ -393,4 +395,27 @@ describe("AddColumnDialog", () => {
       expect.objectContaining({ type: "formula", formula: "{Price} * 1.23" }),
     );
   });
+});
+
+it("retries a failed link-table catalog without losing the column form", async () => {
+  hooks.error = new Error("offline");
+  try {
+    render(
+      <AddColumnDialog
+        open
+        columns={[tier]}
+        onOpenChange={vi.fn()}
+        onAdd={vi.fn()}
+        isSaving={false}
+      />,
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Type" }));
+    await userEvent.click(screen.getByRole("option", { name: "Link" }));
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(hooks.refetch).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("Name")).toBeVisible();
+  } finally {
+    hooks.error = null;
+    hooks.refetch.mockClear();
+  }
 });

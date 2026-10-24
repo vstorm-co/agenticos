@@ -108,7 +108,8 @@ export const qk = {
         ? (["workflows", "list"] as const)
         : (["workflows", "list", skip, limit] as const),
     detail: (id: string) => ["workflows", id] as const,
-    versions: (id: string) => ["workflows", id, "versions"] as const,
+    // Infinite metadata pages must not reuse the old flat-list cache shape.
+    versions: (id: string) => ["workflows", id, "versions", "pages"] as const,
     stats: (id: string, days: number) => ["workflows", id, "stats", days] as const,
     summary: (from: string, to: string) => ["workflows", "summary", from, to] as const,
     evals: (id: string, nodeId: string) => ["workflows", id, "evals", nodeId] as const,

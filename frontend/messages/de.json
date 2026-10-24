@@ -7774,6 +7774,7 @@
     "publishConfirm": "Version veröffentlichen",
     "versionsTitle": "Versionsverlauf",
     "versionsCount": "{count, plural, =0 {Keine Versionen} =1 {1 Version} other {# Versionen}}",
+    "versionsLoadedCount": "{count, plural, one {# Version geladen} other {# Versionen geladen}}",
     "versionsEmpty": "Noch keine Versionen",
     "versionsEmptyDetail": "Veröffentlichen Sie den Entwurf, um die erste unveränderliche Version anzulegen.",
     "versionLabel": "Version {version}",

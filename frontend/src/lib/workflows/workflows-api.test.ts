@@ -176,3 +176,11 @@ describe("managing a workflow", () => {
     expect(apiClient.delete).toHaveBeenCalledWith("/workflows/wf");
   });
 });
+
+it("requests an older workflow-version metadata page by cursor", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [], next_before: null });
+  await listWorkflowVersions("wf-1", 7);
+  expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf-1/versions", {
+    params: { before: "7" },
+  });
+});

@@ -682,3 +682,76 @@ async def test_retention_keeps_file_producers_while_another_run_imports_their_ou
         assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == [
             (source.run.id, ["retained/import"])
         ]
+
+
+@pytest.mark.security
+async def test_error_workflow_retains_the_configuring_app_admins_current_authority(engine):
+    from sqlalchemy import update
+
+    from app.db.models.organization import OrganizationMember
+    from app.db.models.user import User
+
+    seeded, target = await _failing_setup(engine)
+    async with seeded.factory() as db:
+        await db.execute(
+            update(User).where(User.id == seeded.principal.id).values(is_app_admin=True)
+        )
+        await db.execute(
+            update(OrganizationMember)
+            .where(
+                OrganizationMember.organization_id == seeded.org.id,
+                OrganizationMember.user_id == seeded.principal.id,
+            )
+            .values(role="viewer")
+        )
+        await db.commit()
+    await drive(seeded)
+    assert len(await _runs_of(engine, target.id)) == 1
+
+
+async def test_version_pages_are_bounded_and_do_not_load_frozen_graphs(db):
+    from sqlalchemy.exc import InvalidRequestError
+
+    from app.db.models.workflow import WorkflowVersion
+    from app.repositories import workflow as workflow_repo
+
+    user, org = await seed_member(db)
+    ctx = AuthContext(user_id=user.id, organization_id=org.id, role="owner")
+    workflow = await _workflow(db, ctx)
+    graph = _graph("trigger.manual").model_dump(mode="json")
+    for number in range(1, 54):
+        db.add(
+            WorkflowVersion(
+                id=uuid.uuid4(),
+                workflow_id=workflow.id,
+                organization_id=org.id,
+                version=number,
+                graph=graph,
+            )
+        )
+    await db.flush()
+    workflow_id = workflow.id
+    db.expunge_all()
+    lean = await workflow_repo.list_versions(
+        db, workflow_id=workflow_id, organization_id=org.id, limit=2
+    )
+    assert [version.version for version in lean] == [53, 52, 51]
+    assert all("graph" not in version.__dict__ for version in lean)
+    with pytest.raises(InvalidRequestError, match="raiseload"):
+        _ = lean[0].graph
+    registry = WorkflowRegistryService(db)
+    first = await registry.list_versions(ctx, workflow_id)
+    assert len(first.items) == 50 and first.next_before == 4
+    db.add(
+        WorkflowVersion(
+            id=uuid.uuid4(),
+            workflow_id=workflow_id,
+            organization_id=org.id,
+            version=54,
+            graph=graph,
+        )
+    )
+    await db.flush()
+    last = await registry.list_versions(ctx, workflow_id, before=first.next_before)
+    assert [version.version for version in last.items] == [3, 2, 1]
+    assert last.next_before is None

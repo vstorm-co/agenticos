@@ -520,6 +520,7 @@ write — so set it well past your longest legitimate run and no closer. See
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to. These three apply to a node whose `policy.retry` sets none |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | The longest list a `control.foreach` iterates. A longer one fails the loop with `FOREACH_TOO_MANY_ITEMS` instead of being truncated |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | The largest list a loop freezes, as JSON. A larger one fails the loop with `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Latest yielded results and unhandled errors plus collection overhead, measured before loading their JSON. Larger collections fail with `FOREACH_OUTPUT_TOO_LARGE`; yield smaller values or file references |
 | `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | How deep loops may nest. A graph with deeper loops cannot be published |
 | `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | The most node runs one run may create, loop iterations included. An iteration that would pass it fails the run with `NODE_RUN_LIMIT` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | The most queued or running node work one organization may hold at once. A start reserves its graph's node count against this, and one over it is refused with `429` until running work drains. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
@@ -576,6 +577,12 @@ The answer lands in the conversation and its person is notified, so this bounds
 spend on an answer that may never be read rather than switching anything off. It
 needs to cover your longest research or browsing turn; a run is still held to its
 agent's budget either way. See [Console](console.md#chat).
+
+Per-organization file and table quotas do not cap storage across a deployment.
+With `max_organizations_per_user` unset, an account may own unlimited organizations
+and multiply tenant allowances. Set a finite ownership limit in deployment settings,
+provision and monitor shared storage, and account for retained run history. A
+deployment-wide storage budget is not currently enforced.
 
 ## AI models — configured in the app, not here
 

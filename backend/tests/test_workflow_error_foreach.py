@@ -22,7 +22,7 @@ from app.workflows import _registry
 from app.workflows.contracts.definition import RetryGuarantee
 from app.workflows.contracts.io import Binding, NodeOutputRef
 from app.workflows.contracts.policy import NodePolicy, RetryPolicy
-from app.workflows.contracts.results import Completed, Failed, Uncertain
+from app.workflows.contracts.results import Completed, Failed, Uncertain, WorkflowError
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
@@ -526,3 +526,56 @@ def test_the_catalog_marks_the_steps_that_exist_only_inside_a_loop():
         if definition.loop_body_only
     }
     assert only_in_loops == {"loop.item", "loop.yield"}
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("present", [False, True])
+async def test_error_workflow_refuses_a_principal_lost_after_the_membership_read(
+    monkeypatch, present
+):
+    from app.db.models.organization import OrganizationMember
+    from app.db.models.user import User
+    from app.db.models.workflow import Workflow, WorkflowVersion
+    from app.db.models.workflow_run import WorkflowRun
+    from app.services.workflow_execution import failure
+
+    org, source_id, target_id, principal = (uuid.uuid4() for _ in range(4))
+    source = Workflow(
+        id=source_id,
+        organization_id=org,
+        settings={
+            "error_workflow_id": str(target_id),
+            "error_workflow_run_as": str(principal),
+        },
+    )
+    target = Workflow(
+        id=target_id,
+        organization_id=org,
+        status="published",
+        live_trigger="trigger.workflow_failed",
+        current_version_id=uuid.uuid4(),
+    )
+    monkeypatch.setattr(failure.workflow_repo, "get", AsyncMock(side_effect=[source, target]))
+    monkeypatch.setattr(
+        failure.workflow_repo, "get_version", AsyncMock(return_value=WorkflowVersion())
+    )
+    monkeypatch.setattr(
+        failure.member_repo, "get_active", AsyncMock(return_value=OrganizationMember(role="owner"))
+    )
+    monkeypatch.setattr(
+        failure.user_repo,
+        "get_by_id",
+        AsyncMock(return_value=User(is_active=False) if present else None),
+    )
+    access = AsyncMock()
+    monkeypatch.setattr(failure, "resolve_access", access)
+    run = WorkflowRun(
+        id=uuid.uuid4(), workflow_id=source_id, organization_id=org, mode="real", triggered_by="api"
+    )
+    await failure.start_error_workflow(
+        MagicMock(),
+        run=run,
+        step_id=uuid.uuid4(),
+        error=WorkflowError(code="FAILED", message="Failed"),
+    )
+    access.assert_not_called()

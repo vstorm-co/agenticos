@@ -462,3 +462,33 @@ class TestRefusals:
             new=AsyncMock(side_effect=AuthenticationError(message="revoked")),
         ):
             await _session(socket, org).handle_frame({"type": "start", "workflow_id": "x"})
+
+
+@pytest.mark.security
+async def test_app_admin_viewer_can_start_and_attach_like_the_http_api(factory):
+    owner, org, workflow = await _tenant(factory)
+    async with factory() as db:
+        await db.execute(update(User).where(User.id == owner.id).values(is_app_admin=True))
+        await db.execute(
+            update(OrganizationMember)
+            .where(
+                OrganizationMember.organization_id == org.id, OrganizationMember.user_id == owner.id
+            )
+            .values(role="viewer")
+        )
+        await db.commit()
+    owner.is_app_admin = True
+    first = _Socket()
+    with _signed_in(owner):
+        session = _session(first, org)
+        ctx = await session._context()
+        assert ctx is not None and ctx.is_app_admin
+        await session.handle_frame({"type": "start", "workflow_id": str(workflow.id)})
+        await _until(first, "run")
+        await session.stop()
+        second = _Socket()
+        attached = _session(second, org)
+        await attached.handle_frame({"type": "attach", "run_id": first.of("run")[0]["run"]["id"]})
+        await _until(second, "run")
+        await attached.stop()
+    assert first.of("error") == [] and second.of("error") == []

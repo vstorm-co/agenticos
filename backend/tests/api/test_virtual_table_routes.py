@@ -781,7 +781,8 @@ def test_the_openapi_document_lists_429_on_every_write_and_402_only_where_someth
         (f"{prefix}/{{table_id}}/records/by-external-id/{{external_id}}", "put"),
     }
 
-    assert {k for k, op in routes.items() if "429" in op["responses"]} == writes
+    limited = writes | {(f"{prefix}/{{table_id}}/records/export", "post")}
+    assert {k for k, op in routes.items() if "429" in op["responses"]} == limited
     assert {k for k, op in routes.items() if "402" in op["responses"]} == storing
     assert storing <= writes
 

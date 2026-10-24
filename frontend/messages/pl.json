@@ -8424,6 +8424,7 @@
     "publishConfirm": "Opublikuj wersję",
     "versionsTitle": "Historia wersji",
     "versionsCount": "{count, plural, =0 {Brak wersji} =1 {1 wersja} few {# wersje} many {# wersji} other {# wersji}}",
+    "versionsLoadedCount": "Wczytano {count, plural, one {# wersję} few {# wersje} many {# wersji} other {# wersji}}",
     "versionsEmpty": "Nie ma jeszcze wersji",
     "versionsEmptyDetail": "Opublikuj wersję roboczą, żeby utworzyć pierwszą niezmienną wersję.",
     "versionLabel": "Wersja {version}",

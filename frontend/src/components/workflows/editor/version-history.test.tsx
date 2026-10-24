@@ -10,7 +10,17 @@ import type {
 
 import { VersionHistory } from "./version-history";
 
-const versionsState: { current: { versions: WorkflowVersionRead[]; isLoading: boolean } } = {
+const versionsState: {
+  current: {
+    versions: WorkflowVersionRead[];
+    isLoading: boolean;
+    hasMore?: boolean;
+    isLoadingMore?: boolean;
+    loadMore?: () => void;
+    error?: unknown;
+    retry?: () => void;
+  };
+} = {
   current: { versions: [], isLoading: false },
 };
 const detailState: {
@@ -239,3 +249,39 @@ describe("VersionHistory", () => {
     expect(screen.getByTestId("preview")).toBeInTheDocument();
   });
 });
+
+it("offers older history pages and shows how many versions are loaded", async () => {
+  const loadMore = vi.fn();
+  versionsState.current = {
+    versions: [version({ id: "v3", version: 3 })],
+    isLoading: false,
+    hasMore: true,
+    isLoadingMore: false,
+    loadMore,
+  };
+  const { rerender } = render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
+  expect(screen.getByText("Loaded 1 version")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "More" }));
+  expect(loadMore).toHaveBeenCalledOnce();
+  versionsState.current.isLoadingMore = true;
+  rerender(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
+  expect(screen.getByRole("button", { name: "Loading..." })).toBeDisabled();
+});
+
+it.each([false, true])(
+  "retries a failed history page while preserving prior rows: %s",
+  async (loaded) => {
+    const retry = vi.fn();
+    versionsState.current = {
+      versions: loaded ? [version({ id: "v1", version: 1 })] : [],
+      isLoading: false,
+      error: new Error("offline"),
+      retry,
+    };
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(screen.queryByText("No versions yet")).not.toBeInTheDocument();
+    if (loaded) expect(screen.getByText("Version 1")).toBeVisible();
+  },
+);
