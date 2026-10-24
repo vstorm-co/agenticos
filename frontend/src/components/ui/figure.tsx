@@ -92,7 +92,7 @@ export function Figure({
     <div className={cn("flex min-w-0 flex-col", className)}>
       {label ? (
         <p
-          className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs tracking-wide uppercase"
+          className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs leading-relaxed"
           title={label}
         >
           {tone && (

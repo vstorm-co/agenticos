@@ -318,7 +318,8 @@ class CapabilityDef:
     unavailable workspace), `browser_use` (its loop drives the run's own model,
     which in a call speaks), `subagents`, `coding_agent` (it works in the
     sandbox), `video_generation` (a clip takes minutes a call cannot wait
-    through), and `background_tools`, which only sends those away. The Builder's Voice card lists them. `never` is
+    through), `computer_use` (a desktop is worked screenshot by screenshot), and
+    `background_tools`, which only sends those away. The Builder's Voice card lists them. `never` is
     `channel_tools`, which a call never has a channel to describe for and no spec
     binds, and `follow_ups`, whose buttons a call has nowhere to show.
     """
@@ -683,6 +684,7 @@ def load_builtins() -> None:
         code_execution,
         coding_agent,
         compaction,
+        computer_use,
         context,
         conversation_search,
         follow_ups,

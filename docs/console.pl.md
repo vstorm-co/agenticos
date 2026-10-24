@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "aa1083e29065"
 ---
 
 # Konsola { #the-console }
@@ -101,9 +101,17 @@ powiadomienie i jedna wiadomość prywatna od każdego jej bota w Slacku, Teams 
 Mattermost, który cię zna, wymieniają to, co nowe. Każde znalezisko trafia tylko
 do jednego briefingu.
 
+Wyszukiwanie znajduje się nad pozycjami nawigacji, ze skrótem klawiaturowym
+widocznym na komputerze. Powiadomienia i menu konta pozostają pod przewijaną listą.
+Na urządzeniach dotykowych wspólne przyciski, pola, zakładki i pozycje menu mają
+większe obszary dotykowe. Dialogi korzystają z wysokości widocznej nad klawiaturą
+ekranową; panele boczne zatrzymują fokus wewnątrz i oddają go do elementu, który je
+otworzył. W polu wyszukiwania listy Escape najpierw czyści zapytanie, a kolejne
+naciśnięcie zamyka dialog.
+
 ## Dzwonek { #the-bell }
 
-Obok wyszukiwania, w pasku bocznym: bieżący licznik tego, czego jeszcze nie
+U dołu paska bocznego: bieżący licznik tego, czego jeszcze nie
 przeczytałeś, a kliknięcie otwiera samą listę. W przeciwieństwie do widgetu
 powyżej, otwarcie pobiera stronę, na której właśnie jesteś, a nie pięciokartowy
 podgląd — **Load more** cofa cię, stronę po stronie, przez organizację, w

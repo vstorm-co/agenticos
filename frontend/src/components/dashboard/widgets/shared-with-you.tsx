@@ -36,7 +36,7 @@ export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardW
       ) : (
         // From the top, as the figure beside it in its row is: centred, the three
         // numbers sat halfway down the card while their neighbour's sat at its head.
-        <div className="grid flex-1 grid-cols-3 content-start gap-4">
+        <div className="grid flex-1 grid-cols-1 content-start gap-4 @min-[18rem]/widget:grid-cols-3">
           {(
             [
               ["agents", counts.agents],

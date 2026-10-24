@@ -19,6 +19,274 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **A more comfortable console on desktop and phone.** Search is labelled above
+  navigation, touch controls are larger, table headings and form feedback are
+  easier to read, and dashboard figures adapt to the widget's width. Dialogs fit
+  above the on-screen keyboard, side panels trap and restore focus, and Escape
+  clears a list search before dismissing its panel. Menus and notifications stay
+  within the available screen height. Streaming text and page/card entrances use
+  shorter motion without per-word blur.
+
+### Added
+
+- **Local services and browser in the desktop app.** Approve loopback model and
+  MCP services, choose them per run and browse in a visible temporary Chromium
+  profile on the paired computer. Native folder grants bound local file previews.
+- **Native distribution workflows.** Cross-platform app checks, signed desktop
+  updater assets, Android APK signing and optional TestFlight upload accompany
+  existing stable platform releases. Signing accounts are configured through CI.
+
+- **An agent can use a computer.** The `computer_use` capability gives an
+  agent a whole desktop rather than a web page: `computer_screenshot` looks
+  and `computer_act` clicks, types, scrolls and drags; an agent's owner can
+  hold the actions alone for approval with `tool_approval`. The desktop is
+  either inside the agent's own sandbox, on the new `desktop` runtime (XFCE
+  and Firefox), so the shell, the files and the screen are one machine and
+  computer use needs no address or key of its own; or a `computerd` daemon
+  the operator runs on their own Linux desktop, a Mac's own screen or a
+  container (`deploy/computer/`, where the daemon and its token run as an
+  account the desktop cannot read), on a host that
+  `COMPUTER_DAEMON_ALLOWED_HOSTS` allows, reached with the daemon's token
+  from the organization's vault. The allowlist is checked at publish and
+  again whenever a run opens the daemon. Publish refuses a sandbox desktop on
+  an agent, an inline specialist or a pinned delegate without a sandbox
+  connection to run it in, or whose sandbox is on any runtime but `desktop`
+  or on Daytona. An approved
+  batch runs only on a screen still the shape it was approved against, and
+  `max_actions` counts across approvals; each run, and each delegation
+  to the same delegate, starts a session of its own, and a batch is refused
+  after a screenshot fails until one succeeds. The model's screenshots are not
+  kept: a parked run, its manifest and a compacted conversation hold a
+  sentence in their place, and the file each is taken through is removed from
+  the sandbox or the daemon's host once read. The chat draws the desktop live in a window under
+  the message, and `computer_save_screenshot` keeps a full-resolution
+  screenshot in the chat and the workspace, for a user who wants to see the
+  screen or a test that needs evidence (#2094).
+- **The desktop app looks and behaves like an application** (#2305). On macOS
+  the console's sidebar holds the traffic lights and drags the window, the
+  window remembers its size and place, closing it keeps the app in the menu
+  bar, and the menu bar has File, Edit, View, Go (⌘1-⌘5, ⌘[ and ⌘]) and Window
+  menus. A tray menu does the same on Windows and Linux.
+- **Styles for the console**: Glass, Graphite, Midnight and Paper beside the
+  standard look, each with a light and a dark side, under Profile, Appearance.
+  In the desktop app on macOS and Windows, Glass is drawn over the window's own
+  translucent material; in a browser it brings its own backdrop.
+- **Blobby replaces the pixel pets**: a creature in the agents' avatar style -
+  one of a cast of six, the face of one of your agents, or a face of your own -
+  that says when an approval is waiting, something new is in your inbox or your
+  runs are in progress, and opens it on a click. Configured on a new Blobby tab
+  in Settings, shown only in the desktop app beside Desktop app (open at login,
+  keep running, the badge) and Shortcuts.
+- **A first-run onboarding for the desktop app**: AgenticOS on this computer or
+  on your organization's server. On this computer the app checks for Docker,
+  sets up the published images with the console and the API on loopback only,
+  creates your organization and owner, and then starts, stops and updates the
+  stack from the menu bar. On a server it signs you in through the browser. A
+  short welcome in the console follows: blobby, the shortcuts, notifications.
+- **Blobby can be resized**: pinch it, scroll over it with ⌘ held, pick a size
+  from its menu, or use the slider in Settings.
+- **Pair a phone by QR** (#2097): Settings → Mobile app shows a code that
+  signs the AgenticOS app in as you. It works once, for a minute, and the
+  phone's session is opened only when it scans, under the phone's own name.
+  `POST /api/v1/auth/pairing-codes` and `/pairing-codes/redeem`.
+- **The AgenticOS phone app** (#2097), first part: an iOS and Android app
+  (`mobile/`, Tauri 2) that signs in by scanning the console's QR or by typing
+  the address, keeps the console's session across restarts, and locks behind
+  Face ID, Touch ID or the fingerprint after five minutes away. The console
+  lays itself out under the phone's status bar. Push and widgets follow.
+- **Live activities in the phone app** (#2097): on Android, your own running
+  runs sit in the notification shade with a running clock, and an approval
+  waiting for you comes up with Reject and Approve on it. A tap opens the run
+  or the queue. A decision made from the lock screen asks for Face ID or the
+  fingerprint first, then goes through the same request as the queue's buttons.
+  The iOS Dynamic Island half needs the Xcode project and follows.
+- **Phone shortcuts** (#2097): long-press the AgenticOS icon on Android for
+  Voice call, Dictate, Chat and Approvals, or add the "Ask AgenticOS" tile to
+  Quick Settings. A call or dictation starts once the agent's readiness is
+  known, and only after the app's lock.
+- **Share to AgenticOS** (#2097): on Android, any app's Share sheet offers
+  AgenticOS. Text, links, photos and files (up to 20 MB each) land in a new
+  message in the chat; what cannot be read is named in a notice. Nothing is
+  attached while the app is locked.
+- **A home-screen widget** (#2097) on Android: approvals waiting for you and
+  your runs in flight, with the time they were counted; a tap opens the queue
+  or the runs. The counts are the console's, so they refresh while the app is
+  open; push will refresh them while it is closed.
+- **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
+  anywhere, with the answer streamed under the question and ⌘↩ to carry the
+  conversation into the console. On macOS it is a panel like Spotlight's: it
+  takes the keyboard without bringing the app, or the console window, forward.
+- **Voice shortcuts in the desktop app** (#2305): hold `⌥⇧Space` to dictate a
+  question into quick ask with the selected agent's dictation, and let go to
+  have it written in; a voice call shortcut, off until you pick a combination,
+  brings the chat forward and calls the selected agent. The app now declares
+  its use of the microphone, which macOS requires before the console's
+  dictation or calls can record.
+- **Quick ask knows what you were looking at** (#2305, macOS): the text
+  selected in the app in front, the files selected in Finder and the
+  clipboard sit under the question as chips. The selection and the files go
+  with the question unless you take them off; the clipboard only when you put
+  it on. Reading another app's selection needs the Accessibility permission,
+  which the panel offers to open.
+- **Your devices name the app** (#2305, #2097): a session signed in through the
+  AgenticOS desktop or phone app shows as "AgenticOS for macOS 0.2.0" in Active
+  sessions, and revoking it there signs that app out at once. The console marks
+  the session you are using. `PUT /api/v1/sessions/current/app`; migration
+  `0171_session_app` adds two nullable columns to `sessions`.
+- **Device management for the apps** (#2305, #2097): an organization can set
+  the server the desktop and Android apps connect to, lock it so the person
+  cannot point the app elsewhere, and on Android force the biometric lock on
+  or off. Keys `serverUrl`, `serverLocked` and (Android) `biometricLock` =
+  `person` | `on` | `off`: a configuration profile for the domain
+  `co.vstorm.agenticos` on macOS, `%ProgramData%\AgenticOS\managed.json` on
+  Windows, `/etc/agenticos/managed.json` on Linux, managed configurations on
+  Android. A policy that cannot be read is ignored rather than locking anybody
+  out.
+- **Photos into the phone chat, like a messenger** (#2097, Android): the
+  composer's "+" opens the app's own sheet - Camera, Photos, Files and a strip
+  of your latest photos to tick - and opening the chat offers a photo taken in
+  the last few minutes ("Add the photo you just took?"). The app draws both, so
+  the server never sees the gallery: only the photos you tap reach the message.
+  Recent photos are asked for from the sheet, the first time it is opened.
+- **A cleaner chat on the phone** (#2097): no bar over the conversation - the
+  menu, the conversation list and New chat float over it as round buttons, the
+  menu marked while the inbox has something unread. The composer's row keeps
+  `+`, the agent, the microphone and Send; `+` opens a sheet with Camera,
+  Photos and Files, then voice input and commands, then the call, the model and
+  approvals and the context used. In the Android app the page now keeps clear of
+  the status bar and the gesture bar as the phone measures them.
+- **Pinned agents** (#2305, #2097): an agent's page offers Pin to Dock (Pin
+  to tray on Windows and Linux) in the desktop app - a new chat with it from
+  the Dock icon's right-click menu and the tray's "New Chat With", up to eight,
+  listed and unpinned under Settings → Desktop app - and Add to home screen in
+  the Android app, a shortcut wearing the agent's face. Both open
+  `/chat?with=<agent id>`, a new chat addressed to that agent.
+- **Drop a file on blobby or the Dock icon** (#2305) to start a chat with it:
+  up to ten files of 20 MB each are attached to a new message in the console,
+  and any that cannot be carried over are named. Blobby says it will take a
+  file dragged over it. The app registers as an alternate viewer of any file,
+  so it is never what opens a file by default.
+- **Gestures on the phone** (#2097): swipe a waiting approval right to approve
+  it or left to reject it, and pull a page down to read it again - in the phone
+  app and in AgenticOS installed to a touch screen - with a haptic tap when
+  letting go would act and when it has.
+- **The apps work without a network** (#2097). The desktop and phone apps,
+  and AgenticOS added to a home screen, keep the conversation list, the 20
+  conversations opened last and the approvals queue on the device for seven
+  days, sealed with a key no script can read out and deleted on sign-out or a
+  switch of organization; a plain browser tab keeps nothing. Without a network
+  (or a server) the console shows that copy under a banner saying when it was
+  saved, and stays signed in. A message written offline waits above the
+  composer marked "Waiting for the network", survives closing the app, and
+  sends when the connection returns; one the server refuses comes back marked
+  "Not sent" with the reason, to send again or remove. The newest 20 files of
+  each kept conversation, up to 5 MB each, are kept too, so a photo in a thread
+  shows and an attachment opens without a network. The service worker now
+  also keeps the console's code, so the Android app and an installed PWA open
+  without a network (the iOS and macOS web views do not run it).
+- **Notifications while the Android app is closed** (#2097), through ntfy
+  rather than Google's servers: Settings → Notifications in the app turns them
+  on with the ntfy app on the phone (against ntfy.sh or a company's own ntfy
+  server), sends a test, or turns them off. The server pushes to it as to a
+  browser; a push endpoint may now be any public https address, checked
+  against the deployment's SSRF policy when stored and at every send.
+- **Push notifications in the browser** (#2097): Settings → Notifications turns
+  push on for this browser - or for AgenticOS added to a phone's home screen -
+  sends a test, and adds a Push column to the per-event choices, on by default
+  like email. Notifications arrive with AgenticOS closed. Nothing to configure:
+  the deployment's signing key is made on first use and kept in the vault.
+  `GET /api/v1/push/key`, `POST`/`DELETE /api/v1/push/subscriptions`,
+  `POST /api/v1/push/test`; migration `0172_web_push`; the console's CSP gains
+  `worker-src 'self'` for its service worker.
+- **Native notifications** for new approvals, with Approve and Reject on the
+  notification, and for new inbox rows, plus a count on the Dock icon and
+  beside the tray icon.
+- **The iPhone app** (#2097): the phone app now builds for iOS, with what an
+  iPhone draws outside the app. Live Activities show your running runs with a
+  clock and waiting approvals with Reject and Approve, on the lock screen and
+  in the Dynamic Island; a decision taken there waits for Face ID. Home- and
+  lock-screen widgets count approvals and runs, and a Pinned agents widget
+  opens a new chat with an agent pinned on its page (iOS lets no app place an
+  icon on the home screen). The app icon's long-press menu, Shortcuts, Siri,
+  the Action Button and Control Center start a voice call, dictation, a new
+  chat or the approvals. Share → AgenticOS takes text, links, photos and files
+  into a new message; the composer's Camera, Photos and Files open iOS's own
+  pickers, and opening the chat offers a photo taken a moment ago. Managed app
+  configuration (AppConfig) sets the same keys as on Android.
+- **Notifications on an iPhone** (#2097), through Apple's push service with
+  the organization's own APNs key: an administrator adds the key file, its key
+  ID, the team ID and the app's bundle ID under Admin, Settings; it is sealed
+  in the vault and never shown again. Settings → Notifications in the iPhone
+  app turns push on, sends a test or turns it off, and a notification opens
+  its page through the app's lock. `GET`/`PUT`/`DELETE /api/v1/push/apns`
+  (setting it needs an app admin), `POST`/`DELETE /api/v1/push/apns/devices`;
+  `POST /api/v1/push/test` now reaches iPhones too; migration `0173_apns`.
+- **Work on this computer** (#2305): in the desktop app a chat's settings
+  offer "Work on: Cloud / This computer". The person picks a folder in the
+  native dialog and how far a run may go there - read only, write in the
+  folder (sandboxed by Seatbelt on macOS and bubblewrap on Linux) or full
+  access, which asks before each command - and the agent's file and shell
+  tools work in it through the app, which refuses any folder or mode the
+  person did not grant. The choice is remembered per conversation. Link the
+  computer once under Settings → Desktop app; the tray says when an agent is
+  working there. A run waits up to ten minutes for the computer to connect,
+  saying so in the chat, and an operation that finds it gone mid-run waits up
+  to five minutes for it to come back.
+- **Triggers that work on your computer** (#2305): a trigger that acts as its
+  creator can name a folder on their computer (`local_target`); each fire
+  works there through the desktop app. Only the creator sets it, and turning
+  acting-as-creator off clears it.
+- **Computer use on your own screen** (#2305): the desktop `local` - and
+  `auto`, now the default - drives the person's own screen in a chat working on
+  this computer. The app asks before the first screenshot, frames the screen
+  while the agent holds it, and gives it back on Cmd/Ctrl+Alt+Esc. macOS asks
+  for Screen Recording and Accessibility.
+- **Watch and take over a desktop** (#2305): every desktop a run works is
+  published to the live view a browse uses, so the chat and the console offer
+  Take over; the agent waits while the person holds it and is told to look
+  again after.
+- **E2B** (#2305): a sandbox connection can be of kind `e2b`, on the
+  organization's own E2B key - never the process's `E2B_API_KEY` - with its
+  default runtime naming an E2B template. Computer use's desktop `e2b` opens an
+  E2B desktop of the run's own on the binding's key and kills it after; `auto`
+  takes it when a key is named.
+- **More on the phone** (#2097): live activities for a voice call (with its
+  clock, and when the agent asks something on it) and for a question an agent
+  is waiting on; a pinned-agents widget on Android; the share of the monthly
+  cap left on both glance widgets; the dashboard's spend, failures and recent
+  conversations in the offline copy; pages that slide in the direction of
+  travel. The Devices list says which sign-ins receive push. In a browser that
+  can install the console, a strip offers to (on an iPhone it says how).
+
+### Fixed
+
+- Push subscriptions linked to a device session stop receiving deliveries when
+  that session is revoked, expired or belongs to a different account.
+
+- **Changing a sandbox's runtime opens a new workspace.** A container's image
+  is chosen when it is created, and the workspace's key did not include the
+  runtime, so an agent moved to another runtime kept attaching to its old
+  container. The key includes the runtime now. Naming no runtime and naming
+  `workbench`, the shipped default, keep the key they had. A workspace already
+  open on any other runtime starts empty once after the upgrade; the old one
+  stays listed and readable.
+- **The Android app shows the AgenticOS icon**, not Tauri's default: the
+  generated launcher icons had never been copied into the Android project.
+- **The desktop app opens on the console, not on the sign-in form.** It
+  opened the server's root, which sends everybody to the form, so a person
+  with a perfectly good session was asked to sign in on every launch.
+- **A tool whose arguments are models can be held for approval.** The gate
+  stored the validated arguments as they were, so a call carrying a Pydantic
+  model failed to park with a serialization error instead of asking. They
+  are stored as JSON now.
+- **A tool call's stored result no longer holds a picture's bytes.** A tool
+  that answered with an image, such as `web_fetch` on a picture, was
+  recorded as the image's Python representation, bytes and all, in the run's
+  history and the chat's tool row. The row says which kind of picture it
+  was instead.
+
 ## [1.16.0] - 2026-10-23
 
 ### Added

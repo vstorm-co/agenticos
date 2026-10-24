@@ -1607,6 +1607,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
+        # A phone signing in by scanning the code a signed-in console shows
+        # (#2097). The phone has no session yet - that is what it is getting -
+        # and the single-use, one-minute code is the credential, as a magic
+        # link's token is.
+        ("POST", f"{V1}/auth/pairing-codes/redeem"),
         # Confirming a staged email address (#1772). The link is followed from
         # the *new* address, routinely in a different browser from the one that
         # asked for the change, so there is no session to carry - the token is

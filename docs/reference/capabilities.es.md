@@ -1,5 +1,5 @@
 ---
-source_sha: "75c53c320348"
+source_sha: "cef26e88561b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -73,6 +73,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
 | `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
@@ -771,12 +772,14 @@ de la navegación.
 | `preview` | `true` | envía la vista del navegador al chat mientras navega |
 | `preview_width` | 1024 | 320–1920; el ancho de la vista y, por tanto, de los fotogramas |
 | `step_model_profile_id` | vacío | un perfil de modelo al que `browse_web` pregunta en cada paso en lugar del modelo del agent - un modelo más barato abarata un browse largo, y solo lo acelera donde su proveedor responde rápido (Claude Haiku por OpenRouter tardó por paso lo mismo que Sonnet); vacío usa el modelo del agent, que sus propias herramientas de navegador usan siempre |
-| `connection` | `built_in` | `built_in`, `proxy` o `hosted`: cómo sale el navegador a la red |
+| `connection` | `built_in` | `built_in`, `proxy`, `hosted` o `local`: cómo sale el navegador a la red |
 | `proxy_url` | vacío | con `proxy`: `http://`, `https://` o `socks5://` con host y puerto; el secreto del binding, si lo hay, es su `username:password` |
 | `hosted_url` | vacío | con `hosted`: la dirección CDP `wss://` del servicio; el secreto del binding es su clave y es obligatorio |
 | `hosted_key_param` | `apiKey` | cómo llama el navegador alojado a su clave en la query de la dirección |
 | `timezone` | vacío | una zona horaria IANA que declara el navegador - ajústala a la región del proxy |
 | `locale` | vacío | una etiqueta de idioma como `pl-PL`, enviada como `Accept-Language` y `navigator.language` |
+
+Para `local`, selecciona navegación local en **Work on** de la [aplicación de escritorio](../desktop.es.md#local-browser-models-and-mcp) emparejada. No requiere un endpoint CDP del servidor. Un perfil temporal visible de Chromium utiliza la red del equipo, incluidos servicios LAN tras consentimiento nativo; sigue aplicándose la lista de dominios de página. Los bindings proxy y hosted se rechazan en lugar de ignorarse. Se admiten ajustes de zona horaria e idioma. La configuración siguiente del navegador del despliegue corresponde a los otros modos.
 
 **El navegador lo opera usted, y el operador dice cuál.** No hay Chromium en la imagen
 de la API: `cdp_url` apunta a un servicio de navegador que un operador ejecuta y aísla.
@@ -866,6 +869,121 @@ Los specs anteriores a la versión 13 que vinculaban el navegador paso a paso
 `browse_page` pasan a `browse_web`, y se descartan los ajustes del modelo de decisión y
 la clave de TypeSafe.
 
+## Computer use { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
+El agent maneja un escritorio entero, así que puede usar cualquier aplicación,
+no solo una página web. Mira una captura de pantalla y envía unas pocas acciones
+de ratón y teclado en los píxeles de esa captura. Cada respuesta de
+`computer_act` incluye una captura nueva. Las pantallas más grandes se reducen a
+`screen_width`x`screen_height` antes de que las vea el modelo, y cada punto se
+traduce de vuelta a las coordenadas del propio escritorio, incluidos los puntos
+de un Mac con pantalla Retina.
+
+**La aprobación es para actuar, y hay que activarla.** Como cualquier tool,
+ninguna de las dos espera aprobación hasta que el dueño del agent la pide.
+`computer_screenshot` no cambia nada. Con `tool_approval: {computer_act:
+required}`, cada lote de acciones espera aprobación frente a una captura que han
+visto tanto el modelo como quien aprueba. Un punto fuera de esa captura se
+rechaza antes de que se ejecute nada. Un lote aprobado se ejecuta en un run
+propio, que primero mide la pantalla y solo actúa si sigue teniendo la forma que
+tenía en la captura sobre la que se eligió el lote. Una resolución o una
+proporción distintas no hacen nada y muestran al modelo la pantalla nueva.
+`max_actions` es del run, por muchas veces que espere aprobación. La aprobación
+cubre las acciones, no los píxeles bajo ellas: una ventana puede cambiar entre
+la captura y el clic mientras la pantalla conserva su tamaño, así que deniega
+un lote dirigido a una ventana en la que no confíes que siga igual.
+
+| `desktop` | El escritorio | Necesita |
+|---|---|---|
+| `sandbox` | Un escritorio Linux (XFCE y Firefox) dentro de la propia [sandbox](#files-shell) del agent, la misma máquina en la que trabajan su shell y sus tools de archivos | La capability [Sandbox](#files-shell) sobre una conexión de sandbox, con el runtime `desktop` |
+| `daemon` | Un `computerd` que ejecuta el operador: su propio escritorio Linux (X11), la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) o un escritorio en un contenedor (`deploy/computer/Dockerfile`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y el token del daemon como secreto de la vinculación |
+| `e2b` | Un escritorio E2B propio del run, de la plantilla `desktop` de E2B, terminado cuando el run lo suelta | La clave de E2B de la organización como secreto del binding |
+| `local` | La propia pantalla de la persona, en un chat que trabaja en su ordenador a través de la [app de escritorio](../desktop.md#the-screen) | Nada: la app pregunta a la persona antes de la primera captura |
+| `auto` | La pantalla de la persona cuando el chat trabaja en su ordenador; si no, un escritorio E2B cuando el binding nombra una clave; si no, la sandbox | Lo que necesite el escritorio en el que acabe |
+
+Un escritorio en la sandbox no necesita nada propio: ni dirección, ni token, ni
+proveedor. Vive y se comparte exactamente como la sandbox, por conversación o
+por agent según el `session_scope` de la capability Sandbox, y un archivo que el
+agent escribe con sus tools de archivos es un archivo que puede abrir en la
+pantalla.
+
+Publicar rechaza un escritorio `sandbox` en un agent sin conexión de sandbox, y
+en un especialista inline sin una propia ni una que comparta su padre. También
+rechaza uno cuya sandbox no esté en el runtime `desktop`, leído como lo lee una
+ejecución: el `runtime` de la capability Sandbox o, si no, el predeterminado de
+la conexión. Una sandbox que no nombra ninguno también se rechaza, porque el
+predeterminado que se distribuye es `workbench`, que no tiene pantalla. Una
+conexión de Daytona se rechaza porque ejecuta su propia imagen.
+
+La tool `execute` no hace falta, y dejarla fuera mantiene las acciones del
+escritorio detrás de `computer_act` y de su aprobación: con `execute`, el agent
+puede ejecutar `xdotool` desde la shell.
+
+Un daemon es un escritorio: cada run que apunta a él comparte la máquina y todo
+lo que tenga la sesión iniciada en ella. Dale una máquina o una cuenta propias,
+no la sesión de trabajo de alguien. El agent puede leer todo lo que pueda leer la
+cuenta con la que se ejecuta el daemon, su token incluido; por eso el contenedor
+de `deploy/computer/` ejecuta el daemon con una cuenta propia.
+
+**El token de un daemon es de la organización.** El `COMPUTERD_TOKEN` con el que
+se arrancó el daemon se guarda en el [vault](../secrets.md) de la organización
+como clave de API y lo nombra el `secret_id` de la vinculación, y publicar
+rechaza un daemon sin él. `COMPUTER_DAEMON_ALLOWED_HOSTS` es la lista del
+despliegue de los sitios a los que un run puede enviar ese token. Se comprueba al
+publicar y de nuevo cada vez que un run abre el daemon, así que quitar un host de
+ella detiene a los agents ya publicados. Cualquier organización puede nombrar un
+host permitido, así que es el token, y no la lista, lo que mantiene a una
+organización fuera del escritorio de otra: da a cada escritorio su propio token.
+`daemon_url` es solo la dirección del daemon, y se rechaza una con query,
+fragmento o credenciales.
+
+| Ajuste | Por defecto | Rango |
+|---|---|---|
+| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
+| `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido, sin query, fragmento ni credenciales |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, no más que `max_actions` |
+| `max_actions` | 200 | 1–2000 por run |
+| `preview` | activado | |
+
+El chat dibuja el escritorio en una ventana bajo el mensaje mientras el agent
+trabaja: una ventana por run, abierta por la primera captura, con un fotograma
+tras cada llamada y una línea por acción. El texto que escribe el modelo se muestra ahí tal como se escribió.
+
+**Ver y tomar el control.** Cada escritorio se publica también en la vista en vivo
+del run, la misma que usa un browse, así que un run de un canal o de una rutina se
+puede ver desde la consola. **Tomar el control** pasa el escritorio a la persona
+entre las llamadas del agent: sus clics, teclas y desplazamientos se ejecutan en
+él, el agent espera, y **Devolver** se lo devuelve con la indicación al modelo de
+que vuelva a mirar. Quién puede ver y tomar el control es la regla del browse; la
+pantalla propia de la persona es solo suya.
+
+**Una captura que el usuario conserva.** `computer_screenshot` es para el
+modelo, y nada la guarda: un run que espera aprobación, su manifiesto y una
+conversación compactada guardan una frase en su lugar. Cuando el usuario pide ver la pantalla, o el resultado
+de un paso debe quedar como prueba, el agent llama a `computer_save_screenshot`.
+Guarda la pantalla a resolución completa para la organización y la muestra en el
+chat, enlazada al archivo a tamaño completo. Si el agent tiene un workspace,
+también escribe el archivo en `output/`, de modo que la respuesta en un canal lo
+lleva y un paso posterior puede incluirlo en un informe. Sin workspace, la
+respuesta en un canal no lleva ningún archivo, igual que con la generación de
+imágenes. No cambia nada en el
+escritorio, y la aprobación no la retiene salvo que el propietario lo pida.
+
+!!! warning "El texto de la pantalla no es de fiar"
+
+    Las instrucciones dicen al modelo que lo que hay en pantalla son datos, nunca
+    instrucciones, y que se detenga ante contraseñas, pagos y decisiones que
+    corresponden al usuario. Lo que lo hace cumplir es la aprobación, y está
+    desactivada hasta que el dueño del agent la activa: sin ella, `computer_act`
+    deja que el agent actúe según lo que le diga cualquier ventana.
+
 ## Cálculos { #run-python }
 
 `run_python` — *Ejecuta un pequeño programa en Python para calcular algo.*
@@ -948,11 +1066,14 @@ el panel de archivos etiqueta de quién es el workspace en lugar de llamarlo «l
 archivos de esta conversación», y fijarlo queda registrado en el log de auditoría,
 porque un usuario que ve un archivo que no creó debería poder averiguar por qué.
 
-**Cambiar el backend o la conexión arranca un workspace nuevo en vez de
-reengancharse al antiguo.** Un documento almacenado, el volumen de un contenedor y
-una sandbox de Daytona son tres cosas distintas, y dos instalaciones de `sandboxd`
+**Cambiar el backend, la conexión o el runtime arranca un workspace nuevo en vez
+de reengancharse al antiguo.** Un documento almacenado, el volumen de un contenedor
+y una sandbox de Daytona son tres cosas distintas, y dos instalaciones de `sandboxd`
 son dos cosas distintas, así que cada una tiene su propio workspace y el anterior se
-queda donde está, aún listado y aún legible. Mover un agent en marcha no es, por
+queda donde está, aún listado y aún legible. El runtime de un contenedor se elige al
+crearlo, así que un workspace movido a otro runtime seguiría, si no, en la imagen
+antigua. No nombrar ningún runtime y nombrar `workbench`, el predeterminado que se
+distribuye, son el mismo workspace. Mover un agent en marcha no es, por
 tanto, una manera de llevarse sus archivos; el agent encuentra un workspace vacío en
 el nuevo host. Dado que `connection_id: null` significa «la predeterminada de la
 organización», marcar otra conexión como predeterminada tiene el mismo efecto sin
@@ -2579,8 +2700,9 @@ comprobados cuando se ensambla el agent:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `computer:use` | `computer_use` |
 
-!!! note "Los ocho se conceden hoy por defecto"
+!!! note "Los nueve se conceden hoy por defecto"
 
     `DEFAULT_GRANTED_SCOPES` en `app/services/agent_registry.py`. La gestión de
     scopes por organización es trabajo de la

@@ -23,7 +23,7 @@ export function PlatformWidget({ title, hint, seeAll, options }: DashboardWidget
       ) : !stats || !stats.total_organizations ? (
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <div className="grid flex-1 grid-cols-2 content-center gap-5 lg:grid-cols-4">
+        <div className="grid flex-1 grid-cols-2 content-center gap-5 @min-[36rem]/widget:grid-cols-4">
           {(
             [
               ["organizations", stats.total_organizations, null],

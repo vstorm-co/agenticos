@@ -1,4 +1,4 @@
-import { RatingValue, type ChatMessageFile, type UserRating } from "./chat";
+import { RatingValue, type ChatMessageFile, type ConversationCost, type UserRating } from "./chat";
 import type { RatingsByDay } from "./stats";
 
 /**
@@ -136,6 +136,14 @@ export interface ConversationToolCall {
 export interface ConversationListResponse {
   items: Conversation[];
   total: number;
+}
+
+/** `GET /conversations/{id}/messages`: the thread, and what all of it cost. */
+export interface ConversationMessagesResponse {
+  items: ConversationMessage[];
+  total: number;
+  /** What the whole thread cost, summed server-side. Null when nothing was measured. */
+  cost: ConversationCost | null;
 }
 
 export interface ConversationWithMessages extends Conversation {

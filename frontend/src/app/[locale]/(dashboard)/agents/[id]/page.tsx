@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 
+import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   AgentMap,
@@ -946,6 +947,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
               </Button>
+              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+              <PinAgentButton
+                agent={{
+                  id,
+                  name: agent.name,
+                  slug: agent.slug,
+                  hasAvatar: agent.has_avatar ?? false,
+                  colorSlot: agent.avatar_color ?? null,
+                }}
+                disabled={!isPublished}
+              />
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}

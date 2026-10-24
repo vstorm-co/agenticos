@@ -1,281 +1,333 @@
 ---
-source_sha: "8f92579bb015"
+source_sha: "7a2d9e84d16e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
 
-AgenticOS läuft im Browser, und so nutzen es die meisten. Die Desktop-App ist ein
-Zusatz für alle, die es im Dock haben wollen: die Konsole in einem eigenen
-Fenster, dazu ein Haustier und ein Screenshot-Kürzel. Nichts an der Plattform
-braucht sie.
+AgenticOS läuft im Browser, und so nutzen es die meisten. Die Desktop-App ist für
+alle, die mehr davon auf dem eigenen Computer wollen: die Konsole in einem eigenen
+Fenster, eine schnelle Frage von überall, Blobby auf dem Desktop und - was ein
+Browser nicht kann - die eigenen Agents, die in einem Ordner auf diesem Computer
+und auf seinem Bildschirm arbeiten. Die Plattform selbst braucht sie nicht.
 
-> **Screenshot ausstehend — aktuelle Desktop-App und Maskottchen.**
+> **Screenshot ausstehend — die Desktop-App, Blobby und die schnelle Frage.**
 
 Die Anwendung im Fenster ist dieselbe Next.js-Konsole, die der Server ohnehin
-ausliefert, vom Server geladen, also trägt sie dieselbe Anmeldung, dieselben
-Berechtigungen und dieselben Mandantenprüfungen wie ein Browser-Tab.
+ausliefert, vom Server geladen, mit derselben Anmeldung, denselben Berechtigungen
+und denselben Mandantenprüfungen wie ein Browser-Tab. Sie ist eine
+[Tauri](https://tauri.app)-Shell in `desktop/`.
 
-Es ist eine [Tauri](https://tauri.app)-Hülle in `desktop/`, und sie hält genau
-eine Einstellung: die Adresse des Servers. Der erste Start fragt danach, "Shell →
-Change server…" fragt erneut, und alles dazwischen ist die Konsole.
+!!! note "Eine Shell, kein Build des Frontends"
 
-!!! note "Es ist eine Hülle, kein Build des Frontends"
+    `frontend/` ist eine Next.js-Anwendung mit einer Serverhälfte - Route-Handler,
+    die an das Backend weiterleiten, Sitzungs-Cookies, die sie setzen, eine
+    Middleware, die die Sprache wählt, und auf dem Server gerenderte Seiten. Nichts
+    davon läuft in einer Desktop-Binärdatei, also versucht es die Shell gar nicht:
+    Sie öffnet die URL des Deployments wie ein Browser. Installiert wird das
+    Deployment; die App ist der Weg, es zu öffnen.
 
-    `frontend/` ist eine Next.js-Anwendung mit einer Serverhälfte - neunzig und
-    mehr Route-Handler, die zum Backend proxen, Session-Cookies, die sie setzen,
-    Middleware, die die Locale wählt, und serverseitig gerenderte Seiten. Nichts
-    davon läuft in einer Desktop-Binärdatei, also versucht es die Hülle gar nicht:
-    sie öffnet die URL des Deployments so, wie ein Browser es täte. Ein Deployment
-    ist das, was Sie installieren; die App ist, wie Sie es öffnen.
+## Starten { #running-it }
 
-## Sie ausführen { #running-it }
-
-Rust von [rustup](https://rustup.rs) und die Webview der Plattform - WebKit unter
-macOS, WebView2 unter Windows, WebKitGTK unter Linux - sind die Voraussetzungen;
-Tauris eigene
-[Seite zu den Voraussetzungen](https://v2.tauri.app/start/prerequisites/) hat die
-Liste pro Plattform. Die Tauri-CLI ist in `desktop/package.json` festgelegt, und
+Voraussetzungen sind Rust über [rustup](https://rustup.rs) und die Webview der
+Plattform - WebKit auf macOS, WebView2 auf Windows, WebKitGTK auf Linux; Tauris
+eigene [Seite der Voraussetzungen](https://v2.tauri.app/start/prerequisites/) hat
+die Liste je Plattform. Die Tauri-CLI ist in `desktop/package.json` festgelegt, und
 `make install` holt sie mit allem anderen.
 
 ```bash
-make desktop-dev     # opens the shell; type the address of a console
+make desktop-dev     # opens the shell
 make desktop-build   # a .app / .dmg, .msi or .deb/.AppImage for this machine
 make desktop-check   # rustfmt, clippy with warnings denied, and the tests
 ```
 
-Beim ersten Mal zeigt das Fenster ein Formular mit der Frage, wo der Server ist,
-vorbelegt mit `http://localhost:3000` - einem `make dev`-Stack. Ein bloßer Host
-(`agenticos.acme.com`) wird über HTTPS geöffnet. Alles, was keine Webadresse ist,
-wird im Formular abgelehnt.
+Beim ersten Start fragt die App, wo AgenticOS ist:
 
-!!! warning "Schlichtes `http://` gilt nur für diese Maschine"
+- **Auf diesem Computer.** Die App prüft Docker, richtet die veröffentlichten
+  Images mit Konsole und API nur auf Loopback ein, legt Ihre Organisation und
+  deren Besitzer an und startet, stoppt und aktualisiert diesen Stack danach aus
+  der Menüleiste.
+- **Auf dem Server Ihrer Organisation.** Geben Sie seine Adresse ein; ein bloßer
+  Host (`agenticos.acme.com`) wird über HTTPS geöffnet. Sie melden sich in Ihrem
+  eigenen Browser an (siehe [Anmelden](#signing-in)).
 
-    `localhost`, `127.0.0.1` und `::1` dürfen im Klartext erreicht werden; jeder
-    andere Host wird abgelehnt, bis er `https://` ist. Die Konsole schickt das
-    Passwort und bekommt das Token über diese Verbindung zurück, und ein LAN ist
-    genau der Ort, an dem jemand anderes mitlesen kann.
+!!! warning "Einfaches `http://` nur für diesen Rechner"
 
-Eine Adresse, auf der nichts antwortet, wird ebenfalls abgelehnt: die Hülle
-öffnet eine TCP-Verbindung, bevor sie die Webview irgendwohin zeigen lässt, denn
-WebKit malt eine abgewiesene Verbindung als leeres weißes Fenster. Dieselbe Probe
-läuft bei jedem Start, sodass ein Stack, der unten ist, Sie mit der Begründung
-zurück auf das Formular bringt statt vor ein leeres Fenster.
+    `localhost`, `127.0.0.1` und `::1` dürfen unverschlüsselt erreicht werden;
+    jeder andere Host wird abgelehnt, bis er `https://` ist. Die Konsole sendet das
+    Passwort und erhält das Token über diese Verbindung, und ein LAN ist genau der
+    Ort, an dem jemand anderes mitlesen kann.
 
-Die Antwort wird als `server.json` im Konfigurationsverzeichnis der Plattform für
-die App abgelegt - `~/Library/Application Support/co.vstorm.agenticos/` unter
-macOS, `%APPDATA%\\co.vstorm.agenticos\\` unter Windows,
-`~/.config/co.vstorm.agenticos/` unter Linux - und bei jedem Start erneut gelesen.
+Eine Adresse, unter der nichts antwortet, wird ebenfalls abgelehnt: Die Shell
+öffnet eine TCP-Verbindung, bevor sie die Webview irgendwohin richtet, weil WebKit
+eine abgewiesene Verbindung als leeres weißes Fenster zeichnet.
 
-Eine Datei, die sich nicht mehr parsen lässt - ein Tippfehler beim Bearbeiten von
-Hand - wird beim nächsten Start als `server.json.invalid` beiseitegelegt, und das
-Verbindungsformular speichert eine frische.
+Die Einstellungen liegen in `server.json` im Konfigurationsverzeichnis der App -
+`~/Library/Application Support/co.vstorm.agenticos/` auf macOS,
+`%APPDATA%\\co.vstorm.agenticos\\` auf Windows, `~/.config/co.vstorm.agenticos/` auf
+Linux. Eine Datei, die sich nicht mehr lesen lässt, wird als `server.json.invalid`
+beiseitegelegt und eine neue geschrieben. Der Server wird unter
+**Einstellungen…** (`⌘,`), im Tray-Menü oder per Start mit `--server <address>`
+geändert.
 
-Eine falsche Adresse wird auf vier Wegen korrigiert, je nachdem welcher am
-nächsten liegt: **Settings…** (`⌘,`, auch am Tray-Symbol und im Rechtsklick-Menü
-des Haustiers, sodass es selbst dann erreichbar ist, wenn das Fenster die falsche
-Seite zeigt), **Shell → Change server…**, Bearbeiten dieser Datei, oder Start mit
-`--server http://localhost:3000` aus einem Terminal, was sie ebenfalls speichert.
+## Eine Anwendung, kein Tab { #an-application-not-a-tab }
 
-## Das Haustier { #the-pet }
+Auf macOS trägt die Seitenleiste der Konsole die Fensterknöpfe und zieht das
+Fenster, das Fenster merkt sich Größe und Position, und Schließen lässt die App in
+der Menüleiste. Die Menüleiste hat File, Edit, View, Go (`⌘1`-`⌘5`, `⌘[` und `⌘]`)
+und Window; ein Tray-Menü tut dasselbe auf Windows und Linux. Native
+Benachrichtigungen tragen Approve und Reject für eine wartende Freigabe, und Dock
+oder Taskleiste zeigen, wie viele warten. **Einstellungen → Desktop-App** öffnet
+die App bei der Anmeldung, hält sie bei geschlossenem Fenster am Laufen und schaltet
+die Plakette an oder aus.
 
-Ein kleines Pixel-Art-Wesen in einem eigenen transparenten Fenster, das immer
-obenauf liegt: es sitzt auf dem Desktop, während die Konsole offen, minimiert
-oder geschlossen ist, so wie die Haustiere von Codex. Ziehen Sie es irgendwohin;
-klicken Sie es an, und es winkt; doppelklicken Sie es, und es hüpft und holt die
-Konsole nach vorn, wobei es sie wieder öffnet, falls Sie das Fenster geschlossen
-hatten. Sich selbst überlassen döst es vor sich hin, schaut sich um, schlendert
-ein Stück über den Bildschirm und dreht am Rand um, und hin und wieder nickt es
-ein.
+**Angeheftete Agents**: Die Seite eines Agents bietet „An Dock anheften“ (sonst an
+die Taskleiste). Ein angehefteter Agent steht im Dock-Menü und im Tray-Menü, einen
+Klick von einem neuen Chat mit ihm entfernt. Eine Datei, die auf das Dock-Symbol
+oder auf Blobby fallen gelassen wird, startet einen Chat mit dieser Datei im
+Anhang.
 
-Fahren Sie darüber, und über seinem Kopf erscheint eine Schaltfläche **+ New
-chat**; sie setzt die Konsole auf eine frische Unterhaltung und öffnet das
-Fenster, falls es geschlossen war. Klicken Sie es an, und es sagt etwas, in einer
-Sprechblase, mit eigener Stimme. Streicheln Sie es - den Cursor ein paar Mal hin
-und her darüber - und es schließt die Augen, und ein Herz steigt auf. Während es
-herumsteht, folgen seine Augen dem Cursor. Nach Einbruch der Dunkelheit döst es
-dort, wo es sonst geschlendert wäre. Nach einem Zug abgesetzt, landet es mit
-einem kleinen Hüpfer.
+## Blobby { #blobby }
 
-Rechtsklick auf das Haustier öffnet sein Menü: ein neuer Chat, die Konsole,
-welches Haustier es ist und ob es angezeigt wird. Dasselbe Menü liegt am
-Tray-Symbol (dem Menüleisten-Extra unter macOS) und unter **Pet** in der
-Menüleiste, und alle drei sind ein einziger Satz von Einträgen, sodass ein Haken,
-der an einer Stelle geändert wird, auch an den anderen geändert ist.
+Ein Wesen im Stil der Agent-Avatare, das auf dem Desktop sitzt, während die
+Konsole offen, minimiert oder geschlossen ist: einer aus einer Besetzung von sechs,
+das Gesicht eines Ihrer Agents oder ein eigenes Gesicht. Es sagt, wenn eine
+Freigabe wartet, etwas Neues im Posteingang ist oder Ihre Runs laufen, und öffnet
+es per Klick. Ziehen Sie es irgendwohin; ziehen Sie es mit zwei Fingern auf, scrollen
+Sie mit gedrücktem `⌘` darüber oder nutzen Sie den Regler in den Einstellungen, um
+die Größe zu ändern. Sein eigener Tab in den Einstellungen wählt die Figur, wie
+gesprächig sie ist und ob sie überhaupt Aktivität zeigt.
 
-**Show pet** (Cmd/Ctrl+Shift+P) räumt es weg und holt es zurück; dasselbe Menü
-wählt, welches Haustier es ist - Orbit, ein rundes mit Antenne; Boxy, ein
-Terminal auf Beinen; Ghost, das schwebt; Sprout, ein Samen mit einem Blatt;
-Amigo, mit Sombrero und Schnurrbart, für no more caramba in your AI. Wo es
-zurückgelassen wurde, ob es angezeigt wird und welches Haustier es ist, liegt
-neben der Serveradresse, sodass das Haustier beim nächsten Start dort ist, wo Sie
-es hingesetzt haben. Unter der Einstellung des Betriebssystems für reduzierte
-Bewegung steht es still und bleibt ziehbar.
+Sein Fenster ist transparent, was auf macOS `macOSPrivateApi` in `tauri.conf.json`
+braucht - und das schließt den Mac App Store aus, wohin eine selbst gehostete
+Konsole ohnehin nicht wollte.
 
-Die Grafik wird zur Laufzeit in `desktop/ui/pet-sprites.js` zusammengesetzt: jedes
-Haustier ist ein Körper und eine Beschreibung, wo Augen, Füße und Arm sitzen, und
-jede Animation sind ein paar Zeilen Positionen, die sich alle fünf teilen, statt
-eines Sprite-Sheets pro Haustier. Was jedes sagt, steht in `pet-lines.js`; das
-Verhalten und jede Regel darüber, wann ein Streicheln zählt oder wohin die Augen
-zeigen, steht in `pet-engine.js`, rein und getestet. Sein eigenes Fenster ist das,
-was es zu einem Haustier statt zu einem Widget macht, und was es kostet:
-`macOSPrivateApi` in `tauri.conf.json`, weil ein transparentes Fenster unter macOS
-das braucht, was den Mac App Store ausschließt - kein Ort, an den eine selbst
-gehostete Konsole ohnehin wollte.
+## Schnelle Frage und Sprache { #quick-ask-and-voice }
 
-!!! note "Es weiß noch nicht, was die Agents tun"
+**Schnelle Frage** (`⌥Space`, änderbar) öffnet ein schwebendes Feld, um einen
+beliebigen Agent von überall zu fragen, ohne die Konsole nach vorn zu holen. Auf
+macOS kann sie mitnehmen, was Sie gerade angesehen haben: den in einer anderen App
+markierten Text, die Zwischenablage oder die im Finder ausgewählten Dateien - jedes
+vor dem Senden gezeigt und nur, wenn Sie AgenticOS das Lesen der Auswahl erlaubt
+haben.
 
-    Das Haustier von Codex trägt eine Sprechblase, die sagt, dass ein Run läuft
-    oder eine Freigabe wartet. Unseres kann das noch nicht: die Konsole ist eine
-    entfernte Seite ohne IPC in die Hülle, und ihr eine zu geben bedeutet eine
-    Capability mit `remote`-URLs plus einen Hook im Frontend, der Aktivität
-    meldet. Das ist die Nacharbeit; das Haustier hier ist Gesellschaft, keine
-    Statuslampe.
+Halten Sie `⌥⇧Space`, um in die schnelle Frage zu diktieren; ein Sprachanruf mit
+dem Standard-Agent hat ein eigenes Kürzel. **Einstellungen → Tastenkürzel** belegt
+sie alle neu: Eine Kombination braucht mindestens eine Sondertaste, eine, die schon
+eine andere App hält, wird abgelehnt und die alte Belegung bleibt, und
+**Löschen** schaltet sie ab.
 
-## Screenshot in einen neuen Chat { #screenshot-to-a-new-chat }
+**Screenshot in einen neuen Chat** (`⌘⇧A`) zeigt das Fadenkreuz des Systems; der
+gewählte Bereich landet in einem neuen Chat, schon angehängt. Der erste Druck
+fragt macOS nach Bildschirmaufnahme, die nach einem Neustart greift.
 
-Drücken Sie das Kürzel - standardmäßig `⌘⇧A`, wo immer Sie sind - und das
-Fadenkreuz von Cmd+Shift+4 erscheint. Wählen Sie einen Bereich, und die Konsole
-kommt in einem frischen Chat nach vorn, mit dem Bild bereits angehängt, bereit für
-die Frage. Escape bricht ab. Dieselbe Aktion liegt im Menü des Haustiers und am
-Tray-Symbol.
+## Auf diesem Computer arbeiten { #work-on-this-computer }
 
-**Settings…** (`⌘,`, unter Shell, am Tray-Symbol und im Rechtsklick-Menü des
-Haustiers) legt es neu: Feld anklicken, die Modifikatoren halten und eine Taste
-drücken. Eine Kombination braucht mindestens einen Modifikator - ein globales
-Kürzel auf einem bloßen Buchstaben würde das Tippen in jeder Anwendung
-verschlucken - und eine, die eine andere Anwendung bereits hält, wird abgelehnt,
-wobei die alte Belegung erhalten bleibt. **Clear** schaltet es aus. Belegungen
-liegen neben der Serveradresse. Eine Belegung, die beim Start nicht genommen
-werden konnte, weil eine andere Anwendung zuerst da war, wird auf derselben Seite
-benannt, sodass sie ersetzt werden kann, statt dort belegt auszusehen.
+Das eine, was ein Browser nicht kann: Ein Chat, dessen Agent eine Sandbox hat,
+kann statt in der Cloud in einem Ordner auf dem Computer arbeiten, auf dem die App
+läuft. Die Datei- und Shell-Werkzeuge des Agents - auflisten, lesen, schreiben,
+bearbeiten, ausführen - erreichen diesen Ordner über die App.
 
-!!! note "Zwei Modifikatoren allein können kein Kürzel sein"
+**Den Computer einmal verknüpfen.** **Einstellungen → Desktop-App → Dieser Computer
+→ Agents hier arbeiten lassen** gibt der App eine eigene Sitzung für diesen
+Computer, nachdem ein nativer Dialog Sie um Bestätigung gebeten hat, und hält ihr
+Refresh-Token im Schlüsselbund des Systems. Die App hält dann eine ausgehende
+WebSocket-Verbindung zum Device-Hub des Servers (`/api/v1/ws/device`); auf dem
+Computer lauscht nichts. **Trennen** beendet diese Sitzung.
 
-    Linke Command-Taste plus rechte Command-Taste ist ein Akkord, keine Taste: die
-    Hotkey-Registrierung des Betriebssystems, die die Hülle nutzt, braucht eine
-    Taste, die kein Modifikator ist, in der Kombination. Einen Akkord aus reinen
-    Modifikatoren zu erkennen bedeutet einen Accessibility-Event-Tap, der jeden
-    Tastendruck beobachtet, und jeden Nutzer darum zu bitten, das zu gewähren.
-    Nicht in dieser Version.
+**Pro Chat wählen.** In der Desktop-App bieten die Einstellungen eines Chats
+**Arbeiten auf (Work on): Cloud / Diesem Computer**. Die Wahl dieses Computers
+fragt im nativen Auswahldialog nach einem Ordner und danach, wie weit der Agent
+darin gehen darf:
 
-Der erste Druck fragt macOS, ob AgenticOS den Bildschirm aufzeichnen darf.
-Solange das nicht erlaubt ist, kann nichts aufgenommen werden - das Werkzeug des
-Systems beendet sich still ohne Fadenkreuz - also prüft die Hülle zuerst, öffnet
-Systemeinstellungen → Privacy & Security → Screen Recording, und das Haustier
-sagt "Allow screen recording, then restart me." Die Erlaubnis geht an die
-*verantwortliche* Anwendung: das AgenticOS-Bundle, sobald es paketiert ist, aber
-unter `make desktop-dev` an das Terminal, aus dem die Binärdatei gestartet wurde,
-oder an die IDE, die sie beherbergt - und die ist es, die in dieser Liste
-anzuhaken ist. Eine Erlaubnis wirkt nach einem Neustart.
+| Modus | Was der Agent darf | Wie das durchgesetzt wird |
+|---|---|---|
+| Nur lesen | Dateien lesen; nichts wird geschrieben und kein Befehl läuft | Die App lehnt Schreibzugriffe und Befehle ab |
+| Im Ordner schreiben | Lesen, im Ordner schreiben, Befehle ausführen | Befehle laufen unter Seatbelt auf macOS und bubblewrap auf Linux, schreibbar nur im Ordner und in den temporären Verzeichnissen |
+| Vollzugriff | Befehle laufen als Sie, ohne Sandbox | Jeder Befehl wird zuerst in einem nativen Dialog zur Freigabe gezeigt |
 
-Das Bild erreicht den Composer so, wie es eine ausgewählte Datei tut: die Hülle
-führt ein Skript in der Konsolenseite aus, das das PNG an das Datei-Eingabefeld
-des Composers übergibt, sodass Upload, Größenbegrenzung und Vorschau die der
-Konsole selbst sind. Es wird nur an die Chat-Seite auf dem Origin des
-konfigurierten Servers übergeben - nie an eine andere Seite, zu der das Fenster
-abgewandert sein mag - und nur innerhalb von zwei Minuten nach dem Druck; eine
-Aufnahme, die nirgendwo ankam, wird verworfen. Für Windows und Linux ist noch
-keine Aufnahme verdrahtet.
+Windows bietet Nur lesen und Vollzugriff. Linux bietet Schreiben im Ordner nur,
+wenn `bwrap` installiert ist.
 
-## Was sie bewusst nicht tut { #what-it-deliberately-does-not-do }
+**Der Computer entscheidet, nicht der Server.** Die gewählten Ordner mit ihren
+Modi stehen in den Einstellungen der App, und jede Operation nennt einen Ordner und
+einen Modus, die die App damit abgleicht: ein Ordner, den Sie nie gewählt haben,
+ein Modus, der weiter geht als erlaubt, oder ein Pfad, der aus dem Ordner
+herausführt, wird auf dem Computer abgelehnt, egal was der Server verlangt hat. Die
+Wahl wird je Unterhaltung gespeichert, und ein neuer Chat beginnt in der Cloud.
 
-- **Keine lokale Ausführung.** Die Hülle hat über eine einzige JSON-Datei hinaus
-  keinen Zugriff auf die Maschine. Ein Agent, der Befehle auf dem Laptop
-  ausführt, von dem aus er geöffnet wurde, ist ein anderes Feature mit einem
-  anderen Berechtigungsmodell - eine dritte Art von Sandbox-Verbindung neben
-  Docker und Daytona, an die Maschine einer Person gebunden statt an die
-  Organisation - und dieses ist es nicht.
-- **Kein Offline-Modus.** Ist der Server nicht erreichbar, zeigt das Fenster die
-  eigene Fehlerseite der Webview; "Shell → Reload" versucht es erneut.
-- **Keine Navigationssperre.** Ein Link, der den Origin des Servers verlässt,
-  öffnet sich im Fenster statt im Systembrowser, denn ein OAuth-Ablauf -
-  Anmelden, einen MCP-Server verbinden - verlässt den Origin und muss zu
-  derselben Webview zurückkommen, damit sein Cookie landet. Solange das Fenster
-  eine andere Seite zeigt, nennt sein Titel diesen Host - das eine Stück Chrom,
-  das eine Seite nicht malen kann, da es keine Adressleiste gibt - und `⌘,` oder
-  "Shell → Change server…" ist der Weg zurück, wenn eine Seite keinen Link nach
-  Hause hat. Diese Abläufe in den Systembrowser zu verlegen ist
-  [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
-- **Die Anmeldung verlässt das Fenster, absichtlich.** WebKits nackter User Agent
-  ist das, was Google als eingebetteten Browser ablehnt (`disallowed_useragent`),
-  und die Antwort, die seine Richtlinie verlangt, ist der Systembrowser statt
-  eines User Agents, der behauptet, einer zu sein. Siehe unten.
+**Nur Ihre eigenen Runs.** Ein Chat erreicht Ihren Computer nur, wenn er Ihr
+eigener ist - nie ein API-Schlüssel, ein Widget-Besucher oder der Chat eines
+anderen - und ein [Trigger](triggers.md) nur, wenn er als sein Ersteller handelt,
+der ihm unter **Arbeiten auf** des Triggers einen Ordner seines Computers zuweist.
+
+**Wenn der Computer weg ist.** Ein Run, der diesen Computer angefordert hat und die
+App nicht verbunden vorfindet, wartet bis zu zehn Minuten auf sie, und der Chat
+sagt es. Eine Operation, die die App mitten im Run getrennt vorfindet - Deckel zu,
+Netz gewechselt -, wartet bis zu fünf Minuten auf ihre Rückkehr in derselben
+Sitzung und macht dann weiter. Solange eine Operation eines Runs läuft, sagt der
+Tray, dass ein Agent auf diesem Computer arbeitet.
+
+Der Server prüft die Sitzung vor jeder lokalen Operation. Widerrufene oder abgelaufene Sitzungen verweigern neue Arbeit; der Heartbeat schließt auch inaktive Verbindungen. Laufende Operationen werden beim Schließen der Desktop-Verbindung abgebrochen.
+
+## Der Bildschirm { #the-screen }
+
+[Computer Use](reference/capabilities.md) kann den Bildschirm dieses Computers
+steuern. In einem Chat, der auf diesem Computer arbeitet, ist sein Desktop `auto` -
+der Standard - dieser Bildschirm; `local` verlangt nichts anderes.
+
+- **Erst gefragt.** Der erste Screenshot einer Sitzung fragt in einem nativen
+  Dialog, ob der Agent diesen Bildschirm für eine Stunde sehen und steuern darf.
+- **Umrahmt, während er handelt.** Ein Rahmen umgibt den Bildschirm, solange der
+  Agent ihn hält.
+- **Sofort zu stoppen.** `⌘⌥Esc` (sonst `Ctrl+Alt+Esc`) nimmt den Bildschirm
+  zurück; die nächste Aktion wird abgelehnt, bis Sie es wieder erlauben.
+- **Das Betriebssystem fragt auch.** macOS braucht AgenticOS unter Datenschutz &
+  Sicherheit sowohl in Bildschirmaufnahme als auch in Bedienungshilfen; eine
+  Ablehnung nennt beide.
+
+Jeder Desktop, auf dem ein Run arbeitet, dieser eingeschlossen, wird live im Chat
+und in der Live-Ansicht des Runs gezeigt, wo **Übernehmen** ihn Ihnen zwischen den
+Schritten des Agents überlässt und **Zurückgeben** ihn zurückgibt. Die Live-Ansicht
+des Bildschirms dieses Computers gehört nur Ihnen, wer auch immer sonst Runs ansehen
+darf.
 
 ## Anmelden { #signing-in }
 
 Die eine Navigation, die das Konsolenfenster verweigert. Alles andere lädt im
-Fenster; ein Klick auf **Continue with Google** öffnet stattdessen Ihren eigenen
-Browser, und das Ergebnis kommt zur App zurück (#1532).
+Fenster; ein Klick auf **Continue with Google** öffnet sich stattdessen in Ihrem
+eigenen Browser, und das Ergebnis kommt zur App zurück (#1532).
 
-Was der Reihe nach passiert:
+Was passiert, der Reihe nach:
 
-1. Das eigene `/api/oauth/<Anbieter>/login` der Konsole läuft **im Fenster**, wo
-   sich das httpOnly-Cookie mit einer hinterlegten Einladung lesen und anhängen
-   lässt. Die Hülle fängt diesen Sprung genau deshalb nicht ab, damit ein
-   Eingeladener, der sich aus der App anmeldet, von einem `invite_only`-Deployment
-   nicht abgewiesen wird.
-2. Das Fenster sieht dann eine Navigation zum `/api/v1/oauth/<Anbieter>/login` des
-   *Deployments*, übergibt sie mit angehängtem `client=desktop` und einer frisch
-   geprägten `desktop_nonce` an den Systembrowser und folgt ihr nicht. Nichts in
-   der Konsole weiß, dass sie in einer Hülle läuft, und muss es nicht.
-3. Sie melden sich dort an, in einem echten Browser, mit Ihren Passwörtern, Ihren
+1. Das eigene `/api/oauth/<provider>/login` der Konsole läuft **im Fenster**, wo es
+   das httpOnly-Cookie mit einer vorgemerkten Einladung lesen und anhängen kann.
+2. Das Fenster sieht dann eine Navigation zu `/api/v1/oauth/<provider>/login` des
+   *Deployments*, übergibt sie mit angehängtem `client=desktop` und frisch
+   erzeugtem `desktop_nonce` an den System-Browser und folgt ihr nicht.
+3. Sie melden sich dort an, in einem echten Browser mit Ihren eigenen Passwörtern,
    Erweiterungen und welchem zweiten Faktor auch immer.
-4. Der Callback des Deployments sieht, dass dieser Versuch ein Desktop-Versuch war
-   - beim *Start* in der Sitzung vermerkt, unter dem `state` genau dieses
-   Versuchs, nie vom Rückweg gelesen - und leitet auf
-   `agenticos://auth/callback?code=…` um, mit einem Einmalcode, der nach einer
-   Minute abläuft, samt der übergebenen Nonce.
-5. Das Betriebssystem reicht diesen Link an die App. Die Hülle schickt das
-   Konsolenfenster auf `<Ihr Server>/auth/callback?code=…`, die Seite, die es
-   ohnehin gibt: sie tauscht den Code Server-zu-Server gegen das Tokenpaar, und
-   die eigenen Cookies des Fensters werden gesetzt. Der Cookie-Speicher des
-   Browsers bleibt außen vor, worum es geht.
+4. Der Callback des Deployments erkennt, dass dieser Versuch ein Desktop-Versuch
+   war - zu *Beginn* in der Sitzung unter dem OAuth-`state` dieses Versuchs
+   vermerkt, nie aus der Rückkehr gelesen - und leitet nach
+   `agenticos://auth/callback?code=…` weiter, mit einem Einmal-Code, der nach einer
+   Minute abläuft, und der erhaltenen Nonce.
+5. Das Betriebssystem übergibt diesen Link der App. Die Shell schickt das
+   Konsolenfenster nach `<your server>/auth/callback?code=…`, das den Code von
+   Server zu Server gegen das Token-Paar tauscht; die Cookies des Fensters selbst
+   werden gesetzt.
 
-**Einen Deep Link kann jeder Prozess auf Ihrem Rechner auslösen**, deshalb ist
-eng gefasst, was einer hier darf: die Konsole auf *einen* Pfad schicken, auf dem
-Server, den *Sie* konfiguriert haben, mit einem Code, der genau einmal eingelöst
-wird. Er kann keine Adresse benennen, und eine zweite Verwendung antwortet mit
-401.
+**Einen Deep Link kann jeder Prozess auf Ihrem Rechner auslösen**, also ist eng
+gefasst, was einer hier darf: die Konsole an einen Pfad schicken, auf dem Server,
+den *Sie* konfiguriert haben, mit einem Code, der genau einmal einlösbar ist - und
+nur einer mit der Nonce, die diese App für diesen Versuch erzeugt hat. Auf Windows
+und Linux gibt eine Einzelinstanz-Sperre die Argumente eines zweiten Starts an den
+ersten weiter. Das Deployment muss beim Schema übereinstimmen -
+`DESKTOP_DEEP_LINK_SCHEME`, `agenticos`, sofern niemand es geändert hat - und bei
+seiner eigenen öffentlichen Adresse.
 
-Es muss außerdem die Anmeldung **dieser** App sein. Die Hülle prägt eine Nonce,
-wenn sie den Browser öffnet, das Deployment gibt sie mit dem Code zurück, und ein
-Link mit irgendeiner anderen wird ignoriert — ein lokaler Prozess mit einem Code
-aus Ihrem Deployment kann Ihr Fenster also nicht in fremde Hände geben. Die Nonce
-wird beim Eintreffen eines Links aus dem Fach genommen, ein Replay desselben Links
-findet demnach nichts mehr.
+## Was sie bewusst nicht tut { #what-it-deliberately-does-not-do }
 
-Zwei Versuche in einem Browser bleiben ebenfalls getrennt: der Vermerk liegt unter
-dem eigenen `state` jedes Versuchs statt einmal pro Sitzung, sodass eine gewöhnliche
-Anmeldung, während eine Desktop-Anmeldung wartet, kein Ergebnis mehr an die falsche
-Stelle schickt.
+- **Kein Navigationswächter.** Ein Link, der den Origin des Servers verlässt,
+  öffnet sich im Fenster, weil ein OAuth-Ablauf - das Verbinden eines MCP-Servers -
+  zur selben Webview zurückkehren muss, damit sein Cookie ankommt. Der Fenstertitel
+  nennt jeden anderen Host, den es zeigt.
+- **Kein lokaler Run ohne Sandbox.** Arbeiten auf diesem Computer verlegt, wo die
+  Sandbox-Werkzeuge eines Agents laufen; ein Agent ohne Sandbox hat keine solchen
+  Werkzeuge zu verlegen.
+- **Kein dauerhafter Zugriff.** Das Verknüpfen des Computers gewährt für sich
+  nichts: Ein Run erreicht nur die Ordner, die Sie gewählt haben, in den Modi, die
+  Sie gewählt haben, und den Bildschirm erst nach Ihrer Erlaubnis.
 
-Unter Windows und Linux startet das Öffnen eines registrierten Schemas die
-ausführbare Datei erneut — während einer Anmeldung also eine zweite Konsole neben
-der wartenden. Die Hülle hält eine Single-Instance-Sperre, und der zweite Prozess
-übergibt seine Argumente an den ersten und beendet sich.
+## Wo es im Baum liegt { #where-it-sits-in-the-tree }
 
-Das Deployment muss beim Schema mitspielen - `DESKTOP_DEEP_LINK_SCHEME`,
-`agenticos`, sofern es niemand geändert hat - und bei seiner eigenen öffentlichen
-Adresse, denn dorthin wird der Browser geschickt und von dort kommt er zurück.
+- `desktop/ui/` - die Seiten des ersten Starts und der Bildschirmrahmen, statische
+  Dateien.
+- `desktop/core/` - die Teile, auf die sich beide Seiten einigen müssen, ohne
+  Laufzeit: die Gerätenachrichten, die Endpunkte und das Back-off, eigenständig
+  getestet.
+- `desktop/src-tauri/` - die Shell: Fenster, Menüs, Blobby, schnelle Frage, die
+  Geräteverknüpfung (`device.rs`), der lokale Ausführer (`local_work.rs`) und der
+  Bildschirm (`screen.rs`).
+- `backend/app/services/device_hub/` - die Serverhälfte: Präsenz in Redis, damit
+  jeder API-Host und Worker einen Computer erreicht, und `DeviceWorkspace`, der
+  Sandbox-Workspace, den die App ausführt.
 
-## Wo sie im Baum liegt { #where-it-sits-in-the-tree }
+## Lokaler Browser, Modelle und MCP { #local-browser-models-and-mcp }
 
-`desktop/ui/` ist das Verbindungsformular und das Haustier, statische Dateien
-ohne Build-Schritt; `bun test` führt dort die Sprite- und Verhaltenstests des
-Haustiers aus. `desktop/src-tauri/` ist die Rust-Seite: die Befehle, die die
-beiden Seiten aufrufen, die beiden Fenster und das Menü. `desktop-check` ist
-weder Teil von `make lint` noch von `make check`: die CI hat noch keine
-Rust-Toolchain, und `tests/test_ci_parity.py` würde ein `check` ablehnen, das
-einen Schritt ausführt, den die CI nicht ausführt. Führen Sie es aus, bevor Sie
-eine Änderung unter `desktop/` pushen.
+Nach dem Koppeln der Desktop-App einen Ordner unter **Work on** freigeben. Dort
+lassen sich für diesen Lauf ein lokales Modell, lokale MCP-Dienste und ein lokaler
+Browser wählen. Erforderlich sind eine Sandbox-Bindung und die eigene gekoppelte
+Sitzung. Die Telefon-App ruft keine Desktop-Befehle auf.
+
+Dienste werden unter **Settings → Desktop app → Local services** hinzugefügt.
+Ein nativer Dialog bestätigt jede Freigabe. Modelle verwenden einen Ollama- oder
+OpenAI-kompatiblen HTTP-Endpunkt (etwa `http://127.0.0.1:11434/v1`) und eine
+installierte Modell-ID. MCP benötigt einen laufenden Streamable-HTTP-Server
+(etwa `http://127.0.0.1:8000/mcp`).
+
+Nur Loopback-Adressen sind erlaubt, ohne
+Weiterleitungen oder Zugangsdaten in der URL. Der Desktop hält die Adresse; die
+API übermittelt eine undurchsichtige Freigabe-ID. Anfragen und Antworten sind auf
+8 MiB begrenzt, die Dienstfrist beträgt zwei Minuten. MCP-Server müssen ohne Token
+antworten und HTTP-Antworten beenden; eigenständige SSE-Abonnements und das Starten
+von stdio-Prozessen werden nicht unterstützt. Entfernen einer Freigabe verweigert
+weitere Aufrufe. Das Organisationsprofil bleibt zur Zuordnung erhalten, ohne seine Cloud-Zugangsdaten zu öffnen.
+Lokale Inferenz hat keinen Cloud-Fallback; Funktionen mit separat
+konfigurierten Modellen behalten ihre Einstellungen.
+
+**Local browser** führt die vorhandenen `browser_use`-Werkzeuge in einem sichtbaren
+Chromium-Fenster auf dem gekoppelten Computer aus. Chrome, Chromium, Edge oder Brave
+muss installiert sein. Jeder Browse fragt nativ um Erlaubnis, nutzt ein temporäres
+Profil und schließt es am Ende oder bei Geräteunterbrechung. Persönliche Tabs und
+Passwörter werden nicht importiert. DOM-Beobachtungen und Vorschaubilder erreichen
+den Chat; gespeicherte Anmeldungen werden nicht auf den Server kopiert. Eine Bindung
+mit `connection: local` verweigert den Lauf ohne diese lokale Auswahl.
+
+## Installationspakete und Updates { #installers-and-updates }
+
+Der GitHub-Actions-Workflow **Apps** prüft native Crates auf macOS, Windows und
+Linux und baut Android-Debug-APKs sowie die iOS-Simulator-App. Vollständige native
+Prüfungen laufen in CI; `make desktop-check` bleibt für gezielte lokale Änderungen
+verfügbar. **App release** hängt Installer, signierte Update-Dateien, ein APK und
+einen Homebrew-Cask an ein bestehendes veröffentlichtes stabiles Release
+`v1.MINOR.PATCH`, dessen Commit auf `main` liegt. Es erstellt kein Plattform-Release.
+Der Cask ist eine herunterladbare Datei; ein Homebrew-Tap wird separat veröffentlicht.
+**Check for Updates…** benötigt einen Build mit öffentlichem Update-Schlüssel und
+prüft vor der Installation die Signatur.
+
+Vor einem Release die GitHub-Umgebung `apps-release` konfigurieren:
+
+- Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; Secrets `TAURI_SIGNING_PRIVATE_KEY`
+  und `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (dauerhaftes Update-Schlüsselpaar).
+- macOS: `APPLE_CERTIFICATE` (Base64-P12), `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (App-Passwort)
+  und `APPLE_TEAM_ID` für Developer-ID-Signatur und Notarisierung.
+- Optionales Windows-Authenticode: `WINDOWS_CERTIFICATE_BASE64` (PFX) und
+  `WINDOWS_CERTIFICATE_PASSWORD`. Ohne diese bleibt der Installer unsigniert.
+- Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Updates benötigen denselben Keystore.
+- TestFlight: Repository-Variable `AGENTICOS_TESTFLIGHT_ENABLED=true`; Secrets
+  `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROFILES_BASE64_JSON`
+  (JSON-Array mit Base64-Profilen für App, Widgets und Share-Erweiterung),
+  `APP_STORE_CONNECT_KEY_P8`, `APP_STORE_CONNECT_KEY_ID`,
+  `APP_STORE_CONNECT_ISSUER_ID`, `APPLE_TEAM_ID`. App-IDs, gemeinsame App Group
+  und App in App Store Connect zuerst anlegen. Push benötigt weiterhin die
+  vorhandenen APNs-Zugangsdaten der Bereitstellung.
+
+Store-Zugangsdaten verbleiben in CI; Jobs löschen temporäre Signaturdateien.
+TestFlight-Upload bleibt bis zur ausdrücklichen Aktivierung aus. Store-Freigabe,
+Provisioning und signierte Geräteauslieferung erfordern die Konten des Betreibers;
+ein unsignierter lokaler Build kann sie nicht bestätigen.
+
 
 ## Zusammenfassung { #recap }
 
-- **Die Konsole bleibt auf dem Server.** Die Hülle öffnet sie; nichts wird
-  mitgeliefert.
-- **Eine Datei mit Einstellungen.** Die Serveradresse, einmal erfragt, und wo das
-  Haustier zurückgelassen wurde, beides über das Menü änderbar.
-- **Ein Screenshot ist ein Kürzel entfernt.** `⌘⇧A`, ein Bereich, ein frischer
-  Chat mit dem Bild daran; neu belegt unter Settings (`⌘,`).
-- **Noch nichts Lokales.** Lokale Ausführung ist eine Art von
-  Sandbox-Verbindung, die zu entwerfen ist, und kein Schalter an dieser Hülle.
+- **Die Konsole bleibt auf dem Server.** Die Shell öffnet sie; nichts wird
+  gebündelt.
+- **Nativ, wo es zählt.** Menüs, Benachrichtigungen, angeheftete Agents, Blobby,
+  schnelle Frage und Sprache von überall.
+- **Ihre Agents können auf diesem Computer arbeiten** - in Ordnern, die Sie wählen,
+  in Modi, die Sie wählen, vom Betriebssystem eingesperrt und nur für Ihre eigenen
+  Runs.
+- **Und auf seinem Bildschirm** - erst gefragt, umrahmt während sie handeln und mit
+  einem Kürzel gestoppt.

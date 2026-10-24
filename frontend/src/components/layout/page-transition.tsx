@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
+import { directionFor } from "@/lib/navigation-direction";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +36,9 @@ const OWN_BOTTOM_ROOM = /\/(?:chat|runs)(?:\/|$)/;
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  // The phone app slides a page in from the side it came from (`desktop.css`);
+  // everywhere else the attribute changes nothing.
+  const direction = directionFor(pathname);
 
   return (
     // Everywhere else the room under a page is declared here, and this is the
@@ -46,6 +50,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     // padding here is painted after the last element.
     <div
       key={pathname}
+      data-direction={direction}
       className={cn(
         "page-enter flex flex-1 flex-col",
         OWN_SCROLL_PANE.test(pathname) && "min-h-0",

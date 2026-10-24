@@ -6,6 +6,7 @@ import { HelpCircle, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ChatModelPicker } from "./chat-model-picker";
+import { WorkOn } from "./work-on";
 import { YourConnections } from "./your-connections";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
@@ -211,6 +212,7 @@ export function ChatControls({
               </p>
             )}
           </div>
+          <WorkOn />
           <YourConnections />
           {/* Chat has no PageHeader, so its tips are replayed from here - beside
               the other controls, rather than under the composer (#2301). Closed

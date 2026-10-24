@@ -1,0 +1,107 @@
+"""The same workspace tools operate on only the resolved paired device."""
+
+import base64
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from pydantic_ai.workspaces import (
+    WorkspaceReadOnlyError,
+    WorkspaceTimeoutError,
+    WorkspaceUnavailableError,
+)
+
+from app.schemas.local_target import LocalTarget
+from app.services.device_hub import workspace as module
+from app.services.device_hub.exceptions import (
+    DeviceCallFailed,
+    DeviceCallTimedOut,
+    DeviceUnavailable,
+)
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_file_and_shell_operations_keep_the_native_root_and_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session, user = uuid4(), uuid4()
+    target = LocalTarget(folder="/work", mode="read_only")
+    workspace = module.DeviceWorkspace(session, user, target)
+    call = AsyncMock(return_value={})
+    monkeypatch.setattr(module._hub, "call", call)
+    assert workspace.session_id == session
+    assert workspace.ref.id == f"{session}:/work"
+    assert await workspace.working_dir() == "/work"
+    call.return_value = {"data": base64.b64encode(b"hello").decode()}
+    assert await workspace.read_bytes("a") == b"hello"
+    await workspace.write_bytes("a", b"new")
+    assert call.call_args.args[2] == {
+        "root": "/work",
+        "mode": "read_only",
+        "path": "a",
+        "data": "bmV3",
+    }
+    call.return_value = {"name": "a", "path": "/work/a", "is_dir": False, "size": 3}
+    assert (await workspace.stat("a")).size == 3
+    call.return_value = {"entries": [{"name": "d", "path": "/work/d", "is_dir": True}, "bad"]}
+    assert len(await workspace.list_dir(".")) == 1
+    await workspace.make_dir("d")
+    await workspace.remove("a")
+    call.return_value = {"exists": True}
+    assert await workspace.exists("d")
+    call.return_value = {"path": "/work/d"}
+    assert await workspace.realpath("d") == "/work/d"
+    call.return_value = {"exit_code": 0, "stdout": "done", "stderr": ""}
+    assert (await workspace.run(["echo", "hi"], timeout=3, env={"A": "B"})).stdout == "done"
+    assert call.call_args.kwargs["timeout"] == 13
+    await workspace.run("pwd", shell=True)  # noqa: S604 - the device transport is mocked; no shell runs
+    assert call.call_args.args[2]["command"] == "pwd"
+    assert call.call_args.args[0] == session
+
+
+async def test_reconnection_uses_the_same_owner_and_device_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session, user = uuid4(), uuid4()
+    workspace = module.DeviceWorkspace(session, user, LocalTarget(folder="/work"))
+    call = AsyncMock(side_effect=[DeviceUnavailable(message="offline"), {"exists": True}])
+    wait = AsyncMock(return_value=object())
+    monkeypatch.setattr(module._hub, "call", call)
+    monkeypatch.setattr(module._hub, "wait_for", wait)
+    assert await workspace.exists("a")
+    assert wait.call_args.args == (user, session)
+    assert [invocation.args[0] for invocation in call.call_args_list] == [session, session]
+    call.side_effect = DeviceUnavailable(message="offline")
+    wait.return_value = None
+    with pytest.raises(WorkspaceUnavailableError):
+        await workspace.exists("a")
+
+
+@pytest.mark.parametrize(
+    "kind, expected",
+    [
+        ("not_found", FileNotFoundError),
+        ("is_dir", IsADirectoryError),
+        ("read_only", WorkspaceReadOnlyError),
+        ("denied", PermissionError),
+        ("timeout", WorkspaceTimeoutError),
+        ("unexpected", OSError),
+    ],
+)
+async def test_native_refusals_remain_workspace_errors(
+    monkeypatch: pytest.MonkeyPatch, kind: str, expected: type[Exception]
+) -> None:
+    monkeypatch.setattr(
+        module._hub,
+        "call",
+        AsyncMock(side_effect=DeviceCallFailed(message="refused", details={"kind": kind})),
+    )
+    workspace = module.DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="/work"))
+    with pytest.raises(expected, match="refused"):
+        await workspace.remove("a")
+    monkeypatch.setattr(
+        module._hub, "call", AsyncMock(side_effect=DeviceCallTimedOut(message="late"))
+    )
+    with pytest.raises(WorkspaceTimeoutError, match="late"):
+        await workspace.exists("a")

@@ -85,6 +85,22 @@ def _pin(agent_id: UUID, version_id: UUID) -> dict[str, Any]:
     return {"agent_id": str(agent_id), "agent_version_id": str(version_id)}
 
 
+def _desktop_sandbox(runtime: str = "desktop") -> dict[str, Any]:
+    """A Sandbox binding on a named connection, on the runtime computer use needs."""
+    return {
+        "id": "sandbox",
+        "config": {"backend": "service", "connection_id": str(uuid4()), "runtime": runtime},
+    }
+
+
+def _a_docker_connection(monkeypatch) -> None:
+    """Whatever connection a sandbox names exists, and is a container host."""
+    connection = MagicMock(kind="docker", default_runtime=None)
+    monkeypatch.setattr(
+        agent_registry.sandbox_connection_repo, "get", AsyncMock(return_value=connection)
+    )
+
+
 def _specialist(name: str = "summariser", **overrides: Any) -> dict[str, Any]:
     return {
         "name": name,
@@ -473,6 +489,120 @@ class TestInlineSpecialists:
         )
 
         await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+    async def test_a_specialists_desktop_with_no_sandbox_to_run_in_is_refused(self):
+        """The parent's check, run on the specialist, or its first screenshot fails instead."""
+        problems = await _problems(
+            _ctx(),
+            _delegating(
+                {
+                    "inline": [
+                        _specialist(
+                            capabilities=[{"id": "computer_use", "config": {"desktop": "sandbox"}}]
+                        )
+                    ]
+                }
+            ),
+        )
+
+        assert problems == [
+            "Specialist 'summariser': Computer use's desktop runs in the agent's sandbox, so it "
+            "needs the Sandbox capability on a sandbox connection, on the 'desktop' runtime."
+        ]
+
+    async def test_a_specialist_can_work_a_desktop_in_the_sandbox_its_parent_shares(
+        self, monkeypatch
+    ):
+        # The parent's connection is not the subject; `_sandbox_problems` has its own tests.
+        monkeypatch.setattr(agent_registry, "_sandbox_problems", AsyncMock(return_value=[]))
+        _a_docker_connection(monkeypatch)
+        sandbox = _desktop_sandbox()
+        spec = _delegating(
+            {
+                "share_with_delegates": ["sandbox"],
+                "inline": [
+                    _specialist(
+                        capabilities=[{"id": "computer_use", "config": {"desktop": "sandbox"}}]
+                    )
+                ],
+            },
+            capabilities=[sandbox],
+        )
+
+        await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+    async def test_a_specialist_with_a_sandbox_of_its_own_on_another_runtime_is_refused(
+        self, monkeypatch
+    ):
+        """Its own binding wins over what the parent shares, so its runtime is the one read."""
+        monkeypatch.setattr(agent_registry, "_sandbox_problems", AsyncMock(return_value=[]))
+        _a_docker_connection(monkeypatch)
+        own = _desktop_sandbox(runtime="workbench")
+        spec = _delegating(
+            {
+                "share_with_delegates": ["sandbox"],
+                "inline": [
+                    _specialist(
+                        capabilities=[{"id": "computer_use", "config": {"desktop": "sandbox"}}, own]
+                    )
+                ],
+            },
+            capabilities=[_desktop_sandbox()],
+        )
+
+        assert await _problems(_ctx(), spec) == [
+            "Specialist 'summariser': Computer use's desktop needs the sandbox's 'desktop' "
+            "runtime, and this agent's sandbox would run on the 'workbench' runtime. Set the "
+            "Sandbox capability's runtime to 'desktop'."
+        ]
+
+    @pytest.mark.parametrize(
+        ("share", "runtime", "refused"),
+        [
+            (["computer_use"], "desktop", []),
+            # The parent is refused for its own desktop as well; the delegate's is the
+            # sentence that says what lending it would have done.
+            (
+                ["computer_use", "sandbox"],
+                "workbench",
+                [
+                    "Computer use's desktop needs the sandbox's 'desktop' runtime, and this "
+                    "agent's sandbox would run on the 'workbench' runtime. Set the Sandbox "
+                    "capability's runtime to 'desktop'."
+                ],
+            ),
+            (["computer_use", "sandbox"], "desktop", None),
+        ],
+    )
+    async def test_a_pinned_delegate_lent_a_desktop_is_lent_a_desktop_sandbox_too(
+        self, monkeypatch, share: list[str], runtime: str, refused: list[str] | None
+    ):
+        """Its version passed at its own publish; what the parent lends it is checked here."""
+        monkeypatch.setattr(agent_registry, "_sandbox_problems", AsyncMock(return_value=[]))
+        _a_docker_connection(monkeypatch)
+        ctx = _ctx()
+        delegate = _published(ctx, "Tester")
+        version = _version(delegate.id, spec=_spec(name="Tester"))
+        _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+        spec = _delegating(
+            {"share_with_delegates": share},
+            subagents=[_pin(delegate.id, version.id)],
+            capabilities=[
+                _desktop_sandbox(runtime=runtime),
+                {"id": "computer_use", "config": {"desktop": "sandbox"}},
+            ],
+        )
+        service = AgentRegistryService(_db())
+
+        if refused is None:
+            await service.validate_spec(ctx, spec)
+            return
+        assert await _problems(ctx, spec) == [
+            *refused,
+            "Delegate 'Tester' would be lent computer use's desktop in the sandbox but no "
+            "desktop sandbox to run it in. Share a 'sandbox' on the 'desktop' runtime with "
+            "delegates too, or stop sharing 'computer_use'.",
+        ]
 
     async def test_a_delegation_config_that_does_not_parse_is_reported_once(self):
         """The binding check has already said so; a second guess adds nothing."""

@@ -94,9 +94,16 @@ the hour your organization's proactivity keeps, one notification and one direct
 message from each of its Slack, Teams and Mattermost bots that knows you list
 what is new. Each finding is in one briefing only.
 
+Search stays above the sidebar's destinations, with its keyboard shortcut visible
+on a computer. Notifications and the account menu stay below the scrolling list.
+On touch devices, shared buttons, fields, tabs and menu choices have larger hit
+areas. Dialogs use the visible height above the on-screen keyboard; side panels
+keep keyboard focus inside and return it to the opener when dismissed. In a list's
+search field, Escape clears the query first and closes its dialog on the next press.
+
 ## The bell
 
-Next to search, in the sidebar: a running count of what you have not read yet,
+At the foot of the sidebar: a running count of what you have not read yet,
 and a click opens the list itself. Unlike the widget above, opening it fetches
 the page you are looking at, not a five-card preview - **Load more** keeps
 paging back through the organization you are currently in, plus anything

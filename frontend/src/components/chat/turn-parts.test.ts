@@ -45,4 +45,21 @@ describe("which calls open a browse panel", () => {
 
     expect(browseCalls(runs).map((call) => call.id)).toEqual(["google"]);
   });
+
+  it("offers every desktop call, since a resumed run opens a window of its own", () => {
+    const runs: PartRun[] = [
+      {
+        kind: "tools",
+        parts: [
+          tool("look", "computer_screenshot"),
+          tool("act", "computer_act"),
+          tool("open", "browser_open"),
+          tool("again", "computer_screenshot"),
+        ],
+        isLast: true,
+      },
+    ];
+
+    expect(browseCalls(runs).map((call) => call.id)).toEqual(["look", "act", "open", "again"]);
+  });
 });

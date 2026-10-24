@@ -14,6 +14,7 @@ import { parsePublishedArtifact, PublishedArtifactResult } from "./tool-results/
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
 import { GeneratedSpeechResult, parseGeneratedSpeech } from "./tool-results/generated-speech";
 import { GeneratedVideoResult, parseGeneratedVideo } from "./tool-results/generated-video";
+import { DesktopScreenshotResult, parseDesktopScreenshot } from "./tool-results/desktop-screenshot";
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
@@ -173,6 +174,12 @@ export function ToolCallCard({
     typeof toolCall.result === "string"
       ? parseGeneratedVideo(toolCall.result, mediaSurface)
       : null;
+  const desktopScreenshot =
+    renderer === "desktop-screenshot" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseDesktopScreenshot(toolCall.result)
+      : null;
 
   const publishedArtifact =
     renderer === "artifact" &&
@@ -283,6 +290,8 @@ export function ToolCallCard({
         <GeneratedSpeechResult data={generatedSpeech} />
       ) : generatedVideo !== null ? (
         <GeneratedVideoResult data={generatedVideo} />
+      ) : desktopScreenshot !== null ? (
+        <DesktopScreenshotResult data={desktopScreenshot} />
       ) : publishedArtifact !== null ? (
         <PublishedArtifactResult data={publishedArtifact} />
       ) : chartSpec !== null ? (

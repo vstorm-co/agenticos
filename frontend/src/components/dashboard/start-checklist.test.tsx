@@ -90,6 +90,17 @@ describe("the dashboard's start checklist", () => {
     expect(screen.queryByText("Already done")).toBeNull();
   });
 
+  it("keeps the first screen compact and reveals every remaining step on demand", async () => {
+    render(<StartChecklist orgId="o1" />);
+    expect(screen.queryByRole("link", { name: "Invite a teammate" })).toBeNull();
+    const more = screen.getByRole("button", { name: "Show all steps (9)" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(more);
+    expect(screen.getByRole("link", { name: "Invite a teammate" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Show fewer steps" }));
+    expect(screen.queryByRole("link", { name: "Invite a teammate" })).toBeNull();
+  });
+
   it("raises the next step, lists the rest, and keeps what is done as links", () => {
     personalDone();
     data.agents = [{ status: "draft", owner_user_id: "u1", slug: "mine" }];
@@ -129,6 +140,7 @@ describe("the dashboard's start checklist", () => {
     data.perms = new Set();
     render(<StartChecklist orgId="o1" />);
 
+    await userEvent.click(screen.getByRole("button", { name: /Show all steps/ }));
     await userEvent.click(screen.getByRole("button", { name: "Build an agent" }));
     expect(data.ask).toHaveBeenCalled();
   });

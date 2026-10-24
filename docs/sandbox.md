@@ -42,9 +42,10 @@ flowchart LR
 
 `sandboxd` is the server from [`pydantic-ai-backend`](https://github.com/vstorm-co/pydantic-ai-backend),
 shipped as `ghcr.io/vstorm-co/sandboxd`; the backend talks to it over HTTP with
-the token in `SANDBOXD_TOKEN`. The other two sandbox backends a spec can name —
-`daytona` and `state` — are a hosted service and a document in Postgres, and
-neither involves any of the above.
+the token in `SANDBOXD_TOKEN`. The other sandbox backends — `daytona` and `e2b`
+connections, and `state` — are hosted services and a document in Postgres, and
+none of them involves any of the above; neither does the person's own computer
+(see [Beyond sandboxd](#beyond-sandboxd)).
 
 !!! danger "The token is root-equivalent"
 
@@ -112,7 +113,7 @@ What separates one tenant from another:
 
 ## Which environments an agent may ask for
 
-**One runtime ships, and it is defined in this repository** —
+**Two runtimes ship, and they are defined in this repository** —
 `backend/app/core/catalog/sandbox_runtimes.json`:
 
 | | `workbench` — 1.93 GB, built in about 65 s on a warm host |
@@ -128,14 +129,27 @@ What separates one tenant from another:
 | Web | `httpx`, `requests`, `beautifulsoup4`, `lxml`, `markdownify` |
 | Other | `pyyaml` |
 | Memory | 2 GiB |
-| Network | yes — the only runtime that has one |
+| Network | yes |
 
-One rather than eight, and the reason is `prewarm`: the service builds **every**
+| | `desktop` — for [computer use](reference/capabilities.md#computer-use) |
+|---|---|
+| Built on | `python:3.12-slim` |
+| Desktop | Xvfb on display `:0`, XFCE, Firefox ESR; `xdotool` and `scrot`, which drive and photograph it |
+| Tools | `git`, `curl`, `jq`, `procps`, `unzip` |
+| Memory | 2 GiB |
+| Network | yes, so the browser on it can open a page |
+
+Two rather than eight, and the reason is `prewarm`: the service builds **every**
 entry of its allowlist when it starts, so eight aliases is eight `pip install`s in
 a start-up nobody is watching, eight images cached on the host, and an agent asked
 to read a PDF getting whichever alias its spec happened to name. `workbench` is
 built to be the answer to *write and run some code, read what the user attached,
-plot it, fetch a page*.
+plot it, fetch a page*, and it is first, so it is what an agent naming no runtime
+gets.
+
+`desktop` is the one thing `workbench` cannot be: a screen for an agent
+with `computer_use` to look at and click on. Its desktop starts on the run's first
+screenshot, not with the container.
 
 Until #1040 this catalogue was `BUILTIN_RUNTIMES` from the sandbox library:
 fifteen recipes, of which a `sandboxd` started by this project allowed three. It
@@ -424,7 +438,7 @@ time still installed.
 What holds:
 
 - the sandbox cannot see the Docker socket; only `sandboxd` can;
-- no network at all unless the runtime asks for one, and only `workbench` does;
+- no network at all unless the runtime asks for one, and both shipped runtimes do;
 - 2 CPUs, 512 processes and a 64 MiB `tmpfs` at `/tmp` per sandbox, plus
   `SANDBOXD_EXECUTE_TIMEOUT` (300 s) on every command and
   `SANDBOXD_MAX_READ_BYTES` (8 MiB) on every read;
@@ -449,7 +463,7 @@ What remains, stated rather than implied:
 !!! warning "A laptop caveat, but check it before copying the local compose file"
 
     `docker-compose.yml` publishes Postgres and Redis with `postgres/postgres`,
-    and `workbench` is the one runtime with a network. On a shared host that is
+    and both shipped runtimes have a network. On a shared host that is
     reachable from inside a sandbox; `docker-compose-prod.yml` publishes neither.
 
 ## What the file browser shows, and what it leaves out
@@ -575,15 +589,41 @@ connection's credential was deleted or revoked - delete the sandboxes in the
 provider's console. Then delete the connection again and confirm that you did:
 its tombstones are forgotten, and how many goes in the audit log.
 
+## Beyond sandboxd { #beyond-sandboxd }
+
+Two more places a run's sandbox tools can work, each with the same tools and
+none of the containment above.
+
+**An E2B connection.** A sandbox connection of kind `e2b` runs sandboxes on the
+organization's own [E2B](https://e2b.dev) account: its API key is the
+connection's vault secret, and the connection's default runtime names an E2B
+template - empty for E2B's default, `desktop` for the template computer use
+drives. Every create, attach and destroy is made with that key, never with an
+`E2B_API_KEY` the deployment's process happens to have, so each organization's
+sandboxes run, and are billed, on its own account. A sandbox is paused at the end
+of its hour rather than killed, so a longer-scoped workspace keeps its files, and
+the destroy sweep ends it as it ends a Daytona one.
+
+**The person's own computer.** In the [desktop app](desktop.md#work-on-this-computer)
+a chat can work in a folder on the computer it runs on. The tools reach it
+through the app's connection to the server, and the app - not this server -
+refuses any folder or mode the person did not grant; writes run under Seatbelt on
+macOS or bubblewrap on Linux. Only a person's own chats, and triggers that act as
+their creator, reach their computer; a run waits up to ten minutes for it to
+connect. Nothing of it is kept here: there is no workspace row and no session to
+reap.
+
 ## Recap
 
 - The API container **holds no Docker socket**. `sandboxd` does, and a sandbox is
   its sibling rather than a container inside it.
 - A **session key** folds in scope, organization, backend kind and host — which is
   precisely what decides who shares a container.
-- **One runtime ships**, `workbench`, and the model is told what is in it, composed
-  from the same catalogue that built it.
+- **Two runtimes ship**, `workbench` and `desktop`, and the model is told what is in
+  the one it runs on, composed from the same catalogue that built it.
 - The record of what an agent did lives in **this platform's table**, holds a path
   and never a payload, and outlives the agent.
+- **E2B and the person's own computer** are sandboxes too: one on the
+  organization's own key, the other held to what the person granted on it.
 - **Files are kept indefinitely** unless you set `SANDBOXD_WORKSPACE_TTL`. Disk use
   only grows.

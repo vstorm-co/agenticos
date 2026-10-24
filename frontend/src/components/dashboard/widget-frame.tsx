@@ -74,23 +74,28 @@ export function WidgetFrame({
       // a card that is waiting reads as waiting rather than as disabled.
       className={cn(
         CARD_SURFACE,
-        "dash-widget group flex h-full min-w-0 flex-col overflow-hidden shadow-none",
+        "dash-widget group @container/widget flex h-full min-w-0 flex-col overflow-hidden shadow-none",
         className,
       )}
     >
       {/* The rule under the heading is the card's own edge tone, not the page's
           border: on a translucent surface `border-border` is a hard grey line
           drawn across a panel. */}
-      <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-5 py-3.5">
+      <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-4 py-3 sm:px-5 sm:py-3.5">
         <div className="flex min-w-0 items-center gap-1.5">
-          <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>
+          <h3
+            title={title}
+            className="text-foreground truncate text-sm font-semibold tracking-tight"
+          >
+            {title}
+          </h3>
           {hint ? <WidgetHint title={title} text={hint} /> : null}
           <WidgetOptionChips options={options} />
         </div>
         {seeAll ? (
           <Link
             href={seeAll}
-            className="text-muted-foreground hover:text-foreground shrink-0 text-xs"
+            className="text-muted-foreground hover:text-foreground touch:min-h-11 inline-flex shrink-0 items-center rounded-md text-xs"
           >
             {t("seeAll")}
           </Link>
@@ -101,7 +106,10 @@ export function WidgetFrame({
           otherwise be silently cut off at the border with nothing to say so. */}
       <div
         ref={body}
-        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto p-5", SCROLL_FADE_Y)}
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 sm:p-5",
+          SCROLL_FADE_Y,
+        )}
       >
         {children}
       </div>

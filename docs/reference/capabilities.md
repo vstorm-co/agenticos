@@ -66,6 +66,7 @@ browser is pointed at the deployment's browser service
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
@@ -715,12 +716,14 @@ it lasts an hour after the browse last did anything.
 | `preview` | `true` | send the viewport to the chat while the browse runs |
 | `preview_width` | 1024 | 320–1920; the viewport width, and so the width of the frames |
 | `step_model_profile_id` | empty | a model profile `browse_web` asks for each step instead of the agent's - a cheaper model makes a long browse cheaper, and quicker only where its provider answers quickly (Claude Haiku through OpenRouter took as long per step as Sonnet); empty uses the agent's model, and the agent's own browser tools always do |
-| `connection` | `built_in` | `built_in`, `proxy` or `hosted`: how the browser reaches the web |
+| `connection` | `built_in` | `built_in`, `proxy`, `hosted` or `local`: how the browser reaches the web |
 | `proxy_url` | empty | under `proxy`: `http://`, `https://` or `socks5://` with host and port; the binding's secret, when there is one, is its `username:password` |
 | `hosted_url` | empty | under `hosted`: the service's `wss://` CDP address; the binding's secret is its key and is required |
 | `hosted_key_param` | `apiKey` | what the hosted browser calls its key in the address's query |
 | `timezone` | empty | an IANA time zone the browser reports - set it to the proxy's region |
 | `locale` | empty | a language tag such as `pl-PL`, sent as `Accept-Language` and `navigator.language` |
+
+For `local`, select local browsing under **Work on** in the paired [desktop app](../desktop.md#local-browser-models-and-mcp). No server CDP endpoint is required. It uses a temporary visible Chromium profile and the computer's network, including LAN services after native consent; the page-domain allowlist still applies. Proxy and hosted bindings are refused instead of silently ignored. Time zone and locale overrides are supported. The deployment-browser setup below applies to the other connection modes.
 
 **The browser is one you run, and the operator says which.** There is no Chromium in
 the API image: `cdp_url` points at a browser service an operator runs and isolates.
@@ -808,6 +811,116 @@ Specs written before version 13 that bound the step-by-step browser
 (`browser_choice`) load as this one, its `browse_page` approval and rename moved to
 `browse_web`; the decision-model settings and the TypeSafe key are dropped.
 
+## Computer use { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
+The agent operates a whole desktop, so it can use any application, not only a
+web page. It looks at a screenshot and sends a few mouse and keyboard actions in
+that screenshot's pixels. Each `computer_act` answer includes a fresh
+screenshot. Larger screens are scaled down to `screen_width`x`screen_height`
+before the model sees them, and every point is mapped back to the desktop's own
+coordinates, including a Retina Mac's points.
+
+**Approval is for acting, and it is opt-in.** Like every tool, neither waits for
+approval until the agent's owner asks for it. `computer_screenshot` changes
+nothing. Set `tool_approval: {computer_act: required}` and every batch of
+actions waits for approval against a screenshot both the model and the approver
+have seen. A point outside that screenshot is refused before anything runs. An
+approved batch runs in a run of its own, which measures the screen first and
+acts only if it is still the shape it was on the screenshot the batch was chosen
+on. A changed resolution or aspect ratio does nothing and shows the model the
+new screen. `max_actions` is the run's, however many times it waits for
+approval. Approval holds the actions, not the pixels under them: a window can
+change between the screenshot and the click while the screen keeps its size, so
+deny a batch aimed at a window you do not trust to stay put.
+
+| `desktop` | The desktop | Needs |
+|---|---|---|
+| `sandbox` | A Linux desktop (XFCE and Firefox) inside the agent's own [sandbox](#files-shell), the same machine its shell and file tools work on | The [Sandbox](#files-shell) capability on a sandbox connection, running the `desktop` runtime |
+| `daemon` | A `computerd` the operator runs: their own Linux desktop (X11), a Mac's own screen (`uv run deploy/computer/computerd.py`) or a desktop in a container (`deploy/computer/Dockerfile`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and the daemon's token as the binding's secret |
+| `e2b` | An E2B desktop of the run's own, from E2B's `desktop` template, killed when the run lets go of it | The organization's E2B key as the binding's secret |
+| `local` | The person's own screen, in a chat working on their computer through the [desktop app](../desktop.md#the-screen) | Nothing: the app asks the person before the first screenshot |
+| `auto` | The person's screen when the chat works on their computer, else an E2B desktop when the binding names a key, else the sandbox | What the desktop it lands on needs |
+
+A sandbox desktop needs nothing of its own: no address, no token and no
+provider. It lives and is shared exactly as the sandbox is, per conversation or
+per agent by the Sandbox capability's `session_scope`, and a file the agent
+writes with its file tools is a file it can open on the screen.
+
+Publish refuses a `sandbox` desktop on an agent without a sandbox connection,
+and on an inline specialist without one of its own or one its parent shares. It
+also refuses one whose sandbox is not on the `desktop` runtime, read the way a
+run reads it: the Sandbox capability's `runtime`, else the connection's default.
+A sandbox that names neither is refused too, because the shipped default is
+`workbench`, which has no display. A Daytona connection is refused because it
+runs its own image.
+
+The `execute` tool is not needed, and leaving it off keeps the desktop's actions
+behind `computer_act` and its approval: with `execute`, the agent can run
+`xdotool` from the shell.
+
+One daemon is one desktop: every run pointed at it shares the machine and
+whatever is signed in on it. Give it a dedicated machine or account, not
+somebody's working session. The agent can read anything the account running
+the daemon can, its token included; the container in `deploy/computer/` runs
+the daemon as an account of its own for that reason.
+
+**A daemon's token is the organization's.** The `COMPUTERD_TOKEN` the daemon
+was started with is stored in the organization's [vault](../secrets.md) as an
+API key and named by the binding's `secret_id`, and publish refuses a daemon
+without one. `COMPUTER_DAEMON_ALLOWED_HOSTS` is the deployment's list of where a
+run may send that token. It is checked at publish and again each time a run
+opens the daemon, so taking a host off it stops agents already published. Every
+organization can name an allowed host, so the token, not the list, keeps one
+organization off another's desktop: give each desktop its own token.
+`daemon_url` is the daemon's address alone, and one with a query, a fragment or
+credentials is refused.
+
+| Config | Default | Range |
+|---|---|---|
+| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
+| `daemon_url` | empty, refused at publish for `daemon` | an allowed host, no query, fragment or credentials |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, not above `max_actions` |
+| `max_actions` | 200 | 1–2000 per run |
+| `preview` | on | |
+
+The chat draws the desktop in a window under the message while the agent
+works: one window per run, opened by its first screenshot, with a frame after
+every call and a line per action. Text the model types is shown there as typed.
+
+**Watching and taking over.** Every desktop is also published to the run's live
+view, the one a browse uses, so a run from a channel or a routine can be watched
+from the console. **Take over** hands the desktop to the person between the
+agent's calls: their clicks, keys and scrolls are carried out on it, the agent
+waits, and **Give back** returns it with the model told to look again. Who may
+watch and take over is the browse's rule; the person's own screen is theirs
+alone.
+
+**A screenshot the user keeps.** `computer_screenshot` is for the model, and
+nothing keeps it: a run waiting on approval, its manifest and a compacted
+conversation store a sentence in its place. When the user asks to see the screen, or a step's result
+should be kept as evidence, the agent calls `computer_save_screenshot`. It
+stores the screen at full resolution for the organization and shows it in the
+chat, linked to the full-size file. When the agent has a workspace, it also
+writes the file to `output/`, so a channel reply carries it and a later step can
+put it in a report. Without one, a channel reply carries no file, as with image
+generation. It changes nothing on the desktop, and approval does not
+hold it unless the owner asks.
+
+!!! warning "Screen text is untrusted"
+
+    The instructions tell the model that what is on the screen is data, never
+    instructions, and to stop for passwords, payments and decisions that belong
+    to the user. Approval is what enforces it, and it is off until the agent's
+    owner sets it: without it, `computer_act` lets the agent act on whatever a
+    window tells it.
+
 ## Calculations { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
@@ -885,11 +998,14 @@ the field, the file panel labels whose workspace it is rather than calling it "t
 conversation's files", and setting it is recorded in the audit log — because a user
 who sees a file they did not create should be able to find out why.
 
-**Changing the backend or the connection starts a fresh workspace rather than
-reattaching to the old one.** A stored document, a container's volume and a
-Daytona sandbox are three different things, and two `sandboxd` installations are
-two different things — so each gets its own workspace, and the previous one stays
-where it is, still listed and still readable. Moving a live agent is therefore not
+**Changing the backend, the connection or the runtime starts a fresh workspace
+rather than reattaching to the old one.** A stored document, a container's volume
+and a Daytona sandbox are three different things, and two `sandboxd` installations
+are two different things — so each gets its own workspace, and the previous one
+stays where it is, still listed and still readable. A container's runtime is
+chosen when it is created, so a workspace moved to another runtime would otherwise
+keep running on the old image. Naming no runtime and naming `workbench`, the
+shipped default, are the same workspace. Moving a live agent is therefore not
 a way to carry its files across; the agent finds an empty workspace on the new
 host. Since `connection_id: null` means "the organization's default", marking a
 different connection as default has the same effect without any spec changing.
@@ -2411,8 +2527,9 @@ the agent is assembled:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `computer:use` | `computer_use` |
 
-!!! note "All eight are granted by default today"
+!!! note "All nine are granted by default today"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
     Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check

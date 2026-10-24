@@ -62,6 +62,10 @@ describe("NotificationBell", () => {
     renderBell("row");
 
     expect(screen.getByRole("button", { name: /Notifications/ })).toHaveTextContent("3");
+    expect(screen.getByRole("button", { name: /Notifications/ })).toHaveAttribute(
+      "aria-label",
+      "Notifications, 3 unread",
+    );
   });
 
   it("shows no badge at all when nothing is unread", () => {

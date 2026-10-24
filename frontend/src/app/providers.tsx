@@ -37,7 +37,27 @@ export function Providers({ children }: ProvidersProps) {
       <ThemeProvider>
         <MotionProvider>
           <TooltipProvider>{children}</TooltipProvider>
-          <Toaster richColors position="top-right" />
+          <Toaster
+            className="console-toasts"
+            position="top-right"
+            gap={8}
+            offset={{ top: "calc(var(--shell-inset-top, 0px) + 1rem)", right: "1rem" }}
+            mobileOffset={{
+              top: "calc(var(--shell-inset-top, 0px) + 1rem)",
+              left: "1rem",
+              right: "1rem",
+            }}
+            toastOptions={{
+              style: {
+                borderRadius: "0.875rem",
+              },
+              classNames: {
+                success: "[&_[data-icon]]:text-success",
+                error: "[&_[data-icon]]:text-destructive",
+                warning: "[&_[data-icon]]:text-warning",
+              },
+            }}
+          />
         </MotionProvider>
       </ThemeProvider>
     </QueryClientProvider>

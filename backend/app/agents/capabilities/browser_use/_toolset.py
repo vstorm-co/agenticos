@@ -354,7 +354,7 @@ def build_toolset(
         """
         # Refused at publish, so reaching this means an agent published before the
         # check or edited around it. A sentence the model can relay, not a raise.
-        if not cdp_url and (route is None or route.remote_url is None):
+        if page_factory is None and not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
 
         call_id = ctx.tool_call_id or str(uuid4())
@@ -557,7 +557,7 @@ def build_toolset(
             The page's address and title, a numbered table of what can be acted
             on, and its text.
         """
-        if not cdp_url and (route is None or route.remote_url is None):
+        if page_factory is None and not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
         try:
             if toolset.session is None:

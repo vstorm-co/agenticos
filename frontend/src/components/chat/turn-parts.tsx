@@ -4,6 +4,7 @@ import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
+import { DESKTOP_TOOLS } from "@/lib/browse";
 import { toolEntry } from "@/lib/tool-catalog";
 import { drawnUnderTheAnswer } from "@/lib/turn-extras";
 import { isVisualTool } from "@/lib/visuals";
@@ -435,7 +436,8 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
  * every `browse_web`, and the first `browser_open` - the one that starts the agent
  * driving the tab itself. A later `browser_open` in the same turn navigates that
  * same tab, as its clicks do, so it is drawn in the window already there rather
- * than as a second one beside it.
+ * than as a second one beside it. Every desktop call is a candidate: which of
+ * them opened a window is known only to the live view (`TurnBrowses`).
  */
 export function browseCalls(runs: PartRun[]): ToolCall[] {
   let driving = false;
@@ -443,7 +445,7 @@ export function browseCalls(runs: PartRun[]): ToolCall[] {
     run.kind === "tools"
       ? run.parts.flatMap((part) => {
           const call = part.toolCall;
-          if (call?.name === "browse_web") return [call];
+          if (call?.name === "browse_web" || (call && DESKTOP_TOOLS.has(call.name))) return [call];
           if (call?.name !== "browser_open" || driving) return [];
           driving = true;
           return [call];

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSoon } from "@/lib/coalesced-invalidation";
+import { readConversation, readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { setUrlParam } from "@/lib/utils";
 import {
@@ -19,12 +20,7 @@ import {
   useOrgStore,
   useWorkingStore,
 } from "@/stores";
-import type {
-  Conversation,
-  ConversationCost,
-  ConversationListResponse,
-  ConversationMessage,
-} from "@/types";
+import type { Conversation, ConversationListResponse, ConversationMessagesResponse } from "@/types";
 
 /**
  * One chain of pending stars per reader, tenant and conversation, so two clicks
@@ -61,13 +57,6 @@ interface CreateConversationResponse {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
-}
-
-interface MessagesResponse {
-  items: ConversationMessage[];
-  total: number;
-  /** What the whole thread cost, summed server-side. Null when nothing was measured. */
-  cost: ConversationCost | null;
 }
 
 const PAGE_SIZE = 30;
@@ -206,13 +195,19 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   // The server does the narrowing - see `listParams` - so what comes back is
   // one page of one list, and `total` counts that same list rather than the
   // deployment.
+  //
+  // In the apps a listing without a search is kept on the device, and read from
+  // there when the server cannot be reached (#2097) - so the query runs offline
+  // too, rather than waiting for a network to try.
   const { data, isLoading: listLoading } = useQuery({
     queryKey: listKey,
     queryFn: async () => {
-      const response = await apiClient.get<ConversationListResponse>(`/conversations?${params}`);
+      const ask = () => apiClient.get<ConversationListResponse>(`/conversations?${params}`);
+      const response = search.trim() ? await ask() : await readThrough(`list:${params}`, ask);
       rememberHasMore(response.items.length >= PAGE_SIZE);
       return response;
     },
+    networkMode: "offlineFirst",
     // While a thread on the page is at work, ask again every few seconds, so its
     // row stops saying so when the run ends - a routine's, or another tab's, as
     // well as this one's. A thread this tab handed off counts too: the listing
@@ -306,8 +301,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       clearMessages();
       setCurrentMessages([]);
       try {
-        const msgs = await apiClient.get<MessagesResponse>(
-          `/conversations/${encodeURIComponent(urlId)}/messages`,
+        const msgs = await readConversation(urlId, () =>
+          apiClient.get<ConversationMessagesResponse>(
+            `/conversations/${encodeURIComponent(urlId)}/messages`,
+          ),
         );
         if (!stillSameAccount(startedAs)) return;
         setCurrentMessages(msgs.items, msgs.cost);
@@ -402,9 +399,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`, {
-          signal: controller.signal,
-        });
+        const response = await readConversation(id, () =>
+          apiClient.get<ConversationMessagesResponse>(`/conversations/${id}/messages`, {
+            signal: controller.signal,
+          }),
+        );
         // Guard against a superseded request resolving after a newer select.
         if (controller.signal.aborted || !stillSameAccount(startedAs)) return;
         setCurrentMessages(response.items, response.cost);
@@ -450,9 +449,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     async (id: string) => {
       const ticket = ++rereadRef.current;
       const startedAs = useAuthStore.getState().user?.id;
-      let response: MessagesResponse;
+      let response: ConversationMessagesResponse;
       try {
-        response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`);
+        response = await readConversation(id, () =>
+          apiClient.get<ConversationMessagesResponse>(`/conversations/${id}/messages`),
+        );
       } catch {
         // The turn is saved whatever this read did; the transcript keeps what it
         // shows, and the next saved turn reads it again.

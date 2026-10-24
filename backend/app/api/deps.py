@@ -87,8 +87,12 @@ from app.services.personal_data import PersonalDataService
 from app.services.browser_sign_in import BrowserSignInService
 from app.services.user import UserService
 from app.services.session import SessionService
+from app.services.web_push import WebPushService
+from app.services.apns import ApnsService
+from app.services.push import PushService
 from app.services.impersonation import ImpersonationService
 from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
+from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.visual import VisualService
@@ -124,11 +128,41 @@ def get_oauth_exchange_service(redis: Redis) -> OAuthExchangeService:
     return OAuthExchangeService(redis)
 
 
+def get_device_pairing_service(redis: Redis, db: DBSession) -> DevicePairingService:
+    """Create DevicePairingService over Redis and the request's database session."""
+    return DevicePairingService(redis, UserService(db), SessionService(db))
+
+
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 PersonalDataSvc = Annotated[PersonalDataService, Depends(get_personal_data_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 ImpersonationSvc = Annotated[ImpersonationService, Depends(get_impersonation_service)]
 OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
+DevicePairingSvc = Annotated[DevicePairingService, Depends(get_device_pairing_service)]
+
+
+def get_web_push_service(db: DBSession) -> WebPushService:
+    """Create WebPushService with the request's database session."""
+    return WebPushService(db)
+
+
+WebPushSvc = Annotated[WebPushService, Depends(get_web_push_service)]
+
+
+def get_apns_service(db: DBSession) -> ApnsService:
+    """Create ApnsService with the request's database session."""
+    return ApnsService(db)
+
+
+ApnsSvc = Annotated[ApnsService, Depends(get_apns_service)]
+
+
+def get_push_service(db: DBSession) -> PushService:
+    """Create PushService - Web Push and APNs - with the request's database session."""
+    return PushService(db)
+
+
+PushSvc = Annotated[PushService, Depends(get_push_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:

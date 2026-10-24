@@ -1,267 +1,314 @@
 ---
-source_sha: "8f92579bb015"
+source_sha: "7a2d9e84d16e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
 
 AgenticOS działa w przeglądarce i tak używa go większość ludzi. Aplikacja
-desktopowa jest dodatkiem dla tych, którzy chcą mieć go w docku: konsola we
-własnym oknie plus zwierzak i skrót do zrzutu ekranu. Nic w samej platformie jej
-nie potrzebuje.
+desktopowa jest dla tych, którzy chcą więcej na własnym komputerze: konsola we
+własnym oknie, szybkie pytanie z dowolnego miejsca, blobby na pulpicie i - to,
+czego przeglądarka nie potrafi - własne agenty pracujące w folderze na tym
+komputerze i na jego ekranie. Nic w samej platformie jej nie potrzebuje.
 
-> **Miejsce na zrzut — aktualna aplikacja desktopowa i zwierzak.**
+> **Miejsce na zrzut — aplikacja desktopowa, blobby i szybkie pytanie.**
 
-Aplikacja wewnątrz okna to ta sama konsola w Next.js, którą serwer już serwuje,
-ładowana z serwera, więc niesie to samo logowanie, te same uprawnienia i te same
-sprawdzenia tenanta co zakładka przeglądarki.
-
-Jest to powłoka [Tauri](https://tauri.app) w `desktop/` i trzyma dokładnie jedno
-ustawienie: adres serwera. Pierwsze uruchomienie o niego pyta, „Shell → Change
-server…" pyta ponownie, a wszystko pomiędzy to konsola.
+Aplikacja w oknie to ta sama konsola Next.js, którą serwer już serwuje, ładowana
+z serwera, więc ma to samo logowanie, te same uprawnienia i te same kontrole
+tenanta co karta przeglądarki. To powłoka [Tauri](https://tauri.app) w
+`desktop/`.
 
 !!! note "To powłoka, a nie build frontendu"
 
-    `frontend/` to aplikacja Next.js z serwerową połową — kilkadziesiąt route
-    handlerów przekazujących żądania do backendu, ciasteczka sesji, które
-    ustawiają, middleware wybierające lokalizację i strony renderowane na
-    serwerze. Nic z tego nie działa wewnątrz binarki desktopowej, więc powłoka nie
-    próbuje: otwiera URL wdrożenia tak, jak zrobiłaby to przeglądarka. Instalujesz
-    wdrożenie; aplikacja jest tym, czym je otwierasz.
+    `frontend/` to aplikacja Next.js z połową serwerową - route handlery
+    przekazujące żądania do backendu, ustawiane przez nie ciasteczka sesji,
+    middleware wybierające język i strony renderowane na serwerze. Nic z tego nie
+    działa wewnątrz binarki desktopowej, więc powłoka nawet nie próbuje: otwiera
+    URL wdrożenia tak, jak zrobiłaby to przeglądarka. Instalujesz wdrożenie;
+    aplikacja to sposób, w jaki je otwierasz.
 
 ## Uruchamianie { #running-it }
 
-Wymagania wstępne to Rust z [rustup](https://rustup.rs) i webview danej platformy
-— WebKit na macOS, WebView2 na Windowsie, WebKitGTK na Linuksie; listę dla każdej
-platformy ma własna
+Wymagane są Rust z [rustup](https://rustup.rs) i webview platformy - WebKit na
+macOS, WebView2 na Windows, WebKitGTK na Linuksie; listę dla każdej platformy ma
 [strona wymagań](https://v2.tauri.app/start/prerequisites/) Tauri. Tauri CLI jest
-przypięte w `desktop/package.json`, a `make install` pobiera je razem z całą
-resztą.
+przypięte w `desktop/package.json`, a `make install` pobiera je razem z resztą.
 
 ```bash
-make desktop-dev     # opens the shell; type the address of a console
+make desktop-dev     # opens the shell
 make desktop-build   # a .app / .dmg, .msi or .deb/.AppImage for this machine
 make desktop-check   # rustfmt, clippy with warnings denied, and the tests
 ```
 
-Za pierwszym razem okno pokazuje formularz pytający, gdzie jest serwer,
-wypełniony wartością `http://localhost:3000` — czyli stosem z `make dev`. Sam
-host (`agenticos.acme.com`) jest otwierany po HTTPS. Wszystko, co nie jest
-adresem webowym, zostaje na formularzu odrzucone.
+Przy pierwszym uruchomieniu aplikacja pyta, gdzie jest AgenticOS:
 
-!!! warning "Zwykłe `http://` jest tylko dla tej maszyny"
+- **Na tym komputerze.** Aplikacja sprawdza Dockera, uruchamia opublikowane obrazy
+  z konsolą i API tylko na loopbacku, tworzy twoją organizację i jej właściciela,
+  a potem uruchamia, zatrzymuje i aktualizuje ten stos z paska menu.
+- **Na serwerze twojej organizacji.** Wpisz jego adres; sama nazwa hosta
+  (`agenticos.acme.com`) jest otwierana przez HTTPS. Logujesz się we własnej
+  przeglądarce (zobacz [Logowanie](#signing-in)).
 
-    `localhost`, `127.0.0.1` i `::1` mogą być osiągane otwartym tekstem; każdy
-    inny host zostaje odrzucony, dopóki nie jest `https://`. Konsola wysyła na tym
-    połączeniu hasło i odbiera token, a sieć LAN to dokładnie miejsce, w którym
-    ktoś inny może to przeczytać.
+!!! warning "Zwykłe `http://` tylko dla tego komputera"
 
-Adres, na którym nic nie odpowiada, też zostaje odrzucony: powłoka otwiera
-połączenie TCP, zanim skieruje gdziekolwiek webview, ponieważ WebKit maluje
-odrzucone połączenie jako puste białe okno. Ta sama sonda działa przy każdym
-uruchomieniu, więc stos, który leży, odsyła cię z powrotem na formularz wraz
-z przyczyną, zamiast stawiać przed pustym oknem.
+    `localhost`, `127.0.0.1` i `::1` mogą być osiągane otwartym tekstem; każdy inny
+    host jest odrzucany, dopóki nie będzie `https://`. Konsola wysyła hasło i
+    dostaje token z powrotem tym połączeniem, a sieć lokalna to dokładnie miejsce,
+    gdzie ktoś inny może je przeczytać.
 
-Odpowiedź jest zapisywana jako `server.json` w katalogu konfiguracyjnym aplikacji
-właściwym dla platformy — `~/Library/Application Support/co.vstorm.agenticos/` na
-macOS, `%APPDATA%\\co.vstorm.agenticos\\` na Windowsie,
-`~/.config/co.vstorm.agenticos/` na Linuksie — i odczytywana ponownie przy każdym
-uruchomieniu.
+Adres, pod którym nic nie odpowiada, też jest odrzucany: powłoka otwiera
+połączenie TCP, zanim skieruje gdziekolwiek webview, bo WebKit rysuje odrzucone
+połączenie jako puste białe okno.
 
-Plik, który przestał się parsować — literówka przy ręcznej edycji — zostaje przy
-następnym uruchomieniu odłożony na bok jako `server.json.invalid`, a formularz
-połączenia zapisuje świeży.
+Ustawienia są w `server.json` w katalogu konfiguracji aplikacji -
+`~/Library/Application Support/co.vstorm.agenticos/` na macOS,
+`%APPDATA%\\co.vstorm.agenticos\\` na Windows, `~/.config/co.vstorm.agenticos/` na
+Linuksie. Plik, który przestał się parsować, jest odkładany jako
+`server.json.invalid`, a zapisywany jest nowy. Serwer zmienia się w
+**Ustawieniach…** (`⌘,`), z menu w zasobniku albo uruchamiając z
+`--server <address>`.
 
-Zły adres poprawia się na cztery sposoby, którykolwiek jest bliżej:
-**Settings…** (`⌘,`, także na ikonie w zasobniku i w menu kontekstowym zwierzaka,
-więc jest osiągalne nawet wtedy, gdy okno pokazuje niewłaściwą stronę),
-**Shell → Change server…**, edycja tego pliku albo uruchomienie z terminala
-z `--server http://localhost:3000`, co też go zapisuje.
+## Aplikacja, nie karta { #an-application-not-a-tab }
 
-## Zwierzak { #the-pet }
+Na macOS pasek boczny konsoli trzyma przyciski okna i przeciąga okno, okno
+pamięta swój rozmiar i miejsce, a zamknięcie go zostawia aplikację w pasku menu.
+Pasek menu ma File, Edit, View, Go (`⌘1`-`⌘5`, `⌘[` i `⌘]`) i Window; menu w
+zasobniku robi to samo na Windows i Linuksie. Natywne powiadomienia mają Approve i
+Reject dla czekającej akceptacji, a Dock lub pasek zadań pokazuje, ile czeka.
+**Ustawienia → Aplikacja desktopowa** uruchamia aplikację przy logowaniu, trzyma
+ją przy zamkniętym oknie i włącza lub wyłącza licznik.
 
-Małe stworzonko w pixel-arcie we własnym, przezroczystym oknie zawsze na wierzchu:
-siedzi na pulpicie, kiedy konsola jest otwarta, zminimalizowana albo zamknięta,
-tak jak robią to zwierzaki Codexa. Przeciągnij go, gdzie chcesz; kliknij, a
-pomacha; kliknij dwukrotnie, a podskoczy i wysunie konsolę na wierzch, otwierając
-ją ponownie, jeśli okno było zamknięte. Zostawiony sam sobie stoi bezczynnie,
-rozgląda się, przechadza kawałek po ekranie i zawraca przy krawędzi, a od czasu
-do czasu przysypia.
+**Przypięte agenty**: strona agenta oferuje Przypnij do Docka (gdzie indziej do
+paska zadań). Przypięty agent jest w menu Docka i w menu zasobnika, jedno
+kliknięcie od nowego czatu z nim. Plik upuszczony na ikonę w Docku albo na blobby
+zaczyna czat z tym plikiem w załączniku.
 
-Najedź na niego, a nad jego głową pojawi się przycisk **+ New chat**; ustawia on
-konsolę na świeżej rozmowie, otwierając okno, jeśli było zamknięte. Kliknij
-zwierzaka, a coś powie, w dymku, własnym głosem. Pogłaszcz go — kursorem tam
-i z powrotem po nim kilka razy — a zamknie oczy i wyskoczy serduszko. Kiedy stoi,
-jego oczy podążają za kursorem. Po zmroku przysypia tam, gdzie w innym razie by
-się przechadzał. Upuszczony po przeciągnięciu, ląduje z małym podskokiem.
+## Blobby { #blobby }
 
-Kliknij zwierzaka prawym przyciskiem, żeby otworzyć jego menu: nowy czat,
-konsola, to, którym zwierzakiem jest, i to, czy jest pokazywany. To samo menu
-jest na ikonie w zasobniku (na macOS w pasku menu) oraz pod **Pet** w pasku menu,
-a wszystkie trzy to jeden zestaw pozycji, więc znacznik zmieniony w jednym jest
-zmieniony w pozostałych.
+Stworek w stylu awatarów agentów, który siedzi na pulpicie, gdy konsola jest
+otwarta, zminimalizowana albo zamknięta: jeden z obsady sześciu, twarz jednego z
+twoich agentów albo twarz własna. Mówi, kiedy czeka akceptacja, w skrzynce jest
+coś nowego albo twoje runy są w toku, i otwiera to po kliknięciu. Przeciągnij go
+gdziekolwiek; uszczypnij, przewiń nad nim z wciśniętym `⌘` albo użyj suwaka w
+Ustawieniach, żeby zmienić rozmiar. Jego własna zakładka w Ustawieniach wybiera
+postać, jak bardzo jest gadatliwy i czy w ogóle pokazuje aktywność.
 
-**Show pet** (Cmd/Ctrl+Shift+P) chowa go i przywraca; to samo menu wybiera, który
-to zwierzak — Orbit, okrągły, z anteną; Boxy, terminal na nogach; Ghost, który
-unosi się w powietrzu; Sprout, nasionko z listkiem; Amigo, w sombrero i z wąsem,
-for no more caramba in your AI. To, gdzie go zostawiono, czy jest pokazywany
-i którym jest zwierzakiem, zapisuje się obok adresu serwera, więc przy następnym
-uruchomieniu zwierzak jest tam, gdzie go postawiłeś. Przy systemowym ustawieniu
-ograniczenia ruchu stoi nieruchomo i dalej daje się przeciągać.
+Jego okno jest przezroczyste, co na macOS wymaga `macOSPrivateApi` w
+`tauri.conf.json` - a to wyklucza Mac App Store, dokąd samodzielnie hostowana
+konsola i tak się nie wybierała.
 
-Grafika jest komponowana w czasie działania w `desktop/ui/pet-sprites.js`: każdy
-zwierzak to jedno ciało i opis tego, gdzie idą jego oczy, stopy i ręka, a każda
-animacja to kilka linijek pozycji współdzielonych przez całą piątkę, a nie arkusz
-sprite'ów na zwierzaka. To, co każdy z nich mówi, jest w `pet-lines.js`;
-zachowanie oraz każda reguła mówiąca, kiedy głaskanie się liczy albo gdzie
-patrzą oczy, są w `pet-engine.js`, czystym i przetestowanym. Własne okno jest
-tym, co czyni go zwierzakiem, a nie widgetem, i tym, ile to kosztuje:
-`macOSPrivateApi` w `tauri.conf.json`, bo przezroczyste okno na macOS tego
-wymaga, co wyklucza Mac App Store — a to i tak nie jest miejsce, do którego
-wybierała się self-hostowana konsola.
+## Szybkie pytanie i głos { #quick-ask-and-voice }
 
-!!! note "Nie wie jeszcze, co robią agenci"
+**Szybkie pytanie** (`⌥Space`, do zmiany) otwiera pływający panel, żeby zapytać
+dowolnego agenta z dowolnego miejsca, bez wysuwania konsoli na wierzch. Na macOS
+może zabrać to, na co patrzyłeś: tekst zaznaczony w innej aplikacji, schowek albo
+pliki zaznaczone w Finderze - każde pokazane przed wysłaniem i tylko wtedy, gdy
+pozwoliłeś AgenticOS czytać zaznaczenie.
 
-    Zwierzak Codexa nosi dymek mówiący, że run jest w toku albo że czeka
-    zatwierdzenie. Nasz jeszcze nie potrafi: konsola jest zdalną stroną bez IPC do
-    powłoki, a danie jej takiego kanału oznacza capability z URL-ami `remote` plus
-    hook we frontendzie raportujący aktywność. To jest praca na później; zwierzak
-    tutaj jest towarzystwem, a nie lampką statusu.
+Przytrzymaj `⌥⇧Space`, żeby dyktować do szybkiego pytania; rozmowa głosowa z
+domyślnym agentem ma własny skrót. **Ustawienia → Skróty** zmieniają je
+wszystkie: kombinacja potrzebuje co najmniej jednego modyfikatora, taka, którą
+trzyma już inna aplikacja, jest odrzucana z zachowaniem starego skrótu, a
+**Wyczyść** go wyłącza.
 
-## Zrzut ekranu do nowego czatu { #screenshot-to-a-new-chat }
+**Zrzut ekranu do nowego czatu** (`⌘⇧A`) pokazuje systemowy celownik; wybrany
+obszar trafia do nowego czatu, już w załączniku. Pierwsze naciśnięcie prosi macOS
+o Nagrywanie ekranu, które działa po restarcie.
 
-Naciśnij skrót — domyślnie `⌘⇧A`, gdziekolwiek jesteś — a pojawi się krzyżyk
-znany z Cmd+Shift+4. Wybierz obszar, a konsola wyjdzie na wierzch na świeżym
-czacie z już załączonym obrazkiem, gotowym pod pytanie. Escape anuluje. Ta sama
-akcja jest w menu zwierzaka i na ikonie w zasobniku.
+## Praca na tym komputerze { #work-on-this-computer }
 
-**Settings…** (`⌘,`, pod Shell, na ikonie w zasobniku i w menu kontekstowym
-zwierzaka) pozwala przypisać skrót na nowo: kliknij pole, przytrzymaj modyfikatory
-i naciśnij klawisz. Kombinacja potrzebuje co najmniej jednego modyfikatora —
-globalny skrót na samej literze połykałby pisanie w każdej aplikacji — a taka,
-którą trzyma już inna aplikacja, zostaje odrzucona z zachowaniem starego
-przypisania. **Clear** wyłącza skrót. Przypisania zapisują się obok adresu
-serwera. Przypisanie, którego nie udało się przejąć przy uruchomieniu, bo inna
-aplikacja była pierwsza, zostaje nazwane na tej samej stronie, żeby dało się je
-zastąpić, zamiast siedzieć tam i wyglądać na przypisane.
+Jedyna rzecz, której przeglądarka nie potrafi: czat, którego agent ma sandbox,
+może pracować w folderze na komputerze, na którym działa aplikacja, zamiast w
+chmurze. Narzędzia agenta do plików i powłoki - listowanie, czytanie, zapis,
+edycja, uruchamianie - sięgają tego folderu przez aplikację.
 
-!!! note "Dwa modyfikatory same z siebie nie mogą być skrótem"
+**Połącz komputer raz.** **Ustawienia → Aplikacja desktopowa → Ten komputer →
+Pozwól agentom tu pracować** daje aplikacji własną sesję dla tego komputera, po
+tym jak natywne okno poprosi cię o potwierdzenie, i trzyma jej refresh token w
+systemowym pęku kluczy. Aplikacja trzyma wtedy jedno wychodzące połączenie
+WebSocket do device huba serwera (`/api/v1/ws/device`); nic nie nasłuchuje na
+komputerze. **Rozłącz** kończy tę sesję.
 
-    Lewy Command plus prawy Command to akord, a nie klawisz: systemowa rejestracja
-    skrótów, z której korzysta powłoka, potrzebuje w kombinacji klawisza
-    niebędącego modyfikatorem. Wykrywanie akordu złożonego z samych modyfikatorów
-    oznacza podsłuch zdarzeń przez API dostępności, który patrzy na każde
-    naciśnięcie klawisza, i proszenie każdego użytkownika o zgodę na to. Nie w tej
-    wersji.
+**Wybierz to dla czatu.** W aplikacji desktopowej ustawienia czatu oferują
+**Pracuj na (Work on): Chmura / Ten komputer**. Wybranie tego komputera prosi o
+folder w natywnym oknie wyboru i o to, jak daleko agent może w nim sięgać:
 
-Pierwsze naciśnięcie pyta macOS, czy AgenticOS może nagrywać ekran. Dopóki nie
-może, nic nie da się przechwycić — systemowe narzędzie kończy działanie po cichu,
-bez krzyżyka — więc powłoka sprawdza to najpierw, otwiera System Settings →
-Privacy & Security → Screen Recording, a zwierzak mówi „Allow screen recording,
-then restart me." Zgoda idzie do aplikacji *odpowiedzialnej*: do bundla AgenticOS,
-gdy jest już spakowany, ale pod `make desktop-dev` do terminala, z którego
-uruchomiono binarkę, albo do hostującego ją IDE — i to właśnie to trzeba
-zaznaczyć na tej liście. Zgoda zaczyna działać po restarcie.
+| Tryb | Co agent może | Jak jest tego pilnowane |
+|---|---|---|
+| Tylko odczyt | Czytać pliki; nic nie jest zapisywane i żadne polecenie się nie uruchamia | Aplikacja odrzuca zapisy i polecenia |
+| Zapis w folderze | Czytać, zapisywać w folderze, uruchamiać polecenia | Polecenia działają pod Seatbelt na macOS i bubblewrap na Linuksie, z zapisem tylko w folderze i katalogach tymczasowych |
+| Pełny dostęp | Polecenia działają jako ty, bez piaskownicy | Każde polecenie jest najpierw pokazane w natywnym oknie do zatwierdzenia |
 
-Obrazek dociera do kompozytora tak samo jak wybrany plik: powłoka uruchamia na
-stronie konsoli skrypt, który podaje PNG do inputa plikowego kompozytora, więc
-upload, limit rozmiaru i podgląd należą do samej konsoli. Jest podawany wyłącznie
-stronie czatu na originie skonfigurowanego serwera — nigdy innej witrynie, na
-którą okno mogło zawędrować — i tylko w ciągu dwóch minut od naciśnięcia; zrzut,
-który nigdzie nie trafił, zostaje porzucony. Windows i Linux nie mają jeszcze
-podpiętego przechwytywania.
+Windows oferuje tylko odczyt i pełny dostęp. Linux oferuje zapis w folderze tylko
+wtedy, gdy jest zainstalowany `bwrap`.
 
-## Czego celowo nie robi { #what-it-deliberately-does-not-do }
+**Decyduje komputer, nie serwer.** Wybrane foldery wraz z trybami są trzymane w
+ustawieniach aplikacji, a każda operacja podaje folder i tryb, które aplikacja z
+nimi porównuje: folder, którego nie wybrałeś, tryb szerszy niż dozwolony albo
+ścieżka wychodząca poza folder są odrzucane na komputerze, cokolwiek serwer
+poprosił. Wybór jest zapamiętywany dla każdej rozmowy, a nowy czat zaczyna w
+chmurze.
 
-- **Żadnego lokalnego wykonywania.** Powłoka nie ma dostępu do maszyny poza
-  jednym plikiem JSON. Agent uruchamiający polecenia na laptopie, z którego jest
-  otwierany, to inna funkcja z innym modelem uprawnień — trzeci rodzaj połączenia
-  sandboksa obok Dockera i Daytony, związany z maszyną jednej osoby, a nie
-  z organizacją — i to nie jest ta funkcja.
-- **Żadnego trybu offline.** Przy nieosiągalnym serwerze okno pokazuje własną
-  stronę błędu webview; „Shell → Reload" ponawia próbę.
-- **Żadnej straży nawigacji.** Link, który opuszcza origin serwera, otwiera się
-  wewnątrz okna, a nie w przeglądarce systemowej, ponieważ przepływ OAuth —
-  logowanie, podłączanie serwera MCP — opuszcza origin i musi wrócić do tego
-  samego webview, żeby jego ciasteczko wylądowało. Kiedy okno pokazuje jakąkolwiek
-  inną witrynę, jego tytuł nazywa tego hosta — to jedyny element chromu, którego
-  strona nie może narysować, bo nie ma paska adresu — a `⌘,` albo „Shell → Change
-  server…" to droga powrotna, jeśli strona nie ma linku do domu. Przeniesienie tych
-  przepływów do przeglądarki systemowej to
-  [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
-- **Logowanie celowo opuszcza okno.** Gołe user agent WebKita jest tym, co Google
-  odrzuca jako osadzoną przeglądarkę (`disallowed_useragent`), a odpowiedzią, o
-  którą prosi jego polityka, jest przeglądarka systemowa, a nie user agent
-  udający, że nią jest. Zobacz niżej.
+**Tylko twoje runy.** Czat sięga twojego komputera tylko wtedy, gdy jest twój -
+nigdy klucz API, gość widżetu czy czat kogoś innego - a
+[trigger](triggers.md) tylko wtedy, gdy działa jako jego twórca, który wskazuje mu
+folder swojego komputera w polu **Pracuj na** triggera.
+
+**Gdy komputera nie ma.** Run, który poprosił o ten komputer i zastał aplikację
+bez połączenia, czeka na nią do dziesięciu minut, a czat o tym mówi. Operacja,
+która zastanie aplikację rozłączoną w trakcie runa - zamknięta klapa, zmiana sieci
+- czeka do pięciu minut na jej powrót w tej samej sesji, a potem idzie dalej. Gdy
+operacja runa jest w toku, zasobnik mówi, że agent pracuje na tym komputerze.
+
+Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana lub wygasła sesja odmawia nowej pracy; heartbeat zamyka też bezczynne połączenia. Operacje już w toku są anulowane po zamknięciu połączenia desktopu.
+
+## Ekran { #the-screen }
+
+[Computer use](reference/capabilities.md) może sterować ekranem tego komputera. W
+czacie pracującym na tym komputerze jego pulpit `auto` - domyślny - to ten ekran;
+`local` nie prosi o nic innego.
+
+- **Najpierw pyta.** Pierwszy zrzut w sesji pyta w natywnym oknie, czy agent może
+  widzieć ten ekran i nim sterować, na godzinę.
+- **Obramowany, gdy działa.** Obrys otacza ekran, gdy agent go trzyma.
+- **Do zatrzymania od razu.** `⌘⌥Esc` (gdzie indziej `Ctrl+Alt+Esc`) odbiera
+  ekran; następna akcja jest odrzucana, dopóki znowu nie pozwolisz.
+- **System też pyta.** macOS potrzebuje AgenticOS w Prywatność i ochrona, zarówno
+  w Nagrywaniu ekranu, jak i w Dostępności; odmowa je nazywa.
+
+Każdy pulpit, na którym pracuje run, ten także, jest pokazywany na żywo w czacie i
+w podglądzie runa na żywo, gdzie **Przejmij** oddaje go tobie między krokami
+agenta, a **Oddaj** zwraca. Podgląd ekranu tego komputera jest tylko dla ciebie,
+ktokolwiek inny może oglądać runy.
 
 ## Logowanie { #signing-in }
 
 Jedyna nawigacja, której okno konsoli odmawia. Wszystko inne ładuje się w oknie;
-kliknięcie **Kontynuuj z Google** otwiera się w twojej własnej przeglądarce, a
-wynik wraca do aplikacji (#1532).
+kliknięcie **Continue with Google** otwiera się zamiast tego w twojej własnej
+przeglądarce, a wynik wraca do aplikacji (#1532).
 
 Co się dzieje, po kolei:
 
-1. Własne `/api/oauth/<dostawca>/login` konsoli wykonuje się **w oknie**, gdzie da
-   się odczytać ciasteczko httpOnly z odłożonym zaproszeniem i je dopiąć. Shell
-   nie przechwytuje tego skoku właśnie po to, żeby zaproszony logujący się z
-   aplikacji nie został odrzucony przez wdrożenie `invite_only`.
-2. Okno widzi następnie nawigację do `/api/v1/oauth/<dostawca>/login` *wdrożenia*,
-   przekazuje ją przeglądarce systemowej z dopisanym `client=desktop` i świeżo
-   wybitym `desktop_nonce`, i za nią nie idzie. Nic w konsoli nie wie, że działa w
-   shellu, i nie musi.
-3. Logujesz się tam, w prawdziwej przeglądarce, ze swoimi hasłami, swoimi
-   rozszerzeniami i jakiegokolwiek drugiego składnika używasz.
-4. Callback wdrożenia widzi, że ta próba była desktopowa — zapisane w sesji na
-   *starcie*, pod `state` tej właśnie próby, nigdy czytane z powrotu — i
-   przekierowuje na `agenticos://auth/callback?code=…` z jednorazowym kodem, który
-   wygasa po minucie, plus otrzymanym nonce.
-5. System operacyjny podaje ten link aplikacji. Shell wysyła okno konsoli na
-   `<twój serwer>/auth/callback?code=…`, czyli stronę, która już istnieje:
-   wymienia kod na parę tokenów serwer-do-serwera i ustawiają się własne
-   ciasteczka okna. Słoik ciasteczek przeglądarki zostaje z tego wyłączony, o co
-   chodzi.
+1. Własne `/api/oauth/<provider>/login` konsoli działa **w oknie**, gdzie może
+   przeczytać ciasteczko httpOnly z przygotowanym zaproszeniem i je dołączyć.
+2. Okno widzi wtedy nawigację do `/api/v1/oauth/<provider>/login` *wdrożenia*,
+   przekazuje ją systemowej przeglądarce z dopisanymi `client=desktop` i świeżo
+   wybitym `desktop_nonce` i nie idzie za nią.
+3. Logujesz się tam, w prawdziwej przeglądarce z własnymi hasłami, własnymi
+   rozszerzeniami i jakimkolwiek drugim składnikiem.
+4. Callback wdrożenia widzi, że ta próba była desktopowa - zapisane w sesji na
+   *początku* pod `state` OAuth tej próby, nigdy nie odczytywane z powrotu - i
+   przekierowuje do `agenticos://auth/callback?code=…` z jednorazowym kodem, który
+   wygasa po minucie, oraz otrzymanym nonce.
+5. System przekazuje ten link aplikacji. Powłoka wysyła okno konsoli do
+   `<your server>/auth/callback?code=…`, które wymienia kod na parę tokenów między
+   serwerami; ustawiane są ciasteczka samego okna.
 
-**Deep linka może odpalić dowolny proces na twojej maszynie**, więc to, co wolno
-mu tutaj, jest wąskie: wysłać konsolę na jedną ścieżkę, na serwerze, który *ty*
-skonfigurowałeś, niosąc kod wymieniany dokładnie raz. Nie może nazwać adresu, a
-drugie użycie kodu odpowiada 401.
+**Deep link może wywołać każdy proces na twoim komputerze**, więc to, co jeden
+może tu zrobić, jest wąskie: wysłać konsolę pod jedną ścieżkę, na serwerze, który
+*ty* skonfigurowałeś, z kodem wymienialnym dokładnie raz - i tylko taki, który
+niesie nonce wybity przez tę aplikację dla tej próby. Na Windows i Linuksie blokada
+jednej instancji przekazuje argumenty drugiego uruchomienia pierwszemu. Wdrożenie
+musi zgadzać się co do schematu - `DESKTOP_DEEP_LINK_SCHEME`, `agenticos`, chyba że
+ktoś to zmienił - i co do własnego publicznego adresu.
 
-Musi to być też logowanie **tej** aplikacji. Shell wybija nonce, otwierając
-przeglądarkę, wdrożenie oddaje go razem z kodem, a link niosący jakikolwiek inny
-zostaje zignorowany — więc lokalny proces mający kod z twojego wdrożenia nie
-przeniesie twojego okna na czyjeś konto. Nonce jest wyjmowany ze slotu, gdy
-przychodzi link, więc powtórka tego samego linku nie znajduje już nic.
+## Czego celowo nie robi { #what-it-deliberately-does-not-do }
 
-Dwie próby w jednej przeglądarce też się nie mieszają: znacznik jest zapisany pod
-własnym `state` każdej próby, a nie raz na sesję, więc rozpoczęcie zwykłego
-logowania, gdy desktopowe czeka, nie wysyła już żadnego z wyników w złe miejsce.
+- **Brak strażnika nawigacji.** Link wychodzący poza origin serwera otwiera się w
+  oknie, bo przepływ OAuth - podłączanie serwera MCP - musi wrócić do tego samego
+  webview, żeby jego ciasteczko trafiło na miejsce. Tytuł okna nazywa każdy inny
+  host, który pokazuje.
+- **Brak lokalnego runa bez sandboxa.** Praca na tym komputerze zmienia miejsce,
+  gdzie działają narzędzia sandboxa agenta; agent bez sandboxa nie ma takich
+  narzędzi do przeniesienia.
+- **Brak stałego dostępu.** Połączenie komputera samo niczego nie daje: run sięga
+  tylko wybranych przez ciebie folderów, w wybranych trybach, a ekranu dopiero po
+  twojej zgodzie.
 
-Na Windows i Linuksie otwarcie zarejestrowanego schematu uruchamia plik
-wykonywalny ponownie — co w trakcie logowania oznacza drugą konsolę obok tej,
-która czeka. Shell trzyma blokadę pojedynczej instancji, a drugi proces przekazuje
-swoje argumenty pierwszemu i kończy pracę.
+## Gdzie to jest w drzewie { #where-it-sits-in-the-tree }
 
-Wdrożenie musi się zgadzać co do schematu — `DESKTOP_DEEP_LINK_SCHEME`,
-`agenticos`, o ile nikt tego nie zmienił — i co do własnego publicznego adresu, bo
-to tam przeglądarka jest wysyłana i stamtąd wraca.
+- `desktop/ui/` - strony pierwszego uruchomienia i obrys ekranu, pliki statyczne.
+- `desktop/core/` - części, co do których obie strony muszą się zgadzać, bez
+  runtime: ramki urządzenia, endpointy i back-off, testowane osobno.
+- `desktop/src-tauri/` - powłoka: okna, menu, blobby, szybkie pytanie, połączenie
+  urządzenia (`device.rs`), lokalny wykonawca (`local_work.rs`) i ekran
+  (`screen.rs`).
+- `backend/app/services/device_hub/` - połowa serwerowa: obecność w Redisie, żeby
+  każdy host API i worker sięgał komputera, oraz `DeviceWorkspace`, workspace
+  sandboxa wykonywany przez aplikację.
 
-## Gdzie siedzi w drzewie { #where-it-sits-in-the-tree }
+## Lokalna przeglądarka, modele i MCP { #local-browser-models-and-mcp }
 
-`desktop/ui/` to formularz połączenia i zwierzak, pliki statyczne bez żadnego
-kroku budowania; `bun test` uruchamia tam testy sprite'ów i zachowania zwierzaka.
-`desktop/src-tauri/` to strona rustowa: komendy, które wołają obie strony, dwa
-okna i menu. `desktop-check` nie jest częścią `make lint` ani `make check`: CI nie
-ma jeszcze toolchaina Rusta, a `tests/test_ci_parity.py` odrzuciłby `check`, który
-uruchamia krok nieobecny w CI. Uruchom go przed wypchnięciem zmiany pod
-`desktop/`.
+Po sparowaniu aplikacji desktopowej zatwierdź folder w **Pracuj na**. W tym samym
+selektorze możesz wybrać lokalny model, usługi MCP i lokalną przeglądarkę dla danego
+uruchomienia. Wymagany jest agent z przypisanym sandboxem i Twoja własna sparowana
+sesja. Aplikacja telefonu nie wywołuje komend desktopowych.
+
+Usługi dodaje się w **Ustawienia → Aplikacja desktopowa → Usługi lokalne**. Każde
+uprawnienie potwierdza natywne okno. Model korzysta z endpointu HTTP Ollama lub
+OpenAI-compatible (np. `http://127.0.0.1:11434/v1`) i identyfikatora zainstalowanego
+modelu. MCP wymaga działającego serwera Streamable HTTP
+(np. `http://127.0.0.1:8000/mcp`).
+
+Dopuszczalne są tylko adresy loopback, bez
+przekierowań i danych logowania w URL. Adres przechowuje desktop, a API przesyła
+nieprzezroczysty identyfikator uprawnienia. Limit żądania i odpowiedzi wynosi 8 MiB,
+a czas usługi dwie minuty. Serwer MCP musi przyjmować żądania bez tokena i kończyć
+odpowiedzi HTTP; osobne subskrypcje SSE i uruchamianie procesów stdio nie są
+obsługiwane. Usunięcie uprawnienia blokuje kolejne wywołania. Profil organizacji pozostaje tożsamością modelu bez otwierania jego danych logowania do chmury.
+Lokalny model nie ma awaryjnego przełączenia na chmurę; pozostałe funkcje z osobnymi modelami zachowują
+swoje ustawienia.
+
+**Lokalna przeglądarka** kieruje dotychczasowe narzędzia `browser_use` do widocznego
+okna Chromium na sparowanym komputerze. Zainstaluj Chrome, Chromium, Edge lub Brave.
+Każde przeglądanie wymaga natywnej zgody, używa tymczasowego profilu i zamyka go po
+zakończeniu lub rozłączeniu urządzenia. Osobiste karty i hasła nie są importowane.
+Czat otrzymuje obserwacje DOM i klatki podglądu; zapisane logowania nie trafiają na
+serwer. Konfiguracja `connection: local` odmawia działania bez wyboru lokalnego
+przeglądania.
+
+## Instalatory i aktualizacje { #installers-and-updates }
+
+Workflow **Apps** w GitHub Actions sprawdza natywne crate'y na macOS, Windows i
+Linuksie, buduje debug APK Androida i aplikację symulatora iOS. Pełne sprawdzenia
+natywne wykonuje CI; lokalne `make desktop-check` pozostaje dostępne do zmian
+wybranego obszaru. Workflow **App release** dołącza instalatory, podpisane pliki
+aktualizacji, APK i cask Homebrew do istniejącego, opublikowanego stabilnego wydania
+`v1.MINOR.PATCH`, którego commit należy do `main`. Nie tworzy wydania platformy.
+Cask jest plikiem do pobrania; publikacja tapu Homebrew pozostaje zadaniem operatora.
+Menu **Sprawdź aktualizacje…** wymaga buildu z publicznym kluczem aktualizatora i
+weryfikuje podpis przed instalacją.
+
+Przed wydaniem skonfiguruj środowisko GitHub `apps-release`:
+
+- Zmienna `AGENTICOS_UPDATER_PUBLIC_KEY`; sekrety `TAURI_SIGNING_PRIVATE_KEY`
+  i `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (stała para kluczy aktualizatora).
+- macOS: `APPLE_CERTIFICATE` (P12 w base64), `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (hasło aplikacji)
+  i `APPLE_TEAM_ID` do podpisu Developer ID i notaryzacji.
+- Opcjonalny Authenticode Windows: `WINDOWS_CERTIFICATE_BASE64` (PFX)
+  i `WINDOWS_CERTIFICATE_PASSWORD`. Bez nich instalator nie ma podpisu.
+- Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Aktualizacje wymagają tego samego keystore.
+- TestFlight: zmienna repozytorium `AGENTICOS_TESTFLIGHT_ENABLED=true`; sekrety
+  `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROFILES_BASE64_JSON`
+  (tablica JSON profili base64 aplikacji, widgetów i rozszerzenia udostępniania),
+  `APP_STORE_CONNECT_KEY_P8`, `APP_STORE_CONNECT_KEY_ID`,
+  `APP_STORE_CONNECT_ISSUER_ID`, `APPLE_TEAM_ID`. Najpierw utwórz identyfikatory,
+  wspólną App Group i aplikację App Store Connect. Push nadal wymaga istniejących
+  danych APNs skonfigurowanych we wdrożeniu.
+
+Dane sklepów pozostają w CI, a zadania usuwają tymczasowe pliki podpisujące.
+Wysyłka do TestFlight jest wyłączona do jawnego włączenia. Zatwierdzenie sklepu,
+provisioning i dostarczenie na podpisane urządzenia wymagają kont operatora;
+nie potwierdzi ich niepodpisany lokalny build.
+
 
 ## Podsumowanie { #recap }
 
-- **Konsola zostaje na serwerze.** Powłoka ją otwiera; nic nie jest dołączane do
-  paczki.
-- **Jeden plik ustawień.** Adres serwera, o który pyta się raz, i to, gdzie
-  zostawiono zwierzaka — jedno i drugie zmienialne z menu.
-- **Zrzut ekranu jest o jeden skrót stąd.** `⌘⇧A`, obszar, świeży czat
-  z załączonym obrazkiem; skrót przypisuje się na nowo w Settings (`⌘,`).
-- **Na razie nic lokalnego.** Lokalne wykonywanie to rodzaj połączenia sandboksa
-  do zaprojektowania, a nie flaga na tej powłoce.
+- **Konsola zostaje na serwerze.** Powłoka ją otwiera; nic nie jest dołączane.
+- **Natywnie tam, gdzie to ma znaczenie.** Menu, powiadomienia, przypięte agenty,
+  blobby, szybkie pytanie i głos z dowolnego miejsca.
+- **Twoje agenty mogą pracować na tym komputerze** - w wybranych folderach, w
+  wybranych trybach, w piaskownicy systemu i tylko dla twoich własnych runów.
+- **I na jego ekranie** - najpierw pytają, są obramowane, gdy działają, i
+  zatrzymywane jednym skrótem.

@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* The looks beyond the standard one, and the console inside the desktop app. */
+@import "./looks.css";
+@import "./desktop.css";
 
 /* A device with no pointer that can hover - a phone, a tablet.
  *
@@ -2122,7 +2125,6 @@ body .tour-spotlight {
   transition:
     transform var(--duration-slow) var(--ease-out),
     box-shadow var(--duration-slow) var(--ease-out);
-  will-change: transform;
 }
 
 /* The pages behind. Offset up and inward, so each shows a sliver of edge
@@ -2249,34 +2251,34 @@ body .tour-spotlight {
   }
 }
 .rise-in > * {
-  animation: rise-in 420ms var(--ease-out) both;
+  animation: rise-in 240ms var(--ease-out) both;
 }
 .rise-in > :nth-child(2) {
-  animation-delay: 40ms;
+  animation-delay: 24ms;
 }
 .rise-in > :nth-child(3) {
-  animation-delay: 80ms;
+  animation-delay: 48ms;
 }
 .rise-in > :nth-child(4) {
-  animation-delay: 120ms;
+  animation-delay: 72ms;
 }
 .rise-in > :nth-child(5) {
-  animation-delay: 160ms;
+  animation-delay: 96ms;
 }
 .rise-in > :nth-child(6) {
-  animation-delay: 200ms;
+  animation-delay: 120ms;
 }
 .rise-in > :nth-child(7) {
-  animation-delay: 240ms;
+  animation-delay: 144ms;
 }
 .rise-in > :nth-child(8) {
-  animation-delay: 280ms;
+  animation-delay: 168ms;
 }
 .rise-in > :nth-child(n + 9) {
-  animation-delay: 320ms;
+  animation-delay: 192ms;
 }
 /* The global reduced-motion rule shortens durations but keeps these delays, and
-   with `both` fill a later card would sit invisible for up to 320ms and then
+   with `both` fill a later card would sit invisible for up to 192ms and then
    appear at once (#1930). Without motion the grid is simply there. */
 @media (prefers-reduced-motion: reduce) {
   .rise-in > * {
@@ -2292,7 +2294,6 @@ body .tour-spotlight {
   from {
     opacity: 0;
     transform: translateY(3px);
-    filter: blur(1.5px);
   }
   to {
     opacity: 1;
@@ -2301,24 +2302,22 @@ body .tour-spotlight {
   }
 }
 .stream-in > :not(.stream-cursor) {
-  animation: stream-block-in 420ms var(--ease-out) both;
+  animation: stream-block-in 220ms var(--ease-out) both;
 }
 
-/* Each word of a streaming answer surfacing out of a soft blur, spans from
+/* Each word of a streaming answer arriving with an opacity transition, spans from
    `rehypeStreamWords`. `backwards`, not `both`: once a word has arrived it
-   keeps no filter, so a long answer is not hundreds of compositing layers. */
+   keeps no animation state, so long answers do not retain compositing layers. */
 @keyframes stream-word-in {
   from {
     opacity: 0;
-    filter: blur(4px);
   }
   to {
     opacity: 1;
-    filter: blur(0);
   }
 }
 .stream-word {
-  animation: stream-word-in 700ms var(--ease-out) backwards;
+  animation: stream-word-in 220ms var(--ease-out) backwards;
 }
 :root[data-motion="reduce"] .stream-word {
   animation: none;
@@ -2404,6 +2403,15 @@ body .tour-spotlight {
 }
 @utility slide-in-from-right {
   --tw-enter-translate-x: 100%;
+}
+@utility slide-out-to-left {
+  --tw-exit-translate-x: -100%;
+}
+@utility slide-out-to-right {
+  --tw-exit-translate-x: 100%;
+}
+@utility slide-out-to-bottom {
+  --tw-exit-translate-y: 100%;
 }
 
 /* The composer's voice glow (components/ui/voice-glow.tsx): a blurred bloom
@@ -2656,4 +2664,26 @@ body .tour-spotlight {
     opacity: 0.9;
     transform: translateY(-2px);
   }
+}
+
+/* Dialogs share the shell's visible height, including when a touch keyboard is
+   open. The same budget sizes the modal and every dialog shape token. */
+:root {
+  --dialog-available-height: calc(
+    var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px) - 2rem
+  );
+  --dialog-center: calc(
+    (var(--app-height, 100dvh) + var(--shell-inset-top, 0px) - var(--safe-bottom, 0px)) / 2
+  );
+}
+
+/* Sonner's default palette follows its own theme; these roles also follow a
+   person's explicit console appearance, including changes while a toast is open. */
+.console-toasts[data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--color-popover);
+  --normal-text: var(--color-popover-foreground);
+  --normal-border: var(--color-border);
+}
+.console-toasts [data-sonner-toast][data-styled="true"] [data-description] {
+  color: var(--color-muted-foreground);
 }

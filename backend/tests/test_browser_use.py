@@ -1581,7 +1581,7 @@ class _Opener:
             self.closed += 1
 
 
-def _toolset(opener: _Opener, *, cdp_url: str = "http://browser:9222", **policy: Any):
+def _toolset(opener: _Opener | None, *, cdp_url: str = "http://browser:9222", **policy: Any):
     return build_toolset(
         cdp_url=cdp_url,
         page_policy=PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024),
@@ -1659,7 +1659,7 @@ class TestTheToolEndToEnd:
         assert answer.startswith("Paused after 2 steps without finishing.")
 
     async def test_no_endpoint_is_said_rather_than_dialled(self):
-        assert "no browser endpoint" in await _call(_toolset(_Opener(), cdp_url=""))
+        assert "no browser endpoint" in await _call(_toolset(None, cdp_url=""))
 
     async def test_a_first_call_with_no_start_url_says_what_is_missing(self):
         answer = await _call(_toolset(_Opener()), {"task": "carry on"})
@@ -2320,7 +2320,7 @@ class TestTheAgentDrivingTheBrowserItself:
         assert await _direct(_toolset(_Opener()), tool, args) == NO_TAB
 
     async def test_no_endpoint_is_said_rather_than_dialled(self):
-        toolset = _toolset(_Opener(), cdp_url="")
+        toolset = _toolset(None, cdp_url="")
         assert await _direct(toolset, "browser_open", {"url": "https://x.test/"}) == NO_ENDPOINT
 
     async def test_a_browser_that_does_not_answer_is_said_once(self):

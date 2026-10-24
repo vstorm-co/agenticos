@@ -40,9 +40,9 @@ import {
   UserRound,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
+import { KeptImage } from "./kept-image";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
@@ -291,13 +291,12 @@ export function MessageItem({
                       className="hover:ring-foreground/30 block overflow-hidden rounded-xl border ring-2 ring-transparent transition-all"
                       title={t("openFile", { name: att.file.filename })}
                     >
-                      <Image
-                        src={getFileUrl(att.file.id)}
+                      <KeptImage
+                        fileId={att.file.id}
                         alt={att.file.filename}
                         width={320}
                         height={256}
                         className="h-auto max-h-64 w-auto max-w-xs object-contain"
-                        unoptimized
                       />
                     </button>
                   ) : "file" in att ? (

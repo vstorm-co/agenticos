@@ -18,6 +18,25 @@ export interface ChatMessageFile {
   file_type: string;
 }
 
+/**
+ * A message typed while the agent was busy or the network was gone, held above
+ * the composer until it can be sent - and, in the apps, kept sealed on the
+ * device so closing the app does not lose it (#2097).
+ */
+export interface QueuedMessage {
+  id: string;
+  content: string;
+  fileIds?: string[];
+  files?: ChatMessageFile[];
+  /** What the person pointed the agent at with `@`, sent with the message (#2189). */
+  mentions?: Mentionable[];
+  /**
+   * Why the server refused it before saving it, when it did: the message is
+   * held, marked, until the person sends it again or drops it.
+   */
+  refused?: string;
+}
+
 /** The earlier message a turn answers, quoted above it. */
 export interface MessageReply {
   messageId: string;

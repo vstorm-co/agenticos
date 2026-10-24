@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
@@ -15,7 +23,7 @@ import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
 import { ReplyingTo } from "./reply-quote";
 import { useChatStore } from "@/stores";
-import { ComposerSheet } from "./composer-sheet";
+import { ComposerSheet, type AttachSource } from "./composer-sheet";
 
 /**
  * Render `row` where the page wants it, or in place when it named nowhere.
@@ -53,6 +61,10 @@ import {
 import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
 import { useChanged } from "@/hooks/use-changed";
+import { useShell } from "@/hooks/use-shell";
+import { isMobileShell, reportShellFailure } from "@/lib/desktop/shell";
+import { offerRecentPhoto, openAttachSheet } from "@/lib/mobile/attach";
+import type { SharedContent } from "@/lib/mobile/shared";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
 import type { UseMicrophoneResult } from "voice-glow";
@@ -112,6 +124,10 @@ interface Attachment {
   pasted: boolean;
 }
 
+/** What the file picker offers: the types an attachment may be. */
+const ACCEPTED =
+  "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml";
+
 interface ChatInputProps {
   onSend: (
     message: string,
@@ -167,6 +183,11 @@ interface ChatInputProps {
    */
   actionsSlot?: ReactNode;
   /**
+   * The same controls as rows of the phone's `+` sheet, where the composer's one
+   * row has no room for them (#2066). The caller hides `actionsSlot` there.
+   */
+  phoneRows?: ReactNode;
+  /**
    * Drawn in Send's place while there is nothing to send - the call button, so
    * an empty box offers a call and a written one sends it (#2301).
    */
@@ -181,6 +202,13 @@ interface ChatInputProps {
    * Absent, the microphone is the browser's own speech recognition.
    */
   dictation?: ComposerDictation;
+  /**
+   * Start dictating as if the microphone were pressed - a phone shortcut's
+   * "Dictate" (#2097), set once the agent's engine is known. `onDictateStarted`
+   * hears that it was taken, so it is taken once.
+   */
+  dictateNow?: boolean;
+  onDictateStarted?: () => void;
   /**
    * Hears when the browser's own recognition starts listening, with how to stop
    * it, and when it stops - for the page's dictation pill (#54).
@@ -228,9 +256,12 @@ export function ChatInput({
   controlsSlot,
   onProject,
   actionsSlot,
+  phoneRows,
   idleSlot,
   offline = false,
   dictation,
+  dictateNow = false,
+  onDictateStarted,
   onListeningChange,
   incoming = null,
   agentId = null,
@@ -596,6 +627,22 @@ export function ChatInput({
     finalTranscript = message;
   }, [isListening, message, mic]);
 
+  // A shortcut's "Dictate": the microphone pressed for the person, once - the
+  // caret taken as the request arrives, the recording started after. The
+  // server's engine only: a phone's webview has no speech recognition of its
+  // own, and that is where the shortcut lives.
+  const startsDictating = dictateNow && server !== null && !disabled;
+  if (useChanged(startsDictating) && startsDictating) {
+    setCaret({ from: message.length, to: message.length, text: message });
+  }
+  const dictateOnRequest = useEffectEvent(() => {
+    onDictateStarted?.();
+    if (startsDictating) void server.actions.start();
+  });
+  useEffect(() => {
+    if (dictateNow) dictateOnRequest();
+  }, [dictateNow]);
+
   // File upload to backend - shared by the file picker, drag-and-drop and paste.
   const uploadFiles = useCallback(
     async (files: File[], { pasted = false }: { pasted?: boolean } = {}) => {
@@ -637,6 +684,55 @@ export function ChatInput({
     void uploadFiles(incoming.files);
     if (incoming.text) editorRef.current?.focus();
   }, [incoming, uploadFiles]);
+
+  // The phone app (#2097): a tile in "+" opens the app's own picker for it,
+  // and opening the chat offers a photo taken a moment ago - both drawn by the
+  // app, which hands over only what the person tapped.
+  const onPhone = isMobileShell(useShell());
+  const tShare = useTranslations("mobile.share");
+  const takeFromPhone = useCallback(
+    (chosen: SharedContent | null) => {
+      if (chosen === null) return;
+      if (chosen.refused.length > 0) {
+        toast.warning(tShare("notAttached", { names: chosen.refused.join(", ") }));
+      }
+      if (chosen.files.length > 0) void uploadFiles(chosen.files);
+    },
+    [tShare, uploadFiles],
+  );
+  const attach = (source: AttachSource = "files") => {
+    const input = fileInputRef.current;
+    if (!onPhone && input) {
+      // One input, told each time what to offer: a phone's browser opens the
+      // camera for `capture` and its photos for `image/*`.
+      input.accept = source === "files" ? ACCEPTED : "image/*";
+      if (source === "camera") input.setAttribute("capture", "environment");
+      else input.removeAttribute("capture");
+      input.click();
+      return;
+    }
+    openAttachSheet(source)
+      .then(takeFromPhone)
+      .catch((error: unknown) => reportShellFailure("could not open the attach sheet", error));
+  };
+  useEffect(() => {
+    if (!onPhone) return;
+    let gone = false;
+    const offer = () => {
+      if (document.visibilityState !== "visible") return;
+      offerRecentPhoto()
+        .then((chosen) => {
+          if (!gone) takeFromPhone(chosen);
+        })
+        .catch((error: unknown) => reportShellFailure("could not offer a recent photo", error));
+    };
+    offer();
+    document.addEventListener("visibilitychange", offer);
+    return () => {
+      gone = true;
+      document.removeEventListener("visibilitychange", offer);
+    };
+  }, [onPhone, takeFromPhone]);
   // The words that came with them, once per hand-off and after whatever is
   // already typed - written during render, as state that follows a prop is.
   const [wroteIncoming, setWroteIncoming] = useState<number | null>(null);
@@ -812,12 +908,12 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           onChange={handleFileSelect}
-          accept="image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml"
+          accept={ACCEPTED}
           multiple
           className="hidden"
         />
         <ComposerSheet
-          onAttach={() => fileInputRef.current?.click()}
+          onAttach={attach}
           // The agent's engine: the browser's recogniser, or a recording sent
           // to its provider.
           onVoice={server ? startDictation : toggleMic}
@@ -830,6 +926,7 @@ export function ChatInput({
               : undefined
           }
           onProject={onProject}
+          phoneRows={phoneRows}
           disabled={disabled || isUploading}
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}

@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import type { LucideIcon } from "lucide-react";
 
 import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { useActiveRoute } from "@/lib/active-route";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +26,8 @@ export interface PageTab {
   icon?: LucideIcon;
   /** Match only the exact path (use for index/overview tabs). */
   exact?: boolean;
+  /** A tab for the desktop app's own settings, left out of the row in a browser and on a phone. */
+  shellOnly?: boolean;
 }
 
 /**
@@ -33,7 +37,15 @@ export interface PageTab {
  * produces a stray vertical scrollbar. The scrollbar is hidden; tabs scroll
  * horizontally only when they overflow (mobile).
  */
-export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; className?: string }) {
+export function PageTabs({
+  tabs: allTabs,
+  className,
+}: {
+  tabs: readonly PageTab[];
+  className?: string;
+}) {
+  const shell = useShell();
+  const tabs = isDesktopShell(shell) ? allTabs : allTabs.filter((tab) => !tab.shellOnly);
   const isActive = useActiveRoute();
   const t = useTranslations("nav");
   const strip = useRef<HTMLElement>(null);
@@ -55,7 +67,7 @@ export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; classN
       <nav
         ref={strip}
         className={cn(
-          "-mb-px flex [scrollbar-width:none] gap-0.5 overflow-x-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+          "relative -mb-px flex min-w-0 [scrollbar-width:none] gap-0.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
           SCROLL_FADE,
         )}
       >
@@ -67,13 +79,13 @@ export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; classN
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-offset-[-2px]",
+                "focus-visible:outline-ring inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
                 active
                   ? "border-foreground text-foreground"
                   : "text-muted-foreground hover:text-foreground border-transparent",
               )}
             >
-              {tab.icon && <tab.icon className="h-4 w-4" />}
+              {tab.icon && <tab.icon className="h-4 w-4" aria-hidden />}
               {t(tab.labelKey)}
             </Link>
           );

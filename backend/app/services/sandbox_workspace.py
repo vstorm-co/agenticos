@@ -18,8 +18,8 @@ module exists rather than a helper on the capability:
   found gone, and removes this run's spills, but leaves the session itself to
   `sandboxd`: correctness must not depend on this process getting to its
   `finally`.
-* `daytona` is a cloud resource on the organization's own account, and the same
-  applies with somebody else's invoice attached.
+* `daytona` and `e2b` are cloud resources on the organization's own account, and
+  the same applies with somebody else's invoice attached.
 """
 
 import asyncio
@@ -54,6 +54,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.sandbox._capped import CappedStateBackend, document_size
+from app.agents.capabilities.sandbox._e2b import E2BWorkspace
 from app.agents.capabilities.sandbox._identity import (
     BackendKind,
     SessionScope,
@@ -77,9 +78,18 @@ from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
+from app.services import device_hub
+from app.services.device_hub import DeviceWorkspace, LocalTarget
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
-from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
+from app.services.sandbox_runtimes import (
+    CATALOG,
+    runtime_briefing,
+    runtime_parses_documents,
+)
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
+
+ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace
+"""What supplies a connection's sandboxes: a `sandboxd` host, Daytona or E2B."""
 
 logger = logging.getLogger(__name__)
 
@@ -364,6 +374,9 @@ class FlatFileListing:
     truncated: bool
 
 
+LOCAL_PARK_SECONDS = 600.0
+"""How long a run that asked for the person's computer waits for its app to connect."""
+
 SandboxWaitSink = Callable[[bool], Awaitable[None]]
 """Told `True` when a run's sandbox is still being opened - usually its image
 being built - and `False` once that open is over, opened or failed.
@@ -454,8 +467,15 @@ class OpenWorkspace:
     document: CappedStateBackend | None = None
     """The stored document a `state` workspace works in, flushed back at close."""
 
-    sandbox: SandboxdWorkspace | DaytonaWorkspace | None = None
+    sandbox: ServiceSandbox | None = None
     """What supplies a container-backed workspace, for removing a `run`-scoped one."""
+
+    local: bool = False
+    """On the person's own computer (#2305): nothing here stores it or tears it down.
+
+    The folder is the person's, on their disk; a run closing must not flush a
+    document over it or remove what it wrote.
+    """
 
     spills: list[str] = field(default_factory=list)
     """Every spill handle `tool_output_limits` wrote to this workspace this run.
@@ -467,6 +487,20 @@ class OpenWorkspace:
     prefix, because concurrent runs share a longer-scoped workspace and a prefix
     sweep would take another run's spills mid-flight.
     """
+
+
+def _keyed_runtime(config: SandboxConfig, resolved: ResolvedConnection) -> str | None:
+    """The runtime a workspace's key names, `None` where it names none (`scope_key`).
+
+    `None` for the shipped default as well as for no runtime at all: on the
+    allowlist this repository generates the two are one image, and every
+    workspace opened before the runtime was keyed was keyed as this. And for
+    Daytona, which is given no runtime and so cannot be on a different one.
+    """
+    if resolved.kind == "daytona":
+        return None
+    runtime = config.runtime or resolved.row.default_runtime
+    return None if runtime == CATALOG[0].alias else runtime
 
 
 def project_sandbox(project: Project) -> SandboxConfig:
@@ -495,9 +529,11 @@ def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
     return None
 
 
-def _provider(sandbox: SandboxdWorkspace | DaytonaWorkspace) -> str:
+def _provider(sandbox: ServiceSandbox) -> str:
     """The provider name the refs of `sandbox`'s workspaces carry."""
-    return sandbox.provider if isinstance(sandbox, SandboxdWorkspace) else "daytona"
+    if isinstance(sandbox, DaytonaWorkspace):
+        return "daytona"
+    return sandbox.provider
 
 
 def _is_spill(path: str) -> bool:
@@ -613,8 +649,13 @@ class SandboxWorkspaceService:
         identity: WorkspaceIdentity,
         scope_override: SessionScope | None = None,
         on_wait: SandboxWaitSink | None = None,
+        local: LocalTarget | None = None,
     ) -> OpenWorkspace | None:
         """The workspace this run should use, or `None` when it has no sandbox.
+
+        `local` is the chat's "Work on: This computer" (#2305): the same sandbox
+        tools, carried out by the person's desktop app in the folder they picked.
+        Only for an agent with a sandbox, and only for the person themselves.
 
         `scope_override` is what the *exposure* said, when one did. An agent
         reached in web chat and on a Slack bot is the same agent in two
@@ -633,13 +674,81 @@ class SandboxWorkspaceService:
         """
         config = sandbox_config(spec)
         if config is None:
+            if local is not None:
+                raise BadRequestError(
+                    message="Enable the Sandbox capability on this agent before working on your computer",
+                    details={"target": "local"},
+                )
             return None
+        if local is not None:
+            return await self._open_local(ctx, local, on_wait=on_wait)
         return await self._open_config(
             config,
             ctx=ctx,
             identity=identity,
             scope=scope_override or config.session_scope,
             on_wait=on_wait,
+        )
+
+    async def _open_local(
+        self, ctx: AuthContext, local: LocalTarget, *, on_wait: SandboxWaitSink | None = None
+    ) -> OpenWorkspace:
+        """A workspace on one of the caller's own computers.
+
+        A computer that is not connected yet is waited for, with the chat told the
+        run is waiting: the run parks until the app opens rather than failing.
+
+        Raises:
+            BadRequestError: The run is not a person's own (a key, a widget
+                visitor, a trigger that does not run as its creator), or none of
+                their computers connected while it waited.
+        """
+        # A trigger's fire carries the creator's id but speaks for nobody unless
+        # it acts as them - and then `subject_is_publisher_fallback` is off.
+        if ctx.user_id is None or ctx.api_key_id is not None or ctx.subject_is_publisher_fallback:
+            raise BadRequestError(
+                message="Only your own chats can work on your computer",
+                details={"target": "local"},
+            )
+        device = await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
+        if device is None:
+            if on_wait is not None:
+                await on_wait(True)
+            try:
+                device = await device_hub.wait_for(
+                    ctx.user_id, local.device_id, timeout=LOCAL_PARK_SECONDS
+                )
+            finally:
+                if on_wait is not None:
+                    await on_wait(False)
+        if device is None:
+            raise BadRequestError(
+                message="Your computer is not connected: open the AgenticOS app on it",
+                details={"target": "local"},
+            )
+        return OpenWorkspace(
+            workspace=Workspace(DeviceWorkspace(device.session_id, ctx.user_id, local)),
+            kind="service",
+            scope="run",
+            scope_key=f"local:{device.session_id}:{local.folder}",
+            row_id=None,
+            local=True,
+            briefing=(
+                f"You are working on the person's own computer ({device.platform}), in the "
+                f"folder {local.folder}. "
+                + {
+                    "read_only": "You may read files there; nothing can be written or run.",
+                    "workspace_write": (
+                        "You may read and write inside that folder and run commands "
+                        "there; anything outside it is read only."
+                    ),
+                    "full_access": (
+                        "You have full access to the computer; every command is "
+                        "shown to the person for approval first."
+                    ),
+                }[local.mode]
+                + " Treat it as their real machine: never delete what you did not create."
+            ),
         )
 
     async def _open_config(
@@ -666,7 +775,9 @@ class SandboxWorkspaceService:
         # workspaces, so a moved agent opens a new one instead of reattaching to
         # a row that names the host it has left.
         resolved = await self.connections.resolve(ctx, config.connection_id)
-        key = self._key(identity, scope, "service", resolved.row.id)
+        key = self._key(
+            identity, scope, "service", resolved.row.id, _keyed_runtime(config, resolved)
+        )
         return await self._open_service(config, identity, key, scope, resolved, on_wait=on_wait)
 
     @staticmethod
@@ -675,10 +786,11 @@ class SandboxWorkspaceService:
         scope: SessionScope,
         backend: BackendKind,
         connection_id: UUID | None = None,
+        runtime: str | None = None,
     ) -> str:
         """`scope_key`, with the one failure it has turned into an HTTP answer."""
         try:
-            return scope_key(identity, scope, backend, connection_id)
+            return scope_key(identity, scope, backend, connection_id, runtime)
         except WorkspaceScopeUnavailable as exc:
             raise BadRequestError(
                 message=str(exc),
@@ -755,7 +867,7 @@ class SandboxWorkspaceService:
             tenant=str(identity.organization_id),
             on_wait=notice.waiting if notice is not None else None,
         )
-        if resolved.kind != "daytona":
+        if resolved.kind == "docker":
             alias = config.runtime or resolved.row.default_runtime or None
             briefing = runtime_briefing(alias)
             parses_documents = runtime_parses_documents(alias)
@@ -800,7 +912,7 @@ class SandboxWorkspaceService:
         runtime: str | None = None,
         tenant: str | None = None,
         on_wait: Callable[[], Awaitable[None]] | None = None,
-    ) -> SandboxdWorkspace | DaytonaWorkspace:
+    ) -> ServiceSandbox:
         """What supplies the sandbox named `key` on one of the organization's connections.
 
         Named by the key rather than by the provider: the key is where "who shares
@@ -809,6 +921,12 @@ class SandboxWorkspaceService:
         while the other attaches - without this database recording a provider's
         id first.
         """
+        if resolved.kind == "e2b":
+            # The template is the runtime: E2B's own `desktop` template is what
+            # computer use's sandbox desktop drives, like the `desktop` runtime.
+            return E2BWorkspace(
+                api_key=resolved.token, template=runtime or resolved.row.default_runtime
+            )
         if resolved.kind == "daytona":
             from daytona import DaytonaConfig
 
@@ -966,7 +1084,7 @@ class SandboxWorkspaceService:
                 `state` workspace of all of them; on a container they stay until
                 the session is reaped.
         """
-        if workspace is None:
+        if workspace is None or workspace.local:
             return
         try:
             if workspace.kind == "state":
@@ -1106,7 +1224,7 @@ class SandboxWorkspaceService:
                 "workspace_session_lost",
                 extra={"scope_key": workspace.scope_key, "session_id": row.session_id},
             )
-            if isinstance(workspace.sandbox, DaytonaWorkspace):
+            if isinstance(workspace.sandbox, DaytonaWorkspace | E2BWorkspace):
                 await self._discard_lost_sandbox(
                     workspace.sandbox, row.session_id or workspace.scope_key
                 )
@@ -1117,7 +1235,9 @@ class SandboxWorkspaceService:
             await workspace_repo.record_session(self.db, workspace=row, session_id=ref.id)
         return False
 
-    async def _discard_lost_sandbox(self, sandbox: DaytonaWorkspace, name: str) -> None:
+    async def _discard_lost_sandbox(
+        self, sandbox: DaytonaWorkspace | E2BWorkspace, name: str
+    ) -> None:
         """Delete a Daytona sandbox found gone, so the next run can open its name afresh.
 
         A purged container is gone from its host. A Daytona sandbox in `error` or
@@ -2149,7 +2269,7 @@ async def retry_pending_destroys() -> int:
 
 
 async def _destroy_and_forget(
-    sandbox: SandboxdWorkspace | DaytonaWorkspace,
+    sandbox: ServiceSandbox,
     ref: WorkspaceRef,
     scope_key: str,
     pending_id: UUID,

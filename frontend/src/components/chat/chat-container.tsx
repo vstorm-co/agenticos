@@ -1,7 +1,16 @@
 "use client";
 
 import type { Mentionable } from "@/types/mention";
-import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
+import { Gauge, PhoneCall, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile, ChatPerson } from "@/types";
 import type { PublishedModel } from "@/types/agents";
@@ -9,6 +18,7 @@ import { useAgents, useChat, useConversationWorkspace, useModelProviders } from 
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
+import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
 import { TypingIndicator } from "./typing-indicator";
@@ -60,28 +70,24 @@ import {
   useFilePreviewStore,
   useOrgStore,
 } from "@/stores";
+import { useLiveCallStore } from "@/stores/live-call-store";
 import { useInChatScope } from "@/stores/chat-scope-context";
+import { useComposerIntentStore } from "@/stores/composer-intent-store";
 import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks";
+import { useMounted } from "@/hooks/use-mounted";
+import { useOnline } from "@/hooks/use-online";
+import { offlineAvailable } from "@/lib/offline/device-cache";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { Beam } from "@/components/ui/beam";
-import { useMicrophone } from "@/components/ui/voice-glow";
-import {
-  useDictation,
-  useDictationStatus,
-  useOrganizationList,
-  usePermissions,
-  useVoiceReadiness,
-  useVoiceSession,
-  type VoiceSession,
-} from "@/hooks";
+import { useAgentDictation } from "@/hooks/use-agent-dictation";
+import { usePermissions, useVoiceReadiness, useVoiceSession, type VoiceSession } from "@/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
-import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { Perm } from "@/types/permissions";
 import { BrowserDictationPill, DictationPill } from "./dictation-bar";
 import { browserDictationHint, dictationHint, DictationStrip } from "./dictation-strip";
@@ -101,18 +107,6 @@ import {
   VoiceCallFeed,
 } from "@/components/voice/voice-call-view";
 import type { VoiceTransport } from "@/types/voice";
-
-/**
- * The browser's voice processing, on for a recording that is transcribed: echo
- * cancellation, noise suppression and gain control are what a speech model
- * wants. The glow-only capture keeps them off so it sees the voice's real
- * dynamics.
- */
-const DICTATION_CONSTRAINTS = {
-  constraints: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-};
-/** The organization's longest dictation when its settings have not loaded. */
-const DEFAULT_DICTATION_SECONDS = 300;
 
 /**
  * How many tokens the model that will answer next accepts, or `null`.
@@ -186,6 +180,16 @@ export function ChatContainer({
   pins,
   holdSending = false,
 }: ChatContainerProps = {}) {
+  // What another app shared with the phone app (#2097): held here once the
+  // store hands it over, so leaving the chat and coming back does not attach
+  // it twice. A caller's own files win.
+  const shared = useComposerIntentStore((state) => state.shared);
+  const clearShared = useComposerIntentStore((state) => state.clearShared);
+  const [sharedHere, setSharedHere] = useState<IncomingFiles | null>(null);
+  if (shared !== null && shared !== sharedHere) setSharedHere(shared);
+  useEffect(() => {
+    if (shared !== null) clearShared();
+  }, [shared, clearShared]);
   const {
     currentConversationId,
     currentMessages,
@@ -272,12 +276,22 @@ export function ChatContainer({
     fetchConversations();
   }, [fetchConversations]);
 
+  // The network back: what is on screen may be the copy kept on the device
+  // (#2097), so the open conversation is read again from the server, in place.
+  const online = useOnline();
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    const returned = online && !wasOnline.current;
+    wasOnline.current = online;
+    if (returned && currentConversationId) void rereadConversation(currentConversationId);
+  }, [online, currentConversationId, rereadConversation]);
+
   // A voice call's turns are saved by the server as it goes (#54), so the
   // transcript is read again, in place, as each lands; a call that started a
   // conversation opens it. Whether this page has a call open is kept apart from
   // which conversation it is in: a call started in a new chat has none until the
   // server names one, and leaving it before then still hangs it up.
-  const openCallRef = useRef<{ conversationId: string | null } | null>(null);
+  const openCallRef = useRef<{ conversationId: string | null; agentId?: string } | null>(null);
   const handleVoiceConversation = useCallback(
     (id: string) => {
       const open = openCallRef.current;
@@ -300,10 +314,37 @@ export function ChatContainer({
     onTurnSaved: handleVoiceTurnSaved,
     onConversation: handleVoiceConversation,
   });
+  // What the phone app draws as a live activity while this page holds a call.
+  const setLiveCall = useLiveCallStore((state) => state.set);
+  const {
+    phase,
+    callId,
+    runId: callRun,
+    startedAt,
+    conversationId: callConversation,
+    questions,
+  } = voice.call;
+  useEffect(() => {
+    const agentId = openCallRef.current?.agentId ?? null;
+    const live = phase === "live" || phase === "reconnecting";
+    setLiveCall(
+      live && callId !== null && agentId !== null && startedAt !== null
+        ? {
+            callId,
+            runId: callRun,
+            agentId,
+            conversationId: callConversation,
+            startedAt,
+            asking: questions !== null,
+          }
+        : null,
+    );
+  }, [phase, callId, callRun, startedAt, callConversation, questions, setLiveCall]);
+  useEffect(() => () => setLiveCall(null), [setLiveCall]);
   const startCall = useCallback(
     (transport: VoiceTransport) => {
       if (selectedAgentId === null) return;
-      openCallRef.current = { conversationId: currentConversationId };
+      openCallRef.current = { conversationId: currentConversationId, agentId: selectedAgentId };
       void voice.start({
         kind: "console",
         agentId: selectedAgentId,
@@ -370,6 +411,7 @@ export function ChatContainer({
     clearMessages,
     queuedMessages,
     cancelQueued,
+    retryQueued,
     sendQueuedNow,
     moveQueued,
     clearQueued,
@@ -525,7 +567,8 @@ export function ChatContainer({
       clearMessages();
       // Drop any pending queue when switching threads - those messages were
       // typed in the previous conversation's context, sending them into a
-      // different conversation would surprise the user.
+      // different conversation would surprise the user. The apps keep it on
+      // the device for that conversation, which brings it back (`useChat`).
       clearQueued();
     }
 
@@ -716,6 +759,7 @@ export function ChatContainer({
       slashCommands={slashCommands}
       queuedMessages={queuedMessages}
       onCancelQueued={cancelQueued}
+      onRetryQueued={retryQueued}
       onSendQueuedNow={sendQueuedNow}
       onMoveQueued={moveQueued}
       transcriptRef={transcriptRef}
@@ -733,7 +777,7 @@ export function ChatContainer({
       emptyState={emptyState}
       agentFixed={agentFixed}
       testingDraft={testing?.draft ?? false}
-      incomingFiles={incomingFiles}
+      incomingFiles={incomingFiles ?? sharedHere}
       onVisualReport={reportVisual}
     />
   );
@@ -824,6 +868,8 @@ interface ChatUIProps {
   slashCommands?: import("./slash-commands").SlashCommand[];
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
   onCancelQueued?: (id: string) => void;
+  /** Sends a message the server refused again, in its place in the queue. */
+  onRetryQueued?: (id: string) => void;
   /** Sends one queued message into the running task instead of after it. */
   onSendQueuedNow?: (id: string) => void;
   /** Moves one queued message to another place in the order they are sent. */
@@ -887,6 +933,7 @@ function ChatUI({
   slashCommands,
   queuedMessages,
   onCancelQueued,
+  onRetryQueued,
   onSendQueuedNow,
   onMoveQueued,
   steers = [],
@@ -910,44 +957,18 @@ function ChatUI({
 }: ChatUIProps) {
   const t = useTranslations("chat");
   const tDictation = useTranslations("chat.dictation");
-  // The organization sets the longest recording.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const { data: orgs } = useOrganizationList();
-  const activeOrg = orgs?.find((org) => org.id === activeOrgId) ?? null;
-  const maxSeconds = activeOrg?.dictation_max_seconds ?? DEFAULT_DICTATION_SECONDS;
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  // The engine and the format are the agent's: its Dictation switch sends the
-  // recording to a provider when one resolves, and the backend says what to
-  // record for it - WAV, unless the deployment accepts compressed audio and
-  // that provider takes WebM. The browser's own recognition until it answers.
-  const { status } = useDictationStatus(selectedAgentId);
-  const engine = status?.engine ?? "browser";
-  // Opened by the composer's microphone button; the glow around the box reads
-  // its level. With the browser engine it is a second capture (see
-  // `VoiceGlow`); with the server engine it is the one being recorded.
-  const mic = useMicrophone(engine === "server" ? DICTATION_CONSTRAINTS : undefined);
-  const sendDictation = useMemo<DictationSend | null>(
-    () =>
-      selectedAgentId === null
-        ? null
-        : (recording, seconds, signal, onProgress) =>
-            dictate(selectedAgentId, recording, seconds, signal, onProgress),
-    [selectedAgentId],
-  );
-  const { state: dictationState, actions: dictationActions } = useDictation({
+  const {
+    status,
+    failed: dictationStatusFailed,
+    engine,
     mic,
-    send: sendDictation,
     maxSeconds,
-    format: status?.format ?? "wav",
-  });
-  // The agent left `server` mid-dictation: the composer draws the
-  // browser's microphone now, and a recording with no Stop button would run on
-  // to the limit unseen, so it goes.
-  const dictationPhase = dictationState.phase;
+    state: dictationState,
+    actions: dictationActions,
+  } = useAgentDictation(selectedAgentId);
   const cancelDictation = dictationActions.cancel;
-  useEffect(() => {
-    if (engine !== "server" && dictationPhase !== "idle") cancelDictation();
-  }, [engine, dictationPhase, cancelDictation]);
   const { can } = usePermissions();
   const voiceSettingsHref =
     activeOrgId !== null && can(Perm.orgSettings)
@@ -964,6 +985,10 @@ function ChatUI({
       ? `${ROUTES.AGENT_DETAIL(selectedAgentId)}#${AGENT_CALLS_ANCHOR}`
       : null;
   const hasAgent = selectedAgentId !== null;
+  // The apps keep what is written without a connection in the outbox and send
+  // it when one comes back (#2097), so their composer stays open; a browser
+  // tab keeps nothing, and waits for the socket.
+  const keepsOutbox = useMounted() && offlineAvailable();
   const dictationStrip =
     engine === "server"
       ? dictationHint(
@@ -1030,6 +1055,20 @@ function ChatUI({
     if (dictationState.phase !== "idle") cancelDictation();
     onStartCall(readiness?.transport ?? voice.call.transport ?? "webrtc");
   };
+  // A phone shortcut's "Voice call" or "Dictate" (#2097), acted on once this
+  // agent's readiness is known: started as its button would be, or dropped
+  // where the button is crossed out - which then says why.
+  const intent = useComposerIntentStore((state) => state.intent);
+  const clearIntent = useComposerIntentStore((state) => state.clear);
+  const callRequested = intent === "call" && offerCall && (readiness !== null || readinessFailed);
+  const callOnRequest = useEffectEvent(() => {
+    clearIntent();
+    if (readiness?.available && !onCall && !isProcessing && !isArchived) startCall();
+  });
+  useEffect(() => {
+    if (callRequested) callOnRequest();
+  }, [callRequested]);
+  const dictateNow = intent === "dictate" && hasAgent && (status !== null || dictationStatusFailed);
   const voiceHint = voiceFailureHint(
     { call: voice.call, onRetry: startCall, onDismiss: voice.dismiss },
     tVoice,
@@ -1209,6 +1248,7 @@ function ChatUI({
         >
           <div
             ref={transcriptRef}
+            data-transcript
             className={cn(
               compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
             )}
@@ -1382,6 +1422,8 @@ function ChatUI({
                 messages={queuedMessages ?? []}
                 steers={steers}
                 onCancel={onCancelQueued}
+                onRetry={onRetryQueued}
+                waitingForNetwork={!isConnected}
                 onSendNow={isProcessing && isConnected ? onSendQueuedNow : undefined}
                 onMove={onMoveQueued}
               />
@@ -1501,7 +1543,7 @@ function ChatUI({
                           mentionsFromDraft={testingDraft}
                           hints={messages.length === 0}
                           disabled={
-                            !isConnected ||
+                            (!isConnected && !keepsOutbox) ||
                             isArchived ||
                             onCall ||
                             !!pendingApproval ||
@@ -1525,17 +1567,23 @@ function ChatUI({
                             state: dictationState,
                             actions: dictationActions,
                           }}
+                          dictateNow={dictateNow}
+                          onDictateStarted={clearIntent}
                           // Who answers first and largest: it is the most
                           // consequential choice in the composer.
                           controlsSlot={
                             agentFixed ? undefined : (
                               <>
                                 <AgentPicker />
-                                <ProjectChip
-                                  conversationId={conversationId}
-                                  pickerOpen={projectPickerOpen}
-                                  onPickerOpenChange={setProjectPickerOpen}
-                                />
+                                {/* A phone's row is the agent alone; the project is
+                                    picked from its `+` sheet. */}
+                                <span className="contents max-md:hidden">
+                                  <ProjectChip
+                                    conversationId={conversationId}
+                                    pickerOpen={projectPickerOpen}
+                                    onPickerOpenChange={setProjectPickerOpen}
+                                  />
+                                </span>
                               </>
                             )
                           }
@@ -1544,8 +1592,49 @@ function ChatUI({
                               ? undefined
                               : () => setProjectPickerOpen(true)
                           }
-                          actionsSlot={
+                          // A phone's row keeps +, the agent, the microphone and
+                          // send; these move into its `+` sheet as rows.
+                          phoneRows={
                             <>
+                              {offerCall && !onCall && (
+                                <SheetRow
+                                  icon={PhoneCall}
+                                  label={t("input.callAgent", {
+                                    agent: callAgent?.name ?? t("rail.agent"),
+                                  })}
+                                >
+                                  <VoiceCallButton
+                                    readiness={readiness}
+                                    failed={readinessFailed}
+                                    disabled={isProcessing || isArchived}
+                                    onStart={startCall}
+                                    setUpHref={agentCallsHref}
+                                    publishedOnly={testingDraft}
+                                  />
+                                </SheetRow>
+                              )}
+                              <SheetRow
+                                icon={SlidersHorizontal}
+                                label={t("input.modelAndApprovals")}
+                              >
+                                <ChatControls
+                                  onModelProfileChange={onModelProfileChange}
+                                  onApprovalModeChange={onApprovalModeChange}
+                                  agentModel={agentModel}
+                                />
+                              </SheetRow>
+                              <SheetRow icon={Gauge} label={t("input.contextUsed")}>
+                                <UsageMeter
+                                  usage={lastUsage}
+                                  workspace={workspace}
+                                  total={conversationCost}
+                                  contextWindow={contextWindow}
+                                />
+                              </SheetRow>
+                            </>
+                          }
+                          actionsSlot={
+                            <span className="contents max-md:hidden">
                               {/* Wide screens only, as is the panel it opens. */}
                               <span ref={setFilesSlot} className="hidden lg:contents" />
                               <UsageMeter
@@ -1566,7 +1655,7 @@ function ChatUI({
                                   during the call, when it waits here, hidden, for
                                   focus to come back to. */}
                               {onCall && callButton}
-                            </>
+                            </span>
                           }
                           // Not during a call: the box is closed then, Send with it.
                           // Nor while readiness loads, when the button draws

@@ -5,6 +5,12 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceFiles } from "./workspace-files";
+import { useWorkOnStore } from "@/stores/work-on-store";
+const localInvoke = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/desktop/shell", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/shell")>()),
+  invokeShell: localInvoke,
+}));
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -788,4 +794,33 @@ describe("the workspace panel", () => {
       expect(useFilePreviewStore.getState().openId).toBe(attachment().id);
     });
   });
+});
+
+it("lists the granted desktop folder rather than the server workspace", async () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "0.2.0",
+    window: "main",
+    vibrancy: true,
+  };
+  useWorkOnStore.getState().set("c1", { folder: "/approved", mode: "read_only" });
+  localInvoke.mockResolvedValue([]);
+  try {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    await openPanel();
+    await waitFor(() =>
+      expect(localInvoke).toHaveBeenCalledWith("local_files", { root: "/approved" }),
+    );
+    expect(apiClient.get).not.toHaveBeenCalled();
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
 });
