@@ -174,6 +174,7 @@ class TestStaleClaims:
 
 class TestResolveOrphanedAttempts:
     @pytest.mark.parametrize("reserved", [[False], [True, False]])
+    @pytest.mark.security
     async def test_a_busy_tenant_is_skipped_before_any_run_row_is_locked(
         self, repo, tenant_locks, reserved
     ):

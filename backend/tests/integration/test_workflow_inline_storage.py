@@ -13,9 +13,12 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.db.models.workflow import Workflow
-from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRun
+from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRun, WorkflowRunMode
 from app.repositories import workflow_run as run_repo
 from app.services.workflow_execution import dispatcher
+from app.services.workflow_execution.exceptions import WorkflowInlineStorageLimitError
+from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.workflow_run_support import drive, seed_run
 
@@ -117,6 +120,7 @@ async def test_two_parallel_runs_share_one_serialized_result_allowance(engine, m
     assert failed.error["details"]["scope"] == "organization"
 
 
+@pytest.mark.security
 async def test_maintenance_skips_busy_tenant_locks_and_can_take_them_after_commit(engine):
     from app.db.locks import LockScope, hold_subject, try_hold_subject
 
@@ -136,3 +140,65 @@ async def test_maintenance_skips_busy_tenant_locks_and_can_take_them_after_commi
             )
             is True
         )
+
+
+def _manual_graph() -> WorkflowGraph:
+    node = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="trigger.manual",
+        definition_version=1,
+        layout=NodePosition(x=0, y=0),
+    )
+    return WorkflowGraph(entry_node_id=node.id, nodes=(node,))
+
+
+@pytest.mark.security
+async def test_run_inputs_are_reserved_before_admission_and_shared_by_concurrent_starts(
+    engine, monkeypatch
+):
+    seeded = await seed_run(engine, _manual_graph())
+    payload = {"body": "x" * 1000}
+    async with seeded.factory() as db:
+        workflow = await db.get(Workflow, seeded.run.workflow_id)
+        assert workflow is not None
+        workflow.draft_graph = seeded.graph.model_dump(mode="json")
+        await db.commit()
+        initial = json_byte_size(payload, limit=10_000) + json_byte_size(
+            workflow.draft_graph, limit=10_000
+        )
+    monkeypatch.setattr(settings, "WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES", initial + 100)
+
+    async def start() -> str:
+        async with seeded.factory() as db:
+            try:
+                run = await WorkflowExecutionService(db).start(
+                    seeded.ctx, seeded.run.workflow_id, mode=WorkflowRunMode.TEST, run_input=payload
+                )
+                stored = await db.get(WorkflowRun, run.id)
+                assert stored is not None and stored.inline_result_bytes == initial
+                await db.commit()
+                return "created"
+            except WorkflowInlineStorageLimitError:
+                await db.rollback()
+                return "refused"
+
+    assert sorted(await asyncio.gather(start(), start())) == ["created", "refused"]
+    async with seeded.factory() as db:
+        assert await run_repo.inline_result_bytes(db, seeded.org.id) == initial
+
+
+@pytest.mark.security
+async def test_one_initial_snapshot_and_input_cannot_exceed_the_run_allowance(engine, monkeypatch):
+    seeded = await seed_run(engine, _manual_graph())
+    async with seeded.factory() as db:
+        workflow = await db.get(Workflow, seeded.run.workflow_id)
+        assert workflow is not None
+        workflow.draft_graph = seeded.graph.model_dump(mode="json")
+        await db.commit()
+    monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES", 1)
+    async with seeded.factory() as db:
+        with pytest.raises(WorkflowInlineStorageLimitError) as refused:
+            await WorkflowExecutionService(db).start(
+                seeded.ctx, seeded.run.workflow_id, mode=WorkflowRunMode.TEST
+            )
+        assert refused.value.details == {"scope": "run"}

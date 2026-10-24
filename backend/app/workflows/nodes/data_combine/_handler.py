@@ -57,6 +57,10 @@ def _objects(items: list[Any]) -> list[dict[str, Any]] | None:
     return items if all(isinstance(item, dict) for item in items) else None
 
 
+def _scalar_key(value: object) -> bool:
+    return value is None or isinstance(value, (str, int, float, bool))
+
+
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
     """Combine the two lists the way the config says."""
     combine = config if isinstance(config, DataCombineConfig) else DataCombineConfig()
@@ -75,6 +79,18 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     if combine.mode == "by_position":
         items = [{**one, **other} for one, other in zip(left, right, strict=False)]
     else:
+        if any(
+            combine.key in item and not _scalar_key(item[combine.key])
+            for rows in (left, right)
+            for item in rows
+        ):
+            return Failed(
+                error=WorkflowError(
+                    code="COMBINE_KEY_NOT_SCALAR",
+                    message="Combining by key requires scalar join values",
+                    details={"field": combine.key},
+                )
+            )
         by_key = {other.get(combine.key): other for other in right if combine.key in other}
         items = [
             {**one, **by_key.get(one[combine.key], {})} if combine.key in one else one

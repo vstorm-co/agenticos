@@ -8,6 +8,7 @@ and job) is patched to a no-op: its own mechanics belong to
 """
 
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -51,6 +52,15 @@ pytestmark = pytest.mark.anyio
 FACADE_PATH = "app.services.workflow_execution.facade"
 
 _ORGANIZATION_ID = uuid.uuid4()
+
+
+@pytest.fixture(autouse=True)
+def _storage_lock_at_database_edge() -> Iterator[None]:
+    with (
+        patch(f"{FACADE_PATH}.hold_subject", new=AsyncMock()),
+        patch(f"{FACADE_PATH}.admission.inline_storage_scope", new=AsyncMock(return_value=None)),
+    ):
+        yield
 
 
 def _ctx(role: str = OrgRoleName.OWNER.value) -> AuthContext:

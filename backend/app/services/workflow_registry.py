@@ -27,6 +27,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun
 from app.db.updates import writable
@@ -681,6 +682,20 @@ class WorkflowRegistryService:
                 "Cancel them or let them finish, then delete it.",
                 details={"workflow_id": str(workflow.id), "unfinished_runs": unfinished},
             )
+        if await workflow_run_repo.has_external_run_dependents(
+            self.db, organization_id=ctx.organization_id, workflow_id=workflow.id
+        ):
+            raise WorkflowInUseError(
+                message="Runs of another workflow depend on this workflow. Archive it instead.",
+                details={"workflow_id": str(workflow.id)},
+            )
+        if await workflow_file_repo.files_are_referenced(
+            self.db, organization_id=ctx.organization_id, workflow_id=workflow.id
+        ):
+            raise WorkflowInUseError(
+                message="Another workflow or retained run uses files from this workflow. Remove those references or archive it instead.",
+                details={"workflow_id": str(workflow.id)},
+            )
         await resource_grant_repo.delete_for_resource(
             self.db,
             organization_id=ctx.organization_id,
@@ -695,6 +710,7 @@ class WorkflowRegistryService:
         )
         try:
             async with self.db.begin_nested():
+                await WorkflowTriggerSync(self.db).remove(ctx, workflow)
                 await workflow_repo.delete(self.db, workflow)
         except IntegrityError:
             raise WorkflowInUseError(
@@ -956,6 +972,8 @@ class WorkflowRegistryService:
         both a 404: whether a private workflow exists is itself something the
         caller may not learn.
         """
+        if lock:
+            await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         workflow = (
             await workflow_repo.get_for_update(
                 self.db, workflow_id, organization_id=ctx.organization_id

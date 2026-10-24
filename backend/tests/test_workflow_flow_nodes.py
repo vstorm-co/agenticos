@@ -131,3 +131,14 @@ async def test_a_missing_join_key_does_not_match_an_explicit_null():
         ),
     )
     assert _output(result)["items"] == [{"name": "missing"}, {"id": None, "matched": True}]
+
+
+@pytest.mark.parametrize("value", [[1, 2], {"id": 1}])
+@pytest.mark.parametrize("side", ["first", "second"])
+async def test_combine_rejects_structured_join_values_without_retry(value, side):
+    inputs = {"first": [{"id": 1}], "second": [{"id": 1}]}
+    inputs[side] = [{"id": value}]
+    result = await combine(DataCombineConfig(mode="by_key", key="id"), DataCombineInput(**inputs))
+    assert isinstance(result, Failed)
+    assert result.error.code == "COMBINE_KEY_NOT_SCALAR"
+    assert result.error.retryable is False

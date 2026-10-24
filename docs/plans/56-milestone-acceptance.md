@@ -255,3 +255,17 @@ production latency. Evidence: 7 real database tests, 130 service/API cases and
 377 UI cases across ten named files, including a 100-frame single-render regression,
 unchanged markdown reuse, linear layout, lazy serialization and drawing lifecycle.
 No app or full local suite was started.
+
+
+### Audit round 12
+
+The next eight code/security findings add admission reservations for inputs and
+snapshots plus retained Wait payloads, authenticated resume-body reads, typed
+Combine-key refusals, serialized eval-case limits, graph-aware file lifetimes,
+GitHub trigger cleanup, independent terminal file refresh and complete dashboard
+aggregation. Producer deletion refuses external graph/import/run dependencies;
+provider cleanup follows the existing best-effort integration contract. Migration
+0224 preserves payloads and fees and needs stopped API/worker writers. Run and
+organization lifecycle/storage locks precede row locks, including child admission.
+Graph dependency checks currently scan stored graph JSON in PostgreSQL when a
+producer owns files; profiling large histories remains an optimization follow-up.

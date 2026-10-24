@@ -115,15 +115,15 @@ class WorkflowEvalService:
     ) -> EvalCaseRead:
         """A new case for the step.
 
-        `first_case_charged` credits the HTTP request's existing run reservation;
-        callers without that admission gate leave it false.
+        The workflow row serializes case count and position allocation against
+        other creators and draft edits.
 
         Raises:
             NotFoundError: As `list_cases`.
             BadRequestError: The draft has no such step, it asks no model, or it
                 already holds `MAX_CASES` cases.
         """
-        workflow = await self._workflow(ctx, workflow_id)
+        workflow = await self._workflow(ctx, workflow_id, lock=True)
         self._model_step(workflow, node_id)
         scope = self._scope(workflow, node_id)
         if await eval_repo.count_cases(self.db, **scope) >= MAX_CASES:
@@ -325,10 +325,11 @@ class WorkflowEvalService:
         passed, actual = judge(EvalExpectation.model_validate(entry["expectation"]), output)
         return passed, actual, None
 
-    async def _workflow(self, ctx: AuthContext, workflow_id: UUID) -> Workflow:
-        workflow = await workflow_repo.get(
-            self.db, workflow_id, organization_id=ctx.organization_id
-        )
+    async def _workflow(
+        self, ctx: AuthContext, workflow_id: UUID, *, lock: bool = False
+    ) -> Workflow:
+        read = workflow_repo.get_for_update if lock else workflow_repo.get
+        workflow = await read(self.db, workflow_id, organization_id=ctx.organization_id)
         if workflow is None or not await resolve_access(
             self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
         ):

@@ -44,7 +44,9 @@ def _caller() -> SimpleNamespace:
     )
 
 
-async def _admit_losing_the_link(existing: object | None) -> object:
+async def _admit_with_refusal(
+    existing: object | None, *, refusal: Exception | None = None
+) -> object:
     @asynccontextmanager
     async def savepoint():
         yield
@@ -62,7 +64,7 @@ async def _admit_losing_the_link(existing: object | None) -> object:
     )
     db = MagicMock()
     db.begin_nested = savepoint
-    lost = IntegrityError("insert", {}, Exception("duplicate parent_node_run_id"))
+    lost = refusal or IntegrityError("insert", {}, Exception("duplicate parent_node_run_id"))
     with (
         context.dispatching_as(dispatch),
         patch(
@@ -79,9 +81,21 @@ async def _admit_losing_the_link(existing: object | None) -> object:
 async def test_a_step_that_lost_the_race_to_call_adopts_the_run_that_won():
     winner = object()
 
-    assert await _admit_losing_the_link(winner) is winner
+    assert await _admit_with_refusal(winner) is winner
 
 
 async def test_an_integrity_error_with_no_call_behind_it_is_raised():
     with pytest.raises(IntegrityError):
-        await _admit_losing_the_link(None)
+        await _admit_with_refusal(None)
+
+
+@pytest.mark.security
+async def test_retained_storage_exhaustion_is_not_retried_or_bypassed():
+    from app.services.workflow_execution.exceptions import WorkflowInlineStorageLimitError
+
+    result = await _admit_with_refusal(
+        None, refusal=WorkflowInlineStorageLimitError(scope="organization")
+    )
+    assert isinstance(result, Failed)
+    assert result.error.code == "WORKFLOW_INLINE_STORAGE_LIMIT"
+    assert result.error.retryable is False and result.error.bypassable is False

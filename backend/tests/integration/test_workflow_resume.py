@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.background import start_deferred
@@ -180,3 +180,38 @@ async def test_a_body_that_is_not_one_json_object_or_is_too_large_is_refused(
     monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", 8)
     with pytest.raises(WorkflowRunInputTooLargeError):
         await _resume(seeded, b'{"long": "enough to be over"}')
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("scope", ["run", "organization"])
+async def test_resume_payload_reserves_storage_before_waking_any_step(engine, monkeypatch, scope):
+    from app.db.models.workflow_run import WorkflowRun
+    from app.services.workflow_execution.exceptions import WorkflowInlineStorageLimitError
+
+    seeded, wait = await _parked(engine)
+    setting = (
+        "WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES"
+        if scope == "run"
+        else "WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES"
+    )
+    async with seeded.factory() as db:
+        run = await db.get(WorkflowRun, seeded.run.id)
+        assert run is not None
+        before = run.inline_result_bytes
+    monkeypatch.setattr(settings, setting, before + 10)
+    async with seeded.factory() as db:
+        with pytest.raises(WorkflowInlineStorageLimitError) as refused:
+            await WorkflowResumeService(db).resume(
+                seeded.run.id,
+                resume_token(seeded.run.id),
+                body=b'{"payload":"too large for the remaining allowance"}',
+            )
+        assert refused.value.details == {"scope": scope}
+        step = await db.scalar(
+            select(NodeRun).where(
+                NodeRun.workflow_run_id == seeded.run.id, NodeRun.node_instance_id == wait.id
+            )
+        )
+        assert step is not None and step.resume_payload is None
+        stored = await db.get(WorkflowRun, seeded.run.id)
+        assert stored is not None and stored.inline_result_bytes == before

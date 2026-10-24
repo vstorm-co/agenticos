@@ -119,3 +119,18 @@ it("falls back to the ordered run list when stored timestamps are absent", () =>
   view.rerender(<StepDataFeed workflowId="wf" />);
   expect(store.getState().stepData["a"]?.output).toEqual({ n: 2 });
 });
+
+it("resets example provenance when the editor changes workflow", () => {
+  runs.runs = [{ id: "switch-run", mode: "test" }];
+  runsById["switch-run"] = {
+    run: { status: "succeeded", created_at: "2026-10-24T10:00:00Z" },
+    nodes: [step("same-step", { n: 2 })],
+  };
+  const view = render(<StepDataFeed workflowId="first-workflow" />);
+  runsById["switch-run"] = {
+    run: { status: "succeeded", created_at: "2026-10-23T10:00:00Z" },
+    nodes: [step("same-step", { n: 1 })],
+  };
+  view.rerender(<StepDataFeed workflowId="second-workflow" />);
+  expect(store.getState().stepData["same-step"]?.output).toEqual({ n: 1 });
+});

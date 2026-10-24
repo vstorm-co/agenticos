@@ -11,7 +11,7 @@ and its caller already use.
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -54,6 +54,7 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
 )
 from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_file as workflow_file_repo
 from app.schemas.workflow_run import WorkflowRunFilters
 from app.worker.jobs import WORKFLOW_DISPATCH_NODE
 
@@ -87,6 +88,7 @@ async def create_run(
     source_version_number: int | None = None,
     execution_api_key_id: UUID | None = None,
     key_scopes: list[str] | None = None,
+    inline_result_bytes: int = 0,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -118,6 +120,7 @@ async def create_run(
         causation_run_id=causation_run_id,
         visited_trigger_ids=visited_trigger_ids,
         input=run_input or {},
+        inline_result_bytes=inline_result_bytes,
         reply_conversation_id=reply_conversation_id,
         retry_of_run_id=retry_of_run_id,
         parent_node_run_id=parent_node_run_id,
@@ -128,6 +131,31 @@ async def create_run(
     await db.flush()
     await db.refresh(run)
     return run
+
+
+async def has_external_run_dependents(
+    db: AsyncSession, *, organization_id: UUID, workflow_id: UUID
+) -> bool:
+    """Cross-workflow run references would prevent the workflow's cascade."""
+    source = select(WorkflowRun.id).where(
+        WorkflowRun.organization_id == organization_id, WorkflowRun.workflow_id == workflow_id
+    )
+    source_steps = select(NodeRun.id).where(NodeRun.workflow_run_id.in_(source))
+    other = aliased(WorkflowRun)
+    reference = (
+        select(other.id)
+        .where(
+            other.workflow_id != workflow_id,
+            or_(
+                other.root_run_id.in_(source),
+                other.causation_run_id.in_(source),
+                other.retry_of_run_id.in_(source),
+                other.parent_node_run_id.in_(source_steps),
+            ),
+        )
+        .limit(1)
+    )
+    return await db.scalar(reference) is not None
 
 
 async def count_runs_in_chain(db: AsyncSession, *, root_run_id: UUID) -> int:
@@ -153,7 +181,7 @@ async def run_organization_id(db: AsyncSession, run_id: UUID) -> UUID | None:
 
 
 async def inline_result_bytes(db: AsyncSession, organization_id: UUID) -> int:
-    """Sum compact result reservations without reading or detoasting JSONB payloads."""
+    """Sum retained inline payload reservations without reading or detoasting JSONB."""
     used = await db.scalar(
         select(func.coalesce(func.sum(WorkflowRun.inline_result_bytes), 0)).where(
             WorkflowRun.organization_id == organization_id
@@ -535,61 +563,79 @@ async def step_figures(
     )
 
 
+def _visible_workflows(
+    *, organization_id: UUID, user_id: UUID, see_all: bool, shared_ids: list[UUID]
+) -> Select[UUID]:
+    query = select(Workflow.id).where(Workflow.organization_id == organization_id)
+    if not see_all:
+        query = query.where(workflow_repo.visible_to(user_id=user_id, shared_ids=shared_ids))
+    return query
+
+
+class WorkflowRunSummary(NamedTuple):
+    workflow_id: UUID
+    name: str
+    status: str
+    runs: int
+    cost: Decimal
+
+
 async def runs_by_workflow(
     db: AsyncSession,
     *,
     organization_id: UUID,
-    workflow_ids: Sequence[UUID],
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
     since: datetime,
     until: datetime,
-) -> list[Any]:
-    """Each workflow's real runs admitted in `[since, until)`, by status."""
-    if not workflow_ids:
-        return []
-    return list(
-        (
-            await db.execute(
-                select(
-                    WorkflowRun.workflow_id,
-                    WorkflowRun.status,
-                    func.count().label("runs"),
-                    func.coalesce(func.sum(WorkflowRun.spent_cost), 0).label("cost"),
-                )
-                .where(
-                    WorkflowRun.organization_id == organization_id,
-                    WorkflowRun.workflow_id.in_(workflow_ids),
-                    WorkflowRun.mode == "real",
-                    WorkflowRun.created_at >= since,
-                    WorkflowRun.created_at < until,
-                )
-                .group_by(WorkflowRun.workflow_id, WorkflowRun.status)
-            )
-        ).all()
+) -> list[WorkflowRunSummary]:
+    """Every visible workflow's real runs in `[since, until)`, grouped in SQL."""
+    visible = _visible_workflows(
+        organization_id=organization_id, user_id=user_id, see_all=see_all, shared_ids=shared_ids
     )
+    result = await db.execute(
+        select(
+            WorkflowRun.workflow_id,
+            Workflow.name,
+            WorkflowRun.status,
+            func.count(),
+            func.coalesce(func.sum(WorkflowRun.spent_cost), 0),
+        )
+        .join(Workflow, Workflow.id == WorkflowRun.workflow_id)
+        .where(
+            WorkflowRun.organization_id == organization_id,
+            WorkflowRun.workflow_id.in_(visible),
+            WorkflowRun.mode == "real",
+            WorkflowRun.created_at >= since,
+            WorkflowRun.created_at < until,
+        )
+        .group_by(WorkflowRun.workflow_id, Workflow.name, WorkflowRun.status)
+    )
+    return [
+        WorkflowRunSummary(identifier, name, status, int(count), Decimal(cost))
+        for identifier, name, status, count, cost in result.all()
+    ]
 
 
 async def count_waiting_on_people(
-    db: AsyncSession, *, organization_id: UUID, workflow_ids: Sequence[UUID]
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, see_all: bool, shared_ids: list[UUID]
 ) -> int:
-    """The workflows' real runs waiting now for an approval or a person's attention."""
-    if not workflow_ids:
-        return 0
-    return int(
-        await db.scalar(
-            select(func.count()).where(
-                WorkflowRun.organization_id == organization_id,
-                WorkflowRun.workflow_id.in_(workflow_ids),
-                WorkflowRun.mode == "real",
-                WorkflowRun.status.in_(
-                    (
-                        WorkflowRunStatus.WAITING_APPROVAL.value,
-                        WorkflowRunStatus.NEEDS_ATTENTION.value,
-                    )
-                ),
-            )
-        )
-        or 0
+    """All visible workflows' real runs currently waiting for a person."""
+    visible = _visible_workflows(
+        organization_id=organization_id, user_id=user_id, see_all=see_all, shared_ids=shared_ids
     )
+    count = await db.scalar(
+        select(func.count()).where(
+            WorkflowRun.organization_id == organization_id,
+            WorkflowRun.workflow_id.in_(visible),
+            WorkflowRun.mode == "real",
+            WorkflowRun.status.in_(
+                (WorkflowRunStatus.WAITING_APPROVAL.value, WorkflowRunStatus.NEEDS_ATTENTION.value)
+            ),
+        )
+    )
+    return int(count or 0)
 
 
 async def sum_reserved_node_work(
@@ -1541,6 +1587,25 @@ async def take_expired_runs(
     paths: dict[UUID, list[str]] = {run_id: [] for run_id in run_ids}
     for run_id, storage_path in files.all():
         paths[run_id].append(storage_path)
+    with_files = [identifier for identifier, stored in paths.items() if stored]
+    if with_files:
+        metadata = await db.execute(
+            select(WorkflowRun.id, WorkflowRun.organization_id, WorkflowRun.workflow_id).where(
+                WorkflowRun.id.in_(with_files)
+            )
+        )
+        for identifier, organization_id, workflow_id in metadata.all():
+            if await workflow_file_repo.files_are_referenced(
+                db,
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                run_id=identifier,
+                include_same_workflow=True,
+            ):
+                run_ids.remove(identifier)
+                paths.pop(identifier)
+    if not run_ids:
+        return []
     removed = (
         sql_delete(WorkflowRun)
         .where(WorkflowRun.id.in_(run_ids))

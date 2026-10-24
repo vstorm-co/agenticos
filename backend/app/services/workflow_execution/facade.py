@@ -66,6 +66,7 @@ from app.services.workflow_execution import (
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
     WorkflowGraphUnresolvableError,
+    WorkflowInlineStorageLimitError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
     WorkflowRunInputInvalidError,
@@ -75,6 +76,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowTriggerMismatchError,
 )
 from app.workflows.contracts.io import TableIORef
+from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.step import step_subgraph
@@ -280,6 +282,8 @@ class WorkflowExecutionService:
             WorkflowRunInputInvalidError: The version being run starts from
                 Manual or API with declared fields, and `run_input` does not
                 fit them.
+            WorkflowInlineStorageLimitError: Input and snapshot reservations exceed
+                the retained-payload allowance; no run is created.
             WorkflowAdmissionQuotaError: Admitting this run would push the
                 organization's or the caller's outstanding node work past its
                 ceiling; retried once running work drains.
@@ -398,6 +402,8 @@ class WorkflowExecutionService:
         graph = WorkflowGraph.model_validate(version.graph)
         payload = _checked_input(run_input)
         _check_declared_input(graph, payload)
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
         parent_step = await workflow_run_repo.get_node_run_by_id(self.db, parent_node_run_id)
         parent = (
             await workflow_run_repo.get_run_by_id_for_update(self.db, parent_step.workflow_run_id)
@@ -467,8 +473,8 @@ class WorkflowExecutionService:
         public run), when it came through an external door, or when a public
         run caused it.
         """
-        if any(graph_file_refs(graph)):
-            await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
         problems = await file_binding_problems(self.db, ctx, graph)
         if problems:
             raise GraphValidationError(problems)
@@ -500,6 +506,16 @@ class WorkflowExecutionService:
         deadline_at = (
             now + timedelta(seconds=deadline_seconds) if deadline_seconds is not None else None
         )
+        initial_bytes = sum(
+            json_byte_size(value, limit=(1 << 63) - 1)
+            for value in (payload, draft_snapshot)
+            if value is not None
+        )
+        storage_scope = await admission.inline_storage_scope(
+            self.db, organization_id=ctx.organization_id, run_bytes=0, requested=initial_bytes
+        )
+        if storage_scope is not None:
+            raise WorkflowInlineStorageLimitError(scope=storage_scope)
         run = await workflow_run_repo.create_run(
             self.db,
             organization_id=ctx.organization_id,
@@ -538,6 +554,7 @@ class WorkflowExecutionService:
             depth=causation.depth if causation else 0,
             started_at=now,
             run_input=payload,
+            inline_result_bytes=initial_bytes,
             reply_conversation_id=reply_conversation_id,
             retry_of_run_id=retry_of_run_id,
             parent_node_run_id=parent_node_run_id,

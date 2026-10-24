@@ -72,6 +72,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
     WorkflowBudgetReachedError,
+    WorkflowInlineStorageLimitError,
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowWebhookUnansweredError,
@@ -810,7 +811,7 @@ class WorkflowExposureService:
                 triggered_by=WorkflowRunTrigger.GMAIL,
                 run_input=message.model_dump(mode="json"),
             )
-        except WorkflowAdmissionQuotaError:
+        except WorkflowAdmissionQuotaError, WorkflowInlineStorageLimitError:
             return False
         except (WorkflowBudgetReachedError, WorkflowRunInputTooLargeError) as exc:
             # Not a refusal a later poll would lift: the month's budget is spent, or
@@ -1128,6 +1129,7 @@ class WorkflowExposureService:
                     )
             except (
                 WorkflowAdmissionQuotaError,
+                WorkflowInlineStorageLimitError,
                 WorkflowBudgetReachedError,
                 WorkflowRunInputTooLargeError,
             ) as exc:

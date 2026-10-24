@@ -1,5 +1,5 @@
 ---
-source_sha: "1d9dc7e4de7f"
+source_sha: "53efc0c8e910"
 ---
 
 # Workflows { #workflows }
@@ -498,6 +498,12 @@ Un agente reanudado conserva el límite más estricto: su techo guardado al paus
 Las salidas fijadas importan referencias anidadas de archivos después de comprobar el acceso actual. La admisión y la retención comparten el bloqueo de archivos: una importación confirmada protege al productor y la limpieza vuelve a comprobar las referencias tras esperar. Los ejemplos del editor conservan los datos más recientes aunque lleguen respuestas antiguas; pegar conserva notas y los cambios mixtos de notas y pasos se aplican juntos.
 
 La migración `0223_workflow_result_bytes.py` rellena contadores desde JSON existente sin comprimir, de forma conservadora frente a las nuevas reservas compactas. Detén las escrituras de API y workers durante este proceso. Los historiales que exceden la cuota se conservan, pero bloquean nuevos resultados grandes hasta limpiar o aumentar el límite. No se recupera contenido ya eliminado.
+
+Las reservas incluyen la entrada inicial, el snapshot del borrador en modo test y cada payload de reanudación Wait almacenado. Admission y resume reservan antes de escribir o despertar pasos; el rechazo devuelve `WORKFLOW_INLINE_STORAGE_LIMIT` (429). Los enlaces resume autentican antes de leer el cuerpo. La migración `0224_workflow_input_bytes.py` añade los payloads existentes a los contadores sin eliminar resultados ni costes. Detén API y workers durante el backfill; una organización que ya supera el límite debe limpiar historial o ampliar el límite.
+
+Borradores, versiones publicadas e importaciones retenidas protegen sus archivos de la retención. No se puede eliminar un workflow productor mientras otro referencia sus archivos; elimina las referencias o archívalo. Edición, admission, importación y limpieza comparten el bloqueo de ciclo de vida de la organización. La eliminación comprueba dependencias entre runs antes de quitar triggers e intenta desregistrar los hooks GitHub mediante la integración de cuenta; los fallos del proveedor quedan en logs.
+
+Combine by key acepta claves escalares y rechaza listas u objetos sin reintentos. La creación de eval cases serializa el límite y la asignación de posición. El dashboard incluye todos los workflows visibles, incluso más de 500, y un run terminal actualiza archivos independientemente de cuándo llegaron sus pasos.
 
 Las importaciones anidadas se deduplican por ID y se limitan mediante `WORKFLOW_GRAPH_MAX_BINDINGS` antes de validar en la base de datos.
 

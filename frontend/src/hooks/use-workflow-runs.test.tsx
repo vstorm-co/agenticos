@@ -229,3 +229,32 @@ describe("useWorkflowRun", () => {
     expect(result.current.nodes).toEqual([]);
   });
 });
+
+it("refreshes final files even when the steps are newer than the terminal observation", async () => {
+  vi.mocked(api.getWorkflowRun).mockResolvedValue(run("running"));
+  vi.mocked(api.listWorkflowRunNodes).mockResolvedValue({ items: [], total: 0 });
+  vi.mocked(api.listWorkflowRunFiles)
+    .mockResolvedValueOnce({ items: [] })
+    .mockResolvedValue({ items: [{ id: "late-file" } as never] });
+  vi.mocked(api.getWorkflowRunGraph).mockResolvedValue(null as never);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const own = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useWorkflowRun("r"), { wrapper: own });
+  await waitFor(() => expect(result.current.run?.status).toBe("running"));
+  await waitFor(() => expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(1));
+  const now = Date.now();
+  act(() => {
+    client.setQueryData(qk.workflows.runFiles("r"), { items: [] }, { updatedAt: now - 100 });
+    client.setQueryData(qk.workflows.run("r"), run("succeeded"), { updatedAt: now });
+    client.setQueryData(
+      qk.workflows.runNodes("r"),
+      { items: [], total: 0 },
+      { updatedAt: now + 100 },
+    );
+  });
+  await waitFor(() => expect(result.current.files).toHaveLength(1));
+  expect(api.listWorkflowRunNodes).toHaveBeenCalledTimes(1);
+  expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(2);
+});

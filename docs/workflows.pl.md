@@ -1,5 +1,5 @@
 ---
-source_sha: "1d9dc7e4de7f"
+source_sha: "53efc0c8e910"
 ---
 
 # Workflows { #workflows }
@@ -482,6 +482,12 @@ Wznowiony agent zachowuje ciaśniejszy limit: zapisany na pauzie albo sumę doty
 Przypięte wyniki importują zagnieżdżone referencje plików po sprawdzeniu aktualnego dostępu. Admission i retencja współdzielą blokadę cyklu życia pliku: zatwierdzony import chroni producenta, a retencja ponawia sprawdzenie po oczekiwaniu na blokadę. Przykłady edytora zachowują dane najnowszego runa mimo opóźnionych starszych odpowiedzi; wklejanie zachowuje notatki, a mieszane zmiany notatek i stepów są stosowane razem.
 
 Migracja `0223_workflow_result_bytes.py` odtwarza liczniki z istniejącego nieskompresowanego tekstu JSON, konserwatywnie względem nowych kompaktowych rezerwacji. Na czas backfill zatrzymaj zapisujące API i workery. Historie przekraczające kwotę pozostają zachowane, ale blokują kolejne duże wyniki do sprzątnięcia lub zwiększenia limitu. Nie odtwarza to wcześniej usuniętych treści.
+
+Rezerwacje obejmują także początkowe wejście runa, snapshot draftu w trybie testowym i każdy zapisany payload wznowienia Wait. Admission i resume rezerwują bajty przed zapisem lub wybudzeniem kroków; odmowa zwraca `WORKFLOW_INLINE_STORAGE_LIMIT` (429). Link resume uwierzytelnia przed odczytem body. Migracja `0224_workflow_input_bytes.py` dodaje istniejące payloady do liczników, zachowując wyniki i opłaty. Na czas backfillu zatrzymaj zapisujące API i workery; organizacja już przekraczająca limit musi usunąć zachowaną historię albo zwiększyć limit przed kolejnymi zapisami.
+
+Drafty, opublikowane wersje i zachowane importy chronią wskazane pliki przed retencją. Usunięcie workflow-producenta jest odrzucane, dopóki inne workflow wskazuje jego pliki; usuń odwołania albo zarchiwizuj workflow. Edycja, admission, importy i cleanup współdzielą blokadę cyklu życia organizacji. Usunięcie sprawdza zależności runów przed usunięciem triggerów i próbuje wyrejestrować hook GitHub przez istniejącą integrację konta; błędy dostawcy pozostają w logach.
+
+Combine by key przyjmuje skalarne klucze i odrzuca listy lub obiekty bez retry. Tworzenie eval cases serializuje kontrolę limitu i nadawanie pozycji. Dashboard sumuje wszystkie widoczne workflow, również powyżej 500, a zakończenie runa odświeża listę plików niezależnie od czasu odczytu kroków.
 
 Zagnieżdżone importy są deduplikowane po ID pliku i ograniczone przez `WORKFLOW_GRAPH_MAX_BINDINGS` przed walidacją w bazie.
 

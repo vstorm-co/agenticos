@@ -80,6 +80,7 @@ from app.services.transcription_usage import TranscriptionCall
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowBudgetReachedError,
+    WorkflowInlineStorageLimitError,
     WorkflowRunInputTooLargeError,
 )
 from app.services.workflow_exposure import WorkflowExposureService
@@ -719,6 +720,7 @@ class ChannelMessageRouter:
             )
         except (
             WorkflowAdmissionQuotaError,
+            WorkflowInlineStorageLimitError,
             WorkflowBudgetReachedError,
             WorkflowRunInputTooLargeError,
         ) as exc:

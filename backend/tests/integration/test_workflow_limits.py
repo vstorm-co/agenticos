@@ -476,3 +476,29 @@ class TestTheSummary:
         )
 
         assert (summary.runs, summary.workflows) == (0, [])
+
+
+async def test_dashboard_summary_includes_a_workflow_beyond_the_old_500_row_page(db, owner):
+    oldest, _graph_ = await _two_step(db, owner)
+    oldest.created_at = datetime.now(UTC) - timedelta(days=20)
+    await _ran(db, owner, oldest, status="succeeded", seconds=1, cost="1")
+    await _ran(db, owner, oldest, status="needs_attention", seconds=1, cost="0.5")
+    db.add_all(
+        [
+            Workflow(
+                organization_id=owner.organization_id,
+                owner_user_id=owner.subject_id,
+                name=f"Newer {index}",
+                slug=f"newer-{uuid.uuid4().hex}",
+                status="draft",
+                visibility="private",
+            )
+            for index in range(500)
+        ]
+    )
+    await db.flush()
+    today = datetime.now(UTC).date()
+    summary = await WorkflowStatsService(db).summary(owner, first=today, last=today)
+    assert (summary.runs, summary.succeeded, summary.needs_you) == (2, 1, 1)
+    assert summary.cost_usd == pytest.approx(1.5)
+    assert [row.id for row in summary.workflows] == [oldest.id]

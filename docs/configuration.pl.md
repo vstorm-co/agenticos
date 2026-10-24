@@ -1,5 +1,5 @@
 ---
-source_sha: "85703c88feca"
+source_sha: "3775ad1b4704"
 ---
 
 # Konfiguracja { #configuration }
@@ -529,8 +529,8 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie. Te trzy ustawienia dotyczą węzła, którego `policy.retry` nie ustala własnych |
 | `WORKFLOW_NODE_MAX_OUTPUT_BYTES` | `10485760` | Łączny kompaktowy JSON UTF-8 wyniku próby, wyjścia runa i odpowiedzi webhooka. Przekroczenie daje `NODE_OUTPUT_TOO_LARGE` bez automatycznego retry, z zachowaniem kosztu. Split out sprawdza limit 10 000 rozwiniętych elementów i konserwatywny rozmiar przed kopiowaniem |
-| `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` | `67108864` | Łączne kompaktowe rezerwacje wyników na run, także wyniki pętli i zachowane próby; małe końcowe rekordy kontrolne są wyjątkiem |
-| `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` | `1073741824` | Rezerwacje wyników wszystkich zachowanych runów organizacji; retencja zwalnia je bez skanowania JSONB |
+| `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` | `67108864` | Rezerwacje wejść, snapshotów draftu, payloadów Wait i wyników runa; małe końcowe rekordy kontrolne są wyjątkiem |
+| `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` | `1073741824` | Rezerwacje payloadów wszystkich zachowanych runów organizacji; retencja zwalnia je przez liczniki |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Najdłuższa lista, po której iteruje `control.foreach`. Dłuższa kończy pętlę błędem `FOREACH_TOO_MANY_ITEMS` zamiast zostać przycięta |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Największa lista, jaką pętla zamraża, jako JSON. Większa kończy pętlę błędem `FOREACH_LIST_TOO_LARGE` |
 | `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Najnowsze wyniki yield i nieobsłużone błędy wraz z narzutem kolekcji, mierzone przed pobraniem JSON. Większa kolekcja kończy się `FOREACH_OUTPUT_TOO_LARGE`; zwracaj mniejsze wartości lub referencje plików |

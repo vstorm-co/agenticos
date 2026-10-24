@@ -31,6 +31,7 @@ from app.services.access import WORKFLOW, resolve_access
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowBudgetReachedError,
+    WorkflowInlineStorageLimitError,
     WorkflowRunInputTooLargeError,
 )
 from app.workflows import _registry
@@ -139,6 +140,7 @@ async def start_error_workflow(
             )
     except (
         WorkflowAdmissionQuotaError,
+        WorkflowInlineStorageLimitError,
         WorkflowBudgetReachedError,
         WorkflowRunInputTooLargeError,
     ):

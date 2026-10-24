@@ -165,6 +165,7 @@ class TestListingItsMessages:
 
         assert service.transcript.await_args.kwargs["organization_id"] == org
 
+    @pytest.mark.security
     async def test_latest_and_cursor_paging_keep_the_caller_and_tenant(self) -> None:
         caller, org, cursor, conversation = uuid4(), uuid4(), uuid4(), uuid4()
         service = MagicMock(transcript=AsyncMock(return_value=([], 250, None)))

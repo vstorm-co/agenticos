@@ -473,6 +473,12 @@ Pinned outputs import nested file references after current access checks. Admiss
 
 Migration `0223_workflow_result_bytes.py` backfills counters from existing uncompressed JSON text, conservatively relative to new compact reservations. Stop API and worker writers during this backfill. Existing over-limit histories are preserved but block further large results until cleanup or a configured limit increase. This does not reconstruct content already deleted.
 
+Retained payload reservations also include a run's initial input, its test-mode draft snapshot and each stored Wait resume payload. Admission and resume reserve these bytes before writing or waking steps; a refusal returns `WORKFLOW_INLINE_STORAGE_LIMIT` (429). Resume links authenticate before reading a body. Migration `0224_workflow_input_bytes.py` adds these existing payloads to the counters, preserving results and fees. Stop API and worker writers during the backfill; an existing over-limit organization must clean up retained history or raise its limit before admitting more data.
+
+Stored drafts, published versions and retained imports protect the files they reference from retention. Deleting a producer workflow is refused while another workflow still references its files; remove those references or archive it. Registry edits, admission, imports and cleanup use the same organization lifecycle lock. Deletion checks cross-workflow run dependencies before removing triggers and attempts to unregister GitHub hooks through the existing account integration; provider cleanup failures remain visible in logs.
+
+Combine by key accepts scalar join values and refuses lists or objects without retries. Eval-case creation serializes the case ceiling and position allocation. The dashboard totals include every visible workflow, even beyond 500, and a terminal run refreshes its file list independently of when its steps arrived.
+
 Nested imports are deduplicated by file ID and bounded by `WORKFLOW_GRAPH_MAX_BINDINGS` before database validation.
 
 A source run stays while a retry is active or another retained run imports one of its files. Finishing a retry does not invalidate files its later steps still reference.

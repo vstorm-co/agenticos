@@ -65,9 +65,12 @@ _REAL_PRINCIPAL_CONTEXT = dispatcher._principal_context
 def _principal_still_entitled():
     """Most tests here are about something other than the principal recheck -
     only `TestPrincipalContext` is, and it calls the real function directly."""
-    with patch(
-        f"{DISPATCHER_PATH}._principal_context",
-        new=AsyncMock(return_value=MagicMock(spec=AuthContext)),
+    with (
+        patch(
+            f"{DISPATCHER_PATH}._principal_context",
+            new=AsyncMock(return_value=MagicMock(spec=AuthContext)),
+        ),
+        patch(f"{DISPATCHER_PATH}.hold_subject", new=AsyncMock()),
     ):
         yield
 
@@ -151,6 +154,7 @@ def _run(**overrides: object) -> WorkflowRun:
         "execution_principal_user_id": uuid.uuid4(),
         "budget_limit": None,
         "spent_cost": Decimal("0"),
+        "inline_result_bytes": 0,
         "cost_is_partial": False,
         "deadline_at": None,
         "next_event_seq": 0,
@@ -600,11 +604,14 @@ def repo():
     mocked.count_node_runs.return_value = 0
     mocked.get_latest_attempts.return_value = {}
     mocked.latest_attempt_result_bytes.return_value = 0
+    mocked.run_organization_id.return_value = uuid.uuid4()
+    mocked.inline_result_bytes.return_value = 0
     # No step waits on a run it called unless a test says so.
     mocked.get_run_called_by.return_value = None
     # A failed run's error workflow is `failure`'s, proven against a database.
     with (
         patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked),
+        patch("app.services.workflow_execution.admission.workflow_run_repo", new=mocked),
         patch(f"{DISPATCHER_PATH}.failure.start_error_workflow", new=AsyncMock()),
         patch("app.services.workflow_execution.dispatch_queue.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.dispatch_queue.enqueue", new=AsyncMock()),
@@ -634,6 +641,7 @@ class TestBeginAttemptShortCircuits:
     async def test_a_missing_run_or_node_run_returns_none_and_does_nothing_else(
         self, repo, event_log
     ):
+        repo.run_organization_id.return_value = None
         repo.get_run_by_id_for_update.return_value = None
         repo.get_node_run_by_id_for_update.return_value = None
         result = await dispatcher.begin_attempt(
@@ -1571,7 +1579,10 @@ class TestSettleShortCircuits:
         assert node_run.status == NodeRunStatus.CANCELLED.value
         assert run.status == WorkflowRunStatus.CANCELLED.value
         repo.mark_outbox_done.assert_awaited_once_with(ANY, outbox=outbox)
-        repo.update_run.assert_not_called()
+        repo.update_run.assert_awaited_once()
+        update = repo.update_run.await_args.kwargs["update_data"]
+        assert set(update) == {"inline_result_bytes"}
+        assert update["inline_result_bytes"] > 0
         repo.get_node_run_by_id_for_update.assert_awaited_once()
 
     @pytest.mark.parametrize(

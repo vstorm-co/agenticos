@@ -66,6 +66,7 @@ from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowBudgetReachedError,
+    WorkflowInlineStorageLimitError,
     WorkflowRunInputTooLargeError,
 )
 from app.services.workflow_execution.facade import (
@@ -636,7 +637,11 @@ class TableTriggerConsumer:
                     run_input=payload,
                     causation=causation,
                 )
-        except WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError:
+        except (
+            WorkflowAdmissionQuotaError,
+            WorkflowInlineStorageLimitError,
+            WorkflowRunInputTooLargeError,
+        ):
             await record(AdmissionStatus.BLOCKED, AdmissionReason.QUOTA)
             return None
         except WorkflowBudgetReachedError:

@@ -39,6 +39,7 @@ So the queue-depth guarantee holds; only in-flight concurrency, already capped
 elsewhere, is briefly held past a cancel.
 """
 
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,3 +104,15 @@ async def enforce_admission_quota(
             outstanding=principal_outstanding,
             requested=requested_node_count,
         )
+
+
+async def inline_storage_scope(
+    db: AsyncSession, *, organization_id: UUID, run_bytes: int, requested: int
+) -> Literal["run", "organization"] | None:
+    """Check compact reservations under the caller's organization-storage lock."""
+    if run_bytes + requested > settings.WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES:
+        return "run"
+    used = await workflow_run_repo.inline_result_bytes(db, organization_id)
+    if used + requested > settings.WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES:
+        return "organization"
+    return None

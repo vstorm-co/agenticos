@@ -34,9 +34,6 @@ from app.workflows.graph.model import WorkflowGraph
 
 _ENDED = frozenset(status.value for status in WorkflowRunStatus if status.is_terminal)
 
-_SUMMARY_WORKFLOWS = 500
-"""The most workflows the dashboard's summary reads: an organization's whole set, in practice."""
-
 
 class WorkflowStatsService:
     """Read a workflow's run figures for whoever may view it."""
@@ -99,21 +96,12 @@ class WorkflowStatsService:
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=WORKFLOW, perm=Perm.WORKFLOWS_VIEW
         )
-        workflows, _total = await workflow_repo.list_visible(
+        rows = await workflow_run_repo.runs_by_workflow(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             see_all=shared is None,
             shared_ids=shared or [],
-            skip=0,
-            limit=_SUMMARY_WORKFLOWS,
-        )
-        names = {workflow.id: workflow.name for workflow in workflows}
-        ids = list(names)
-        rows = await workflow_run_repo.runs_by_workflow(
-            self.db,
-            organization_id=ctx.organization_id,
-            workflow_ids=ids,
             since=datetime.combine(first, datetime.min.time(), tzinfo=UTC),
             until=datetime.combine(last + timedelta(days=1), datetime.min.time(), tzinfo=UTC),
         )
@@ -122,9 +110,7 @@ class WorkflowStatsService:
         for row in rows:
             entry = per.setdefault(
                 row.workflow_id,
-                WorkflowSummaryRow(
-                    id=row.workflow_id, name=names[row.workflow_id], runs=0, failed=0, cost_usd=0
-                ),
+                WorkflowSummaryRow(id=row.workflow_id, name=row.name, runs=0, failed=0, cost_usd=0),
             )
             entry.runs += int(row.runs)
             entry.cost_usd += float(row.cost)
@@ -139,7 +125,11 @@ class WorkflowStatsService:
             failed=sum(entry.failed for entry in per.values()),
             cost_usd=sum(entry.cost_usd for entry in per.values()),
             needs_you=await workflow_run_repo.count_waiting_on_people(
-                self.db, organization_id=ctx.organization_id, workflow_ids=ids
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=ctx.subject_id,
+                see_all=shared is None,
+                shared_ids=shared or [],
             ),
             workflows=busiest[:5],
         )

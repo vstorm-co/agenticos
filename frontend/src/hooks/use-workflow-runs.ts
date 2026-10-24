@@ -106,12 +106,12 @@ export function useWorkflowRun(runId: string) {
   const ended = run.data !== undefined && isRunTerminal(run.data.status);
   if (ended && end?.runId === runId && end.at === null) setEnd({ runId, at: run.dataUpdatedAt });
   const endedAt = end?.runId === runId ? end.at : null;
-  const behind = endedAt !== null && nodes.dataUpdatedAt > 0 && nodes.dataUpdatedAt < endedAt;
+  const nodesBehind = endedAt !== null && nodes.dataUpdatedAt > 0 && nodes.dataUpdatedAt < endedAt;
+  const filesBehind = endedAt !== null && files.dataUpdatedAt > 0 && files.dataUpdatedAt < endedAt;
   useEffect(() => {
-    if (!behind) return;
-    void queryClient.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
-    void queryClient.invalidateQueries({ queryKey: qk.workflows.runFiles(runId) });
-  }, [behind, queryClient, runId]);
+    if (nodesBehind) void queryClient.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
+    if (filesBehind) void queryClient.invalidateQueries({ queryKey: qk.workflows.runFiles(runId) });
+  }, [nodesBehind, filesBehind, queryClient, runId]);
   const graph = useQuery({
     queryKey: qk.workflows.runGraph(runId),
     queryFn: () => getWorkflowRunGraph(runId),

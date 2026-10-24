@@ -31,6 +31,7 @@ from app.services.workflow_execution import context
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowBudgetReachedError,
+    WorkflowInlineStorageLimitError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
     WorkflowRunInputInvalidError,
@@ -308,6 +309,16 @@ async def _admit(
         if existing is None:
             raise
         return existing
+    except WorkflowInlineStorageLimitError as refusal:
+        return Failed(
+            error=WorkflowError(
+                code=refusal.code,
+                message=refusal.message,
+                details=refusal.details or {},
+                retryable=False,
+                bypassable=False,
+            )
+        )
     except WorkflowAdmissionQuotaError as refusal:
         # Too much work in flight: the next try may find room.
         return Failed(

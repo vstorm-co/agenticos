@@ -80,6 +80,7 @@ from app.repositories import workflow_run as workflow_run_repo
 from app.services.access import WORKFLOW, resolve_access
 from app.services.api_key import ApiKeyService
 from app.services.workflow_execution import (
+    admission,
     budget,
     context,
     delivery,
@@ -1377,11 +1378,11 @@ async def _reserve_inline_result(
     db: AsyncSession, run: WorkflowRun, size: int
 ) -> WorkflowError | None:
     """Reserve under the org lock and run-row lock; sums read counters, never JSONB."""
-    if run.inline_result_bytes + size > settings.WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES:
-        return _inline_storage_error("run")
-    used = await workflow_run_repo.inline_result_bytes(db, run.organization_id)
-    if used + size > settings.WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES:
-        return _inline_storage_error("organization")
+    scope = await admission.inline_storage_scope(
+        db, organization_id=run.organization_id, run_bytes=run.inline_result_bytes, requested=size
+    )
+    if scope is not None:
+        return _inline_storage_error(scope)
     await workflow_run_repo.update_run(
         db, run=run, update_data={"inline_result_bytes": run.inline_result_bytes + size}
     )

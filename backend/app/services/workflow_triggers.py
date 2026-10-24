@@ -141,6 +141,11 @@ class WorkflowTriggerSync:
         )
         return SwitchedOn(trigger=trigger, exposure=exposure, webhook_secret=secret)
 
+    async def remove(self, ctx: AuthContext, workflow: Workflow) -> None:
+        """Remove trigger registrations before their workflow is deleted."""
+        await self.exposures.switch_off(ctx, workflow)
+        await self.tables.switch_off(ctx, workflow)
+
     async def states(self, organization_id: UUID, workflow_ids: list[UUID]) -> dict[UUID, bool]:
         """Whether each workflow's unattended trigger is on, for those that have one."""
         states = await workflow_exposure_repo.active_by_workflow(

@@ -2211,3 +2211,68 @@ async def test_a_small_invalid_form_body_is_a_validation_refusal(http, body):
         headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 422
+
+
+async def test_deleting_a_workflow_unregisters_its_github_hook_before_the_cascade(db, tenant):
+    owner, org, workflow = tenant
+    account = await _account(db, org)
+    with account.connected():
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.github", GITHUB))
+        assert len(account.registered) == 1
+        await WorkflowRegistryService(db).delete(_ctx(owner, org), workflow.id)
+    assert account.deleted == ["hook-1"]
+    assert await db.get(Workflow, workflow.id) is None
+
+
+async def test_refused_workflow_deletion_does_not_unregister_a_still_needed_github_hook(db, tenant):
+    from app.services.workflow_registry import WorkflowInUseError
+
+    owner, org, workflow = tenant
+    account = await _account(db, org)
+    with account.connected():
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.github", GITHUB))
+        producer_id, child_id = uuid.uuid4(), uuid.uuid4()
+        other = Workflow(
+            organization_id=org.id,
+            owner_user_id=owner.id,
+            name="Dependent workflow",
+            slug=f"dependent-{uuid.uuid4().hex}",
+        )
+        db.add(other)
+        await db.flush()
+        db.add(
+            WorkflowRun(
+                id=producer_id,
+                organization_id=org.id,
+                workflow_id=workflow.id,
+                workflow_version_id=workflow.current_version_id,
+                root_run_id=producer_id,
+                mode="real",
+                status="succeeded",
+                triggered_by="api",
+                input={},
+                started_at=datetime.now(UTC),
+                ended_at=datetime.now(UTC),
+            )
+        )
+        await db.flush()
+        db.add(
+            WorkflowRun(
+                id=child_id,
+                organization_id=org.id,
+                workflow_id=other.id,
+                draft_graph_snapshot=_graph("trigger.manual", {}).model_dump(mode="json"),
+                root_run_id=producer_id,
+                causation_run_id=producer_id,
+                mode="test",
+                status="succeeded",
+                triggered_by="workflow_call",
+                input={},
+                started_at=datetime.now(UTC),
+                ended_at=datetime.now(UTC),
+            )
+        )
+        await db.flush()
+        with pytest.raises(WorkflowInUseError, match="depend"):
+            await WorkflowRegistryService(db).delete(_ctx(owner, org), workflow.id)
+    assert account.deleted == []

@@ -8,6 +8,7 @@ and a published version never changes once created - there is no
 """
 
 import uuid
+from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -95,6 +96,12 @@ def _empty_graph() -> WorkflowGraph:
         layout=NodePosition(x=0, y=0),
     )
     return WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
+
+
+@pytest.fixture(autouse=True)
+def _lifecycle_lock_at_database_edge() -> Iterator[None]:
+    with patch("app.services.workflow_registry.hold_subject", new=AsyncMock()):
+        yield
 
 
 class TestSlugify:

@@ -6,6 +6,7 @@ cover. Here it is stood in for, so a case's run can be put in any state and the
 judgement read back the way the editor reads it.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -15,7 +16,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
@@ -401,3 +402,41 @@ def test_new_eval_cases_reject_unstorable_text_outside_the_run_input(field):
     )
     with pytest.raises(ValidationError):
         EvalCaseCreate.model_validate(payload)
+
+
+@pytest.mark.security
+async def test_concurrent_case_creators_share_the_case_ceiling(engine, monkeypatch):
+    from app.repositories import workflow_eval as eval_repo
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr("app.services.workflow_evals.MAX_CASES", 1)
+    async with factory() as db:
+        principal, org = await seed_member(db)
+        ctx = AuthContext(user_id=principal.id, organization_id=org.id, role="owner")
+        workflow = Workflow(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            owner_user_id=principal.id,
+            slug=f"cases-{uuid.uuid4().hex[:8]}",
+            name="Concurrent cases",
+            status=WorkflowStatus.DRAFT.value,
+            visibility=Visibility.ORG.value,
+            draft_graph=_graph().model_dump(mode="json"),
+        )
+        db.add(workflow)
+        await db.commit()
+
+    async def create(name: str) -> str:
+        async with factory() as db:
+            try:
+                await WorkflowEvalService(db).create_case(ctx, workflow.id, ASK, _case(name))
+                await db.commit()
+                return "created"
+            except BadRequestError:
+                await db.rollback()
+                return "refused"
+
+    assert sorted(await asyncio.gather(create("one"), create("two"))) == ["created", "refused"]
+    async with factory() as db:
+        cases = await eval_repo.list_cases(db, **WorkflowEvalService._scope(workflow, ASK))
+        assert len(cases) == 1

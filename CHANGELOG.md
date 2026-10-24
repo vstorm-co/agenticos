@@ -672,6 +672,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reserve workflow inputs, test snapshots and Wait payloads before storing them;
+  authenticate resume links before reading bodies. Backfill retained byte counters
+  with migration `0224_workflow_input_bytes.py` while API and worker writers stop.
+- Protect files referenced by stored graphs and retained imports during cleanup
+  and workflow deletion, and unregister GitHub hooks on successful deletion.
+- Serialize eval-case creation, refuse structured Combine keys without retries,
+  refresh terminal files independently and include all workflows in dashboard totals.
+- Cover storage lifecycle locks and editor workflow changes in regression fixtures.
+
+
 - Open chat without downloading full transcripts for project metadata or decoding
   model summaries. Reuse unchanged message renders, lay out long turns in linear
   work, batch replay frames and release offscreen historical drawing frames (#2469).

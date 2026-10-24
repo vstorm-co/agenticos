@@ -250,6 +250,19 @@ class WorkflowRunInputInvalidError(AppException):
         super().__init__(details={"problems": problems})
 
 
+class WorkflowInlineStorageLimitError(AppException):
+    """Retained workflow payloads exhaust the run or organization allowance (429)."""
+
+    message = (
+        "Workflow storage allowance is exhausted; configure history retention or increase its limit"
+    )
+    code = "WORKFLOW_INLINE_STORAGE_LIMIT"
+    status_code = 429
+
+    def __init__(self, *, scope: str) -> None:
+        super().__init__(details={"scope": scope})
+
+
 class WorkflowRunInputTooLargeError(AppException):
     """The payload a run was started with is larger than the deployment allows (413)."""
 

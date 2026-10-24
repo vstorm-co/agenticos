@@ -17,18 +17,21 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow_run import NodeRunStatus, WorkflowRunStatus
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import WorkflowResumed
-from app.services.workflow_execution import dispatch_queue
+from app.services.workflow_execution import admission, dispatch_queue
 from app.services.workflow_execution.dispatcher import resolve_graph
 from app.services.workflow_execution.exceptions import (
+    WorkflowInlineStorageLimitError,
     WorkflowNotWaitingError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
 from app.services.workflow_execution.resume_link import resume_token
 from app.services.workflow_exposure import parse_webhook_body
+from app.workflows.contracts.payload import json_byte_size
 
 WAIT = "flow.wait"
 
@@ -45,6 +48,12 @@ async def read_workflow_body(chunks: AsyncIterator[bytes], *, limit: int | None 
     return bytes(body)
 
 
+def require_resume_token(run_id: UUID, token: str) -> None:
+    """Authenticate the public link before accepting any body bytes."""
+    if not token.isascii() or not secrets.compare_digest(token, resume_token(run_id)):
+        raise WorkflowRunNotFoundError(run_id=run_id)
+
+
 class WorkflowResumeService:
     """Resumes a run from its link. No caller identity: the link is the credential."""
 
@@ -59,16 +68,21 @@ class WorkflowResumeService:
                 such run - one answer for both, so a guess learns nothing.
             BadRequestError: The body is not a JSON object.
             WorkflowRunInputTooLargeError: The body is over the run input limit.
+            WorkflowInlineStorageLimitError: Storing the Wait payload would exceed
+                the retained-payload allowance; no step is woken.
             WorkflowNotWaitingError: The run has ended, or nothing in it waits
                 for a call now - one already woken by an earlier call included.
         """
-        if not secrets.compare_digest(token, resume_token(run_id)):
-            raise WorkflowRunNotFoundError(run_id=run_id)
+        require_resume_token(run_id, token)
         if len(body) > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:
             raise WorkflowRunInputTooLargeError(
                 limit=settings.WORKFLOW_RUN_MAX_INPUT_BYTES, size=len(body)
             )
         payload: dict[str, Any] = parse_webhook_body(body) if body else {}
+        organization_id = await workflow_run_repo.run_organization_id(self.db, run_id)
+        if organization_id is not None:
+            await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, organization_id)
+            await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, organization_id)
         run = await workflow_run_repo.get_run_by_id_for_update(self.db, run_id)
         if run is None:
             raise WorkflowRunNotFoundError(run_id=run_id)
@@ -89,6 +103,20 @@ class WorkflowResumeService:
         ]
         if not steps:
             raise WorkflowNotWaitingError(run_id=run_id)
+        reserved = json_byte_size(payload, limit=(1 << 63) - 1) * len(steps)
+        scope = await admission.inline_storage_scope(
+            self.db,
+            organization_id=run.organization_id,
+            run_bytes=run.inline_result_bytes,
+            requested=reserved,
+        )
+        if scope is not None:
+            raise WorkflowInlineStorageLimitError(scope=scope)
+        await workflow_run_repo.update_run(
+            self.db,
+            run=run,
+            update_data={"inline_result_bytes": run.inline_result_bytes + reserved},
+        )
         for step in steps:
             await workflow_run_repo.update_node_run(
                 self.db, node_run=step, update_data={"resume_payload": payload}

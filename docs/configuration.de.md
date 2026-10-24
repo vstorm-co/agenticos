@@ -1,5 +1,5 @@
 ---
-source_sha: "85703c88feca"
+source_sha: "3775ad1b4704"
 ---
 
 # Konfiguration { #configuration }
@@ -553,8 +553,8 @@ legitimen Run und nicht knapper. Siehe
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Die Wartezeit vor dem ersten erneuten Versuch eines Knotens; die Wartezeit vor jedem weiteren verdoppelt sich |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Die längste Dauer, auf die eine einzelne Wartezeit anwachsen darf. Diese drei gelten für einen Knoten, dessen `policy.retry` keine eigenen setzt |
 | `WORKFLOW_NODE_MAX_OUTPUT_BYTES` | `10485760` | Kompaktes UTF-8-JSON von Versuchsergebnis, Run-Ausgabe und Webhook-Antwort zusammen. Größere Ergebnisse scheitern mit `NODE_OUTPUT_TOO_LARGE` ohne automatische Wiederholung; Kosten bleiben erhalten. Split out prüft höchstens 10.000 expandierte Elemente und konservativ geschätzte Bytes vor dem Kopieren |
-| `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` | `67108864` | Kumulative kompakte Ergebnisreservierungen je Ausführung, einschließlich Schleifenergebnissen und Versuchen; kleine Abschlussdatensätze sind ausgenommen |
-| `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` | `1073741824` | Ergebnisreservierungen über aufbewahrte Ausführungen einer Organisation; Bereinigung gibt sie ohne JSONB-Scan frei |
+| `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` | `67108864` | Kompakte Reservierungen für Eingaben, Entwurfssnapshots, Wait-Payloads und Ergebnisse je Ausführung; kleine Abschlussdatensätze sind ausgenommen |
+| `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` | `1073741824` | Inline-Payload-Reservierungen aufbewahrter Ausführungen einer Organisation; Bereinigung gibt sie über Zähler frei |
 | `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Die längste Liste, über die ein `control.foreach` iteriert. Eine längere lässt die Schleife mit `FOREACH_TOO_MANY_ITEMS` fehlschlagen, statt gekürzt zu werden |
 | `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Die größte Liste, die eine Schleife einfriert, als JSON. Eine größere lässt die Schleife mit `FOREACH_LIST_TOO_LARGE` fehlschlagen |
 | `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Neueste Yield-Ergebnisse und unbehandelte Fehler einschließlich Sammlungsaufwand, vor dem Laden des JSON gemessen. Größere Sammlungen scheitern mit `FOREACH_OUTPUT_TOO_LARGE`; kleinere Werte oder Dateiverweise ausgeben |

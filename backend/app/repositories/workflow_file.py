@@ -3,9 +3,12 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import String, cast, delete, exists, func, select
+from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
+from app.db.models.workflow import Workflow, WorkflowVersion
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import ResourceRef, ResourceRefKind, WorkflowRun
 
@@ -136,3 +139,63 @@ async def delete_saved_batch(
         .returning(WorkflowFile.storage_path)
     )
     return list(result.all())
+
+
+async def files_are_referenced(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    workflow_id: UUID,
+    run_id: UUID | None = None,
+    include_same_workflow: bool = False,
+) -> bool:
+    """Retained imports and stored graphs keep their producer's files alive.
+
+    Whole-workflow deletion excludes its own graphs/imports; retention includes
+    them and excludes only the producer run's own imports. Graphs are scanned
+    in PostgreSQL without materializing every graph or an unbounded ID list.
+    """
+    owned = (
+        select(cast(WorkflowFile.id, String))
+        .join(WorkflowRun, WorkflowRun.id == WorkflowFile.workflow_run_id)
+        .where(
+            WorkflowFile.organization_id == organization_id, WorkflowRun.workflow_id == workflow_id
+        )
+    )
+    if run_id is not None:
+        owned = owned.where(WorkflowFile.workflow_run_id == run_id)
+    if await db.scalar(owned.limit(1)) is None:
+        return False
+    consumer = aliased(WorkflowRun)
+    imports = (
+        select(ResourceRef.id)
+        .join(consumer, consumer.id == ResourceRef.workflow_run_id)
+        .where(
+            ResourceRef.organization_id == organization_id,
+            ResourceRef.kind == ResourceRefKind.FILE.value,
+            ResourceRef.ref["file_id"].astext.in_(owned),
+        )
+    )
+    if not include_same_workflow:
+        imports = imports.where(consumer.workflow_id != workflow_id)
+    elif run_id is not None:
+        imports = imports.where(consumer.id != run_id)
+    if await db.scalar(imports.limit(1)) is not None:
+        return True
+    path = '$.** ? (@.kind == "file").file_id'
+    for graph, graph_workflow, graph_org in (
+        (Workflow.draft_graph, Workflow.id, Workflow.organization_id),
+        (WorkflowVersion.graph, WorkflowVersion.workflow_id, WorkflowVersion.organization_id),
+    ):
+        references = (
+            func.jsonb_array_elements_text(func.jsonb_path_query_array(graph, cast(path, JSONPATH)))
+            .table_valued("file_id")
+            .render_derived()
+        )
+        mentions = exists(select(1).select_from(references).where(references.c.file_id.in_(owned)))
+        query = select(graph_workflow).where(graph_org == organization_id, mentions)
+        if not include_same_workflow:
+            query = query.where(graph_workflow != workflow_id)
+        if await db.scalar(query.limit(1)) is not None:
+            return True
+    return False
