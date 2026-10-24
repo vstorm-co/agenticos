@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { MoreOptions } from "@/components/ui/more-options";
+import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
 import { useAgents } from "@/hooks/use-agents";
 import { useGenerateCases } from "@/hooks/use-case-generation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -62,13 +63,19 @@ export function GenerateCasesDialog({ datasetId, open, onOpenChange }: GenerateC
   const { can } = usePermissions();
   const { agents } = useAgents();
   const { estimate, start } = useGenerateCases(datasetId);
+  const [generatorId, setGeneratorId] = useState<string | null>(null);
   const [agentId, setAgentId] = useState("");
   const [sources, setSources] = useState<CaseOrigin[]>(["agent", "red_team"]);
   const [count, setCount] = useState(20);
   const [estimated, setEstimated] = useState<CaseGenerationEstimate | null>(null);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
-  const request: CaseGenerationRequest = { agent_id: agentId, sources, count };
+  const request: CaseGenerationRequest = {
+    agent_id: agentId,
+    sources,
+    count,
+    ...(generatorId ? { generator_agent_id: generatorId } : {}),
+  };
   const valid = agentId !== "" && sources.length > 0 && count >= 1 && count <= MAX_GENERATED;
   const changed = () => {
     setEstimated(null);
@@ -99,6 +106,15 @@ export function GenerateCasesDialog({ datasetId, open, onOpenChange }: GenerateC
           <DialogDescription>{t("generateCasesBody")}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-0.5 py-1">
+          <SystemAgentChoice
+            kind="generator"
+            value={generatorId}
+            onChange={(value) => {
+              setGeneratorId(value);
+              changed();
+            }}
+            disabled={start.isPending || estimate.isPending}
+          />
           <FormField
             htmlFor="generate-agent"
             label={t("agent")}

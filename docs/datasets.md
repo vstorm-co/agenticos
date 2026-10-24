@@ -15,6 +15,12 @@ imported from a file, taken from a real conversation where somebody rated
 the answer down, or drafted by the case generator and accepted by a person. The last is usually the most useful, because it is a question
 a person actually asked and an answer that actually disappointed them.
 
+Expand **Case generator** in Generate cases to choose a published generator
+instead of the organization's default. Its page shows the published model and
+instructions. The request stores `generator_agent_id` separately from the agent
+being tested and preserves it across the queued job. An unpublished, missing,
+inaccessible or wrong-kind choice is refused before a paid call.
+
 ## What a case holds
 
 | Field | What it is |

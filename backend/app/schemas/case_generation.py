@@ -61,6 +61,8 @@ class CaseProposalDismiss(BaseSchema):
 
 
 class CaseGenerationRead(BaseSchema):
+    generator_agent_id: UUID | None = None
+
     id: UUID
     agent_id: UUID | None = None
     sources: list[CaseOriginLiteral]
@@ -93,6 +95,8 @@ class CaseGenerationList(BaseSchema):
 
 class CaseGenerationRequest(BaseSchema):
     """What a person asks the case generator to draft."""
+
+    generator_agent_id: UUID | None = None
 
     agent_id: UUID = Field(description="The agent the cases test")
     sources: list[CaseOriginLiteral] = Field(

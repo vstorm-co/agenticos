@@ -1,5 +1,5 @@
 ---
-source_sha: "63279972bd20"
+source_sha: "998789b78f85"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -19,6 +19,15 @@ entwerfen - und fügt ihn der Wissensdatenbank als Dokument hinzu. Vorher
 lassen sich die Fragen des Themas in Fälle eines [Datasets](datasets.md)
 umwandeln, damit ein Eval zeigt, ob das neue Dokument die Antworten verändert
 hat.
+
+Editoren wählen **KI-Helfer** im Lücken-Tab der Wissensbasis: einen eigenen
+veröffentlichten Klassifizierer und Entwurfsautor oder die Organisationsstandards.
+Die Felder heißen `gap_classifier_agent_id` und `gap_drafter_agent_id`; null stellt
+den Standard wieder her, ein ausgelassenes Feld behält seine Auswahl.
+Bezahlte Aufrufe prüfen Zugriff und Typ erneut; gelöschte Auswahlen werden
+explizit abgelehnt. Deploymentweite Wissensbasen nutzen die Standards der
+jeweiligen Organisation, da eine gemeinsame Einstellung keinen privaten Helfer
+einer einzelnen Organisation referenzieren darf.
 
 ## Wie eine Frage zur Lücke wird { #how-a-question-becomes-a-gap }
 

@@ -58,7 +58,7 @@ export interface SystemAgentCreate {
   name: string;
 }
 
-/** Add a system agent - today, a judge - from its kind's definition. */
+/** Add a system agent from its kind's definition. */
 export function useCreateSystemAgent() {
   const queryClient = useQueryClient();
   return useMutation({

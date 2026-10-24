@@ -1,5 +1,5 @@
 ---
-source_sha: "03b13de372e9"
+source_sha: "27cab4b835cd"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -17,6 +17,12 @@ valoró la respuesta con un pulgar abajo, o redactados por el generador de casos
 y aceptados por una persona. Este último suele ser el más útil,
 porque es una pregunta que una persona hizo de verdad y una respuesta que de
 verdad la decepcionó.
+
+Expande **Generador de casos** al generar para elegir un generador publicado
+en lugar del predeterminado. Su página muestra el modelo y las instrucciones.
+La petición conserva `generator_agent_id` separado del agente evaluado, incluso
+tras pasar por la cola. Una selección sin publicar, ausente, inaccesible o de
+otro tipo se rechaza antes de una llamada de pago.
 
 ## Qué contiene un caso { #what-a-case-holds }
 

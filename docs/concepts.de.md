@@ -1,5 +1,5 @@
 ---
-source_sha: "5ae1abf3d21e"
+source_sha: "5cbd208ceaa2"
 ---
 
 # Begriffe { #concepts }
@@ -661,15 +661,16 @@ aus denen sie stammen - samt der Angabe, wie oft Menschen ihm bei den von ihm
 bewerteten und von ihnen entschiedenen Ergebnissen zustimmten, und sonst nichts.
 Die des Drafters und des Klassifizierers enthalten dasselbe ohne die Datasets.
 
-**New agent** legt auch einen System-Agent an: **Systemagent** wählen,
-**Bewerter** auswählen und ihm einen Namen geben (`POST /agents/system`). Er
-startet mit der Definition des Eval judge - dessen Instruktionen, Temperatur
-und Budget - auf dem ersten Modell der Organisation, wird veröffentlicht, wenn
-Sie Agents veröffentlichen dürfen, und steht unter **Bewerter**, damit ein
-Dataset ihn auf seinem Tab Bewertung wählen kann. Die anderen Arten werden mit
-ihrer Aufgabe aufgeführt, lassen sich aber nicht hinzufügen: Die Plattform führt
-immer den der Organisation aus, ein weiterer liefe also nie. Öffnen Sie
-stattdessen diesen.
+**New agent** → **Systemagent** erstellt jeden der fünf Typen: Bewerter,
+Fallgenerator, Lücken-Drafter, Lücken-Klassifizierer oder Verbesserungsassistent
+(`POST /agents/system`). Er beginnt mit den Anweisungen, der Temperatur und dem
+Budget seines Typs auf dem ersten Modell der Organisation und wird bei
+entsprechender Berechtigung veröffentlicht. Wählen Sie den Bewerter in der
+Dataset-Bewertung, den Generator beim Generieren, Wissenshelfer im Lücken-Tab
+der Wissensbasis und den Assistenten beim Verbessern. Standard ist jeweils der
+Agent der Organisation. Eine Auswahl muss den richtigen Typ haben,
+veröffentlicht und für den Benutzer ausführbar sein; eine fehlende Auswahl wird
+nie still durch den Standard ersetzt.
 
 Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
 und senden keine Run-Benachrichtigung. Ein System-Agent startet mit einem

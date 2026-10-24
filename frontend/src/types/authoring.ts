@@ -5,6 +5,7 @@ export type AuthoringStatus = "queued" | "running" | "completed" | "failed";
 export type HunkStatus = "pending" | "accepted" | "dismissed";
 
 export interface AuthoringStart {
+  improver_agent_id?: string | null;
   kind: AuthoringKind;
   window_days: number;
 }
@@ -32,6 +33,7 @@ export interface VerifyFinding {
 }
 
 export interface AuthoringRequest {
+  improver_agent_id?: string | null;
   id: string;
   kind: AuthoringKind;
   target: "agent" | "skill" | "context";

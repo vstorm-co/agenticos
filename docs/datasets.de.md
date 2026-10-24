@@ -1,5 +1,5 @@
 ---
-source_sha: "03b13de372e9"
+source_sha: "27cab4b835cd"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -18,6 +18,13 @@ in dem jemand die Antwort negativ bewertet hat, oder vom Fallgenerator entworfen
 und von einem Menschen angenommen. Die letzte Quelle
 ist meist die wertvollste, weil es eine Frage ist, die ein Mensch wirklich
 gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
+
+Öffnen Sie **Fallgenerator** beim Generieren, um einen veröffentlichten
+Generator statt des Organisationsstandards zu wählen. Seine Seite zeigt Modell
+und Anweisungen. Die Anfrage speichert `generator_agent_id` getrennt vom getesteten
+Agent und behält die Auswahl über die Warteschlange hinweg. Unveröffentlichte,
+fehlende, unzugängliche oder falsch typisierte Auswahlen werden vor einem
+bezahlten Aufruf abgelehnt.
 
 ## Was ein Fall enthält { #what-a-case-holds }
 

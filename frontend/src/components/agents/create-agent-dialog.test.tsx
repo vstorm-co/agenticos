@@ -330,7 +330,7 @@ describe("CreateAgentDialog", () => {
     await userEvent.click(judgeKind);
     expect(judgeKind).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByText("Describe it to the Architect")).toBeNull();
-    expect(screen.getByText(/A draft judge grades nothing\./)).toBeInTheDocument();
+    expect(screen.getByText(/A draft system agent cannot run\./)).toBeInTheDocument();
     await userEvent.type(name(), "Second opinion");
     await userEvent.click(create());
 
@@ -345,34 +345,20 @@ describe("CreateAgentDialog", () => {
     expect(screen.getByRole("radio", { name: "Agent" })).toHaveAttribute("aria-checked", "true");
   });
 
-  it("shows the kinds that would never run as locked, linking the organization's own", async () => {
-    vi.mocked(apiClient.get).mockImplementation(async (_url, options) => {
-      const kind = (options as { params?: { kind?: string } } | undefined)?.params?.kind;
-      return kind === "generator"
-        ? { items: [{ id: "g1", name: "Case generator", system_key: "case_generator" }], total: 1 }
-        : { items: [], total: 0 };
-    });
+  it("lets every system kind be selected where it can now run", async () => {
     open();
-
     await userEvent.click(screen.getByRole("radio", { name: "System agent" }));
-
     for (const kind of [
       /^Case generator/,
       /^Gap drafter/,
       /^Gap classifier/,
       /^Authoring assistant/,
     ]) {
-      const locked = screen.getByRole("radio", { name: kind });
-      expect(locked).toHaveAttribute("aria-disabled", "true");
-      expect(locked).toHaveAccessibleDescription(/another would never run/);
-      await userEvent.click(locked);
-      expect(locked).toHaveAttribute("aria-checked", "false");
+      const option = screen.getByRole("radio", { name: kind });
+      expect(option).toBeEnabled();
+      await userEvent.click(option);
+      expect(option).toHaveAttribute("aria-checked", "true");
     }
-    expect(screen.getByRole("radio", { name: /^Judge/ })).toHaveAttribute("aria-checked", "true");
-    expect(await screen.findByRole("link", { name: "Open it" })).toHaveAttribute(
-      "href",
-      "/agents/g1",
-    );
     await userEvent.click(screen.getByRole("radio", { name: "Agent" }));
     expect(screen.getByText("Describe it to the Architect")).toBeInTheDocument();
   });

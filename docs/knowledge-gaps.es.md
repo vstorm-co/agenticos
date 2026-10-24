@@ -1,5 +1,5 @@
 ---
-source_sha: "63279972bd20"
+source_sha: "998789b78f85"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -18,6 +18,15 @@ persona escribe el contenido que falta en el tema - un modelo puede redactar
 un borrador - y lo añade a la base de conocimiento como documento, y antes puede
 convertir las preguntas del tema en casos de un [dataset](datasets.md), para
 que un eval muestre si el nuevo documento cambió las respuestas.
+
+Los editores eligen **Ayudantes de IA** en la pestaña de lagunas: un
+clasificador y redactor publicados propios o los predeterminados de la organización.
+Los campos son `gap_classifier_agent_id` y `gap_drafter_agent_id`; null restaura
+el valor predeterminado y omitir el campo mantiene la selección. Las llamadas
+de pago vuelven a comprobar acceso y tipo; una selección eliminada se rechaza
+explícitamente. Las bases compartidas por todo el despliegue usan los valores
+de cada organización, porque una configuración global no puede referirse al
+ayudante privado de una sola organización.
 
 ## Cómo una pregunta se convierte en laguna { #how-a-question-becomes-a-gap }
 

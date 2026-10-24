@@ -43,10 +43,12 @@ async def create_request(
     window_days: int,
     excluded_message_ids: Sequence[UUID] = (),
     improvement_run_id: UUID | None = None,
+    improver_agent_id: UUID | None = None,
 ) -> AuthoringRequest:
     request = AuthoringRequest(
         organization_id=organization_id,
         kind=kind,
+        improver_agent_id=improver_agent_id,
         improvement_run_id=improvement_run_id,
         target=target,
         agent_id=agent_id,

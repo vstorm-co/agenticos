@@ -599,13 +599,15 @@ grades there and the eval runs they came from - with how often people agreed
 with it on the results it graded and they decided, and nothing else. The
 drafter's and the classifier's hold the same without the datasets.
 
-**New agent** adds a system agent too: choose **System agent**, pick **Judge**
-and name it (`POST /agents/system`). It starts from the Eval judge's
-definition - its instructions, temperature and budget - on the organization's
-first model, is published when you may publish agents, and is listed under
-**Judges** for a dataset to pick on its Grading tab. The other kinds are listed
-with what each does but cannot be added: the platform always runs the
-organization's own, so another would never run. Open that one instead.
+**New agent** → **System agent** creates any of the five kinds: judge, case
+generator, gap drafter, gap classifier or authoring assistant (`POST /agents/system`).
+It starts from that kind's instructions, temperature and budget, on the
+organization's first model, and publishes when you may publish agents. Pick a
+judge in dataset grading, a generator in Generate cases, knowledge helpers on a
+knowledge base's gaps tab, or an assistant in Improve. Each defaults to the
+organization's seeded agent. A selected helper must have the right kind, be
+published and remain runnable by the caller; a missing choice never silently
+adopts the default.
 
 Its runs are budget-checked and recorded like any other, and send no run
 notification. A system agent starts with a small monthly budget of its own, so

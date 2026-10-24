@@ -306,7 +306,7 @@ class SystemAgentCreate(BaseSchema):
     """A system agent of the organization's own, made from its kind's definition."""
 
     kind: SystemAgentKindLiteral = Field(
-        description="Which kind of system agent; only `judge` can be added today"
+        description="Which kind of system agent to create and pick where it runs"
     )
     name: str = Field(min_length=1, max_length=128)
     model_profile_id: UUID | None = Field(

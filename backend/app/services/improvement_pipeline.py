@@ -181,7 +181,11 @@ class ImprovementPipelineService:
         self, ctx: AuthContext, inputs: Inputs, target: ImprovementTarget
     ) -> ImprovementEstimate:
         proposal = await self.authoring.estimate_agent(
-            ctx, inputs.agent.id, AuthoringStart(window_days=target.window_days)
+            ctx,
+            inputs.agent.id,
+            AuthoringStart(
+                window_days=target.window_days, improver_agent_id=target.improver_agent_id
+            ),
         )
         draft = AgentSpec.model_validate(inputs.agent.draft_spec)
         check = await self.evals.estimate(
@@ -260,6 +264,7 @@ class ImprovementPipelineService:
                     run=run,
                     values={
                         "pinned_scoring": inputs.scoring.model_dump(mode="json"),
+                        "improver_agent_id": data.improver_agent_id,
                         "judge_version_id": inputs.judge_version_id,
                     },
                 )
@@ -615,7 +620,11 @@ class ImprovementPipelineService:
         elif run.stage == Stage.PROPOSING:
             if iteration.authoring_request_id is None:
                 estimate = await self.authoring.estimate_agent(
-                    ctx, run.agent_id, AuthoringStart(window_days=run.window_days)
+                    ctx,
+                    run.agent_id,
+                    AuthoringStart(
+                        window_days=run.window_days, improver_agent_id=run.improver_agent_id
+                    ),
                 )
                 spent = await improvement_repo.spent(
                     self.db, run.id, organization_id=run.organization_id
@@ -630,7 +639,9 @@ class ImprovementPipelineService:
                 request = await self.authoring.start_agent(
                     ctx,
                     run.agent_id,
-                    AuthoringStart(window_days=run.window_days),
+                    AuthoringStart(
+                        window_days=run.window_days, improver_agent_id=run.improver_agent_id
+                    ),
                     improvement_run_id=run.id,
                 )
                 await improvement_repo.update_iteration(

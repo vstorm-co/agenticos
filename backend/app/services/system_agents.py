@@ -33,9 +33,8 @@ from app.core.exceptions import (
     NotFoundError,
     SystemAgentUnavailableError,
 )
-from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.agent import Agent, AgentKind
+from app.db.models.agent import Agent
 from app.db.models.resource_grant import Visibility
 from app.repositories import agent_repo, credential_repo, member_repo
 from app.schemas.agent import SystemAgentCreate
@@ -281,23 +280,15 @@ class SystemAgentService:
         return await self._publish(ctx, agent, published=publishes, note="Created")
 
     async def create_from_console(self, ctx: AuthContext, data: SystemAgentCreate) -> Agent:
-        """A system agent the caller picked in New agent: today, a judge.
+        """A system agent the caller picked in New agent.
 
-        A judge is picked where it is used - a dataset grades with its own - so a
-        second one does something. Every other kind always runs as the
-        organization's seeded one, so another would never run, and is refused.
+        Judges, case generators, knowledge helpers and improvers are selected
+        where they run; every supported kind can have an organization-owned copy.
 
         Raises:
-            BadRequestError: Naming `kind`, for a kind that cannot be added.
             AlreadyExistsError, NotFoundError: As :meth:`create_of_kind` does.
         """
         definition = next(d for d in SYSTEM_AGENTS if d.kind.value == data.kind)
-        if definition.kind is not AgentKind.JUDGE:
-            raise refused_field(
-                "kind",
-                f"Another {definition.name.lower()} would never run: the platform always "
-                "uses the organization's own.",
-            )
         return await self.create_of_kind(
             ctx,
             definition,

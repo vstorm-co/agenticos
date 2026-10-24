@@ -18,6 +18,14 @@ itself. A person writes the missing content in the topic - a model can draft it
 topic's questions into [dataset](datasets.md) cases, so an eval can show
 whether the new document changed the answers.
 
+Editors can choose **AI helpers** on a knowledge base's gaps tab: its own
+published classifier and drafter, or the organization's defaults. The fields
+are `gap_classifier_agent_id` and `gap_drafter_agent_id`; sending null restores
+the default, while omitting a field keeps its choice. Paid calls recheck access
+and kind, and a deleted choice fails explicitly. Deployment-wide knowledge
+bases use each organization's defaults because a deployment-wide setting cannot
+reference one organization's private helper.
+
 ## How a question becomes a gap { #how-a-question-becomes-a-gap }
 
 Every time an agent searches its knowledge base during a run, the platform

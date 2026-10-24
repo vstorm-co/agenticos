@@ -376,11 +376,9 @@
       "improver": "Asystent tworzenia",
       "improverBody": "Proponuje zmiany w agencie na podstawie ocen i wyników runów."
     },
-    "systemKindLocked": "Platforma uruchamia jednego na organizację, więc kolejny nigdy by nie zadziałał. Zmień zamiast tego tego, który już jest.",
-    "systemKindOpenOwn": "Otwórz go",
     "systemRunsOn": "Działa na pierwszym modelu organizacji, który zmienisz na jego stronie. Dopóki nie ma żadnego modelu, czeka jako wersja robocza.",
     "systemNamePlaceholder": "Druga opinia",
-    "systemStartsAs": "Publikowany od razu, jeśli możesz publikować agentów; w przeciwnym razie zostaje wersją roboczą, dopóki ktoś uprawniony go nie opublikuje. Sędzia w wersji roboczej niczego nie ocenia.",
+    "systemStartsAs": "Publikowany od razu, jeśli możesz publikować agentów; w przeciwnym razie zostaje wersją roboczą, dopóki ktoś uprawniony go nie opublikuje. Agent systemowy w wersji roboczej nie może działać.",
     "newEnvironment": "Nowe środowisko",
     "noCapabilityOrToolMatches": "Żadna capability ani narzędzie nie pasuje do „{query}”.",
     "noDelegatesYet": "Brak delegatów. Tylko opublikowany agent może nim być - jest wtedy wersja do przypięcia.",
@@ -1034,7 +1032,20 @@
     "publishGuardedFollower": "{name} jest chronione przez {guards}: przejdzie na v{version} dopiero po zaliczeniu wszystkich kontroli.",
     "publishGuardedChecks": "{count, plural, one {# zestaw kontrolny} few {# zestawy kontrolne} many {# zestawów kontrolnych} other {# zestawu kontrolnego}}",
     "publishAnyway": "Opublikuj mimo to",
-    "publishTestDraft": "Przetestuj wersję roboczą"
+    "publishTestDraft": "Przetestuj wersję roboczą",
+    "systemChoice": {
+      "label": "Uruchamiaj przez",
+      "default": "Domyślny agent organizacji",
+      "unpublished": "Nieopublikowany",
+      "missing": "Wybrany agent jest niedostępny",
+      "loadFailed": "Nie udało się wczytać agentów. Spróbuj ponownie.",
+      "hint": "Opublikowany model i instrukcje konfigurujesz na stronie wybranego agenta.",
+      "helpers": "Pomocnicy AI",
+      "helpersBody": "Wybierz agentów klasyfikujących odpowiedzi i piszących brakującą wiedzę dla {name}.",
+      "saved": "Zapisano pomocników AI",
+      "save": "Zapisz",
+      "cancel": "Anuluj"
+    }
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

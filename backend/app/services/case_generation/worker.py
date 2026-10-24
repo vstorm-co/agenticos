@@ -107,6 +107,7 @@ class CaseGenerationWorker:
         service = CaseGenerationService(db, vector_store=self._store())
         request = CaseGenerationRequest(
             agent_id=generation.agent_id,
+            generator_agent_id=generation.generator_agent_id,
             sources=[CaseOrigin(source).value for source in generation.sources],
             count=generation.requested_count,
         )
@@ -118,6 +119,7 @@ class CaseGenerationWorker:
         await generate(
             db,
             generation_id=generation.id,
+            generator_agent_id=generation.generator_agent_id,
             ctx=ctx,
             prompt=prompt,
             material=material,

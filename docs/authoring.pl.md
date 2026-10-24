@@ -1,5 +1,5 @@
 ---
-source_sha: "33dae331e228"
+source_sha: "2e7dc8326cce"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -28,6 +28,13 @@ Asystent jest osobnym [agentem systemowym](datasets.md#judge), widocznym razem z
 pozostałymi agentami systemowymi organizacji. Jego instrukcje można edytować jak
 instrukcje każdego agenta, a jego runy są zwykłymi runami: objęte budżetem,
 wycenione i widoczne w **Aktywności** (Activity).
+
+Rozwiń **Asystent poprawiania** podczas poprawiania lub weryfikacji, aby
+wybrać opublikowanego asystenta. Zmiana usuwa poprzedni szacunek, więc zgoda
+dotyczy ceny i budżetu wybranego asystenta. Zadanie zachowuje `improver_agent_id`;
+sesja poprawiania w tle przyjmuje ten sam wybór. Worker ponownie sprawdza rodzaj,
+publikację i aktualne uprawnienia użytkownika. Usunięty wybór powoduje odmowę,
+zamiast powrotu do domyślnego agenta.
 
 ## Co czyta { #what-it-reads }
 

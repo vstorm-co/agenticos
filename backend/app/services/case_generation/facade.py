@@ -131,16 +131,24 @@ class CaseGenerationService:
                 :meth:`plan` does, but for the dataset.
         """
         _, _, prompt = await self._draft(ctx, data)
-        return await self._price(ctx, prompt, data.count)
+        return await self._price(ctx, prompt, data.count, data.generator_agent_id)
 
-    async def _price(self, ctx: AuthContext, prompt: str, count: int) -> Decimal | None:
+    async def _price(
+        self, ctx: AuthContext, prompt: str, count: int, generator_agent_id: UUID | None = None
+    ) -> Decimal | None:
         """The estimated cost on the generator's model, or `None` when it has no price.
 
         Read without seeding: an organization whose generator is not created yet is
         priced on the profile it would be published on, the oldest one.
         """
-        agent = await agent_repo.get_system(
-            self.db, organization_id=ctx.organization_id, key=CASE_GENERATOR.key
+        agent = (
+            await SystemAgentRunner(self.db).require_runnable(
+                ctx, key=CASE_GENERATOR.key, agent_id=generator_agent_id
+            )
+            if generator_agent_id is not None
+            else await agent_repo.get_system(
+                self.db, organization_id=ctx.organization_id, key=CASE_GENERATOR.key
+            )
         )
         profile_id: UUID | None = None
         if agent is None:
@@ -182,7 +190,7 @@ class CaseGenerationService:
                 for origin, cases in quotas.items()
             ],
             excluded_collections=material.excluded_collections,
-            estimated_cost_usd=await self._price(ctx, prompt, data.count),
+            estimated_cost_usd=await self._price(ctx, prompt, data.count, data.generator_agent_id),
         )
 
     async def start(
@@ -208,12 +216,15 @@ class CaseGenerationService:
         dataset_id, _, _, _ = await self.plan(ctx, dataset_id, data)
         # Refused here with the reason, rather than queued to fail at once; the run
         # checks the same again when it starts.
-        await SystemAgentRunner(self.db).require_runnable(ctx, key=CASE_GENERATOR.key)
+        await SystemAgentRunner(self.db).require_runnable(
+            ctx, key=CASE_GENERATOR.key, agent_id=data.generator_agent_id
+        )
         generation = await case_generation_repo.create_generation(
             self.db,
             organization_id=ctx.organization_id,
             dataset_id=dataset_id,
             agent_id=data.agent_id,
+            generator_agent_id=data.generator_agent_id,
             requested_by_user_id=ctx.subject_id,
             created_by_api_key_id=ctx.api_key_id,
             sources=list(data.sources),

@@ -1,5 +1,5 @@
 ---
-source_sha: "5ae1abf3d21e"
+source_sha: "5cbd208ceaa2"
 ---
 
 # Koncepcje { #concepts }
@@ -623,14 +623,15 @@ na jego ostatnie oceny i runy ewaluacji, z których pochodzą - wraz z tym, jak
 często ludzie zgodzili się z nim w wynikach, które ocenił, a oni rozstrzygnęli,
 i nic więcej. Strony draftera i klasyfikatora zawierają to samo bez datasetów.
 
-**New agent** dodaje też agenta systemowego: wybierz **Agent systemowy**, potem
-**Sędzia** i nadaj mu nazwę (`POST /agents/system`). Startuje z definicji Eval
-judge - jego instrukcji, temperatury i budżetu - na pierwszym modelu
-organizacji, jest publikowany, gdy możesz publikować agentów, i pojawia się
-wśród **Sędziów**, żeby dataset mógł go wybrać na swojej zakładce Ocenianie.
-Pozostałe rodzaje są wymienione z opisem tego, co robią, ale nie da się ich
-dodać: platforma zawsze uruchamia własnego agenta organizacji, więc kolejny
-nigdy by nie zadziałał. Zamiast tego otwórz ten, który już jest.
+**Nowy agent** → **Agent systemowy** tworzy dowolny z pięciu rodzajów: sędziego,
+generator przypadków, autora szkiców luk, klasyfikator luk lub asystenta
+poprawiania (`POST /agents/system`). Zaczyna od instrukcji, temperatury i budżetu
+danego rodzaju, na pierwszym modelu organizacji; publikacja wymaga odpowiednich
+uprawnień. Sędziego wybierasz w ocenianiu datasetu, generator przy generowaniu
+przypadków, pomocników wiedzy na zakładce luk bazy wiedzy, a asystenta przy
+poprawianiu. Domyślnie działa agent organizacji. Wybrany pomocnik musi mieć
+odpowiedni rodzaj, być opublikowany i dostępny do uruchomienia przez użytkownika.
+Usunięty wybór nigdy nie jest automatycznie zastępowany domyślnym.
 
 Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
 wysyłają powiadomienia o runie. Agent systemowy startuje z niewielkim własnym

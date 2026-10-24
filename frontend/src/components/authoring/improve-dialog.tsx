@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
 import { usd } from "@/components/evals/format";
 import {
   Button,
@@ -37,24 +38,29 @@ export function ImproveDialog({
   const t = useTranslations("authoring.improve");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const [improverId, setImproverId] = useState<string | null>(null);
   const [quote, setQuote] = useState<AuthoringEstimate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     let current = true;
-    estimate({ kind, window_days: 30 })
+    estimate({ kind, window_days: 30, ...(improverId ? { improver_agent_id: improverId } : {}) })
       .then((priced) => current && setQuote(priced))
       .catch((failure: unknown) => current && setError(getErrorMessage(failure, tErrors)));
     return () => {
       current = false;
     };
-  }, [kind, estimate, tErrors]);
+  }, [kind, estimate, tErrors, improverId]);
 
   async function go() {
     setStarting(true);
     try {
-      await start({ kind, window_days: 30 });
+      await start({
+        kind,
+        window_days: 30,
+        ...(improverId ? { improver_agent_id: improverId } : {}),
+      });
       onOpenChange(false);
     } catch (failure) {
       setError(getErrorMessage(failure, tErrors));
@@ -89,6 +95,16 @@ export function ImproveDialog({
             {error}
           </p>
         )}
+        <SystemAgentChoice
+          kind="improver"
+          value={improverId}
+          onChange={(value) => {
+            setQuote(null);
+            setError(null);
+            setImproverId(value);
+          }}
+          disabled={starting}
+        />
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("cancel")}

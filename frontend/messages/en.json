@@ -376,11 +376,9 @@
       "improver": "Authoring assistant",
       "improverBody": "Proposes changes to an agent from its ratings and run outcomes."
     },
-    "systemKindLocked": "The platform runs one per organization, so another would never run. Change the organization's own instead.",
-    "systemKindOpenOwn": "Open it",
     "systemRunsOn": "It runs on the organization's first model, which you change on its page. With no model set up yet, it waits as a draft.",
     "systemNamePlaceholder": "Second opinion",
-    "systemStartsAs": "Published straight away if you may publish agents; otherwise a draft until someone who may publishes it. A draft judge grades nothing.",
+    "systemStartsAs": "Published straight away if you may publish agents; otherwise a draft until someone who may publishes it. A draft system agent cannot run.",
     "newEnvironment": "New environment",
     "noCapabilityOrToolMatches": "No capability or tool matches “{query}”.",
     "noDelegatesYet": "No delegates yet. Only a published agent can be one - there is a version to pin.",
@@ -1034,7 +1032,20 @@
     "publishGuardedFollower": "{name} is guarded by {guards}: it moves to v{version} only after all guards pass.",
     "publishGuardedChecks": "{count, plural, one {# guard suite} other {# guard suites}}",
     "publishAnyway": "Publish anyway",
-    "publishTestDraft": "Test draft"
+    "publishTestDraft": "Test draft",
+    "systemChoice": {
+      "label": "Run with",
+      "default": "Organization's default",
+      "unpublished": "Not published",
+      "missing": "Selected agent is unavailable",
+      "loadFailed": "Could not load available agents. Try again.",
+      "hint": "The published model and instructions are configured on the helper’s agent page.",
+      "helpers": "AI helpers",
+      "helpersBody": "Choose which helpers classify answers and draft missing knowledge for {name}.",
+      "saved": "AI helpers saved",
+      "save": "Save",
+      "cancel": "Cancel"
+    }
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

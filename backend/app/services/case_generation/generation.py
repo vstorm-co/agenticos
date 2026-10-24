@@ -73,6 +73,7 @@ async def generate(
     prompt: str,
     material: Material,
     quotas: dict[CaseOrigin, int],
+    generator_agent_id: UUID | None = None,
 ) -> None:
     """Run the generator once and record what it drafted. Never raises.
 
@@ -88,7 +89,11 @@ async def generate(
     """
     try:
         result = await SystemAgentRunner(db).run(
-            ctx, key=CASE_GENERATOR.key, prompt=prompt, output_type=DraftedCases
+            ctx,
+            key=CASE_GENERATOR.key,
+            agent_id=generator_agent_id,
+            prompt=prompt,
+            output_type=DraftedCases,
         )
     except AppException as exc:
         await finish(

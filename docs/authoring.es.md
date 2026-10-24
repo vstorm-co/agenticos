@@ -1,5 +1,5 @@
 ---
-source_sha: "33dae331e228"
+source_sha: "2e7dc8326cce"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -28,6 +28,13 @@ El asistente es un [agent de sistema](datasets.md#judge) propio, que aparece con
 los demás agents de sistema de la organización. Sus instrucciones se editan como
 las de cualquier agent, y sus runs son runs normales: con budget, con precio y
 visibles en Activity.
+
+Expande **Asistente de mejora** al mejorar o verificar para elegir un
+asistente publicado. Cambiar la selección borra la estimación anterior, de modo
+que el consentimiento corresponde al precio y presupuesto elegidos.
+`improver_agent_id` se conserva en la tarea; las sesiones en segundo plano aceptan
+la misma selección. El worker vuelve a comprobar tipo, publicación y acceso
+actual. Una selección eliminada falla en lugar de volver al valor predeterminado.
 
 ## Qué lee { #what-it-reads }
 

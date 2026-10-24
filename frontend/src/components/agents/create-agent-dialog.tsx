@@ -70,7 +70,7 @@ interface CreateAgentDialogProps {
 /**
  * New agent: a name, a description, and the handle the name will produce.
  *
- * Or a system agent of the organization's own - today, a judge - made from its
+ * Or a system agent of the organization's own - picked where it runs - made from its
  * kind's definition, which asks only for a name.
  *
  * The handle is on screen while the name is being typed because it is the part

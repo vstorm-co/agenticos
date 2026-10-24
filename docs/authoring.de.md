@@ -1,5 +1,5 @@
 ---
-source_sha: "33dae331e228"
+source_sha: "2e7dc8326cce"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -28,6 +28,13 @@ Der Assistent ist ein eigener [System-Agent](datasets.md#judge), aufgeführt mit
 den übrigen System-Agents der Organisation. Seine Anweisungen lassen sich wie die
 jedes Agents bearbeiten, und seine Runs sind gewöhnliche Runs: budgetiert,
 bepreist und in **Aktivität** (Activity) aufgeführt.
+
+Öffnen Sie **Verbesserungsassistent** beim Verbessern oder Verifizieren und
+wählen Sie einen veröffentlichten Assistenten. Eine neue Auswahl löscht die alte
+Schätzung; die Zustimmung gilt damit für Preis und Budget des gewählten Agents.
+`improver_agent_id` bleibt in der Aufgabe gespeichert, auch für Hintergrundsitzungen.
+Der Worker prüft Typ, Veröffentlichung und aktuelle Zugriffsrechte erneut.
+Eine gelöschte Auswahl führt zur Ablehnung statt zum Rückfall auf den Standard.
 
 ## Was er liest { #what-it-reads }
 

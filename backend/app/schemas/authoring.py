@@ -226,6 +226,8 @@ class AuthoringStart(BaseSchema):
         window_days: How far back the evidence reaches.
     """
 
+    improver_agent_id: UUID | None = None
+
     kind: Literal["improve", "verify"] = "improve"
     window_days: int = Field(default=30, ge=1, le=90)
 
@@ -251,6 +253,8 @@ class AuthoringEstimate(BaseSchema):
 
 
 class AuthoringRequestRead(BaseSchema):
+    improver_agent_id: UUID | None = None
+
     id: UUID
     kind: str
     target: str

@@ -26,6 +26,13 @@ The assistant is a [system agent](datasets.md#judge) of its own, listed with
 the organization's other system agents. Its instructions can be edited like any
 agent's, and its runs are ordinary runs: budgeted, priced and listed in Activity.
 
+Expand **Authoring assistant** in Improve or Verify to choose a published
+assistant. Changing the selection clears the previous estimate, so consent
+applies to the chosen assistant's price and budget. `improver_agent_id` is kept
+on the queued request; background improvement sessions accept the same choice.
+The worker rechecks the selected agent's kind, publication and current caller
+access. A deleted selection fails rather than reverting to the default.
+
 ## What it reads { #what-it-reads }
 
 The assistant has no tools. What it reads is gathered for it, from the last 30

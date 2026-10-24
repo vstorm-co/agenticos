@@ -1,5 +1,5 @@
 ---
-source_sha: "5ae1abf3d21e"
+source_sha: "5cbd208ceaa2"
 ---
 
 # Conceptos { #concepts }
@@ -630,14 +630,15 @@ cuántas veces las personas coincidieron con él en los resultados que calificó
 ellas decidieron, y nada más. Las del drafter y del clasificador contienen lo
 mismo sin los datasets.
 
-**New agent** también añade un agent del sistema: elige **System agent**, luego
-**Judge**, y ponle nombre (`POST /agents/system`). Parte de la definición del
-Eval judge (sus instrucciones, su temperatura y su budget) sobre el primer
-modelo de la organización, se publica si puedes publicar agents y aparece en
-**Judges** para que un dataset lo elija en su pestaña Grading. Los demás tipos
-aparecen con lo que hace cada uno, pero no se pueden añadir: la plataforma
-siempre ejecuta el de la organización, así que otro nunca se ejecutaría. Abre
-ese en su lugar.
+**New agent** → **System agent** crea cualquiera de los cinco tipos: juez,
+generador de casos, redactor de lagunas, clasificador de lagunas o asistente de
+mejora (`POST /agents/system`). Usa las instrucciones, temperatura y presupuesto
+de su tipo sobre el primer modelo de la organización y se publica si tienes
+permiso. Elige el juez al puntuar datasets, el generador al generar casos, los
+ayudantes de conocimiento en la pestaña de lagunas y el asistente al mejorar.
+Cada opción usa por defecto el agente de la organización. La selección debe ser
+del tipo correcto, estar publicada y seguir siendo ejecutable por el usuario;
+una selección ausente nunca se sustituye silenciosamente por el valor predeterminado.
 
 Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
 notificación de run. Un agent del sistema empieza con un budget mensual pequeño

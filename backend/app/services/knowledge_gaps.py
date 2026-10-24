@@ -995,6 +995,7 @@ class KnowledgeGapService:
         result = await SystemAgentRunner(self.db).run(
             ctx,
             key=KNOWLEDGE_GAP_DRAFTER.key,
+            agent_id=kb.gap_drafter_agent_id,
             prompt=_drafting_prompt(kb.name, material, documents, context_files),
             output_type=KnowledgeGapDraft,
         )
@@ -1457,7 +1458,9 @@ class KnowledgeGapService:
                 details={"knowledge_base_id": knowledge_base_id},
             )
         kb = await self._knowledge_base(ctx, knowledge_base_id, edit=True)
-        await SystemAgentRunner(self.db).require_runnable(ctx, key=KNOWLEDGE_GAP_CLASSIFIER.key)
+        await SystemAgentRunner(self.db).require_runnable(
+            ctx, key=KNOWLEDGE_GAP_CLASSIFIER.key, agent_id=kb.gap_classifier_agent_id
+        )
         await enqueue(
             self.db,
             CLASSIFY_GAPS,
@@ -1531,6 +1534,7 @@ class KnowledgeGapService:
         result = await SystemAgentRunner(self.db).run(
             ctx,
             key=KNOWLEDGE_GAP_CLASSIFIER.key,
+            agent_id=kb.gap_classifier_agent_id,
             prompt=_classification_prompt(
                 kb.name, candidates, await self._agent_sources(ctx, candidates)
             ),

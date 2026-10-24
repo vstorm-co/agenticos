@@ -1,5 +1,5 @@
 ---
-source_sha: "63279972bd20"
+source_sha: "998789b78f85"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -17,6 +17,14 @@ pisze brakującą treść w temacie - może ją naszkicować model - i dodaje j�
 bazy wiedzy jako dokument. Wcześniej może zamienić pytania z tematu na przypadki
 [datasetu](datasets.md), żeby ewaluacja pokazała, czy nowy dokument zmienił
 odpowiedzi.
+
+Edytor wybiera **Pomocników AI** na zakładce luk bazy wiedzy: własny
+opublikowany klasyfikator i autor szkiców albo domyślnych agentów organizacji.
+Pola to `gap_classifier_agent_id` i `gap_drafter_agent_id`; null przywraca domyślny
+wybór, a pominięcie pola zachowuje dotychczasowy. Płatne wywołanie ponownie
+sprawdza dostęp i rodzaj; usunięty wybór powoduje jawną odmowę. Bazy całego
+wdrożenia korzystają z domyślnych agentów danej organizacji: ustawienie wspólne
+nie może odwoływać się do prywatnego pomocnika jednej organizacji.
 
 ## Jak pytanie staje się luką { #how-a-question-becomes-a-gap }
 

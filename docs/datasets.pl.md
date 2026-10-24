@@ -1,5 +1,5 @@
 ---
-source_sha: "03b13de372e9"
+source_sha: "27cab4b835cd"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -18,6 +18,13 @@ ktoś ocenił odpowiedź łapką w dół, albo przygotowywane przez generator
 przypadków i akceptowane przez człowieka. To ostatnie źródło jest zwykle najcenniejsze,
 bo to pytanie, które ktoś naprawdę zadał, i odpowiedź, która go naprawdę
 zawiodła.
+
+Rozwiń **Generator przypadków** podczas generowania, aby wybrać opublikowanego
+generatora zamiast domyślnego agenta organizacji. Na jego stronie zmienisz
+opublikowany model i instrukcje. Żądanie zachowuje `generator_agent_id` oddzielnie
+od testowanego agenta, także po zakolejkowaniu zadania. Agent nieopublikowany,
+usunięty, niedostępny lub niewłaściwego rodzaju jest odrzucany przed płatnym
+wywołaniem.
 
 ## Co zawiera przypadek { #what-a-case-holds }
 

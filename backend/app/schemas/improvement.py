@@ -17,6 +17,8 @@ from app.schemas.base import BaseSchema
 
 
 class ImprovementTarget(BaseSchema):
+    improver_agent_id: UUID | None = None
+
     dataset_id: UUID | None = None
     suite_id: UUID | None = None
     window_days: int = Field(default=30, ge=1, le=90)
@@ -70,6 +72,8 @@ class ImprovementEvent(BaseSchema):
 
 
 class ImprovementRead(BaseSchema):
+    improver_agent_id: UUID | None = None
+
     id: UUID
     agent_id: UUID
     created_by_user_id: UUID | None

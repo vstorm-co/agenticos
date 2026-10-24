@@ -19,7 +19,6 @@ from app.core.exceptions import (
     AiAssistanceDisabledError,
     AlreadyExistsError,
     AuthorizationError,
-    BadRequestError,
     NotFoundError,
     SystemAgentUnavailableError,
 )
@@ -461,18 +460,15 @@ class TestASystemAgentFromNewAgent:
         assert (judge.kind, judge.status) == (AgentKind.JUDGE.value, AgentStatus.DRAFT.value)
 
     @pytest.mark.parametrize("kind", ["generator", "drafter", "classifier", "improver"])
-    async def test_a_kind_that_would_never_run_is_refused_naming_kind(self, db, kind) -> None:
+    async def test_each_selectable_kind_can_be_created_from_new_agent(self, db, kind) -> None:
         organization, owner = await _organization(db)
         ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
-
-        with pytest.raises(BadRequestError) as refused:
-            await SystemAgentService(db).create_from_console(
-                ctx, SystemAgentCreate(kind=kind, name="Another")
-            )
-
-        assert refused.value.details["fields"][0]["field"] == "kind"
-        assert "would never run" in refused.value.message
-        assert (await db.execute(select(Agent))).first() is None
+        created = await SystemAgentService(db).create_from_console(
+            ctx, SystemAgentCreate(kind=kind, name="Another")
+        )
+        assert created.kind == kind
+        assert created.system_key is None
+        assert created.status == "draft"
 
     async def test_a_taken_name_or_another_organization_s_model_is_refused(self, db) -> None:
         organization, owner = await _organization(db)

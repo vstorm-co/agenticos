@@ -222,14 +222,14 @@ class AuthoringService:
         self.evidence = EvidenceService(db)
         self.models = ModelProfileService(db)
 
-    async def _improver(self, ctx: AuthContext) -> Agent:
+    async def _improver(self, ctx: AuthContext, agent_id: UUID | None = None) -> Agent:
         """The improver, once it is known the caller may run it now.
 
         Raises:
             AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: It cannot run for this caller.
         """
-        return await self.runner.require_runnable(ctx, key=IMPROVER.key)
+        return await self.runner.require_runnable(ctx, key=IMPROVER.key, agent_id=agent_id)
 
     @staticmethod
     def _require_runs_view(ctx: AuthContext) -> None:
@@ -268,7 +268,7 @@ class AuthoringService:
         """
         self._require_runs_view(ctx)
         agent = await self._editable(ctx, agent_id)
-        improver = await self._improver(ctx)
+        improver = await self._improver(ctx, body.improver_agent_id)
         if body.kind == AuthoringKind.VERIFY.value:
             base = await agent_repo.newest_version(
                 self.db, agent_id=agent.id, organization_id=ctx.organization_id
@@ -296,7 +296,7 @@ class AuthoringService:
                 message="A skill has no draft to verify; review its pending change instead",
                 details={"kind": body.kind},
             )
-        improver = await self._improver(ctx)
+        improver = await self._improver(ctx, body.improver_agent_id)
         pack = await self.evidence.for_skill(ctx, skill.name, window_days=body.window_days)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
@@ -311,7 +311,7 @@ class AuthoringService:
                 message="A context file has no draft to verify; review its pending change instead",
                 details={"kind": body.kind},
             )
-        improver = await self._improver(ctx)
+        improver = await self._improver(ctx, body.improver_agent_id)
         pack = await self.evidence.for_context(ctx, file.id, window_days=body.window_days)
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
@@ -484,6 +484,7 @@ class AuthoringService:
             window_days=body.window_days,
             excluded_message_ids=excluded_message_ids,
             improvement_run_id=improvement_run_id,
+            improver_agent_id=body.improver_agent_id,
         )
         await record_audit(
             self.db,

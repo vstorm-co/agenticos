@@ -383,6 +383,7 @@ class AuthoringRun:
             result = await self.runner.run(
                 self.ctx,
                 key=IMPROVER.key,
+                agent_id=self.request.improver_agent_id,
                 prompt=prompt,
                 output_type=output_type,
                 improvement_run_id=self.request.improvement_run_id,

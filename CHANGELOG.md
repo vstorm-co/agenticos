@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Choose published system agents where they run: case generation, Improve and
+  each knowledge base’s gap classifier and drafter. Create every selectable
+  kind from New agent.
+
 - Add durable background improvement sessions with paired candidate checks, an
   audit timeline, cancellation, creator notifications and actual child costs.
 - Check eval and suite spend limits against confirming reruns and both sides;

@@ -57,6 +57,7 @@ export interface CaseProposalList {
 
 /** What a person asks to have drafted. */
 export interface CaseGenerationRequest {
+  generator_agent_id?: string | null;
   agent_id: string;
   sources: CaseOrigin[];
   count: number;
