@@ -643,6 +643,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve numeric workflow settings, including exponent notation and sub-minute
+  deadlines; validate field limits before saving and support keyboard submission.
+
 - Preserve monthly workflow budget accounting when history retention removes paid
   runs. Only amounts and admission times survive, with deletion and accounting
   committed atomically; history cleanup no longer replenishes the budget.

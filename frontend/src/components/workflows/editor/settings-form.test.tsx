@@ -76,6 +76,60 @@ describe("WorkflowSettingsForm", () => {
     });
   });
 
+  it("preserves exponent notation and a saved sub-minute deadline", async () => {
+    const onSave = vi.fn();
+    render(
+      <WorkflowSettingsForm
+        workflow={workflow({ default_deadline_seconds: 30 })}
+        disabled={false}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Runs under way at once"), { target: { value: "1e2" } });
+    await userEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ max_concurrent_runs: 100, default_deadline_seconds: 30 }),
+    );
+  });
+
+  it.each([
+    ["Runs under way at once", "1.5"],
+    ["Runs under way at once", "0"],
+    ["Runs under way at once", "1001"],
+    ["Keep runs for (days)", "3651"],
+    ["Most one run may spend (USD)", "-1"],
+  ])("refuses invalid %s instead of changing its meaning", async (label, value) => {
+    const onSave = vi.fn();
+    render(
+      <WorkflowSettingsForm
+        workflow={workflow()}
+        disabled={false}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    await userEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(label)).toBeInvalid();
+  });
+
+  it("submits from a field with Enter", async () => {
+    const onSave = vi.fn();
+    render(
+      <WorkflowSettingsForm
+        workflow={workflow()}
+        disabled={false}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Runs under way at once"));
+    await userEvent.keyboard("2{Enter}");
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ max_concurrent_runs: 2 }));
+  });
+
   it("opens on what is saved, and saves empty fields as unset", async () => {
     const onSave = vi.fn();
     render(

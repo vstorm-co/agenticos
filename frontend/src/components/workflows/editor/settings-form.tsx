@@ -43,16 +43,9 @@ function timeIn(zone: string, locale: string): string | null {
   }
 }
 
-/** A whole number from a field, or null when it is empty. */
-function wholeOrNull(text: string): number | null {
-  const value = Number.parseInt(text, 10);
-  return Number.isNaN(value) ? null : value;
-}
-
-/** An amount of money from a field, or null when it is empty. */
-function amountOrNull(text: string): number | null {
-  const value = Number.parseFloat(text);
-  return Number.isNaN(value) ? null : value;
+/** Native number inputs validate before submit; an empty field means no limit. */
+function numberOrNull(text: string): number | null {
+  return text.trim() === "" ? null : Number(text);
 }
 
 /** A setting as its field shows it: empty for none. */
@@ -98,24 +91,30 @@ export function WorkflowSettingsForm({
     (candidate) =>
       candidate.id !== workflow.id && candidate.live_trigger === WORKFLOW_FAILED_TRIGGER,
   );
-  const minutes = wholeOrNull(deadline);
+  const minutes = numberOrNull(deadline);
   const zone = timezone.trim() || "UTC";
   const now = timeIn(zone, locale);
 
   const save = () =>
     onSave({
       timezone: zone,
-      default_deadline_seconds: minutes === null ? null : minutes * 60,
+      default_deadline_seconds: minutes === null ? null : Math.round(minutes * 60),
       error_workflow_id: errorWorkflow === NONE ? null : errorWorkflow,
-      run_retention_days: wholeOrNull(retention),
+      run_retention_days: numberOrNull(retention),
       keep_succeeded_runs: keepSucceeded,
-      max_concurrent_runs: wholeOrNull(concurrent),
-      run_budget_usd: amountOrNull(runBudget),
-      monthly_budget_usd: amountOrNull(monthlyBudget),
+      max_concurrent_runs: numberOrNull(concurrent),
+      run_budget_usd: numberOrNull(runBudget),
+      monthly_budget_usd: numberOrNull(monthlyBudget),
     });
 
   return (
-    <div className="space-y-6">
+    <form
+      className="space-y-6"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!disabled && !saving && now !== null) save();
+      }}
+    >
       <p className="text-muted-foreground text-sm">{t("settingsIntro")}</p>
 
       <div className="space-y-1.5">
@@ -150,8 +149,10 @@ export function WorkflowSettingsForm({
         <Input
           id="workflow-deadline"
           type="number"
-          min={1}
-          inputMode="numeric"
+          min={1 / 60}
+          max={43_200}
+          step="any"
+          inputMode="decimal"
           placeholder={t("settingsDeadlineNone")}
           value={deadline}
           disabled={disabled}
@@ -190,6 +191,7 @@ export function WorkflowSettingsForm({
           id="workflow-retention"
           type="number"
           min={1}
+          max={3650}
           inputMode="numeric"
           placeholder={t("settingsRetentionForever")}
           value={retention}
@@ -221,6 +223,7 @@ export function WorkflowSettingsForm({
             id="workflow-concurrent"
             type="number"
             min={1}
+            max={1000}
             inputMode="numeric"
             placeholder={t("settingsNoLimit")}
             value={concurrent}
@@ -235,7 +238,8 @@ export function WorkflowSettingsForm({
             <Input
               id="workflow-run-budget"
               type="number"
-              min={0.01}
+              min={0.000001}
+              max={999_999}
               step="any"
               inputMode="decimal"
               placeholder={t("settingsNoLimit")}
@@ -250,7 +254,8 @@ export function WorkflowSettingsForm({
             <Input
               id="workflow-monthly-budget"
               type="number"
-              min={0.01}
+              min={0.000001}
+              max={999_999}
               step="any"
               inputMode="decimal"
               placeholder={t("settingsNoLimit")}
@@ -264,10 +269,10 @@ export function WorkflowSettingsForm({
       </section>
 
       {!disabled && (
-        <Button onClick={save} disabled={saving || now === null}>
+        <Button type="submit" disabled={saving || now === null}>
           {t("settingsSave")}
         </Button>
       )}
-    </div>
+    </form>
   );
 }
