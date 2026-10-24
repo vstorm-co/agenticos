@@ -1130,3 +1130,103 @@ async def test_a_baseline_only_result_does_not_move_a_guarded_follower(db: Async
     row = await db.get(EvalSuiteResult, result.id)
     assert row is not None and row.status == "baseline_set"
     assert await _serving(db, ctx, agent, env_id) == first.version
+
+
+async def test_republishing_a_judge_cannot_relax_a_guard_without_an_audited_pin_move(db) -> None:
+    import json
+
+    from app.db.models.case_score import CaseScore
+    from app.services.agent_registry import PublishedCandidate
+    from tests.integration.test_eval_runs import _assist
+
+    ctx = await _owner(db)
+    await _assist(db, ctx, on=True)
+    agent, first = await _agent(db, ctx)
+    judge, strict = await _agent(db, ctx)
+    judge.kind = "judge"
+    dataset = await _dataset(db, ctx, cases=2)
+    await ScoringService(db).set_scoring(
+        ctx,
+        dataset.id,
+        DatasetScoring.model_validate(
+            {
+                "judge": {
+                    "enabled": True,
+                    "agent_id": str(judge.id),
+                    "criteria": [
+                        {"name": "Policy", "description": "The answer follows the policy."}
+                    ],
+                },
+            }
+        ),
+    )
+    env_id, suite = await _guarded(db, ctx, agent, first, dataset)
+    assert suite.pinned_judge_version_id == strict.id
+    second = await _published(db, ctx, agent)
+    lenient = await _published(db, ctx, judge)
+    # This fixture pins production; serve the new judge as a following deployment would.
+    judge.current_version_id = lenient.id
+    await db.flush()
+    asked: list[uuid.UUID] = []
+
+    class JudgedModel(Model):
+        async def execute(self, runner, caller, agent_id, prompt, **kwargs):
+            answer, run = await super().execute(runner, caller, agent_id, prompt, **kwargs)
+            if agent_id != judge.id:
+                return answer, run
+            candidate = kwargs["candidate"]
+            assert isinstance(candidate, PublishedCandidate)
+            asked.append(candidate.version_id)
+            return json.dumps(
+                {
+                    "grades": [
+                        {
+                            "id": "r1",
+                            "score": 1 if candidate.version_id == strict.id else 5,
+                            "reason": "The answer says 30 days.",
+                            "quotes": ["30 days"],
+                        }
+                    ]
+                }
+            ), run
+
+    model = JudgedModel(db)
+    await _run_guards(db, ctx, agent, env_id, second, model)
+    assert asked and set(asked) == {strict.id}
+    assert not (await _check(db, ctx, agent, env_id, second)).passing
+    [result] = [r for r in await _results(db, suite.id) if r.version_number == second.version]
+    run = await db.get(EvalRun, result.eval_run_id)
+    assert run and run.judge_pinned and run.judge_version_id == strict.id
+    score = (await db.scalars(select(CaseScore).where(CaseScore.eval_run_id == run.id))).first()
+    assert score is not None
+    # A new publication does not prevent retrying a guard's grade on its old judge.
+    await ScoringService(db)._judge_unchanged(ctx, score)
+    assert score.judge and score.judge["agent_version_id"] == str(strict.id)
+
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    agent.owner_user_id = builder.user_id
+    await db.flush()
+    with pytest.raises(AuthorizationError, match="override promotions"):
+        await EvalSuiteService(db).move_pin(builder, agent.id, suite.id)
+    moved = await EvalSuiteService(db).move_pin(ctx, agent.id, suite.id)
+    assert moved.pin and moved.pin.judge_version_id == lenient.id
+    entries = [
+        e
+        for e in await _audit(db, ctx, "agent.environment_guards_changed")
+        if e.details and e.details.get("fields") == ["pin"]
+    ]
+    assert len(entries) == 1
+    assert entries[0].details["from"]["judge_version_id"] == str(strict.id)
+    assert entries[0].details["to"]["judge_version_id"] == str(lenient.id)
+
+    asked.clear()
+    await _run_guards(db, ctx, agent, env_id, second, model)
+    assert asked and set(asked) == {lenient.id}
+    assert (await _check(db, ctx, agent, env_id, second)).passing
+    results = await _results(db, suite.id)
+    passed = next(r for r in results if r.status == "passed")
+    mismatched = await db.get(EvalRun, passed.eval_run_id)
+    assert mismatched is not None
+    mismatched.judge_version_id = strict.id
+    await db.flush()
+    assert [g.state for g in (await _check(db, ctx, agent, env_id, second)).guards] == ["stale"]

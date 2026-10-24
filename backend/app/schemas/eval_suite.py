@@ -201,8 +201,16 @@ class EvalSuitePin(BaseSchema):
             "holds every promotion back until somebody who may override promotions pins it"
         )
     )
+    judge_version_id: UUID | None = Field(
+        default=None,
+        description="The judge version held by the guard; a missing pinned judge cannot grade",
+    )
     latest_dataset_version: int | None = Field(
         default=None, description="The dataset's version now; null when the reader cannot see it"
+    )
+    judge_current: bool | None = Field(
+        default=None,
+        description="Whether the pinned judge publication is still current; null when the dataset is hidden",
     )
     scoring_current: bool | None = Field(
         default=None,

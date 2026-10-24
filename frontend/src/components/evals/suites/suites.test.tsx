@@ -277,6 +277,25 @@ describe("SuiteResultsSheet", () => {
     expect((hooks.movePin as Mutation).mutate).toHaveBeenCalledWith("suite-1");
   });
 
+  it("offers an audited pin move when only the judge publication changed", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({
+        pin: {
+          dataset_version: 7,
+          latest_dataset_version: 7,
+          scoring_current: true,
+          judge_current: false,
+        },
+      }),
+    );
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByText(/The judge has a newer publication/)).toBeVisible();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Move the pin to v7" }));
+    expect((hooks.movePin as Mutation).mutate).toHaveBeenCalledWith("suite-1");
+  });
+
   it("shows a pin it may not move as disabled, saying why", async () => {
     await open(
       [],

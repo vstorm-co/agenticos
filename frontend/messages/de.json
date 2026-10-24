@@ -9640,7 +9640,8 @@
         "behind": "Festgelegt auf Dataset v{pinned}. Das Dataset ist jetzt bei v{latest}.",
         "scoringChanged": "Seine Bewertung hat sich seitdem geändert.",
         "move": "Festlegung auf v{latest} verschieben",
-        "needsOverride": "Zum Verschieben braucht es die Berechtigung, Promotionen zu übergehen."
+        "needsOverride": "Zum Verschieben braucht es die Berechtigung, Promotionen zu übergehen.",
+        "judgeChanged": "Der Bewerter hat eine neuere Veröffentlichung. Dieser Wächter bewertet weiter mit der angehefteten Version, bis Sie die Anheftung verschieben."
       },
       "removed": "Suite entfernt",
       "viewResults": "Ergebnisse von {name}",

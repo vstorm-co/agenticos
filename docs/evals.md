@@ -503,8 +503,9 @@ the cases left undecided.
 
 A guardrail block is graded as a refusal, including its recorded reason; content withheld by an output guardrail is not scored. Waiting for approval or a person's answer, cancellation and an unfinished run leave a case incomplete. A failed run, a stopped loop or a step limit counts as a crash. The crash count records first answers independently of the settled majority: any such crash fails a suite even if reruns pass or tie.
 
-Republishing the judge changes how answers are graded, so the next result of
-every suite it grades for is inconclusive once, and its owner is told. A pass
+A guard holds its judge publication as well as its dataset and scoring. Republishing the judge does not change guard runs or their rescoring. Moving that pin needs `promotions:override` and records the old and new judge versions in `agent.environment_guards_changed`. A missing pinned judge leaves grading incomplete; it never falls back to a new publication. After upgrade, old runs without a recorded judge pin cannot open a guard.
+
+For an unguarded suite, republishing the judge changes how answers are graded, so its next comparison is inconclusive once and its owner is told. A pass
 rate below the minimum fails a result whatever its comparison: the minimum
 needs no baseline. A result whose eval run was cancelled is inconclusive too,
 and says so; one whose run failed is an error.

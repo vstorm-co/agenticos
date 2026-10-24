@@ -171,6 +171,11 @@ class EvalRun(Base):
     reruns: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     scoring: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    judge_version_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    # A null pin means no published judge, rather than permission to use the latest.
+    judge_pinned: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     # What the confirming reruns may add on top, as the estimate said - so a run
     # that spent more than `estimate_usd` says why.

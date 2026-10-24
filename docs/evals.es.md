@@ -1,5 +1,5 @@
 ---
-source_sha: "f756c95b2ce2"
+source_sha: "e83afbcdaab6"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -540,10 +540,9 @@ casos que quedaron sin decidir.
 
 Un bloqueo del guardrail se evalúa como una negativa con su motivo registrado; el contenido retenido por un guardrail de salida no se evalúa. Esperar una aprobación o respuesta humana, una cancelación y un run sin terminar dejan el caso incompleto. Un run fallido, un bucle detenido o un límite de pasos cuentan como fallo. El contador registra las primeras respuestas independientemente de la mayoría de intentos: cualquier fallo de este tipo suspende la suite aunque las repeticiones aprueben o empaten.
 
-Volver a
-publicar el juez cambia cómo se puntúan las respuestas, así que el siguiente
-resultado de cada suite que puntúa queda una vez sin conclusión, y se avisa a su
-propietario. Una tasa de aprobados por debajo del mínimo suspende el resultado
+Un guardián fija la publicación del juez junto con el dataset y la evaluación. Volver a publicar el juez no cambia sus runs ni su reevaluación. Mover la fijación requiere `promotions:override` y registra la versión anterior y la nueva en `agent.environment_guards_changed`. Si falta el juez fijado, la evaluación queda incompleta; nunca se elige automáticamente una nueva publicación. Tras actualizar, los runs antiguos sin fijación registrada del juez no abren una puerta.
+
+Para una suite sin guardián, volver a publicar el juez cambia la evaluación: la siguiente comparación queda una vez sin conclusión y se avisa al propietario. Una tasa de aprobados por debajo del mínimo suspende el resultado
 sea cual sea su comparación: el mínimo no necesita baseline. Un resultado cuyo
 eval run se canceló también queda sin conclusión, y lo dice; uno cuyo run falló
 es un error.

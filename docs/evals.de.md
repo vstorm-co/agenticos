@@ -1,5 +1,5 @@
 ---
-source_sha: "f756c95b2ce2"
+source_sha: "e83afbcdaab6"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -580,9 +580,9 @@ unentschiedene Fall bestünde. Es nennt die Fälle, die unentschieden blieben.
 
 Eine Guardrail-Blockade wird als Ablehnung mit der gespeicherten Begründung bewertet; vom Ausgabe-Guardrail zurückgehaltener Inhalt wird nicht bewertet. Das Warten auf eine Freigabe oder Antwort, ein Abbruch und ein unvollendeter Lauf lassen den Fall unvollständig. Ein fehlgeschlagener Lauf, eine gestoppte Schleife oder eine Schrittgrenze zählt als Ausfall. Die Ausfälle erster Antworten werden unabhängig von der Mehrheit der Versuche gezählt: Jeder solche Ausfall lässt die Suite scheitern, auch wenn Wiederholungen bestehen oder unentschieden enden.
 
-Den Bewerter neu zu veröffentlichen ändert, wie Antworten
-bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
-einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt. Eine
+Ein Wächter hält die Veröffentlichung des Bewerters zusammen mit Dataset und Bewertung fest. Eine neue Veröffentlichung ändert weder seine Läufe noch deren erneute Bewertung. Das Verschieben braucht `promotions:override` und protokolliert alte und neue Bewerterversion in `agent.environment_guards_changed`. Ein fehlender angehefteter Bewerter lässt die Bewertung unvollständig; eine neue Veröffentlichung wird nie automatisch gewählt. Nach dem Upgrade öffnen alte Läufe ohne gespeicherte Bewerteranheftung kein Tor.
+
+Bei einer Suite ohne Wächter ändert eine neue Veröffentlichung die Bewertung: Der nächste Vergleich bleibt einmal ohne Ergebnis und der Eigentümer wird benachrichtigt. Eine
 Bestehensquote unter dem Minimum lässt ein Ergebnis unabhängig vom Vergleich
 durchfallen: Das Minimum braucht keine Baseline. Ein Ergebnis, dessen Eval-Run
 abgebrochen wurde, ist ebenfalls ohne Ergebnis und sagt das; eines, dessen Run

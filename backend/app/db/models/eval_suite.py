@@ -150,6 +150,10 @@ class EvalSuite(Base, TimestampMixin):
     # Held while the suite guards an environment, so editing the dataset does not
     # move what the guard checks; null on a suite that guards nothing.
     pinned_dataset_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Keep the identity after deletion: a missing judge must never select a new one.
+    pinned_judge_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
     pinned_scoring: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )

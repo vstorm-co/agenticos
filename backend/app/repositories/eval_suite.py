@@ -397,14 +397,20 @@ async def settled_on_version(
     *,
     baseline_version: int,
     organization_id: UUID,
-) -> dict[UUID, tuple[EvalSuiteResult, int | None, str | None]]:
+) -> dict[UUID, tuple[EvalSuiteResult, int | None, str | None, UUID | None, bool | None]]:
     """Each suite's last settled result on this agent version beside this baseline,
     with the number of the dataset version its eval run read and the scoring it
     was graded under - none when it never started one."""
     if not suite_ids:
         return {}
     result = await db.execute(
-        select(EvalSuiteResult, DatasetVersion.number, EvalRun.scoring_hash)
+        select(
+            EvalSuiteResult,
+            DatasetVersion.number,
+            EvalRun.scoring_hash,
+            EvalRun.judge_version_id,
+            EvalRun.judge_pinned,
+        )
         .outerjoin(EvalRun, EvalRun.id == EvalSuiteResult.eval_run_id)
         .outerjoin(DatasetVersion, DatasetVersion.id == EvalRun.dataset_version_id)
         .where(
@@ -417,7 +423,10 @@ async def settled_on_version(
         .order_by(EvalSuiteResult.suite_id, EvalSuiteResult.settled_at.desc())
         .ext(distinct_on(EvalSuiteResult.suite_id))
     )
-    return {row.suite_id: (row, number, hashed) for row, number, hashed in result.tuples().all()}
+    return {
+        row.suite_id: (row, number, hashed, judge_version, pinned)
+        for row, number, hashed, judge_version, pinned in result.all()
+    }
 
 
 async def open_on_version(

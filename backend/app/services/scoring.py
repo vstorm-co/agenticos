@@ -503,6 +503,8 @@ class ScoringService:
         enqueue_review: bool,
         scoring: DatasetScoring | None = None,
         eval_run_id: UUID | None = None,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
     ) -> CaseScore:
         """Run every configured scorer on one answer to one case, and keep the score.
 
@@ -523,7 +525,14 @@ class ScoringService:
                 this case - nothing is kept, and the judge is not called.
         """
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
-        evaluation = await self.evaluate(ctx, _case_view(case), answer, config)
+        evaluation = await self.evaluate(
+            ctx,
+            _case_view(case),
+            answer,
+            config,
+            judge_version_id=judge_version_id,
+            judge_pinned=judge_pinned,
+        )
         results = evaluation.results
         if not results:
             raise NothingToScoreError(case_id=case.case_id)
@@ -629,8 +638,20 @@ class ScoringService:
         if not judged:
             return
         config = DatasetScoring.model_validate(score.scoring)
+        pinned_run = (
+            None
+            if score.eval_run_id is None
+            else await eval_run_repo.get(
+                self.db, score.eval_run_id, organization_id=ctx.organization_id
+            )
+        )
+        version_id = pinned_run.judge_version_id if pinned_run and pinned_run.judge_pinned else None
+        if pinned_run and pinned_run.judge_pinned and version_id is None:
+            raise BadRequestError(
+                message="This guard run has no pinned judge. Move the suite pin and run it again."
+            )
         judge = await self.judge.require_runnable(
-            ctx, key=JUDGE.key, agent_id=config.judge.agent_id
+            ctx, key=JUDGE.key, agent_id=config.judge.agent_id, version_id=version_id
         )
         if score.eval_run_id is None:
             return
@@ -648,7 +669,10 @@ class ScoringService:
             run = await agent_run_repo.get_run(
                 self.db, UUID(run_id), organization_id=ctx.organization_id
             )
-            if run is not None and run.agent_version_id not in (None, judge.current_version_id):
+            if run is not None and run.agent_version_id not in (
+                None,
+                version_id or judge.current_version_id,
+            ):
                 raise BadRequestError(
                     message=(
                         f"'{judge.name}' has been published anew since it failed on this answer, "
@@ -705,7 +729,21 @@ class ScoringService:
         graded = score.case_revision
         asked = (graded.input, list(graded.history or []))
         replaced = personal_data_repo.judge_runs_of(score)
-        evaluation = await self.evaluate(ctx, _case_view(graded), answer, config)
+        pinned_run = (
+            None
+            if score.eval_run_id is None
+            else await eval_run_repo.get(
+                self.db, score.eval_run_id, organization_id=ctx.organization_id
+            )
+        )
+        evaluation = await self.evaluate(
+            ctx,
+            _case_view(graded),
+            answer,
+            config,
+            judge_version_id=pinned_run.judge_version_id if pinned_run else None,
+            judge_pinned=pinned_run.judge_pinned if pinned_run else False,
+        )
         judged = {result.judge_run_id for result in evaluation.results if result.judge_run_id}
         held = await dataset_repo.lock_revision(
             self.db, score.case_revision_id, organization_id=ctx.organization_id
@@ -733,7 +771,14 @@ class ScoringService:
         )
 
     async def evaluate(
-        self, ctx: AuthContext, case: CaseView, answer: ScoredAnswer, scoring: DatasetScoring
+        self,
+        ctx: AuthContext,
+        case: CaseView,
+        answer: ScoredAnswer,
+        scoring: DatasetScoring,
+        *,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
     ) -> Evaluation:
         """Every configured scorer's result for one answer, without keeping them.
 
@@ -761,7 +806,15 @@ class ScoringService:
         criteria = judge_criteria(case, scoring, judged)
         if not criteria:
             return Evaluation(results)
-        judging = await self._judge(ctx, case, answer, criteria, scoring)
+        judging = await self._judge(
+            ctx,
+            case,
+            answer,
+            criteria,
+            scoring,
+            judge_version_id=judge_version_id,
+            judge_pinned=judge_pinned,
+        )
         return Evaluation([*results, *judging.results], judging.judge)
 
     async def _judge(
@@ -771,7 +824,19 @@ class ScoringService:
         answer: ScoredAnswer,
         criteria: list[JudgeCriterion],
         scoring: DatasetScoring,
+        *,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
     ) -> Evaluation:
+        if judge_pinned and judge_version_id is None:
+            return Evaluation(
+                not_graded(
+                    criteria,
+                    skipped=True,
+                    code="judge_unpublished",
+                    reason="The guard has no published judge pinned. Move its pin before grading.",
+                )
+            )
         try:
             result = await self.judge.run(
                 ctx,
@@ -779,6 +844,7 @@ class ScoringService:
                 prompt=judge_prompt(case, answer, criteria, scale_max=scoring.judge.scale_max),
                 output_type=JudgeVerdict,
                 agent_id=scoring.judge.agent_id,
+                version_id=judge_version_id,
             )
         except AiAssistanceDisabledError as exc:
             skipped = not_graded(
@@ -872,6 +938,8 @@ class ScoringService:
         outcome: ScoreOutcome | None = None,
         agent_id: UUID | None = None,
         eval_run_id: UUID | None = None,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
         judge_id: UUID | None = None,
         tag: str | None = None,
         skip: int = 0,

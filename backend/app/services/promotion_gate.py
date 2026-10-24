@@ -70,7 +70,7 @@ _SETTLED_STATES: dict[str, GuardState] = {
 
 def guard_state(
     suite: EvalSuite,
-    settled: tuple[EvalSuiteResult, int | None, str | None] | None,
+    settled: tuple[EvalSuiteResult, int | None, str | None, UUID | None, bool | None] | None,
     waiting: EvalSuiteResult | None,
     *,
     dataset_version: int,
@@ -92,12 +92,16 @@ def guard_state(
     if suite.pinned_dataset_version is None:
         return "unpinned", settled[0] if settled is not None else waiting
     if settled is not None:
-        result, number, hashed = settled
+        result, number, hashed, judge_version, pinned = settled
         current = (
             result.dataset_id == suite.dataset_id
             and result.threshold == threshold_of(suite).model_dump(mode="json")
             and number in (None, dataset_version)
             and hashed in (None, scoring_hash)
+            and (
+                number is None
+                or (pinned is True and judge_version == suite.pinned_judge_version_id)
+            )
         )
         if (
             current

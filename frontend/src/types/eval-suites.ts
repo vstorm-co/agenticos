@@ -152,6 +152,8 @@ export interface EvalSuitePin {
   latest_dataset_version: number | null;
   /** Whether the dataset is graded now as the guard grades it; null when the reader cannot see it. */
   scoring_current: boolean | null;
+  judge_version_id?: string | null;
+  judge_current?: boolean | null;
 }
 
 export interface EvalSuiteList {

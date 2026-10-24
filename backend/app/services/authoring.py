@@ -204,6 +204,8 @@ class _CheckRun(NamedTuple):
     request: EvalRunRequest
     suite: EvalSuiteCheck | None
     scoring: DatasetScoring | None = None
+    judge_version_id: UUID | None = None
+    judge_pinned: bool = False
     baseline_spec: AgentSpec | None = None
     proposal: ProposalCheckRecord | None = None
 
@@ -1066,6 +1068,8 @@ class AuthoringService:
                 ),
                 suite=EvalSuiteCheck(suite_id=suite.id, name=suite.name, threshold=suite.threshold),
                 scoring=None if pin is None else pin[1],
+                judge_version_id=None if pin is None else pin[2],
+                judge_pinned=pin is not None,
             )
         assert body.dataset_id is not None, "ProposalCheck names a dataset or a suite"
         return _CheckRun(
@@ -1125,6 +1129,8 @@ class AuthoringService:
             agent.id,
             checked.request,
             scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
@@ -1212,6 +1218,8 @@ class AuthoringService:
             agent.id,
             checked.request,
             scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
             exclude_conversations=evidence,
@@ -1233,6 +1241,8 @@ class AuthoringService:
             agent.id,
             checked.request,
             scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
             exclude_conversations=evidence,
@@ -1320,6 +1330,8 @@ class AuthoringService:
             agent.id,
             checked.request,
             scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
             purpose=EvalRunPurpose.GATE,
             candidate_contexts=bodies,
             exclude_conversations=evidence,
@@ -1340,6 +1352,8 @@ class AuthoringService:
             agent.id,
             checked.request,
             scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
             purpose=EvalRunPurpose.GATE,
             candidate_contexts=bodies,
             exclude_conversations=evidence,
@@ -1361,6 +1375,8 @@ class AuthoringService:
             agent.id,
             checked.request,
             scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,

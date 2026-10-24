@@ -304,6 +304,8 @@ class RunPlan:
     from_recordings: bool
     live_reads: bool
     judged: bool
+    judge_version_id: UUID | None = None
+    judge_pinned: bool = False
     missing_baseline: int | None = None
     """The version the candidate would be measured against, when no earlier run
     of it can stand as the baseline."""
@@ -387,6 +389,8 @@ class EvalRunService:
         *,
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
         candidate_spec: AgentSpec | None = None,
         exclude_conversations: Sequence[UUID] = (),
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
@@ -547,6 +551,8 @@ class EvalRunService:
                     ),
                     judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
                     judge_id=config.judge.agent_id,
+                    judge_version_id=judge_version_id,
+                    judge_pinned=judge_pinned,
                 )
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
@@ -570,6 +576,8 @@ class EvalRunService:
                     execution=execution,
                     judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
                     judge_id=config.judge.agent_id,
+                    judge_version_id=judge_version_id,
+                    judge_pinned=judge_pinned,
                 )
             )
             if earlier is not None:
@@ -602,6 +610,8 @@ class EvalRunService:
             from_recordings=request.from_recordings,
             live_reads=request.live_reads,
             judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+            judge_version_id=judge_version_id,
+            judge_pinned=judge_pinned,
             missing_baseline=missing,
             ungraded=sum(1 for case in cases if not decidable(case, config, ai_enabled=ai_enabled)),
             excluded_case_ids=excluded,
@@ -634,6 +644,8 @@ class EvalRunService:
         execution: RunExecution,
         judged: bool,
         judge_id: UUID | None,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
     ) -> tuple[ArmPlan | None, int | None]:
         """The last run of the version before the candidate that can stand as its baseline.
 
@@ -672,7 +684,12 @@ class EvalRunService:
             execution=execution,
         )
         if found is None or not await self._graded_as_now(
-            ctx, found[0], judged=judged, judge_id=judge_id
+            ctx,
+            found[0],
+            judged=judged,
+            judge_id=judge_id,
+            judge_version_id=judge_version_id,
+            judge_pinned=judge_pinned,
         ):
             return None, previous.version
         return await self._reuse(ctx, found[0], found[1]), None
@@ -860,13 +877,14 @@ class EvalRunService:
             model_label=model.label,
         )
 
-    async def _judge_model(self, ctx: AuthContext, judge: Agent) -> UUID | None:
+    async def _judge_model(
+        self, ctx: AuthContext, judge: Agent, *, version_id: UUID | None = None
+    ) -> UUID | None:
         """The model the judge grades on: the one its published spec names."""
+        selected = version_id or judge.current_version_id
         version = (
-            await agent_repo.get_version(
-                self.db, judge.current_version_id, organization_id=ctx.organization_id
-            )
-            if judge.current_version_id is not None
+            await agent_repo.get_version(self.db, selected, organization_id=ctx.organization_id)
+            if selected is not None
             else None
         )
         return AgentSpec.model_validate(version.spec).model_profile_id if version else None
@@ -891,6 +909,8 @@ class EvalRunService:
         execution: RunExecution,
         judged: bool,
         judge_id: UUID | None,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
     ) -> tuple[EvalRunArm, EvalRun] | None:
         """A completed baseline arm that may stand in for running this one.
 
@@ -928,7 +948,13 @@ class EvalRunService:
         ):
             return None
         graded = await self._graded_as_now(
-            ctx, found[0], judged=judged, judge_id=judge_id, attempts=attempts
+            ctx,
+            found[0],
+            judged=judged,
+            judge_id=judge_id,
+            judge_version_id=judge_version_id,
+            judge_pinned=judge_pinned,
+            attempts=attempts,
         )
         return found if graded else None
 
@@ -939,6 +965,8 @@ class EvalRunService:
         *,
         judged: bool,
         judge_id: UUID | None,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
         attempts: Sequence[EvalRunCase] | None = None,
     ) -> bool:
         """Whether an earlier arm was graded by the judge, and the prompt, that would
@@ -958,7 +986,10 @@ class EvalRunService:
             for score in scores.values()
             if score.judge is not None and not _judge_graded_nothing(score)
         }
-        current = str(judge.current_version_id) if judge and judge.current_version_id else None
+        selected = (
+            judge_version_id if judge_pinned else (judge.current_version_id if judge else None)
+        )
+        current = str(selected) if selected is not None else None
         return pinned == ({(current, JUDGE_PROMPT_VERSION)} if judged else set())
 
     async def estimate(
@@ -969,6 +1000,8 @@ class EvalRunService:
         *,
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
         candidate_spec: AgentSpec | None = None,
         exclude_conversations: Sequence[UUID] = (),
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
@@ -987,6 +1020,8 @@ class EvalRunService:
             request,
             purpose=purpose,
             scoring=scoring,
+            judge_version_id=judge_version_id,
+            judge_pinned=judge_pinned,
             candidate_spec=candidate_spec,
             exclude_conversations=exclude_conversations,
             candidate_skills=candidate_skills,
@@ -1072,7 +1107,11 @@ class EvalRunService:
         judge_model: UUID | None = None
         if plan.judged:
             judge = await self._judge_agent(ctx, plan.scoring.judge.agent_id)
-            judge_model = await self._judge_model(ctx, judge) if judge is not None else None
+            judge_model = (
+                await self._judge_model(ctx, judge, version_id=plan.judge_version_id)
+                if judge is not None
+                else None
+            )
             # Its history on the model it is published on, as a side's is: one
             # republished on a dearer model must not be priced at the old one.
             judge_label = (
@@ -1148,6 +1187,8 @@ class EvalRunService:
         *,
         purpose: EvalRunPurpose = EvalRunPurpose.MANUAL,
         scoring: DatasetScoring | None = None,
+        judge_version_id: UUID | None = None,
+        judge_pinned: bool = False,
         candidate_spec: AgentSpec | None = None,
         exclude_conversations: Sequence[UUID] = (),
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
@@ -1173,6 +1214,8 @@ class EvalRunService:
             request,
             purpose=purpose,
             scoring=scoring,
+            judge_version_id=judge_version_id,
+            judge_pinned=judge_pinned,
             candidate_spec=candidate_spec,
             exclude_conversations=exclude_conversations,
             candidate_skills=candidate_skills,
@@ -1209,6 +1252,8 @@ class EvalRunService:
             reruns=plan.reruns,
             scoring=plan.scoring.model_dump(mode="json", by_alias=True),
             scoring_hash=plan.scoring_hash,
+            judge_version_id=plan.judge_version_id,
+            judge_pinned=plan.judge_pinned,
             estimate_usd=estimate.total_usd,
             rerun_ceiling_usd=estimate.rerun_ceiling_usd,
             excluded_case_ids=plan.excluded_case_ids,

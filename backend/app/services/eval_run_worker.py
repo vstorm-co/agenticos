@@ -534,6 +534,8 @@ class EvalRunWorker:
                     answer=answer,
                     scoring=DatasetScoring.model_validate(run.scoring),
                     eval_run_id=run.id,
+                    judge_version_id=run.judge_version_id,
+                    judge_pinned=run.judge_pinned,
                     # What deserves a person is sent once the reruns are in.
                     enqueue_review=False,
                 )
@@ -776,6 +778,8 @@ class EvalRunWorker:
             new = [
                 EvalRunCase(
                     eval_run_id=run.id,
+                    judge_version_id=run.judge_version_id,
+                    judge_pinned=run.judge_pinned,
                     arm_id=arm_id,
                     case_id=case_id,
                     case_revision_id=first.case_revision_id,

@@ -1,5 +1,5 @@
 ---
-source_sha: "f756c95b2ce2"
+source_sha: "e83afbcdaab6"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -551,9 +551,9 @@ nierozstrzygnięte.
 
 Blokada guardraila jest oceniana jak odmowa wraz z zapisaną przyczyną; treść zatrzymana przez guardrail wyjściowy nie jest oceniana. Oczekiwanie na zgodę lub odpowiedź człowieka, anulowanie i niedokończony run pozostawiają przypadek niekompletny. Run zakończony błędem, zatrzymana pętla lub limit kroków liczą się jako awaria. Licznik awarii dotyczy pierwszych odpowiedzi niezależnie od rozstrzygnięcia większości prób: każda taka awaria oblewa suitę, nawet jeśli powtórki przejdą lub dadzą remis.
 
-Ponowna publikacja sędziego zmienia sposób oceniania, więc
-następny wynik każdej suity, którą ocenia, będzie raz bez rozstrzygnięcia, a jej
-właściciel dostanie wiadomość. Odsetek zaliczonych poniżej minimum oblewa
+Strażnik przypina publikację sędziego razem z datasetem i ocenianiem. Ponowna publikacja sędziego nie zmienia runów strażnika ani ich ponownej oceny. Przesunięcie przypięcia wymaga `promotions:override` i zapisuje starą oraz nową wersję sędziego w `agent.environment_guards_changed`. Brak przypiętego sędziego pozostawia ocenę niekompletną; nigdy nie wybiera automatycznie nowej publikacji. Po aktualizacji stare runy bez zapisanego przypięcia sędziego nie otwierają bramki.
+
+Dla suity bez strażnika ponowna publikacja sędziego zmienia ocenianie, więc następne porównanie jest raz bez rozstrzygnięcia, a właściciel dostaje wiadomość. Odsetek zaliczonych poniżej minimum oblewa
 wynik niezależnie od porównania: minimum nie potrzebuje baseline'u. Wynik, którego
 run ewaluacji anulowano, też jest bez rozstrzygnięcia i mówi o tym; wynik runu, który
 skończył się błędem, jest błędem.

@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Promotion guards pin their judge publication.** A new judge publication cannot
+  relax a guard; changing it requires an audited pin move. Guard runs and
+  rescoring use the held version, and old unpinned passes do not open the gate
+  after upgrade (#2413).
+
 - **Eval runs distinguish refusals and waiting from crashes.** Guardrail blocks
   are graded as refusals; parked or cancelled runs stay incomplete. Broken
   runs, loops and step limits still fail the suite and have a red chip in the

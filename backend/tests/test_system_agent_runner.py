@@ -128,7 +128,11 @@ class TestRun:
         args, kwargs = execute.call_args
         assert args == (ctx, agent.id, f"Grade it\n\n{output_contract(Verdict)}")
         isolation = kwargs.pop("isolation")
-        assert kwargs == {"surface": RunSurface.EVAL, "model_profile_id": profile_id}
+        assert kwargs == {
+            "surface": RunSurface.EVAL,
+            "model_profile_id": profile_id,
+            "candidate": None,
+        }
         # Held like an eval's writes, and answered from no recording.
         assert isinstance(isolation, RunIsolation)
         assert (isolation.recording, isolation.intercepted) == (None, [])
@@ -220,3 +224,41 @@ def test_an_unreadable_answer_leaves_why_on_its_run_and_never_the_answer() -> No
 
     assert kept.startswith("The answer did not match the shape asked for - grades.0: ")
     assert "private question" not in kept
+
+
+async def test_a_pinned_system_agent_runs_the_selected_publication(monkeypatch) -> None:
+    from app.services.agent_registry import PublishedCandidate
+
+    agent = _agent()
+    runner, execute = _runner(monkeypatch, agent=agent)
+    pinned = uuid.uuid4()
+    monkeypatch.setattr(
+        system_agent_runner.agent_repo,
+        "get_version",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                agent_id=agent.id, spec={"model_profile_id": str(uuid.uuid4())}
+            )
+        ),
+    )
+    await runner.run(
+        _ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict, version_id=pinned
+    )
+    assert execute.call_args.kwargs["candidate"] == PublishedCandidate(version_id=pinned)
+
+
+@pytest.mark.parametrize("missing", [True, False])
+async def test_a_missing_or_foreign_pinned_version_never_runs_the_current_judge(
+    monkeypatch, missing: bool
+) -> None:
+    runner, execute = _runner(monkeypatch)
+    monkeypatch.setattr(
+        system_agent_runner.agent_repo,
+        "get_version",
+        AsyncMock(return_value=(None if missing else SimpleNamespace(agent_id=uuid.uuid4()))),
+    )
+    with pytest.raises(SystemAgentUnavailableError, match="pinned version"):
+        await runner.run(
+            _ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict, version_id=uuid.uuid4()
+        )
+    execute.assert_not_awaited()

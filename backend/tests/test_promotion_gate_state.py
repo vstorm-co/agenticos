@@ -43,7 +43,13 @@ def _state(
     settled: tuple[EvalSuiteResult, int | None, str | None] | None,
     waiting: EvalSuiteResult | None = None,
 ):
-    return guard_state(suite, settled, waiting, dataset_version=3, scoring_hash=_SCORING)
+    return guard_state(
+        suite,
+        None if settled is None else (*settled, None, True),
+        waiting,
+        dataset_version=3,
+        scoring_hash=_SCORING,
+    )
 
 
 def test_a_pass_over_the_dataset_and_scoring_the_suite_holds_now_passes() -> None:
@@ -154,3 +160,18 @@ async def test_asking_about_nothing_reads_nothing() -> None:
     assert await promotion_gate_repo.guarding(db, [], organization_id=org) == set()
     assert await promotion_gate_repo.overrides_for_versions(db, [], organization_id=org) == {}
     db.execute.assert_not_awaited()
+
+
+@pytest.mark.parametrize("pinned,version", [(True, uuid.uuid4()), (False, None)])
+def test_a_pass_from_another_or_unpinned_judge_cannot_open_the_gate(
+    pinned: bool, version: uuid.UUID | None
+) -> None:
+    suite = _suite()
+    passed = _result(suite, "passed")
+    assert guard_state(
+        suite,
+        (passed, 3, _SCORING, version, pinned),
+        None,
+        dataset_version=3,
+        scoring_hash=_SCORING,
+    ) == ("stale", passed)

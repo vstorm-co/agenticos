@@ -11,7 +11,11 @@ import { Perm } from "@/types/permissions";
 /** Whether the dataset moved on since the guard was pinned to it - unknown to a reader who cannot see it. */
 function behind(pin: EvalSuitePin): boolean {
   if (pin.latest_dataset_version === null) return false;
-  return pin.dataset_version !== pin.latest_dataset_version || pin.scoring_current === false;
+  return (
+    pin.dataset_version !== pin.latest_dataset_version ||
+    pin.scoring_current === false ||
+    pin.judge_current === false
+  );
 }
 
 /** A guard's pin, short, for its row: amber once the dataset has moved on, or with none yet. */
@@ -84,6 +88,7 @@ export function SuitePin({ suite }: { suite: EvalSuite }) {
       {pin.scoring_current === false && (
         <p className="text-muted-foreground">{t("scoringChanged")}</p>
       )}
+      {pin.judge_current === false && <p className="text-muted-foreground">{t("judgeChanged")}</p>}
       {behind(pin) && <PinAction suite={suite} label={t("move", { latest })} />}
     </div>
   );

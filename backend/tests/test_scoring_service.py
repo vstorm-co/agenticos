@@ -180,7 +180,10 @@ async def test_an_eval_runs_score_graded_from_another_prompt_is_not_graded_again
     assert refused.value.details["prompt_version"] == pinned
 
 
-async def test_an_eval_runs_score_its_judge_ran_on_without_a_pin_is_not_graded_again() -> None:
+async def test_an_eval_runs_score_its_judge_ran_on_without_a_pin_is_not_graded_again(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("app.services.scoring.eval_run_repo.get", AsyncMock(return_value=None))
     service = ScoringService(AsyncMock())
     service.judge = MagicMock(require_runnable=AsyncMock())
     score = MagicMock(
@@ -194,7 +197,8 @@ async def test_an_eval_runs_score_its_judge_ran_on_without_a_pin_is_not_graded_a
         await service._judge_unchanged(_ctx(), score)
 
 
-async def test_an_eval_runs_score_its_judge_never_ran_on_is_graded_again() -> None:
+async def test_an_eval_runs_score_its_judge_never_ran_on_is_graded_again(monkeypatch) -> None:
+    monkeypatch.setattr("app.services.scoring.eval_run_repo.get", AsyncMock(return_value=None))
     service = ScoringService(AsyncMock())
     service.judge = MagicMock(require_runnable=AsyncMock())
     score = MagicMock(

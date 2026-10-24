@@ -9757,7 +9757,8 @@
         "behind": "Pinned to dataset v{pinned}. The dataset is now at v{latest}.",
         "scoringChanged": "Its grading has changed since.",
         "move": "Move the pin to v{latest}",
-        "needsOverride": "Moving the pin needs permission to override promotions."
+        "needsOverride": "Moving the pin needs permission to override promotions.",
+        "judgeChanged": "The judge has a newer publication. This guard keeps grading with its pinned version until you move the pin."
       },
       "removed": "Suite removed",
       "viewResults": "Results of {name}",

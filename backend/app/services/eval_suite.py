@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import refuse_system_agent
+from app.agents.system_agents import JUDGE, refuse_system_agent
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -238,10 +238,18 @@ def _pin_record(suite: EvalSuite) -> dict[str, Any] | None:
     pin = pin_of(suite)
     if pin is None:
         return None
-    return {"dataset_version": pin[0], "scoring_hash": scoring_hash(pin[1])}
+    return {
+        "dataset_version": pin[0],
+        "scoring_hash": scoring_hash(pin[1]),
+        "judge_version_id": str(suite.pinned_judge_version_id)
+        if suite.pinned_judge_version_id
+        else None,
+    }
 
 
-def _pin_read(suite: EvalSuite, dataset: Dataset | None, *, guards: bool) -> EvalSuitePin | None:
+def _pin_read(
+    suite: EvalSuite, dataset: Dataset | None, *, guards: bool, judge_version_id: UUID | None = None
+) -> EvalSuitePin | None:
     """The pin, beside its dataset as it is now - unless the reader cannot see the dataset.
 
     A guard not pinned yet reads as a pin to no version, so it can be pinned from
@@ -255,6 +263,8 @@ def _pin_read(suite: EvalSuite, dataset: Dataset | None, *, guards: bool) -> Eva
     return EvalSuitePin(
         dataset_version=None if pin is None else pin[0],
         latest_dataset_version=dataset.latest_version,
+        judge_version_id=suite.pinned_judge_version_id,
+        judge_current=suite.pinned_judge_version_id == judge_version_id,
         scoring_current=(
             None
             if pin is None
@@ -273,12 +283,19 @@ async def pin_to_latest(db: AsyncSession, suite: EvalSuite) -> None:
     dataset = await dataset_repo.get(db, suite.dataset_id, organization_id=suite.organization_id)
     assert dataset is not None, "a suite's dataset outlives it"
     holds = dataset.latest_version > 0
+    config = DatasetScoring.model_validate(dataset.scoring)
+    judge = (
+        await agent_repo.get(db, config.judge.agent_id, organization_id=suite.organization_id)
+        if config.judge.agent_id is not None
+        else await agent_repo.get_system(db, organization_id=suite.organization_id, key=JUDGE.key)
+    )
     await eval_suite_repo.update(
         db,
         suite=suite,
         values={
             "pinned_dataset_version": dataset.latest_version if holds else None,
             "pinned_scoring": dataset.scoring if holds else None,
+            "pinned_judge_version_id": judge.current_version_id if holds and judge else None,
         },
     )
 
@@ -286,7 +303,13 @@ async def pin_to_latest(db: AsyncSession, suite: EvalSuite) -> None:
 async def unpin(db: AsyncSession, suite: EvalSuite) -> None:
     """Let a suite that no longer guards anything read the latest version and scoring again."""
     await eval_suite_repo.update(
-        db, suite=suite, values={"pinned_dataset_version": None, "pinned_scoring": None}
+        db,
+        suite=suite,
+        values={
+            "pinned_dataset_version": None,
+            "pinned_scoring": None,
+            "pinned_judge_version_id": None,
+        },
     )
 
 
@@ -342,10 +365,12 @@ class EvalSuiteService:
 
     async def pinned(
         self, ctx: AuthContext, agent_id: UUID, suite_id: UUID
-    ) -> tuple[int, DatasetScoring] | None:
-        """The dataset version and scoring a guard is pinned to; None on a suite that reads the latest."""
+    ) -> tuple[int, DatasetScoring, UUID | None] | None:
+        """The dataset, scoring and judge version held by this guard; None when unguarded."""
         self._require_runs_view(ctx)
-        return pin_of(await self._suite(ctx, agent_id, suite_id))
+        suite = await self._suite(ctx, agent_id, suite_id)
+        pin = pin_of(suite)
+        return None if pin is None else (*pin, suite.pinned_judge_version_id)
 
     async def results(
         self, ctx: AuthContext, agent_id: UUID, suite_id: UUID, *, skip: int = 0, limit: int = 20
@@ -411,8 +436,21 @@ class EvalSuiteService:
             organization_id=org,
             user_ids=sorted({suite.owner_user_id for suite in suites if suite.owner_user_id}),
         )
+        judge_ids = {
+            config.judge.agent_id
+            for suite in suites
+            if (config := _pinned_scoring(suite)) is not None and config.judge.agent_id is not None
+        }
+        judges = await agent_repo.get_many(self.db, sorted(judge_ids), organization_id=org)
+        default_judge = await agent_repo.get_system(self.db, organization_id=org, key=JUDGE.key)
         reads = []
         for suite in suites:
+            config = _pinned_scoring(suite)
+            judge = (
+                judges.get(config.judge.agent_id)
+                if config and config.judge.agent_id
+                else default_judge
+            )
             environment = environments.get(suite.environment_id) if suite.environment_id else None
             last = latest.get(suite.id)
             now = current.get(suite.id)
@@ -449,6 +487,7 @@ class EvalSuiteService:
                         suite,
                         datasets[suite.dataset_id] if suite.dataset_id in readable else None,
                         guards=suite.id in guarding,
+                        judge_version_id=judge.current_version_id if judge else None,
                     ),
                     last_result=(
                         self.result_read(last, cases_visible=last.dataset_id in readable)
@@ -998,7 +1037,14 @@ class EvalSuiteService:
                     "max_run_usd": str(over.cap),
                 },
             ) from None
-        run = await self.evals.start(ctx, agent.id, request, scoring=_pinned_scoring(suite))
+        run = await self.evals.start(
+            ctx,
+            agent.id,
+            request,
+            scoring=_pinned_scoring(suite),
+            judge_version_id=suite.pinned_judge_version_id,
+            judge_pinned=pin_of(suite) is not None,
+        )
         result = await eval_suite_repo.add_result(
             self.db,
             organization_id=ctx.organization_id,
@@ -1044,7 +1090,12 @@ class EvalSuiteService:
         if suite.max_run_usd is None:
             return
         estimate = await self.evals.estimate(
-            ctx, suite.agent_id, request, scoring=_pinned_scoring(suite)
+            ctx,
+            suite.agent_id,
+            request,
+            scoring=_pinned_scoring(suite),
+            judge_version_id=suite.pinned_judge_version_id,
+            judge_pinned=pin_of(suite) is not None,
         )
         if estimate.total_usd > suite.max_run_usd:
             raise _OverCap(estimate.total_usd, suite.max_run_usd)
@@ -1386,7 +1437,12 @@ class EvalSuiteService:
             async with self.db.begin_nested():
                 request, ran_alone = await self._capped(owner, suite, request, alone)
                 run = await self.evals.start(
-                    owner, suite.agent_id, request, scoring=_pinned_scoring(suite)
+                    owner,
+                    suite.agent_id,
+                    request,
+                    scoring=_pinned_scoring(suite),
+                    judge_version_id=suite.pinned_judge_version_id,
+                    judge_pinned=pin_of(suite) is not None,
                 )
         except _OverCap as over:
             message = (
@@ -1545,7 +1601,14 @@ class EvalSuiteService:
             self.db, suite.dataset_id, organization_id=suite.organization_id
         )
         assert dataset is not None, "a suite's dataset outlives it"
-        if run is None or run.scoring_hash != scoring_hash(reads_now(suite, dataset)[1]):
+        if (
+            run is None
+            or run.scoring_hash != scoring_hash(reads_now(suite, dataset)[1])
+            or (
+                pin_of(suite) is not None
+                and (not run.judge_pinned or run.judge_version_id != suite.pinned_judge_version_id)
+            )
+        ):
             return None
         return passed
 

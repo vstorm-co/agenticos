@@ -42,6 +42,7 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.repositories import agent_repo, agent_run_repo
 from app.services.access import AGENT, resolve_access
+from app.services.agent_registry import PublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.ai_assistance import AiAssistanceService
 from app.services.model_profile import ModelProfileService
@@ -111,6 +112,7 @@ class SystemAgentRunner:
         output_type: type[T],
         agent_id: UUID | None = None,
         model_profile_id: UUID | None = None,
+        version_id: UUID | None = None,
     ) -> SystemAgentResult[T]:
         """Run system agent `key` on `prompt` as the caller, and validate its answer.
 
@@ -141,7 +143,11 @@ class SystemAgentRunner:
                 validate. Not retried.
         """
         agent = await self.require_runnable(
-            ctx, key=key, agent_id=agent_id, model_profile_id=model_profile_id
+            ctx,
+            key=key,
+            agent_id=agent_id,
+            model_profile_id=model_profile_id,
+            version_id=version_id,
         )
 
         text, run = await AgentRunnerService(self.db).execute(
@@ -151,6 +157,7 @@ class SystemAgentRunner:
             surface=RunSurface.EVAL,
             model_profile_id=model_profile_id,
             isolation=RunIsolation(),
+            candidate=None if version_id is None else PublishedCandidate(version_id=version_id),
         )
         if run.status != RunStatus.COMPLETED.value:
             raise SystemAgentRunError(
@@ -179,6 +186,7 @@ class SystemAgentRunner:
         key: str,
         agent_id: UUID | None = None,
         model_profile_id: UUID | None = None,
+        version_id: UUID | None = None,
     ) -> Agent:
         """The system agent `key`, once it is known the caller could run it now.
 
@@ -203,7 +211,17 @@ class SystemAgentRunner:
                 key=key,
                 reason="archived",
             )
-        if agent.current_version_id is None:
+        if version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, version_id, organization_id=ctx.organization_id
+            )
+            if version is None or version.agent_id != agent.id:
+                raise SystemAgentUnavailableError(
+                    message=f"The pinned version of '{agent.name}' no longer exists. Move the guard pin to use another.",
+                    key=key,
+                    reason="missing",
+                )
+        if version_id is None and agent.current_version_id is None:
             raise SystemAgentUnavailableError(
                 message=f"'{agent.name}' has no published version. Pick a model and publish it.",
                 key=key,
@@ -215,7 +233,9 @@ class SystemAgentRunner:
                 key=key,
                 reason="no_access",
             )
-        await self._require_model(ctx, agent.name, agent.current_version_id, key, model_profile_id)
+        selected_version = version_id or agent.current_version_id
+        assert selected_version is not None
+        await self._require_model(ctx, agent.name, selected_version, key, model_profile_id)
         return agent
 
     async def _picked(self, ctx: AuthContext, *, key: str, agent_id: UUID) -> Agent:
