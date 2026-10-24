@@ -115,7 +115,8 @@ class WorkflowRunRead(BaseSchema, TimestampSchema):
     status: WorkflowRunStatus
     triggered_by: str
     budget_limit: float | None
-    spent_cost: float
+    spent_cost: float = Field(description="Total spend, including called workflows")
+    own_cost: float = Field(default=0, description="This run's own spend; sum this across runs")
     cost_is_partial: bool
     deadline_at: datetime | None
     paused_reason: str | None

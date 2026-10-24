@@ -1,5 +1,5 @@
 ---
-source_sha: "4caa2283c880"
+source_sha: "65a583c6aa80"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -300,6 +300,11 @@ Schritt erneut, auch nach einer Freigabe oder Wartezeit. Widerruf, Ablauf oder
 Löschung stoppen neue Arbeit mit `PRINCIPAL_REVOKED`; eine Fortsetzung erhält nie
 die volle Rolle des Ausstellers. Key-Runs erreichen keine persönlichen Daten des
 Ausstellers. Das Bearbeiten eines Workflows verlangt weiterhin eine Sitzung.
+
+API-Schlüssel können Läufe öffentlichen Ursprungs einschließlich schlüsselgestarteter
+Läufe lesen. Persönliche, von Mitgliedern gestartete Läufe antworten mit `404`, auch
+bei Graph, Schritten, Ereignissen, Dateien, Wiederholung und Abbruch. Schlüssel können
+keine Dateien aus diesen Läufen importieren.
 
 ```bash
 curl -X POST "$BASE/api/v1/workflow-runs" \

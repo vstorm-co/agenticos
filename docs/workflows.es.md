@@ -1,5 +1,5 @@
 ---
-source_sha: "ef361e3f5986"
+source_sha: "eec229796bb3"
 ---
 
 # Workflows { #workflows }
@@ -787,6 +787,15 @@ en las páginas de ejecuciones como cualquier otra. Una ejecución iniciada por 
 workflow de errores dice qué ejecución fallida la inició.
 Una llamada de vuelta a un workflow que ya se ejecuta en la cadena, o con más de cinco
 niveles, se rechaza.
+
+Los workflows llamados heredan el presupuesto restante del llamador y el plazo más
+cercano. Su gasto cuenta en el total del llamador; `own_cost` muestra solo los cargos
+directos para evitar duplicarlos al sumar registros. Con un presupuesto limitado debe
+mantenerse la espera hasta finalizar. Cancelar el llamador o revocar su acceso detiene
+al hijo antes del siguiente paso; una solicitud externa en curso puede terminar.
+Reintentar una llamada reutiliza los pasos exitosos del hijo original con su versión
+fijada. Si ese hijo sigue activo, debe terminar o detenerse primero. Los archivos de
+salida se importan explícitamente al llamador y el acceso se comprueba al reanudar.
 
 ### Desde un agente { #from-an-agent }
 

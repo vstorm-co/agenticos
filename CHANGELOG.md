@@ -643,6 +643,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Workflow model steps now use the remaining run budget, called workflows inherit
+  budgets and deadlines, and descendant spend is included without double booking
+  repeated settlements. Retrying calls preserves successful child effects and
+  imports their output files after rechecking access.
+- Decision and knowledge-search steps record model and embedding fees, including
+  fees incurred before a search fails, in the organization bill even after run
+  retention. Migration `0219_workflow_node_spend.py` retains these direct fees;
+  `0218_workflow_child_cost.py` rolls existing child spend up to callers.
+  Organization keys cannot inspect or import
+  files from personal workflow runs.
+- Deferred table deletion keeps the organization selected when it was requested;
+  version comparison fits narrow editor panels.
+
 - **Workflow review follow-ups.** Organization keys cannot consent to page data or
   start human-only page actions. Named MCP approvers need decision permission both
   at publish and when asked. Resume bodies stop at the workflow input cap while

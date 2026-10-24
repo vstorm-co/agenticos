@@ -569,8 +569,12 @@ async def file_binding_problems(
             if run is not None
             else None
         )
-        if workflow is None or not await resolve_access(
-            db, ctx, workflow, Perm.WORKFLOWS_VIEW, resource_type=WORKFLOW
+        if (
+            workflow is None
+            or (ctx.api_key_id is not None and run is not None and not run.public_origin)
+            or not await resolve_access(
+                db, ctx, workflow, Perm.WORKFLOWS_VIEW, resource_type=WORKFLOW
+            )
         ):
             problems.append((f"bindings.{index}", "This file does not exist or is not accessible"))
     return problems

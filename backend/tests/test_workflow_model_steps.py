@@ -7,6 +7,7 @@ configurations it refuses.
 
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -285,6 +286,14 @@ class TestTheRequest:
         assert isinstance(answer, _model_step.Answer) and answer.text == "hi"
         assert scope.cost == Decimal("0.01")
         assert runner.execute.await_args.kwargs["run_limit_usd"] == Decimal("0.2")
+
+    @pytest.mark.security
+    async def test_the_model_gets_the_tighter_workflow_remaining_budget(self, runner):
+        runner.execute.return_value = ("hi", self._run_row(RunStatus.COMPLETED))
+        config = prompt.AiPromptConfig(model_profile_id=MODEL, max_cost_usd=2)
+        with context.dispatching_as(replace(_dispatch(), budget_remaining=Decimal("0.125"))):
+            await _model_step.ask(config, AgentSpec(name="x"), "go")
+        assert runner.execute.await_args.kwargs["run_limit_usd"] == Decimal("0.125")
 
     async def test_a_run_that_did_not_complete_fails_with_its_code(self, runner):
         runner.execute.return_value = ("", self._run_row(RunStatus.BUDGET_EXCEEDED, cost="0"))

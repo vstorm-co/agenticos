@@ -56,7 +56,7 @@ from app.repositories import agent_run as agent_run_repo
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
-from app.services.workflow_execution import context
+from app.services.workflow_execution import budget, context
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows import files
 from app.workflows.contracts.io import FileRef, SourceRef
@@ -340,9 +340,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     content=images,
                     output_schema=config.structured_output_schema,
                     structured=answers,
-                    run_limit_usd=(
-                        None if config.max_cost_usd is None else Decimal(str(config.max_cost_usd))
-                    ),
+                    run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
                     public_origin=current.public_origin,
                 )
                 answer = answers[0] if answers else None

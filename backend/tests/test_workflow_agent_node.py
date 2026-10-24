@@ -322,3 +322,15 @@ async def test_publishing_checks_a_spec_configured_here_as_an_agent_publish_woul
     problems = await agent_node.check_resources(MagicMock(), _dispatch().auth, config)
 
     assert problems == [("inline", "No model selected")]
+
+
+async def test_a_catalog_agent_is_bounded_by_the_workflows_remaining_funds(runner):
+    runner.execute.return_value = ("ok", _run(RunStatus.COMPLETED))
+    with context.dispatching_as(
+        dataclasses.replace(_dispatch(), budget_remaining=Decimal("0.125"))
+    ):
+        result = await agent_node.handle(
+            AgentRunConfig.model_validate({"agent": _AGENT}), AgentRunInput(prompt="Go")
+        )
+    assert isinstance(result, Completed)
+    assert runner.execute.await_args.kwargs["run_limit_usd"] == Decimal("0.125")

@@ -438,3 +438,101 @@ def test_workflow_migrations_preserve_main_notification_types(table: str) -> Non
             assert f"'{event}'" in definition
     finally:
         engine.dispose()
+
+
+def test_workflow_child_cost_migration_rolls_up_each_charge_once() -> None:
+    """Backfill explicit nested calls, preserving own spend and excluding trigger chains."""
+    import uuid
+    from datetime import UTC, datetime
+    from decimal import Decimal
+
+    from sqlalchemy.orm import Session
+
+    from app.db.models.organization import Organization
+    from app.db.models.user import User
+    from app.db.models.workflow import Workflow
+    from app.db.models.workflow_run import NodeRun, WorkflowRun
+
+    upgraded = _alembic("upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with Session(engine) as db:
+            owner = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x", is_active=True)
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                name="Costs", slug=f"costs-{uuid.uuid4().hex[:8]}", created_by_user_id=owner.id
+            )
+            db.add(org)
+            db.flush()
+            workflow = Workflow(
+                organization_id=org.id,
+                owner_user_id=owner.id,
+                name="Calls",
+                slug=f"calls-{uuid.uuid4().hex[:8]}",
+                draft_graph={},
+            )
+            db.add(workflow)
+            db.flush()
+            runs: list[WorkflowRun] = []
+            steps: list[NodeRun] = []
+            for amount in range(1, 5):
+                run_id = uuid.uuid4()
+                run = WorkflowRun(
+                    id=run_id,
+                    organization_id=org.id,
+                    workflow_id=workflow.id,
+                    mode="test",
+                    draft_graph_snapshot={},
+                    status="succeeded",
+                    triggered_by="api",
+                    execution_principal_user_id=owner.id,
+                    root_run_id=run_id,
+                    node_count=1,
+                    spent_cost=Decimal(amount),
+                    cost_is_partial=amount == 3,
+                    started_at=datetime.now(UTC),
+                )
+                db.add(run)
+                db.flush()
+                step = NodeRun(
+                    organization_id=org.id,
+                    workflow_run_id=run.id,
+                    node_instance_id=uuid.uuid4(),
+                    scope_path=[],
+                    status="succeeded",
+                )
+                db.add(step)
+                db.flush()
+                runs.append(run)
+                steps.append(step)
+            runs[1].parent_node_run_id = steps[0].id
+            runs[2].parent_node_run_id = steps[1].id
+            # A trigger can share the root without being a called workflow.
+            runs[3].root_run_id = runs[0].id
+            ids = [run.id for run in runs]
+            db.commit()
+        down = _alembic("downgrade", "0217_workflow_api_key_authority")
+        assert down.returncode == 0, down.stderr
+        again = _alembic("upgrade", "head")
+        assert again.returncode == 0, again.stderr
+        with engine.connect() as connection:
+            rows = [
+                connection.execute(
+                    text(
+                        "SELECT spent_cost, child_cost, cost_is_partial FROM workflow_runs WHERE id = :id"
+                    ),
+                    {"id": run_id},
+                ).one()
+                for run_id in ids
+            ]
+        assert [(row.spent_cost, row.child_cost) for row in rows] == [
+            (Decimal(1), Decimal(5)),
+            (Decimal(2), Decimal(3)),
+            (Decimal(3), Decimal(0)),
+            (Decimal(4), Decimal(0)),
+        ]
+        assert [row.cost_is_partial for row in rows] == [True, True, True, False]
+    finally:
+        engine.dispose()

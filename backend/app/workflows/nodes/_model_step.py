@@ -16,7 +16,6 @@ two kinds of step fail with the same codes for the same reasons.
 
 import logging
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -30,7 +29,7 @@ from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.session import get_worker_db_context
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
-from app.services.workflow_execution import context
+from app.services.workflow_execution import budget, context
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows.contracts.results import Failed, WorkflowError
 
@@ -152,9 +151,7 @@ async def ask(config: ModelStepConfig, spec: AgentSpec, prompt: str) -> Answer |
                 surface=RunSurface.WORKFLOW,
                 version_id=version_id,
                 structured=answers,
-                run_limit_usd=(
-                    None if config.max_cost_usd is None else Decimal(str(config.max_cost_usd))
-                ),
+                run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
             )
     except AppException as exc:
         return Failed(error=workflow_error(exc))

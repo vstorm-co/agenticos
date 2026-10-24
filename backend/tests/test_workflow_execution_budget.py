@@ -13,6 +13,7 @@ def _run(**overrides: object) -> MagicMock:
     run = MagicMock()
     run.budget_limit = None
     run.spent_cost = Decimal("0")
+    run.child_cost = Decimal("0")
     run.cost_is_partial = False
     run.deadline_at = None
     for field, value in overrides.items():
@@ -83,3 +84,78 @@ class TestAccumulate:
         run = _run(spent_cost=budget.MAX_COST - Decimal("1"), cost_is_partial=False)
         update = budget.accumulate(run, cost=Decimal("5"), cost_is_partial=False)
         assert update == {"spent_cost": budget.MAX_COST, "cost_is_partial": True}
+
+
+@pytest.mark.parametrize(
+    ("remaining", "configured", "expected"),
+    [
+        (None, None, None),
+        (None, 2.0, Decimal("2")),
+        (Decimal("1"), None, Decimal("1")),
+        (Decimal("1"), 2.0, Decimal("1")),
+        (Decimal("2"), 1.0, Decimal("1")),
+    ],
+)
+@pytest.mark.security
+def test_node_limits_never_widen_the_workflows_budget(remaining, configured, expected):
+    assert budget.node_limit(remaining, configured) == expected
+
+
+@pytest.mark.security
+def test_descendant_spend_counts_towards_the_remaining_cap():
+    run = _run(budget_limit=Decimal("1"), spent_cost=Decimal("0.2"), child_cost=Decimal("0.3"))
+    assert budget.remaining(run) == Decimal("0.5")
+    run.child_cost = Decimal("0.9")
+    assert budget.remaining(run) == 0
+    assert budget.over_budget(run)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("ceiling", [None, Decimal("10")])
+async def test_direct_provider_limits_keep_the_organization_bill_as_a_separate_quantity(
+    monkeypatch, ceiling
+):
+    from contextlib import asynccontextmanager
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    from app.agents.capabilities.budget import BudgetScope
+
+    db = MagicMock()
+    organization_id = uuid4()
+    monkeypatch.setattr(
+        budget.organization_repo,
+        "get_by_id",
+        AsyncMock(return_value=MagicMock(monthly_budget_usd=ceiling)),
+    )
+
+    @asynccontextmanager
+    async def session():
+        yield db
+
+    monkeypatch.setattr(budget, "get_worker_db_context", session)
+    monthly = AsyncMock(return_value=Decimal("1.25"))
+    monkeypatch.setattr(budget, "organization_monthly_spend", monthly)
+    limits = await budget.provider_limits(
+        db, organization_id=organization_id, remaining=Decimal("0.5")
+    )
+    assert limits[0].scope == BudgetScope.RUN and limits[0].limit_usd == Decimal("0.5")
+    if ceiling is None:
+        assert len(limits) == 1
+    else:
+        assert limits[1].scope == BudgetScope.ORGANIZATION and limits[1].limit_usd == ceiling
+        assert await limits[1].period_spend() == Decimal("1.25")
+        monthly.assert_awaited_once_with(db, organization_id)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_direct_provider_limits_handle_a_missing_organization_without_making_up_a_cap(
+    monkeypatch,
+):
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    monkeypatch.setattr(budget.organization_repo, "get_by_id", AsyncMock(return_value=None))
+    assert await budget.provider_limits(MagicMock(), organization_id=uuid4(), remaining=None) == []

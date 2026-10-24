@@ -894,8 +894,16 @@ async def test_a_key_started_workflow_keeps_its_scope_ceiling_and_stops_after_re
         bindings=(_literal(output, "text", "Finished through the public API"),),
     )
     workflow_id = await world.workflow(graph, "External workflow")
-    scopes = (Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_RUN)
+    private_id = await world.start(workflow_id)
+    scopes = (Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_RUN, Perm.WORKFLOWS_EDIT)
     async with _api(world, mock_redis, scopes=scopes) as client:
+        private_url = f"{settings.API_V1_STR}/workflow-runs/{private_id}"
+        for suffix in ("", "/graph", "/nodes", "/files", "/events"):
+            hidden = await client.get(private_url + suffix)
+            assert hidden.status_code == 404, (suffix, hidden.text)
+        for action in ("retry", "cancel"):
+            hidden = await client.post(private_url + "/" + action)
+            assert hidden.status_code == 404, (action, hidden.text)
         started = await client.post(
             f"{settings.API_V1_STR}/workflow-runs", json={"workflow_id": str(workflow_id)}
         )
@@ -904,6 +912,11 @@ async def test_a_key_started_workflow_keeps_its_scope_ceiling_and_stops_after_re
         run = await world.run(run_id)
         assert run.execution_api_key_id is not None
         assert run.public_origin is True
+        listing = await client.get(
+            f"{settings.API_V1_STR}/workflow-runs", params={"workflow_id": str(workflow_id)}
+        )
+        assert listing.status_code == 200, listing.text
+        assert [item["id"] for item in listing.json()["items"]] == [str(run_id)]
         assert set(run.key_scopes or []) == {scope.value for scope in scopes}
         async with world.factory() as db:
             auth = await dispatcher._principal_context(db, run)

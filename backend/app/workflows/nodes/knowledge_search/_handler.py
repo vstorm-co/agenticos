@@ -20,6 +20,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    SpendLedger,
+    guarded_by,
+    metered_by,
+)
 from app.agents.capabilities.knowledge._search import get_retrieval_service
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
@@ -27,7 +34,8 @@ from app.db.session import get_worker_db_context
 from app.repositories import knowledge_base_repo
 from app.services.collection_access import readable_kb
 from app.services.rag.models import SearchResult
-from app.services.workflow_execution import context
+from app.services.spend import assert_organization_within_budget
+from app.services.workflow_execution import budget, context
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows.contracts.io import SourceRef
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
@@ -122,8 +130,21 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             )
         )
     current = context.current()
-    async with get_worker_db_context() as db:
-        names, refused = await _readable(db, current.auth, config.collection_ids)
+    try:
+        async with get_worker_db_context() as db:
+            names, refused = await _readable(db, current.auth, config.collection_ids)
+            await assert_organization_within_budget(db, current.organization_id)
+            limits = await budget.provider_limits(
+                db, organization_id=current.organization_id, remaining=current.budget_remaining
+            )
+    except BudgetExceeded:
+        return Failed(
+            error=WorkflowError(
+                code="BUDGET_EXCEEDED",
+                message="The organization's monthly budget is exhausted",
+                bypassable=False,
+            )
+        )
     if refused:
         return Failed(
             error=WorkflowError(
@@ -135,29 +156,45 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             )
         )
     service = get_retrieval_service()
+    ledger = SpendLedger()
     try:
-        scopes = {
-            name: await service.resolve_scope(name, current.organization_id) for name in names
-        }
-        if len(names) == 1:
-            results = await service.retrieve(
-                query=node_input.query,
-                collection_name=names[0],
-                scope=scopes[names[0]],
-                limit=config.top_k,
+        with metered_by(ledger), guarded_by(BudgetGuard(ledger=ledger, limits=limits)):
+            scopes = {
+                name: await service.resolve_scope(name, current.organization_id) for name in names
+            }
+            if len(names) == 1:
+                results = await service.retrieve(
+                    query=node_input.query,
+                    collection_name=names[0],
+                    scope=scopes[names[0]],
+                    limit=config.top_k,
+                )
+            else:
+                results = await service.retrieve_multi(
+                    query=node_input.query,
+                    collection_names=names,
+                    scopes=scopes,
+                    limit=config.top_k,
+                )
+    except BudgetExceeded:
+        return Failed(
+            error=WorkflowError(
+                code="BUDGET_EXCEEDED",
+                message="The search reached a spending limit",
+                bypassable=False,
             )
-        else:
-            results = await service.retrieve_multi(
-                query=node_input.query, collection_names=names, scopes=scopes, limit=config.top_k
-            )
+        )
     except AppException as exc:
         # Already an account of what is wrong - an embedding key not configured
         # names the setting - and its details are this codebase's own.
         return Failed(error=workflow_error(exc))
-    except Exception:
+    except Exception as exc:
         # A vector store or embedding client's own text can carry a request URL
         # with a key in it, so it stays in the log.
-        logger.exception("workflow_knowledge_search_failed", extra={"collections": names})
+        logger.warning(
+            "workflow_knowledge_search_failed",
+            extra={"collections": names, "error_type": type(exc).__name__},
+        )
         return Failed(
             error=WorkflowError(
                 code="KNOWLEDGE_SEARCH_FAILED",
@@ -166,6 +203,8 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 retryable=True,
             )
         )
+    finally:
+        context.report_cost(ledger.total_usd, partial=ledger.has_unpriced_models)
     return Completed[KnowledgeSearchOutput](
         output=KnowledgeSearchOutput(sources=tuple(_source(r, names[0]) for r in results))
     )

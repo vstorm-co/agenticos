@@ -99,6 +99,7 @@ async def test_the_sandbox_client_is_closed_when_the_attempt_ends(session) -> No
     sandbox._client.aclose.assert_awaited_once()
 
 
+@pytest.mark.security
 async def test_a_native_file_at_the_exact_byte_limit_is_returned_and_other_requests_keep_their_budget() -> (
     None
 ):
@@ -114,6 +115,7 @@ async def test_a_native_file_at_the_exact_byte_limit_is_returned_and_other_reque
         assert metadata.content == b"data"
 
 
+@pytest.mark.security
 async def test_a_shell_fallback_read_still_obeys_the_remaining_file_budget(session) -> None:
     sandbox, _files, _backend = session
     with pytest.raises(job._TooLarge):

@@ -1,5 +1,5 @@
 ---
-source_sha: "4caa2283c880"
+source_sha: "65a583c6aa80"
 ---
 
 # API HTTP { #the-http-api }
@@ -274,6 +274,11 @@ także po zatwierdzeniu lub oczekiwaniu. Unieważnienie, wygaśnięcie albo usun
 klucza zatrzymuje nową pracę z `PRINCIPAL_REVOKED`; wznowienie nigdy nie dostaje pełnej
 roli wystawcy. Run uruchomiony kluczem nie ma dostępu do osobistego stanu wystawcy.
 Edycja workflow nadal wymaga sesji.
+
+Klucze API mogą wyświetlać przebiegi pochodzenia publicznego, w tym uruchomione
+kluczem. Osobiste przebiegi uruchomione przez użytkownika zwracają `404`, również dla
+grafu, kroków, zdarzeń, plików, ponowienia i anulowania. Klucz nie może importować
+plików z tych przebiegów.
 
 ```bash
 curl -X POST "$BASE/api/v1/workflow-runs" \

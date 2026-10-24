@@ -1,28 +1,23 @@
-"""Budget and deadline checks, and cost accumulation, for one `WorkflowRun`.
+"""Pre-dispatch budget/deadline checks and provider cost accumulation.
 
-There is no separate ledger *table* in this codebase - `agent_runs` stores its
-own cost columns and `SpendLedger` is an in-memory accumulator flushed onto
-them. `WorkflowRun` follows the same shape: `spent_cost`/`cost_is_partial`
-are the persisted form, and this module is the pre-call check and the
-post-attempt accumulation, both against those two columns.
-
-A handler reports what it spent through `context.report_cost`; the
-dispatcher books it onto the run when it settles, whatever the outcome, and
-onto the attempt - including one whose result arrived too late to be
-accepted. A node that itself calls an agent constructs its own
-`BudgetGuard` via `for_delegate`, attributed to the node instance and billed
-to the `WorkflowRun` - that wiring belongs to whichever node handler makes the
-call (`agent.run`, a later issue), not to this dispatch-level check. What is
-here is the workflow's own cap against what its attempts have summed so far,
-and the wall-clock deadline, both enforced *before* a claim proceeds to a
-handler - never after, which would let the attempt that broke the cap be the
-one that gets to run anyway.
+`spent_cost` stores this run's own fees; `child_cost` rolls up explicitly called
+descendants. Per-run caps and API totals include both, while organization-wide
+aggregations sum own fees once. Model nodes pass the remaining funds to their
+request guards. Reported fees are booked even when an attempt fails or arrives
+late; an unknown price marks the recorded cost as a lower bound.
 """
 
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.db.models.workflow_run import WorkflowRun
+from app.db.session import get_worker_db_context
+from app.repositories import organization_repo
+from app.services.spend import organization_monthly_spend
 
 
 def over_budget(run: WorkflowRun) -> bool:
@@ -33,7 +28,25 @@ def over_budget(run: WorkflowRun) -> bool:
     """
     if run.budget_limit is None:
         return False
-    return run.spent_cost >= run.budget_limit
+    return total_cost(run) >= run.budget_limit
+
+
+def total_cost(run: WorkflowRun) -> Decimal:
+    """Own provider spend plus called workflows, counted separately in storage."""
+    return run.spent_cost + (run.child_cost or Decimal(0))
+
+
+def remaining(run: WorkflowRun) -> Decimal | None:
+    """The most another model request or called workflow may spend."""
+    return None if run.budget_limit is None else max(Decimal(0), run.budget_limit - total_cost(run))
+
+
+def node_limit(remaining: Decimal | None, configured: float | None) -> Decimal | None:
+    """The tighter of the workflow's remaining funds and this node's own cap."""
+    own = None if configured is None else Decimal(str(configured))
+    if remaining is None:
+        return own
+    return remaining if own is None else min(remaining, own)
 
 
 def past_deadline(run: WorkflowRun, *, at: datetime) -> bool:
@@ -77,3 +90,25 @@ def accumulate(run: WorkflowRun, *, cost: Decimal, cost_is_partial: bool) -> dic
         "spent_cost": spent,
         "cost_is_partial": run.cost_is_partial or cost_is_partial or capped,
     }
+
+
+async def provider_limits(
+    db: AsyncSession, *, organization_id: UUID, remaining: Decimal | None
+) -> list[SpendLimit]:
+    """Direct model/embedding calls share run funds and the organization bill."""
+    limits = [] if remaining is None else [SpendLimit(scope=BudgetScope.RUN, limit_usd=remaining)]
+    organization = await organization_repo.get_by_id(db, organization_id)
+    if organization is not None and organization.monthly_budget_usd is not None:
+
+        async def period_spend() -> Decimal:
+            async with get_worker_db_context() as opened:
+                return await organization_monthly_spend(opened, organization_id)
+
+        limits.append(
+            SpendLimit(
+                scope=BudgetScope.ORGANIZATION,
+                limit_usd=organization.monthly_budget_usd,
+                period_spend=period_spend,
+            )
+        )
+    return limits

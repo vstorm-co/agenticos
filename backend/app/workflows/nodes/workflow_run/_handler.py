@@ -31,10 +31,13 @@ from app.services.workflow_execution import context
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowBudgetReachedError,
+    WorkflowNotRunnableError,
+    WorkflowRunAlreadyTerminalError,
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
 )
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
+from app.workflows.files import import_output_files
 from app.workflows.triggers import WORKFLOW_CALL
 
 MAX_CALL_DEPTH = 5
@@ -142,13 +145,37 @@ async def _call(
     workflow = await workflow_repo.get(
         db, config.workflow_id, organization_id=current.organization_id
     )
-    version_id = _callable_version(workflow) if workflow is not None else None
-    if caller is None or workflow is None or version_id is None:
+    if caller is None or workflow is None or workflow.status == WorkflowStatus.ARCHIVED.value:
         return _unavailable()
+    if not config.wait and caller.budget_limit is not None:
+        return _refused(
+            "DETACHED_CALL_WITH_BUDGET",
+            "Wait for the called workflow when the caller has a run budget",
+        )
     if not await resolve_access(
         db, current.auth, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
     ):
         return _refused("CALLED_WORKFLOW_UNAVAILABLE", "This run may not run that workflow")
+    previous = await _previous_call(db, caller)
+    if isinstance(previous, Failed):
+        return previous
+    if previous is not None:
+        if not WorkflowRunStatus(previous.status).is_terminal:
+            return _refused(
+                "CALLED_WORKFLOW_STILL_RUNNING",
+                "The original called workflow is still running; stop or finish it before retrying",
+                run_id=str(previous.id),
+            )
+        if previous.status == WorkflowRunStatus.SUCCEEDED.value:
+            return previous
+        # Retry the frozen child, including its successful steps. A new live
+        # version may change effects or input and must not replace retry history.
+        version_id = previous.workflow_version_id
+        run_input = previous.input
+    else:
+        version_id = _callable_version(workflow)
+    if version_id is None:
+        return _unavailable()
     visited = f"workflow:{workflow.id}"
     if workflow.id == caller.workflow_id or visited in caller.visited_trigger_ids:
         return _refused(
@@ -166,7 +193,54 @@ async def _call(
     )
     if version is None:
         return _unavailable()
-    return await _admit(db, caller, workflow, version, run_input, visited)
+    return await _admit(
+        db,
+        caller,
+        workflow,
+        version,
+        run_input,
+        visited,
+        retry_of_run_id=previous.id if previous is not None else None,
+    )
+
+
+async def _previous_call(db: AsyncSession, caller: WorkflowRun) -> WorkflowRun | Failed | None:
+    """Follow caller retries to the child this logical step already started."""
+    current = context.current()
+    node = await workflow_run_repo.get_node_run_by_id(db, current.node_run_id)
+    if node is None:
+        return _unavailable()
+    previous_id = caller.retry_of_run_id
+    visited: set[UUID] = set()
+    while previous_id is not None and previous_id not in visited:
+        visited.add(previous_id)
+        previous_node = await workflow_run_repo.get_node_run_by_identity(
+            db,
+            workflow_run_id=previous_id,
+            node_instance_id=current.node_instance_id,
+            scope_path=node.scope_path,
+        )
+        if previous_node is not None:
+            called = await workflow_run_repo.get_run_called_by(db, node_run_id=previous_node.id)
+            if called is not None:
+                return called
+            attempt = await workflow_run_repo.get_latest_attempt(db, node_run_id=previous_node.id)
+            if attempt is not None and attempt.result:
+                error = attempt.result.get("error") or {}
+                if error.get("code") == "CALLED_WORKFLOW_FAILED":
+                    return _refused(
+                        "CALLED_WORKFLOW_HISTORY_UNAVAILABLE",
+                        "The original called run was deleted; its effects cannot be safely repeated",
+                    )
+        previous = await workflow_run_repo.get_run(
+            db, previous_id, organization_id=current.organization_id
+        )
+        if previous is None:
+            return _refused(
+                "CALLED_WORKFLOW_HISTORY_UNAVAILABLE", "The original run is no longer available"
+            )
+        previous_id = previous.retry_of_run_id
+    return None
 
 
 async def _admit(
@@ -176,6 +250,8 @@ async def _admit(
     version: WorkflowVersion,
     run_input: dict[str, Any],
     visited: str,
+    *,
+    retry_of_run_id: UUID | None = None,
 ) -> WorkflowRun | Failed:
     # The execution service imports the node packages through the registry.
     from app.services.workflow_execution.facade import (
@@ -208,6 +284,7 @@ async def _admit(
                     impersonated=caller.impersonated,
                 ),
                 parent_node_run_id=current.node_run_id,
+                retry_of_run_id=retry_of_run_id,
             )
     except IntegrityError:
         existing = await workflow_run_repo.get_run_called_by(db, node_run_id=current.node_run_id)
@@ -228,6 +305,8 @@ async def _admit(
         WorkflowBudgetReachedError,
         WorkflowRunInputInvalidError,
         WorkflowRunInputTooLargeError,
+        WorkflowRunAlreadyTerminalError,
+        WorkflowNotRunnableError,
     ) as refusal:
         return _refused(refusal.code, refusal.message, **(refusal.details or {}))
 
@@ -245,4 +324,22 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             if isinstance(started, Failed):
                 return started
             called = started
+        # A parked step must recheck access before handing on a result; the
+        # author may have lost the callee grant while it was running.
+        workflow = await workflow_repo.get(
+            db, called.workflow_id, organization_id=current.organization_id
+        )
+        if workflow is None or not await resolve_access(
+            db, current.auth, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
+        ):
+            return _unavailable()
+        if config.wait and called.status == WorkflowRunStatus.SUCCEEDED.value:
+            await import_output_files(
+                db,
+                organization_id=current.organization_id,
+                source_run_id=called.id,
+                target_run_id=current.workflow_run_id,
+                output=called.output,
+                node_instance_id=current.node_instance_id,
+            )
         return _answer(called, wait=config.wait)

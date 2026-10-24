@@ -17,8 +17,10 @@ continues down its `unsure` port instead of acting on a coin flip, and a
 workflow decides there what a person, an agent or a default does with it.
 """
 
+import asyncio
 import logging
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -27,6 +29,11 @@ from pydantic_ai import Agent, StructuredDict
 from pydantic_ai.models import Model
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    SpendLedger,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_kind
 from app.core.vault import VaultScope
@@ -35,7 +42,8 @@ from app.db.session import get_worker_db_context
 from app.repositories import organization_secret_repo
 from app.services.access import SECRET, resolve_access
 from app.services.decision_models import DEFAULT_DECISION_MODEL, decision_model_schema
-from app.services.workflow_execution import context
+from app.services.spend import assert_organization_within_budget
+from app.services.workflow_execution import budget, context
 from app.workflows.contracts.results import Failed, WorkflowError
 
 logger = logging.getLogger(__name__)
@@ -155,8 +163,21 @@ def answer_schema(question: str, answer: dict[str, Any]) -> dict[str, Any]:
 async def decide(config: DecisionConfig, text: str, answer: dict[str, Any]) -> Answered | Failed:
     """Ask Jev `config.question` about `text`, answered in the shape `answer` describes."""
     current = context.current()
-    async with get_worker_db_context() as db:
-        row = await _usable_key(db, current.auth, config.secret_id)
+    try:
+        async with get_worker_db_context() as db:
+            row = await _usable_key(db, current.auth, config.secret_id)
+            await assert_organization_within_budget(db, current.organization_id)
+            limits = await budget.provider_limits(
+                db, organization_id=current.organization_id, remaining=current.budget_remaining
+            )
+    except BudgetExceeded:
+        return Failed(
+            error=WorkflowError(
+                code="BUDGET_EXCEEDED",
+                message="The organization's monthly budget is exhausted",
+                bypassable=False,
+            )
+        )
     if row is None:
         return failed(
             "SECRET_NOT_USABLE", "The TypeSafe key this step uses is gone or no longer usable"
@@ -174,12 +195,38 @@ async def decide(config: DecisionConfig, text: str, answer: dict[str, Any]) -> A
             "DECISION_MODEL_UNAVAILABLE",
             "This deployment was built without TypeSafe - install the 'browser' extra",
         )
-    agent = Agent(model, output_type=StructuredDict(answer_schema(config.question, answer)))
+    ledger = SpendLedger()
+    guard = BudgetGuard(
+        ledger=ledger,
+        provider="typesafe",
+        limits=limits,
+    )
+    agent = Agent(
+        model,
+        output_type=StructuredDict(answer_schema(config.question, answer)),
+        capabilities=[guard],
+    )
     try:
         result = await agent.run(text)
-    except Exception:
+    except BudgetExceeded:
+        return Failed(
+            error=WorkflowError(
+                code="BUDGET_EXCEEDED",
+                message="This workflow has no budget left for a decision",
+                bypassable=False,
+            )
+        )
+    except asyncio.CancelledError:
+        context.report_cost(Decimal(0), partial=True)
+        raise
+    except Exception as exc:
+        # An interrupted request can have incurred spend without returning usage.
+        context.report_cost(Decimal(0), partial=True)
         # A vendor's error text can carry the request, and the request is the text.
-        logger.exception("workflow_decision_failed", extra={"model": config.model})
+        logger.warning(
+            "workflow_decision_failed",
+            extra={"model": config.model, "error_type": type(exc).__name__},
+        )
         return Failed(
             error=WorkflowError(
                 code="DECISION_FAILED",
@@ -188,6 +235,8 @@ async def decide(config: DecisionConfig, text: str, answer: dict[str, Any]) -> A
                 retryable=True,
             )
         )
+    finally:
+        context.report_cost(ledger.total_usd, partial=ledger.has_unpriced_models)
     details = result.response.provider_details or {}
     return Answered(
         answer=result.output.get("answer"),

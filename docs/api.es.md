@@ -1,5 +1,5 @@
 ---
-source_sha: "4caa2283c880"
+source_sha: "65a583c6aa80"
 ---
 
 # La API HTTP { #the-http-api }
@@ -286,6 +286,11 @@ incluso tras una aprobación o espera. Revocar, caducar o eliminar la clave deti
 trabajo nuevo con `PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
 Los runs iniciados con clave no acceden al estado personal del emisor. Editar un
 workflow sigue requiriendo una sesión.
+
+Las claves API pueden consultar ejecuciones de origen público, incluidas las
+iniciadas con claves. Las ejecuciones personales iniciadas por miembros devuelven
+`404`, también para grafo, pasos, eventos, archivos, reintentos y cancelaciones.
+Una clave no puede importar archivos de esas ejecuciones.
 
 ```bash
 curl -X POST "$BASE/api/v1/workflow-runs" \

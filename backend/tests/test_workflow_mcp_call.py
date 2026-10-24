@@ -396,6 +396,7 @@ class TestPublishing:
         assert await self._problems(_config("anything")) == []
 
     @pytest.mark.parametrize("role", ["member", "builder"])
+    @pytest.mark.security
     async def test_an_approver_without_decision_permission_is_refused(self, found, role):
         found.role = role
         problems = await self._problems(_config(approvers=(APPROVER,)))

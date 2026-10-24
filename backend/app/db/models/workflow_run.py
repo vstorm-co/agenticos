@@ -276,6 +276,9 @@ class WorkflowRun(Base, TimestampMixin):
     # a real count.
     node_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     spent_cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    child_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal(0), server_default="0"
+    )
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
     deadline_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
     # The workflow's timezone when the run was admitted, like its deadline: what a
@@ -689,3 +692,22 @@ class ResourceRef(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<ResourceRef(id={self.id}, run={self.workflow_run_id}, kind={self.kind})>"
+
+
+class WorkflowNodeSpend(Base, TimestampMixin):
+    """Direct provider fees outside AgentRunner, retained after run deletion.
+
+    One cumulative fee per attempt. No content and no run/attempt foreign key:
+    deleting execution history must not lower the organization's monthly bill.
+    Agent nodes already bill agent_runs and never write here.
+    """
+
+    __tablename__ = "workflow_node_spend"
+    __table_args__ = (Index("ix_workflow_node_spend_org_created", "organization_id", "created_at"),)
+
+    attempt_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    cost_is_partial: Mapped[bool] = mapped_column(Boolean, nullable=False)

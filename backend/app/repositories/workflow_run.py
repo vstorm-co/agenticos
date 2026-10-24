@@ -29,6 +29,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -46,6 +47,7 @@ from app.db.models.workflow_run import (
     ResourceRef,
     WaitingReason,
     WorkflowEvent,
+    WorkflowNodeSpend,
     WorkflowRun,
     WorkflowRunStatus,
 )
@@ -194,6 +196,7 @@ async def list_runs(
     visible_to_user_id: UUID | None = None,
     shared_workflow_ids: list[UUID] | None = None,
     filters: WorkflowRunFilters | None = None,
+    public_only: bool = False,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[WorkflowRun], int]:
@@ -206,6 +209,8 @@ async def list_runs(
     reaches every workflow.
     """
     where = [WorkflowRun.organization_id == organization_id]
+    if public_only:
+        where.append(WorkflowRun.public_origin.is_(True))
     if filters is not None:
         if filters.statuses:
             where.append(WorkflowRun.status.in_([item.value for item in filters.statuses]))
@@ -372,7 +377,9 @@ async def spent_since(
     """What one workflow's runs admitted since `since` have spent, every mode."""
     return Decimal(
         await db.scalar(
-            select(func.coalesce(func.sum(WorkflowRun.spent_cost), 0)).where(
+            select(
+                func.coalesce(func.sum(WorkflowRun.spent_cost + WorkflowRun.child_cost), 0)
+            ).where(
                 WorkflowRun.organization_id == organization_id,
                 WorkflowRun.workflow_id == workflow_id,
                 WorkflowRun.created_at >= since,
@@ -1462,3 +1469,44 @@ async def get_run_called_by(db: AsyncSession, *, node_run_id: UUID) -> WorkflowR
         select(WorkflowRun).where(WorkflowRun.parent_node_run_id == node_run_id).limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def record_node_spend(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    attempt_id: UUID,
+    cost_usd: Decimal,
+    cost_is_partial: bool,
+) -> None:
+    """Keep the greatest known cumulative direct fee; settlements may repeat."""
+    statement = insert(WorkflowNodeSpend).values(
+        organization_id=organization_id,
+        attempt_id=attempt_id,
+        cost_usd=cost_usd,
+        cost_is_partial=cost_is_partial,
+    )
+    await db.execute(
+        statement.on_conflict_do_update(
+            index_elements=[WorkflowNodeSpend.attempt_id],
+            set_={
+                "cost_usd": func.greatest(WorkflowNodeSpend.cost_usd, statement.excluded.cost_usd),
+                "cost_is_partial": WorkflowNodeSpend.cost_is_partial
+                | statement.excluded.cost_is_partial,
+            },
+            where=WorkflowNodeSpend.organization_id == organization_id,
+        )
+    )
+    await db.flush()
+
+
+async def node_spend_since(
+    db: AsyncSession, *, organization_id: UUID, since: datetime, until: datetime | None = None
+) -> Decimal:
+    """Direct workflow provider fees, excluding fees already on agent_runs."""
+    query = select(func.coalesce(func.sum(WorkflowNodeSpend.cost_usd), 0)).where(
+        WorkflowNodeSpend.organization_id == organization_id, WorkflowNodeSpend.created_at >= since
+    )
+    if until is not None:
+        query = query.where(WorkflowNodeSpend.created_at < until)
+    return Decimal(await db.scalar(query) or 0)

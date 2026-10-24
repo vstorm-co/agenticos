@@ -17,17 +17,20 @@ import codecs
 import io
 import json
 import zipfile
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow_file import WorkflowFile
+from app.db.models.workflow_run import ResourceRefKind
 from app.db.session import get_worker_db_context
 from app.repositories import workflow_file as workflow_file_repo
+from app.repositories import workflow_run as workflow_run_repo
 from app.services.file_storage import (
     delete_files_best_effort,
     get_file_storage,
@@ -36,7 +39,7 @@ from app.services.file_storage import (
 )
 from app.services.file_upload import zip_has_too_many_members
 from app.services.workflow_execution import context
-from app.services.workflow_execution.exceptions import WorkflowFileQuotaError
+from app.services.workflow_execution.exceptions import InvalidBindingError, WorkflowFileQuotaError
 from app.workflows.contracts.io import FileRef
 from app.workflows.contracts.results import Failed, WorkflowError
 
@@ -221,3 +224,57 @@ async def _enforce_quota(db: AsyncSession, size: int) -> None:
         )
         if stored + size > limit:
             raise WorkflowFileQuotaError(scope=scope, limit=limit, stored=stored, requested=size)
+
+
+async def import_output_files(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    source_run_id: UUID,
+    target_run_id: UUID,
+    output: object,
+    node_instance_id: UUID,
+) -> None:
+    """Import nested output files only after the source run's access is checked.
+
+    Verify ownership/imports at the source, rather than trusting a file id in
+    JSON. References protect the producer from retention while consumers use it.
+    """
+    for ref in {ref.file_id: ref for ref in _output_files(output)}.values():
+        source = await workflow_file_repo.get_for_run(
+            db, ref.file_id, organization_id=organization_id, workflow_run_id=source_run_id
+        )
+        if source is None:
+            raise InvalidBindingError(node_instance_id=node_instance_id, field="output_file")
+        if (
+            await workflow_file_repo.get_for_run(
+                db, ref.file_id, organization_id=organization_id, workflow_run_id=target_run_id
+            )
+            is None
+        ):
+            await workflow_run_repo.create_resource_ref(
+                db,
+                organization_id=organization_id,
+                workflow_run_id=target_run_id,
+                kind=ResourceRefKind.FILE.value,
+                ref=ref.model_dump(mode="json"),
+            )
+
+
+def _output_files(value: object) -> Iterator[FileRef]:
+    """Find structurally valid file references, including nested/list outputs."""
+    if isinstance(value, dict):
+        if value.get("kind") == "file":
+            try:
+                ref = FileRef.model_validate(value)
+            except PydanticValidationError:
+                # Arbitrary structured answers can use `kind: file` for other data.
+                pass
+            else:
+                yield ref
+                return
+        for item in value.values():
+            yield from _output_files(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _output_files(item)

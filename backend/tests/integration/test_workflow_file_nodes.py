@@ -900,3 +900,24 @@ async def test_a_published_file_binding_is_reauthorized_when_its_source_becomes_
     async with source.factory() as db:
         with pytest.raises(GraphValidationError, match="not accessible"):
             await WorkflowExecutionService(db).start(ctx, consumer.run.workflow_id)
+
+
+@pytest.mark.security
+async def test_an_organization_key_cannot_import_a_person_started_runs_file(
+    engine: AsyncEngine, storage: LocalFileStorage
+) -> None:
+    source = await seed_run(engine, _chain(_node("debug.echo"), bindings=[]))
+    ref = await _stored(engine, storage, source.run, b"personal", content_type="text/plain")
+    read = _node("file.read")
+    graph = _chain(
+        read, bindings=[Binding(target_node_id=read.id, target_field="file", source=ref)]
+    )
+    ctx = AuthContext(
+        user_id=source.principal.id,
+        organization_id=source.org.id,
+        role="owner",
+        api_key_id=uuid.uuid4(),
+    )
+    async with source.factory() as db:
+        with pytest.raises(GraphValidationError, match="not accessible"):
+            await validate_graph(db, ctx, graph)

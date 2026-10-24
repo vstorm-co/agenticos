@@ -55,6 +55,7 @@ from app.schemas.workflow_run import (
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.workflow_execution import (
     admission,
+    budget,
     delivery,
     dispatch_queue,
     dispatcher,
@@ -167,7 +168,8 @@ def _read(run: WorkflowRun) -> WorkflowRunRead:
         status=run.status,
         triggered_by=run.triggered_by,
         budget_limit=float(run.budget_limit) if run.budget_limit is not None else None,
-        spent_cost=float(run.spent_cost),
+        spent_cost=float(budget.total_cost(run)),
+        own_cost=float(run.spent_cost),
         cost_is_partial=run.cost_is_partial,
         deadline_at=run.deadline_at,
         paused_reason=run.paused_reason,
@@ -370,6 +372,7 @@ class WorkflowExecutionService:
         run_input: dict[str, Any],
         causation: Causation,
         parent_node_run_id: UUID,
+        retry_of_run_id: UUID | None = None,
     ) -> WorkflowRun:
         """Admit a run of `version` that a `workflow.run` step calls, as `ctx` - the
         calling run's principal - its first dispatch is queued in the step's own
@@ -384,13 +387,27 @@ class WorkflowExecutionService:
         graph = WorkflowGraph.model_validate(version.graph)
         payload = _checked_input(run_input)
         _check_declared_input(graph, payload)
+        parent_step = await workflow_run_repo.get_node_run_by_id(self.db, parent_node_run_id)
+        parent = (
+            await workflow_run_repo.get_run_by_id_for_update(self.db, parent_step.workflow_run_id)
+            if parent_step is not None
+            else None
+        )
+        if parent is None or parent.organization_id != ctx.organization_id:
+            raise WorkflowNotRunnableError(workflow_id=workflow.id)
+        if WorkflowRunStatus(parent.status).is_terminal:
+            raise WorkflowRunAlreadyTerminalError(run_id=parent.id, status=parent.status)
+        available = budget.remaining(parent)
+        child_budget = version.budget_limit
+        if available is not None:
+            child_budget = available if child_budget is None else min(available, child_budget)
         run, _entry = await self._admit(
             ctx,
             workflow,
             graph=graph,
             workflow_version_id=version.id,
             draft_snapshot=None,
-            budget_limit=version.budget_limit,
+            budget_limit=child_budget,
             mode=WorkflowRunMode.REAL,
             triggered_by=WorkflowRunTrigger.WORKFLOW_CALL,
             payload=payload,
@@ -398,7 +415,14 @@ class WorkflowExecutionService:
             reply_conversation_id=None,
             causation=causation,
             parent_node_run_id=parent_node_run_id,
+            retry_of_run_id=retry_of_run_id,
         )
+        if parent.deadline_at is not None and (
+            run.deadline_at is None or parent.deadline_at < run.deadline_at
+        ):
+            run = await workflow_run_repo.update_run(
+                self.db, run=run, update_data={"deadline_at": parent.deadline_at}
+            )
         return run
 
     async def _admit(
@@ -555,7 +579,11 @@ class WorkflowExecutionService:
             if run is not None
             else None
         )
-        if run is None or workflow is None:
+        if (
+            run is None
+            or workflow is None
+            or (ctx.api_key_id is not None and not run.public_origin)
+        ):
             raise WorkflowRunNotFoundError(run_id=run_id)
         if not await self._may_cancel(ctx, run, workflow):
             raise AuthorizationError(
@@ -650,6 +678,7 @@ class WorkflowExecutionService:
             visible_to_user_id=visible_to_user_id,
             shared_workflow_ids=shared,
             filters=filters,
+            public_only=ctx.api_key_id is not None,
             skip=skip,
             limit=limit,
         )
@@ -826,7 +855,11 @@ class WorkflowExecutionService:
         workflow would hand out the id of a workflow they cannot see.
         """
         run = await workflow_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
-        if run is None or await self._reachable(ctx, run.workflow_id, perm) is None:
+        if (
+            run is None
+            or (ctx.api_key_id is not None and not run.public_origin)
+            or await self._reachable(ctx, run.workflow_id, perm) is None
+        ):
             raise WorkflowRunNotFoundError(run_id=run_id)
         return run
 

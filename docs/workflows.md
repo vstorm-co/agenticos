@@ -737,6 +737,16 @@ the caller's page opens the run it started - and shows on the runs pages like an
 other. A run an error workflow started says which run's failure started it. A call back into a workflow
 already running in the chain, or more than five calls deep, is refused.
 
+Called workflows inherit the caller's remaining run budget and the earlier deadline.
+Their spend counts toward the caller's total; `own_cost` exposes the caller's direct
+fees for consumers aggregating run records without counting descendants twice.
+With a finite caller budget, **Wait for it to finish** must stay on. Cancelling a
+caller or revoking its access stops a child before its next dispatch; an external
+request already in flight may finish. Retrying a failed call reuses successful
+steps of its original, frozen child rather than repeating their effects. A still
+running original child must finish or be stopped first. File outputs are explicitly
+imported into the caller, and callee access is rechecked when a waiting call resumes.
+
 ### From an agent { #from-an-agent }
 
 An agent with the [Workflows](reference/capabilities.md#workflows) capability

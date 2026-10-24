@@ -7,6 +7,7 @@ from uuid import UUID
 
 from rank_bm25 import BM25Okapi
 
+from app.agents.capabilities.budget import assert_ambient_budget
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import (
     RetrievalFilters,
@@ -119,6 +120,7 @@ class RetrievalService(BaseRetrievalService):
         across tenants, and an empty `store.search` already answers the same
         "nothing to rank" question fail-closed.
         """
+        await assert_ambient_budget()
         all_results = await self.store.search(
             collection_name=collection_name,
             query=query,
@@ -156,6 +158,7 @@ class RetrievalService(BaseRetrievalService):
         min_score: float = 0.0,
         parent_context: ParentContextMode = ParentContextMode.OFF,
     ) -> list[SearchResult]:
+        await assert_ambient_budget()
         # Overfetch so min-score filtering and dedup still leave `limit` results.
         fetch_multiplier = 2
 

@@ -38,6 +38,7 @@ def test_pdf_page_limit_is_checked_before_text_is_extracted(
     document.close.assert_called_once()
 
 
+@pytest.mark.security
 def test_pdf_stops_reading_pages_as_soon_as_the_character_budget_is_spent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

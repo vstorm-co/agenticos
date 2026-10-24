@@ -142,3 +142,38 @@ or external model is started. Its assertions record these outcomes:
 - These code-based demonstrations do not establish real-provider latency, sandbox
   host isolation or smooth scrolling at 10,000 rows on a device. Those need deployed
   environment validation; unit/component evidence is not a browser benchmark.
+
+## Post-implementation audit
+
+The follow-up audit exercises called-workflow retry, nested files, cumulative
+settlement, direct provider metering and organization-key isolation beyond the
+milestone's initial happy paths:
+
+- Called runs inherit remaining funds and deadlines. Their fees roll up to each
+  caller separately from direct spend. Duplicate settlements do not book a fee twice.
+  Finite-budget callers refuse detached children until concurrency reservations exist.
+- Retrying a failed call uses the original child's version/input and reuses its
+  successful steps. An active original child is refused rather than started twice.
+  Called file outputs are imported into the caller after rechecking callee access.
+- Organization keys cannot list, inspect, retry, cancel or import files from
+  member-started personal runs. Real issued-key requests cover all those routes.
+- Decision and search nodes meter direct provider fees. Organization totals include
+  them once and retain them independently of deleted run history. The shared RAG
+  boundary checks the ambient guard before another collection or hybrid search.
+- A deferred table delete retains its original organization. Version comparison
+  stacks its canvas and summary in a narrow panel using existing design tokens.
+
+New schema changes are `0217_workflow_api_key_authority.py`,
+`0218_workflow_child_cost.py` and `0219_workflow_node_spend.py`. The latter does not
+invent costs for historical provider usage that was never recorded.
+
+Selected evidence: `test_workflow_calls.py`, `test_workflow_knowledge_node.py`,
+`test_workflow_journeys.py`, `test_workflow_run_retry.py`,
+`test_workflow_execution_budget.py`, `test_rag_retrieval_filter.py`, and
+`use-deferred-delete.test.tsx`. These use real database transactions and controlled
+provider stand-ins; they are not live-provider, load or browser-visual certification.
+
+The broader audit also records follow-up opportunities: bounded bulk deletion with
+rate-limit recovery, a reservation ledger for concurrent detached calls, and a
+clear deletion policy for imported files. Those are proposals, not additional
+acceptance promises hidden in the optional #1800 tracker.

@@ -1,5 +1,5 @@
 ---
-source_sha: "ef361e3f5986"
+source_sha: "eec229796bb3"
 ---
 
 # Workflows { #workflows }
@@ -834,6 +834,16 @@ hat - und erscheint auf den Laufseiten wie jeder andere. Ein von einem Fehler-Wo
 gestarteter Lauf sagt, welcher fehlgeschlagene Lauf ihn gestartet hat. Ein Aufruf
 zurück in einen Workflow, der in der Kette schon läuft, oder tiefer als fünf Aufrufe,
 wird abgelehnt.
+
+Aufgerufene Workflows übernehmen das verbleibende Laufbudget des Aufrufers und
+die frühere Frist. Ihre Kosten zählen zum Gesamtbetrag des Aufrufers; `own_cost`
+enthält nur dessen direkte Gebühren, damit aggregierte Laufdaten nichts doppelt zählen.
+Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben. Abbruch
+oder entzogene Berechtigungen des Aufrufers stoppen das Kind vor dem nächsten Schritt;
+eine laufende externe Anfrage kann noch enden. Ein erneuter Aufruf verwendet die
+erfolgreichen Schritte des ursprünglichen, eingefrorenen Kindes. Ein noch laufendes
+Kind muss zuerst enden oder gestoppt werden. Ergebnisdateien werden ausdrücklich in
+den Aufrufer importiert; beim Fortsetzen wird der Zugriff erneut geprüft.
 
 ### Von einem Agenten { #from-an-agent }
 

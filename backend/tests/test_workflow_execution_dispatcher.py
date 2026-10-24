@@ -37,6 +37,7 @@ from app.services.workflow_execution import context, dispatcher
 from app.services.workflow_execution.exceptions import (
     PrincipalRevokedError,
     WorkflowGraphUnresolvableError,
+    WorkflowParentStoppedError,
 )
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
@@ -469,6 +470,22 @@ class TestPrincipalContext:
                 new=AsyncMock(return_value=current),
             ),
             pytest.raises(PrincipalRevokedError),
+        ):
+            await _REAL_PRINCIPAL_CONTEXT(object(), run)
+
+    async def test_a_called_run_rechecks_access_to_its_callers_workflow(self, lookups):
+        parent = _run()
+        run = _run(parent_node_run_id=uuid.uuid4())
+        lookups["access"].side_effect = [True, False]
+        with (
+            patch(
+                f"{DISPATCHER_PATH}.workflow_run_repo.get_node_run_by_id",
+                new=AsyncMock(return_value=MagicMock(workflow_run_id=parent.id)),
+            ),
+            patch(
+                f"{DISPATCHER_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=parent)
+            ),
+            pytest.raises(WorkflowParentStoppedError),
         ):
             await _REAL_PRINCIPAL_CONTEXT(object(), run)
 
@@ -1404,6 +1421,30 @@ class TestSettleBooksCost:
         assert attempt.status == attempt_status.value
         assert (attempt.cost, attempt.cost_is_partial) == (Decimal("0.25"), True)
         assert (run.spent_cost, run.cost_is_partial) == (Decimal("1.25"), True)
+
+    async def test_a_duplicate_cost_report_does_not_charge_the_same_attempt_again(
+        self, repo, event_log, test_node
+    ):
+        node = _node_instance(test_node)
+        run = _run(spent_cost=Decimal("0.4"))
+        step = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        attempt = _attempt(
+            node_run_id=step.id, status=NodeAttemptStatus.COMPLETED.value, cost=Decimal("0.4")
+        )
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = step
+        repo.get_attempt.return_value = attempt
+        await dispatcher.settle(
+            object(),
+            begun=_begun(node, REGISTRY[test_node][1], attempt_id=attempt.id),
+            outcome=dispatcher.HandlerOutcome(
+                result=Completed[_EchoOutput](output=_EchoOutput(echoed="done")),
+                cost=Decimal("0.4"),
+            ),
+        )
+        repo.update_run.assert_not_awaited()
+        repo.book_attempt_cost.assert_not_awaited()
+        assert run.spent_cost == Decimal("0.4")
 
     async def test_a_stale_settle_still_books_its_spend_on_the_run(
         self, repo, event_log, test_node

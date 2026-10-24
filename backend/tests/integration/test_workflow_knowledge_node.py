@@ -262,3 +262,150 @@ async def test_an_account_of_what_is_wrong_is_passed_through(engine: AsyncEngine
     assert run.status == WorkflowRunStatus.FAILED.value
     assert run.error is not None
     assert run.error["message"] == "No embedding key is configured for this collection"
+
+
+@pytest.mark.parametrize("fails", [False, True])
+async def test_search_books_embedding_spend_even_when_retrieval_then_fails(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, fails: bool
+) -> None:
+    from decimal import Decimal
+
+    from app.agents.capabilities.budget import record_ambient_cost
+
+    member = await _member(engine)
+    kb_id = await _collection(engine, member[1], member[0])
+
+    class PaidRetrieval(_Retrieval):
+        async def _answer(self, method: str, **kwargs: Any) -> list[SearchResult]:
+            record_ambient_cost("embedding-test", Decimal("0.002"))
+            return await super()._answer(method, **kwargs)
+
+    service = PaidRetrieval(ExternalServiceError(message="Search unavailable") if fails else [])
+    monkeypatch.setattr(search_handler, "get_retrieval_service", lambda: service)
+    graph, _search = _graph([kb_id])
+    seeded = await seed_run(engine, graph, run_input={"q": "policy"}, member=member)
+    final = await drive(seeded)
+    assert final.status == ("failed" if fails else "succeeded")
+    assert final.spent_cost == Decimal("0.002")
+    assert not final.cost_is_partial
+    from sqlalchemy import delete, select
+
+    from app.agents.capabilities.budget import BudgetExceeded
+    from app.db.models.workflow_run import WorkflowNodeSpend, WorkflowRun
+    from app.repositories import workflow_run as run_repo
+    from app.services.spend import assert_organization_within_budget, organization_monthly_spend
+
+    async with seeded.factory() as db:
+        assert await organization_monthly_spend(db, seeded.org.id) == Decimal("0.002")
+        attempts = await db.execute(
+            select(WorkflowNodeSpend.attempt_id).where(WorkflowNodeSpend.cost_usd > 0)
+        )
+        attempt_id = attempts.scalar_one()
+        await run_repo.record_node_spend(
+            db,
+            organization_id=seeded.org.id,
+            attempt_id=attempt_id,
+            cost_usd=Decimal("0.002"),
+            cost_is_partial=False,
+        )
+        assert await organization_monthly_spend(db, seeded.org.id) == Decimal("0.002")
+        from datetime import UTC, datetime, timedelta
+
+        now = datetime.now(UTC)
+        assert await run_repo.node_spend_since(
+            db,
+            organization_id=seeded.org.id,
+            since=now - timedelta(days=1),
+            until=now + timedelta(days=1),
+        ) == Decimal("0.002")
+        assert (
+            await run_repo.node_spend_since(
+                db,
+                organization_id=seeded.org.id,
+                since=now - timedelta(days=1),
+                until=now - timedelta(hours=1),
+            )
+            == 0
+        )
+        assert (
+            await run_repo.node_spend_since(
+                db, organization_id=uuid.uuid4(), since=now - timedelta(days=1)
+            )
+            == 0
+        )
+        org = await db.get(Organization, seeded.org.id)
+        assert org is not None
+        org.monthly_budget_usd = Decimal("0.001")
+        await db.flush()
+        with pytest.raises(BudgetExceeded):
+            await assert_organization_within_budget(db, seeded.org.id)
+        await db.execute(delete(WorkflowRun).where(WorkflowRun.id == seeded.run.id))
+        assert await organization_monthly_spend(db, seeded.org.id) == Decimal("0.002")
+
+
+@pytest.mark.security
+async def test_an_exhausted_organization_budget_prevents_search_embedding(
+    engine: AsyncEngine, retrieval
+) -> None:
+    from decimal import Decimal
+
+    member = await _member(engine)
+    kb_id = await _collection(engine, member[1], member[0])
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        org = await db.get(Organization, member[1].id)
+        assert org is not None
+        org.monthly_budget_usd = Decimal("0.001")
+        from app.repositories import workflow_run as run_repo
+
+        await run_repo.record_node_spend(
+            db,
+            organization_id=org.id,
+            attempt_id=uuid.uuid4(),
+            cost_usd=Decimal("0.001"),
+            cost_is_partial=False,
+        )
+        await db.commit()
+    service = retrieval([])
+    graph, _search = _graph([kb_id])
+    seeded = await seed_run(engine, graph, run_input={"q": "policy"}, member=member)
+    final = await drive(seeded)
+    assert final.status == "failed"
+    assert final.error is not None and final.error["code"] == "BUDGET_EXCEEDED"
+    assert not service.calls
+
+
+@pytest.mark.security
+async def test_search_stops_between_collections_at_the_organization_budget(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from decimal import Decimal
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.agents.capabilities.budget import record_ambient_cost
+    from app.services.rag.retrieval import RetrievalService
+
+    member = await _member(engine)
+    first = await _collection(engine, member[1], member[0])
+    second = await _collection(engine, member[1], member[0])
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        org = await db.get(Organization, member[1].id)
+        assert org is not None
+        org.monthly_budget_usd = Decimal("0.001")
+        await db.commit()
+
+    async def paid_search(**_kwargs: Any) -> list[SearchResult]:
+        record_ambient_cost("embedding", Decimal("0.002"))
+        return []
+
+    store = MagicMock()
+    store.resolve_tenant = AsyncMock(return_value=member[1].id)
+    store.search = AsyncMock(side_effect=paid_search)
+    service = RetrievalService(store, MagicMock(enable_hybrid_search=False))
+    monkeypatch.setattr(search_handler, "get_retrieval_service", lambda: service)
+    graph, _search = _graph([first, second])
+    seeded = await seed_run(engine, graph, run_input={"q": "policy"}, member=member)
+    final = await drive(seeded)
+    assert final.status == "failed"
+    assert final.error is not None and final.error["code"] == "BUDGET_EXCEEDED"
+    assert store.search.await_count == 1
+    assert final.spent_cost == Decimal("0.002")

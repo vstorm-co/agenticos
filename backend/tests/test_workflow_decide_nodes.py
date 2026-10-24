@@ -17,6 +17,7 @@ import pytest
 from pydantic import ValidationError
 from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.usage import RequestUsage
 
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, SecretKind
@@ -64,9 +65,11 @@ class _Jev:
             return ModelResponse(
                 parts=[ToolCallPart(tool_name=tool.name, args={"answer": self.answer})],
                 provider_details=self.details,
+                model_name="jev-latest",
+                usage=RequestUsage(input_tokens=1000),
             )
 
-        return FunctionModel(respond)
+        return FunctionModel(respond, model_name="jev-latest")
 
 
 def _dispatch() -> context.DispatchContext:
@@ -91,6 +94,20 @@ def jev(monkeypatch: pytest.MonkeyPatch):
         yield MagicMock()
 
     monkeypatch.setattr(_decide, "get_worker_db_context", session)
+    monkeypatch.setattr(_decide, "assert_organization_within_budget", AsyncMock())
+    from app.agents.capabilities.budget import BudgetScope, SpendLimit
+
+    monkeypatch.setattr(
+        _decide.budget,
+        "provider_limits",
+        AsyncMock(
+            side_effect=lambda _db, *, organization_id, remaining: (
+                []
+                if remaining is None
+                else [SpendLimit(scope=BudgetScope.RUN, limit_usd=remaining)]
+            )
+        ),
+    )
     monkeypatch.setattr(_decide, "_usable_key", AsyncMock(side_effect=lambda *_a: key["row"]))
     monkeypatch.setattr(
         _decide, "unseal_kind", lambda *_a, **_k: ApiKeySecret(api_key="ts-key-1234")
@@ -324,3 +341,46 @@ def test_a_merge_may_rejoin_a_decision_steps_branches(definition_id, exclusive):
         layout=NodePosition(x=0, y=0),
     )
     assert _branches_exclusively(node, _registry.get(definition_id, 1)) is exclusive
+
+
+async def test_decisions_report_provider_spend_and_honor_remaining_workflow_funds(jev):
+    from dataclasses import replace
+    from decimal import Decimal
+
+    model = jev(True)
+    with context.dispatching_as(_dispatch()) as scope:
+        result = await yes_no(DecisionConfig.model_validate(BASE), TEXT)
+    assert isinstance(result, Completed)
+    assert scope.cost == Decimal("0.000042")
+    assert not scope.cost_is_partial
+    assert len(model.asked) == 1
+    with context.dispatching_as(replace(_dispatch(), budget_remaining=Decimal(0))) as blocked:
+        result = await yes_no(DecisionConfig.model_validate(BASE), TEXT)
+    assert isinstance(result, Failed)
+    assert result.error.code == "BUDGET_EXCEEDED" and not result.error.bypassable
+    assert blocked.cost == 0 and len(model.asked) == 1
+
+
+@pytest.mark.security
+async def test_an_exhausted_organization_budget_refuses_a_decision_before_the_provider(
+    jev, monkeypatch
+):
+    from decimal import Decimal
+
+    from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+
+    model = jev(True)
+    monkeypatch.setattr(
+        _decide,
+        "assert_organization_within_budget",
+        AsyncMock(
+            side_effect=BudgetExceeded(
+                limit_usd=Decimal("1"),
+                spent_usd=Decimal("1"),
+                scope=BudgetScope.ORGANIZATION,
+            )
+        ),
+    )
+    result = await _ask(yes_no, DecisionConfig.model_validate(BASE))
+    assert isinstance(result, Failed) and result.error.code == "BUDGET_EXCEEDED"
+    assert not result.error.bypassable and not model.asked

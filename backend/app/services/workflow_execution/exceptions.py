@@ -225,6 +225,16 @@ class PrincipalRevokedError(WorkflowDispatchRefusedError):
         super().__init__(details={})
 
 
+class WorkflowParentStoppedError(WorkflowDispatchRefusedError):
+    """A called run cannot continue after an ancestor is cancelled."""
+
+    message = "The calling workflow was cancelled or is no longer available"
+    code = "PARENT_RUN_STOPPED"
+
+    def __init__(self, *, run_id: UUID) -> None:
+        super().__init__(details={"run_id": run_id})
+
+
 class WorkflowRunInputInvalidError(AppException):
     """The run's input does not fit the fields its Manual or API trigger declares (422).
 

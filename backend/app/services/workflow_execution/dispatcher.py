@@ -43,7 +43,6 @@ iteration that was next and never repeats one that ended.
 import asyncio
 import json
 import logging
-from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -65,7 +64,6 @@ from app.db.models.workflow_run import (
     NodeAttemptStatus,
     NodeRun,
     NodeRunStatus,
-    ResourceRefKind,
     RetryGuarantee,
     WaitingReason,
     WorkflowRun,
@@ -77,7 +75,6 @@ from app.repositories import member as member_repo
 from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
-from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.access import WORKFLOW, resolve_access
 from app.services.api_key import ApiKeyService
@@ -97,6 +94,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowDispatchRefusedError,
     WorkflowFileQuotaError,
     WorkflowGraphUnresolvableError,
+    WorkflowParentStoppedError,
 )
 from app.workflows import _registry
 from app.workflows.contracts.definition import NodeDefinition, NodeHandler
@@ -119,6 +117,7 @@ from app.workflows.contracts.results import (
     Waiting,
     WorkflowError,
 )
+from app.workflows.files import import_output_files
 from app.workflows.graph.model import NodeInstance, WorkflowGraph
 from app.workflows.graph.validate import (
     FOREACH,
@@ -338,6 +337,39 @@ async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:
     for perm in required:
         if not await resolve_access(db, auth, workflow, perm, resource_type=WORKFLOW):
             raise PrincipalRevokedError()
+    parent_node_id = run.parent_node_run_id
+    visited = {run.id}
+    while parent_node_id is not None:
+        step = await workflow_run_repo.get_node_run_by_id(db, parent_node_id)
+        parent = (
+            await workflow_run_repo.get_run(
+                db, step.workflow_run_id, organization_id=run.organization_id
+            )
+            if step is not None
+            else None
+        )
+        if (
+            parent is None
+            or parent.id in visited
+            or parent.status
+            in {WorkflowRunStatus.CANCELLED.value, WorkflowRunStatus.BUDGET_EXCEEDED.value}
+        ):
+            raise WorkflowParentStoppedError(run_id=run.id)
+        ancestor_workflow = await workflow_repo.get(
+            db, parent.workflow_id, organization_id=run.organization_id
+        )
+        ancestor_permissions = [Perm.WORKFLOWS_RUN]
+        if parent.mode == WorkflowRunMode.TEST.value:
+            ancestor_permissions.append(Perm.WORKFLOWS_EDIT)
+        if ancestor_workflow is None:
+            raise WorkflowParentStoppedError(run_id=run.id)
+        for permission in ancestor_permissions:
+            if not await resolve_access(
+                db, auth, ancestor_workflow, permission, resource_type=WORKFLOW
+            ):
+                raise WorkflowParentStoppedError(run_id=run.id)
+        visited.add(parent.id)
+        parent_node_id = parent.parent_node_run_id
     return auth
 
 
@@ -562,50 +594,15 @@ async def _reused_output(
     output = latest.result.get("output") if latest is not None and latest.result else None
     if not isinstance(output, dict):
         return None
-    for ref in {ref.file_id: ref for ref in _output_files(output)}.values():
-        source = await workflow_file_repo.get_for_run(
-            db,
-            ref.file_id,
-            organization_id=run.organization_id,
-            workflow_run_id=run.retry_of_run_id,
-        )
-        if source is None:
-            raise InvalidBindingError(
-                node_instance_id=node_run.node_instance_id, field="retry_file"
-            )
-        if (
-            await workflow_file_repo.get_for_run(
-                db, ref.file_id, organization_id=run.organization_id, workflow_run_id=run.id
-            )
-            is None
-        ):
-            await workflow_run_repo.create_resource_ref(
-                db,
-                organization_id=run.organization_id,
-                workflow_run_id=run.id,
-                kind=ResourceRefKind.FILE.value,
-                ref=ref.model_dump(mode="json"),
-            )
+    await import_output_files(
+        db,
+        organization_id=run.organization_id,
+        source_run_id=run.retry_of_run_id,
+        target_run_id=run.id,
+        output=output,
+        node_instance_id=node_run.node_instance_id,
+    )
     return output
-
-
-def _output_files(value: object) -> Iterator[FileRef]:
-    """Find structurally valid file references, including nested/list outputs."""
-    if isinstance(value, dict):
-        if value.get("kind") == "file":
-            try:
-                ref = FileRef.model_validate(value)
-            except PydanticValidationError:
-                # Arbitrary structured answers can use `kind: file` for other data.
-                pass
-            else:
-                yield ref
-                return
-        for item in value.values():
-            yield from _output_files(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from _output_files(item)
 
 
 @dataclass(frozen=True, slots=True)
@@ -935,6 +932,7 @@ async def begin_attempt(
         run_input=run.input,
         triggered_by=run.triggered_by,
         timezone=run.timezone,
+        budget_remaining=budget.remaining(run),
         arrived_output=call.arrived_output,
         idempotency_key=key,
         # The stored flag covers the whole chain; the trigger covers a door run
@@ -1347,7 +1345,23 @@ async def settle(
         return []
     now = datetime.now(UTC)
     result = outcome.result
-    run = await _book_cost(db, run=run, outcome=outcome)
+    # An outcome describes this handler invocation's cumulative spend. A duplicate
+    # delivery adds nothing; a late result can refine what was known of the same try.
+    cost_outcome = replace(outcome, cost=max(Decimal(0), outcome.cost - attempt.cost))
+    run = await _book_cost(db, run=run, outcome=cost_outcome)
+    if begun.definition.id in {
+        "decide.yes_no",
+        "decide.choose",
+        "decide.score",
+        "knowledge.search",
+    }:
+        await workflow_run_repo.record_node_spend(
+            db,
+            organization_id=run.organization_id,
+            attempt_id=attempt.id,
+            cost_usd=outcome.cost,
+            cost_is_partial=outcome.cost_is_partial,
+        )
 
     # A stale settle: the lease expired while the handler was genuinely still
     # running, `workflow-reconcile` already resolved this same attempt (to
@@ -1363,7 +1377,7 @@ async def settle(
             "workflow_dispatch_settle_stale_attempt",
             extra={"attempt_id": str(attempt.id), "attempt_status": attempt.status},
         )
-        await _book_attempt_cost(db, attempt=attempt, outcome=outcome)
+        await _book_attempt_cost(db, attempt=attempt, outcome=cost_outcome)
         return []
 
     # A run cancelled while this handler was running must stay cancelled: the
@@ -1404,7 +1418,7 @@ async def settle(
         )
         # The reclaimer resolves this attempt `uncertain` and keeps what is
         # booked on it by then.
-        await _book_attempt_cost(db, attempt=attempt, outcome=outcome)
+        await _book_attempt_cost(db, attempt=attempt, outcome=cost_outcome)
         return []
     # Closed *before* dispatching to a `_settle_*` handler: `_settle_completed`
     # calls `_advance`, which decides the run is done by checking whether any
@@ -1451,13 +1465,36 @@ async def _book_cost(db: AsyncSession, *, run: WorkflowRun, outcome: HandlerOutc
     """Add what the handler reported spending to the run's total, under its lock."""
     if outcome.cost == 0 and not outcome.cost_is_partial:
         return run
-    return await workflow_run_repo.update_run(
+    updated = await workflow_run_repo.update_run(
         db,
         run=run,
         update_data=budget.accumulate(
             run, cost=outcome.cost, cost_is_partial=outcome.cost_is_partial
         ),
     )
+    parent_node_id = run.parent_node_run_id
+    visited = {run.id}
+    while parent_node_id is not None:
+        step = await workflow_run_repo.get_node_run_by_id(db, parent_node_id)
+        parent = (
+            await workflow_run_repo.get_run_by_id_for_update(db, step.workflow_run_id)
+            if step is not None
+            else None
+        )
+        if parent is None or parent.id in visited:
+            break
+        visited.add(parent.id)
+        child_cost, capped = budget.saturating_add(parent.child_cost or Decimal(0), outcome.cost)
+        await workflow_run_repo.update_run(
+            db,
+            run=parent,
+            update_data={
+                "child_cost": child_cost,
+                "cost_is_partial": parent.cost_is_partial or outcome.cost_is_partial or capped,
+            },
+        )
+        parent_node_id = parent.parent_node_run_id
+    return updated
 
 
 async def _book_attempt_cost(

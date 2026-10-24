@@ -256,6 +256,19 @@ menu offers. A private agent you cannot see adds none.
 
 ## Running a workflow
 
+Organization API keys may start runs and read their status, graph, steps, files
+and events through `/api/v1/workflow-runs`. Start with `workflows:run`; reading also
+needs `workflows:view`, and draft tests need `workflows:edit`. The worker retains
+the key's admitted scope ceiling and rechecks the key and the issuer on every
+step, including after an approval or wait. Revocation, expiry or deletion stops
+new work with `PRINCIPAL_REVOKED`; it never promotes a continuation to the issuer's
+full role. Key-started runs have no access to the issuer's personal state. Workflow
+authoring remains session-only.
+
+API keys can list and read public-origin runs, including runs started by keys;
+member-started personal runs return `404`, including their graph, steps, events,
+files, retry and cancellation endpoints. A key cannot import files from those runs.
+
 ```bash
 curl -X POST "$BASE/api/v1/workflow-runs" \
   -H "Authorization: Bearer $TOKEN" \

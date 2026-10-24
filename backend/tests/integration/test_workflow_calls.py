@@ -1,6 +1,7 @@
 """One workflow running another as a step: the call, the wait, the answer, the limits."""
 
 import uuid
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -578,3 +579,294 @@ class TestOneCallPerStep:
             run = await drive(seeded)
 
         assert run.status == "waiting_retry"
+
+
+@pytest.mark.security
+async def test_a_called_workflow_inherits_remaining_budget_and_deadline_and_rolls_up_spend(
+    engine: AsyncEngine,
+) -> None:
+    from datetime import UTC, datetime, timedelta
+    from decimal import Decimal
+
+    from pydantic import BaseModel
+
+    from app.services.workflow_execution import WorkflowExecutionService, context
+    from app.workflows._registry import REGISTRY, register
+    from app.workflows.contracts.definition import NodeDefinition, Port
+    from app.workflows.contracts.results import Completed, NodeResult
+
+    class PaidOutput(BaseModel):
+        value: str
+
+    seen: list[Decimal | None] = []
+
+    async def paid(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
+        seen.append(context.current().budget_remaining)
+        context.report_cost(Decimal("0.3"))
+        return Completed[PaidOutput](output=PaidOutput(value="paid"))
+
+    kind = f"test.paid-{uuid.uuid4().hex[:8]}"
+    register(
+        NodeDefinition(
+            id=kind,
+            version=1,
+            name="Paid",
+            category="test",
+            description="A deterministic metered step.",
+            kind="action",
+            config_schema=None,
+            input_schema=None,
+            output_schema=PaidOutput,
+            ports=(
+                Port(id="in", label="In", kind="input", schema=None),
+                Port(id="out", label="Out", kind="output", schema=PaidOutput),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+            handler=paid,
+        )
+    )
+    try:
+        base = _callee()
+        entry, out = base.nodes
+        billed = _node(kind)
+        child_graph = base.model_copy(
+            update={
+                "nodes": (entry, billed, out),
+                "edges": (_edge(entry, billed), _edge(billed, out)),
+            }
+        )
+        _ctx, callee, member = await _published_callee(engine, child_graph)
+        graph, step = _caller(callee.id)
+        caller = await seed_run(engine, graph, member=member)
+        deadline = datetime.now(UTC) + timedelta(hours=1)
+        async with caller.factory() as db:
+            await workflow_run_repo.update_run(
+                db,
+                run=caller.run,
+                update_data={
+                    "budget_limit": Decimal("1"),
+                    "spent_cost": Decimal("0.2"),
+                    "deadline_at": deadline,
+                },
+            )
+            await db.commit()
+        await drive(caller)
+        child = await _called_run(caller, step)
+        assert child.run.budget_limit == Decimal("0.8")
+        assert child.run.deadline_at == deadline
+        assert (await drive(child)).status == "succeeded"
+        finished = await drive(caller)
+        assert finished.status == "succeeded"
+        assert seen == [Decimal("0.8")]
+        assert finished.spent_cost == Decimal("0.2")
+        assert finished.child_cost == Decimal("0.3")
+        async with caller.factory() as db:
+            read = await WorkflowExecutionService(db).get(caller.ctx, caller.run.id)
+            assert read.spent_cost == 0.5 and read.own_cost == 0.2
+            assert await workflow_run_repo.spent_since(
+                db,
+                organization_id=caller.org.id,
+                workflow_id=caller.run.workflow_id,
+                since=deadline - timedelta(days=1),
+            ) == Decimal("0.5")
+    finally:
+        REGISTRY.pop(kind, None)
+
+
+@pytest.mark.security
+async def test_a_detached_call_cannot_escape_a_finite_caller_budget(engine: AsyncEngine) -> None:
+    from decimal import Decimal
+
+    _ctx, callee, member = await _published_callee(engine, _callee())
+    graph, _step = _caller(callee.id, wait=False)
+    caller = await seed_run(engine, graph, member=member)
+    async with caller.factory() as db:
+        await workflow_run_repo.update_run(
+            db, run=caller.run, update_data={"budget_limit": Decimal("1")}
+        )
+        await db.commit()
+    ended = await drive(caller)
+    assert ended.status == "failed"
+    assert ended.error is not None and ended.error["code"] == "DETACHED_CALL_WITH_BUDGET"
+
+
+async def test_a_called_run_stops_before_its_next_step_after_the_caller_is_cancelled(
+    engine: AsyncEngine,
+) -> None:
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    _ctx, callee, member = await _published_callee(engine, _callee())
+    graph, step = _caller(callee.id)
+    caller = await seed_run(engine, graph, member=member)
+    await drive(caller)
+    child = await _called_run(caller, step)
+    async with caller.factory() as db:
+        await WorkflowExecutionService(db).cancel(caller.ctx, caller.run.id)
+        await db.commit()
+    stopped = await drive(child)
+    assert stopped.status == "failed"
+    assert stopped.error is not None and stopped.error["code"] == "PARENT_RUN_STOPPED"
+
+
+async def test_retrying_a_call_preserves_successful_child_effects_and_imports_its_files(
+    engine: AsyncEngine, tmp_path: Path
+) -> None:
+    from pydantic import BaseModel
+    from sqlalchemy import func
+
+    from app.db.models.workflow_file import WorkflowFile
+    from app.services.file_storage import LocalFileStorage
+    from app.services.workflow_execution import WorkflowExecutionService
+    from app.workflows._registry import REGISTRY, register
+    from app.workflows.contracts.definition import NodeDefinition, Port
+    from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
+
+    class Answer(BaseModel):
+        ready: bool = True
+
+    calls = 0
+
+    async def flaky(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return Failed(error=WorkflowError(code="ONCE", message="Try again"))
+        return Completed[Answer](output=Answer())
+
+    kind = f"test.once-{uuid.uuid4().hex[:8]}"
+    register(
+        NodeDefinition(
+            id=kind,
+            version=1,
+            name="Once",
+            category="test",
+            description="Fail once.",
+            kind="action",
+            config_schema=None,
+            input_schema=None,
+            output_schema=Answer,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="out", label="Out", kind="output", schema=Answer),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+            handler=flaky,
+        )
+    )
+    try:
+        entry, write, fail, out = (
+            _node("trigger.workflow_call", FIELDS),
+            _node("file.write"),
+            _node(kind),
+            _node("core.output"),
+        )
+        child_graph = WorkflowGraph(
+            entry_node_id=entry.id,
+            nodes=(entry, write, fail, out),
+            edges=(_edge(entry, write), _edge(write, fail), _edge(fail, out)),
+            bindings=(
+                Binding(
+                    target_node_id=write.id,
+                    target_field="text",
+                    source=LiteralValue(value="one file"),
+                ),
+                _read(out, "structured", write),
+            ),
+        )
+        _ctx, callee, member = await _published_callee(engine, child_graph)
+        graph, step = _caller(callee.id)
+        read, result = _node("file.read"), _node("core.output")
+        graph = graph.model_copy(
+            update={
+                "nodes": (*graph.nodes[:-1], read, result),
+                "edges": (graph.edges[0], _edge(step, read), _edge(read, result)),
+                "bindings": (
+                    graph.bindings[0],
+                    _read(read, "file", step, "output", "structured", "file"),
+                    _read(result, "text", read, "text"),
+                ),
+            }
+        )
+        caller = await seed_run(engine, graph, member=member)
+        local = LocalFileStorage(tmp_path)
+        with patch("app.workflows.files.get_file_storage", return_value=local):
+            await drive(caller)
+            child = await _called_run(caller, step)
+            assert (await drive(child)).status == "failed"
+            assert (await drive(caller)).status == "failed"
+            async with caller.factory() as db:
+                retried = await WorkflowExecutionService(db).retry(caller.ctx, caller.run.id)
+                await db.commit()
+                retried_row = await db.get(WorkflowRun, retried.id)
+                assert retried_row is not None
+            retry = SeededRun(
+                run=retried_row,
+                graph=graph,
+                principal=caller.principal,
+                org=caller.org,
+                factory=caller.factory,
+            )
+            await drive(retry)
+            retried_child = await _called_run(retry, step)
+            assert retried_child.run.retry_of_run_id == child.run.id
+            assert (await drive(retried_child)).status == "succeeded"
+            finished = await drive(retry)
+            assert finished.status == "succeeded", finished.error
+            assert finished.output["text"] == "one file"
+            assert calls == 2
+            async with caller.factory() as db:
+                assert await db.scalar(select(func.count()).select_from(WorkflowFile)) == 1
+    finally:
+        REGISTRY.pop(kind, None)
+
+
+async def test_retry_refuses_to_repeat_a_still_running_child(engine: AsyncEngine) -> None:
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    _ctx, callee, member = await _published_callee(engine, _callee())
+    graph, step = _caller(callee.id)
+    caller = await seed_run(engine, graph, member=member)
+    await drive(caller)
+    child = await _called_run(caller, step)
+    async with caller.factory() as db:
+        service = WorkflowExecutionService(db)
+        await service.cancel(caller.ctx, caller.run.id)
+        retry = await service.retry(caller.ctx, caller.run.id)
+        await db.commit()
+        row = await db.get(WorkflowRun, retry.id)
+        assert row is not None
+    retried = SeededRun(
+        run=row, graph=graph, principal=caller.principal, org=caller.org, factory=caller.factory
+    )
+    ended = await drive(retried)
+    assert ended.status == "failed"
+    assert ended.error is not None and ended.error["code"] == "CALLED_WORKFLOW_STILL_RUNNING"
+    async with caller.factory() as db:
+        children = list(
+            (
+                await db.scalars(select(WorkflowRun).where(WorkflowRun.workflow_id == callee.id))
+            ).all()
+        )
+        assert [run.id for run in children] == [child.run.id]
+
+
+@pytest.mark.security
+async def test_a_waiting_call_rechecks_access_before_returning_the_child_answer(
+    engine: AsyncEngine,
+) -> None:
+    _ctx, callee, member = await _published_callee(engine, _callee())
+    graph, step = _caller(callee.id)
+    caller = await seed_run(engine, graph, member=member)
+    await drive(caller)
+    child = await _called_run(caller, step)
+    assert (await drive(child)).status == "succeeded"
+    with patch(
+        "app.workflows.nodes.workflow_run._handler.resolve_access",
+        new=AsyncMock(return_value=False),
+    ):
+        ended = await drive(caller)
+    assert ended.status == "failed"
+    assert ended.error is not None and ended.error["code"] == "CALLED_WORKFLOW_UNAVAILABLE"
+    assert ended.output is None

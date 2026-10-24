@@ -1,5 +1,5 @@
 ---
-source_sha: "ef361e3f5986"
+source_sha: "eec229796bb3"
 ---
 
 # Workflows { #workflows }
@@ -762,6 +762,16 @@ Wywołany przebieg jest powiązany z wywołującym w obie strony - jego strona m
 który krok uruchomił - i widać go na stronach przebiegów jak każdy inny. Przebieg
 uruchomiony przez workflow błędów mówi, niepowodzenie którego przebiegu go uruchomiło. Wywołanie z powrotem workflow, który już działa w łańcuchu, albo głębsze
 niż pięć wywołań, zostaje odrzucone.
+
+Wywołany workflow dziedziczy pozostały budżet przebiegu nadrzędnego i wcześniejszy
+termin zakończenia. Jego koszt powiększa koszt nadrzędny; `own_cost` podaje wyłącznie
+bezpośrednie opłaty danego przebiegu, aby sumowanie rekordów nie liczyło ich podwójnie.
+Przy skończonym budżecie opcja oczekiwania na zakończenie musi pozostać włączona.
+Anulowanie przebiegu nadrzędnego lub odebranie mu dostępu zatrzymuje podproces przed
+kolejnym krokiem; rozpoczęte żądanie zewnętrzne może się zakończyć. Ponowienie wywołania
+korzysta z udanych kroków pierwotnej, zamrożonej wersji podprocesu. Jeśli podproces
+nadal działa, trzeba go najpierw zakończyć lub zatrzymać. Pliki wynikowe są jawnie
+importowane do przebiegu nadrzędnego, a wznowienie oczekiwania ponownie sprawdza dostęp.
 
 ### Z agenta { #from-an-agent }
 

@@ -265,6 +265,10 @@ new work with `PRINCIPAL_REVOKED`; it never promotes a continuation to the issue
 full role. Key-started runs have no access to the issuer's personal state. Workflow
 authoring remains session-only.
 
+API keys can list and read public-origin runs, including runs started by keys;
+member-started personal runs return `404`, including their graph, steps, events,
+files, retry and cancellation endpoints. A key cannot import files from those runs.
+
 ```bash
 curl -X POST "$BASE/api/v1/workflow-runs" \
   -H "Authorization: Bearer $TOKEN" \
