@@ -527,7 +527,13 @@ decide_sandbox() {
   ensure_sandbox_token
   # The group that owns the socket, which the service takes as a supplementary
   # group to reach it. 0 on Docker Desktop, where the socket is proxied.
-  DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock)"
+  if [ -z "${DOCKER_GID+x}" ]; then
+    if [ "$(uname -s)" = Linux ]; then
+      DOCKER_GID="$(stat -Lc '%g' /var/run/docker.sock)"
+    else
+      DOCKER_GID=0
+    fi
+  fi
   export DOCKER_GID
 }
 

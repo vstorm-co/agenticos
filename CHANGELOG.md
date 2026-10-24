@@ -107,6 +107,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Sandbox launchers use Docker Desktop's VM socket group on macOS, retain the
+  socket group on Linux and respect explicit `DOCKER_GID` overrides (#2296).
+
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
   workspace. When the sandbox service refused to open a session, that copy

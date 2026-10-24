@@ -345,9 +345,10 @@ sudo chown 10001:10001 /var/lib/agenticos/sandbox-workspaces
 
 Then a deploy brings it up: `scripts/deploy.sh` passes `--profile sandbox` when
 `SANDBOXD_TOKEN` in `backend/.env` has a value, so the host itself says whether
-it runs one. It also exports `DOCKER_GID` read off the socket — every compose
-file here interpolates it into the sandbox's `group_add`, and its `0` default is
-the socket's owner on almost no Linux distribution. Nothing else in `.env` is
+it runs one. Like `make` and quickstart, it exports `DOCKER_GID` into the
+sandbox's `group_add`: the socket's group on Linux (following symlinks), or `0`
+on Docker Desktop, where the mounted socket belongs to the VM. An explicit
+`DOCKER_GID` in the environment or on the `make` command line takes precedence. Nothing else in `.env` is
 needed: the backend reaches the daemon through a sandbox *connection* somebody
 creates in the console, and `http://sandboxd:8080` is recognised as this
 deployment's own.
