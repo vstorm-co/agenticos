@@ -1,5 +1,5 @@
 ---
-source_sha: "7cd21d7d9766"
+source_sha: "92fafc5f91d2"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -89,6 +89,12 @@ die Plakette an oder aus.
 Scrollbereichs. Seitenaktionen und Schließen-Schaltflächen bleiben dadurch
 anklickbar. Der Web-Architect bleibt am rechten Rand der Desktop-Konsole und
 fährt beim Darüberfahren aus; die Ecke bleibt für Kartenaktionen und Blobby frei.
+
+**Erscheinungsbild** im Kontomenü bietet den Hell-/Dunkelmodus sowie Standard,
+Glass, Graphite, Midnight und Paper mit Vorschauen. Der Menüeintrag nennt den
+aktuellen Stil. Es sind dieselben Einstellungen wie unter
+**Einstellungen → Profil → Erscheinungsbild**; ein Stilwechsel behält den
+Farbmodus bei und bleibt nach einem Neustart erhalten.
 
 **Angeheftete Agents**: Die Seite eines Agents bietet „An Dock anheften“ (sonst an
 die Taskleiste). Ein angehefteter Agent steht im Dock-Menü und im Tray-Menü, einen

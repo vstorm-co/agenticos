@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Styles in the account menu.** Appearance now offers Standard, Glass, Graphite,
+  Midnight and Paper beside Light, Dark and System, with previews and the active
+  style on the trigger. Settings use larger previews and a selection tick;
+  Graphite, Midnight and Paper have softer surface borders in both color modes.
+
 - **Desktop shortcuts in native menus.** Open AgenticOS has a configurable global
   shortcut (`CmdOrCtrl+Shift+O`), and its menu entry, Quick Ask and Screenshot to
   New Chat show their active bindings, including changes made in Settings.

@@ -81,6 +81,11 @@ so page actions and panel close buttons stay clickable. The web Architect launch
 stays tucked into the desktop console's right edge and slides out on hover,
 leaving the corner free for card actions and native Blobby.
 
+**Appearance** in the account menu offers both the light/dark mode and Standard,
+Glass, Graphite, Midnight and Paper, with previews. The trigger names the current
+style. These are the same choices as **Settings → Profile → Appearance**; changing
+a style keeps the color mode and survives restarting the app.
+
 **Pinned agents**: an agent's page offers Pin to Dock (Pin to taskbar elsewhere).
 A pinned agent is in the Dock's menu and the tray menu, one click from a new chat
 with it. A file dropped on the Dock icon, or on blobby, starts a chat with that

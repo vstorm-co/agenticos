@@ -1,5 +1,5 @@
 ---
-source_sha: "7cd21d7d9766"
+source_sha: "92fafc5f91d2"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -85,6 +85,11 @@ Nad treścią jest osobny wiersz do przeciągania okna, poza obszarem przewijani
 więc akcje stron i przyciski zamykania paneli pozostają klikalne. Webowy przycisk
 Architect jest schowany przy prawej krawędzi konsoli desktopowej i wysuwa się po
 najechaniu, zostawiając róg wolny dla akcji kart i natywnego Blobby.
+
+**Wygląd** w menu konta pozwala wybrać tryb jasny/ciemny oraz Standard, Glass,
+Graphite, Midnight i Paper z podglądami. Wiersz menu pokazuje aktualny styl. To te
+same ustawienia co **Ustawienia → Profil → Wygląd**; zmiana stylu zachowuje tryb
+kolorów, a wybór pozostaje po ponownym uruchomieniu aplikacji.
 
 **Przypięte agenty**: strona agenta oferuje Przypnij do Docka (gdzie indziej do
 paska zadań). Przypięty agent jest w menu Docka i w menu zasobnika, jedno

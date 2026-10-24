@@ -1,5 +1,5 @@
 ---
-source_sha: "7cd21d7d9766"
+source_sha: "92fafc5f91d2"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -87,6 +87,11 @@ Encima del contenido hay una fila reservada para arrastrar la ventana, fuera del
 área desplazable. Las acciones de página y los botones de cierre siguen siendo
 pulsables. El botón web de Architect queda en el borde derecho de la consola y
 se despliega al pasar el puntero, dejando la esquina para las acciones y Blobby.
+
+**Apariencia** en el menú de cuenta ofrece el modo claro/oscuro y Standard, Glass,
+Graphite, Midnight y Paper con vistas previas. La fila indica el estilo actual.
+Son las mismas opciones de **Ajustes → Perfil → Apariencia**; cambiar el estilo
+conserva el modo de color y la selección se mantiene al reiniciar la app.
 
 **Agents fijados**: la página de un agent ofrece Fijar en el Dock (en la barra de
 tareas en otros sistemas). Un agent fijado está en el menú del Dock y en el de la
