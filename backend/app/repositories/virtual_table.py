@@ -44,6 +44,7 @@ from sqlalchemy import (
     select,
     text,
     tuple_,
+    union_all,
     update,
 )
 from sqlalchemy import column as sa_column
@@ -64,6 +65,42 @@ from app.db.models.virtual_table import (
 )
 from app.repositories._search import contains_ci
 from app.schemas.virtual_table import CellValue, FilterOp, FilterValue, SortDirection
+
+
+async def storage_bytes(db: AsyncSession, *, organization_id: UUID) -> int:
+    """Stored JSONB payload bytes, including retained copies, scoped to one tenant.
+
+    pg_column_size reads TOAST sizes without decompressing the complete values.
+    Callers serialize checks and writes with the organization's storage lock.
+    """
+    totals = union_all(
+        select(
+            func.coalesce(func.sum(func.pg_column_size(VirtualTableRecord.values)), 0).label(
+                "bytes"
+            )
+        ).where(VirtualTableRecord.organization_id == organization_id),
+        select(
+            func.coalesce(
+                func.sum(
+                    func.coalesce(func.pg_column_size(VirtualTableRecordHistory.before), 0)
+                    + func.coalesce(func.pg_column_size(VirtualTableRecordHistory.after), 0)
+                ),
+                0,
+            ).label("bytes")
+        ).where(VirtualTableRecordHistory.organization_id == organization_id),
+        select(
+            func.coalesce(func.sum(func.pg_column_size(VirtualTableReceipt.outcome)), 0).label(
+                "bytes"
+            )
+        ).where(VirtualTableReceipt.organization_id == organization_id),
+        select(
+            func.coalesce(func.sum(func.pg_column_size(VirtualTableOutbox.payload)), 0).label(
+                "bytes"
+            )
+        ).where(VirtualTableOutbox.organization_id == organization_id),
+    ).subquery()
+    held = await db.scalar(select(func.sum(totals.c.bytes)))
+    return int(held or 0)
 
 
 class SqlKind(StrEnum):

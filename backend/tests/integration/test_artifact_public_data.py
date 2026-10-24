@@ -588,3 +588,22 @@ class TestThePinnedVersion:
         assert served is not None and served.number == 1
         assert await ready.consented() and await ready.holds()
         assert await ready.voided() == []
+
+
+@pytest.mark.security
+async def test_an_owners_real_read_only_key_cannot_confirm_public_live_data(
+    db: AsyncSession, storage: LocalFileStorage
+) -> None:
+    from app.core.permissions import Perm
+    from app.schemas.api_key import ApiKeyCreate
+    from app.services.api_key import ApiKeyService
+
+    ready = await _ready(db, confirmed=False)
+    keys = ApiKeyService(db)
+    issued = await keys.create(
+        ready.world.olga, ApiKeyCreate(name="reader", scopes=[Perm.ARTIFACTS_VIEW])
+    )
+    caller = await keys.context_for_key(issued.id, organization_id=ready.world.org.id)
+    with pytest.raises(AuthorizationError):
+        await ready.confirm(caller)
+    assert not await ready.consented()

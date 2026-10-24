@@ -453,6 +453,8 @@ changes. **Show this version** goes back to the version alone.
 
 ## Workflow settings { #workflow-settings }
 
+A source run stays while a retry is active or another retained run imports one of its files. Finishing a retry does not invalidate files its later steps still reference.
+
 **Settings**, under **More** in the editor's header, holds what a workflow is run with rather than
 what it does. The settings are the workflow's, not a version's: a change applies
 to every run started after it, and publishing keeps them.

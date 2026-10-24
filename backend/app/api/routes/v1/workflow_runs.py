@@ -41,6 +41,7 @@ from app.schemas.workflow_run import (
     WorkflowRunRead,
     WorkflowRunStart,
 )
+from app.services.workflow_execution.resume import read_resume_body
 
 router = APIRouter(dependencies=[PUBLIC])
 resume_router = APIRouter()
@@ -200,4 +201,4 @@ async def resume_workflow_run(
     """Wake the run's Wait steps waiting for a call, each taking the JSON object sent,
     or `{}` for no body, as its `body`. No sign-in: the link is the credential, and
     one that is not the run's answers `404` as if there were no run."""
-    return await service.resume(run_id, token, body=await request.body())
+    return await service.resume(run_id, token, body=await read_resume_body(request.stream()))

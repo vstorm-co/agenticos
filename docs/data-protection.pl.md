@@ -1,5 +1,5 @@
 ---
-source_sha: "607474f54694"
+source_sha: "60068156c5c4"
 ---
 
 # Ochrona danych { #data-protection }
@@ -71,6 +71,8 @@ ograniczany przez konwersację albo użytkownika, przy którym wisi, a odczyt id
 przez sprawdzenie rodzica.
 
 ### Baza danych { #the-database }
+
+Łączny limit jest sprawdzany w savepoincie zmiany, pod blokadą organizacji, przed commitem. Przekroczenie cofa rekord i wszystkie zachowane kopie, także dla wiersza importu; pozostałe wiersze są raportowane jako odrzucone. Ponowienie z potwierdzenia, zapis bez zmian, odczyt i usuwanie nadal działają po obniżeniu limitu. Retencja zwalnia usuwane bajty. Bajty danych JSONB PostgreSQL na organizację łącznie dla rekordów, historii, potwierdzeń i outboxa; narzut tabel i indeksów jest osobny.
 
 | Magazyn | Trzyma | Dane osobowe w nim | Cel |
 |---|---|---|---|

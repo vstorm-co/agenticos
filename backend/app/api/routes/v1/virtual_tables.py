@@ -29,7 +29,7 @@ is stable: a client branches on it, not on the message.
 - `IDEMPOTENCY_KEY_REUSED` (422): the `Idempotency-Key` was used for a different
   request.
 - `QUOTA_EXCEEDED` (402): the write would exceed a storage limit; `details` names the quota
-  (`tables`, `records` or `record_bytes`) and its ceiling.
+  (`tables`, `records`, `record_bytes` or `storage_bytes`) and its ceiling.
 - `RATE_LIMIT_EXCEEDED` (429): too many writes in the last minute; see `Retry-After`.
 - `NOT_FOUND` (404): no such table or record - also what another organization's
   table, or one the caller may not reach, looks like.

@@ -133,6 +133,9 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
     )
     monkeypatch.setattr(node.approval_repo, "create", create)
     monkeypatch.setattr(node, "NotificationCenterService", lambda _db: SimpleNamespace(write=write))
+    monkeypatch.setattr(
+        node.member_repo, "get_active", AsyncMock(return_value=SimpleNamespace(role="owner"))
+    )
     return state
 
 
@@ -347,6 +350,7 @@ class TestPublishing:
         state = SimpleNamespace(
             connection=SimpleNamespace(is_enabled=True, last_tools=[{"name": "find_lead"}]),
             members={APPROVER},
+            role="owner",
         )
         monkeypatch.setattr(
             node.mcp_connection_repo,
@@ -358,7 +362,7 @@ class TestPublishing:
             "get_active",
             AsyncMock(
                 side_effect=lambda _db, *, organization_id, user_id: (
-                    object() if user_id in state.members else None
+                    SimpleNamespace(role=state.role) if user_id in state.members else None
                 )
             ),
         )
@@ -391,6 +395,12 @@ class TestPublishing:
 
         assert await self._problems(_config("anything")) == []
 
+    @pytest.mark.parametrize("role", ["member", "builder"])
+    async def test_an_approver_without_decision_permission_is_refused(self, found, role):
+        found.role = role
+        problems = await self._problems(_config(approvers=(APPROVER,)))
+        assert [field for field, _ in problems] == ["approvers.0"]
+
     async def test_an_approver_who_is_not_a_member_is_refused(self, found):
         stranger = uuid.uuid4()
 
@@ -400,3 +410,16 @@ class TestPublishing:
 
     async def test_another_steps_config_is_not_this_checks_business(self, found):
         assert await self._problems(SimpleNamespace()) == []
+
+
+@pytest.mark.parametrize("approval", ["all", "writes"])
+@pytest.mark.parametrize("role", ["member", "builder"])
+async def test_an_ineligible_named_approver_fails_before_parking(
+    server, monkeypatch, approval, role
+):
+    monkeypatch.setattr(
+        node.member_repo, "get_active", AsyncMock(return_value=SimpleNamespace(role=role))
+    )
+    result = await _run(_config("create_lead", approval=approval, approvers=(APPROVER,)))
+    assert isinstance(result, Failed) and result.error.code == "APPROVER_UNAVAILABLE"
+    assert server.asked == [] and server.notified == [] and server.calls == []

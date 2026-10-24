@@ -608,3 +608,77 @@ async def test_retention_keeps_a_finished_called_run_until_its_caller_ends(
     async with root.factory() as db:
         removed = await workflow_run_repo.take_expired_runs(db, now=now, limit=10)
         assert removed == [(child.run.id, [])]
+
+
+async def test_retention_keeps_the_source_until_its_retry_ends(engine: AsyncEngine) -> None:
+    source = await seed_run(engine, _graph("core.input"))
+    retry = await seed_run(engine, _graph("core.input"), member=(source.principal, source.org))
+    now = datetime.now(UTC)
+    async with source.factory() as db:
+        workflow = await db.get(Workflow, source.run.workflow_id)
+        assert workflow is not None
+        workflow.settings = {"run_retention_days": 1}
+        await workflow_run_repo.update_run(
+            db,
+            run=source.run,
+            update_data={"status": "failed", "ended_at": now - timedelta(days=3)},
+        )
+        await workflow_run_repo.update_run(
+            db, run=retry.run, update_data={"retry_of_run_id": source.run.id}
+        )
+        await db.commit()
+    async with source.factory() as db:
+        assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == []
+        await workflow_run_repo.update_run(
+            db, run=retry.run, update_data={"status": "succeeded", "ended_at": now}
+        )
+        await db.commit()
+    async with source.factory() as db:
+        assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == [
+            (source.run.id, [])
+        ]
+
+
+async def test_retention_keeps_file_producers_while_another_run_imports_their_outputs(
+    engine: AsyncEngine,
+) -> None:
+    source = await seed_run(engine, _graph("core.input"))
+    importer = await seed_run(engine, _graph("core.input"), member=(source.principal, source.org))
+    now = datetime.now(UTC)
+    async with source.factory() as db:
+        workflow = await db.get(Workflow, source.run.workflow_id)
+        assert workflow is not None
+        workflow.settings = {"run_retention_days": 1}
+        await workflow_run_repo.update_run(
+            db,
+            run=source.run,
+            update_data={"status": "failed", "ended_at": now - timedelta(days=3)},
+        )
+        await workflow_run_repo.update_run(
+            db, run=importer.run, update_data={"status": "succeeded", "ended_at": now}
+        )
+        file_id = uuid.uuid4()
+        db.add(
+            WorkflowFile(
+                id=file_id,
+                organization_id=source.org.id,
+                workflow_run_id=source.run.id,
+                storage_path="retained/import",
+                content_type="text/plain",
+                byte_size=1,
+            )
+        )
+        await db.flush()
+        ref = await workflow_run_repo.create_resource_ref(
+            db,
+            organization_id=source.org.id,
+            workflow_run_id=importer.run.id,
+            kind="file",
+            ref={"file_id": str(file_id)},
+        )
+        assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == []
+        await db.delete(ref)
+        await db.flush()
+        assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == [
+            (source.run.id, ["retained/import"])
+        ]

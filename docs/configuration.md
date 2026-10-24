@@ -1397,6 +1397,7 @@ with `QUOTA_EXCEEDED` (402) and an audit entry that names the quota, never the c
 | `TABLES_MAX_PER_ORGANIZATION` | `200` | Tables per organization. Archived ones count, because nothing deletes a table |
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Records in one table |
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialized size of one record's values, in bytes. Minimum `1`. It also bounds what a create's and a delete's history row and a receipt hold; a record already over the limit still deletes, keeping a byte-count marker instead of its values |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | `1073741824` | Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | How long an idempotency receipt answers a retry. Afterwards the same key is a new write |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | How long a dispatched outbox row is kept |
 | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | How long an undispatched outbox row is kept. The [table-trigger](virtual-tables.md#triggers) heartbeat marks each row it judges, so a row this old means the worker has been down that long. This is a dead-letter cutoff, not a claim the event was delivered - past it, the row is gone and no trigger starts for that record |

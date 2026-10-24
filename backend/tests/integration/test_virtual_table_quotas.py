@@ -328,6 +328,7 @@ async def test_a_burst_of_refusals_never_opens_more_than_the_gate_allows(
     ctx = await _tenant(ordinary)
     table = await _table(ordinary, ctx)
 
+    # Exercise the audit gate directly: record mutations now also serialize per organization.
     real_record_audit = quotas.record_audit
     in_flight = 0
     peak = 0
@@ -346,12 +347,7 @@ async def test_a_burst_of_refusals_never_opens_more_than_the_gate_allows(
 
     results = await asyncio.gather(
         *(
-            _call(
-                ordinary,
-                lambda service: service.create_record(
-                    ctx, table.id, RecordCreate(values={str(table.columns[0].id): "too big"})
-                ),
-            )
+            quotas.enforce_record_size(ctx, table, {str(table.columns[0].id): "too big"})
             for _ in range(10)
         ),
         return_exceptions=True,
@@ -374,6 +370,7 @@ async def test_lowering_the_concurrency_setting_lowers_the_observed_bound(
     ctx = await _tenant(ordinary)
     table = await _table(ordinary, ctx)
 
+    # Exercise the audit gate directly: record mutations now also serialize per organization.
     real_record_audit = quotas.record_audit
     in_flight = 0
     peak = 0
@@ -392,12 +389,7 @@ async def test_lowering_the_concurrency_setting_lowers_the_observed_bound(
 
     results = await asyncio.gather(
         *(
-            _call(
-                ordinary,
-                lambda service: service.create_record(
-                    ctx, table.id, RecordCreate(values={str(table.columns[0].id): "too big"})
-                ),
-            )
+            quotas.enforce_record_size(ctx, table, {str(table.columns[0].id): "too big"})
             for _ in range(10)
         ),
         return_exceptions=True,
@@ -548,3 +540,128 @@ async def test_a_batch_refuses_a_record_too_large_alone_and_the_rest_once_the_ta
         "record_bytes",
         "records",
     ]
+
+
+async def test_aggregate_storage_includes_history_receipts_and_outbox_and_rolls_back(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repositories import virtual_table_repo
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    key = str(table.columns[0].id)
+    first = await _call(
+        factory,
+        lambda service: service.create_record(
+            ctx, table.id, RecordCreate(values={key: SECRET_TEXT}), operation_key="seed"
+        ),
+    )
+    async with factory() as db:
+        used = await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id)
+    assert used > quotas.record_size({key: SECRET_TEXT}) * 2
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", used)
+    with pytest.raises(QuotaExceededError) as caught:
+        await _call(
+            factory,
+            lambda service: service.update_record(
+                ctx,
+                table.id,
+                first.record.id,
+                RecordUpdate(expected_revision=1, values={key: "changed"}),
+                operation_key="change",
+            ),
+        )
+    assert caught.value.details["quota"] == "storage_bytes"
+    async with factory() as db:
+        assert (
+            await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id) == used
+        )
+        record = await VirtualTableService(db).get_record(ctx, table.id, first.record.id)
+        assert record.revision == 1 and record.values == {key: SECRET_TEXT}
+    assert SECRET_TEXT not in str(await _refusals(factory, ctx))
+    # A replay and a no-op still work at the ceiling; neither creates another copy.
+    replay = await _call(
+        factory,
+        lambda service: service.create_record(
+            ctx, table.id, RecordCreate(values={key: SECRET_TEXT}), operation_key="seed"
+        ),
+    )
+    assert replay.replayed
+    await _call(
+        factory,
+        lambda service: service.update_record(
+            ctx,
+            table.id,
+            first.record.id,
+            RecordUpdate(expected_revision=1, values={key: SECRET_TEXT}),
+        ),
+    )
+    # Reducing the deployment limit never prevents cleanup.
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", 1)
+    await _call(
+        factory,
+        lambda service: service.delete_record(ctx, table.id, first.record.id, expected_revision=1),
+    )
+
+
+async def test_batch_storage_refusal_rolls_back_each_row_and_reports_the_rest(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", 1)
+    result = await _call(
+        factory,
+        lambda service: service.create_records(
+            ctx, table.id, RecordBatchCreate(records=[RecordCreate(values={}) for _ in range(3)])
+        ),
+    )
+    assert result.created == 0
+    assert [row.index for row in result.failed] == [0, 1, 2]
+    assert {row.code for row in result.failed} == {"QUOTA_EXCEEDED"}
+    assert await _records(factory) == 0
+
+
+async def test_concurrent_storage_reservations_do_not_cross_the_ceiling_or_tenants(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repositories import virtual_table_repo
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx, other = await _tenant(factory), await _tenant(factory)
+    table = await _table(factory, ctx)
+    other_table = await _table(factory, other)
+    await _call(
+        factory,
+        lambda service: service.create_record(
+            ctx, table.id, RecordCreate(external_id="xx0", values={})
+        ),
+    )
+    async with factory() as db:
+        used = await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id)
+    limit = used * 2 + 50
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", limit)
+
+    async def write(external_id: str) -> bool:
+        try:
+            await _call(
+                factory,
+                lambda service: service.create_record(
+                    ctx, table.id, RecordCreate(external_id=external_id, values={})
+                ),
+            )
+        except QuotaExceededError:
+            return False
+        return True
+
+    assert sorted(await asyncio.gather(write("xx1"), write("xx2"))) == [False, True]
+    await _call(
+        factory,
+        lambda service: service.create_record(other, other_table.id, RecordCreate(values={})),
+    )
+    async with factory() as db:
+        assert (
+            await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id) <= limit
+        )

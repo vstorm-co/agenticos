@@ -545,6 +545,9 @@ against another's, and is refused with `QUOTA_EXCEEDED` (402) when a write would
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tables an organization has. Archived ones count, because a table is never deleted |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100,000 | Records in one table. Updating a record in a full table is allowed |
 | `TABLES_MAX_RECORD_BYTES` | 1,000,000 | The serialized values of one record, in bytes |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate |
+
+The aggregate ceiling is checked inside the mutation savepoint, under an organization lock, before commit. An over-limit write rolls back its record and every retained copy, including a batch row; remaining batch rows are reported as refused. Receipt replay, unchanged writes, reads and deletion remain available after a limit is lowered. Retention releases the bytes it removes.
 
 The refusal names the quota and its ceiling in `details` (`{"quota": "records", "limit":
 100000}`), never the content, and writes a `table.quota_refused` entry to the
@@ -628,7 +631,7 @@ what a client branches on.
 | `INVALID_QUERY` | 422 | A filter or sort the table cannot answer |
 | `INVALID_SCHEMA` | 422 | An inconsistent schema change |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | The key was used for a different request |
-| `QUOTA_EXCEEDED` | 402 | The write would pass a storage limit; `details` names the quota (`tables`, `records`, `record_bytes`) and its ceiling |
+| `QUOTA_EXCEEDED` | 402 | The write would pass a storage limit; `details` names the quota (`tables`, `records`, `record_bytes`, `storage_bytes`) and its ceiling |
 | `RATE_LIMIT_EXCEEDED` | 429 | Too many table writes in the last minute; see `Retry-After` |
 | `VALIDATION_ERROR` | 422 | The request itself is malformed: a wrong type, an unknown field, a limit, or NUL, a line break or a lone surrogate in an id, key or name. Refused by the route before the service runs |
 | `AUTHORIZATION_ERROR` | 403 | The caller lacks the permission a collection route requires (`tables:view`, `tables:create`) |

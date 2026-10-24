@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.mcp import carries_base_exception, mcp_session, probe_error_message
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm, role_has
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.workflow_approval import WorkflowApprovalStatus
@@ -144,13 +144,25 @@ async def check_resources(
         tool.get("name") for tool in connection.last_tools
     }:
         problems.append(("tool", "The server did not offer this tool when it was last tested"))
+    problems.extend(await _approver_problems(db, ctx, config))
+    return problems
+
+
+async def _approver_problems(
+    db: AsyncSession, ctx: AuthContext, config: McpCallConfig
+) -> list[tuple[str, str]]:
+    problems: list[tuple[str, str]] = []
     for index, user_id in enumerate(config.approvers):
-        if (
-            await member_repo.get_active(db, organization_id=ctx.organization_id, user_id=user_id)
-            is None
-        ):
+        member = await member_repo.get_active(
+            db, organization_id=ctx.organization_id, user_id=user_id
+        )
+        if member is None:
             problems.append(
                 (f"approvers.{index}", "This person is not a member of the organization")
+            )
+        elif not role_has(member.role, Perm.APPROVALS_DECIDE):
+            problems.append(
+                (f"approvers.{index}", "This person cannot decide approvals in the organization")
             )
     return problems
 
@@ -233,8 +245,10 @@ async def _call(
 
 async def _ask(
     db: AsyncSession, config: McpCallConfig, server: str, arguments: dict[str, Any] | None
-) -> None:
+) -> Failed | None:
     current = context.current()
+    if await _approver_problems(db, current.auth, config):
+        return _failed("APPROVER_UNAVAILABLE", "A named approver can no longer decide approvals")
     if current.workflow_id is None:  # pragma: no cover - every dispatch carries its workflow
         raise RuntimeError("A workflow step dispatched with no workflow")
     title = f"Call {config.tool} on {server}?"[:200]
@@ -260,6 +274,7 @@ async def _ask(
             actor_user_id=current.auth.user_id,
             channels={NotificationChannel.IN_APP},
         )
+    return None
 
 
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
@@ -295,7 +310,9 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 tool=config.tool,
             )
         if approval is None and config.approval == "all":
-            await _ask(db, config, server, arguments)
+            refused = await _ask(db, config, server, arguments)
+            if refused is not None:
+                return refused
             return Waiting(reason="approval", resume_token=str(current.node_run_id))
     answer = await _call(
         config,
@@ -306,7 +323,9 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     )
     if answer == "ask":
         async with get_worker_db_context() as db:
-            await _ask(db, config, server, arguments)
+            refused = await _ask(db, config, server, arguments)
+            if refused is not None:
+                return refused
         return Waiting(reason="approval", resume_token=str(current.node_run_id))
     if isinstance(answer, Failed):
         return answer

@@ -1,5 +1,5 @@
 ---
-source_sha: "607474f54694"
+source_sha: "60068156c5c4"
 ---
 
 # Protección de datos { #data-protection }
@@ -74,6 +74,8 @@ una valoración — queda acotada a través de la conversación o el usuario del
 cuelga, y leerla pasa por la comprobación del padre.
 
 ### La base de datos { #the-database }
+
+El límite total se comprueba en el savepoint de la modificación, bajo un bloqueo de la organización, antes del commit. Superarlo revierte el registro y todas sus copias, también en una fila de importación; las filas restantes se informan como rechazadas. Repetir un recibo, escribir sin cambios, leer y borrar siguen funcionando tras reducir el límite. La retención libera los bytes eliminados. Bytes JSONB almacenados en PostgreSQL por organización entre registros, historial, recibos y outbox; el espacio de tablas e índices se cuenta aparte.
 
 | Almacén | Guarda | Datos personales que contiene | Finalidad |
 |---|---|---|---|

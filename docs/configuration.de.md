@@ -1,5 +1,5 @@
 ---
-source_sha: "dbc407885167"
+source_sha: "08d7ca0973d3"
 ---
 
 # Konfiguration { #configuration }
@@ -1521,6 +1521,7 @@ einem Audit-Eintrag abgelehnt, der das Limit nennt, nie den Inhalt.
 | `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabellen je Organisation. Archivierte zählen mit, weil nichts eine Tabelle löscht |
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Datensätze in einer Tabelle |
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialisierte Größe der Werte eines Datensatzes in Bytes. Minimum `1`. Begrenzt auch, was die History-Zeile eines Create und eines Delete und ein Receipt enthalten; ein bereits über dem Limit liegender Datensatz wird trotzdem gelöscht und behält nur eine Größenmarkierung statt der Werte |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | `1073741824` | Gespeicherte PostgreSQL-JSONB-Nutzdaten je Organisation über Datensätze, Historie, Quittungen und Outbox; Tabellen- und Index-Overhead zählt separat |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Wie lange ein Idempotenz-Receipt eine Wiederholung beantwortet. Danach ist derselbe Schlüssel ein neuer Schreibzugriff |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Wie lange eine zugestellte Outbox-Zeile aufbewahrt wird |
 | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Wie lange eine nicht zugestellte Outbox-Zeile aufbewahrt wird. Der Heartbeat der [Tabellen-Trigger](virtual-tables.md#triggers) markiert jede Zeile, die er prüft, also heißt eine so alte Zeile, dass der Worker so lange ausgefallen war. Dies ist eine Dead-Letter-Frist, keine Behauptung, das Ereignis sei zugestellt worden - danach ist die Zeile weg und für diesen Datensatz startet kein Trigger |

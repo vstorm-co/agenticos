@@ -9,6 +9,7 @@ now and only until it is withdrawn.
 
 import json
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -17,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.audit import current_impersonator, set_impersonator
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.artifact import Artifact, ArtifactVersion, ConsentState
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.artifact import ArtifactBinding, BindingReach
@@ -140,6 +141,19 @@ class TestWhoMayConfirm:
         with patch(f"{PATH}.current_impersonator", return_value=uuid.uuid4()):
             assert not consent.may_confirm(owner, _artifact(owner.user_id))
             assert not consent.as_themselves(owner)
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("role", [OrgRoleName.MEMBER, OrgRoleName.ADMIN, OrgRoleName.OWNER])
+    def test_an_owners_key_cannot_consent_even_with_edit_scope(self, role: str) -> None:
+        ctx = replace(
+            _ctx(role),
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.ARTIFACTS_VIEW, Perm.ARTIFACTS_EDIT}),
+        )
+        artifact = _artifact(ctx.user_id)
+        assert not consent.as_themselves(ctx)
+        assert not consent.may_confirm(ctx, artifact)
+        assert not consent.may_grant_edit_data(ctx, artifact)
 
     def test_not_nobody(self) -> None:
         assert not consent.as_themselves(AuthContext.anonymous(uuid.uuid4()))

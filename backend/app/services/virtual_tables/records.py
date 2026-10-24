@@ -790,17 +790,22 @@ class RecordOperations(Operations):
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
         self._ensure_live(table)
+        await quotas.lock_storage(self.db, ctx)
         created = updated = 0
         failed: list[RecordBatchFailure] = []
         for index, record in enumerate(data.records):
             try:
                 async with self.db.begin_nested():
                     made = await self._create_one(ctx, table, record, update=data.update_existing)
+                    await quotas.enforce_storage(self.db, ctx, table)
             except _Unchanged:
                 # Already holds what the row says: nothing written, nothing to report.
                 continue
             except QuotaExceededError as refused:
-                if refused.details is not None and refused.details["quota"] == "records":
+                if refused.details is not None and refused.details["quota"] in {
+                    "records",
+                    "storage_bytes",
+                }:
                     failed.extend(_failure(at, refused) for at in range(index, len(data.records)))
                     break
                 failed.append(_failure(index, refused))
@@ -1198,15 +1203,19 @@ class RecordOperations(Operations):
         action: Callable[[], Awaitable[WriteOutcome]],
     ) -> RecordWrite:
         try:
-            outcome, replayed = await run_once(
-                self.db,
-                ctx,
-                operation=operation,
-                operation_key=operation_key,
-                payload=payload,
-                outcome_type=WriteOutcome,
-                action=action,
-            )
+            async with self.db.begin_nested():
+                await quotas.lock_storage(self.db, ctx)
+                outcome, replayed = await run_once(
+                    self.db,
+                    ctx,
+                    operation=operation,
+                    operation_key=operation_key,
+                    payload=payload,
+                    outcome_type=WriteOutcome,
+                    action=action,
+                )
+                if not replayed:
+                    await quotas.enforce_storage(self.db, ctx, table)
         except _Unchanged as unchanged:
             return RecordWrite(
                 record=await self._read_through(ctx, table, unchanged.record),

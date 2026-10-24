@@ -1,5 +1,5 @@
 ---
-source_sha: "ec953111912b"
+source_sha: "52b4f8f96f1f"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -578,6 +578,9 @@ przekroczył.
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tabele organizacji. Zarchiwizowane się liczą, bo tabela nigdy nie jest usuwana |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100 000 | Rekordy w jednej tabeli. Aktualizacja rekordu w pełnej tabeli jest dozwolona |
 | `TABLES_MAX_RECORD_BYTES` | 1 000 000 | Zserializowane wartości jednego rekordu, w bajtach |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bajty danych JSONB PostgreSQL na organizację łącznie dla rekordów, historii, potwierdzeń i outboxa; narzut tabel i indeksów jest osobny |
+
+Łączny limit jest sprawdzany w savepoincie zmiany, pod blokadą organizacji, przed commitem. Przekroczenie cofa rekord i wszystkie zachowane kopie, także dla wiersza importu; pozostałe wiersze są raportowane jako odrzucone. Ponowienie z potwierdzenia, zapis bez zmian, odczyt i usuwanie nadal działają po obniżeniu limitu. Retencja zwalnia usuwane bajty.
 
 Odmowa nazywa limit i jego pułap w `details` (`{"quota": "records", "limit": 100000}`),
 nigdy treść, i zapisuje wpis `table.quota_refused` w [audit log](governance.md) z tymi
@@ -662,7 +665,7 @@ według czego klient się rozgałęzia.
 | `INVALID_QUERY` | 422 | Filtr lub sortowanie, na które tabela nie odpowie |
 | `INVALID_SCHEMA` | 422 | Niespójna zmiana schematu |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Klucz został użyty dla innego żądania |
-| `QUOTA_EXCEEDED` | 402 | Zapis przekroczyłby limit przechowywania; `details` nazywa limit (`tables`, `records`, `record_bytes`) i jego pułap |
+| `QUOTA_EXCEEDED` | 402 | Zapis przekroczyłby limit przechowywania; `details` nazywa limit (`tables`, `records`, `record_bytes`, `storage_bytes`) i jego pułap |
 | `RATE_LIMIT_EXCEEDED` | 429 | Za dużo zapisów do tabel w ostatniej minucie; zobacz `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Samo żądanie jest wadliwe: zły typ, nieznane pole, limit albo NUL, znak nowego wiersza lub osamotniony surogat w id, kluczu lub nazwie. Trasa odrzuca je, zanim uruchomi się serwis |
 | `AUTHORIZATION_ERROR` | 403 | Wywołujący nie ma permission, której wymaga trasa kolekcji (`tables:view`, `tables:create`) |

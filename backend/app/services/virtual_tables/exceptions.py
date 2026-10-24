@@ -138,7 +138,7 @@ class IdempotencyKeyReuseError(ValidationError):
         super().__init__(details={"operation": operation})
 
 
-Quota = Literal["tables", "records", "record_bytes"]
+Quota = Literal["tables", "records", "record_bytes", "storage_bytes"]
 """Which ceiling a write ran into. Stable: a client branches on it."""
 
 

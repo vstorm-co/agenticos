@@ -1,5 +1,5 @@
 ---
-source_sha: "ec953111912b"
+source_sha: "52b4f8f96f1f"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -581,6 +581,9 @@ escritura lo superaría.
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tablas de una organización. Las archivadas cuentan, porque una tabla nunca se borra |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Registros en una tabla. Actualizar un registro en una tabla llena está permitido |
 | `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Los valores serializados de un registro, en bytes |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bytes JSONB almacenados en PostgreSQL por organización entre registros, historial, recibos y outbox; el espacio de tablas e índices se cuenta aparte |
+
+El límite total se comprueba en el savepoint de la modificación, bajo un bloqueo de la organización, antes del commit. Superarlo revierte el registro y todas sus copias, también en una fila de importación; las filas restantes se informan como rechazadas. Repetir un recibo, escribir sin cambios, leer y borrar siguen funcionando tras reducir el límite. La retención libera los bytes eliminados.
 
 El rechazo nombra el límite y su techo en `details` (`{"quota": "records", "limit":
 100000}`), nunca el contenido, y escribe una entrada `table.quota_refused` en el
@@ -666,7 +669,7 @@ un cliente usa para bifurcar.
 | `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
 | `INVALID_SCHEMA` | 422 | Un cambio de esquema incoherente |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | La clave se usó para una solicitud distinta |
-| `QUOTA_EXCEEDED` | 402 | La escritura superaría un límite de almacenamiento; `details` nombra el límite (`tables`, `records`, `record_bytes`) y su techo |
+| `QUOTA_EXCEEDED` | 402 | La escritura superaría un límite de almacenamiento; `details` nombra el límite (`tables`, `records`, `record_bytes`, `storage_bytes`) y su techo |
 | `RATE_LIMIT_EXCEEDED` | 429 | Demasiadas escrituras de tablas en el último minuto; consulta `Retry-After` |
 | `VALIDATION_ERROR` | 422 | La solicitud misma es defectuosa: un tipo erróneo, un campo desconocido, un límite, o NUL, un salto de línea o un sustituto aislado en un id, clave o nombre. La ruta la rechaza antes de que se ejecute el servicio |
 | `AUTHORIZATION_ERROR` | 403 | Al llamante le falta la permission que exige una ruta de colección (`tables:view`, `tables:create`) |

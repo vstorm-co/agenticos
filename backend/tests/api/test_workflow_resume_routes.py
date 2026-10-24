@@ -53,3 +53,24 @@ async def test_a_link_that_is_not_the_runs_answers_not_found(wired):
 
     assert answered.status_code == 404
     assert answered.json()["error"]["code"] == "WORKFLOW_RUN_NOT_FOUND"
+
+
+@pytest.mark.security
+async def test_a_chunked_body_is_stopped_at_the_workflow_input_cap(wired, monkeypatch):
+    client, service = wired
+    monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", 8)
+    service.resume = AsyncMock()
+    read: list[int] = []
+
+    async def chunks() -> AsyncIterator[bytes]:
+        for index in range(10):
+            read.append(index)
+            yield b"12345"
+
+    answered = await client.post(
+        f"{settings.API_V1_STR}/workflow-resume/{uuid.uuid4()}/guess", content=chunks()
+    )
+    assert answered.status_code == 413, answered.text
+    assert answered.json()["error"]["code"] == "WORKFLOW_RUN_INPUT_TOO_LARGE"
+    assert read == [0, 1]
+    service.resume.assert_not_called()

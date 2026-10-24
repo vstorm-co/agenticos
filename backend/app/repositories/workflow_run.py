@@ -14,7 +14,19 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Interval, Select, and_, case, exists, func, literal, or_, select
+from sqlalchemy import (
+    Interval,
+    Select,
+    String,
+    and_,
+    case,
+    cast,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+)
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1354,13 +1366,15 @@ async def take_expired_runs(
     than a day ago in a workflow that does not keep succeeded runs. A run another
     run's chain starts from is left until that chain has gone, because the chain
     names it as its root. A called run also stays until its caller ends, because
-    its waiting node needs that result to avoid calling it again. The files' rows go with the run; the stored bytes are
+    its waiting node needs that result to avoid calling it again. Sources of active retries
+    and files imported by other retained runs stay too. The files' rows go with the run; the stored bytes are
     the caller's to unlink once this commits.
     """
     days = Workflow.settings["run_retention_days"].as_integer()
     keeps_succeeded = Workflow.settings["keep_succeeded_runs"].as_boolean()
     descendant = aliased(WorkflowRun)
     caller = aliased(WorkflowRun)
+    retry = aliased(WorkflowRun)
     expired = (
         select(WorkflowRun.id)
         .join(Workflow, Workflow.id == WorkflowRun.workflow_id)
@@ -1384,6 +1398,21 @@ async def take_expired_runs(
                 select(NodeRun.id)
                 .join(caller, caller.id == NodeRun.workflow_run_id)
                 .where(NodeRun.id == WorkflowRun.parent_node_run_id, caller.ended_at.is_(None))
+            ),
+            ~exists().where(
+                retry.retry_of_run_id == WorkflowRun.id,
+                retry.ended_at.is_(None),
+            ),
+            ~exists(
+                select(ResourceRef.id)
+                .join(
+                    WorkflowFile, ResourceRef.ref["file_id"].astext == cast(WorkflowFile.id, String)
+                )
+                .where(
+                    ResourceRef.kind == "file",
+                    WorkflowFile.workflow_run_id == WorkflowRun.id,
+                    ResourceRef.workflow_run_id != WorkflowRun.id,
+                )
             ),
         )
         .order_by(WorkflowRun.ended_at)

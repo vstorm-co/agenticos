@@ -1,5 +1,5 @@
 ---
-source_sha: "ec953111912b"
+source_sha: "52b4f8f96f1f"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -626,6 +626,9 @@ die Nutzung eines Tenants nie auf einen anderen angerechnet wird, und wird mit
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tabellen einer Organisation. Archivierte zählen mit, weil eine Tabelle nie gelöscht wird |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Datensätze in einer Tabelle. Ein Update eines Datensatzes in einer vollen Tabelle ist erlaubt |
 | `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Die serialisierten Werte eines Datensatzes in Bytes |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Gespeicherte PostgreSQL-JSONB-Nutzdaten je Organisation über Datensätze, Historie, Quittungen und Outbox; Tabellen- und Index-Overhead zählt separat |
+
+Die Gesamtgrenze wird im Savepoint der Änderung unter einer Organisationssperre vor dem Commit geprüft. Eine Überschreitung rollt den Datensatz und alle Kopien zurück, auch eine Importzeile; übrige Zeilen werden als abgelehnt gemeldet. Quittungswiederholungen, unveränderte Schreibvorgänge, Lesen und Löschen bleiben nach einer Absenkung möglich. Die Aufbewahrungsbereinigung gibt entfernte Bytes frei.
 
 Die Ablehnung nennt das Limit und seine Obergrenze in `details` (`{"quota": "records",
 "limit": 100000}`), nie den Inhalt, und schreibt einen Eintrag `table.quota_refused` in das
@@ -713,7 +716,7 @@ Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und de
 | `INVALID_QUERY` | 422 | Ein Filter oder eine Sortierung, die die Tabelle nicht beantworten kann |
 | `INVALID_SCHEMA` | 422 | Eine widersprüchliche Schemaänderung |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Der Schlüssel wurde für eine andere Anfrage verwendet |
-| `QUOTA_EXCEEDED` | 402 | Der Schreibzugriff würde ein Speicherlimit überschreiten; `details` nennt das Limit (`tables`, `records`, `record_bytes`) und seine Obergrenze |
+| `QUOTA_EXCEEDED` | 402 | Der Schreibzugriff würde ein Speicherlimit überschreiten; `details` nennt das Limit (`tables`, `records`, `record_bytes`, `storage_bytes`) und seine Obergrenze |
 | `RATE_LIMIT_EXCEEDED` | 429 | Zu viele Tabellenschreibzugriffe in der letzten Minute; siehe `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Die Anfrage selbst ist fehlerhaft: ein falscher Typ, ein unbekanntes Feld, eine Grenze oder NUL, ein Zeilenumbruch oder ein einzelnes Surrogat in einer id, einem Schlüssel oder Namen. Die Route lehnt sie ab, bevor der Service läuft |
 | `AUTHORIZATION_ERROR` | 403 | Dem Aufrufer fehlt die Permission, die eine Collection-Route verlangt (`tables:view`, `tables:create`) |

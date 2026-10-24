@@ -1,5 +1,5 @@
 ---
-source_sha: "46287bc10a94"
+source_sha: "ef361e3f5986"
 ---
 
 # Workflows { #workflows }
@@ -462,6 +462,8 @@ działa wolno albo zawodzi. Przesunięcie kroku i przypięte dane testowe nie s�
 zmianami. **Show this version** wraca do samej wersji.
 
 ## Ustawienia workflow { #workflow-settings }
+
+Run źródłowy zostaje, gdy trwa jego retry albo inny zachowany run importuje któryś z jego plików. Zakończenie retry nie unieważnia plików nadal wskazywanych przez jego kroki.
 
 **Settings** w menu **More** w nagłówku edytora zawierają to, z czym workflow jest uruchamiany, a nie
 to, co robi. Należą do workflow, nie do wersji: zmiana dotyczy każdego przebiegu

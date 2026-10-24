@@ -643,6 +643,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Workflow review follow-ups.** Organization keys cannot consent to page data or
+  start human-only page actions. Named MCP approvers need decision permission both
+  at publish and when asked. Resume bodies stop at the workflow input cap while
+  streaming. Retries import reused file outputs; retention keeps their producers
+  and active retry sources. Table mutations atomically enforce a per-organization
+  aggregate JSONB storage ceiling across records, history, receipts and outbox.
+
 - **Workflow file processing stays within its limits before saving.** CSV
   conversions cap dimensions and encoded output, PDF extraction stops at its
   page and text limits, downloads classify only a prefix, and sandbox reads

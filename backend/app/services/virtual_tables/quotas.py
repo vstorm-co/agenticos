@@ -1,8 +1,8 @@
 """What one organization may store in Virtual Tables, and the refusal when it would exceed it.
 
-Three ceilings, all deployment settings and all per organization, so one tenant's usage
+Four ceilings, all deployment settings and all per organization, so one tenant's usage
 never counts against another's: how many tables it has, how many records one table
-holds, and how large one record's values may be. The third also bounds what history and
+holds, how large one record's values may be, and aggregate JSONB payload storage. The third bounds what history and
 receipts copy, since a create's snapshot, a delete's snapshot and a receipt's outcome
 each hold one record at most and an update's history holds only the cells that changed.
 
@@ -133,6 +133,29 @@ async def enforce_record_size(
             quota="record_bytes",
             limit=limit,
             message=f"A record's values may take at most {limit} bytes",
+            target_id=table.id,
+        )
+
+
+async def lock_storage(db: AsyncSession, ctx: AuthContext) -> None:
+    """Serialize record mutations before their row/count locks, through commit."""
+    await hold_subject(db, LockScope.VIRTUAL_TABLE_STORAGE_PER_ORG, ctx.organization_id)
+
+
+async def enforce_storage(db: AsyncSession, ctx: AuthContext, table: VirtualTable) -> None:
+    """Refuse the whole mutation if its uncommitted rows exceed the tenant ceiling.
+
+    Called inside the mutation's savepoint, after all copies (including the receipt
+    outcome) have been flushed. Refusal rolls those rows back even if a caller catches
+    it. Existing reads, receipt replays, no-ops and deletes remain available over quota.
+    """
+    limit = settings.TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION
+    if await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id) > limit:
+        await refuse(
+            ctx,
+            quota="storage_bytes",
+            limit=limit,
+            message=f"An organization's table payloads may take at most {limit} stored bytes",
             target_id=table.id,
         )
 

@@ -392,3 +392,76 @@ class TestFilteringRuns:
             "future": 0,
             "before": 0,
         }
+
+
+async def test_a_retry_imports_nested_file_outputs_without_granting_unrelated_files(
+    engine: AsyncEngine, kinds: tuple[str, str]
+) -> None:
+    from sqlalchemy import select
+
+    from app.db.models.workflow_file import WorkflowFile
+    from app.db.models.workflow_run import NodeRun
+    from app.repositories import workflow_file as file_repo
+    from app.services.workflow_execution import dispatcher
+    from app.services.workflow_execution.exceptions import InvalidBindingError
+    from app.workflows.contracts.io import FileRef
+
+    graph, _ = _line(*kinds)
+    source = await seed_run(engine, graph)
+    retry = await seed_run(engine, graph, member=(source.principal, source.org))
+    async with source.factory() as db:
+        original = (
+            await db.scalars(select(NodeRun).where(NodeRun.workflow_run_id == source.run.id))
+        ).one()
+        step = (
+            await db.scalars(select(NodeRun).where(NodeRun.workflow_run_id == retry.run.id))
+        ).one()
+        original.status = "succeeded"
+        file = WorkflowFile(
+            id=uuid.uuid4(),
+            organization_id=source.org.id,
+            workflow_run_id=source.run.id,
+            producing_node_run_id=original.id,
+            storage_path="retry/file",
+            content_type="text/plain",
+            byte_size=5,
+            filename="answer.txt",
+        )
+        db.add(file)
+        ref = FileRef(file_id=file.id, content_type="text/plain", byte_size=5)
+        output = {
+            "files": [{"nested": ref.model_dump(mode="json")}],
+            "data": {"kind": "file", "label": "business data"},
+        }
+        attempt = await workflow_run_repo.create_attempt(
+            db,
+            organization_id=source.org.id,
+            node_run_id=original.id,
+            attempt_no=1,
+            idempotency_key="source-file",
+            retry_guarantee="idempotent",
+            started_at=datetime.now(UTC),
+        )
+        attempt.status = "completed"
+        attempt.result = {"kind": "completed", "output": output}
+        retry.run.retry_of_run_id = source.run.id
+        await db.flush()
+        assert (
+            await file_repo.get_for_run(
+                db, file.id, organization_id=source.org.id, workflow_run_id=retry.run.id
+            )
+            is None
+        )
+        assert await dispatcher._reused_output(db, run=retry.run, node_run=step) == output
+        assert (
+            await file_repo.get_for_run(
+                db, file.id, organization_id=source.org.id, workflow_run_id=retry.run.id
+            )
+            is not None
+        )
+        # Re-resolving the same step does not add another reference.
+        assert await dispatcher._reused_output(db, run=retry.run, node_run=step) == output
+        await db.delete(file)
+        await db.flush()
+        with pytest.raises(InvalidBindingError):
+            await dispatcher._reused_output(db, run=retry.run, node_run=step)

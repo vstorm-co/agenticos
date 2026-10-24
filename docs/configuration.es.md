@@ -1,5 +1,5 @@
 ---
-source_sha: "dbc407885167"
+source_sha: "08d7ca0973d3"
 ---
 
 # Configuración { #configuration }
@@ -1452,6 +1452,7 @@ límite, nunca el contenido.
 | `TABLES_MAX_PER_ORGANIZATION` | `200` | Tablas por organización. Las archivadas cuentan, porque nada borra una tabla |
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Registros en una tabla |
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Tamaño serializado de los valores de un registro, en bytes. Mínimo `1`. También acota lo que guardan la fila de history de un create y de un delete y un receipt; un registro ya por encima del límite igualmente se borra, conservando solo una marca con el tamaño en vez de los valores |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | `1073741824` | Bytes JSONB almacenados en PostgreSQL por organización entre registros, historial, recibos y outbox; el espacio de tablas e índices se cuenta aparte |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Cuánto tiempo responde un receipt de idempotencia a un reintento. Después, la misma clave es una escritura nueva |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Cuánto tiempo se conserva una fila de outbox despachada |
 | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Cuánto tiempo se conserva una fila de outbox sin despachar. El heartbeat de los [triggers de tabla](virtual-tables.md#triggers) marca cada fila que evalúa, así que una fila tan antigua significa que el worker lleva ese tiempo caído. Es un corte de carta muerta, no una afirmación de que el evento se entregó - pasado ese tiempo, la fila desaparece y ningún trigger se inicia para ese registro |

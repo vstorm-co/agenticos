@@ -7,8 +7,10 @@ from a run that interleaves on greenlets.
 
 import uuid
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError
 from app.core.permissions import AuthContext
@@ -28,7 +30,7 @@ def _record(revision: int):
 @pytest.fixture
 def service(monkeypatch) -> tuple[RecordOperations, AuthContext, SimpleNamespace]:
     table = SimpleNamespace(id=uuid.uuid4(), archived_at=None, schema_version=1)
-    service = RecordOperations(db=None)  # type: ignore[arg-type]
+    service = RecordOperations(db=MagicMock(spec=AsyncSession))
 
     async def load(ctx, table_id, perm, *, lock=False, share=False):
         return table
@@ -53,6 +55,8 @@ def service(monkeypatch) -> tuple[RecordOperations, AuthContext, SimpleNamespace
     monkeypatch.setattr(records.quotas, "enforce_record_size", within_quota)
     monkeypatch.setattr(records.quotas, "enforce_record_count", within_quota)
     monkeypatch.setattr(records.quotas, "lock_record_count", within_quota)
+    monkeypatch.setattr(records.quotas, "lock_storage", within_quota)
+    monkeypatch.setattr(records.quotas, "enforce_storage", within_quota)
     ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
     return service, ctx, table
 

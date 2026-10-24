@@ -1,5 +1,5 @@
 ---
-source_sha: "dbc407885167"
+source_sha: "08d7ca0973d3"
 ---
 
 # Konfiguracja { #configuration }
@@ -1430,6 +1430,7 @@ kodem `QUOTA_EXCEEDED` (402) i wpisem audytu, który nazywa limit, nigdy treść
 | `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabele na organizację. Zarchiwizowane się liczą, bo nic nie usuwa tabeli |
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Rekordy w jednej tabeli |
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Rozmiar zserializowanych wartości jednego rekordu w bajtach. Minimum `1`. Ogranicza też to, co trzymają wiersz history przy create i delete oraz receipt; rekord już ponad limitem nadal się usuwa, zachowując znacznik z liczbą bajtów zamiast wartości |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | `1073741824` | Bajty danych JSONB PostgreSQL na organizację łącznie dla rekordów, historii, potwierdzeń i outboxa; narzut tabel i indeksów jest osobny |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Jak długo idempotentny receipt odpowiada na ponowienie. Potem ten sam klucz to nowy zapis |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Jak długo trzymany jest wysłany wiersz outbox |
 | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Jak długo trzymany jest niewysłany wiersz outbox. Heartbeat [wyzwalaczy tabel](virtual-tables.md#triggers) oznacza każdy oceniony wiersz, więc wiersz tak stary znaczy, że worker tyle nie działał. To dead-letter cutoff, a nie deklaracja, że zdarzenie zostało dostarczone - po tym czasie wiersz znika i dla tego rekordu żaden wyzwalacz nie wystartuje |

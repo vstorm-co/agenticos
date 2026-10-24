@@ -1,5 +1,5 @@
 ---
-source_sha: "46287bc10a94"
+source_sha: "ef361e3f5986"
 ---
 
 # Workflows { #workflows }
@@ -478,6 +478,8 @@ cuando va lento o falla. Mover un paso y los datos de prueba fijados no son camb
 **Show this version** vuelve a la versión sola.
 
 ## Ajustes del workflow { #workflow-settings }
+
+El run de origen se conserva mientras haya un reintento activo u otro run retenido importe uno de sus archivos. Terminar un reintento no invalida archivos que sus pasos aún referencian.
 
 **Settings**, en **More** en la cabecera del editor, guarda con qué se ejecuta un workflow, no lo
 que hace. Los ajustes son del workflow, no de una versión: un cambio vale para cada

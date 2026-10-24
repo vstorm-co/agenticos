@@ -1,5 +1,5 @@
 ---
-source_sha: "46287bc10a94"
+source_sha: "ef361e3f5986"
 ---
 
 # Workflows { #workflows }
@@ -511,6 +511,8 @@ oder fehlschlägt. Einen Schritt verschieben und angeheftete Testdaten sind kein
 Änderungen. **Show this version** kehrt zur Version allein zurück.
 
 ## Workflow-Einstellungen { #workflow-settings }
+
+Ein Quell-Run bleibt erhalten, solange ein Retry aktiv ist oder ein anderer aufbewahrter Run eine seiner Dateien importiert. Das Ende eines Retrys macht weiterhin referenzierte Dateien nicht ungültig.
 
 **Settings** unter **More** in der Kopfzeile des Editors enthalten, womit ein Workflow ausgeführt
 wird, nicht was er tut. Sie gehören dem Workflow, nicht einer Version: Eine Änderung

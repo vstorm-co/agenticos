@@ -83,6 +83,8 @@ class LockScope(IntEnum):
     #: chain's runs and then admits one; two passes over events of one chain read the
     #: same count and both admit past the limit, so the count is taken under this.
     WORKFLOW_RUN_CHAIN = 16
+    #: Record writes and their retained copies share one per-organization byte ceiling.
+    VIRTUAL_TABLE_STORAGE_PER_ORG = 17
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.

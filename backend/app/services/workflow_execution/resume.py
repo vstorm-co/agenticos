@@ -10,6 +10,7 @@ time, and why a wrong one answers as if the run did not exist.
 """
 
 import secrets
+from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID
 
@@ -30,6 +31,18 @@ from app.services.workflow_execution.resume_link import resume_token
 from app.services.workflow_exposure import parse_webhook_body
 
 WAIT = "flow.wait"
+
+
+async def read_resume_body(chunks: AsyncIterator[bytes]) -> bytes:
+    """Read at most one workflow input, including bodies without Content-Length."""
+    limit = settings.WORKFLOW_RUN_MAX_INPUT_BYTES
+    body = bytearray()
+    async for chunk in chunks:
+        size = len(body) + len(chunk)
+        if size > limit:
+            raise WorkflowRunInputTooLargeError(limit=limit, size=size)
+        body.extend(chunk)
+    return bytes(body)
 
 
 class WorkflowResumeService:

@@ -686,6 +686,8 @@ class Settings(BaseSettings):
     # and a delete's history snapshot and a receipt's copy, since each holds one
     # record at most.
     TABLES_MAX_RECORD_BYTES: int = Field(default=1_000_000, ge=1)
+    # Aggregate PostgreSQL JSONB payload storage: records, history, receipts and outbox.
+    TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION: int = Field(default=1_073_741_824, ge=1)
     # How long an idempotency receipt answers a retry. After it, the same key is
     # a new write. Also the bound on how long a receipt's full copy of a record
     # is kept.

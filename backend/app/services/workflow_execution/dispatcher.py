@@ -43,6 +43,7 @@ iteration that was next and never repeats one that ended.
 import asyncio
 import json
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -64,6 +65,7 @@ from app.db.models.workflow_run import (
     NodeAttemptStatus,
     NodeRun,
     NodeRunStatus,
+    ResourceRefKind,
     RetryGuarantee,
     WaitingReason,
     WorkflowRun,
@@ -75,6 +77,7 @@ from app.repositories import member as member_repo
 from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
+from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.access import WORKFLOW, resolve_access
 from app.services.api_key import ApiKeyService
@@ -557,7 +560,52 @@ async def _reused_output(
         return None
     latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=original.id)
     output = latest.result.get("output") if latest is not None and latest.result else None
-    return output if isinstance(output, dict) else None
+    if not isinstance(output, dict):
+        return None
+    for ref in {ref.file_id: ref for ref in _output_files(output)}.values():
+        source = await workflow_file_repo.get_for_run(
+            db,
+            ref.file_id,
+            organization_id=run.organization_id,
+            workflow_run_id=run.retry_of_run_id,
+        )
+        if source is None:
+            raise InvalidBindingError(
+                node_instance_id=node_run.node_instance_id, field="retry_file"
+            )
+        if (
+            await workflow_file_repo.get_for_run(
+                db, ref.file_id, organization_id=run.organization_id, workflow_run_id=run.id
+            )
+            is None
+        ):
+            await workflow_run_repo.create_resource_ref(
+                db,
+                organization_id=run.organization_id,
+                workflow_run_id=run.id,
+                kind=ResourceRefKind.FILE.value,
+                ref=ref.model_dump(mode="json"),
+            )
+    return output
+
+
+def _output_files(value: object) -> Iterator[FileRef]:
+    """Find structurally valid file references, including nested/list outputs."""
+    if isinstance(value, dict):
+        if value.get("kind") == "file":
+            try:
+                ref = FileRef.model_validate(value)
+            except PydanticValidationError:
+                # Arbitrary structured answers can use `kind: file` for other data.
+                pass
+            else:
+                yield ref
+                return
+        for item in value.values():
+            yield from _output_files(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _output_files(item)
 
 
 @dataclass(frozen=True, slots=True)

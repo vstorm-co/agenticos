@@ -145,10 +145,9 @@ def reads_every_table(ctx: AuthContext) -> bool:
 def as_themselves(ctx: AuthContext) -> bool:
     """Whether a person is acting in their own name: signed in, and nobody impersonating them.
 
-    There is no API-key identity on `AuthContext` on this branch; when organization
-    API keys arrive, a key acting for a member must be refused here too.
+    A key carries its issuer for access and audit, but cannot give a person's consent.
     """
-    return ctx.user_id is not None and current_impersonator() is None
+    return ctx.user_id is not None and ctx.api_key_id is None and current_impersonator() is None
 
 
 def may_confirm(ctx: AuthContext, artifact: Artifact) -> bool:
