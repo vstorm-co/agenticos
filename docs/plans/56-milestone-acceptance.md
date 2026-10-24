@@ -189,3 +189,16 @@ error remain part of the existing file-inspection contract. See
 `test_workflow_run_socket.py`, `test_workflow_file_nodes.py`,
 `test_workflow_python_nodes.py`, `test_workflow_evals.py`, and
 `use-inline-agent-resources.test.tsx`.
+
+The subsequent review enforces current MCP audiences/tool allowlists and requires
+member sessions when configuring unattended authority. Keys can publish manual
+workflows, run within their scopes and pause automation. Public forms enforce byte
+limits before parsing; DOCX uses bounded streaming XML. Private saved-view clauses
+are projected against current column types; Kanban saves grouping and pages lanes.
+`0221_table_event_wall_clock.py` aligns new outbox events with trigger activation;
+existing skipped events are not replayed. Regression evidence lives in
+`test_mcp_connection_audience.py`, `test_workflow_exposures.py`,
+`test_workflow_conversion_limits.py`, `test_table_views.py`,
+`test_table_triggers.py`, `table-kanban-view.test.tsx` and the table page integration
+spec. Issue #1974 retains immutable, versioned queries with explicit published
+fields, as confirmed by the maintainer; edits to a source view cannot expand consent.

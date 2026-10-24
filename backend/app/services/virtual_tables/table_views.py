@@ -41,11 +41,14 @@ from app.schemas.table_view import (
     ViewKind,
     ViewVisibility,
 )
-from app.schemas.virtual_table import ColumnDef, RecordSort
+from app.schemas.virtual_table import ColumnDef, RecordFilter, RecordSort
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
+from app.services.virtual_tables.exceptions import InvalidQueryError
+from app.services.virtual_tables.records import check_query
+from app.services.virtual_tables.types import CellProblem, validate_filter
 
 
 def _referenced_column_ids(config: dict[str, object]) -> set[UUID]:
@@ -118,34 +121,36 @@ def _is_name_clash(exc: IntegrityError) -> bool:
     return getattr(exc.orig, "constraint_name", None) == "uq_table_view_owner_name"
 
 
-def _names_a_dead_column(sort_by: str, live: set[UUID]) -> bool:
-    """Whether a sort key is a column id that is not live. `created_at`/`updated_at` never are."""
-    try:
-        return UUID(sort_by) not in live
-    except ValueError:
-        return False
-
-
-def _live_config(view: TableView, live: set[UUID]) -> TableViewConfig:
-    """The view's config with every reference to a column outside `live` dropped.
-
-    A column is archived out from under a view it does not block (one the archiving
-    caller could not change, or one that only showed it), and a stored config is never
-    rewritten for that. A filter on it goes, a sort by it falls back to the default,
-    a grouping by it is cleared and it leaves the visible columns. A view left showing
-    none of the columns it chose shows every live one, rather than a grid with no
-    columns to open a record from.
-    """
+def _live_config(view: TableView, columns: list[ColumnDef]) -> TableViewConfig:
+    """Project stored clauses onto the current column types, retaining no invalid query."""
+    live_columns = [column for column in columns if not column.archived]
+    live = {column.id: column for column in live_columns}
     config = TableViewConfig.model_validate(view.config)
     visible = config.visible_columns
     if visible is not None:
         visible = [item for item in visible if item in live] or None
+    filters: list[RecordFilter] = []
+    for item in config.filters:
+        column = live.get(item.column_id)
+        if column is None:
+            continue
+        try:
+            validate_filter(column, item.op, item.value)
+        except CellProblem:
+            continue
+        filters.append(item)
+    sort = config.sort
+    try:
+        check_query(live_columns, [], sort)
+    except InvalidQueryError:
+        sort = RecordSort()
+    grouping = live.get(config.group_by) if config.group_by is not None else None
     return TableViewConfig(
-        filters=[item for item in config.filters if item.column_id in live],
+        filters=filters,
         search=config.search,
-        sort=RecordSort() if _names_a_dead_column(config.sort.by, live) else config.sort,
+        sort=sort,
         visible_columns=visible,
-        group_by=config.group_by if config.group_by in live else None,
+        group_by=grouping.id if grouping is not None and grouping.type == "single_select" else None,
     )
 
 
@@ -167,7 +172,9 @@ def _view_not_found(view_id: UUID) -> NotFoundError:
     return NotFoundError(message="View not found", details={"view_id": view_id})
 
 
-def _read(view: TableView, *, live: set[UUID], can_manage: bool, can_delete: bool) -> TableViewRead:
+def _read(
+    view: TableView, *, columns: list[ColumnDef], can_manage: bool, can_delete: bool
+) -> TableViewRead:
     return TableViewRead(
         id=view.id,
         table_id=view.table_id,
@@ -175,7 +182,7 @@ def _read(view: TableView, *, live: set[UUID], can_manage: bool, can_delete: boo
         name=view.name,
         kind=cast(ViewKind, view.kind),
         visibility=cast(ViewVisibility, view.visibility),
-        config=_live_config(view, live),
+        config=_live_config(view, columns),
         can_manage=can_manage,
         can_delete=can_delete,
         created_at=view.created_at,
@@ -197,7 +204,7 @@ class TableViewOperations(Operations):
     ) -> TableViewList:
         """The caller's own views plus the shared ones, under this table: one page, own first."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
-        live = await self._live_column_ids(table)
+        live = await self._live_columns(table)
         edits = await self._edits_table(ctx, table)
         views = await table_view_repo.list_visible(
             self.db,
@@ -258,7 +265,7 @@ class TableViewOperations(Operations):
             raise AlreadyExistsError(
                 message=f"A view named '{data.name}' already exists.", details={"name": data.name}
             ) from exc
-        return self._to_read(ctx, view, await self._live_column_ids(table), edits_table=True)
+        return self._to_read(ctx, view, await self._live_columns(table), edits_table=True)
 
     async def get_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> TableViewRead:
         """One view, if the caller may see the table and either owns it or it is shared."""
@@ -267,7 +274,7 @@ class TableViewOperations(Operations):
         return self._to_read(
             ctx,
             view,
-            await self._live_column_ids(table),
+            await self._live_columns(table),
             edits_table=await self._edits_table(ctx, table),
         )
 
@@ -324,7 +331,7 @@ class TableViewOperations(Operations):
                     message=f"A view named '{new_name}' already exists.",
                     details={"name": new_name},
                 ) from exc
-        return self._to_read(ctx, view, await self._live_column_ids(table), edits_table=True)
+        return self._to_read(ctx, view, await self._live_columns(table), edits_table=True)
 
     async def delete_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> None:
         """Delete a view. Refused (404) to anyone but its owner or a caller with `tables:edit` `ALL`.
@@ -375,7 +382,7 @@ class TableViewOperations(Operations):
         self, view: TableView, table: VirtualTable, *, deadline: ReadDeadline | None = None
     ) -> BoundView:
         columns = await self._columns(table, deadline=deadline)
-        config = _live_config(view, {column.id for column in columns if not column.archived})
+        config = _live_config(view, columns)
         stored = TableViewConfig.model_validate(view.config)
         return BoundView(
             view=view,
@@ -421,8 +428,8 @@ class TableViewOperations(Operations):
     def _visible_to(ctx: AuthContext, view: TableView) -> bool:
         return view.visibility == "shared" or view.owner_user_id == ctx.subject_id
 
-    async def _live_column_ids(self, table: VirtualTable) -> set[UUID]:
-        return {column.id for column in await self._columns(table) if not column.archived}
+    async def _live_columns(self, table: VirtualTable) -> list[ColumnDef]:
+        return [column for column in await self._columns(table) if not column.archived]
 
     async def _edits_table(self, ctx: AuthContext, table: VirtualTable) -> bool:
         """Whether the caller holds `tables:edit` on the table - what changing a view needs."""
@@ -430,7 +437,9 @@ class TableViewOperations(Operations):
 
     @staticmethod
     def _to_read(
-        ctx: AuthContext, view: TableView, live: set[UUID], *, edits_table: bool
+        ctx: AuthContext, view: TableView, live: list[ColumnDef], *, edits_table: bool
     ) -> TableViewRead:
         may_manage = _may_manage(ctx, view)
-        return _read(view, live=live, can_manage=may_manage and edits_table, can_delete=may_manage)
+        return _read(
+            view, columns=live, can_manage=may_manage and edits_table, can_delete=may_manage
+        )

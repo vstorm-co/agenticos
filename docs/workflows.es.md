@@ -1,5 +1,5 @@
 ---
-source_sha: "07482418ac7a"
+source_sha: "30d45b84994b"
 ---
 
 # Workflows { #workflows }
@@ -445,6 +445,13 @@ the latest saved draft.* Eliges:
 - **Reload** — descarta tus ediciones sin guardar y toma el último draft guardado.
 
 ## Publicar una versión y el historial de versiones { #publishing-a-version-and-version-history }
+
+Configurar la autoridad de ejecución desatendida requiere una sesión de miembro: publicar un disparador de webhook, programación, tabla, formulario, GitHub, correo o canal, activar su exposición, rotar su secreto o enlace de formulario, cambiar su programación y elegir un workflow de errores. Las claves API de organización pueden publicar workflows manuales, iniciar ejecuciones permitidas y pausar automatizaciones; no pueden conservar la autoridad del usuario que emitió la clave para eventos futuros. En instalaciones preliminares, vuelve a publicar la automatización existente desde una sesión de miembro de confianza; los registros históricos no conservan la procedencia de la clave de publicación.
+
+Los pasos MCP comprueban la visibilidad actual de la conexión, el acceso por grupos y permisos sobre el recurso y `allowed_tools` al publicar y ejecutar. Una lista vacía no permite herramientas. Retirar el acceso después de publicar bloquea la ejecución antes de leer credenciales o contactar con el servidor.
+
+La extracción DOCX procesa el XML del documento como flujo y se detiene en el límite de caracteres configurado, con descompresión y anidamiento limitados. El límite se aplica sin construir todo el árbol del documento.
+
 
 El historial carga 50 entradas de metadatos cada vez; **More** solicita versiones
 anteriores. La API acepta `before` y `limit` (1–100), devolviendo `next_before`

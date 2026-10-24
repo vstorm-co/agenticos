@@ -145,7 +145,10 @@ function ToolField({
   const { connections, isLoading, test } = useOrgMcpConnections();
   const [testing, setTesting] = useState(false);
   const connection = connections.find((one) => one.id === connectionId) ?? null;
-  const offered = connection?.last_tools ?? null;
+  const offered =
+    connection?.last_tools?.filter(
+      (entry) => !connection.allowed_tools || connection.allowed_tools.includes(entry.name),
+    ) ?? null;
   // A tool the step names but the list no longer has stays a choice, so the
   // select shows what is set rather than going blank.
   const tools =
@@ -247,6 +250,9 @@ export function useMcpToolSchema(
     queryFn: listOrgMcpConnections,
     enabled: connectionId !== null && can(Perm.mcpManage),
   });
-  const offered = connections.find((one) => one.id === connectionId)?.last_tools ?? [];
+  const connection = connections.find((one) => one.id === connectionId);
+  const offered = (connection?.last_tools ?? []).filter(
+    (entry) => !connection?.allowed_tools || connection.allowed_tools.includes(entry.name),
+  );
   return offered.find((one) => one.name === tool)?.input_schema ?? null;
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "07482418ac7a"
+source_sha: "30d45b84994b"
 ---
 
 # Workflows { #workflows }
@@ -474,6 +474,13 @@ changes; reload replaces them with the latest saved draft.* Sie wählen:
   zuletzt gespeicherten Draft.
 
 ## Eine Version veröffentlichen und die Versionshistorie { #publishing-a-version-and-version-history }
+
+Die Konfiguration unbeaufsichtigter Ausführungsrechte erfordert eine Mitgliedssitzung: Veröffentlichung eines Webhook-, Zeitplan-, Tabellen-, Formular-, GitHub-, E-Mail- oder Kanal-Triggers, Aktivierung seiner Exposition, Rotation seines Geheimnisses oder Formularlinks, Zeitplanänderungen und Auswahl eines Fehler-Workflows. Organisations-API-Schlüssel können manuelle Workflows veröffentlichen, erlaubte Ausführungen starten und Automatisierungen pausieren; sie dürfen die Benutzerrechte ihres Ausstellers nicht für spätere Ereignisse hinterlegen. Bestehende Automatisierungen einer Vorabinstallation müssen aus einer vertrauenswürdigen Mitgliedssitzung erneut veröffentlicht werden; historische Datensätze speichern die Herkunft des veröffentlichenden Schlüssels nicht.
+
+MCP-Schritte prüfen bei Veröffentlichung und Ausführung die aktuelle Sichtbarkeit der Verbindung, Gruppen- und Ressourcenrechte sowie `allowed_tools`. Eine leere Liste erlaubt keine Werkzeuge. Nachträglich entzogener Zugriff verhindert die Ausführung vor dem Lesen von Zugangsdaten und vor einem Serveraufruf.
+
+Die DOCX-Extraktion liest Dokument-XML als Datenstrom und stoppt am konfigurierten Zeichenlimit; Entpackung und Verschachtelung sind ebenfalls begrenzt. Das Limit greift ohne Aufbau des vollständigen Dokumentbaums.
+
 
 Der Verlauf lädt jeweils 50 Metadateneinträge; **More** lädt ältere Versionen.
 Die API akzeptiert `before` und `limit` (1–100) und liefert `next_before`, bis

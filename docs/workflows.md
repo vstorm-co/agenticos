@@ -420,6 +420,13 @@ latest saved draft.* You choose:
 
 ## Publishing a version and version history { #publishing-a-version-and-version-history }
 
+Configuring unattended authority requires a member session: publishing a webhook, schedule, table, form, GitHub, email or channel trigger, enabling its exposure, rotating its secret or form link, changing its schedule, and choosing an error workflow. Organization API keys can publish manual workflows, start permitted runs and pause automation; they cannot retain their issuer's user authority for future events. For pre-release installations with existing automation, republish from a trusted member session; historical rows do not record the publishing key's provenance.
+
+MCP steps enforce the connection's current visibility, group/resource access and `allowed_tools` at publication and dispatch. An empty allowlist permits no tools. Withdrawing access after publication refuses execution before credentials are read or a server is contacted.
+
+DOCX extraction streams document XML and stops at the configured character budget, with bounded archive expansion and nesting. It does not build the complete document tree before enforcing that budget.
+
+
 Version history loads 50 metadata entries at a time; **More** requests older
 versions. The API accepts `before` and `limit` (1–100), returning `next_before`
 until there are no older versions. Graphs are fetched only when opening a version.

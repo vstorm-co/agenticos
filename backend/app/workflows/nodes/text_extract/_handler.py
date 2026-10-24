@@ -70,7 +70,9 @@ def _extract(data: bytes, source: SourceFormat, max_chars: int) -> TextExtractOu
             page_count=len(extracted.pages),
         )
     if source == "docx":
-        return TextExtractOutput(text=_documents.docx_text(data), source_format="docx")
+        return TextExtractOutput(
+            text=_documents.docx_text(data, max_chars=max_chars), source_format="docx"
+        )
     return TextExtractOutput(text=utf8(data), source_format=source)
 
 

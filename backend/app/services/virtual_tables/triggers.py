@@ -62,6 +62,7 @@ from app.services.access import TABLE, WORKFLOW, resolve_access
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.presentation import readable
 from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem, validate_filter
+from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowBudgetReachedError,
@@ -169,6 +170,7 @@ class TableTriggerService(Operations):
             TableArchivedError: The table is archived.
             BadRequestError: A filter names no live column or misfits its type.
         """
+        require_human_publisher(ctx)
         table = await self._load_table(ctx, config.table.table_id, Perm.TABLES_VIEW, lock=True)
         self._ensure_live(table)
         filters = _checked_filters(await self._columns(table), config.filters)
@@ -245,6 +247,8 @@ class TableTriggerService(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
         trigger = await self._trigger(ctx, table.id, trigger_id)
+        if data.is_active:
+            require_human_publisher(ctx)
         changes: dict[str, Any] = {"is_active": data.is_active}
         if data.is_active and not trigger.is_active:
             changes["activated_at"] = trigger_repo.activation_time()
@@ -274,6 +278,8 @@ class TableTriggerService(Operations):
         )
         if trigger is None:
             return None
+        if active:
+            require_human_publisher(ctx)
         if trigger.is_active == active:
             return active
         changes: dict[str, Any] = {"is_active": active}

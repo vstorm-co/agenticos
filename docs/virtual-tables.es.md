@@ -1,5 +1,5 @@
 ---
-source_sha: "87e2e024cd58"
+source_sha: "bac6fa739491"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -509,6 +509,11 @@ impide por ello un cambio de tabla: una página no es una dependencia que bloque
 `share_view` ya no existe; no hay una vista privada que compartir para una página.
 
 ## Triggers { #triggers }
+
+Las columnas Kanban cargan 25 tarjetas por página. **Load more** conserva las tarjetas existentes; un error de página permite reintentar. Los cambios de agrupación pueden guardarse en la vista activa. Al leer una vista privada después de que otro miembro cambie los tipos de columna, se eliminan filtros, ordenación y agrupación incompatibles de la respuesta sin reescribir la vista guardada de su propietario. Una consulta de página que pierda un filtro requiere renovar el consentimiento.
+
+Los eventos de tabla usan el reloj real al insertarse después del bloqueo de mutación, coherente con la activación del disparador. Una transacción iniciada antes de la activación puede producir un evento posterior válido. La migración `0221_table_event_wall_clock.py` cambia las marcas futuras; no reproduce eventos omitidos anteriormente, lo que podría duplicar efectos.
+
 
 Un [workflow](workflows.md#when-a-table-record-is-added) cuyo nodo trigger es **Table
 record** se ejecuta, una vez publicado, por lo que les pasa a los registros de su

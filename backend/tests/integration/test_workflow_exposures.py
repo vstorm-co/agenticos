@@ -33,7 +33,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.conversation import Conversation, Message
@@ -41,7 +41,7 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
-from app.db.models.workflow import Workflow, WorkflowStatus
+from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_exposure import WorkflowExposure, WorkflowWebhookDelivery
 from app.db.models.workflow_run import (
     WorkflowRun,
@@ -50,6 +50,7 @@ from app.db.models.workflow_run import (
     WorkflowRunTrigger,
 )
 from app.main import app
+from app.schemas.api_key import ApiKeyCreate
 from app.schemas.conversation import MessageRead
 from app.schemas.workflow import WorkflowPublish, WorkflowPublished
 from app.schemas.workflow_exposure import (
@@ -59,6 +60,7 @@ from app.schemas.workflow_exposure import (
     WorkflowExposureUpdate,
     WorkflowFormSubmission,
 )
+from app.services.api_key import ApiKeyService
 from app.services.channels.base import IncomingMessage
 from app.services.portals import PolledEvent, RegisteredWebhook, WebhookRegistrationForbidden
 from app.services.workflow_execution import WorkflowExecutionService
@@ -2051,3 +2053,134 @@ async def test_background_exposure_rechecks_current_app_admin_authority(db, tena
     owner.is_app_admin = False
     await db.flush()
     assert await service._fire_context(exposure) is None
+
+
+async def _workflow_key(db: AsyncSession, owner: User, org: Organization) -> AuthContext:
+    created = await ApiKeyService(db).create(
+        _ctx(owner, org),
+        ApiKeyCreate(
+            name="workflow automation",
+            scopes=[Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_EDIT, Perm.WORKFLOWS_RUN],
+        ),
+    )
+    return (await ApiKeyService(db).authenticate(created.key)).context
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "trigger",
+    [
+        "trigger.webhook",
+        "trigger.schedule",
+        "trigger.form",
+        "trigger.github",
+        "trigger.gmail",
+        "trigger.channel_message",
+        "trigger.table_record",
+    ],
+)
+async def test_keys_cannot_publish_unattended_user_authority_or_create_a_version(db, trigger):
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    workflow = await _workflow(db, org=org, owner=owner)
+    key_ctx = await _workflow_key(db, owner, org)
+    with pytest.raises(AuthorizationError, match="member session"):
+        await _publish(db, key_ctx, workflow, _graph(trigger))
+    assert (await db.scalars(select(WorkflowVersion))).all() == []
+    assert (await db.scalars(select(WorkflowExposure))).all() == []
+    assert workflow.current_version_id is None
+
+
+@pytest.mark.security
+async def test_a_key_can_still_publish_a_workflow_that_runs_as_its_present_caller(db):
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    workflow = await _workflow(db, org=org, owner=owner)
+    key_ctx = await _workflow_key(db, owner, org)
+    published = await _publish(db, key_ctx, workflow, _graph("core.input"))
+    assert published.version == 1
+    assert (await db.scalars(select(WorkflowExposure))).all() == []
+
+
+@pytest.mark.security
+async def test_a_key_can_pause_but_cannot_reenable_rotate_or_retime_human_exposures(db):
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    workflow = await _workflow(db, org=org, owner=owner)
+    published = await _publish(db, _ctx(owner, org), workflow, _graph("trigger.webhook"))
+    assert published.exposure is not None
+    key_ctx = await _workflow_key(db, owner, org)
+    service = WorkflowExposureService(db)
+    await service.set_active(
+        key_ctx, workflow.id, published.exposure.id, WorkflowExposureUpdate(is_active=False)
+    )
+    with pytest.raises(AuthorizationError):
+        await service.set_active(
+            key_ctx, workflow.id, published.exposure.id, WorkflowExposureUpdate(is_active=True)
+        )
+    with pytest.raises(AuthorizationError):
+        await service.rotate_secret(key_ctx, workflow.id, published.exposure.id)
+    form = await _workflow(db, org=org, owner=owner)
+    form_published = await _publish(db, _ctx(owner, org), form, _graph("trigger.form", FORM))
+    assert form_published.exposure is not None
+    with pytest.raises(AuthorizationError):
+        await service.renew_form_link(key_ctx, form.id, form_published.exposure.id)
+    scheduled = await _workflow(db, org=org, owner=owner)
+    await _publish(db, _ctx(owner, org), scheduled, _graph("trigger.schedule", HOURLY))
+    scheduled.settings = {"timezone": "Europe/Warsaw"}
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await service.retime(key_ctx, scheduled)
+
+
+@pytest.mark.security
+async def test_an_api_key_draft_with_a_missing_entry_keeps_the_graph_refusal(db):
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    workflow = await _workflow(db, org=org, owner=owner)
+    key_ctx = await _workflow_key(db, owner, org)
+    graph = _graph().model_copy(update={"entry_node_id": uuid.uuid4()})
+    from app.workflows.graph.errors import GraphValidationError
+
+    with pytest.raises(GraphValidationError):
+        await _publish(db, key_ctx, workflow, graph)
+    assert (await db.scalars(select(WorkflowVersion))).all() == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("chunked", [False, True])
+async def test_a_form_link_is_not_needed_to_get_the_streaming_body_ceiling(
+    http, monkeypatch, chunked
+):
+    client, _workflow_id, _factory = http
+    monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", 64)
+    parsed = MagicMock(side_effect=AssertionError("An oversized form must not be parsed"))
+    monkeypatch.setattr(WorkflowFormSubmission, "model_validate_json", parsed)
+    seen: list[int] = []
+
+    async def pieces() -> AsyncIterator[bytes]:
+        for index, part in enumerate([b'{"values":', b"x" * 65, b"never needed"]):
+            seen.append(index)
+            yield part
+
+    response = await client.post(
+        f"{settings.API_V1_STR}/public/workflow-forms/not-a-form",
+        content=pieces() if chunked else b"x" * 100,
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "WORKFLOW_RUN_INPUT_TOO_LARGE"
+    parsed.assert_not_called()
+    if chunked:
+        assert seen == [0, 1]
+
+
+@pytest.mark.parametrize("body", [b"{", b'{"website": 123}'])
+async def test_a_small_invalid_form_body_is_a_validation_refusal(http, body):
+    client, _workflow_id, _factory = http
+    response = await client.post(
+        f"{settings.API_V1_STR}/public/workflow-forms/not-a-form",
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422

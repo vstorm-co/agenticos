@@ -31,15 +31,15 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, Valid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.mcp import carries_base_exception, mcp_session, probe_error_message
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm, role_has
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.db.session import get_worker_db_context
-from app.repositories import mcp_connection_repo
 from app.repositories import member as member_repo
 from app.repositories import workflow_approval as approval_repo
-from app.services.mcp_connection import resolve_auth_headers
+from app.services.mcp_connection import McpConnectionService, resolve_auth_headers
 from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
@@ -127,11 +127,12 @@ class McpCallOutput(BaseModel):
 
 
 async def _connection(
-    db: AsyncSession, organization_id: UUID, connection_id: UUID
+    db: AsyncSession, ctx: AuthContext, connection_id: UUID
 ) -> McpConnection | None:
-    return await mcp_connection_repo.get_org_scoped_by_id(
-        db, connection_id=connection_id, organization_id=organization_id
-    )
+    try:
+        return await McpConnectionService(db).get_org_connection(ctx, connection_id)
+    except NotFoundError:
+        return None
 
 
 async def check_resources(
@@ -141,11 +142,13 @@ async def check_resources(
     if not isinstance(config, McpCallConfig):
         return []
     problems: list[tuple[str, str]] = []
-    connection = await _connection(db, ctx.organization_id, config.connection_id)
+    connection = await _connection(db, ctx, config.connection_id)
     if connection is None:
         problems.append(("connection_id", "This is not one of the organization's MCP servers"))
     elif not connection.is_enabled:
         problems.append(("connection_id", "This MCP server is turned off"))
+    elif connection.allowed_tools is not None and config.tool not in connection.allowed_tools:
+        problems.append(("tool", "This tool is not allowed on this MCP connection"))
     elif connection.last_tools is not None and config.tool not in {
         tool.get("name") for tool in connection.last_tools
     }:
@@ -337,12 +340,18 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     arguments = node_input.arguments if isinstance(node_input, McpCallInput) else None
     current = context.current()
     async with get_worker_db_context() as db:
-        connection = await _connection(db, current.organization_id, config.connection_id)
+        connection = await _connection(db, current.auth, config.connection_id)
         if connection is None or not connection.is_enabled:
             return _failed(
                 "MCP_SERVER_UNAVAILABLE",
                 "The MCP server is gone or turned off",
                 connection_id=str(config.connection_id),
+            )
+        if connection.allowed_tools is not None and config.tool not in connection.allowed_tools:
+            return _failed(
+                "MCP_TOOL_NOT_ALLOWED",
+                "This tool is not allowed on this MCP connection",
+                tool=config.tool,
             )
         headers = await resolve_auth_headers(db, connection)
         if headers is None:

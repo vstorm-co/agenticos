@@ -8821,7 +8821,8 @@
       "moreAvailable": "Weitere Datensätze verfügbar",
       "needsGroupingColumn": "Diese Ansicht benötigt eine Einzelauswahl-Gruppierungsspalte, um ein Board anzuzeigen.",
       "noValue": "Kein Wert",
-      "archivedLane": "Archiviert"
+      "archivedLane": "Archiviert",
+      "loadMore": "Weitere laden"
     },
     "grid": {
       "selectAll": "Alle Zeilen dieser Seite auswählen",

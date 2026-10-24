@@ -567,6 +567,28 @@ describe("the table detail page", () => {
       });
     });
 
+    it("saves a changed Kanban grouping into the active view", async () => {
+      const fixture = views();
+      fixture.items = fixture.items.map((view) => ({
+        ...view,
+        config: { ...view.config, group_by: null },
+      }));
+      serve({ viewsFixture: fixture });
+      arriveAt("view=kanban&viewId=v-kanban");
+      vi.mocked(apiClient.patch).mockResolvedValueOnce({});
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByRole("combobox", { name: "Group by" });
+      await user.click(screen.getByRole("combobox", { name: "Group by" }));
+      await user.click(screen.getByRole("option", { name: "Status" }));
+      await user.click(screen.getByRole("button", { name: "Save view" }));
+      await waitFor(() =>
+        expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/views/v-kanban", {
+          config: { ...emptyConfig, group_by: "c2" },
+        }),
+      );
+    });
+
     it("says so when saving the view is refused", async () => {
       serve();
       arriveAt("viewId=v-table");

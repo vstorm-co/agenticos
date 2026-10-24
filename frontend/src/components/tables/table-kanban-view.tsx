@@ -13,7 +13,9 @@ import {
   DropdownMenuTrigger,
   Skeleton,
 } from "@/components/ui";
-import { useTableRecords } from "@/hooks";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
+import { queryRecords } from "@/lib/tables-api";
 import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { getErrorMessage } from "@/lib/api-error";
 import { recordCellText } from "@/lib/format-cell-value";
@@ -192,13 +194,25 @@ function KanbanLane({
   const filter = laneFilter(groupBy, lane, archivedOptionIds);
   const skipLane = lane.archived === true && filter === null;
   const filters = filter ? [...baseFilters, filter] : baseFilters;
-  const { records, hasMore, isLoading } = useTableRecords(skipLane ? null : tableId, {
-    filters,
-    search,
-    sort,
-    skip: 0,
-    limit: LANE_PAGE_SIZE,
-  });
+  const query = { filters, search, sort, limit: LANE_PAGE_SIZE };
+  const { data, isLoading, error, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: qk.tables.recordsInfinite(tableId, query),
+      queryFn: ({ pageParam }) => queryRecords(tableId, { ...query, skip: pageParam }),
+      enabled: !skipLane,
+      initialPageParam: 0,
+      getNextPageParam: (last) =>
+        last.has_more && last.skip + LANE_PAGE_SIZE <= 10_000
+          ? last.skip + LANE_PAGE_SIZE
+          : undefined,
+    });
+  const deleting = useTableViewStore((state) => state.deleting);
+  const records = (data?.pages ?? [])
+    .flatMap((page) => page.items)
+    .filter((record) => !deleting[record.id]);
+  const truncated = data?.pages.at(-1)?.has_more && !hasNextPage;
+  const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const t = useTranslations("tables.kanban");
   // The store keys conflicts by record and field, shared with the record
   // detail sheet. Only a conflict on *this* grouping column is the board's to
@@ -216,7 +230,7 @@ function KanbanLane({
       </div>
       <div className="min-h-16 space-y-2">
         {isLoading && records.length === 0 && <Skeleton className="h-16 w-full" />}
-        {!isLoading && records.length === 0 && (
+        {!isLoading && !error && records.length === 0 && (
           <p className="text-muted-foreground px-1 text-xs">{t("empty")}</p>
         )}
         {records.map((record) => (
@@ -239,7 +253,35 @@ function KanbanLane({
           />
         ))}
       </div>
-      {hasMore && <p className="text-muted-foreground px-1 text-xs">{t("moreAvailable")}</p>}
+      {error && (
+        <p role="alert" className="text-destructive px-1 text-xs">
+          {getErrorMessage(error, tErrors)}
+        </p>
+      )}
+      {error && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            void (data ? fetchNextPage() : refetch());
+          }}
+        >
+          {tc("retry")}
+        </Button>
+      )}
+      {!error && hasNextPage && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={isFetchingNextPage}
+          onClick={() => {
+            void fetchNextPage();
+          }}
+        >
+          {isFetchingNextPage ? tc("loading") : t("loadMore")}
+        </Button>
+      )}
+      {truncated && <p className="text-muted-foreground px-1 text-xs">{t("moreAvailable")}</p>}
     </div>
   );
 }

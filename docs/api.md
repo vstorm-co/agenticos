@@ -330,6 +330,11 @@ allowance `POST /workflow-runs` does, and past it gets `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks and schedules { #workflow-webhooks-and-schedules }
 
+Unattended trigger publication and authority changes require a member session (`403` for an organization API key). Keys may publish manual workflows, start runs within their scopes and pause exposures, but cannot enable them, rotate secrets/form links, retime schedules or choose a new error-workflow identity. These operations retain a user's authority for future events.
+
+Public workflow form submissions enforce the workflow input byte limit while reading the request stream, before JSON parsing or token lookup. Oversized declared or chunked bodies return `413`; malformed JSON and invalid submission fields return `422`.
+
+
 A workflow whose trigger node is a webhook or a schedule gets its exposure when
 that version is published, and the publish response carries it as `exposure`. A
 webhook's signing secret is in the publish's `webhook_secret` the first time it is

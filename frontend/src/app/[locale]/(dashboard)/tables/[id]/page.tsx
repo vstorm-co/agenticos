@@ -191,6 +191,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     setFilters(activeView?.config.filters ?? []);
     setSearchDraft(activeView?.config.search ?? "");
     setVisible(activeView?.config.visible_columns ?? null);
+    setGroupPick(null);
   }
 
   // A condition still being written narrows nothing yet.
@@ -237,7 +238,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const columns = liveColumns.filter((column) => visible === null || visible.includes(column.id));
   const hidden = liveColumns.filter((column) => !columns.includes(column));
   // What this screen shows now, against what the active view keeps.
-  const working = { filters: applied, search, sort, visible_columns: visible };
+  const working = {
+    filters: applied,
+    search,
+    sort,
+    visible_columns: visible,
+    group_by: tab === "kanban" ? groupBy : (activeView?.config.group_by ?? null),
+  };
   const groupable = liveColumns.filter((column) => column.type === "single_select");
   const VisibilityIcon = VISIBILITY_ICON[table.visibility];
   const unsaved =
@@ -249,6 +256,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         search: activeView.config.search ?? null,
         sort: activeView.config.sort,
         visible_columns: activeView.config.visible_columns,
+        group_by: activeView.config.group_by ?? null,
       });
 
   /** Save what the screen shows - its records, in its order, its columns - as a CSV file. */

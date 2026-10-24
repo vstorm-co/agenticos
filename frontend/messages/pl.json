@@ -9471,7 +9471,8 @@
       "moreAvailable": "Dostępne są kolejne rekordy",
       "needsGroupingColumn": "Ten widok potrzebuje kolumny grupującej typu wybór pojedynczy, aby pokazać tablicę.",
       "noValue": "Brak wartości",
-      "archivedLane": "Zarchiwizowane"
+      "archivedLane": "Zarchiwizowane",
+      "loadMore": "Wczytaj więcej"
     },
     "grid": {
       "selectAll": "Zaznacz wszystkie wiersze na tej stronie",

@@ -457,7 +457,7 @@ class TestExtractingText:
             (encrypted, "application/pdf", "DOCUMENT_ENCRYPTED"),
             (b"%PDF-1.7 truncated", "application/pdf", "DOCUMENT_CORRUPT"),
             (b"PK\x03\x04 broken", files.DOCX, "DOCUMENT_CORRUPT"),
-            # A sound ZIP that is not a Word document: python-docx refuses it.
+            # A sound ZIP without the required Word package parts is refused.
             (_zip({"notes.txt": b"hello"}), files.DOCX, "DOCUMENT_CORRUPT"),
             (b"\xff\xfe", "text/plain", "DOCUMENT_CORRUPT"),
             (b"\x89PNG\r\n\x1a\n", "image/png", "UNSUPPORTED_FORMAT"),
@@ -471,7 +471,7 @@ class TestExtractingText:
         self, engine, storage, monkeypatch
     ):
         """A small file can hold a huge compressed part: the member bound a chat
-        upload has is applied before python-docx expands any of it."""
+        upload has is applied before extracting the document text."""
         monkeypatch.setattr(settings, "CHAT_ARCHIVE_MEMBER_MAX_BYTES", 64 * 1024)
         # Highly compressible: well under a kilobyte on disk, a megabyte unpacked.
         data = _docx("A" * 1_000_000)

@@ -20,6 +20,7 @@ from mcp.types import (
 
 from app.core.permissions import AuthContext
 from app.db.models.workflow_approval import WorkflowApprovalStatus
+from app.repositories import mcp_connection_repo
 from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, Waiting
 from app.workflows.nodes.mcp_call import _handler as node
@@ -62,6 +63,8 @@ class _Server:
             name="crm",
             label="Acme CRM",
             is_enabled=True,
+            visibility="org",
+            allowed_tools=None,
             last_tools=[{"name": "find_lead"}, {"name": "create_lead"}],
         )
     )
@@ -121,7 +124,7 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
     monkeypatch.setattr(node, "get_worker_db_context", worker_session)
     monkeypatch.setattr(node, "mcp_session", mcp_session)
     monkeypatch.setattr(
-        node.mcp_connection_repo,
+        mcp_connection_repo,
         "get_org_scoped_by_id",
         AsyncMock(side_effect=lambda _db, **_kw: state.connection),
     )
@@ -199,6 +202,7 @@ async def test_asking_for_every_call_asks_before_even_a_read(server):
 
 
 async def test_never_asking_calls_a_write_straight_away(server):
+    server.connection.allowed_tools = ["create_lead"]
     result = await _run(_config("create_lead", approval="none"))
 
     assert isinstance(result, Completed)
@@ -244,7 +248,7 @@ async def test_a_tool_the_server_does_not_offer_fails_rather_than_asking(server)
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("connection", [None, SimpleNamespace(is_enabled=False)])
+@pytest.mark.parametrize("connection", [None, SimpleNamespace(is_enabled=False, visibility="org")])
 async def test_a_server_that_is_not_the_organizations_or_is_off_is_not_reached(server, connection):
     server.connection = connection
 
@@ -352,12 +356,17 @@ class TestPublishing:
     @pytest.fixture
     def found(self, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         state = SimpleNamespace(
-            connection=SimpleNamespace(is_enabled=True, last_tools=[{"name": "find_lead"}]),
+            connection=SimpleNamespace(
+                is_enabled=True,
+                visibility="org",
+                allowed_tools=None,
+                last_tools=[{"name": "find_lead"}],
+            ),
             members={APPROVER},
             role="owner",
         )
         monkeypatch.setattr(
-            node.mcp_connection_repo,
+            mcp_connection_repo,
             "get_org_scoped_by_id",
             AsyncMock(side_effect=lambda _db, **_kw: state.connection),
         )
@@ -503,3 +512,29 @@ async def test_an_unauthenticated_mcp_connection_preserves_ordinary_tool_output(
     assert result.output.text == "Public information"
     assert result.output.structured == {"rows": [True, 42, None, "public"]}
     assert server.opened_with == [("https://mcp.example.com/mcp", {})]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("allowed", [[], ["find_lead"]])
+async def test_a_tool_outside_the_connections_allowlist_never_unseals_credentials(
+    server, allowed, monkeypatch
+):
+    server.connection.allowed_tools = allowed
+    headers = AsyncMock(
+        side_effect=AssertionError("An unauthorized tool must not unseal credentials")
+    )
+    monkeypatch.setattr(node, "resolve_auth_headers", headers)
+    with context.dispatching_as(_dispatch()):
+        result = await node.handle(_config("create_lead", approval="none"), None)
+    assert isinstance(result, Failed) and result.error.code == "MCP_TOOL_NOT_ALLOWED"
+    assert server.calls == server.opened_with == []
+    headers.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_publish_refuses_a_cached_tool_outside_the_connections_allowlist(server):
+    server.connection.allowed_tools = []
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+    assert await node.check_resources(MagicMock(), ctx, _config()) == [
+        ("tool", "This tool is not allowed on this MCP connection")
+    ]

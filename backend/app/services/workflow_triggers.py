@@ -33,6 +33,7 @@ from app.repositories import workflow_exposure as workflow_exposure_repo
 from app.schemas.workflow_exposure import WorkflowExposureRead, WorkflowExposureUpdate
 from app.services.access import WORKFLOW, resolve_access
 from app.services.virtual_tables.triggers import TableTriggerService
+from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_exposure import WorkflowExposureService
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import ScheduleTriggerConfig, TableRecordTriggerConfig
@@ -45,12 +46,10 @@ from app.workflows.triggers import (
     GMAIL,
     SCHEDULE,
     TABLE_RECORD,
+    UNATTENDED,
     WEBHOOK,
     live_trigger,
 )
-
-# The triggers nobody is present for: each fire acts as the publisher.
-_UNATTENDED = frozenset({WEBHOOK, GITHUB, SCHEDULE, TABLE_RECORD, FORM, CHANNEL_MESSAGE, GMAIL})
 
 
 @dataclass(frozen=True)
@@ -89,7 +88,9 @@ class WorkflowTriggerSync:
             BadRequestError: A Gmail trigger, and no mailbox connected.
         """
         trigger = live_trigger(graph)
-        if trigger in _UNATTENDED and not await resolve_access(
+        if trigger in UNATTENDED:
+            require_human_publisher(ctx)
+        if trigger in UNATTENDED and not await resolve_access(
             self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
         ):
             raise AuthorizationError(

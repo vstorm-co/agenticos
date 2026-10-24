@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Require member consent when publishing or enabling unattended workflow triggers;
+  enforce current MCP visibility and tool allowlists at publish and dispatch.
+- Bound public form request streams and DOCX XML extraction before materialization.
+  Keep private views usable after column retyping, save Kanban grouping, load more
+  cards per lane and timestamp table events against trigger activation's wall clock.
+
 - Load complete skill/context choices for inline workflow agents, reject unusable
   eval inputs and clean up partial PDF/sandbox file batches after failure.
 

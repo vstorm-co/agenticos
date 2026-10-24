@@ -96,6 +96,14 @@ describe("McpToolField", () => {
     expect(onChange).toHaveBeenCalledWith({ connectionId: "c1", tool: "create_contact" });
   });
 
+  it("offers only tools permitted by the connection allowlist", async () => {
+    state.connections = [connection({ allowed_tools: ["find_contact"] })];
+    renderField();
+    await userEvent.click(screen.getByRole("combobox", { name: "Tool" }));
+    expect(screen.getByRole("option", { name: /find_contact/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /create_contact/ })).not.toBeInTheDocument();
+  });
+
   it("keeps a tool the list no longer has as the choice shown", () => {
     renderField({ tool: "retired_tool" });
 
@@ -197,6 +205,20 @@ describe("useMcpToolSchema", () => {
     listed.list.mockResolvedValue([
       connection({ last_tools: [{ name: "find_contact", description: "", input_schema: schema }] }),
     ]);
+  });
+
+  it("selects schemas only among the connection's allowed tools", async () => {
+    listed.list.mockResolvedValue([
+      connection({
+        allowed_tools: ["other"],
+        last_tools: [
+          { name: "find_contact", description: "", input_schema: { type: "string" } },
+          { name: "other", description: "", input_schema: schema },
+        ],
+      }),
+    ]);
+    const { result } = renderSchema("c1", "other");
+    await waitFor(() => expect(result.current).toEqual(schema));
   });
 
   it("reads the chosen tool's argument schema from the server's last list", async () => {

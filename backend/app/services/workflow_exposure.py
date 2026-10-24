@@ -67,6 +67,7 @@ from app.services.access import WORKFLOW, resolve_access
 from app.services.agent_trigger import _next_fire
 from app.services.channels.base import IncomingMessage, split_thread
 from app.services.mcp_connection import McpConnectionService
+from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
@@ -486,6 +487,8 @@ class WorkflowExposureService:
         """
         workflow = await self._editable(ctx, workflow_id)
         exposure = await self._exposure(ctx, workflow, exposure_id)
+        if data.is_active:
+            require_human_publisher(ctx)
         changes: dict[str, Any] = {"is_active": data.is_active}
         if (
             data.is_active
@@ -516,6 +519,7 @@ class WorkflowExposureService:
             or exposure.timezone == timezone
         ):
             return
+        require_human_publisher(ctx)
         changes: dict[str, Any] = {"timezone": timezone}
         if exposure.is_active and exposure.schedule_kind == "cron":
             changes["next_fire_at"] = _next_fire(
@@ -556,6 +560,7 @@ class WorkflowExposureService:
         """
         workflow = await self._editable(ctx, workflow_id)
         exposure = await self._exposure(ctx, workflow, exposure_id)
+        require_human_publisher(ctx)
         if exposure.adapter not in (ExposureAdapter.WEBHOOK.value, ExposureAdapter.GITHUB.value):
             raise BadRequestError(
                 message="Only a webhook or a GitHub trigger has a signing secret",
@@ -593,6 +598,7 @@ class WorkflowExposureService:
         """
         workflow = await self._editable(ctx, workflow_id)
         exposure = await self._exposure(ctx, workflow, exposure_id)
+        require_human_publisher(ctx)
         if exposure.adapter != ExposureAdapter.FORM.value:
             raise BadRequestError(
                 message="Only a form has a link to replace",
@@ -1242,6 +1248,7 @@ class WorkflowExposureService:
     ) -> WorkflowExposure | None:
         """The workflow's exposure if it is this node's, of this kind - else none,
         after removing whatever other trigger's exposure the workflow had."""
+        require_human_publisher(ctx)
         exposure = await workflow_exposure_repo.get_for_workflow(
             self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
         )

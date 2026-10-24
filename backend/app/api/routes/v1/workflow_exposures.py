@@ -25,7 +25,9 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from pydantic import ValidationError
 
 from app.api.deps import (
     Auth,
@@ -200,11 +202,24 @@ async def get_workflow_form(token: str, service: WorkflowExposureSvc) -> Any:
     response_model=WorkflowFormSubmitted,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(limit_form_submission)],
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {"application/json": {"schema": WorkflowFormSubmission.model_json_schema()}},
+        }
+    },
 )
-async def submit_workflow_form(
-    token: str, data: WorkflowFormSubmission, service: WorkflowExposureSvc
-) -> Any:
+async def submit_workflow_form(token: str, request: Request, service: WorkflowExposureSvc) -> Any:
     """Start one run with the answers, as the form's publisher, and say the form's
     thanks. Answers that do not fit its fields are `422` with the fields that are
     wrong in `details.problems`, and start nothing."""
+    body = await read_workflow_body(request.stream())
+    try:
+        data = WorkflowFormSubmission.model_validate_json(body)
+    except ValidationError as exc:
+        problems = [
+            {**problem, "loc": ("body", *problem["loc"])}
+            for problem in exc.errors(include_url=False, include_input=False, include_context=False)
+        ]
+        raise RequestValidationError(problems) from exc
     return await service.submit_form(token, data)

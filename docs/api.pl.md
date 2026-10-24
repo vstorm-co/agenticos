@@ -1,5 +1,5 @@
 ---
-source_sha: "65a583c6aa80"
+source_sha: "01abee201e11"
 ---
 
 # API HTTP { #the-http-api }
@@ -337,6 +337,11 @@ sam limit na minutę co `POST /workflow-runs`, a po jego przekroczeniu dostaje
 `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooki i harmonogramy { #workflow-webhooks-and-schedules }
+
+Publikacja triggerów automatycznych i zmiany uprawnień ich wykonania wymagają sesji członka (`403` dla klucza API organizacji). Klucze mogą publikować ręczne workflow, rozpoczynać przebiegi w granicach scope i wstrzymywać ekspozycje, ale nie mogą ich włączać, rotować sekretów/linków formularzy, zmieniać harmonogramów ani wybierać nowej tożsamości workflow obsługi błędów. Te operacje zachowują uprawnienia użytkownika dla przyszłych zdarzeń.
+
+Publiczne formularze workflow egzekwują limit bajtów wejścia podczas czytania strumienia żądania, przed parsowaniem JSON i sprawdzeniem tokenu. Nadmierne body z zadeklarowanym rozmiarem lub chunked zwraca `413`; niepoprawny JSON i pola zgłoszenia zwracają `422`.
+
 
 Workflow, którego węzłem wyzwalacza jest webhook albo harmonogram, dostaje swoją
 ekspozycję przy publikacji tej wersji, a odpowiedź na publikację niesie ją jako

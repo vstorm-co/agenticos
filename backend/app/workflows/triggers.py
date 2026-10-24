@@ -25,6 +25,9 @@ BY_HAND = frozenset({API, MANUAL})
 """The triggers a person or a caller starts - from the editor, the runs page, the
 API or a WebSocket."""
 
+UNATTENDED = frozenset({WEBHOOK, GITHUB, SCHEDULE, TABLE_RECORD, FORM, CHANNEL_MESSAGE, GMAIL})
+"""Triggers retaining the human publisher's authority after the request ends."""
+
 DECLARES_FIELDS = frozenset({*BY_HAND, WORKFLOW_CALL, FORM})
 """The triggers that declare typed input fields, checked when a run starts."""
 

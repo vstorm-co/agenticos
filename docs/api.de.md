@@ -1,5 +1,5 @@
 ---
-source_sha: "65a583c6aa80"
+source_sha: "01abee201e11"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -368,6 +368,11 @@ Ein `start`-Frame verbraucht dasselbe Kontingent pro Minute wie `POST /workflow-
 bekommt darüber hinaus `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks und Zeitpläne { #workflow-webhooks-and-schedules }
+
+Die Veröffentlichung automatischer Trigger und Änderungen ihrer Ausführungsrechte erfordern eine Mitgliedssitzung (`403` für Organisations-API-Schlüssel). Schlüssel dürfen manuelle Workflows veröffentlichen, Ausführungen innerhalb ihrer Scopes starten und Expositionen pausieren, aber nicht aktivieren, Geheimnisse/Formularlinks rotieren, Zeitpläne ändern oder eine neue Fehler-Workflow-Identität wählen. Diese Vorgänge hinterlegen Benutzerrechte für spätere Ereignisse.
+
+Öffentliche Workflow-Formulare erzwingen das Eingabebyte-Limit beim Lesen des Anforderungsstroms, vor JSON-Parsing und Tokenprüfung. Zu große deklarierte oder in Chunks gesendete Inhalte liefern `413`; fehlerhaftes JSON und ungültige Formularfelder liefern `422`.
+
 
 Ein Workflow, dessen Trigger-Knoten ein Webhook oder ein Zeitplan ist, erhält seine
 Exposure, wenn diese Version veröffentlicht wird, und die Antwort der

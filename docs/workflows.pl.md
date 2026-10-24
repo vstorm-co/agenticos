@@ -1,5 +1,5 @@
 ---
-source_sha: "07482418ac7a"
+source_sha: "30d45b84994b"
 ---
 
 # Workflows { #workflows }
@@ -430,6 +430,13 @@ latest saved draft.* Wybierasz:
 - **Reload** — odrzuć niezapisane zmiany i weź ostatnio zapisany draft.
 
 ## Publikowanie wersji i historia wersji { #publishing-a-version-and-version-history }
+
+Konfiguracja uprawnień automatyzacji wymaga sesji członka: publikowanie triggera webhook, harmonogramu, tabeli, formularza, GitHub, e-mail lub kanału, włączanie jego ekspozycji, rotacja sekretu lub linku formularza, zmiana harmonogramu i wybór workflow obsługi błędów. Klucze API organizacji mogą publikować ręczne workflow, rozpoczynać dozwolone przebiegi i wstrzymywać automatyzację; nie mogą zachować uprawnień użytkownika wystawiającego klucz na przyszłe zdarzenia. W instalacji przedpremierowej istniejącą automatyzację opublikuj ponownie z zaufanej sesji członka; historyczne wiersze nie zapisują pochodzenia klucza publikującego.
+
+Kroki MCP sprawdzają aktualną widoczność połączenia, dostęp grup i granty do zasobu oraz `allowed_tools` przy publikacji i wykonaniu. Pusta lista nie pozwala na żadne narzędzia. Odebranie dostępu po publikacji blokuje wykonanie przed odczytem sekretów i kontaktem z serwerem.
+
+Ekstrakcja DOCX czyta XML strumieniowo i zatrzymuje się na skonfigurowanym limicie znaków, z ograniczeniem rozpakowania i zagnieżdżenia. Egzekwowanie limitu nie wymaga zbudowania całego drzewa dokumentu.
+
 
 Historia ładuje po 50 wpisów metadanych; **More** pobiera starsze wersje. API
 przyjmuje `before` i `limit` (1–100), zwracając `next_before`, dopóki istnieją

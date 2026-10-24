@@ -8938,7 +8938,8 @@
       "moreAvailable": "More records available",
       "needsGroupingColumn": "This view needs a single-select grouping column to show a board.",
       "noValue": "No value",
-      "archivedLane": "Archived"
+      "archivedLane": "Archived",
+      "loadMore": "Load more"
     },
     "grid": {
       "selectAll": "Select every row on this page",

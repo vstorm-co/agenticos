@@ -214,3 +214,77 @@ def test_every_workflow_file_name_fits_the_database(name, expected):
     from app.workflows.files import normalized_filename
 
     assert normalized_filename(name) == expected
+
+
+def _word_package(xml: bytes) -> bytes:
+    import io
+    import zipfile
+
+    result = io.BytesIO()
+    with zipfile.ZipFile(result, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", b"types")
+        archive.writestr("_rels/.rels", b"relations")
+        archive.writestr("word/document.xml", xml)
+    return result.getvalue()
+
+
+def _word_body(body: str) -> bytes:
+    return (
+        f'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>{body}</w:body></w:document>'
+    ).encode()
+
+
+@pytest.mark.security
+def test_docx_character_budget_stops_streaming_before_the_rest_of_the_xml(monkeypatch):
+    import zipfile
+
+    reads: list[int] = []
+    original = zipfile.ZipExtFile.read
+
+    def read(member: zipfile.ZipExtFile, size: int = -1) -> bytes:
+        if member.name == "word/document.xml" and size == 64 * 1024:
+            reads.append(size)
+        return original(member, size)
+
+    data = _word_package(_word_body("<w:p><w:r><w:t>" + "x" * 300_000 + "</w:t></w:r></w:p>"))
+    monkeypatch.setattr(zipfile.ZipExtFile, "read", read)
+    with pytest.raises(_documents.DocumentTextTooLong):
+        _documents.docx_text(data, max_chars=10)
+    assert reads == [64 * 1024]
+
+
+def test_streamed_word_text_preserves_paragraphs_links_and_run_controls():
+    data = _word_package(
+        _word_body("""
+      <w:p><w:r><w:t>A</w:t><w:tab/><w:ptab/><w:noBreakHyphen/><w:br/><w:cr/><w:br w:type="page"/><w:br w:type="column"/><w:rPr/></w:r><w:hyperlink><w:r><w:t>😀</w:t></w:r></w:hyperlink></w:p>
+      <w:tbl><w:tr><w:tc><w:p><w:r><w:t>ignored table</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+      <w:p/><w:p><w:r><w:t>Z</w:t></w:r></w:p>
+    """)
+    )
+    expected = "A\t\t-\n\n😀\n\nZ"
+    assert _documents.docx_text(data, max_chars=len(expected)) == expected
+    with pytest.raises(_documents.DocumentTextTooLong):
+        _documents.docx_text(data, max_chars=len(expected) - 1)
+    assert _documents.docx_text(_word_package(_word_body(""))) == ""
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "xml",
+    [
+        b"<wrong/>",
+        b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>',
+        b"<unfinished",
+        b'<!DOCTYPE doc [<!ENTITY x "expanded">]><doc>&x;</doc>',
+    ],
+)
+def test_streamed_word_xml_rejects_malformed_documents_and_dtds(xml):
+    with pytest.raises(_documents.DocumentCorrupt):
+        _documents.docx_text(_word_package(xml))
+
+
+@pytest.mark.security
+def test_streamed_word_xml_bounds_nesting_even_without_text():
+    data = _word_package(_word_body("<x>" * 128 + "</x>" * 128))
+    with pytest.raises(_documents.DocumentTooLarge):
+        _documents.docx_text(data)

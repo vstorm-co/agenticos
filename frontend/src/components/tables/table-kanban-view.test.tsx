@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TableKanbanView } from "./table-kanban-view";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useTableViewStore } from "@/stores";
-import type { ColumnDef, RecordRead } from "@/types/tables";
+import type { ColumnDef, RecordFilter, RecordRead } from "@/types/tables";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -798,29 +798,86 @@ describe("TableKanbanView", () => {
     expect(noValueClause).toEqual({ column_id: "status", op: "is_null", value: true });
   });
 
-  it("shows a load-more hint when a lane has more records than fit one page", async () => {
-    mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
-    vi.mocked(apiClient.post).mockImplementation(async (url: string, body?: unknown) => {
-      if (!url.endsWith("/records/query")) return { id: "unused" };
-      const { filters } = body as { filters: { column_id: string; op: string; value?: unknown }[] };
-      const lane = laneOf(filters);
-      if (lane === "o1") return { items: [record("r1", "o1")], skip: 0, limit: 25, has_more: true };
-      return { items: [], skip: 0, limit: 25, has_more: false };
+  it("loads the next lane page while retaining its existing cards", async () => {
+    vi.mocked(apiClient.post).mockImplementation(async (_url: string, body?: unknown) => {
+      const { filters, skip } = body as { filters: RecordFilter[]; skip: number };
+      if (laneOf(filters) !== "o1") return { items: [], skip: 0, limit: 25, has_more: false };
+      return { items: [record(skip ? "r26" : "r1", "o1")], skip, limit: 25, has_more: !skip };
     });
-    render(
-      <TableKanbanView
-        tableId="t1"
-        columns={COLUMNS}
-        groupByColumnId="status"
-        baseFilters={[]}
-        sort={{ by: "created_at", direction: "asc" }}
-        onOpenRecord={vi.fn()}
-        canEdit
-      />,
-      { wrapper },
-    );
+    renderBoard();
+    expect(await screen.findByText("Record r1")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Load more" }));
+    expect(await screen.findByText("Record r26")).toBeInTheDocument();
+    expect(screen.getByText("Record r1")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+  });
 
+  it("retries a failed next page without discarding the first page", async () => {
+    let failed = false;
+    vi.mocked(apiClient.post).mockImplementation(async (_url: string, body?: unknown) => {
+      const { filters, skip } = body as { filters: RecordFilter[]; skip: number };
+      if (laneOf(filters) !== "o1") return { items: [], skip: 0, limit: 25, has_more: false };
+      if (skip && !failed) {
+        failed = true;
+        throw new ApiError(503, "Page unavailable");
+      }
+      return { items: [record(skip ? "r26" : "r1", "o1")], skip, limit: 25, has_more: !skip };
+    });
+    renderBoard();
+    await userEvent.click(await screen.findByRole("button", { name: "Load more" }));
+    expect(await screen.findByText("Page unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Record r1")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Record r26")).toBeInTheDocument();
+    expect(screen.queryByText("Page unavailable")).not.toBeInTheDocument();
+  });
+
+  it("retries a failed initial lane request", async () => {
+    let failed = false;
+    vi.mocked(apiClient.post).mockImplementation(async (_url: string, body?: unknown) => {
+      const { filters } = body as { filters: RecordFilter[] };
+      if (laneOf(filters) !== "o1") return { items: [], skip: 0, limit: 25, has_more: false };
+      if (!failed) {
+        failed = true;
+        throw new ApiError(503, "Lane unavailable");
+      }
+      return { items: [record("r1", "o1")], skip: 0, limit: 25, has_more: false };
+    });
+    renderBoard();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Lane unavailable");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Record r1")).toBeInTheDocument();
+  });
+
+  it("disables the next-page control while its request is pending", async () => {
+    const next = deferred<{
+      items: RecordRead[];
+      skip: number;
+      limit: number;
+      has_more: boolean;
+    }>();
+    vi.mocked(apiClient.post).mockImplementation(async (_url: string, body?: unknown) => {
+      const { filters, skip } = body as { filters: RecordFilter[]; skip: number };
+      if (laneOf(filters) !== "o1") return { items: [], skip: 0, limit: 25, has_more: false };
+      if (skip) return next.promise;
+      return { items: [record("r1", "o1")], skip: 0, limit: 25, has_more: true };
+    });
+    renderBoard();
+    await userEvent.click(await screen.findByRole("button", { name: "Load more" }));
+    expect(await screen.findByRole("button", { name: /loading/i })).toBeDisabled();
+    next.resolve({ items: [record("r26", "o1")], skip: 25, limit: 25, has_more: false });
+    expect(await screen.findByText("Record r26")).toBeInTheDocument();
+  });
+
+  it("does not request an offset past the server's pagination ceiling", async () => {
+    vi.mocked(apiClient.post).mockImplementation(async (_url: string, body?: unknown) => {
+      const { filters } = body as { filters: RecordFilter[] };
+      if (laneOf(filters) !== "o1") return { items: [], skip: 0, limit: 25, has_more: false };
+      return { items: [record("last", "o1")], skip: 10_000, limit: 25, has_more: true };
+    });
+    renderBoard();
     expect(await screen.findByText(/more records available/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
 
   describe("serialized moves and surfaced reloads", () => {

@@ -12,7 +12,7 @@ import json
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from itertools import pairwise
 from typing import Any
@@ -23,7 +23,7 @@ from httpx import ASGITransport, AsyncClient
 from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.audience import acting_for_no_person, acting_impersonated
@@ -34,7 +34,7 @@ from app.api import deps
 from app.core.audit import set_impersonator
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -80,6 +80,7 @@ from app.services.workflow_registry import WorkflowRegistryService
 from app.workflows.contracts.io import Binding, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.nodes._triggers import TableRecordTriggerConfig
 from tests.integration.workflow_run_support import (
     SeededRun,
     drive,
@@ -1320,3 +1321,79 @@ async def test_table_trigger_rechecks_current_app_admin_authority(world):
         user.is_app_admin = False
         await db.flush()
         assert await consumer._fire_context(trigger, table) is None
+
+
+@pytest.mark.security
+async def test_api_keys_cannot_create_or_reenable_a_table_triggers_user_authority(world):
+    workflow = await world.workflow()
+    await world.publish(workflow, _on_new_record(world.leads))
+    trigger = await world.trigger_of(workflow)
+    key = replace(
+        world.ctx,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset(
+            {
+                Perm.WORKFLOWS_VIEW,
+                Perm.WORKFLOWS_EDIT,
+                Perm.WORKFLOWS_RUN,
+                Perm.TABLES_VIEW,
+                Perm.TABLES_EDIT,
+            }
+        ),
+    )
+    async with world.factory() as db:
+        service = TableTriggerService(db)
+        await service.set_active(
+            key, world.leads.id, trigger.id, TableTriggerUpdate(is_active=False)
+        )
+        await db.commit()
+        with pytest.raises(AuthorizationError):
+            await service.set_active(
+                key, world.leads.id, trigger.id, TableTriggerUpdate(is_active=True)
+            )
+        with pytest.raises(AuthorizationError):
+            await service.set_active_for_workflow(key, workflow, True)
+        version = await db.get(WorkflowVersion, trigger.workflow_version_id)
+        assert version is not None
+        with pytest.raises(AuthorizationError):
+            await service.switch_on(
+                key,
+                workflow,
+                version,
+                uuid.uuid4(),
+                TableRecordTriggerConfig(
+                    table=TableIORef(
+                        table_id=world.leads.id, schema_version=world.leads.schema_version
+                    )
+                ),
+            )
+        stored = await db.get(VirtualTableTrigger, trigger.id)
+        assert stored is not None and stored.is_active is False
+
+
+async def test_a_write_from_an_older_transaction_is_after_the_trigger_activation_clock(world):
+    workflow = await world.workflow()
+    async with world.factory() as writer:
+        started = await writer.scalar(select(func.now()))
+        trigger_id = await world.trigger(workflow)
+        trigger = await world.trigger_of(workflow)
+        assert started < trigger.activated_at
+        record = await VirtualTableService(writer).create_record(
+            world.ctx,
+            world.leads.id,
+            RecordCreate(
+                values={
+                    str(world.column("Email")): "after@example.com",
+                    str(world.column("Score")): 1,
+                }
+            ),
+        )
+        event = (
+            await writer.scalars(
+                select(VirtualTableOutbox).where(VirtualTableOutbox.record_id == record.record.id)
+            )
+        ).one()
+        assert event.created_at >= trigger.activated_at
+        await writer.commit()
+    assert len(await world.consume()) == 1
+    assert (await world.admissions(trigger_id))[0].status == "queued"

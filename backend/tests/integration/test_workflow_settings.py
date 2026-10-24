@@ -1,6 +1,7 @@
 """A workflow's settings: its timezone, a default deadline, an error workflow, retention."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -9,7 +10,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.permissions import AuthContext
+from app.core.exceptions import AuthorizationError
+from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_exposure import WorkflowExposure
@@ -755,3 +757,20 @@ async def test_version_pages_are_bounded_and_do_not_load_frozen_graphs(db):
     last = await registry.list_versions(ctx, workflow_id, before=first.next_before)
     assert [version.version for version in last.items] == [3, 2, 1]
     assert last.next_before is None
+
+
+@pytest.mark.security
+async def test_api_keys_cannot_capture_the_issuers_authority_as_an_error_workflow(db, owner):
+    source = await _workflow(db, owner)
+    handler = await _workflow(db, owner, "Error handler")
+    await _publish(db, owner, handler, _graph("trigger.workflow_failed"))
+    key_ctx = replace(
+        owner,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_EDIT, Perm.WORKFLOWS_RUN}),
+    )
+    with pytest.raises(AuthorizationError, match="member session"):
+        await WorkflowRegistryService(db).update_settings(
+            key_ctx, source.id, WorkflowSettings(error_workflow_id=handler.id)
+        )
+    assert not source.settings.get("error_workflow_run_as")

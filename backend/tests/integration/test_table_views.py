@@ -297,7 +297,15 @@ async def test_updating_config_and_visibility_persists_and_reads_back(db):
         TableViewUpdate(
             visibility="shared",
             config=TableViewConfig(
-                filters=[RecordFilter(column_id=status_id, op="eq", value=str(status_id))],
+                filters=[
+                    RecordFilter(
+                        column_id=status_id,
+                        op="eq",
+                        value=str(
+                            next(c for c in table.columns if c.id == status_id).options[0].id
+                        ),
+                    )
+                ],
                 search="  rush ",
                 sort=RecordSort(by="created_at", direction="desc"),
                 group_by=status_id,
@@ -792,3 +800,68 @@ async def test_find_view_reads_the_view_once(db, monkeypatch):
     await views.find_view(ctx, view.id)
 
     assert spy.await_count == 1
+
+
+@pytest.mark.parametrize("value", ["bad\x00", "bad\ud800", float("nan")])
+@pytest.mark.parametrize("create", [False, True])
+def test_saved_view_requests_refuse_jsonb_incompatible_filter_values(value, create):
+    from pydantic import ValidationError
+
+    payload = {
+        "config": {"filters": [{"column_id": str(uuid.uuid4()), "op": "eq", "value": value}]}
+    }
+    if create:
+        payload.update(name="View", kind="table")
+    with pytest.raises(ValidationError):
+        (TableViewCreate if create else TableViewUpdate).model_validate(payload)
+
+
+@pytest.mark.security
+async def test_a_private_view_loses_clauses_invalidated_by_another_members_retyping(db):
+    from app.schemas.virtual_table import OptionInput, RecordQuery
+
+    views, tables, editor, member, table = await _builders_table_and_an_editing_member(db)
+    ids = {c.label: c.id for c in table.columns}
+    saved = await views.create_view(
+        member,
+        table.id,
+        TableViewCreate(
+            name="Private",
+            kind="kanban",
+            config=TableViewConfig(
+                filters=[
+                    RecordFilter(column_id=ids["Customer"], op="contains", value="Ada"),
+                    RecordFilter(column_id=ids["Paid"], op="eq", value=True),
+                ],
+                sort=RecordSort(by=str(ids["Status"])),
+                group_by=ids["Status"],
+            ),
+        ),
+    )
+    await tables.update_schema(
+        editor,
+        table.id,
+        SchemaUpdate(
+            expected_version=table.schema_version,
+            columns=[
+                column(
+                    c.label,
+                    {"Customer": "number", "Status": "multi_select"}.get(c.label, c.type),
+                    id=c.id,
+                    **({"options": [OptionInput(label="One")]} if c.label == "Status" else {}),
+                )
+                for c in table.columns
+            ],
+        ),
+    )
+    read = await views.get_view(member, table.id, saved.id)
+    assert [item.column_id for item in read.config.filters] == [ids["Paid"]]
+    assert read.config.sort == RecordSort() and read.config.group_by is None
+    bound = await views.find_view(member, saved.id)
+    assert bound.filters_dropped is True
+    # Stored private state belongs to its owner; projection does not rewrite it.
+    stored = await table_view_repo.get(db, organization_id=member.organization_id, view_id=saved.id)
+    assert stored is not None and len(stored.config["filters"]) == 2
+    await tables.list_records(
+        member, table.id, RecordQuery(filters=read.config.filters, sort=read.config.sort)
+    )

@@ -57,6 +57,7 @@ from app.schemas.workflow import (
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.file_storage import delete_files_best_effort
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
+from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import WorkflowArchivedError
 from app.services.workflow_triggers import WorkflowTriggerSync
 from app.workflows._registry import all_node_definitions
@@ -64,7 +65,7 @@ from app.workflows.contracts.io import TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
-from app.workflows.triggers import WORKFLOW_FAILED
+from app.workflows.triggers import UNATTENDED, WORKFLOW_FAILED
 
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
@@ -546,6 +547,7 @@ class WorkflowRegistryService:
         if data.error_workflow_id is None:
             run_as = None
         elif data.error_workflow_id != before.error_workflow_id:
+            require_human_publisher(ctx)
             await self._check_error_workflow(ctx, workflow, data.error_workflow_id)
             run_as = ctx.subject_id
         stored = StoredWorkflowSettings(**data.model_dump(), error_workflow_run_as=run_as)
@@ -899,6 +901,10 @@ class WorkflowRegistryService:
             raise GraphValidationError(
                 [("draft_graph", "This workflow has no graph yet - add at least one node")]
             )
+        if ctx.api_key_id is not None:
+            entry = draft_graph.node_by_id.get(draft_graph.entry_node_id)
+            if entry is not None and entry.definition_id in UNATTENDED:
+                require_human_publisher(ctx)
         graph = _without_pins(await validate_graph(self.db, ctx, draft_graph))
         version_number = await workflow_repo.next_version_number(self.db, workflow_id=workflow.id)
         version = await workflow_repo.create_version(

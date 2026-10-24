@@ -8,12 +8,13 @@ the table itself treats an absent column list.
 """
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.schemas.virtual_table import MAX_FILTERS, RecordFilter, RecordSort, SearchTerm
+from app.workflows.graph.model import jsonb_value_fits
 
 ViewKind = Literal["table", "kanban", "list"]
 ViewVisibility = Literal["private", "shared"]
@@ -27,6 +28,11 @@ class _Schema(BaseModel):
 
 class _Request(_Schema):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    @model_validator(mode="after")
+    def _stored_values_fit(self) -> Self:
+        jsonb_value_fits(self)
+        return self
 
 
 class TableViewConfig(_Request):
