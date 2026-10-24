@@ -33,7 +33,12 @@ export function PhoneChatBar() {
     <div className="pointer-events-none absolute inset-x-0 top-0 z-30 md:hidden">
       <div className="from-background via-background/85 absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent" />
       <div className="relative flex items-center justify-between px-3 pt-2">
-        <button type="button" onClick={toggleMenu} aria-label={t("toggleMenu")} className={ROUND}>
+        <button
+          type="button"
+          onClick={toggleMenu}
+          aria-label={t("toggleMenu")}
+          className={cn(ROUND, "relative")}
+        >
           <Menu aria-hidden />
           {unread.count > 0 && (
             <span
@@ -45,7 +50,7 @@ export function PhoneChatBar() {
         <div
           className={cn(
             ROUND,
-            "w-auto gap-1 px-1.5 [&>button]:inline-flex [&>button]:size-9 [&>button]:items-center [&>button]:justify-center [&>button]:rounded-full",
+            "h-auto w-auto gap-1 p-1 [&>button]:inline-flex [&>button]:size-11 [&>button]:items-center [&>button]:justify-center [&>button]:rounded-full",
           )}
         >
           <button type="button" onClick={openConversations} aria-label={t("openConversations")}>

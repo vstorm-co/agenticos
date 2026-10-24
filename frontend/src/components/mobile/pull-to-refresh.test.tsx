@@ -99,6 +99,18 @@ describe("PullToRefresh", () => {
     expect(refetch).not.toHaveBeenCalled();
   });
 
+  it("does not refresh when the operating system cancels an armed pull", () => {
+    const refetch = vi.spyOn(client, "refetchQueries");
+    const target = page();
+    fireEvent.touchStart(target, { touches: [{ clientX: 0, clientY: 0 }] });
+    fireEvent.touchMove(target, { touches: [{ clientX: 0, clientY: 300 }] });
+    expect(screen.getByTestId("pull-to-refresh")).toBeInTheDocument();
+    fireEvent.touchCancel(target, { touches: [] });
+    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    fireEvent.touchEnd(target, { touches: [] });
+    expect(refetch).not.toHaveBeenCalled();
+  });
+
   it("shows nothing for a tap or a sideways swipe", () => {
     const refetch = vi.spyOn(client, "refetchQueries");
     const target = page();

@@ -93,15 +93,20 @@ export function PullToRefresh() {
       void queryClient.refetchQueries({ type: "active" }).finally(() => setRefreshing(false));
     };
 
+    const onCancel = () => {
+      past = false;
+      onEnd();
+    };
+
     scroller.addEventListener("touchstart", onStart, { passive: true });
     scroller.addEventListener("touchmove", onMove, { passive: true });
     scroller.addEventListener("touchend", onEnd);
-    scroller.addEventListener("touchcancel", onEnd);
+    scroller.addEventListener("touchcancel", onCancel);
     return () => {
       scroller.removeEventListener("touchstart", onStart);
       scroller.removeEventListener("touchmove", onMove);
       scroller.removeEventListener("touchend", onEnd);
-      scroller.removeEventListener("touchcancel", onEnd);
+      scroller.removeEventListener("touchcancel", onCancel);
     };
   }, [enabled, queryClient]);
 
