@@ -29,6 +29,11 @@ describe("staleQueries", () => {
     expect(staleQueries(change("notification"))).toEqual([qk.notifications.all()]);
     expect(staleQueries(change("run"))).toEqual([qk.runs.all(), qk.conversations.list()]);
     expect(staleQueries(change("eval_suite"))).toEqual([qk.evalSuites.all(), qk.evalRuns.all()]);
+    expect(staleQueries(change("eval_run"))).toEqual([
+      qk.evalRuns.all(),
+      qk.datasets.all(),
+      qk.improvements.all(),
+    ]);
     expect(staleQueries(change("knowledge_gap"))).toEqual([qk.knowledgeGaps.all()]);
   });
 

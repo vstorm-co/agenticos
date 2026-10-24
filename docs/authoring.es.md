@@ -1,5 +1,5 @@
 ---
-source_sha: "27023f8847f1"
+source_sha: "109914d1eca5"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -366,3 +366,5 @@ El borrador registra huellas de todas las preguntas de entrada, incluidas las no
 Elige **Comprobar si la búsqueda lo encuentra** para comparar A con B mediante una superposición exclusiva de búsqueda. El borrador se vectoriza con el modelo elegido de la base de conocimiento y se añade a los candidatos solo durante ese run. Se mantienen las restricciones de organización, las listas de documentos permitidos, los filtros, el ranking y los límites finales. No se crea ninguna tabla vectorial, documento ni archivo de contexto. El contenido temporal también se elimina tras fallos o cancelaciones.
 
 Una nueva corrección solo se considera demostrada si el borrador llegó a cada respuesta confirmatoria del candidato a través del resultado final de búsqueda. En caso contrario, el resultado no es concluyente, aunque la respuesta obtenga buena puntuación; se conservan las respuestas y evaluaciones reales. Ignorar un error de herramienta no convierte un fallo de búsqueda en éxito. La estimación incluye búsquedas adicionales de embeddings y repeticiones confirmatorias. Un modelo no disponible o sin precio conocido impide empezar trabajo de pago. Una persona debe seguir verificando los hechos y añadir expresamente el documento.
+
+Las pruebas manuales y la generación de preguntas notifican a quien las inició cuando terminan, también si fallan. Repetir la entrega del trabajo no duplica el aviso. Las pruebas subordinadas de una suite o sesión de mejora utilizan la notificación del proceso principal. Las preferencias están en **Configuración → Notificaciones**. Las páginas abiertas de pruebas y conjuntos de datos se actualizan mediante el flujo de cambios tras confirmar el resultado.

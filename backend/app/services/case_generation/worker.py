@@ -26,6 +26,7 @@ from app.services import change_feed
 from app.services.api_key import job_context
 from app.services.case_generation.facade import CaseGenerationService
 from app.services.case_generation.generation import generate
+from app.services.notifications import NotificationService
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 
@@ -82,6 +83,8 @@ class CaseGenerationWorker:
     async def run(self) -> None:
         async with self.sessions() as db:
             ended = await self._run(db)
+            if ended is not None:
+                await NotificationService(db).case_generation_finished(ended)
         if ended is not None:
             await change_feed.publish_dataset(
                 organization_id=self.organization_id,
@@ -158,5 +161,11 @@ async def settle_lost(generation_id: UUID, organization_id: UUID) -> None:
         generation = await case_generation_repo.get_generation(
             db, generation_id, organization_id=organization_id
         )
-        if generation is not None and generation.status == GenerationStatus.RUNNING.value:
-            await _fail(db, generation, STOPPED)
+        if generation is None or generation.status != GenerationStatus.RUNNING.value:
+            return
+        await _fail(db, generation, STOPPED)
+        await NotificationService(db).case_generation_finished(generation)
+        dataset_id, actor_id = generation.dataset_id, generation.requested_by_user_id
+    await change_feed.publish_dataset(
+        organization_id=organization_id, dataset_id=dataset_id, actor_user_id=actor_id
+    )

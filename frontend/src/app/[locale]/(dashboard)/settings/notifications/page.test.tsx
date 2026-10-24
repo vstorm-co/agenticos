@@ -135,7 +135,7 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "Findings from your watches - In-app" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(43);
+    expect(screen.getAllByRole("switch")).toHaveLength(47);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

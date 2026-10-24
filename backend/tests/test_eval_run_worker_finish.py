@@ -22,6 +22,7 @@ async def test_an_answer_for_an_attempt_closed_meanwhile_is_dropped_and_said(cap
 
     with (
         patch("app.services.eval_run_worker.eval_run_repo.finish_case", new=finish),
+        patch("app.services.eval_run_worker.eval_run_repo.get", new=AsyncMock(return_value=None)),
         caplog.at_level("WARNING", logger="app.services.eval_run_worker"),
     ):
         await worker._finish(MagicMock(), attempt, values={"status": CaseAttemptStatus.DONE.value})
@@ -49,7 +50,10 @@ async def test_attempt_evidence_redacts_answers_nested_calls_and_errors(failed: 
     worker = EvalRunWorker(uuid.uuid4(), attempt.organization_id)
     finish = AsyncMock(return_value=True)
     values = {"answer": answer, "calls": calls, "error": secret}
-    with patch("app.services.eval_run_worker.eval_run_repo.finish_case", new=finish):
+    with (
+        patch("app.services.eval_run_worker.eval_run_repo.finish_case", new=finish),
+        patch("app.services.eval_run_worker.eval_run_repo.get", new=AsyncMock(return_value=None)),
+    ):
         if failed:
             await worker._fail(
                 MagicMock(),

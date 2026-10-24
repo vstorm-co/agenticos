@@ -139,6 +139,8 @@ _FEEDS = (
     _Feed("/agents/{agent_id}/triggers/{trigger_id}/run", None),
     _Feed("/agents/{agent_id}/triggers", "trigger", "agent_id"),
     # An estimate writes nothing.
+    _Feed("/agents/{agent_id}/eval-runs/estimate", None),
+    _Feed("/agents/{agent_id}/eval-runs", "eval_run", "agent_id"),
     _Feed("/agents/{agent_id}/eval-suites/estimate", None),
     _Feed("/agents/{agent_id}/eval-suites", "eval_suite", "agent_id"),
     # An embed is its own row with its own page, not a change to an agent.
@@ -190,6 +192,7 @@ _OWNED: dict[ChangeResource, ResourceType] = {
     "agent": AGENT,
     "trigger": AGENT,
     "eval_suite": AGENT,
+    "eval_run": AGENT,
     "skill": SKILL,
     "context": CONTEXT,
     "knowledge_base": COLLECTION,
@@ -439,7 +442,7 @@ class ChangeFeedMiddleware:
 
 async def _row(db: AsyncSession, event: ChangeEvent, row_id: UUID) -> OwnedResource | None:
     organization_id = event.organization_id
-    if event.resource in ("agent", "trigger"):
+    if event.resource in ("agent", "trigger", "eval_suite", "eval_run"):
         return await agent_repo.get(db, row_id, organization_id=organization_id)
     if event.resource == "secret":
         return await secret_repo.get(db, row_id, organization_id=organization_id)

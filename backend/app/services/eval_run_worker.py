@@ -76,6 +76,7 @@ from app.services.api_key import job_context
 from app.services.eval_comparison import Flip, classify
 from app.services.eval_run import EvalRunService, drifts
 from app.services.message_history import HistoryMessage, build_message_history
+from app.services.notifications import NotificationService
 from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument
 from app.services.scorers import ScoredAnswer, ScoredCall
 from app.services.scoring import ScoringService
@@ -291,13 +292,19 @@ class EvalRunWorker:
         """Fail the run and what it had not finished, if it is still live."""
         try:
             async with self.sessions() as db:
-                await eval_run_repo.fail_live(
+                closed = await eval_run_repo.fail_live(
                     db,
                     self.eval_run_id,
                     organization_id=self.organization_id,
                     now=datetime.now(UTC),
                     error=error,
                 )
+                if closed:
+                    run = await eval_run_repo.get(
+                        db, self.eval_run_id, organization_id=self.organization_id
+                    )
+                    if run is not None:
+                        await NotificationService(db).eval_run_finished(run)
         except Exception:
             # The database that failed the run may refuse this as well; the
             # abandoned-eval sweep is the ceiling for that run.
@@ -359,6 +366,7 @@ class EvalRunWorker:
                     },
                 )
                 await eval_run_repo.skip_pending(db, run.id, organization_id=self.organization_id)
+                await NotificationService(db).eval_run_finished(run)
                 return None
             await eval_run_repo.update_run(
                 db,
@@ -491,13 +499,15 @@ class EvalRunWorker:
                 except AuthenticationError:
                     fresh = None
                 if fresh is None or not await self._may_still_run(db, fresh, run):
-                    await eval_run_repo.fail_live(
+                    closed = await eval_run_repo.fail_live(
                         db,
                         run.id,
                         organization_id=org,
                         now=datetime.now(UTC),
                         error=_NO_LONGER_RUNS,
                     )
+                    if closed:
+                        await NotificationService(db).eval_run_finished(run)
                     return True
                 ctx = fresh
             calls: list[RecordedToolCall] = []
@@ -880,6 +890,7 @@ class EvalRunWorker:
             },
         )
         await eval_run_repo.skip_pending(db, run.id, organization_id=self.organization_id)
+        await NotificationService(db).eval_run_finished(run)
 
     async def _queue_reruns(self, ctx: AuthContext) -> bool:
         """Queue the confirmation reruns of every flipped case. True if any were queued.
@@ -1010,3 +1021,4 @@ class EvalRunWorker:
             await eval_run_repo.update_run(
                 db, run=run, values={"status": status.value, "ended_at": datetime.now(UTC)}
             )
+            await NotificationService(db).eval_run_finished(run)

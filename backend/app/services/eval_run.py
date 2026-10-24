@@ -133,6 +133,7 @@ from app.services.eval_comparison import (
 )
 from app.services.eval_suite_threshold import judge
 from app.services.model_profile import ModelProfileService
+from app.services.notifications import NotificationService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ungraded
 from app.services.spend import month_start, organization_monthly_spend
@@ -1520,9 +1521,11 @@ class EvalRunService:
                     message="Only whoever started this eval, or an editor of the agent, can stop it",
                     details={"eval_run_id": run.id},
                 )
-        await eval_run_repo.cancel_live(
+        closed = await eval_run_repo.cancel_live(
             self.db, run.id, organization_id=ctx.organization_id, now=datetime.now(UTC)
         )
+        if closed:
+            await NotificationService(self.db).eval_run_finished(run)
         return (await self._reads(ctx, [run]))[0]
 
     async def _readable(self, ctx: AuthContext, run_id: UUID) -> EvalRun:

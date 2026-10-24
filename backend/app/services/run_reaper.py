@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.repositories import agent_run_repo, authoring_repo, eval_run_repo
 from app.services.change_feed import ChangeEvent, run_event
+from app.services.notifications import NotificationService
 from app.worker.jobs import RUN_EVAL, SettleLater
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,9 @@ class RunReaperService:
             self.db, idle_since=idle_since, job_kind=RUN_EVAL.kind, now=now
         )
         attempts = await eval_run_repo.close_orphaned_attempts(self.db, ended_before=idle_since)
-        return runs + attempts
+        for run in runs:
+            await NotificationService(self.db).eval_run_finished(run)
+        return len(runs) + attempts
 
     async def settle_lost_eval(self, eval_run_id: UUID, *, organization_id: UUID, why: str) -> None:
         """Close an eval run whose job ended for good while the run was still live.
@@ -149,6 +152,9 @@ class RunReaperService:
                 error=_EVAL_JOB_ENDED,
             )
         if closed:
+            run = await eval_run_repo.get(self.db, eval_run_id, organization_id=organization_id)
+            if run is not None:
+                await NotificationService(self.db).eval_run_finished(run)
             logger.warning("eval_run_job_lost", extra={"eval_run_id": str(eval_run_id), "why": why})
 
     async def settle_lost_authoring(

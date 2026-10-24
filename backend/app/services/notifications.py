@@ -53,12 +53,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.case_generation import CaseGeneration, GenerationStatus
 from app.db.models.context import ContextFile
+from app.db.models.eval_run import EvalRun, EvalRunPurpose, EvalRunStatus
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResultStatus
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
@@ -72,6 +75,7 @@ from app.repositories import group as group_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import user as user_repo
+from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.spend import month_start, organization_spend_since
@@ -900,6 +904,90 @@ class NotificationService:
             summary=f"The MCP server {connection.name} is answering again.",
             context_url=self._link("/mcp-servers", organization_id),
             render_context={"server_name": connection.name},
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def eval_run_finished(self, run: EvalRun) -> None:
+        """Announce a terminal eval; only a manual check notifies its requester.
+
+        Suite and improvement checks have their own terminal notification, so
+        every child finishing must not produce another inbox entry. Answers,
+        grading notes and provider errors never enter this notice.
+        """
+        from app.services import change_feed
+
+        if run.status in {EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value}:
+            return
+        spawn_after_commit(
+            self.db,
+            change_feed.publish(
+                ChangeEvent(
+                    organization_id=run.organization_id,
+                    resource="eval_run",
+                    id=run.agent_id,
+                    action="updated",
+                    surface="run",
+                    actor_user_id=run.created_by_user_id,
+                    actor_name=None,
+                )
+            ),
+            name=f"eval-run-finished:{run.id}",
+        )
+        if run.purpose != EvalRunPurpose.MANUAL.value or run.proposal_check is not None:
+            return
+        await self._evaluation_finished(
+            organization_id=run.organization_id,
+            user_id=run.created_by_user_id,
+            event_type=NotificationEventType.EVAL_RUN_FINISHED,
+            occurrence_id=run.id,
+            status=run.status,
+            summary=f"Your test finished: {run.status}.",
+            path=f"/agents/{run.agent_id}/evals/{run.id}",
+        )
+
+    async def case_generation_finished(self, generation: CaseGeneration) -> None:
+        """Tell the requester their proposed questions are ready or generation failed."""
+        if generation.status == GenerationStatus.RUNNING.value:
+            return
+        await self._evaluation_finished(
+            organization_id=generation.organization_id,
+            user_id=generation.requested_by_user_id,
+            event_type=NotificationEventType.CASE_GENERATION_FINISHED,
+            occurrence_id=generation.id,
+            status=generation.status,
+            summary=f"Writing your test questions finished: {generation.status}.",
+            path=f"/datasets/{generation.dataset_id}?tab=generated",
+        )
+
+    async def _evaluation_finished(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID | None,
+        event_type: NotificationEventType,
+        occurrence_id: UUID,
+        status: str,
+        summary: str,
+        path: str,
+    ) -> None:
+        if user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        link = self._link(path, organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=event_type,
+            occurrence_id=str(occurrence_id),
+            summary=summary,
+            context_url=link,
+            render_context={
+                "status": status,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(link),
+            },
             organization_id=organization_id,
             use_savepoint=True,
         )

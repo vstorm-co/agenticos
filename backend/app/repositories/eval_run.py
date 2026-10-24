@@ -741,7 +741,7 @@ async def heartbeat(
 
 async def fail_abandoned(
     db: AsyncSession, *, idle_since: datetime, job_kind: str, now: datetime
-) -> int:
+) -> list[EvalRun]:
     """Fail live runs whose worker is gone, across every organization.
 
     Unscoped by design: the sweep that calls it runs for the deployment, and a
@@ -779,7 +779,7 @@ async def fail_abandoned(
         .subquery()
     )
     result = await db.execute(
-        select(EvalRun.id)
+        select(EvalRun)
         .outerjoin(last_activity, last_activity.c.eval_run_id == EvalRun.id)
         .where(
             or_(
@@ -798,15 +798,15 @@ async def fail_abandoned(
         )
         .with_for_update(of=EvalRun, skip_locked=True)
     )
-    abandoned = [row[0] for row in result.all()]
+    abandoned = list(result.scalars().all())
     if abandoned:
         await _end_unfinished(
             db,
-            abandoned,
+            [run.id for run in abandoned],
             now=now,
             error="The worker running this eval stopped before it finished.",
         )
-    return len(abandoned)
+    return abandoned
 
 
 async def close_orphaned_attempts(db: AsyncSession, *, ended_before: datetime) -> int:

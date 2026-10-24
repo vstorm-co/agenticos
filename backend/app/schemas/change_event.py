@@ -24,6 +24,7 @@ ChangeResource = Literal[
     "mcp_connection",
     "run",
     "eval_suite",
+    "eval_run",
     "dataset",
     "knowledge_gap",
 ]

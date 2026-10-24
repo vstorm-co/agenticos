@@ -1,5 +1,5 @@
 ---
-source_sha: "27023f8847f1"
+source_sha: "109914d1eca5"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -376,3 +376,5 @@ Der Entwurf speichert Fingerabdrücke aller Eingabefragen, auch der nicht zitier
 Wähle **Prüfen, ob die Suche sie findet**, um A mit B über ein reines Such-Overlay zu vergleichen. Der Entwurf wird mit dem ausgewählten Embedding-Modell der Wissensbasis eingebettet und nur während dieses Runs zu den Suchkandidaten hinzugefügt. Mandantengrenzen, Dokumentfreigaben, fachliche Filter, Ranking und endgültige Ergebnislimits gelten weiterhin. Es entstehen weder Vektortabellen noch Dokumente oder Kontextdateien. Temporäre Inhalte werden auch nach Fehlern oder Abbruch entfernt.
 
 Eine neue Korrektur gilt nur als nachgewiesen, wenn der Entwurf jede bestätigende Kandidatenantwort über das endgültige Suchergebnis erreicht hat. Andernfalls ist das Ergebnis nicht schlüssig, auch wenn die Antwort gut bewertet wurde; tatsächliche Antworten und Bewertungen bleiben sichtbar. Ein ignorierter Toolfehler macht einen Suchfehler nicht zum Erfolg. Die Schätzung umfasst zusätzliche Embedding-Suchen und Bestätigungswiederholungen. Nicht verfügbare oder nicht bepreiste Modelle verhindern die Prüfung vor kostenpflichtiger Arbeit. Ein Mensch muss weiterhin Fakten prüfen und das Dokument ausdrücklich hinzufügen.
+
+Manuelle Tests und die Erstellung von Testfragen benachrichtigen die anfordernde Person nach Abschluss, auch bei Fehlern. Erneute Jobzustellungen erzeugen keine doppelten Meldungen. Untergeordnete Tests einer Testsuite oder Verbesserungssitzung verwenden deren übergeordnete Benachrichtigung. Die Einstellungen stehen unter **Einstellungen → Benachrichtigungen**. Offene Test- und Datensatzseiten werden nach dem Speichern des Ergebnisses über den Änderungsstrom aktualisiert.

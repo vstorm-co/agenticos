@@ -122,10 +122,11 @@ class TestTheFlow:
 
 class TestAbandonedEvals:
     async def test_runs_and_attempts_idle_past_the_setting_are_closed(self, monkeypatch):
-        fail = AsyncMock(return_value=1)
+        fail = AsyncMock(return_value=[MagicMock()])
         close = AsyncMock(return_value=2)
         monkeypatch.setattr(eval_run_repo, "fail_abandoned", fail)
         monkeypatch.setattr(eval_run_repo, "close_orphaned_attempts", close)
+        monkeypatch.setattr(run_reaper.NotificationService, "eval_run_finished", AsyncMock())
         monkeypatch.setattr(run_reaper.settings, "EVAL_ABANDONED_AFTER_MINUTES", 30.0)
 
         before = datetime.now(UTC)
@@ -144,6 +145,7 @@ class TestAbandonedEvals:
         close = AsyncMock()
         monkeypatch.setattr(eval_run_repo, "fail_abandoned", fail)
         monkeypatch.setattr(eval_run_repo, "close_orphaned_attempts", close)
+        monkeypatch.setattr(run_reaper.NotificationService, "eval_run_finished", AsyncMock())
         monkeypatch.setattr(run_reaper.settings, "EVAL_ABANDONED_AFTER_MINUTES", 0.0)
 
         assert await RunReaperService(MagicMock()).reap_abandoned_evals() == 0
@@ -156,6 +158,7 @@ class TestLostJobs:
 
     async def test_a_withdrawn_eval_job_cancels_its_run(self, monkeypatch):
         cancel, fail = AsyncMock(return_value=True), AsyncMock()
+        monkeypatch.setattr(eval_run_repo, "get", AsyncMock(return_value=None))
         monkeypatch.setattr(eval_run_repo, "cancel_live", cancel)
         monkeypatch.setattr(eval_run_repo, "fail_live", fail)
         run, org = uuid.uuid4(), uuid.uuid4()
@@ -174,6 +177,7 @@ class TestLostJobs:
     async def test_any_other_end_fails_the_run_with_a_sentence_of_its_own(self, monkeypatch, why):
         """The job's last error is the worker's; the run's page gets this module's words."""
         cancel, fail = AsyncMock(), AsyncMock(return_value=True)
+        monkeypatch.setattr(eval_run_repo, "get", AsyncMock(return_value=None))
         monkeypatch.setattr(eval_run_repo, "cancel_live", cancel)
         monkeypatch.setattr(eval_run_repo, "fail_live", fail)
         org = uuid.uuid4()

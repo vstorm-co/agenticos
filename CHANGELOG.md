@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Notify requesters when manual tests or test-question generation finish, including failed jobs, and refresh open eval pages through the live change feed.
+
 - Measure a knowledge draft separately from agent changes using run-only context or retrieval,
   independently selected holdout questions and explicit cost consent; invalidate
   changed drafts and remove derived content when source data is erased.

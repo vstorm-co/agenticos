@@ -302,8 +302,9 @@ class TestPublishing:
 
 class TestVisibility:
     @pytest.mark.security
+    @pytest.mark.parametrize("resource", ["agent", "eval_suite", "eval_run"])
     async def test_a_viewer_hears_nothing_about_an_agent_they_cannot_read(
-        self, db: AsyncSession
+        self, db: AsyncSession, resource: str
     ) -> None:
         owner = await _person(db)
         organization = await _organization(db, owner)
@@ -312,8 +313,8 @@ class TestVisibility:
         shared = await _agent(db, organization, owner, Visibility.ORG)
         ctx = _ctx(organization, viewer, OrgRoleName.VIEWER)
 
-        hidden = _event(organization, owner, id=private.id)
-        seen = _event(organization, owner, id=shared.id)
+        hidden = _event(organization, owner, id=private.id, resource=resource)
+        seen = _event(organization, owner, id=shared.id, resource=resource)
 
         assert not await change_feed.visible(db, ctx, hidden)
         assert await change_feed.visible(db, ctx, seen)

@@ -413,7 +413,7 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
     still_moving = await eval_run_repo.fail_abandoned(
         db, idle_since=_NOW - timedelta(hours=1), job_kind=RUN_EVAL.kind, now=_NOW
     )
-    assert still_moving == 0
+    assert still_moving == []
 
     # A worker that still beats is not dead, though no case has moved since.
     await eval_run_repo.heartbeat(
@@ -422,7 +422,7 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
     beating = await eval_run_repo.fail_abandoned(
         db, idle_since=_NOW + timedelta(minutes=1), job_kind=RUN_EVAL.kind, now=_NOW
     )
-    assert beating == 0
+    assert beating == []
 
     reaped = await eval_run_repo.fail_abandoned(
         db, idle_since=_NOW + timedelta(minutes=10), job_kind=RUN_EVAL.kind, now=_NOW
@@ -430,7 +430,7 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
     await db.refresh(run)
     cases = await eval_run_repo.list_cases(db, run.id, organization_id=ctx.organization_id)
 
-    assert reaped == 1
+    assert len(reaped) == 1
     assert run.status == EvalRunStatus.FAILED.value
     assert run.ended_at == _NOW
     assert sorted(case.status for case in cases) == ["failed", "skipped", "skipped"]
@@ -506,8 +506,10 @@ async def test_a_queued_run_is_given_up_once_no_job_is_left_to_run_it(db) -> Non
     await _job(db, ctx, other, "queued")
 
     async def sweep() -> int:
-        return await eval_run_repo.fail_abandoned(
-            db, idle_since=_NOW, job_kind=RUN_EVAL.kind, now=_NOW
+        return len(
+            await eval_run_repo.fail_abandoned(
+                db, idle_since=_NOW, job_kind=RUN_EVAL.kind, now=_NOW
+            )
         )
 
     await _job(db, ctx, run, "queued")
@@ -558,7 +560,7 @@ async def test_a_withdrawn_job_holds_its_run_only_until_settled_or_a_day_old(db)
 
     await db.refresh(settled)
     await db.refresh(stale)
-    assert reaped == 2
+    assert len(reaped) == 2
     assert {settled.status, stale.status} == {EvalRunStatus.FAILED.value}
 
 
@@ -571,7 +573,7 @@ async def test_a_queued_run_with_no_job_at_all_is_given_up(db) -> None:
     )
     await db.refresh(run)
     cases = await eval_run_repo.list_cases(db, run.id, organization_id=ctx.organization_id)
-    assert (given_up, run.status) == (1, EvalRunStatus.FAILED.value)
+    assert (len(given_up), run.status) == (1, EvalRunStatus.FAILED.value)
     assert {case.status for case in cases} == {"skipped"}
 
 
