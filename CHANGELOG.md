@@ -107,6 +107,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Return to sign-in when refreshed session cookies are still refused, including
+  when another tab recently refreshed, instead of leaving agent pages loading (#2269).
+
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
   workspace. When the sandbox service refused to open a session, that copy

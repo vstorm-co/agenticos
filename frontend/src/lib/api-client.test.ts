@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, apiClient } from "./api-client";
+import { markRefreshed } from "./auth-lock";
 import { CONSOLE_TAB, CONSOLE_TAB_HEADER } from "./console-tab";
 import { useAuthStore, useOrgStore } from "@/stores";
 
@@ -234,6 +235,30 @@ describe("recovering from an expired token", () => {
     await expect(apiClient.get("/agents")).rejects.toMatchObject({ status: 401 });
 
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it.each(["this tab", "another tab"])(
+    "ends a refused session after a refresh by %s",
+    async (refresher) => {
+      useAuthStore.setState({ isAuthenticated: true });
+      if (refresher === "another tab") markRefreshed();
+      fetchMock.mockResolvedValueOnce(refused(401, {}));
+      if (refresher === "this tab") fetchMock.mockResolvedValueOnce(ok({}));
+      fetchMock.mockResolvedValueOnce(refused(401, { code: "SESSION_EXPIRED" }));
+      await expect(apiClient.get("/agents/a-1")).rejects.toMatchObject({ status: 401 });
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    },
+  );
+
+  it("keeps the impersonation exit when a retried request reports it ended", async () => {
+    useAuthStore.setState({ isAuthenticated: true, impersonationRevoked: false });
+    markRefreshed();
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(401, { code: "IMPERSONATION_ENDED" }));
+    await expect(apiClient.get("/agents/a-1")).rejects.toMatchObject({ status: 401 });
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().impersonationRevoked).toBe(true);
   });
 
   it("keeps the store signed in when the refresh failed for a reason that is not the session", async () => {

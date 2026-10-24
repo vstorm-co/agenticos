@@ -240,12 +240,15 @@ class ApiClient {
 
     let response = await (SERVER_REFRESHING.has(endpoint) ? withAuthLock(doFetch) : doFetch());
 
+    let retriedAfterRefresh = false;
+
     // Transparent 401 recovery: refresh once, then retry the request once.
     // Never on an endpoint whose 401 is the answer rather than an expired token,
     // and only a single time per call.
     if (response.status === 401 && !NO_REFRESH_RETRY.has(endpoint)) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
+        retriedAfterRefresh = true;
         response = await doFetch();
       }
     }
@@ -256,6 +259,20 @@ class ApiClient {
         errorData = await response.json();
       } catch {
         errorData = null;
+      }
+      if (response.status === 401 && retriedAfterRefresh) {
+        // A recent refresh is only a reason to retry, not proof the session
+        // still exists. Tell AuthGuard when the refreshed cookies are refused.
+        if (
+          typeof errorData === "object" &&
+          errorData !== null &&
+          "code" in errorData &&
+          errorData.code === "IMPERSONATION_ENDED"
+        ) {
+          useAuthStore.getState().setImpersonationRevoked(true);
+        } else {
+          useAuthStore.getState().logout();
+        }
       }
       throw new ApiError(response.status, parseErrorMessage(errorData), errorData);
     }
