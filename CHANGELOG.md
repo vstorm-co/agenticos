@@ -107,6 +107,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Connect the worker wake-up listener with PostgreSQL TLS settings and cap its
+  reconnect delay without overflowing during a long database outage (#2453).
+
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
   workspace. When the sandbox service refused to open a session, that copy
