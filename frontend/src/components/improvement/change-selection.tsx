@@ -1,0 +1,142 @@
+"use client";
+
+import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { Button, Checkbox } from "@/components/ui";
+import { ChangePreview } from "@/components/authoring/result-dialog";
+import { usd } from "@/components/evals/format";
+import { useImprovement } from "@/hooks/use-improvements";
+import { getErrorMessage } from "@/lib/api-error";
+import type { Hunk } from "@/types/authoring";
+import type { Improvement, ImprovementIteration, SelectionEstimate } from "@/types/improvement";
+
+export function ChangeSelection({
+  session,
+  round,
+  hunks,
+  included,
+  onChange,
+  onStarted,
+}: {
+  session: Improvement;
+  round: ImprovementIteration;
+  hunks: Hunk[];
+  included: string[];
+  onChange: (ids: string[]) => void;
+  onStarted: () => void;
+}) {
+  const t = useTranslations("improvement");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
+  const actions = useImprovement(session.agent_id, session.id);
+  const [quoted, setQuoted] = useState<{ key: string; quote: SelectionEstimate } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const key = JSON.stringify({
+    ids: [...included].sort(),
+    source: hunks.map((h) => [h.id, h.status, h.new_text, h.new_value]),
+    round: round.candidate_spec_hash,
+  });
+  const quote = quoted?.key === key ? quoted.quote : null;
+  const canSelect =
+    session.can_restart !== false && (session.status === "ready" || session.status === "stopped");
+  async function act(action: () => Promise<void>) {
+    setError(null);
+    try {
+      await action();
+    } catch (e) {
+      setError(getErrorMessage(e, tErrors));
+    }
+  }
+  return (
+    <section className="space-y-4">
+      <h2 className="font-medium">
+        {t("round", { number: round.number, max: session.max_iterations })}
+      </h2>
+      {hunks.map((hunk, index) => (
+        <div key={hunk.id} className="space-y-3">
+          {hunk.status === "pending" && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={included.includes(hunk.id)}
+                disabled={!canSelect || actions.checkSelection.isPending}
+                aria-label={t("includeChange", { number: index + 1 })}
+                onCheckedChange={(checked) =>
+                  onChange(
+                    checked === true
+                      ? [...included, hunk.id]
+                      : included.filter((id) => id !== hunk.id),
+                  )
+                }
+              />
+              {t("includeInTest")}
+            </label>
+          )}
+          <ChangePreview hunk={hunk} />
+        </div>
+      ))}
+      {session.can_restart === false && (
+        <p className="text-muted-foreground text-sm">{t("paidRestartOwner")}</p>
+      )}
+      {canSelect && (
+        <div className="space-y-3 rounded-xl border p-4">
+          <p className="text-muted-foreground text-sm">{t("selectionBody")}</p>
+          {included.length === 0 && <p className="text-sm">{t("selectSomeChanges")}</p>}
+          <Button
+            className="h-auto min-h-9 text-left whitespace-normal"
+            variant="outline"
+            disabled={
+              !included.length ||
+              actions.estimateSelection.isPending ||
+              actions.checkSelection.isPending
+            }
+            onClick={() =>
+              void act(async () =>
+                setQuoted({
+                  key,
+                  quote: await actions.estimateSelection.mutateAsync({
+                    number: round.number,
+                    hunkIds: included,
+                  }),
+                }),
+              )
+            }
+          >
+            {t("estimateSelection")}
+          </Button>
+          {quote && (
+            <>
+              <p className="text-sm">
+                {t("selectionQuote", {
+                  count: quote.suggestions,
+                  cost: usd(quote.total_usd, locale),
+                })}
+              </p>
+              <Button
+                className="h-auto min-h-9 text-left whitespace-normal"
+                disabled={!quote.affordable || actions.checkSelection.isPending}
+                onClick={() =>
+                  void act(async () => {
+                    await actions.checkSelection.mutateAsync({
+                      number: round.number,
+                      hunkIds: included,
+                      quote,
+                    });
+                    setQuoted(null);
+                    onStarted();
+                  })
+                }
+              >
+                {t("confirmSelection")}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}

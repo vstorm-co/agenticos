@@ -47,8 +47,14 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        authoring_tasks,
+        case_generation_tasks,
+        eval_suite_tasks,
+        eval_tasks,
         generated_media_tasks,
+        improvement_tasks,
         invitation_tasks,
+        knowledge_gap_tasks,
         mcp_tasks,
         notification_tasks,
         proactive_tasks,
@@ -66,6 +72,13 @@ def production() -> Handlers:
             *ingest().values(),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
+            Handler(jobs.RUN_EVAL, eval_tasks.run_eval),
+            Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
+            Handler(jobs.ADVANCE_IMPROVEMENT, improvement_tasks.advance_improvement),
+            Handler(jobs.SWEEP_IMPROVEMENTS, _each_tick(improvement_tasks.sweep_improvements)),
+            Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
+            Handler(jobs.DRAFT_GAPS, knowledge_gap_tasks.draft_knowledge_gaps),
+            Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
             Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
             Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
             Handler(jobs.BRIEF_PERSON, proactive_tasks.brief_person),
@@ -94,6 +107,11 @@ def production() -> Handlers:
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
+            Handler(jobs.CHECK_EVAL_SUITES, _each_tick(eval_suite_tasks.check_eval_suites)),
+            Handler(jobs.REAP_ABANDONED_EVALS, _each_tick(run_tasks.reap_abandoned_evals)),
+            Handler(
+                jobs.GROUP_KNOWLEDGE_GAPS, _each_tick(knowledge_gap_tasks.group_knowledge_gaps)
+            ),
             Handler(
                 jobs.SWEEP_GENERATED_MEDIA,
                 _each_tick(generated_media_tasks.sweep_generated_media),
@@ -118,14 +136,21 @@ def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[Non
 
 @cache
 def _settlers() -> dict[str, Settler]:
-    from app.worker.tasks import rag_tasks
+    from app.worker.tasks import authoring_tasks, case_generation_tasks, eval_tasks, rag_tasks
 
     return {
+        jobs.GENERATE_CASES.kind: _settler(
+            jobs.GENERATE_CASES, case_generation_tasks.settle_lost_generation
+        ),
         jobs.INGEST_DOCUMENT.kind: _settler(jobs.INGEST_DOCUMENT, rag_tasks.settle_lost_ingest),
         jobs.SYNC_COLLECTION.kind: _settler(
             jobs.SYNC_COLLECTION, rag_tasks.settle_lost_collection_sync
         ),
         jobs.SYNC_SOURCE.kind: _settler(jobs.SYNC_SOURCE, rag_tasks.settle_lost_source_sync),
+        jobs.RUN_EVAL.kind: _settler(jobs.RUN_EVAL, eval_tasks.settle_lost_eval),
+        jobs.RUN_AUTHORING.kind: _settler(
+            jobs.RUN_AUTHORING, authoring_tasks.settle_lost_authoring
+        ),
     }
 
 
@@ -134,8 +159,10 @@ async def settle_ended(kind: str, payload: dict[str, JsonValue], why: str) -> No
 
     The ingestion kinds leave a document `processing` or a sync log `running`
     when their process dies - the handler never reaches its own cleanup - and
-    nothing else would ever finish them (Codex, #2248). Every other kind leaves
-    nothing behind.
+    nothing else would ever finish them (Codex, #2248); a case generation is
+    left `running` the same way. An eval run or an authoring request left live
+    would hold its suite, its gate and its eval slots until a sweep gave up on
+    it. Every other kind leaves nothing behind.
     """
     settle = _settlers().get(kind)
     if settle is not None:

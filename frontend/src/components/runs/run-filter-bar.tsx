@@ -35,6 +35,7 @@ export const SURFACES = [
   "a2a",
   "teams",
   "schedule",
+  "eval",
 ] as const;
 
 // The shape and its defaults live in `lib/runs/filter-params.ts`, with the two
@@ -103,6 +104,7 @@ export function RunFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">{t("anySurface")}</SelectItem>
+          <SelectItem value="every">{t("everySurface")}</SelectItem>
           {SURFACES.map((entry) => (
             <SelectItem key={entry} value={entry}>
               <span className="flex items-center gap-1.5">

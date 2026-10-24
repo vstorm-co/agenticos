@@ -22,8 +22,14 @@ rename.
 | Skill | Know-how written once and read by any agent that needs it | `skill` |
 | Context file | Standing knowledge an agent always has, such as a glossary or a policy | `context` |
 | Knowledge base | Documents an agent searches and cites | `collection` |
+| Knowledge gap | A topic of questions a knowledge base could not answer, grouped by meaning | `knowledge_gap_topic` |
 | App | A page an agent publishes, such as a report or a small dashboard | `artifact` |
 | Architect | The assistant in the corner of every page, which can build agents with you | `platform-assistant` |
+| System agent | An agent the platform runs itself, such as a judge, the gap drafter or the gap classifier; listed apart under **System agents** | `kind` other than `agent` |
+| Authoring assistant | Suggests changes to an agent, a skill or a context file from rated-down answers; a person decides each | `authoring` |
+| Suggestion | One proposed change to a draft, accepted, edited or dismissed on its own | `spec_proposal_hunk` |
+| Setting change | A suggestion to change one part of an agent's configuration, such as its model or a capability | `spec_field` hunk |
+| Context file change | A new body the assistant proposed for a context file, applied or discarded on the Context page | `context_proposal` |
 | AgenticOS | The general-purpose agent a new organization opens with in Chat, and what a new agent starts as | `general/agenticos` |
 
 ## Where it runs
@@ -33,8 +39,11 @@ rename.
 | Chat | The web conversation with an agent | `conversation` |
 | Channel | Slack, Telegram or Mattermost, where people reach an agent | `channel_bot` |
 | Routine | An agent running on its own, on a schedule or an event | `trigger` |
+| Eval suite | A dataset an agent is held to, run on a schedule, on publish or promotion, or after a change | `eval_suite` |
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
 | Environment | A named stage, such as production, pointing at one version | `environment` |
+| Guard | An eval suite an environment requires to pass on a version before it takes it | `guard_suite_ids` |
+| Override | A promotion made past guards that had not passed, with a reason | `override_reason` |
 | MCP server | An external tool server agents call, connected once | `mcp_connection` |
 | Remote agent | Another vendor's agent, reached over A2A, that agents delegate to | `external_agent` |
 | Agent2Agent (A2A) | The protocol other systems' agents use to send an agent tasks | `a2a_enabled` |
@@ -52,6 +61,20 @@ rename.
 | Budget | A spending limit that stops runs when it is reached | `budget` |
 | Guardrails | Checks that redact or block what flows through a run | `guardrails` |
 | Vault | Where keys and tokens are stored, sealed and never shown again | `secret` |
+
+## How it is tested
+
+| In the console | What it is | In the API and spec |
+|---|---|---|
+| Dataset | Versioned test cases an agent's answers are checked against | `dataset` |
+| Case | One question, and what a good answer is tested against | `dataset_case` |
+| Grading | How a dataset's answers are scored: checks, the reference answer and a judge | `scoring` |
+| Judge | An agent that grades answers for evals; only the platform runs it | `kind: judge` |
+| Eval | An agent answering every case of a dataset, scored and compared with a version before it | `eval_run` |
+| Review | Scores waiting for a person to confirm or overrule them | `review_state` |
+| Case generator | The system agent that drafts cases from an agent, its knowledge, real chats and red teaming | `kind: generator` |
+| Proposed case | A drafted case waiting under **Generated** until a person accepts or dismisses it | `case_proposal` |
+| Red teaming | Cases checking that an agent refuses what it must | `red-team` tag |
 
 ## Capabilities
 

@@ -97,6 +97,67 @@ describe("AgentCard", () => {
     expect(container.querySelector("[data-beam]")).not.toBeNull();
   });
 
+  it("flags an agent that needs attention, saying why on hover", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refund desk" })}
+        canEdit={false}
+        attention={{
+          agent_id: "a1",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 1,
+          can_edit: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Needs attention")).toHaveAttribute(
+      "title",
+      "5 answers rated down · 1 failing suite",
+    );
+  });
+
+  it("flags nothing without a reason to", () => {
+    mount({ name: "Refund desk" });
+
+    expect(screen.queryByText("Needs attention")).toBeNull();
+  });
+
+  it("marks the judge the platform seeded as the default one", () => {
+    mount({ system_key: "eval_judge", name: "Eval judge", kind: "judge" });
+
+    expect(screen.getByText("Default judge")).toBeInTheDocument();
+  });
+
+  it("names the kind a seeded agent is the default of", () => {
+    mount({ system_key: "case_generator", name: "Case generator", kind: "generator" });
+
+    expect(screen.getByText("Default case generator")).toBeInTheDocument();
+    expect(screen.queryByText("Default judge")).toBeNull();
+  });
+
+  it("lets an editor open a card with no menu, as a judge's has none", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refunds judge", kind: "judge" })}
+        canEdit
+        footer={<p>Used by Refunds</p>}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Edit Refunds judge" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more actions/i })).toBeNull();
+    expect(screen.getByText("Used by Refunds")).toBeInTheDocument();
+  });
+
+  it("marks nothing on an agent a person made", () => {
+    mount();
+
+    expect(screen.queryByText("Default judge")).toBeNull();
+  });
+
   it("opens the builder from anywhere on the card", () => {
     mount();
 

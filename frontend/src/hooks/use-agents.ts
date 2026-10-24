@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
@@ -11,6 +17,8 @@ import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
+import { specFixes, type SpecFix } from "@/lib/spec-fixes";
+import { SYSTEM_AGENT_KINDS } from "@/lib/system-agents";
 import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
 import type {
@@ -24,6 +32,7 @@ import type {
   CapabilityCatalog,
   DelegationTree,
   SpecialistSpec,
+  SystemAgentKind,
   SystemPromptVariable,
 } from "@/types/agents";
 
@@ -33,6 +42,74 @@ import type {
 export interface PromoteSpecialist {
   specialist: SpecialistSpec;
   fallbackModelProfileId: string | null;
+}
+
+/**
+ * The organization's judges - the default eval judge and each dataset's own - which
+ * every other agent list leaves out. Opened and edited like any agent; never run by hand.
+ */
+export function useJudges({ enabled = true } = {}) {
+  return useAgentsOfKind("judge", { enabled });
+}
+
+/** What New agent sends to add a system agent of the organization's own. */
+export interface SystemAgentCreate {
+  kind: SystemAgentKind;
+  name: string;
+}
+
+/** Add a system agent from its kind's definition. */
+export function useCreateSystemAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SystemAgentCreate) => apiClient.post<Agent>("/agents/system", data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+  });
+}
+
+/** The organization's system agents of one kind, which every other agent list leaves out. */
+export function useAgentsOfKind(kind: SystemAgentKind, { enabled = true } = {}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.agents.ofKind(kind),
+    queryFn: () => apiClient.get<AgentList>("/agents", { params: { kind, limit: "100" } }),
+    enabled,
+  });
+  return { agents: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
+}
+
+/** One kind of system agent and the agents of it the caller may see. */
+export interface SystemAgentGroup {
+  kind: SystemAgentKind;
+  agents: Agent[];
+}
+
+/**
+ * The organization's system agents, one group per kind in `SYSTEM_AGENT_KINDS`
+ * order, which every other agent list leaves out. A kind with none is still a
+ * group, holding nothing; `total` counts them all.
+ */
+export function useSystemAgents() {
+  const results = useQueries({
+    queries: SYSTEM_AGENT_KINDS.map((kind) => ({
+      queryKey: qk.agents.ofKind(kind),
+      queryFn: () => apiClient.get<AgentList>("/agents", { params: { kind, limit: "100" } }),
+    })),
+  });
+  const groups: SystemAgentGroup[] = SYSTEM_AGENT_KINDS.map((kind, index) => ({
+    kind,
+    agents: results[index]?.data?.items ?? [],
+  }));
+  const total = results.reduce((sum, result) => sum + (result.data?.total ?? 0), 0);
+  return { groups, total };
+}
+
+/**
+ * The organization's case generator, the system agent that drafts dataset cases;
+ * null where the caller cannot see it. Every other agent list leaves it out.
+ */
+export function useCaseGenerator({ enabled = true } = {}) {
+  const { agents } = useAgentsOfKind("generator", { enabled });
+  return agents.find((agent) => agent.system_key === "case_generator") ?? null;
 }
 
 /**
@@ -242,6 +319,8 @@ export function useAgents({
 export type SpecRefusal = {
   readonly problems: string[];
   readonly fields: FieldProblem[];
+  /** The one-click fixes the server offered that this console can apply. */
+  readonly fixes: SpecFix[];
 };
 
 /** One agent, with the spec currently being edited. */
@@ -251,7 +330,7 @@ export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("agents");
 
-  const { data, isLoading, dataUpdatedAt } = useQuery({
+  const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: qk.agents.detail(agentId ?? ""),
     queryFn: () => apiClient.get<AgentDetail>(`/agents/${agentId}`),
     enabled: !!agentId,
@@ -299,7 +378,7 @@ export function useAgent(agentId: string | null) {
   const validate = useCallback(async (): Promise<SpecRefusal> => {
     try {
       await apiClient.post<void>(`/agents/${agentId}/validate`, {});
-      return { problems: [], fields: [] };
+      return { problems: [], fields: [], fixes: [] };
     } catch (error) {
       // This read used to be `error.details`, a property `ApiError` has never
       // had, so the list the backend goes out of its way to report in full was
@@ -307,8 +386,9 @@ export function useAgent(agentId: string | null) {
       // envelope; the fallback is for the failures that are not a verdict on
       // the spec at all - a refused permission, a dropped connection.
       const problems = problemList(error);
-      if (problems === null) return { problems: [getErrorMessage(error, tErrors)], fields: [] };
-      return { problems, fields: fieldProblems(error) };
+      if (problems === null)
+        return { problems: [getErrorMessage(error, tErrors)], fields: [], fixes: [] };
+      return { problems, fields: fieldProblems(error), fixes: specFixes(error) };
     }
   }, [agentId, tErrors]);
 
@@ -392,6 +472,9 @@ export function useAgent(agentId: string | null) {
   return {
     agent: data,
     isLoading,
+    /** The read's failure, so a detail page can tell a 404 from a slow first
+     *  load rather than waiting on a skeleton that never resolves. */
+    error,
     /** When the agent was last read successfully - what a page waiting on a
      *  refetch it did not start watches for. A failed refetch does not count:
      *  it has not shown what changed. */
@@ -519,6 +602,26 @@ export function useAgentVersion(agentId: string | null, versionId: string | null
   return { version: data, isLoading, error };
 }
 
+/**
+ * The version the draft is based on - the latest published one, whatever
+ * production runs - with its spec, so the draft can be compared with it.
+ *
+ * `base` is undefined while it loads and for an agent never published.
+ */
+export function useDraftBase(agentId: string | null) {
+  // No placeholder from the agent before: its newest version is not this one's.
+  const { data } = useQuery({
+    queryKey: qk.agents.versions(agentId ?? "", 0, 1),
+    queryFn: () =>
+      apiClient.get<AgentVersionList>(`/agents/${agentId}/versions`, {
+        params: { skip: "0", limit: "1" },
+      }),
+    enabled: !!agentId,
+  });
+  const { version } = useAgentVersion(agentId, data?.items[0]?.id ?? null);
+  return { base: version };
+}
+
 /** The system variables any agent's instructions may write as `{{name}}` (#2065). */
 export function usePromptVariables() {
   const { data } = useQuery({
@@ -530,16 +633,17 @@ export function usePromptVariables() {
 }
 
 /**
- * Everything an agent can be given.
+ * Everything an agent can be given, and what a new one starts with.
  *
- * Cached indefinitely: the catalog changes when the backend is redeployed, not
- * while someone is building an agent.
+ * `recommended` depends on the organization - a container workspace only where
+ * one would publish - so it is kept for a minute, as the server keeps it, and
+ * dropped whenever a sandbox connection changes.
  */
 export function useCapabilityCatalog() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: qk.agents.capabilityCatalog(),
     queryFn: () => apiClient.get<CapabilityCatalog>("/agents/capabilities"),
-    staleTime: Infinity,
+    staleTime: 60_000,
   });
   const guide = useCapabilityGuide();
   // Named and described in the reader's language wherever the console has the
@@ -552,7 +656,7 @@ export function useCapabilityCatalog() {
       }),
     [data, guide],
   );
-  return { capabilities, isLoading };
+  return { capabilities, isLoading, isFetching, refetch };
 }
 
 /**

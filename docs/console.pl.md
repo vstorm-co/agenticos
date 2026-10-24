@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "5082dd13ffa3"
 ---
 
 # Konsola { #the-console }
@@ -18,7 +18,7 @@ ustawieniach czatu, pod suwakami obok mikrofonu.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje pięćdziesiąt jeden kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -30,10 +30,17 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 |---|---|
-| **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
+| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
+
+Na widoku **Ja** karta **Agenci wymagający uwagi** wymienia agentów, których
+widzisz, z odpowiedziami ocenionymi w dół, nieudanymi runami albo oblaną suitą
+ewaluacji w tym okresie - same liczby, nigdy treść - z przyciskiem **Ulepsz**
+przy tych, które możesz edytować. Galeria agentów oznacza tych samych agentów z
+ostatnich trzydziestu dni znaczkiem **Wymaga uwagi**, który po najechaniu mówi
+dlaczego. Oba wymagają `runs:view`.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
@@ -242,6 +249,15 @@ Ogłaszane są też runy: gdy startują, zatrzymują się na zatwierdzeniu lub p
 i gdy się kończą. Run uruchomiony przez harmonogram pojawia się na otwartej
 stronie Activity i zmienia tam status, choć nie stoi za nim żadne twoje żądanie.
 
+Ogłaszane są też datasety: dodany albo usunięty przypadek, zmiana oceniania,
+wynik albo decyzja przeglądu, a także propozycje, które
+[generator przypadków](datasets.md#generating-cases) kończy w tle - pojawiają się
+w zakładce Generated otwartego datasetu bez przeładowania.
+
+Tak samo ogłaszane są luki w wiedzy: temat odrzucony albo z nowym szkicem w
+jednej karcie i pytania, które co 15 minut umieszcza przejście grupujące,
+pojawiają się na otwartej karcie Luki w wiedzy bez przeładowania.
+
 Wyjątkiem jest Builder, bo zapisuje draft w trakcie pisania. Gdy edytowany agent
 zmieni się gdzie indziej, Builder przestaje zapisywać i pobiera nową wersję. Bez
 niezapisanych zmian po prostu ją przyjmuje; z niezapisanymi zmianami mówi, kto i
@@ -249,10 +265,11 @@ którędy go zmienił, i czeka na twój wybór: **Przeładuj** (ich wersja) albo
 **Zachowaj moje zmiany** (twoja, zapisana zamiast ich).
 
 Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
-pliku kontekstu, strony, klucza albo serwera MCP, których nie widzisz, nigdy nie
+pliku kontekstu, strony, klucza, serwera MCP albo datasetu, których nie widzisz, nigdy nie
 trafia do twojej konsoli, a usunięcie trafia tylko do ról, które widzą każdy
 wiersz danego rodzaju. Runy trafiają do ról, które czytają historię runów albo
-decydują o zatwierdzeniach, boty kanałów do ról, które nimi zarządzają, a twoje
+decydują o zatwierdzeniach, luki w wiedzy do ról, które czytają każdy run, boty
+kanałów do ról, które nimi zarządzają, a twoje
 powiadomienia tylko do ciebie.
 Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponownie łączy.
 
@@ -615,6 +632,7 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
 | **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
 | **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
+| **Datasets** | Wersjonowane przypadki testowe, importowane, eksportowane albo dodawane z ocenionej odpowiedzi | [Datasety](datasets.md) |
 | **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
 | **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
 | **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -671,7 +689,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
+- Dashboard to **pięćdziesiąt jeden widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

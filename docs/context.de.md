@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "9b416555caa2"
 ---
 
 # Context-Dateien { #context-files }
@@ -98,6 +98,36 @@ Man kann auch bei der Datei anfangen: **Zu einem Agenten hinzufügen** auf ihrer
 Karte fügt sie dem Entwurf des Agenten hinzu, mit eingeschalteter
 Kontext-Capability, und die Karte sagt, welche Agents sie schon tragen. Eine
 Wissensdatenbank hat dieselbe Aktion auf ihrer eigenen Seite.
+
+## Änderungen, die der Assistent vorschlägt { #changes-the-assistant-proposes }
+
+**Mit dem Assistenten verbessern** im Editor einer Datei bittet den
+[Authoring-Assistenten](authoring.md#context-files) um einen besseren Inhalt,
+geschrieben aus den Runs der Agents, die die Datei lesen. Was er vorschlägt,
+wird nicht angewendet: Es wartet über der Liste auf der Context-Seite, mit
+Begründung, den Runs, auf denen es beruht, und den Agents, an die die Datei
+gebunden ist.
+
+Es anzuwenden ist dasselbe, wie die Datei von Hand zu bearbeiten - sofort
+wirksam für jeden Agent, dessen veröffentlichte Version die Datei liest -,
+deshalb kommt **Mit Evals prüfen** zuerst, an einem dieser Agents. Neben
+**Anwenden** sagt die Änderung, was das Anwenden bewirkt: jeder Agent und jede
+Umgebung, für die sie wirksam wird, die Eval-Suites, die es in die Warteschlange
+stellt, und die Wächter, die sie erst bei der nächsten Promotion des Agents
+prüfen. Eine Datei, die jemand nach dem Vorschlag bearbeitet hat, lehnt die
+Änderung ab; die Bearbeitung wird nie überschrieben.
+
+Den Assistenten erneut zu fragen schreibt die wartende Änderung um, statt eine
+zweite hinzuzufügen. Eine Entscheidung nennt die Version der Änderung, die Sie
+gelesen haben, sodass von zwei gleichzeitigen nur eine zählt, und eine Seite,
+die vor dem Umschreiben geöffnet wurde, wird mit „The proposal changed since you
+opened it“ abgelehnt, bis Sie die neue Version prüfen. Eine Änderung, die sagt,
+was die Datei schon sagt, wird gar nicht erst vorgeschlagen.
+
+Jede Bearbeitung einer Datei - angewendet oder von Hand - und ihr Löschen
+stellen die Eval-Suites, die laufen, wenn sich eine Abhängigkeit ändert, für
+jeden Agent in die Warteschlange, der sie liest, und das Anwenden einer Änderung
+benachrichtigt die Besitzer dieser Agents.
 
 ## Zugriff { #access }
 

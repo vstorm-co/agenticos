@@ -12,6 +12,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.resource_usage import ReachedAgent
 
 
 class SkillProposalRead(BaseSchema, TimestampSchema):
@@ -33,6 +34,46 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
     status: str
     decided_by_user_id: UUID | None = None
     decided_at: datetime | None = None
+    base_version: int | None = Field(
+        default=None,
+        description=(
+            "The skill version the body was written against; Apply refuses once the "
+            "skill has moved past it. Null for a new skill, and for a change an agent's "
+            "workspace wrote before proposals recorded it"
+        ),
+    )
+    authoring_request_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The authoring assistant's request that proposed it; null for a change an "
+            "agent's workspace wrote"
+        ),
+    )
+    rationale: str = ""
+    evidence: list[dict[str, str | None]] = Field(
+        default_factory=list,
+        description=(
+            "Run ids and quotes, each checked against the run it names; the quote is "
+            "null for a reader without runs:view"
+        ),
+    )
+    evidence_dropped: int = Field(
+        default=0, description="Evidence the assistant cited that could not be found"
+    )
+    expected_effect: str = ""
+    revision: int = Field(
+        default=1, description="Raised each time a new run rewrites the pending proposal"
+    )
+    reaches: list[ReachedAgent] = Field(
+        default_factory=list,
+        description=(
+            "The agents whose served version reads it - where applying it goes live at "
+            "once - as far as the reader may see them"
+        ),
+    )
+    reaches_hidden: int = Field(
+        default=0, description="Agents it also reaches that the reader may not see"
+    )
 
 
 class SkillProposalList(BaseSchema):

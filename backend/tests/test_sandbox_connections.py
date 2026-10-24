@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import anyio
 import pytest
 from pydantic import ValidationError
 
@@ -44,6 +45,7 @@ from app.schemas.sandbox_connection import (
     SandboxProbeRequest,
     SandboxSessionUsage,
 )
+from app.services import sandbox_connection as sandbox_connection_service
 from app.services.sandbox_connection import (
     LOCAL_TOKEN_SECRET_NAME,
     ResolvedConnection,
@@ -1668,3 +1670,144 @@ class TestTheDeploymentsOwnSandbox:
 
         assert await service.list_connections(_ctx()) == []
         ensure.assert_awaited_once()
+
+
+class TestWhetherAContainerWorkspaceWouldPublish:
+    """What a new agent is offered: a container workspace only where it would publish."""
+
+    @pytest.fixture(autouse=True)
+    def _forget(self, monkeypatch):
+        monkeypatch.setattr(sandbox_connection_service, "_provides", {})
+
+    def _setup(
+        self, monkeypatch, *, default: Any = None, token: str = "sbx-token", owner: bool = True
+    ) -> tuple[SandboxConnectionService, AsyncMock]:
+        service = _service(monkeypatch)
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", token)
+        monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=default))
+        monkeypatch.setattr(
+            "app.services.sandbox_connection.member_repo.first_owner_id",
+            AsyncMock(return_value=uuid.uuid4() if owner else None),
+        )
+        answering = AsyncMock(return_value="http://sandboxd:8080")
+        monkeypatch.setattr(SandboxConnectionService, "_first_answering", answering)
+        return service, answering
+
+    async def test_an_organization_with_a_default_connection_can(self, monkeypatch):
+        service, answering = self._setup(monkeypatch, default=_row(), token="")
+
+        assert await service.can_provide(uuid.uuid4()) is True
+        answering.assert_not_awaited()
+
+    async def test_a_deployment_running_a_sandbox_service_can(self, monkeypatch):
+        service, _answering = self._setup(monkeypatch)
+
+        assert await service.can_provide(uuid.uuid4()) is True
+
+    async def test_without_a_service_or_an_owner_to_register_it_it_cannot(self, monkeypatch):
+        service, _answering = self._setup(monkeypatch, token="")
+        assert await service.can_provide(uuid.uuid4()) is False
+
+        service, _answering = self._setup(monkeypatch, owner=False)
+        assert await service.can_provide(uuid.uuid4()) is False
+
+    async def test_a_service_that_does_not_answer_is_a_no_and_a_warning(self, monkeypatch, caplog):
+        service, answering = self._setup(monkeypatch)
+        answering.return_value = None
+
+        with caplog.at_level("WARNING", logger="app.services.sandbox_connection"):
+            assert await service.can_provide(uuid.uuid4()) is False
+
+        assert [r.message for r in caplog.records] == ["sandbox_service_not_answering"]
+
+    async def test_nothing_is_set_up_while_asking(self, monkeypatch):
+        service, _answering = self._setup(monkeypatch)
+        create = AsyncMock()
+        monkeypatch.setattr(sandbox_connection_repo, "create", create)
+
+        await service.can_provide(uuid.uuid4())
+
+        create.assert_not_awaited()
+
+    async def test_a_yes_is_kept_for_a_minute_per_organization(self, monkeypatch):
+        service, answering = self._setup(monkeypatch)
+        org, other = uuid.uuid4(), uuid.uuid4()
+        clock = [1000.0]
+        monkeypatch.setattr(sandbox_connection_service.time, "monotonic", lambda: clock[0])
+
+        await service.can_provide(org)
+        answering.return_value = None
+        assert await service.can_provide(org) is True
+        assert await service.can_provide(other) is False
+
+        clock[0] += 61
+        assert await service.can_provide(org) is False
+
+    async def test_a_no_is_asked_again_after_ten_seconds(self, monkeypatch):
+        """A sandbox service still starting answers no to the first ask."""
+        service, answering = self._setup(monkeypatch)
+        answering.return_value = None
+        org = uuid.uuid4()
+        clock = [1000.0]
+        monkeypatch.setattr(sandbox_connection_service.time, "monotonic", lambda: clock[0])
+
+        assert await service.can_provide(org) is False
+        answering.return_value = "http://sandboxd:8080"
+        clock[0] += 5
+        assert await service.can_provide(org) is False
+
+        clock[0] += 6
+        assert await service.can_provide(org) is True
+
+    async def test_a_service_slower_than_the_probe_allows_is_a_no(self, monkeypatch):
+        service, answering = self._setup(monkeypatch)
+        monkeypatch.setattr(sandbox_connection_service, "_PROBE_SECONDS", 0.01)
+
+        async def hang() -> str:
+            await anyio.sleep(5)
+            return "http://sandboxd:8080"
+
+        answering.side_effect = hang
+
+        assert await service.can_provide(uuid.uuid4()) is False
+
+    async def test_editing_or_removing_a_connection_asks_again(self, monkeypatch):
+        service, _answering = self._setup(monkeypatch)
+        ctx = _ctx()
+        row = _row()
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(
+            sandbox_connection_repo, "update_connection", AsyncMock(return_value=row)
+        )
+        monkeypatch.setattr(sandbox_connection_repo, "delete", AsyncMock())
+        monkeypatch.setattr(project_repo, "names_on_connection", AsyncMock(return_value=[]))
+        monkeypatch.setattr(pending_destroy_repo, "count_on_connection", AsyncMock(return_value=0))
+        service.db.begin_nested = MagicMock(return_value=AsyncMock())
+
+        await service.can_provide(ctx.organization_id)
+        await service.update(ctx, row.id, SandboxConnectionUpdate(is_default=True))
+        assert ctx.organization_id not in sandbox_connection_service._provides
+
+        await service.can_provide(ctx.organization_id)
+        await service.delete(ctx, row.id)
+        assert ctx.organization_id not in sandbox_connection_service._provides
+
+    async def test_registering_a_connection_asks_again(self, monkeypatch):
+        service, _answering = self._setup(monkeypatch, token="")
+        ctx = _ctx()
+        assert await service.can_provide(ctx.organization_id) is False
+        monkeypatch.setattr(sandbox_connection_repo, "get_by_name", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            sandbox_connection_repo, "list_for_organization", AsyncMock(return_value=[])
+        )
+        monkeypatch.setattr(sandbox_connection_repo, "create", AsyncMock(return_value=_row()))
+
+        await service.create(
+            ctx,
+            SandboxConnectionCreate(
+                name="Local Docker", kind="docker", base_url="http://sandboxd:8080"
+            ),
+        )
+        monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=_row()))
+
+        assert await service.can_provide(ctx.organization_id) is True

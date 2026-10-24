@@ -1,5 +1,5 @@
 ---
-source_sha: "d77cb23fa679"
+source_sha: "e129ce1f6800"
 ---
 
 # API HTTP { #the-http-api }
@@ -129,6 +129,17 @@ tylko następne żądanie HTTP.
 Odświeżenie nie zaczyna nowej sesji — refresh token rotuje w miejscu, a access
 token dalej nazywa tę samą sesję — więc długo żyjące połączenie nie zostaje
 przerwane przez rutynowe odświeżenie.
+
+### Praca, która działa po żądaniu { #work-that-runs-after-the-request }
+
+[Eval run](evals.md) ani żądanie do [asystenta tworzenia](authoring.md) nie
+mogą zostać rozpoczęte kluczem organizacji: te trasy są dla osób zalogowanych, a
+klucz dostaje na nich `403`. Praca, która wykonuje się później, w tle, podlega
+uprawnieniom osoby, która ją rozpoczęła, w ich stanie z chwili, gdy praca się
+zaczyna - rola utracona w międzyczasie ją zatrzymuje. Gdyby klucz kiedyś mógł
+rozpocząć taką pracę, to samo dotyczyłoby klucza: liczyłyby się jego uprawnienia
+w ówczesnym stanie, a klucz unieważniony, wygasły albo usunięty w międzyczasie
+zatrzymywałby pracę, z powodem zapisanym na runie albo żądaniu.
 
 ## Nagłówek organizacji { #the-organization-header }
 
@@ -401,7 +412,10 @@ uwierzytelniony tak samo, z organizacją w `?organization_id=`, wysyła jedną r
 JSON na każdy udany zapis przez publiczne API w tej organizacji — `resource`,
 `id`, `action` (`created`, `updated` albo `deleted`), `surface` (`console`,
 `api_key`, `mcp` albo `assistant`) i kto go wykonał — i tylko o wierszach, które
-wywołujący może odczytać.
+wywołujący może odczytać. Tak samo przychodzą zmiany, których nikt nie zapisał:
+`run` dla runa przechodzącego przez kolejne stany i `system` dla pracy, którą
+platforma wykonuje sama według harmonogramu, takiej jak przejście grupujące luki
+w wiedzy.
 
 ## Rozmowy głosowe { #voice-calls }
 

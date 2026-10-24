@@ -569,6 +569,77 @@ delegate to what.
 
 ---
 
+## System agents { #system-agents }
+
+Some agents are started by the platform rather than by a person: **judges**,
+which grade answers for [dataset grading](datasets.md#judge), the
+**Knowledge gap drafter**, which drafts the passage a
+[knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing, and
+the **Knowledge gap classifier**, which reads answers for the
+[questions a knowledge base could not answer](knowledge-gaps.md#answers-and-comments).
+These are **system agents**. An agent's kind says which it is - `agent` for the
+ones people use, `judge`, `drafter` and `classifier` for these. Every
+organization gets the default **Eval judge**, the drafter and the classifier
+when it is created, an organization created earlier gets each the first time
+something needs it, and a dataset may get a judge of its own.
+
+A system agent is the platform's to run, not an agent people use. Agents lists
+them apart, in a folded **System agents** band under **Agents**, grouped by
+kind: **Judges**, each card saying which datasets it grades, then the **Gap
+drafter** and, last, the **Gap classifier**. The seeded agent of each kind is
+marked as that kind's default - **Default judge**, **Default case generator**
+and so on.
+Agent pickers leave them out.
+
+Whoever holds `agents:edit` opens one to change its instructions, model and
+budget, from the band or, for the drafter, from **Edit the drafter's
+instructions** on a draft. A judge's page holds those, its limits, its history
+and the datasets that picked it, grading or not - each opening on its latest
+grades there and the eval runs they came from - with how often people agreed
+with it on the results it graded and they decided, and nothing else. The
+drafter's and the classifier's hold the same without the datasets.
+
+**New agent** → **System agent** creates any of the five kinds: judge, case
+generator, gap drafter, gap classifier or authoring assistant (`POST /agents/system`).
+It starts from that kind's instructions, temperature and budget, on the
+organization's first model, and publishes when you may publish agents. Pick a
+judge in dataset grading, a generator in Generate cases, knowledge helpers on a
+knowledge base's gaps tab, or an assistant in Improve. Each defaults to the
+organization's seeded agent. A selected helper must have the right kind, be
+published and remain runnable by the caller; a missing choice never silently
+adopts the default.
+
+Its runs are budget-checked and recorded like any other, and send no run
+notification. A system agent starts with a small monthly budget of its own, so
+a new organization cannot spend its whole budget on evaluation, drafting or
+checking answers by accident.
+
+The **case generator** is a system agent too, of the `generator` kind: it drafts
+[dataset cases](datasets.md#generating-cases) and is seeded the same way, with a
+budget of its own. It is listed in the same band, after the drafter, and is
+opened and edited like a judge; a dataset's Generated tab links to it for whoever
+may edit it.
+
+Only the platform runs it. Chat, the API, an embed or a public page, a channel,
+a schedule and delegation from another agent all refuse it, in the service that
+would start the run rather than only in the console.
+
+Every run of a system agent is [isolated](environments.md#in-an-eval) as an
+eval's is: a tool that reads runs, and one that would change something is held
+and recorded instead. A system agent reads text nobody vetted - an answer to
+grade, a document, a conversation - so an instruction planted there cannot reach
+a production connection through a tool an editor added to the agent.
+
+When the organization already has a model profile, a system agent is published
+on the oldest one, or on the one picked when it was created. Without one, it is
+created as a draft. The seeded Eval judge, drafter and classifier are published
+on the organization's first model as soon as one is added; a dataset's own
+judge waits for a person to pick its model and publish it, and the features that
+use it say so until then.
+
+The organization's [AI assistance switch](governance.md#ai-assistance) decides
+whether system agents run at all.
+
 ## Model profiles
 
 A **model profile** is a named model backed by a stored key: `openai default`,

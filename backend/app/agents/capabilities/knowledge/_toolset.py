@@ -19,6 +19,7 @@ from app.agents.capabilities._ambient import run_model_settings
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.capabilities.knowledge._log import KnowledgeSearchLog
 from app.agents.capabilities.knowledge._search import (
     organizational_units_in_scope,
     search_knowledge_base,
@@ -123,6 +124,7 @@ def build_knowledge_toolset(
     query_analysis_mode: QueryAnalysisMode = "off",
     query_analysis_max_variants: int = 3,
     parent_context: ParentContextMode = ParentContextMode.OFF,
+    search_log: KnowledgeSearchLog | None = None,
 ) -> FunctionToolset[AgentDeps]:
     """A toolset with one search tool, under the name it is declared with.
 
@@ -142,6 +144,9 @@ def build_knowledge_toolset(
     `query_analysis_mode` optionally expands the query before retrieval (#1649):
     the expansion runs through the host run's model and every produced query is
     retrieved under the same scope and filters as the original.
+
+    With a `search_log`, every search that succeeds is recorded in it with the
+    best similarity it returned, which is what knowledge gaps are found from.
     """
 
     async def search_documents(
@@ -261,6 +266,11 @@ def build_knowledge_toolset(
                 # The agent's configured small-to-big mode. Return-path only:
                 # matching still runs on the small chunks (#1651).
                 parent_context=parent_context,
+                on_results=(
+                    None
+                    if search_log is None
+                    else lambda names, results: search_log.record(query, names, results)
+                ),
             )
         except Exception:
             logger.exception("knowledge_search_failed")

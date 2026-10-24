@@ -1,4 +1,13 @@
-import { CalendarClock, Code2, Globe, MessageSquare, Mic, Network, Zap } from "lucide-react";
+import {
+  CalendarClock,
+  Code2,
+  FlaskConical,
+  Globe,
+  MessageSquare,
+  Mic,
+  Network,
+  Zap,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { brandMark } from "@/components/icons/brand-icon";
@@ -36,6 +45,7 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  eval: FlaskConical,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -50,6 +60,7 @@ const LABEL_KEYS = {
   teams: "surfaceTeams",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  eval: "surfaceEval",
 } as const;
 
 /**

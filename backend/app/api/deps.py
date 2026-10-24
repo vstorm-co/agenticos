@@ -676,6 +676,16 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
 
+from app.services.system_agents import SystemAgentService
+
+
+def get_system_agent_service(db: DBSession) -> SystemAgentService:
+    """Create SystemAgentService instance with database session."""
+    return SystemAgentService(db)
+
+
+SystemAgentSvc = Annotated[SystemAgentService, Depends(get_system_agent_service)]
+
 
 from app.services.knowledge_reach import KnowledgeReachService
 
@@ -802,6 +812,76 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.dataset import DatasetService
+
+
+def get_dataset_service(db: DBSession) -> DatasetService:
+    """Create DatasetService instance with database session."""
+    return DatasetService(db)
+
+
+DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
+
+from app.services.knowledge_gaps import KnowledgeGapService
+
+
+def get_knowledge_gap_service(db: DBSession) -> KnowledgeGapService:
+    """Create KnowledgeGapService instance with database session."""
+    return KnowledgeGapService(db)
+
+
+KnowledgeGapSvc = Annotated[KnowledgeGapService, Depends(get_knowledge_gap_service)]
+from app.services.scoring import ScoringService
+
+
+def get_scoring_service(db: DBSession) -> ScoringService:
+    """Create ScoringService instance with database session."""
+    return ScoringService(db)
+
+
+ScoringSvc = Annotated[ScoringService, Depends(get_scoring_service)]
+
+from app.services.eval_run import EvalRunService
+
+
+def get_eval_run_service(db: DBSession) -> EvalRunService:
+    """Create EvalRunService instance with database session."""
+    return EvalRunService(db)
+
+
+EvalRunSvc = Annotated[EvalRunService, Depends(get_eval_run_service)]
+
+from app.services.eval_suite import EvalSuiteService
+
+
+def get_eval_suite_service(db: DBSession) -> EvalSuiteService:
+    """Create EvalSuiteService instance with database session."""
+    return EvalSuiteService(db)
+
+
+EvalSuiteSvc = Annotated[EvalSuiteService, Depends(get_eval_suite_service)]
+
+from app.services.promotion_gate import PromotionGateService
+
+
+def get_promotion_gate_service(db: DBSession) -> PromotionGateService:
+    """Create PromotionGateService instance with database session."""
+    return PromotionGateService(db)
+
+
+PromotionGateSvc = Annotated[PromotionGateService, Depends(get_promotion_gate_service)]
+
+
+from app.services.authoring import AuthoringService
+
+
+def get_authoring_service(db: DBSession) -> AuthoringService:
+    """Create AuthoringService instance with database session."""
+    return AuthoringService(db)
+
+
+AuthoringSvc = Annotated[AuthoringService, Depends(get_authoring_service)]
+
 
 def get_mention_service(db: DBSession) -> MentionService:
     return MentionService(db)
@@ -843,6 +923,16 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
+
+from app.services.context_proposal import ContextProposalService
+
+
+def get_context_proposal_service(db: DBSession) -> ContextProposalService:
+    """Create ContextProposalService instance with database session."""
+    return ContextProposalService(db)
+
+
+ContextProposalSvc = Annotated[ContextProposalService, Depends(get_context_proposal_service)]
 
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
@@ -1545,6 +1635,28 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
 
+from app.services.case_generation import CaseGenerationService
+
+
+def get_case_generation_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> CaseGenerationService:
+    """Create CaseGenerationService instance with database session."""
+    return CaseGenerationService(db, vector_store=vector_store)
+
+
+CaseGenerationSvc = Annotated[CaseGenerationService, Depends(get_case_generation_service)]
+
+from app.services.agent_test_set import AgentTestSetService
+
+
+def get_agent_test_set_service(db: DBSession, vector_store: VectorStoreSvc) -> AgentTestSetService:
+    """Create AgentTestSetService instance with database session."""
+    return AgentTestSetService(db, vector_store=vector_store)
+
+
+AgentTestSetSvc = Annotated[AgentTestSetService, Depends(get_agent_test_set_service)]
+
 
 def get_organization_teardown_service(
     db: DBSession, vector_store: VectorStoreSvc
@@ -1778,3 +1890,13 @@ def prefers_async(
 
 
 PrefersAsync = Annotated[bool, Depends(prefers_async)]
+
+
+from app.services.improvement_pipeline import ImprovementPipelineService
+
+
+def get_improvement_service(db: DBSession) -> ImprovementPipelineService:
+    return ImprovementPipelineService(db)
+
+
+ImprovementSvc = Annotated[ImprovementPipelineService, Depends(get_improvement_service)]

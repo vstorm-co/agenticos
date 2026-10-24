@@ -10,8 +10,22 @@ import { Perm, type Permission } from "@/types/permissions";
  */
 export const AGENT_BUILDER = "agent-builder";
 
+/**
+ * One eval run's page, `/agents/<id>/evals/<run>`. Its own identity rather than
+ * the builder's, whose highlights name tabs this page does not have. Not on the
+ * first-run walk, so nothing has to resolve a run to open.
+ */
+export const EVAL_RUN = "eval-run";
+export const IMPROVEMENT = "improvement";
+
 /** The knowledge-base detail view, `/rag/<id>`, collapsed to one identity the same way. */
 export const KB_DETAIL = "kb-detail";
+
+/**
+ * A dataset's own page, `/datasets/<id>`, collapsed the same way: its cases, its
+ * scoring and its scores. The walk opens the first dataset the reader can see.
+ */
+export const DATASET_DETAIL = "dataset-detail";
 
 /**
  * The two organization detail routes, collapsed the same way. Unlike the builder
@@ -131,6 +145,27 @@ export interface TourStep {
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
+  {
+    id: "improvement-start",
+    page: IMPROVEMENT,
+    target: "improvement-start",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-results",
+    page: IMPROVEMENT,
+    target: "improvement-results",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-accept",
+    page: IMPROVEMENT,
+    target: "improvement-accept",
+    permission: Perm.runsView,
+    optional: true,
+  },
   { id: "welcome", inTour: true },
 
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
@@ -210,12 +245,25 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
+  // The band's toggle rather than its cards: it renders only while the
+  // organization holds a system agent, and folded it is one bounded line.
+  { id: "agents-system", page: ROUTES.AGENTS, target: "agents-system", optional: true },
 
   // The builder, entered from the Agents list. The engine opens an example agent
   // (the seeded "AgenticOS", or the first one there is), switches to the
   // named tab, then spotlights the section. The launch pass takes one per tab —
   // enough for a short line on each section; the "?" adds the sub-cards (model,
   // MCP) the launch leaves out.
+  // The assistant strip above the instructions: only an editor of an ordinary
+  // agent sees it, so it waits on `agents:edit` and may be absent.
+  {
+    id: "agent-assistant-strip",
+    page: AGENT_BUILDER,
+    target: "agent-assistant-strip",
+    activate: "agent-tab-build",
+    permission: Perm.agentsEdit,
+    optional: true,
+  },
   {
     id: "agent-instructions",
     page: AGENT_BUILDER,
@@ -315,6 +363,29 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // The Evals tab reads the agent's eval runs, which `runs:view` gates.
+  {
+    id: "agent-evals",
+    page: AGENT_BUILDER,
+    target: "agent-evals",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+  },
+  // The suites card sits on the same tab, so the stop needs the same permission.
+  {
+    id: "agent-eval-suites",
+    page: AGENT_BUILDER,
+    target: "agent-eval-suites",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+  },
+  {
+    id: "agent-gaps",
+    page: AGENT_BUILDER,
+    target: "agent-gaps",
+    activate: "agent-tab-gaps",
+    permission: Perm.runsView,
+  },
   {
     id: "agent-history",
     page: AGENT_BUILDER,
@@ -322,6 +393,36 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-history",
     permission: Perm.agentsView,
     inTour: true,
+  },
+  // On the first named environment's test-connections toggle, which only an
+  // agent with one renders and only a publisher sees.
+  {
+    id: "agent-test-connections",
+    page: AGENT_BUILDER,
+    target: "environment-connections",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
+  },
+  // On the first environment's guard toggle: which eval suites a version has to
+  // pass before that environment takes it. Read by any publisher, changed only
+  // with the override permission, so the stop needs only what the toggle does.
+  {
+    id: "agent-environment-guards",
+    page: AGENT_BUILDER,
+    target: "environment-guards",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
+  },
+  // Beside "Draft differs from vN", which only a changed draft shows. Gated as
+  // the Evals tab is: the run it starts is read there.
+  {
+    id: "agent-test-draft",
+    page: AGENT_BUILDER,
+    target: "agent-test-draft",
+    permission: Perm.runsView,
+    optional: true,
   },
   // Trying it beside the Builder before publishing (#2074).
   {
@@ -345,6 +446,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-publish",
     permission: Perm.agentsPublish,
     inTour: true,
+  },
+
+  {
+    id: "eval-verdict",
+    page: EVAL_RUN,
+    target: "eval-verdict",
+    permission: Perm.runsView,
   },
 
   {
@@ -411,6 +519,50 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "group-members", page: GROUP_DETAIL, target: "group-members" },
   { id: "group-add-to", page: GROUP_DETAIL, target: "group-add-to" },
 
+  {
+    id: "datasets-new",
+    page: ROUTES.DATASETS,
+    target: "datasets-new",
+    permission: Perm.datasetsEdit,
+    inTour: true,
+  },
+  {
+    id: "datasets-list",
+    page: ROUTES.DATASETS,
+    target: "datasets-list",
+    permission: Perm.datasetsView,
+  },
+  // Every eval run across agents, reached from the dashboard's Eval runs card.
+  {
+    id: "evals-all",
+    page: ROUTES.EVALS,
+    target: "evals-all",
+    permission: Perm.runsView,
+  },
+  // One dataset: writing a case, having the generator draft some, and the drafts
+  // waiting for a decision - the last only while some wait.
+  {
+    id: "datasets-add-case",
+    page: DATASET_DETAIL,
+    target: "datasets-add-case",
+    permission: Perm.datasetsEdit,
+  },
+  {
+    id: "datasets-generate",
+    page: DATASET_DETAIL,
+    target: "datasets-generate",
+    activate: "datasets-generated-tab",
+    permission: Perm.datasetsEdit,
+  },
+  {
+    id: "datasets-proposals",
+    page: DATASET_DETAIL,
+    target: "datasets-proposals",
+    activate: "datasets-generated-tab",
+    permission: Perm.datasetsEdit,
+    optional: true,
+  },
+
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
   {
@@ -468,6 +620,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.RUNS,
     target: "run-detail-input",
     permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "runs-score-against-case",
+    page: ROUTES.RUNS,
+    target: "runs-score-against-case",
+    permission: Perm.datasetsRun,
     optional: true,
   },
 
@@ -555,6 +714,46 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "kb-sync",
     activate: "kb-tab-sync",
     permission: Perm.collectionsView,
+  },
+  {
+    id: "kb-gaps",
+    page: KB_DETAIL,
+    target: "kb-gaps",
+    activate: "kb-tab-gaps",
+    permission: Perm.runsView,
+  },
+  // Offered only with AI assistance on, to whoever may change the base, with answers waiting.
+  {
+    id: "kb-gaps-check",
+    page: KB_DETAIL,
+    target: "kb-gaps-check",
+    activate: "kb-tab-gaps",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
+
+  // Each tab stop selects its own tab; the review stop anchors on the review filter
+  // because the list below it can hold any number of results.
+  {
+    id: "dataset-grading",
+    page: DATASET_DETAIL,
+    target: "datasets-grading",
+    activate: "datasets-grading-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-judge",
+    page: DATASET_DETAIL,
+    target: "datasets-grading-judge",
+    activate: "datasets-grading-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-review",
+    page: DATASET_DETAIL,
+    target: "datasets-review-filter",
+    activate: "datasets-review-tab",
+    permission: Perm.datasetsView,
   },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
@@ -798,13 +997,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
 const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.AGENTS, AGENT_BUILDER],
   [ROUTES.RAG, KB_DETAIL],
+  [ROUTES.DATASETS, DATASET_DETAIL],
   [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
+  if (/^\/agents\/[^/]+\/improve\/[^/]+/.test(path)) return IMPROVEMENT;
+  if (/^\/agents\/[^/]+\/evals\/[^/]+/.test(path)) return EVAL_RUN;
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
+  if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
     if (path.endsWith("/retention")) return ORG_RETENTION;

@@ -1,5 +1,5 @@
 ---
-source_sha: "6e9ccd7fcca1"
+source_sha: "9f23de45205f"
 ---
 
 # Glossar { #glossary }
@@ -26,8 +26,14 @@ nicht bricht.
 | Skill | Einmal aufgeschriebenes Know-how, das jeder Agent liest, der es braucht | `skill` |
 | Kontext | Dauerhaftes Wissen, das ein Agent immer hat, etwa ein Glossar oder eine Richtlinie | `context` |
 | Wissensdatenbank | Dokumente, die ein Agent durchsucht und zitiert | `collection` |
+| Wissenslücke | Ein Thema aus Fragen, die eine Wissensdatenbank nicht beantworten konnte, nach Bedeutung gruppiert | `knowledge_gap_topic` |
 | App | Eine Seite, die ein Agent veröffentlicht, etwa ein Bericht oder ein kleines Dashboard | `artifact` |
 | Architekt | Der Assistent in der Ecke jeder Seite, der mit dir Agents bauen kann | `platform-assistant` |
+| System-Agent | Ein Agent, den die Plattform selbst ausführt, etwa ein Bewerter, der Lücken-Entwerfer oder der Lücken-Klassifizierer; getrennt aufgeführt unter **System-Agents** | `kind` außer `agent` |
+| Authoring-Assistent | Schlägt Änderungen an einem Agent, einem Skill oder einer Context-Datei aus negativ bewerteten Antworten vor; über jede entscheidet ein Mensch | `authoring` |
+| Vorschlag | Eine vorgeschlagene Änderung am Draft, einzeln angenommen, bearbeitet oder verworfen | `spec_proposal_hunk` |
+| Einstellungsänderung | Ein Vorschlag, einen Teil der Konfiguration eines Agents zu ändern, etwa sein Modell oder eine Capability | `spec_field`-Hunk |
+| Änderung an einer Context-Datei | Ein neuer Inhalt, den der Assistent für eine Context-Datei vorschlägt, auf der Context-Seite angewendet oder verworfen | `context_proposal` |
 | AgenticOS | Der Allzweck-Agent, mit dem eine neue Organisation im Chat beginnt, und das, womit ein neuer Agent startet | `general/agenticos` |
 
 ## Wo es läuft { #where-it-runs }
@@ -37,8 +43,11 @@ nicht bricht.
 | Chat | Das Gespräch mit einem Agent im Browser | `conversation` |
 | Kanal | Slack, Telegram oder Mattermost, wo Menschen einen Agent erreichen | `channel_bot` |
 | Routine | Ein Agent, der selbstständig läuft, nach Zeitplan oder Ereignis | `trigger` |
+| Eval-Suite | Ein Dataset, an dem ein Agent gemessen wird, nach Zeitplan, bei Veröffentlichung oder Promotion oder nach einer Änderung | `eval_suite` |
 | Run | Ein Mal, dass ein Agent geantwortet hat, mit Kosten und Schritten | `agent_run` |
 | Environment | Eine benannte Stufe, etwa Produktion, die auf eine Version zeigt | `environment` |
+| Wächter | Eine Eval-Suite, die eine Umgebung auf einer Version bestanden sehen will, bevor sie sie übernimmt | `guard_suite_ids` |
+| Übergehen | Eine Promotion an nicht bestandenen Wächtern vorbei, mit Begründung | `override_reason` |
 | MCP-Server | Ein externer Tool-Server, den Agents aufrufen, einmal verbunden | `mcp_connection` |
 | Remote Agent | Der Agent eines anderen Anbieters, über A2A erreichbar, an den Agents delegieren | `external_agent` |
 | Agent2Agent (A2A) | Das Protokoll, über das Agents anderer Systeme einem Agent Aufgaben senden | `a2a_enabled` |
@@ -56,6 +65,20 @@ nicht bricht.
 | Budget | Ein Ausgabenlimit, das Runs stoppt, sobald es erreicht ist | `budget` |
 | Schutzregeln | Prüfungen, die schwärzen oder blockieren, was durch einen Run fließt | `guardrails` |
 | Vault | Wo Schlüssel und Tokens liegen, versiegelt und nie wieder angezeigt | `secret` |
+
+## Wie getestet wird { #how-it-is-tested }
+
+| In der Konsole | Was es ist | In API und Spec |
+|---|---|---|
+| Dataset | Versionierte Testfälle, an denen die Antworten eines Agents gemessen werden | `dataset` |
+| Fall | Eine Frage und das, woran eine gute Antwort gemessen wird | `dataset_case` |
+| Bewertung | Wie die Antworten eines Datasets bewertet werden: Prüfungen, Referenzantwort und ein Judge | `scoring` |
+| Judge | Ein Agent, der Antworten für Evals bewertet; nur die Plattform führt ihn aus | `kind: judge` |
+| Eval | Ein Agent, der jeden Fall eines Datasets beantwortet, bewertet und mit einer früheren Version verglichen | `eval_run` |
+| Prüfung | Scores, die darauf warten, dass ein Mensch sie bestätigt oder ändert | `review_state` |
+| Fallgenerator | Der System-Agent, der Fälle aus einem Agent, seinem Wissen, echten Chats und Red Teaming entwirft | `kind: generator` |
+| Vorgeschlagener Fall | Ein entworfener Fall, der unter **Generiert** wartet, bis ein Mensch ihn annimmt oder verwirft | `case_proposal` |
+| Red Teaming | Fälle, die prüfen, ob ein Agent ablehnt, was er ablehnen muss | Tag `red-team` |
 
 ## Capabilities { #capabilities }
 

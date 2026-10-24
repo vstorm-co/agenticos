@@ -6,7 +6,7 @@
  */
 
 export type JobStatus = "queued" | "running" | "succeeded" | "dead" | "cancelled";
-export type JobPool = "agent" | "ingest" | "system";
+export type JobPool = "agent" | "eval" | "ingest" | "system";
 
 export const JOB_STATUSES: readonly JobStatus[] = [
   "queued",

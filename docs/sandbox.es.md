@@ -1,5 +1,5 @@
 ---
-source_sha: "3a56d4c17513"
+source_sha: "ca5cf18cee63"
 ---
 
 # La sandbox { #the-sandbox }
@@ -61,6 +61,31 @@ paz, porque regenerarlo deja huérfano cada workspace que el servicio esté
 guardando en ese momento. Esa es también la razón de que el dashboard propio del
 servicio esté apagado (`SANDBOXD_UI_ENABLED: 0`): esa página pide a una persona
 que pegue el token en un navegador.
+
+## El workspace de un agent nuevo { #a-new-agents-workspace }
+
+Un agent nuevo empieza con un workspace que su organización puede publicar. El
+workspace de contenedor de la plantilla inicial se mantiene cuando la organización
+tiene una conexión de sandbox por defecto, o cuando este despliegue ejecuta
+`sandboxd` y la organización tiene un owner bajo el que registrarla: la primera
+publicación crea entonces esa conexión. Si no, el agent empieza en el workspace
+almacenado `state`: archivos sin shell, que no necesita nada, así que un agent nuevo
+se publica en un despliegue sin servicio de sandbox.
+
+El catálogo de capabilities del que parte el Builder y la instalación de una
+plantilla lo preguntan por organización, y la respuesta se guarda durante un
+minuto. Un `sandboxd` que debería responder y no lo hace queda en el log como
+`sandbox_service_not_answering`, y el agent empieza en `state`. Un agent ya guardado
+conserva su spec.
+
+Una publicación rechazada por falta de sandbox ofrece una corrección junto al
+motivo. **Switch the workspace to Files** reescribe el borrador sobre el workspace
+`state`, lo guarda y lo comprueba de nuevo. **Stop sharing what this agent cannot
+share** hace lo mismo con una lista de compartición de la delegación que nombra una
+capability que el agent ya no tiene, y quita también `subagents`, que un delegado
+nunca hereda. Ninguna publica: eso sigue siendo un clic
+aparte. Los códigos llegan en `details.fixes` del rechazo (ver
+[arquitectura](architecture.md#a-refusal-that-names-a-field)).
 
 ## Una sesión, y qué comparte una { #a-session-and-what-shares-one }
 
@@ -620,6 +645,8 @@ registro de auditoría.
   una sandbox es su hermano en lugar de un contenedor dentro de él.
 - Una **clave de sesión** agrupa scope, organización, tipo de backend y host, que
   es precisamente lo que decide quién comparte un contenedor.
+- Un **agent nuevo empieza en un workspace que su organización puede publicar**:
+  el de contenedor donde hay una conexión o se puede crear, `state` si no.
 - **Se distribuye un runtime**, `workbench`, y al modelo se le cuenta qué hay
   dentro, compuesto a partir del mismo catálogo que lo construyó.
 - El registro de lo que hizo un agent vive en **la tabla de esta plataforma**,

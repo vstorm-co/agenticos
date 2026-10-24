@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "9b416555caa2"
 ---
 
 # Archivos de contexto { #context-files }
@@ -95,6 +95,34 @@ También se puede empezar por el archivo: **Add to an agent** en su tarjeta lo
 añade al borrador del agent con la capability Context activada, y la tarjeta dice
 qué agents lo llevan ya. Una base de conocimiento tiene la misma acción en su
 propia página.
+
+## Cambios que propone el asistente { #changes-the-assistant-proposes }
+
+**Mejorar con el asistente**, en el editor de un archivo, pide al
+[asistente de autoría](authoring.md#context-files) un cuerpo mejor, escrito a
+partir de los runs de los agents que leen el archivo. Lo que propone no se
+aplica: espera encima de la lista en la página Context, con su justificación, los
+runs en los que se apoya y los agents vinculados al archivo.
+
+Aplicarlo es lo mismo que editar el archivo a mano - con efecto inmediato para
+cada agent cuya versión publicada lee el archivo -, así que primero va
+**Comprobar con evals**, en uno de esos agents. Junto a **Aplicar** el cambio
+dice qué hace aplicarlo: cada agent y entorno para el que entra en vigor, las
+suites de evals que pone en cola y las guardianas que lo comprueban solo en la
+siguiente promoción del agent. Un archivo que alguien editó después de
+proponerse el cambio lo rechaza; esa edición nunca se sobrescribe.
+
+Volver a pedírselo al asistente reescribe el cambio que espera en lugar de
+añadir un segundo. Una decisión nombra la versión del cambio que leíste, así que
+de dos tomadas a la vez solo cuenta una, y una página abierta antes de la
+reescritura se rechaza con «The proposal changed since you opened it» hasta que
+revises la versión nueva. Un cambio que dice lo que el archivo ya dice no se
+propone en absoluto.
+
+Cualquier edición de un archivo - aplicada o hecha a mano - y su borrado ponen
+en cola las suites de evals que se ejecutan cuando cambia una dependencia, para
+cada agent que lo lee, y aplicar un cambio avisa a los propietarios de esos
+agents.
 
 ## Acceso { #access }
 

@@ -239,7 +239,7 @@
     "documentCount": "{count, plural, =1 {1 document} other {# documents}}",
     "draft": "Draft",
     "draftDiffersFromPublished": "Draft differs from v{version}",
-    "draftDiffersHint": "The draft is saved. Everything published - channels, widgets, the API - keeps answering with v{version} until you publish.",
+    "draftDiffersHint": "The draft is saved and differs from v{version}, the latest published version. Publishing makes it a new version.",
     "duplicate": "Duplicate",
     "editSurface": "Edit {name}",
     "editedWhen": "edited {when}",
@@ -360,6 +360,25 @@
     "neverEdited": "never edited",
     "neverPublished": "Never published.",
     "newAgent": "New agent",
+    "newKindLabel": "What to create",
+    "newKindAgent": "Agent",
+    "newKindSystem": "System agent",
+    "systemKindLabel": "Kind of system agent",
+    "systemKind": {
+      "judge": "Judge",
+      "judgeBody": "Grades answers in evals against a dataset's criteria; a dataset can pick it as its own.",
+      "drafter": "Gap drafter",
+      "drafterBody": "Drafts the passage a knowledge base is missing, for a person to review.",
+      "generator": "Case generator",
+      "generatorBody": "Drafts test cases for a dataset from an agent's instructions, knowledge and chats.",
+      "classifier": "Gap classifier",
+      "classifierBody": "Reads answers and comments to tell missing knowledge from other mistakes.",
+      "improver": "Authoring assistant",
+      "improverBody": "Proposes changes to an agent from its ratings and run outcomes."
+    },
+    "systemRunsOn": "It runs on the organization's first model, which you change on its page. With no model set up yet, it waits as a draft.",
+    "systemNamePlaceholder": "Second opinion",
+    "systemStartsAs": "Published straight away if you may publish agents; otherwise a draft until someone who may publishes it. A draft system agent cannot run.",
     "newEnvironment": "New environment",
     "noCapabilityOrToolMatches": "No capability or tool matches “{query}”.",
     "noDelegatesYet": "No delegates yet. Only a published agent can be one - there is a version to pin.",
@@ -597,6 +616,9 @@
     "unknownAuthor": "unknown author",
     "unnamedSpecialist": "Unnamed specialist",
     "upToDateWithPublished": "Up to date with v{version}",
+    "productionOn": "production on v{version}",
+    "productionWaiting": "production on v{version} (waiting for evals)",
+    "productionHint": "Channels, widgets and the API answer with v{version}: production runs it until a newer version is promoted.",
     "updateToLatest": "Update to latest",
     "urlSafeHint": "A hosted page can only be told a variable through its own URL, and a URL is something the visitor types. Mark only what is safe for them to set.",
     "usageEveryNMessages": "Cost: every {count, plural, =1 {message} other {# messages}}",
@@ -671,6 +693,57 @@
     "eachPersonsOwnAccount": "Each person's own account",
     "whoCanFindIt": "Who can find it",
     "preview": "Preview",
+    "testConnectionsFor": "Test connections for {name}",
+    "testConnectionsHint": "Runs in this environment, evals included, answer each binding below with its test system. A binding switched off here does nothing - it never falls back to production.",
+    "testConnectionKindLabel": "What to replace",
+    "testConnectionKindMcp": "MCP server",
+    "testConnectionKindSecret": "Vault key",
+    "productionSide": "Production",
+    "testSide": "Test replacement",
+    "testSideFor": "Test replacement for {name}",
+    "bindingOffHere": "Off in this environment",
+    "testSideUnusable": "Off here: the test connection is disabled or not signed in",
+    "testConnectionsSaved": "Test connections saved",
+    "failedTestConnections": "The test connections could not be saved",
+    "testDraft": "Test draft",
+    "systemAgentsCount": "{count, plural, =1 {System agents (1)} other {System agents (#)}}",
+    "systemAgentsHint": "The platform runs these agents itself, so nobody chats with one, puts it on a channel, schedules it or delegates to it. Open one to change its instructions, model or budget.",
+    "judgeKind": "{count, plural, =1 {Judges (1)} other {Judges (#)}}",
+    "judgeKindHint": "They grade eval answers: the default one, and each dataset's own.",
+    "drafterKind": "{count, plural, =1 {Gap drafter (1)} other {Gap drafters (#)}}",
+    "drafterKindHint": "It drafts the content a knowledge gap is missing, when somebody asks for a draft.",
+    "classifierKind": "{count, plural, =1 {Gap classifier (1)} other {Gap classifiers (#)}}",
+    "classifierKindHint": "It reads answers and thumbs-down comments for knowledge gaps, when somebody asks for a check.",
+    "generatorKind": "{count, plural, =1 {Case generator (1)} other {Case generators (#)}}",
+    "generatorKindHint": "It drafts test cases for a dataset from an agent, its knowledge base, real chats and red teaming; a person accepts or dismisses every draft.",
+    "improverKind": "{count, plural, =1 {Authoring assistant (1)} other {Authoring assistants (#)}}",
+    "improverKindHint": "It reads rated-down answers and failed runs and suggests changes to agents and skills, when somebody asks it to improve one.",
+    "defaultBadge": {
+      "judge": "Default judge",
+      "judgeHint": "Grades every dataset that has no judge of its own.",
+      "drafter": "Default gap drafter",
+      "drafterHint": "Drafts what every knowledge base is missing.",
+      "generator": "Default case generator",
+      "generatorHint": "Drafts the cases every dataset asks for.",
+      "classifier": "Default gap classifier",
+      "classifierHint": "Reads the answers for every knowledge base's gaps.",
+      "improver": "Default authoring assistant",
+      "improverHint": "Proposes the improvements every agent is offered."
+    },
+    "judgeUsedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
+    "judgeUnused": "No dataset uses this judge yet.",
+    "judgeDatasets": "Datasets",
+    "judgeDatasetOpen": "Show what this judge graded in {name}",
+    "judgeDatasetGradingOff": "Grading off",
+    "judgeDatasetNothing": "This judge has graded nothing in this dataset yet.",
+    "judgeDatasetEvalRuns": "Eval runs it graded",
+    "judgeDatasetGrades": "Its latest grades",
+    "judgeDatasetAnswer": "Answer ↗",
+    "judgeDatasetSeeAll": "See all on the Review tab",
+    "judgeDatasetsHint": "The datasets that picked this judge, grading or not. A dataset picks its judge on its Grading tab; open one to see what the judge graded there.",
+    "judgeNoModel": "No model yet",
+    "judgeAgreement": "People agreed with this judge on {agreed} of {decided, plural, =1 {1 result} other {# results}} they decided.",
+    "judgeAgreementNone": "Nobody has decided a result this judge graded yet, so there is no agreement to show.",
     "variablesSuggestions": "Variables",
     "variablesTitle": "Variables",
     "variablesHint": "Write '{{name}}' in the instructions, or click one to insert it. They are filled in when each conversation starts.",
@@ -825,56 +898,6 @@
     "platformTools": "Tools this agent may call",
     "platformWritesBadge": "changes something",
     "platformRemove": "Remove from this agent",
-    "speechProvider": "Provider",
-    "speechProviderPlaceholder": "Choose a provider",
-    "speechProviderDetail": "The providers in the speech catalog whose key the vault can hold.",
-    "speechModel": "Model",
-    "speechModelPlaceholder": "Choose a model",
-    "speechModelDetail": "Every model this provider can be asked to speak with.",
-    "speechModelUnknownProvider": "This binding names {provider}, which cannot speak. Pick a provider above.",
-    "speechVoice": "Voice",
-    "speechVoicePlaceholder": "Choose a voice",
-    "speechVoiceDetail": "The default - the agent may switch to another per clip, among the voices allowed below.",
-    "speechVoiceIdPlaceholder": "Voice id",
-    "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library. It is the default - the agent may switch to another per clip, among the voices allowed below.",
-    "speechOtherVoices": "Allowed voices",
-    "speechOtherVoicesDetail": "The only voices the agent may switch to, clip by clip - for a dialogue, or a narrator and a character.",
-    "speechAnyVoiceWarning": "{count, plural, =1 {None allowed: the agent may speak in this model's one voice.} other {None allowed: the agent may speak in any of this model's # voices.}}",
-    "speechAnyAccountVoiceWarning": "None listed: the agent may speak in any voice in your {provider} account by its id - cloned voices included.",
-    "speechOtherVoicesFull": "{count} other voices is the most one agent can be offered.",
-    "speechOtherVoiceId": "Voice id {position}",
-    "speechOtherVoiceNote": "What voice {position} is for",
-    "speechOtherVoiceNotePlaceholder": "Who it is, e.g. Anna, the narrator",
-    "speechOtherVoiceRemove": "Remove voice {position}",
-    "speechOtherVoiceAdd": "Add a voice",
-    "speechProvidersLoading": "Reading what each provider offers…",
-    "speechProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
-    "videoProvider": "Provider",
-    "videoProviderPlaceholder": "Choose a provider",
-    "videoProviderDetail": "The providers in the video catalog whose key the vault can hold.",
-    "videoModel": "Model",
-    "videoModelPlaceholder": "Choose a model",
-    "videoModelDetail": "Every model this provider can be asked to make video with.",
-    "videoModelUnknownProvider": "This binding names {provider}, which cannot make video. Pick a provider above.",
-    "videoResolution": "Resolution",
-    "videoResolutionDetail": "The default - the agent may ask for another per clip, up to the highest resolution below. Higher costs more per second.",
-    "videoMaxResolution": "Highest resolution",
-    "videoMaxResolutionAny": "Any resolution",
-    "videoMaxResolutionDetail": "The one limit on the resolution: the agent may ask for anything up to it.",
-    "videoMaxResolutionAnyWarning": "With no highest resolution, the agent may ask for any resolution this model renders, up to {highest}, and a second at a higher resolution costs more.",
-    "videoAspectRatio": "Aspect ratio",
-    "videoAspectRatioDetail": "The default - the agent may ask for another shape this model renders, per clip.",
-    "videoLengthRange": "This model makes clips of {min} to {max} seconds.",
-    "videoLengthDecided": "This model decides its own length, {min} to {max} seconds.",
-    "videoProvidersLoading": "Reading what each provider offers…",
-    "videoProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
-    "videoAudio": "Sound",
-    "videoAudioDetail": "The default - the agent may ask for sound on or off, per clip.",
-    "videoAudioDefault": "Provider default",
-    "videoAudioOn": "On",
-    "videoAudioOff": "Off",
-    "speechFormat": "File format",
-    "speechFormatDetail": "The formats this provider returns. mp3 is smaller, wav is uncompressed.",
     "voiceTitle": "Voice",
     "voiceDescription": "How people can talk to this agent: a live voice call, or dictation that turns speech into text. Takes effect when the agent is published.",
     "voicePair": "Transcription model",
@@ -943,6 +966,60 @@
     "voicePreview": "Listen to this voice",
     "voicePreviewStop": "Stop",
     "voicePreviewNeedsKey": "Choose a key to listen to this voice",
+    "guardsSaved": "Guards saved",
+    "failedGuards": "Failed to save the guards",
+    "guardsStarted": "{count, plural, =0 {Nothing to run - every guard has passed or is already checking} =1 {Started 1 eval suite} other {Started # eval suites}}",
+    "failedGuardsRun": "Failed to run the guards",
+    "speechProvider": "Provider",
+    "speechProviderPlaceholder": "Choose a provider",
+    "speechProviderDetail": "The providers in the speech catalog whose key the vault can hold.",
+    "speechModel": "Model",
+    "speechModelPlaceholder": "Choose a model",
+    "speechModelDetail": "Every model this provider can be asked to speak with.",
+    "speechModelUnknownProvider": "This binding names {provider}, which cannot speak. Pick a provider above.",
+    "speechVoice": "Voice",
+    "speechVoicePlaceholder": "Choose a voice",
+    "speechVoiceDetail": "The default - the agent may switch to another per clip, among the voices allowed below.",
+    "speechVoiceIdPlaceholder": "Voice id",
+    "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library. It is the default - the agent may switch to another per clip, among the voices allowed below.",
+    "speechOtherVoices": "Allowed voices",
+    "speechOtherVoicesDetail": "The only voices the agent may switch to, clip by clip - for a dialogue, or a narrator and a character.",
+    "speechAnyVoiceWarning": "{count, plural, =1 {None allowed: the agent may speak in this model's one voice.} other {None allowed: the agent may speak in any of this model's # voices.}}",
+    "speechAnyAccountVoiceWarning": "None listed: the agent may speak in any voice in your {provider} account by its id - cloned voices included.",
+    "speechOtherVoicesFull": "{count} other voices is the most one agent can be offered.",
+    "speechOtherVoiceId": "Voice id {position}",
+    "speechOtherVoiceNote": "What voice {position} is for",
+    "speechOtherVoiceNotePlaceholder": "Who it is, e.g. Anna, the narrator",
+    "speechOtherVoiceRemove": "Remove voice {position}",
+    "speechOtherVoiceAdd": "Add a voice",
+    "speechProvidersLoading": "Reading what each provider offers…",
+    "speechProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
+    "videoProvider": "Provider",
+    "videoProviderPlaceholder": "Choose a provider",
+    "videoProviderDetail": "The providers in the video catalog whose key the vault can hold.",
+    "videoModel": "Model",
+    "videoModelPlaceholder": "Choose a model",
+    "videoModelDetail": "Every model this provider can be asked to make video with.",
+    "videoModelUnknownProvider": "This binding names {provider}, which cannot make video. Pick a provider above.",
+    "videoResolution": "Resolution",
+    "videoResolutionDetail": "The default - the agent may ask for another per clip, up to the highest resolution below. Higher costs more per second.",
+    "videoMaxResolution": "Highest resolution",
+    "videoMaxResolutionAny": "Any resolution",
+    "videoMaxResolutionDetail": "The one limit on the resolution: the agent may ask for anything up to it.",
+    "videoMaxResolutionAnyWarning": "With no highest resolution, the agent may ask for any resolution this model renders, up to {highest}, and a second at a higher resolution costs more.",
+    "videoAspectRatio": "Aspect ratio",
+    "videoAspectRatioDetail": "The default - the agent may ask for another shape this model renders, per clip.",
+    "videoLengthRange": "This model makes clips of {min} to {max} seconds.",
+    "videoLengthDecided": "This model decides its own length, {min} to {max} seconds.",
+    "videoProvidersLoading": "Reading what each provider offers…",
+    "videoProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
+    "videoAudio": "Sound",
+    "videoAudioDetail": "The default - the agent may ask for sound on or off, per clip.",
+    "videoAudioDefault": "Provider default",
+    "videoAudioOn": "On",
+    "videoAudioOff": "Off",
+    "speechFormat": "File format",
+    "speechFormatDetail": "The formats this provider returns. mp3 is smaller, wav is uncompressed.",
     "startersTitle": "First messages",
     "startersHint": "What the chat offers somebody opening this agent for the first time - one click sends one. Up to {max}; with none, the chat shows its own.",
     "starterNumber": "First message {number}",
@@ -951,7 +1028,25 @@
     "newStarterPlaceholder": "What can you help me with?",
     "addStarter": "Add",
     "platformUngatedBadge": "your own setting, never asks",
-    "platformHeldBadge": "reads past conversations, asks first"
+    "platformHeldBadge": "reads past conversations, asks first",
+    "publishGuardedFollower": "{name} is guarded by {guards}: it moves to v{version} only after all guards pass.",
+    "publishGuardedChecks": "{count, plural, one {# guard suite} other {# guard suites}}",
+    "publishAnyway": "Publish anyway",
+    "publishTestDraft": "Test draft",
+    "systemChoice": {
+      "label": "Run with",
+      "default": "Organization's default",
+      "unpublished": "Not published",
+      "missing": "Selected agent is unavailable",
+      "loadFailed": "Could not load available agents. Try again.",
+      "hint": "The published model and instructions are configured on the helper’s agent page.",
+      "helpers": "AI helpers",
+      "helpersBody": "Choose which helpers classify answers and draft missing knowledge for {name}.",
+      "saved": "AI helpers saved",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "publishedSpec": "Published specification"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1210,10 +1305,6 @@
     "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
     "empty": {
       "commandPalette": "command palette",
-      "capabilitiesPrompt": "What can you do for me here? Show me with an example from my kind of work.",
-      "capabilitiesTitle": "What can you do?",
-      "routinePrompt": "Every Monday at 9:00, send me a short summary of last week's most important AI news.",
-      "routineTitle": "Set up a routine",
       "docsPrompt": "Summarize the key points from my latest documents.",
       "docsTitle": "Summarize my docs",
       "greeting": "How can I help, {name}?",
@@ -1230,7 +1321,11 @@
       "visualToolTitle": "Make a calculator",
       "visualToolPrompt": "Make me a bill splitter: the total, the tip and how many people, recalculated as I type.",
       "visualMapTitle": "Plan a trip on a map",
-      "visualMapPrompt": "Plan five days in Japan on a map: numbered stops in order, and what to do at each."
+      "visualMapPrompt": "Plan five days in Japan on a map: numbered stops in order, and what to do at each.",
+      "capabilitiesPrompt": "What can you do for me here? Show me with an example from my kind of work.",
+      "capabilitiesTitle": "What can you do?",
+      "routinePrompt": "Every Monday at 9:00, send me a short summary of last week's most important AI news.",
+      "routineTitle": "Set up a routine"
     },
     "failedArchiveConversation": "Failed to archive conversation",
     "failedCreateConversation": "Failed to create conversation",
@@ -1608,6 +1703,8 @@
       "reviseVisual": "Revised a visual",
       "readingVisual": "Reading a visual",
       "readVisual": "Read a visual",
+      "workingInText": "Working on it in text",
+      "workedInText": "Worked on it in text",
       "generateSpeech": "Speech",
       "generatingSpeech": "Recording speech",
       "speechNotStored": "The speech was recorded but not saved.",
@@ -1615,8 +1712,6 @@
       "generateVideo": "Video",
       "generatingVideo": "Making a video",
       "videoNotStored": "The video was made but not saved.",
-      "workingInText": "Working on it in text",
-      "workedInText": "Worked on it in text",
       "suggestingNextSteps": "Suggesting next steps",
       "nextSteps": "Next steps",
       "requestingCapability": "Asking for a capability",
@@ -2513,7 +2608,7 @@
         "title": "Spend",
         "unit": "in this period",
         "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
-        "split": "{models} on models · {ingestion} on indexing",
+        "split": "{models} on models{evals, select, none {} other { · {evals} on evals}}{improving, select, none {} other { · {improving} on improvements}}{ingestion, select, none {} other { · {ingestion} on indexing}}",
         "spentLabel": "{amount} spent"
       },
       "surfaces": {
@@ -2524,6 +2619,7 @@
         "names": {
           "api": "HTTP API",
           "embed": "Widget",
+          "eval": "Evals",
           "mattermost": "Mattermost",
           "playground": "Playground",
           "schedule": "Schedule",
@@ -2668,6 +2764,54 @@
           "description": "Reports and dashboards an agent publishes appear here."
         }
       },
+      "review-queue": {
+        "title": "Waiting for review",
+        "description": "Graded answers waiting for a person's decision.",
+        "waiting": "{count, plural, =1 {1 result waits} other {# results wait}} for a decision",
+        "empty": {
+          "title": "Nothing to review",
+          "description": "Answers sent for review by an eval run or by a dataset's grading appear here."
+        },
+        "outcome": {
+          "failed": "{count} did not pass",
+          "unscored": "{count} not graded",
+          "passed": "{count} passed"
+        }
+      },
+      "datasets": {
+        "title": "Datasets",
+        "description": "The datasets changed most recently, and what their cases test against.",
+        "cases": "{count, plural, =1 {1 case} other {# cases}} · v{version}",
+        "empty": {
+          "title": "No datasets yet",
+          "description": "Test cases you collect for evals appear here."
+        },
+        "toAccept": "{count, plural, =1 {1 draft to accept} other {# drafts to accept}}",
+        "stat": {
+          "reference": "{count, plural, =1 {1 reference} other {# references}}",
+          "counter": "{count, plural, =1 {1 counter-example} other {# counter-examples}}",
+          "toolCalls": "{count, plural, =1 {1 with tool calls} other {# with tool calls}}",
+          "checks": "{count, plural, =1 {1 with checks} other {# with checks}}"
+        },
+        "source": {
+          "conversation": "{count} from chat",
+          "import": "{count} imported",
+          "manual": "{count} by hand",
+          "synthetic": "{count} generated"
+        },
+        "waiting": "{count, plural, =1 {1 to review} other {# to review}}"
+      },
+      "knowledge-gaps": {
+        "title": "Knowledge gaps",
+        "description": "The questions agents most often found nothing for in their knowledge bases.",
+        "asked": "{count, plural, =1 {asked once} other {asked # times}}",
+        "empty": {
+          "title": "No knowledge gaps yet",
+          "description": "When an agent searches a knowledge base and finds nothing close to the question, the question lands here, grouped with others like it. Gaps are grouped every 15 minutes."
+        },
+        "breakdown": "Topics per knowledge base",
+        "perCollection": "{name} · {count}"
+      },
       "department-spend": {
         "title": "Spend by department",
         "description": "What each department's people ran this month, against its cap. A person in two departments counts in both.",
@@ -2697,6 +2841,20 @@
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
+      },
+      "eval-runs": {
+        "title": "Eval runs",
+        "description": "The latest runs of agents over their datasets, with pass rates.",
+        "empty": {
+          "title": "No eval runs yet",
+          "description": "Runs started from an agent's Evals tab appear here."
+        },
+        "count": {
+          "running": "{count} running",
+          "completed": "{count} completed",
+          "failed": "{count} failed",
+          "budget_exceeded": "{count} out of budget"
+        }
       },
       "projects": {
         "title": "Projects",
@@ -2734,6 +2892,20 @@
         },
         "deletedAgent": "Deleted agent"
       },
+      "eval-suites": {
+        "title": "Eval suites",
+        "description": "Datasets agents are held to, and how each last came out.",
+        "empty": "No suites yet. Set one up on an agent's Evals tab.",
+        "never": "No result yet",
+        "row": "{suite} · {agent}",
+        "count": {
+          "failing": "{count} failing",
+          "passing": "{count} passing",
+          "waiting": "{count} waiting for a first run",
+          "paused": "{count} paused",
+          "inconclusive": "{count} inconclusive"
+        }
+      },
       "suggestions": {
         "title": "Briefing",
         "description": "What your watches found and the nightly look proposed - what cannot wait first.",
@@ -2742,7 +2914,34 @@
           "description": "Findings from your watches and the nightly suggestions appear here.",
           "descriptionOff": "Your organization has proactivity off."
         },
+        "counts": "{instructions, plural, =0 {} =1 {1 instruction change} other {# instruction changes}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 tool change} other {# tool changes}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 setting change} other {# setting changes}}}}",
+        "skillChanges": "Skill · {count, plural, =1 {1 change} other {# changes}}",
+        "contextChanges": "Context file · {count, plural, =1 {1 change} other {# changes}}",
+        "newSkills": "{count, plural, =1 {1 new skill proposed} other {# new skills proposed}}",
+        "skills": "{count, plural, =1 {1 skill change} other {# skill changes}} to review",
         "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
+      },
+      "needs-attention": {
+        "title": "Agents that need attention",
+        "description": "Agents with answers rated down, failed runs or a failing eval suite in the period, each a click from improving it.",
+        "empty": {
+          "title": "Nothing needs attention",
+          "description": "No answer was rated down, no run failed and every suite passed in this period."
+        },
+        "improve": "Improve"
+      },
+      "authoring-suggestions": {
+        "title": "Suggestions waiting",
+        "description": "What the authoring assistant suggested for your agents, skills and context files, waiting on your decision.",
+        "empty": {
+          "title": "Nothing waiting",
+          "description": "Ask the assistant to improve an agent from its Build tab."
+        },
+        "counts": "{instructions, plural, =0 {} =1 {1 instruction change} other {# instruction changes}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 tool change} other {# tool changes}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 setting change} other {# setting changes}}}}",
+        "skillChanges": "Skill · {count, plural, =1 {1 change} other {# changes}}",
+        "contextChanges": "Context file · {count, plural, =1 {1 change} other {# changes}}",
+        "newSkills": "{count, plural, =1 {1 new skill proposed} other {# new skills proposed}}",
+        "skills": "{count, plural, =1 {1 skill change} other {# skill changes}} to review"
       }
     },
     "edit": {
@@ -2918,6 +3117,15 @@
       "morningNamed": "Good morning, {name}",
       "afternoonNamed": "Good afternoon, {name}",
       "eveningNamed": "Good evening, {name}",
+      "ran": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period.",
+      "nothingWaiting": "Nothing is waiting on you.",
+      "waitingOn": "Waiting on you: <b>{items}</b>.",
+      "waiting": {
+        "approvals": "{count, plural, =1 {1 call} other {# calls}}",
+        "review": "{count, plural, =1 {1 answer to review} other {# answers to review}}",
+        "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
+        "suggestions": "{count, plural, =1 {1 suggestion} other {# suggestions}}"
+      },
       "summary": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period. {waiting, plural, =0 {Nothing is waiting on you.} =1 {<b>One call</b> is waiting on you.} other {<b># calls</b> are waiting on you.}}"
     },
     "discover": {
@@ -3778,6 +3986,8 @@
     "theOrganizations": "The organization's",
     "toolSelectionSaved": "Tool selection saved.",
     "tools": "Tools",
+    "trustReadOnlyHints": "Let evals call tools this server marks read-only",
+    "trustReadOnlyHintsHint": "Evals hold every call to a production server unless you trust it: the read-only mark is the server's own claim. {count, plural, =0 {No tool here claims it.} =1 {1 tool here claims it.} other {# tools here claim it.}}",
     "toolsFrom": "Tools from \"{name}\"",
     "toolsSelected": "{on} of {total} on",
     "unreachable": "Unreachable",
@@ -3903,6 +4113,7 @@
     "collapseSidebar": "Collapse the sidebar",
     "expandSidebar": "Expand the sidebar",
     "artifacts": "Apps",
+    "datasets": "Datasets",
     "assistant": "Assistant",
     "groups": "Groups",
     "api": "API",
@@ -3969,6 +4180,18 @@
       "explore-chat": {
         "title": "Take a quick tour of chat?",
         "body": "See how to start a conversation, switch which agent answers, and change the model or thinking effort for a single chat. Want a quick guided run through it?"
+      },
+      "create-dataset": {
+        "title": "Create a dataset?",
+        "body": "A dataset holds the questions your agents are tested on. Want to make your first one and write a first good case together? We'll walk you through it."
+      },
+      "test-change": {
+        "title": "Test a change before it goes live?",
+        "body": "Run the draft against the live version on a dataset and read the verdict: which cases broke, which were fixed, and whether it is worth publishing. We'll walk you through it."
+      },
+      "first-improvement": {
+        "title": "Improve",
+        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
       }
     },
     "steps": {
@@ -3995,6 +4218,10 @@
       "agent-history": {
         "title": "Every version, kept",
         "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
+      },
+      "agent-test-connections": {
+        "title": "Test connections",
+        "body": "A named environment can answer the agent's MCP servers and vault keys with test ones - a sandbox CRM, a test mailbox. Evals run there, and a tool that writes with no test connection is held and recorded instead of run."
       },
       "agent-instructions": {
         "title": "Instructions are the behaviour",
@@ -4094,7 +4321,7 @@
       },
       "flow-agent-create": {
         "title": "Name your agent",
-        "body": "Choose New agent, give it a name and a short description, and create it. That opens the builder, where the rest of this happens. We'll move on as soon as it's created."
+        "body": "Choose New agent, keep Agent selected, give it a name and a short description, and create it. That opens the builder, where the rest of this happens. We'll move on as soon as it's created."
       },
       "flow-agent-instructions": {
         "title": "Write its instructions",
@@ -4388,10 +4615,6 @@
         "title": "What runs without you",
         "body": "Every schedule and trigger across the organization, with what it last did. An agent working while nobody is at the keyboard shows up here first."
       },
-      "routines-watches": {
-        "title": "What watches your accounts",
-        "body": "Watches read your own connected accounts on a schedule - reviews waiting on you, issues assigned to you - and put what is new in your inbox. Each row says when it last looked and how much of what it found still waits."
-      },
       "run-detail-input": {
         "title": "What the model was actually given",
         "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request - recorded from the wire, so it is what was sent rather than what the spec says."
@@ -4455,6 +4678,143 @@
       "artifacts-list": {
         "title": "Published pages",
         "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
+      },
+      "datasets-new": {
+        "title": "Collect test cases",
+        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from an answer rated up or down in chat, or from a turn in Activity."
+      },
+      "runs-score-against-case": {
+        "title": "Score this run",
+        "body": "From this menu, grade this run's answer against a case of a dataset: its checks, the tool calls it expected and, if configured, the judge. The case asking the same question is picked for you; the result is kept on the dataset."
+      },
+      "datasets-list": {
+        "title": "Your datasets",
+        "body": "Every change to a dataset's cases makes a new version, so an eval run always points at questions that do not move."
+      },
+      "datasets-add-case": {
+        "title": "Write a case",
+        "body": "A case is a question the agent answers and what a good answer looks like. Every case you add makes a new version of the dataset."
+      },
+      "datasets-generate": {
+        "title": "Have cases drafted",
+        "body": "The generator drafts cases from four sources: the agent's instructions and tools, its knowledge base, real chats (production only, never eval runs), and red teaming. You see the estimated cost before anything is spent."
+      },
+      "datasets-proposals": {
+        "title": "Decide the drafts",
+        "body": "Drafted cases wait here. Accept them as they are, edit them first, or dismiss them. One Accept is one new version."
+      },
+      "flow-dataset-create": {
+        "title": "Create a dataset",
+        "body": "Choose New dataset - the form opens and we'll fill it together."
+      },
+      "flow-dataset-field-name": {
+        "title": "Name it",
+        "body": "Say what it tests, like refund questions. Then choose Next."
+      },
+      "flow-dataset-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it's saved."
+      },
+      "kb-gaps": {
+        "title": "What it could not answer",
+        "body": "Questions agents searched this collection for and found nothing relevant to, grouped by topic. Open a topic to write the missing content, or finish a model's draft, and add it to this knowledge base - or dismiss a topic that needs none."
+      },
+      "kb-gaps-check": {
+        "title": "Check the answers too",
+        "body": "A search can find something and the agent still not know. With AI assistance on, a model reads recent answers and thumbs-down comments for questions this knowledge base could not answer."
+      },
+      "agent-gaps": {
+        "title": "What it went looking for",
+        "body": "The questions this agent searched a knowledge base for and found nothing. Each one links to the run it came from."
+      },
+      "flow-dataset-open": {
+        "title": "Open your dataset",
+        "body": "It is the first card - the one changed last. Open it to add its first case."
+      },
+      "flow-dataset-add-case": {
+        "title": "Add your first case",
+        "body": "Choose Add case. A case is one question, and what a good answer to it looks like."
+      },
+      "flow-dataset-case-question": {
+        "title": "What the agent is asked",
+        "body": "The input is the message the agent answers. Add the conversation before it only when the question depends on earlier turns. Then choose Next."
+      },
+      "flow-dataset-case-answers": {
+        "title": "A good answer, and a bad one",
+        "body": "The reference answer says what a good answer contains; a judge compares the agent's answer with it. The counter-example is an answer known to be wrong - often the one somebody rated down. One of them is usually enough."
+      },
+      "flow-dataset-case-tools": {
+        "title": "The tools it should call",
+        "body": "List the tools the agent must call, with the arguments that have to match. Choose how they are matched: in any order, in this order with others allowed between, or exactly these and nothing else."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Rules about the answer",
+        "body": "A check is a rule the answer is scored by, such as that it mentions 30 days. Each one names its type and carries that rule's parameters."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags and a note",
+        "body": "Tags group results, such as billing or refusal. The note says why the case exists - what went wrong, or what it guards."
+      },
+      "flow-dataset-case-save": {
+        "title": "Save the case",
+        "body": "A case has to say what the answer is tested against: a reference answer, a counter-example, a tool call or a check. Until it has one, Save case stays off and says what is missing."
+      },
+      "flow-dataset-sources": {
+        "title": "Where the next cases come from",
+        "body": "Write them here, or import a CSV or JSONL file from this menu. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
+      },
+      "flow-dataset-generate": {
+        "title": "Or let the generator draft them",
+        "body": "Pick an agent and the sources - the agent itself, its knowledge base, real chats or red teaming - and the generator drafts cases for you to review. Nothing reaches the dataset until you accept it."
+      },
+      "agent-evals": {
+        "title": "Evals",
+        "body": "Run the agent over a dataset to see which cases it passes, what it costs, and whether a change made it better or worse than the version before."
+      },
+      "agent-test-draft": {
+        "title": "Test the draft",
+        "body": "Before you publish, run the draft against the live version on a dataset. The verdict says whether the change made the agent better or worse."
+      },
+      "eval-verdict": {
+        "title": "The verdict",
+        "body": "Which side did better, by how many confirmed cases, and the pass rate before and after. From here, see what changed between the versions, open the cases that broke, or publish."
+      },
+      "flow-test-draft": {
+        "title": "Test the draft",
+        "body": "This draft differs from the live version. Test it on a dataset before publishing.",
+        "absent": "The draft is the same as the live version, so there is nothing to test yet. Change something in Build, then test it - or finish here."
+      },
+      "flow-test-target": {
+        "title": "What you are testing",
+        "body": "The draft against the live version is already chosen: both answer the same cases now, so whatever changed is the draft's doing."
+      },
+      "flow-test-run": {
+        "title": "Run it for the price shown",
+        "body": "The cost is worked out as you choose and says what the budgets keep afterwards. Nothing runs before you press this."
+      },
+      "flow-test-verdict": {
+        "title": "Read the verdict",
+        "body": "Once both sides finish, this says whether the draft did better or worse, by how many confirmed cases. From here open the cases that broke, see what changed, or publish."
+      },
+      "flow-dataset-next": {
+        "title": "Next: grading, then an eval",
+        "body": "Decide here how answers to these cases are graded. Then run an agent over them - from the agent's Evals tab, or from this dataset - and read how it did."
+      },
+      "dataset-grading": {
+        "title": "How cases are graded",
+        "body": "When a case passes: the rules every answer is checked against and the tools a case expects. Mark which ones a case must pass. Each card saves on its own."
+      },
+      "dataset-review": {
+        "title": "Review",
+        "body": "The graded answers waiting for a person's decision. Decide the ones the judge was not sure of; its opinion stays on record."
+      },
+      "agents-system": {
+        "title": "System agents",
+        "body": "The agents the platform runs itself, grouped by what they do: the judges that grade eval answers, the case generator, the gap drafter and classifier, and the authoring assistant. Open one to change its instructions, model or budget; a dataset picks its judge on its Grading tab, and New agent adds another judge."
+      },
+      "dataset-judge": {
+        "title": "The judge",
+        "body": "Pick which judge grades this dataset - the default one, or one made for it - and give it the criteria. Changing the judge or its model is allowed; older scores then no longer compare. The judge needs AI assistance, which an admin turns on."
       },
       "settings-api-keys": {
         "title": "Your API keys",
@@ -4564,6 +4924,26 @@
         "title": "Voice",
         "body": "Take calls with a realtime model and voice on the Voice calls tab, and on the Dictation tab choose whether the chat microphone uses a provider or the browser."
       },
+      "agent-eval-suites": {
+        "title": "Suites",
+        "body": "Hold the agent to a dataset without remembering to: run it every night, on every publish or promotion, or when a skill, knowledge base or context file it reads changes. You are told when a case breaks."
+      },
+      "agent-assistant-strip": {
+        "title": "The authoring assistant",
+        "body": "Ask it to improve the agent from rated-down answers, or to check your own edits. Each suggestion waits for you to accept it into the draft."
+      },
+      "agent-environment-guards": {
+        "title": "Guards",
+        "body": "Name the eval suites an environment needs to pass on a version before it takes it. A version that has not passed them is held back, and an override needs a reason and the permission to give one."
+      },
+      "evals-all": {
+        "title": "Every eval run",
+        "body": "The runs of every agent you may see, newest first. Each opens on its verdict; an agent's Evals tab holds the same runs for that agent alone."
+      },
+      "routines-watches": {
+        "title": "What watches your accounts",
+        "body": "Watches read your own connected accounts on a schedule - reviews waiting on you, issues assigned to you - and put what is new in your inbox. Each row says when it last looked and how much of what it found still waits."
+      },
       "agent-starters": {
         "title": "First messages",
         "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
@@ -4571,6 +4951,30 @@
       "inbox-filters": {
         "title": "What came to you on its own",
         "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
+      },
+      "improvement-start": {
+        "title": "Test set",
+        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+      },
+      "improvement-results": {
+        "title": "Result",
+        "body": "Testing in the background. You can close this page — we’ll let you know when it is ready."
+      },
+      "improvement-accept": {
+        "title": "Accept",
+        "body": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes."
+      },
+      "flow-improvement-start": {
+        "title": "Test set",
+        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+      },
+      "flow-improvement-results": {
+        "title": "Result",
+        "body": "Testing in the background. You can close this page — we’ll let you know when it is ready."
+      },
+      "flow-improvement-accept": {
+        "title": "Accept",
+        "body": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes."
       }
     },
     "chooseLanguage": "Language",
@@ -4824,6 +5228,9 @@
       "agentAposSBehaviour": "The agent's behaviour lives here, not in code. Be specific about what it should do, what it should refuse, and how it should cite. Markdown, and the model reads the structure - headings and lists are what make a long prompt followable, so being able to see them rendered is the point of the preview.",
       "agentAposSOwn": "This agent's own monthly spending limit. The organization's limit still applies on top - an agent can tighten it, never loosen it. The step limit catches the other kind of runaway: a tool loop that is cheap per call and never finishes.",
       "agentCannotBePublished": "This agent cannot be published yet",
+      "fixUseStateWorkspace": "Switch the workspace to Files",
+      "fixStopSharingUnbound": "Stop sharing what this agent cannot share",
+      "fixSavesTheDraft": "A fix saves the draft and checks it again. Publishing stays a step of its own.",
       "agentConfigurationNotCode": "An agent is an assistant with its own instructions, knowledge and tools. Build one here, publish it, and people use it in chat, in Slack or Telegram, or through the API.",
       "agents": "Agents",
       "archive": "Archive",
@@ -4893,6 +5300,8 @@
       "moreActions": "More actions",
       "n100Default": "100 (default)",
       "namedMissing": "{name} (missing)",
+      "agentUnavailable": "Agent not available",
+      "backToAgents": "Back to agents",
       "eachPersonsOwnNamed": "{name} (each person's own)",
       "namedPointersAtPublished": "A publish mints a version; putting it somewhere is a separate decision. An environment either waits to be promoted onto or follows every publish. Production follows while it is the only environment; pin it once a dev or staging sits beside it. A bot bound to an environment serves its version.",
       "newAgent": "New agent",
@@ -4946,11 +5355,13 @@
       "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
       "tagsHint": "Anything narrower you want to search by later.",
       "labelCount": "{used} of {max}",
+      "evals": "Evals",
+      "agentsCount": "{count, plural, =1 {Agents (1)} other {Agents (#)}}",
+      "judgeDatasets": "Datasets",
       "thisPlatformMcp": "AgenticOS (this platform)",
       "testPanelOpen": "Test",
       "testPanelShortcut": "Test beside the Builder (T)",
-      "firstPublishNext": "It is live in chat and over the API. Next, choose where else people reach it - a website widget, a hosted page, Slack or Telegram.",
-      "openAvailability": "Open Availability",
+      "firstPublishNext": "Set a baseline: test this version on a few questions and check future changes against it.",
       "inCategoryUse": "Categories already in use",
       "inTagUse": "Tags already in use",
       "mcpToolLoad": "These MCP servers give the model {count} tools on every request - roughly {tokens, number} tokens before anyone types, and more tools than a model chooses between well. Tool search keeps them out of the way until the agent looks one up.",
@@ -4959,7 +5370,10 @@
       "agentNameLabel": "Name",
       "agentNameRequired": "An agent needs a name.",
       "identity": "Name and description",
-      "identityHelp": "Saved with the draft. Renaming keeps the handle @{slug}, so delegations and mentions wired to it keep working."
+      "identityHelp": "Saved with the draft. Renaming keeps the handle @{slug}, so delegations and mentions wired to it keep working.",
+      "draftAsTested": "Draft as the run tested it",
+      "improveSession": "Improve",
+      "setBaseline": "Set a baseline"
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -5001,15 +5415,6 @@
       "botToken": "Bot token",
       "botTokenHintMattermost": "The bot account's access token",
       "botTokenHintSlack": "The bot user OAuth token (xoxb-...) from your Slack app",
-      "botTokenHintTeams": "The client secret of the Azure Bot's app registration (Certificates & secrets in Entra).",
-      "teamsAppId": "Microsoft App ID",
-      "teamsAppIdHint": "On the Azure Bot resource, under Configuration. Create the bot as single-tenant.",
-      "teamsTenantId": "Tenant ID",
-      "teamsTenantIdHint": "The Entra tenant the bot is registered in. Only that tenant's Teams can reach it.",
-      "teamsEndpoint": "Messaging endpoint",
-      "teamsEndpointHint": "Paste this into the Azure Bot's configuration, and turn on its Microsoft Teams channel.",
-      "teamsPackageWhy": "Upload the app package to your tenant's Teams app catalog, then add the app to a chat or a team.",
-      "teamsPackageDownload": "Download app package",
       "botTokenHintTelegram": "The token @BotFather gives you when you create a bot",
       "botUpdated": "{bot} updated",
       "bots": "Bots",
@@ -5094,7 +5499,16 @@
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no key yet)",
-      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
+      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is.",
+      "botTokenHintTeams": "The client secret of the Azure Bot's app registration (Certificates & secrets in Entra).",
+      "teamsAppId": "Microsoft App ID",
+      "teamsAppIdHint": "On the Azure Bot resource, under Configuration. Create the bot as single-tenant.",
+      "teamsTenantId": "Tenant ID",
+      "teamsTenantIdHint": "The Entra tenant the bot is registered in. Only that tenant's Teams can reach it.",
+      "teamsEndpoint": "Messaging endpoint",
+      "teamsEndpointHint": "Paste this into the Azure Bot's configuration, and turn on its Microsoft Teams channel.",
+      "teamsPackageWhy": "Upload the app package to your tenant's Teams app catalog, then add the app to a chat or a team.",
+      "teamsPackageDownload": "Download app package"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -5363,7 +5777,7 @@
       "anyPerson": "Anyone",
       "anyRating": "Any rating",
       "anyStatus": "Any status",
-      "anySurface": "Any surface",
+      "anySurface": "Any surface but evals",
       "anyVersion": "Any version",
       "approvalCount": "{count, plural, =1 {1 request} other {# requests}}",
       "approvals": "Approvals",
@@ -5504,10 +5918,10 @@
       "surface": "Surface",
       "surfaceApi": "API",
       "surfaceEmbed": "Embed",
+      "surfaceEval": "Eval",
       "surfaceFilter": "Filter by surface",
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
-      "surfaceTeams": "Microsoft Teams",
       "surfaceSchedule": "Schedule",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -5543,6 +5957,12 @@
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
       "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
+      "everySurface": "Every surface, evals included",
+      "evalCase": "Eval case: {dataset} · {input}",
+      "evalCaseTitle": "A case from an eval run",
+      "evalCaseBody": "This run answered one case of an eval run, which keeps no conversation. Its answer and how it was graded are on the eval run.",
+      "evalCaseOpen": "Open the eval run",
+      "moreRunActions": "More actions for this run",
       "askAnAgent": "Ask an agent",
       "testFilter": "Test runs",
       "testRun": "test",
@@ -5559,12 +5979,16 @@
       "decidedSection": "Decided",
       "waitingSection": "Waiting on you",
       "share": "Share",
-      "monthAgainstCap": "${spent} of ${cap} this month",
+      "monthAgainstCap": "{spent} of {cap} this month",
       "spendOverTime": "Spend over time",
       "spendOverTimeHint": "What each day of the window cost, in UTC days.",
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
       "approvalNoArguments": "It takes nothing.",
+      "evalCaseGraded": "Grading an eval case: {dataset} · {input}",
+      "evalCaseGradedTitle": "The judge grading a case of an eval run",
+      "evalCaseGradedBody": "This run is the judge grading one answer of an eval run, which keeps no conversation. The answer, the grade and the judge's reasons are on the eval run.",
+      "grading": "Grading: {input}",
       "cache": {
         "title": "Prompt cache",
         "description": "Requests whose cached prompt was not read back. A bust is a prefix that moved - tools reordered, a timestamp in the instructions - and was billed at the full input rate; an expiry had outlived the provider's cache.",
@@ -5579,7 +6003,8 @@
       "anyModality": "Any kind",
       "modalityText": "Text",
       "modalityVoiceCalls": "Voice calls",
-      "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}"
+      "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}",
+      "surfaceTeams": "Microsoft Teams"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -5725,6 +6150,12 @@
       "prefMcpServerDownTrigger": "An organization MCP server stopped answering its check or a run. Sent once per outage to administrators and to the owners of agents bound to it.",
       "prefMcpServerRecovered": "MCP server answering again",
       "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again.",
+      "prefEvalSuiteFailed": "An eval suite failed",
+      "prefEvalSuiteFailedTrigger": "A suite you own fell below its threshold or could not run. Sent once per run of failures on a version, naming the cases that broke.",
+      "prefPromotionOverridden": "A promotion went past its evals",
+      "prefPromotionOverriddenTrigger": "A version went to an environment past an eval suite you own that had not passed on it. Names the suites and the reason given.",
+      "prefSharedChangeApplied": "A change went live for your agent",
+      "prefSharedChangeAppliedTrigger": "Somebody applied a change to a context file or skill your agent reads. Its eval suites that run on such a change were queued. Names the file or skill only if you can see it, and never its content.",
       "agentContext": {
         "title": "What your agents know about you",
         "description": "Every agent reads this at the start of a conversation, so you never have to repeat it in a chat.",
@@ -5746,7 +6177,15 @@
       "prefCapabilityRequested": "A capability asked for",
       "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability.",
       "prefFinding": "Findings from your watches",
-      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest."
+      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest.",
+      "prefEvalRunFinished": "Test finished",
+      "prefEvalRunFinishedTrigger": "A test you started has finished or stopped.",
+      "prefCaseGenerationFinished": "Test questions ready",
+      "prefCaseGenerationFinishedTrigger": "Writing your test questions has finished or stopped.",
+      "prefImprovementFinished": "Improvement session finished",
+      "prefImprovementFinishedTrigger": "An improvement session you started is ready to review or stopped.",
+      "prefSuiteReevaluated": "Suite result re-evaluated",
+      "prefSuiteReevaluatedTrigger": "A human review changed the verdict of a suite you own. Promotion still requires a person."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -5854,6 +6293,7 @@
       },
       "pools": {
         "agent": "Agent runs",
+        "eval": "Eval runs",
         "ingest": "Ingestion",
         "system": "System"
       },
@@ -6296,16 +6736,17 @@
     "levelEdit": "Can edit",
     "levelRead": "Can view",
     "levelUse": "Can use",
+    "levelUseNoEffect": "Can use - no effect: running evals needs permission to read runs",
     "notSharedWithAnyone": "Not shared with anyone yet.",
     "secretRuntimeNote": "Sharing controls who can bind this key to an agent and who can rotate it - not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
     "share": "Share",
     "sharingUpdated": "Sharing updated",
     "visibilityOrg": "Everyone in the organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} context {context files} mcp_connection {MCP servers} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} other {secrets}} at all.",
     "visibilityPrivate": "Only people with access",
-    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} context {context file} mcp_connection {MCP server} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
+    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
-    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} context {context files} mcp_connection {MCP servers} other {secrets}}. This organization has no teams - pick one of the two above.",
+    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
     "groupsHeading": "Groups",
     "membersHeading": "Members",
@@ -6411,13 +6852,20 @@
     },
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
-    "whoCanUseIt": "Who can use it"
+    "whoCanUseIt": "Who can use it",
+    "expectedEffect": "Expected effect:"
   },
   "states": {
     "loading": "Loading"
   },
   "teams": {
     "acmeCom": "acme.com",
+    "aiAssistance": "AI assistance",
+    "aiAssistanceDescription": "Off until somebody turns it on. It lets models judge eval answers, draft test cases, propose changes to agents and draft knowledge-gap content, and every use is a metered run within the agent's and the organization's budgets.",
+    "aiAssistanceHint": "When this is off, nothing here calls a model to judge, generate or propose: the eval judge, the case generator and the authoring assistant are refused. Deterministic checks and people's verdicts keep working.",
+    "aiAssistanceOn": "AI assistance is on",
+    "aiAssistanceOff": "AI assistance is off",
+    "aiAssistanceFailed": "Could not change AI assistance",
     "approvalWaiver": "Waiving approvals in chat",
     "approvalWaiverDescription": "Whether a conversation may run without stopping for approvals.",
     "approvalWaiverHint": "When this is on, somebody who may decide approvals can let one conversation run every gated tool call without being asked. Each waived call is still recorded against their account.",
@@ -6627,7 +7075,14 @@
     "goToQuestion": "Go to question {step}",
     "skipped": "Skipped",
     "sendAnswers": "Send answers",
-    "backToOptions": "Back to the options"
+    "backToOptions": "Back to the options",
+    "resourceUnavailable": {
+      "title": "Resource unavailable",
+      "description": "This is not in your organization, or you do not have access.",
+      "switchOrganization": "If you belong to another organization, switch to it in the organization menu.",
+      "runsTitle": "Permission needed",
+      "runsPermission": "Reading eval results needs runs:view. Ask an organization owner for access."
+    }
   },
   "vault": {
     "access": "Access",
@@ -6876,11 +7331,6 @@
     "defaultEnvironment": "Default",
     "environmentFollows": "follows publishes",
     "environmentBehind": "{count, plural, =1 {1 version behind} other {# versions behind}}",
-    "teamsPost": "Also post the answer to Teams",
-    "teamsPostHint": "Each fire's answer goes to this channel or group chat as a new message.",
-    "teamsPostNowhere": "Don't post",
-    "teamsPostUnnamedChannel": "A Teams channel",
-    "teamsPostUnnamedGroup": "A Teams group chat",
     "environmentCaptionDefault": "Fires run whatever the default environment points at when they fire.",
     "environmentCaptionPinned": "The next fire runs v{version}.",
     "environmentCaptionTracking": "The next fire runs v{version} - this environment follows publishes, so the next publish changes what runs.",
@@ -6961,6 +7411,11 @@
       "queue": "Runs once the previous run ends, however many times were missed.",
       "allow": "Starts on time alongside the run still going. Both runs are paid for."
     },
+    "teamsPost": "Also post the answer to Teams",
+    "teamsPostHint": "Each fire's answer goes to this channel or group chat as a new message.",
+    "teamsPostNowhere": "Don't post",
+    "teamsPostUnnamedChannel": "A Teams channel",
+    "teamsPostUnnamedGroup": "A Teams group chat",
     "howOften": "How often",
     "choiceEvery15m": "Every 15 min",
     "choiceHourly": "Hourly",
@@ -7337,6 +7792,603 @@
     "mappingAdded": "Mapping added",
     "mappingDeleted": "Mapping deleted"
   },
+  "datasets": {
+    "scoring": {
+      "title": "Grading",
+      "save": "Save",
+      "saved": "Grading saved",
+      "optional": "optional",
+      "scorer": {
+        "check": "Checks",
+        "trajectory": "Expected tool calls",
+        "judge": "Judge",
+        "criteria": "Your criteria",
+        "reference": "Reference answer"
+      },
+      "checksHint": "Each case's own checks, plus the defaults below for every case.",
+      "defaults": "Checks every case gets",
+      "trajectoryHint": "The tools the agent called against the case's expected calls, in the case's order mode.",
+      "judgeHint": "The judge grades every answer on the criteria below. Each grade is a run in Activity.",
+      "judgeModel": "Judge's model",
+      "scaleMax": "Top of the scale",
+      "passAt": "Passes at",
+      "criterionName": "Criterion name",
+      "criterionNamePlaceholder": "correctness",
+      "criterionDescription": "What the criterion asks",
+      "criterionDescriptionPlaceholder": "The refund window and the conditions are stated correctly",
+      "addCriterion": "Add criterion",
+      "removeCriterion": "Remove criterion",
+      "referenceHint": "The judge compares the answer with the case's reference answer, where the case has one.",
+      "counterExampleRow": "Counter-example",
+      "counterExampleHint": "While your criteria or the reference answer is on, the judge also checks that an answer does not say what the case's counter-example says. An answer that does fails.",
+      "reviewSelect": "Send answers graded by hand to the review queue",
+      "review": {
+        "none": "Nothing, until somebody sends one",
+        "failed": "Results that did not pass",
+        "all": "Every result"
+      },
+      "scores": "Review",
+      "scoreCount": "{count, plural, =1 {1 result} other {# results}}",
+      "noScores": "No results yet",
+      "nothingAwaitingReview": "Nothing is waiting for a decision",
+      "noScoresBody": "Answers graded against this dataset's cases appear here - from an eval run, or from a run graded against a case in Activity.",
+      "passed": "Passed",
+      "failed": "Failed",
+      "unscored": "Not graded",
+      "status": {
+        "pass": "Pass",
+        "fail": "Fail",
+        "skipped": "Not graded",
+        "error": "Error"
+      },
+      "decidedByPerson": "Decided in review",
+      "awaitingReview": "Waiting for a decision",
+      "scoredRun": "Scored run",
+      "judgeRun": "Judge's run",
+      "verdictNote": "Note",
+      "verdictNotePlaceholder": "Why, for whoever reads this next (optional)",
+      "markPassed": "Answer is fine (the judge was wrong)",
+      "markFailed": "Answer is wrong",
+      "withdrawVerdict": "Withdraw decision",
+      "verdictSaved": "Decision saved",
+      "verdictWithdrawn": "Decision withdrawn",
+      "sendToReview": "Send to review",
+      "sentToReview": "Sent to the review queue",
+      "newerWaits": "A newer answer to this case already waits for review, so this one was not sent.",
+      "reason": {
+        "aiAssistanceOff": "AI assistance is switched off for this organization, so the judge did not run.",
+        "judgeUnpublished": "The eval judge has no published version. Pick its model and publish it.",
+        "judgeArchived": "The eval judge is archived. Restore it to grade again.",
+        "judgeNoAccess": "You may not run the eval judge. Ask for access to it.",
+        "judgeNotSeeded": "The eval judge could not be set up in this organization.",
+        "judgeBudget": "The eval judge's budget is spent, so it did not run.",
+        "judgeNoModel": "The eval judge's model is gone or has no key. Pick another model for it.",
+        "judgeMissing": "The judge this dataset picked no longer exists. Pick another on its Grading tab.",
+        "judgeRunFailed": "The judge's run did not finish.",
+        "judgeOutputInvalid": "The judge answered in a form that could not be read.",
+        "judgeGradedTwice": "The judge graded this criterion more than once, so neither grade counts.",
+        "judgeUngraded": "The judge gave no grade on the scale for this criterion.",
+        "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it.",
+        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example, though the answer repeats it or the judge quoted only what the two share."
+      },
+      "scoreRun": "Score against a case",
+      "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",
+      "noDatasetToScore": "There is no dataset to score against yet. <link>Create one</link> and add a case.",
+      "noCaseToScore": "This dataset has no case yet",
+      "score": "Score",
+      "scoring": "Scoring…",
+      "close": "Close",
+      "problem": {
+        "noScorer": "Turn on at least one scorer - with every scorer off, no case can be scored.",
+        "noCriterion": "Give the judge at least one criterion, or turn it off - it has nothing to grade."
+      },
+      "willRun": "Runs {scorers}.",
+      "judgeSpends": "The judge's grading is a run of the eval judge, charged to its budget.",
+      "aiOff": {
+        "body": "AI assistance is off in this organization, so the judge and the reference comparison are skipped and only the rule-based scorers score.",
+        "enable": "Enable AI assistance",
+        "askAdmin": "Ask an admin to enable AI assistance."
+      },
+      "findDataset": "Find a dataset",
+      "question": "Question",
+      "referenceAnswer": "Reference answer",
+      "pickDatasetFirst": "Pick a dataset first",
+      "loadingCases": "Loading cases…",
+      "mustPass": "Must pass",
+      "mustPassNamed": "{scorer}: must pass",
+      "passes": {
+        "title": "When a case passes",
+        "description": "The rules every answer is checked against, and the tools a case expects the agent to call. Neither costs anything."
+      },
+      "judgeCard": {
+        "title": "Judge",
+        "description": "An agent that grades each answer on your criteria, and against the reference answer where a case has one. Each grade is a run on a model, charged to the judge's budget."
+      },
+      "reviewCard": {
+        "title": "Review by a person",
+        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers its judge failed to grade, one per case for each agent."
+      },
+      "suggestReference": "{count, plural, =1 {1 case has a reference answer, and nothing compares answers with it yet.} other {# cases have a reference answer, and nothing compares answers with it yet.}}",
+      "suggestReferenceAction": "Compare with the reference",
+      "judgePick": "Which judge",
+      "judgeDefault": "Default judge",
+      "judgeDefaultNamed": "Default judge - {name}",
+      "judgeGone": "A judge that no longer exists",
+      "judgeOpen": "Open the judge",
+      "createJudgeForDataset": "Create a judge for this dataset",
+      "judgeChanged": "Scores graded by the previous judge or model will not compare with the ones graded from now on.",
+      "createJudgeTitle": "A judge for {name}",
+      "createJudgeBody": "A judge is an agent: what you write here is its prompt, which its page edits later. The criteria stay on this dataset.",
+      "judgeName": "Name",
+      "judgeInstructions": "Instructions",
+      "createJudge": "Create judge",
+      "judgeCreated": "{name} now grades this dataset",
+      "cancel": "Cancel",
+      "judgeNameFor": "{name} judge",
+      "reviewFilter": "Show",
+      "filterPending": "Waiting for a decision ({count})",
+      "filterAll": "All results ({count})",
+      "nothingAwaitingReviewBody": "An eval run sends here the regressions it confirmed and the answers its judge failed to grade, and its page any others you pick. Answers graded by hand follow the Grading tab's review setting.",
+      "groupByHand": "Graded by hand",
+      "groupEvalRun": "Eval run · {when}",
+      "agentGone": "An agent that is gone",
+      "agentVersion": "{name} · v{version}",
+      "answer": "Answer",
+      "answerHidden": "Answer and grading evidence hidden: reading them needs runs:view and access to the answering agent.",
+      "answerGone": "The answer is not kept.",
+      "showAll": "Show all",
+      "showLess": "Show less",
+      "expectedCallsIn": "{order, select, in_order {Expected tool calls, in this order} exact {Expected tool calls, exactly these} other {Expected tool calls, in any order}}",
+      "unverified": "Quoted, but not in the answer: {quotes}",
+      "decision": "Review decision",
+      "noCaseAsks": "No case of this dataset asks this run's question.",
+      "askedInSeveral": "{count, plural, one {# dataset has a case asking this run's question; it comes first in the list.} other {# datasets have a case asking this run's question; they come first in the list.}}",
+      "addAsCase": "Add it as a case",
+      "pickCase": "Pick the case to grade against",
+      "filterOutcome": "Outcome",
+      "anyOutcome": "Any outcome",
+      "filterAgent": "Agent",
+      "anyAgent": "Every agent",
+      "filterTag": "Tag",
+      "anyTag": "Every tag",
+      "evalRunLink": "Eval run ↗",
+      "withdrawGroup": "{count, plural, =1 {Remove 1 from the queue} other {Remove # from the queue}}",
+      "withdrawn": "{count, plural, =1 {1 result taken out of the queue} other {# results taken out of the queue}}",
+      "undo": "Undo",
+      "showPassed": "{count, plural, =1 {+1 passed} other {+# passed}}",
+      "hidePassed": "Hide what passed",
+      "coverage": "{count} of {total} cases",
+      "unsaved": "Unsaved",
+      "ungraded": "{count, plural, =1 {1 case has nothing that grades it. Turn on the reference comparison, give the judge criteria, or add rules.} other {# cases have nothing that grades them. Turn on the reference comparison, give the judge criteria, or add rules.}}",
+      "mustPassRule": "A case passes when everything marked Must pass passes.",
+      "switchJudgeTitle": "Grade with another judge?",
+      "switchJudgeBody": "Scores graded by the current judge will not compare with the ones graded from now on. Nothing already graded changes.",
+      "switchJudge": "Switch judge",
+      "scaleSentence": "Each criterion is graded from 1 to <top></top>, and passes at <mark></mark> or above.",
+      "judgeUnpublished": "Not published",
+      "gradedBy": "Graded here by {graders}.",
+      "gradedByJudge": "the judge ({criteria})",
+      "gradedByNothing": "Nothing on the dataset's Grading tab would grade this case as written.",
+      "openJudgeRun": "Open the judge's run",
+      "notGradedCode": "A required scorer reached no verdict ({code}).",
+      "notGradedWhy": "This answer is not graded, so it counts as neither passed nor failed. Fix the cause, then score it again - the agent does not run again.",
+      "rescore": "Score again",
+      "rescoreGroup": "Score {count, plural, =1 {1 ungraded answer} other {# ungraded answers}} again",
+      "rescored": "{count, plural, =1 {Scored 1 answer again} other {Scored # answers again}}",
+      "rescoreNothing": "Every scorer had already reached a verdict, so nothing was scored again.",
+      "judgeKnowledge": "What must the judge know?",
+      "judgeKnowledgeHint": "Anything it grades against that the cases do not say - a policy, a price list, house rules. It is added to the judge's instructions.",
+      "judgeKnowledgePlaceholder": "Orders can be returned within 30 days of delivery. Opened software is not refundable.",
+      "unsavedChanges": "Unsaved changes",
+      "discard": "Discard",
+      "judgeGradesOn": "Grades on <model></model>",
+      "willBeGradedBy": "Graded by {judge}.",
+      "willBeGradedByOn": "Graded by {judge} on {model}.",
+      "willBeGradedByUnpublished": "Graded by {judge}, which is not published on a model yet.",
+      "changeDatasetJudge": "Change the dataset's judge",
+      "changeJudgeModel": "Change the judge's model",
+      "willBeGradedByHint": "Either applies to every answer graded after it, not to this one alone.",
+      "judgeModelOnItsPage": "Its model is changed on its own page.",
+      "judgeNoModelYet": "The organization has no model yet, so the judge is created as a draft. Add a model, then publish the judge on its page.",
+      "judgeSameModel": "The judge graded on {model}, the model that answered, and may favour answers like its own. Give the judge another model on its page.",
+      "noteToCriterion": "Make this note a judge criterion:",
+      "noteForCase": "for this case",
+      "noteForEveryCase": "for every case",
+      "noteAddedToCase": "The note is now a judge criterion of this case, in a new version of the dataset.",
+      "noteAddedToRubric": "The note is now one of the judge's criteria for every case, and the judge is on.",
+      "rule": "Rule: {rule}",
+      "judgeSaid": "The judge answered: “{said}”",
+      "unverifiedGrade": "Unverified: nothing quoted from the answer backs this grade.",
+      "agentDraft": "{name} · Draft",
+      "criterionScope": "Applies to",
+      "criterionEveryCase": "Every case",
+      "criterionCoverage": "Applies to {count} of {total} cases",
+      "noteForTag": "for cases tagged {tag}",
+      "noteAddedToTags": "The note is now a judge criterion for cases tagged {tags}.",
+      "maskedConversation": "From a conversation you cannot open",
+      "countsAsPassed": "Counts as passed.",
+      "countsAsFailed": "Counts as failed.",
+      "reviewEffect": {
+        "unavailable": "The updated run could not be read. Open its check to retry.",
+        "refreshing": "Refreshing the result…",
+        "run": "Run: {verdict}",
+        "suite": "{name}: {status} after review",
+        "verdict": {
+          "better": "better",
+          "worse": "worse",
+          "mixed": "mixed",
+          "no_difference": "no reproducible change",
+          "invalid": "inconclusive"
+        },
+        "notCompared": "Run: no baseline comparison was requested.",
+        "didNotComplete": "The run did not complete. Open its check for the reason."
+      }
+    },
+    "title": "Datasets",
+    "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
+    "newDataset": "New dataset",
+    "newDatasetBody": "An empty dataset. Add cases by hand, import a CSV or JSONL file, or add an answer from a conversation.",
+    "noAccess": "You cannot see this organization's datasets",
+    "noAccessBody": "Ask an administrator for access to datasets.",
+    "datasetCount": "{count, plural, =1 {1 dataset} other {# datasets}}",
+    "search": "Search datasets",
+    "noMatches": "No dataset matches",
+    "noMatchesBody": "Names and descriptions are searched.",
+    "empty": "No datasets yet",
+    "emptyBody": "A dataset holds the test cases an agent is checked against.",
+    "deleteBody": "Every version and case of this dataset is deleted. Eval runs that used it lose the questions they answered.",
+    "created": "Created {name}",
+    "deleted": "Dataset deleted",
+    "name": "Name",
+    "description": "Description",
+    "cancel": "Cancel",
+    "close": "Close",
+    "create": "Create",
+    "add": "Add",
+    "versionNumber": "v{number}",
+    "caseCount": "{count, plural, =1 {1 case} other {# cases}}",
+    "version": "Version",
+    "newestVersion": "Newest version",
+    "versionChange": "v{number} · {change, select, add {added} edit {edited} remove {removed} import {imported} generate {accepted from drafts} other {changed}} {count, plural, =1 {1 case} other {# cases}}",
+    "importFile": "Choose a CSV or JSONL file to import",
+    "importTitle": "Import cases",
+    "importBody": "A CSV or JSONL file of up to 10 MB, in UTF-8, with one case per row or line. Only input is required, and an empty cell leaves a field empty. The file becomes the dataset's next version; if one row is refused, nothing is imported.",
+    "importColumn": {
+      "input": "The message the agent is tested on.",
+      "history": "The turns before it, as a JSON list of role and content.",
+      "reference_answer": "What a good answer says.",
+      "counter_example": "An answer known to be wrong.",
+      "expected_tool_calls": "The tools a good answer calls, as a JSON list.",
+      "order_mode": "Whether those calls must keep their order: any, in_order or exact.",
+      "checks": "Rules the answer is checked against, as a JSON list.",
+      "tags": "Labels, separated by commas.",
+      "note": "Why the case is worth testing."
+    },
+    "downloadTemplate": "Download a template",
+    "chooseFile": "Choose file",
+    "import": "Import",
+    "exportCsv": "Export CSV",
+    "exportJsonl": "Export JSONL",
+    "imported": "{count, plural, =1 {1 case} other {# cases}} imported as version {version}",
+    "caseAdded": "{version, plural, =0 {Case added} other {Added as v#}}",
+    "caseSaved": "{version, plural, =0 {Case saved} other {Saved as v#}}",
+    "caseRemoved": "{version, plural, =0 {Case removed} other {Removed in v#}}",
+    "turnsBefore": "{count, plural, =1 {1 earlier turn} other {# earlier turns}}",
+    "hasReference": "Reference answer",
+    "proposedAnswer": "Answer:",
+    "proposedCounterExample": "Counter-example:",
+    "hasCounterExample": "Counter-example",
+    "expectedCalls": "{count, plural, =1 {1 expected call} other {# expected calls}}",
+    "addCase": "Add case",
+    "cases": "Cases",
+    "case": "Case",
+    "noCases": "No cases in this version",
+    "noCasesBody": "Add a case, import a file, or use Add to dataset on an answer in a conversation or in Activity.",
+    "caseReadOnly": "Read-only: this is an older version, or you cannot change this dataset.",
+    "caseSavesVersion": "Saving makes a new version. The version before it keeps this case as it was.",
+    "saveCase": "Save case",
+    "needsInput": "Write the input the agent answers.",
+    "needsExpectation": "Add a reference answer, a counter-example, an expected tool call or a check: a case needs something to test the answer against.",
+    "addToDataset": "Add to dataset",
+    "addToDatasetBody": "The question and the comment left with a thumbs-down come with the answer.",
+    "addAsReferenceBody": "You rated this answer up, so it is kept as the reference answer. The question comes with it.",
+    "noDatasetToAddTo": "There is no dataset you can add to. <link>Create one</link> first.",
+    "dataset": "Dataset",
+    "keepAnswerAs": "Keep the answer as",
+    "addedTo": "Added to {name}",
+    "openDataset": "Open dataset",
+    "alsoAddToDataset": "Add this answer to a dataset",
+    "alsoAddAsCounterExample": "The answer is saved as a counter-example: an answer the agent should not give.",
+    "addAfterRatingFailed": "The rating was saved, but the answer was not added to a dataset: {reason}",
+    "field": {
+      "input": "Input",
+      "reference_answer": "Reference answer",
+      "counter_example": "Counter-example",
+      "note": "Note",
+      "history": "Conversation before the input",
+      "expected_tool_calls": "Expected tool calls",
+      "checks": "Checks",
+      "tags": "Tags",
+      "order_mode": "How expected calls are matched"
+    },
+    "hint": {
+      "input": "The message the agent answers.",
+      "reference_answer": "What a good answer says. A judge compares the agent's answer with it.",
+      "counter_example": "A known bad answer to this question - often one somebody rated down. Once a judge grades the dataset, every answer is graded on not repeating its mistake, and has to pass that.",
+      "note": "Why the case exists - what went wrong, or what it guards.",
+      "history": "Earlier turns, oldest first. Leave empty for a single message.",
+      "expected_tool_calls": "Tools the agent should call, each with the arguments that must match. A value is text, or a number, true, false or a list when written as JSON. Arguments not listed are ignored.",
+      "checks": "Rules the answer is checked against - that it contains a phrase, matches a pattern, stays under a cost.",
+      "tags": "Comma-separated, for grouping results."
+    },
+    "source": {
+      "manual": "Written",
+      "import": "Imported",
+      "conversation": "From a conversation",
+      "synthetic": "Generated"
+    },
+    "orderMode": {
+      "any": "Any order",
+      "anyHint": "Every expected call must happen; order and other calls do not matter.",
+      "in_order": "In this order",
+      "in_orderHint": "The expected calls must happen in the listed order; other calls may come between them.",
+      "exact": "Exactly these, in this order",
+      "exactHint": "The agent must make exactly the expected calls, in the listed order, and no others."
+    },
+    "origin": {
+      "agent": "From the agent",
+      "knowledge": "From knowledge",
+      "conversation": "From chats",
+      "red_team": "Red team"
+    },
+    "sourceHint": {
+      "agent": "Typical requests and edge cases, from its instructions, skills and tools",
+      "knowledge": "Questions its knowledge base answers, each citing the document it came from",
+      "conversation": "Harder variants of what people asked it, rated-down answers first",
+      "red_team": "Requests it must refuse, each with the refusal expected"
+    },
+    "plan": {
+      "agent": "{count, plural, =1 {1 case} other {# cases}} from the agent and its {material, plural, =1 {1 tool} other {# tools}}",
+      "knowledge": "{count, plural, =1 {1 case} other {# cases}} from {material, plural, =1 {1 passage} other {# passages}} of its knowledge base",
+      "conversation": "{count, plural, =1 {1 case} other {# cases}} from {material, plural, =1 {1 question} other {# questions}} people asked",
+      "red_team": "{count, plural, =1 {1 red-team case} other {# red-team cases}}"
+    },
+    "dismissProposal": "Dismiss this proposed case",
+    "editProposal": "Edit proposed case",
+    "acceptProposal": "Accept this proposed case",
+    "dismiss": "Dismiss",
+    "edit": "Edit",
+    "accept": "Accept",
+    "generatorRun": "Open the generator's run",
+    "generating": "Drafting {count, plural, =1 {1 case} other {# cases}}…",
+    "generationFailed": "The generation failed.",
+    "leftOutUnreadable": "{count, plural, =1 {1 case could not be read and was left out.} other {# cases could not be read and were left out.}}",
+    "leftOutRejected": "{count, plural, =1 {1 more case was left out: it did not keep to its source, went past what was asked for, or was asked by someone no longer here.} other {# more cases were left out: they did not keep to their source, went past what was asked for, or were asked by someone no longer here.}}",
+    "proposedCases": "Proposed cases",
+    "proposalCount": "{count, plural, =0 {Nothing waiting} =1 {1 case waiting for a decision} other {# cases waiting for a decision}}",
+    "dismissAll": "Dismiss all",
+    "acceptAll": "Accept all",
+    "proposalsBody": "Drafted by the case generator. Nothing reaches the dataset until you accept it, and one Accept is one new version.",
+    "proposalsHidden": "{count, plural, =1 {1 draft from chats needs permission to view runs} other {# drafts from chats need permission to view runs}}",
+    "editProposalBody": "Accepting adds the case as you leave it here, in a new version of the dataset.",
+    "proposalsAccepted": "{count, plural, =1 {1 case} other {# cases}} added as version {version}",
+    "proposalsDismissed": "{count, plural, =1 {1 proposed case} other {# proposed cases}} dismissed",
+    "estimate": "{count, plural, =1 {1 case} other {# cases}}, estimated {cost, number, ::currency/USD}",
+    "estimateUnderCent": "{count, plural, =1 {1 case} other {# cases}}, estimated under $0.01",
+    "estimateUnpriced": "{count, plural, =1 {1 case} other {# cases}}. The cost cannot be estimated for the generator's model.",
+    "excludedCollections": "{count, plural, =1 {1 knowledge base} other {# knowledge bases}} of this agent left out: you cannot read them.",
+    "generationStarted": "Drafting {count, plural, =1 {1 case} other {# cases}}. They will wait here for your decision.",
+    "generateCases": "Generate cases",
+    "generateCasesBody": "The case generator drafts cases for you to review. You see the estimated cost before anything is spent.",
+    "agent": "Agent",
+    "chooseAgent": "Choose an agent",
+    "agentHint": "The agent whose instructions, tools and chats the cases are written from. Nothing is run against it.",
+    "sources": "Draft from",
+    "sourceNeedsRunsView": "Needs permission to view runs",
+    "caseNumber": "Number of cases",
+    "caseNumberHint": "Shared across the sources, at most {max}.",
+    "estimateCost": "Estimate cost",
+    "generate": "Generate",
+    "importRowProblem": "Row {row}: {message}",
+    "importRowFieldProblem": "Row {row}, {field}: {message}",
+    "checkCount": "{count, plural, =1 {1 check} other {# checks}}",
+    "hasNote": "Note",
+    "anonymised": "Anonymised after erasure",
+    "anonymisedHint": "The person this case was taken from was erased, so its text was removed. Eval runs leave it out until you rewrite it or remove it.",
+    "anonymisedInput": "Removed: the person this case was taken from was erased.",
+    "editDetails": "Edit details",
+    "editDetailsBody": "What the dataset is called and what it is for. Changing them makes no new version: no case changes.",
+    "saveDetails": "Save",
+    "detailsSaved": "Saved",
+    "olderVersion": "Older version #",
+    "findDataset": "Find a dataset",
+    "generatedTab": "{count, plural, =0 {Generated} other {Generated · #}}",
+    "generateIntro": "The case generator drafts cases for this dataset from the sources you pick. You see the estimated cost first, and every draft waits here until you accept, edit or dismiss it.",
+    "generateAiOff": "Generating cases needs AI assistance, which is off for this organization.",
+    "editGenerator": "Edit the generator's instructions",
+    "generatorNotRunnable": "You may not run the case generator. Ask an admin to share it with you.",
+    "generateMore": "{count, plural, =1 {More options · 1 case} other {More options · # cases}}",
+    "moreActions": "More actions",
+    "share": "Share",
+    "delete": "Delete",
+    "shareTitle": "Share {name}",
+    "shareBody": "Who sees this dataset, and who may change its cases.",
+    "noneShared": "Nothing has been shared with you yet",
+    "noneSharedBody": "Ask a dataset's owner to share it with you. Your role reads datasets but does not create them.",
+    "role": {
+      "user": "Person",
+      "assistant": "Agent"
+    },
+    "turnRole": "Turn {number}: who speaks",
+    "turnContent": "Turn {number}: what was said",
+    "removeTurn": "Remove turn {number}",
+    "addTurn": "Add a turn",
+    "callTool": "Call {number}: tool",
+    "removeCall": "Remove call {number}",
+    "addCall": "Add a tool call",
+    "checkTypeOf": "Check {number}: type",
+    "checkValue": "Check {number}: what it checks",
+    "removeCheck": "Remove check {number}",
+    "addCheck": "Add a check",
+    "checkTypes": {
+      "contains": "Contains",
+      "not_contains": "Does not contain",
+      "equals": "Equals",
+      "regex": "Matches a pattern",
+      "json_schema": "Matches a JSON schema",
+      "max_cost_usd": "Costs at most (USD)",
+      "max_latency_ms": "Answers within (ms)",
+      "judge": "Judge criterion"
+    },
+    "checkPlaceholder": {
+      "contains": "30 days",
+      "not_contains": "I cannot help",
+      "equals": "Yes",
+      "judge": "Refuses without revealing the customer's address"
+    },
+    "schemaNotObject": "A schema is written as a JSON object.",
+    "notNumber": "This check takes a number.",
+    "checkEmpty": "Say what each check checks, or remove it.",
+    "caseOpened": "Edit it to change it; saving makes a new version.",
+    "editCase": "Edit",
+    "evals": "Evals",
+    "linkedCaseGone": "The case this link names is not in the newest version of the dataset.",
+    "argKey": "Call {number}, argument {arg}: name",
+    "argValue": "Call {number}, argument {arg}: value",
+    "removeArg": "Remove argument {arg} of call {number}",
+    "addArg": "Add an argument",
+    "caseSavesVersionN": "Saving makes version v{number}. The version before it keeps this case as it was.",
+    "caseJson": "The case as JSON",
+    "caseJsonHint": "The same fields an import or an export holds. Back to the form to check it reads right.",
+    "caseJsonInvalid": "This is not valid JSON.",
+    "editAsJson": "Edit as JSON",
+    "editAsForm": "Back to the form",
+    "addFromActivity": "Add from Activity",
+    "createVisibleToOrg": "Visible to the whole organization.",
+    "createPrivate": "Private to you until you share it.",
+    "createMakePrivate": "Make it private",
+    "createShareWithOrg": "Show it to the organization",
+    "caseTwin": "A case already asks this question:",
+    "caseTwinOpen": "Open it",
+    "caseTwinAddAnyway": "Add anyway",
+    "addToDatasetBodyPlain": "The question comes with the answer.",
+    "historyChoice": "The conversation before the question",
+    "historyAlone": "Only this question",
+    "historyWith": "With the conversation",
+    "historyFollowUp": "This looks like a follow-up to the conversation before it.",
+    "discardCaseTitle": "Discard your changes?",
+    "discardCaseBody": "The changes to this case are not saved and will be lost.",
+    "discardCase": "Discard",
+    "keepEditing": "Keep editing",
+    "newDatasetName": "New dataset",
+    "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
+    "newDatasetFromActivity": "Answers from Activity",
+    "backToDataset": "Back to {name}",
+    "maskedConversation": "From a conversation you cannot open",
+    "privateConversationWarning": "This conversation is private to {name}. Its text will be visible to readers of this dataset who can read runs.",
+    "anotherMember": "another member",
+    "checkingSource": "Checking source privacy…",
+    "improvementSplit": {
+      "share": "Holdout share for new questions (%)",
+      "shareHint": "The split is assigned once per question. This setting affects new questions; existing questions keep their part across edits and versions. Improve needs at least five gradable held-out questions.",
+      "counts": "{train} train · {holdout} holdout",
+      "train": "Train",
+      "holdout": "Holdout",
+      "shareInvalid": "Enter a percentage from 0 to 100 in steps of 0.1."
+    }
+  },
+  "knowledgeGaps": {
+    "tab": "Knowledge gaps",
+    "title": "Knowledge gaps",
+    "topicCount": "{count, plural, =0 {No topics} =1 {1 topic} other {# topics}}",
+    "descriptionCollection": "Questions agents searched this knowledge base for and found nothing relevant to, or answered without knowing, grouped by topic.",
+    "descriptionAgent": "Questions this agent searched its knowledge bases for and found nothing relevant to, or answered without knowing, grouped by topic.",
+    "nothingAutomatic": "Nothing is added to a knowledge base automatically. When a topic needs a document, a person adds it.",
+    "statusFilter": "Show topics",
+    "statusOpen": "Open",
+    "statusDismissed": "Dismissed",
+    "moreActions": "More actions for this topic",
+    "regroup": "Group now",
+    "regroupStarted": "Grouping started. New topics appear in a minute or two.",
+    "checkAnswers": "{count, plural, =1 {Check 1 answer} other {Check # answers}}",
+    "checkAnswersHint": "A model reads recent answers, and the comments on thumbs-down ratings, for questions this knowledge base could not answer.",
+    "checkStarted": "Checking answers. New topics appear when it finishes. Its runs are in Activity, with evals included.",
+    "uncheckedAiOff": "{count, plural, =1 {1 recent answer} other {# recent answers}} could also be read for knowledge gaps with AI assistance on.",
+    "ungrouped": "{count, plural, =1 {1 question is} other {# questions are}} waiting to be grouped. Grouping runs every 15 minutes.",
+    "questionCount": "{count, plural, =1 {Asked once} other {Asked # times}}",
+    "lastAsked": "Last asked {ago}",
+    "emptyOpen": "No open knowledge gaps",
+    "emptyOpenBody": "When an agent searches and finds nothing relevant, the question appears here, grouped with others like it.",
+    "emptyDismissed": "No dismissed topics",
+    "emptyDismissedBody": "Topics marked as needing no document appear here.",
+    "loadFailed": "Knowledge gaps could not be loaded",
+    "loadTopicFailed": "This topic could not be loaded",
+    "loadFailedBody": "This is not an empty list: the request failed. Try again.",
+    "retry": "Try again",
+    "topic": "Topic",
+    "topicSummary": "{count, plural, =1 {Asked once} other {Asked # times}} by {askers, plural, =1 {one person} other {# people}} in {knowledgeBase}",
+    "questions": "Questions",
+    "noConversation": "No conversation is kept for this run, so only the search is known.",
+    "searchedFor": "Searched for: {query}",
+    "signalAnswer": "The agent said it did not know",
+    "signalRating": "A reader said information was missing",
+    "noResults": "No results",
+    "closestMatch": "{count, plural, =1 {1 result} other {# results}}, closest match {similarity}",
+    "openRun": "Open the run",
+    "ratedDown": "Rated down: {comment}",
+    "dismiss": "Dismiss",
+    "reopen": "Reopen",
+    "dismissedToast": "Topic dismissed",
+    "reopenedToast": "Topic reopened",
+    "addToDataset": "Add to dataset",
+    "addToDatasetBody": "Each question becomes a case, with the answer the agent gave. Questions with no answer you can read are skipped.",
+    "noDatasetToAddTo": "There is no dataset you can add to. <link>Create one</link> first.",
+    "dataset": "Dataset",
+    "cancel": "Cancel",
+    "add": "Add",
+    "casesAdded": "{added, plural, =0 {No case added} =1 {1 case added} other {# cases added}} to {name}{skipped, plural, =0 {} =1 {, 1 question skipped} other {, # questions skipped}}",
+    "draftContent": "Draft the missing content",
+    "draftAgain": "Draft again",
+    "drafting": "Drafting…",
+    "draftReady": "Draft ready - check it before you add it",
+    "draftNotice": "Written by a model from the questions above. Somebody who may change this knowledge base checks every fact, fills in what is missing and adds it.",
+    "draftSources": "What it rests on",
+    "openDraftRun": "Open the run",
+    "editDrafter": "Edit the drafter's instructions",
+    "downloadDraft": "Download .md",
+    "hasDraft": "Draft",
+    "draftLabel": "Draft — verify before adding",
+    "draftUnverified": "{count, plural, =1 {One source it named could not be verified and was left out.} other {# sources it named could not be verified and were left out.}}",
+    "aiOff": "AI assistance is off in this organization, so no draft can be written. Finding and grouping gaps still works.",
+    "enableAi": "Enable AI assistance",
+    "askAdmin": "Ask an admin to turn it on.",
+    "statusCovered": "Covered",
+    "emptyCovered": "No covered topics",
+    "emptyCoveredBody": "Topics whose content was added to the knowledge base appear here, until that document is deleted.",
+    "contentTitle": "Title",
+    "contentBody": "Content",
+    "contentPlaceholder": "Write the passage that answers these questions, in Markdown, as general knowledge for everybody who asks.",
+    "blanks": "Still to fill in",
+    "blanksToFill": "{count, plural, =1 {One detail is still to fill in. Replace it before you add the content.} other {# details are still to fill in. Replace them before you add the content.}}",
+    "flagsTitle": "This content may identify somebody",
+    "flagShared": "“{value}” also appears in people's questions or answers, like an order or account number.",
+    "flagPersonalData": "{count, plural, =1 {One {category}} other {# matches: {category}}}",
+    "flagCategories": {
+      "email": "e-mail address",
+      "credit_card": "card number",
+      "iban": "bank account number",
+      "us_ssn": "social security number",
+      "phone": "phone number"
+    },
+    "flagsConfirm": "I checked it: none of this identifies a person, or it belongs in the knowledge base.",
+    "addToKnowledgeBase": "Add to {knowledgeBase}",
+    "saveContent": "Save",
+    "contentSaved": "Content saved",
+    "contentAdded": "Added to {knowledgeBase}. The document is being processed.",
+    "coveredBy": "Covered by <link>{name}</link>, added to the knowledge base from this topic.",
+    "alreadyCoveredBy": "The drafter found these questions answered already, by {sources}. If so, dismiss the topic instead of adding content.",
+    "alreadyCovered": "The drafter found these questions answered already. If so, dismiss the topic instead of adding content."
+  },
   "apiKeys": {
     "title": "API keys",
     "why": "Keys let a script, an HTTP client or an MCP client call this organization's API as you, narrowed to what you pick. A key never does more than you can today.",
@@ -7690,22 +8742,6 @@
       "needs": "An API key for the image provider in the vault. Each image is billed by that provider.",
       "never": "Never posts an image anywhere; it appears in the conversation."
     },
-    "text_to_speech": {
-      "name": "Text to speech",
-      "does": "Reads a text aloud as an audio clip.",
-      "example1": "A voice-over for a product video",
-      "example2": "A spoken version of a weekly summary",
-      "needs": "An API key for the speech provider in the vault. Each clip is billed by that provider, per character.",
-      "never": "Never sends audio anywhere; the clip appears in the conversation."
-    },
-    "video_generation": {
-      "name": "Video generation",
-      "does": "Makes a short video from a description, or from an image it starts with.",
-      "example1": "A ten-second teaser for a product launch",
-      "example2": "An animated version of a generated logo",
-      "needs": "An API key for the video provider in the vault. Each clip is billed by that provider, per second.",
-      "never": "Never posts a video anywhere; it appears in the conversation."
-    },
     "knowledge": {
       "name": "Knowledge search",
       "does": "Lets the agent answer from your documents and say which one each answer came from.",
@@ -7827,6 +8863,22 @@
       "example2": "A 3D model of the warehouse you can turn",
       "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
       "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
+    },
+    "text_to_speech": {
+      "name": "Text to speech",
+      "does": "Reads a text aloud as an audio clip.",
+      "example1": "A voice-over for a product video",
+      "example2": "A spoken version of a weekly summary",
+      "needs": "An API key for the speech provider in the vault. Each clip is billed by that provider, per character.",
+      "never": "Never sends audio anywhere; the clip appears in the conversation."
+    },
+    "video_generation": {
+      "name": "Video generation",
+      "does": "Makes a short video from a description, or from an image it starts with.",
+      "example1": "A ten-second teaser for a product launch",
+      "example2": "An animated version of a generated logo",
+      "needs": "An API key for the video provider in the vault. Each clip is billed by that provider, per second.",
+      "never": "Never posts a video anywhere; it appears in the conversation."
     },
     "follow_ups": {
       "name": "Follow-ups",
@@ -8076,78 +9128,6 @@
         "description": "Aspect ratio, e.g. 16:9 or 1:1."
       }
     },
-    "text_to_speech": {
-      "provider": {
-        "title": "Provider",
-        "description": "Whose voices speak. Offered: the providers in `app/core/catalog/text_to_speech_models.json` whose key the vault can hold."
-      },
-      "model": {
-        "title": "Speech model",
-        "description": "Which of that provider's speech models speaks. A model outside the catalog is refused here rather than mid-run."
-      },
-      "voice": {
-        "title": "Voice",
-        "description": "The voice that speaks unless the agent chooses another; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
-      },
-      "voices": {
-        "title": "Allowed voices",
-        "description": "The only voices the agent may switch to instead of the one above, per clip - for a dialogue, or a narrator and a character. Left empty, it may choose any voice the model offers - for ElevenLabs, any voice id in your account."
-      },
-      "output_format": {
-        "title": "File format",
-        "description": "mp3 is smaller, wav is uncompressed. Left empty, the provider's first format - Gemini returns wav only."
-      },
-      "max_characters": {
-        "title": "Longest text",
-        "description": "The most text one call may speak, which caps what a single call can cost."
-      }
-    },
-    "video_generation": {
-      "provider": {
-        "title": "Provider",
-        "description": "Whose model makes the video. Offered: the providers in `app/core/catalog/video_models.json` whose key the vault can hold."
-      },
-      "model": {
-        "title": "Video model",
-        "description": "Which of that provider's video models makes the clip. A model outside the catalog is refused here rather than mid-run."
-      },
-      "resolution": {
-        "title": "Resolution",
-        "description": "The resolution a clip is made at unless the agent asks for another; left empty, the model's first. Higher costs more per second."
-      },
-      "max_resolution": {
-        "title": "Highest resolution",
-        "description": "The highest resolution the agent may ask for, at least the usual one; it caps what a second can cost. Left empty, the agent may ask for any resolution the model renders."
-      },
-      "aspect_ratio": {
-        "title": "Aspect ratio",
-        "description": "The shape a clip takes unless the agent asks for another; left empty, the model's first."
-      },
-      "seconds": {
-        "title": "Length",
-        "description": "Seconds a clip runs unless the agent asks for another length; left empty, five, or the nearest the model makes. Not for a model that decides its own length."
-      },
-      "max_seconds": {
-        "title": "Longest clip",
-        "description": "The longest clip the agent may ask for, which caps what one call can cost; left empty, the model's own limit. Not for a model that decides its own length."
-      },
-      "audio": {
-        "title": "Sound",
-        "description": "Whether clips carry sound unless the agent asks otherwise, where the model makes it optional; left empty, the provider's default."
-      },
-      "alibaba_workspace": {
-        "title": "Alibaba workspace",
-        "description": "Alibaba only: the Model Studio workspace id, which Wan 3.0 is called through. Left empty, the shared DashScope endpoint, which Alibaba keeps for existing integrations."
-      },
-      "alibaba_region": {
-        "title": "Alibaba region",
-        "description": "Alibaba only: the region the workspace is in."
-      },
-      "timeout_seconds": {
-        "title": "Time limit",
-        "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it and booked at its estimate."
-      }
-    },
     "knowledge": {
       "default_top_k": {
         "title": "Passages per search",
@@ -8372,6 +9352,78 @@
         "description": "How long one task may run before it is stopped."
       }
     },
+    "text_to_speech": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose voices speak. Offered: the providers in `app/core/catalog/text_to_speech_models.json` whose key the vault can hold."
+      },
+      "model": {
+        "title": "Speech model",
+        "description": "Which of that provider's speech models speaks. A model outside the catalog is refused here rather than mid-run."
+      },
+      "voice": {
+        "title": "Voice",
+        "description": "The voice that speaks unless the agent chooses another; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
+      },
+      "voices": {
+        "title": "Allowed voices",
+        "description": "The only voices the agent may switch to instead of the one above, per clip - for a dialogue, or a narrator and a character. Left empty, it may choose any voice the model offers - for ElevenLabs, any voice id in your account."
+      },
+      "output_format": {
+        "title": "File format",
+        "description": "mp3 is smaller, wav is uncompressed. Left empty, the provider's first format - Gemini returns wav only."
+      },
+      "max_characters": {
+        "title": "Longest text",
+        "description": "The most text one call may speak, which caps what a single call can cost."
+      }
+    },
+    "video_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose model makes the video. Offered: the providers in `app/core/catalog/video_models.json` whose key the vault can hold."
+      },
+      "model": {
+        "title": "Video model",
+        "description": "Which of that provider's video models makes the clip. A model outside the catalog is refused here rather than mid-run."
+      },
+      "resolution": {
+        "title": "Resolution",
+        "description": "The resolution a clip is made at unless the agent asks for another; left empty, the model's first. Higher costs more per second."
+      },
+      "max_resolution": {
+        "title": "Highest resolution",
+        "description": "The highest resolution the agent may ask for, at least the usual one; it caps what a second can cost. Left empty, the agent may ask for any resolution the model renders."
+      },
+      "aspect_ratio": {
+        "title": "Aspect ratio",
+        "description": "The shape a clip takes unless the agent asks for another; left empty, the model's first."
+      },
+      "seconds": {
+        "title": "Length",
+        "description": "Seconds a clip runs unless the agent asks for another length; left empty, five, or the nearest the model makes. Not for a model that decides its own length."
+      },
+      "max_seconds": {
+        "title": "Longest clip",
+        "description": "The longest clip the agent may ask for, which caps what one call can cost; left empty, the model's own limit. Not for a model that decides its own length."
+      },
+      "audio": {
+        "title": "Sound",
+        "description": "Whether clips carry sound unless the agent asks otherwise, where the model makes it optional; left empty, the provider's default."
+      },
+      "alibaba_workspace": {
+        "title": "Alibaba workspace",
+        "description": "Alibaba only: the Model Studio workspace id, which Wan 3.0 is called through. Left empty, the shared DashScope endpoint, which Alibaba keeps for existing integrations."
+      },
+      "alibaba_region": {
+        "title": "Alibaba region",
+        "description": "Alibaba only: the region the workspace is in."
+      },
+      "timeout_seconds": {
+        "title": "Time limit",
+        "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it and booked at its estimate."
+      }
+    },
     "follow_ups": {
       "model_profile_id": {
         "title": "Model for next steps",
@@ -8465,6 +9517,532 @@
     "unavailableBody": "This deployment has no Redis for live views. Try again shortly.",
     "rememberSignIn": "Keep me signed in to {site} for later browses",
     "signInKept": "Your sign-in to {site} is kept for later browses - manage it in Settings → Sign-ins."
+  },
+  "evals": {
+    "title": "Evals",
+    "description": "How the agent's pass rate moved, version after version, and every run with its verdict.",
+    "start": "Run evals",
+    "startTitle": "Run evals",
+    "needsRunsView": "Needs permission to read runs",
+    "startBody": "Pick what to test and on which dataset. The cost shows before anything runs.",
+    "cancel": "Cancel",
+    "aiSettings": "Open the organization's settings",
+    "estimate": {
+      "basis": {
+        "fallback": "no history on this model, a rough guess",
+        "cached": "reused from a recent run",
+        "cachedAt": "answers from the run of {date}, same model - a case that changes is asked of both sides again"
+      },
+      "judge": "Eval judge",
+      "total": "{count, plural, =1 {1 case} other {# cases}} in total",
+      "reruns": "Cases that flip are rerun to confirm, which can add up to {amount}.",
+      "after": "After this run the agent keeps <b>{agent}</b> and the organization <b>{org}</b> of this month's budget.",
+      "noCap": "no cap",
+      "unaffordable": "This is more than a budget has left. Run fewer cases or models, or raise the budget.",
+      "side": "{name} · {model}",
+      "gradedBy": "Graded by {graders}.",
+      "grader": {
+        "checks": "checks",
+        "trajectory": "expected tool calls",
+        "reference": "the reference answer",
+        "judge": "{name}",
+        "judgeRubric": "{name} on {criteria}"
+      },
+      "judgeSameModel": "The judge grades on {model}, the model being tested, and may favour answers like its own. Give the judge another model on its page.",
+      "ungraded": "{count, plural, =1 {1 case has nothing to grade it.} other {# cases have nothing to grade them.}} The result will be inconclusive."
+    },
+    "runFor": "Run for {amount}",
+    "runTitle": "{dataset} v{version} · {candidate}",
+    "runMeta": "{date} · spent {cost} of an estimated {estimate}{ceiling, select, none {} other {, plus up to {ceiling} for confirming reruns}}",
+    "back": "Back to the agent's evals",
+    "cancelRun": "Stop",
+    "progress": "Cases answered",
+    "comparisonFailed": "The verdict could not be read.",
+    "compareArm": "Compare this model",
+    "draft": "Draft",
+    "proposed": "Proposed changes",
+    "draftPlus": "Draft + {count, plural, =1 {1 suggestion} other {# suggestions}}",
+    "versionPlus": "v{version} + {count, plural, =1 {1 suggestion} other {# suggestions}}",
+    "proposedSkill": "v{version} + proposed skill",
+    "proposedContext": "v{version} + proposed context file",
+    "version": "v{version}",
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "completed": "Completed",
+      "cancelled": "Stopped",
+      "failed": "Failed",
+      "budget_exceeded": "Out of budget"
+    },
+    "empty": {
+      "noDatasetTitle": "Create a dataset first",
+      "noDatasetBody": "An eval runs the agent over the cases of a dataset. Add the questions it should answer well, then come back to run them.",
+      "createDataset": "Go to datasets",
+      "title": "No evals yet",
+      "body": "Run the agent over a dataset to see which cases it passes, what it costs, and how it compares with an earlier version."
+    },
+    "fields": {
+      "dataset": "Dataset",
+      "datasetPlaceholder": "Choose a dataset",
+      "datasetOption": "{name} · {count, plural, =1 {1 case} other {# cases}} · v{version}",
+      "environment": "Environment",
+      "noEnvironment": "None",
+      "environmentHint": "Tools reach this environment's test connections. A tool that would write data without one is not executed.",
+      "fromRecordings": "Replay tool results from the original conversation",
+      "fromRecordingsHint": "A case taken from a conversation gets the tool results that conversation got, instead of calling the tools again.",
+      "agent": "Agent",
+      "agentPlaceholder": "Choose an agent",
+      "target": "What are you testing",
+      "targetOption": {
+        "compare": "The draft against v{version}",
+        "version": "v{version} alone",
+        "draft": "The draft"
+      },
+      "targetHint": {
+        "compare": "Both sides answer the same cases on the same model. Answers v{version} gave today may be reused; a case that changes is asked of both sides again, so a change is the draft's doing, not the provider's.",
+        "version": "How the version people are talking to does on the dataset.",
+        "draft": "Nothing is published yet, so this is the first result. Later versions are compared with it."
+      },
+      "noTarget": "This agent has no published version, and running its draft takes the right to edit it.",
+      "advanced": "Advanced",
+      "reruns": "Confirming reruns",
+      "rerunsDefault": "Default",
+      "rerunsCount": "{count, plural, =0 {None} =1 {1 rerun} other {# reruns}}",
+      "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. More reruns make a change harder to confirm, not easier: a model that answers differently each time rarely confirms anything. None skips the check.",
+      "noChanges": "No changes — the draft matches the published version."
+    },
+    "comparison": {
+      "title": "How the two compare",
+      "candidate": "Tested",
+      "baselinePaired": "Compared with, in the same run",
+      "baselinePast": "Compared with, an earlier run",
+      "side": "{candidate} · {model} · dataset v{dataset} · {date}",
+      "unfinished": "not finished",
+      "verdict": {
+        "better": "Fixes cases",
+        "worse": "Breaks cases",
+        "no_difference": "No reproducible change",
+        "invalid": "Not comparable",
+        "mixed": "Mixed",
+        "inconclusive": "Inconclusive",
+        "failedAlike": "Could not run"
+      },
+      "regressionsConfirmed": "Confirmed regressions",
+      "regressionsUnconfirmed": "Unconfirmed regressions",
+      "fixedConfirmed": "Confirmed fixes",
+      "fixedUnconfirmed": "Unconfirmed fixes",
+      "compared": "{compared, plural, =1 {1 case} other {# cases}} compared, {skipped} answered on one side only",
+      "comparedTag": "{compared, plural, =1 {1 case} other {# cases}} tagged #{tag} compared. The verdict and the efficiency are over every case.",
+      "metric": {
+        "cost_per_pass": "Cost per passed case",
+        "avg_tokens": "Tokens",
+        "p50_ms": "Median latency",
+        "p95_ms": "p95 latency"
+      },
+      "trend": {
+        "better": "better",
+        "worse": "worse",
+        "unchanged": "unchanged",
+        "unknown": "unknown"
+      },
+      "confirmedHint": "Confirmed: the change held on every rerun.",
+      "unconfirmedHint": "Unconfirmed: on a rerun it came out one way, then the other.",
+      "glossary": "Confirmed: the change held on every rerun. Unconfirmed: on a rerun it came out one way, then the other.",
+      "overall": {
+        "worse": "Worse overall",
+        "better": "Better overall"
+      }
+    },
+    "arms": {
+      "title": "Side by side",
+      "titleTag": "Side by side on #{tag}",
+      "passRate": "Pass rate",
+      "undecided": "Undecided",
+      "costPerPass": "Cost per pass",
+      "tokens": "Tokens per case",
+      "latency": "Latency p50 / p95",
+      "reused": "reused",
+      "p50p95": "{p50} / {p95}",
+      "side": "Side",
+      "pending": "Pending",
+      "reusedFrom": "result from the run of {date}"
+    },
+    "cases": {
+      "title": "{count, plural, =1 {1 case} other {# cases}}",
+      "outcomeFilter": "Outcome",
+      "tagFilter": "Tag",
+      "allTags": "All tags",
+      "outcome": {
+        "all": "All outcomes",
+        "passed": "Passed",
+        "failed": "Failed",
+        "undecided": "Undecided"
+      },
+      "flip": {
+        "regression": "{confirmed, select, true {Confirmed regression} other {Regression, unconfirmed}}",
+        "fixed": "{confirmed, select, true {Confirmed fix} other {Fixed, unconfirmed}}",
+        "incomplete": "Not graded on {side}",
+        "crashed": "{confirmed, select, true {Broke: the agent failed} other {Broke once: the agent failed}}"
+      },
+      "dot": "{side}: {state, select, passed {passed} failed {failed} undecided {undecided} incomplete {did not finish} other {pending}}",
+      "brokenFirst": "Showing the first {count} of the {total} cases that broke.",
+      "brokenOnly": "{count, plural, =1 {Showing the case that broke.} other {Showing the # cases that broke.}}",
+      "showAll": "Show every case",
+      "corrected": "Corrected by a person",
+      "askedOnly": "Showing the one case you opened.",
+      "partition": {
+        "train": "Train",
+        "holdout": "Holdout",
+        "excluded": "Evidence copy"
+      }
+    },
+    "case": {
+      "firstAnswer": "Answer",
+      "rerun": "Rerun {n}",
+      "outcome": {
+        "true": "passed",
+        "false": "failed",
+        "null": "undecided"
+      },
+      "call": {
+        "executed": "ran",
+        "replayed": "from recording",
+        "blocked": "not executed (would have written data)",
+        "divergent": "not in recording"
+      },
+      "scorer": {
+        "pass": "pass",
+        "fail": "fail",
+        "skipped": "skipped",
+        "error": "error"
+      },
+      "expect": {
+        "title": "What the case expects",
+        "reference": "Reference:",
+        "counterExample": "Not like this:",
+        "calls": "Expected calls, {order}:",
+        "checks": "Checks:",
+        "openDataset": "Open this case in its dataset"
+      },
+      "notGraded": "not graded: {reason}",
+      "whatTheModelSaw": "See what the model saw"
+    },
+    "estimating": "Estimating…",
+    "runCount": "{count, plural, =1 {1 run} other {# runs}}",
+    "sideModel": "{name} · {model}",
+    "headline": {
+      "first": "This is the first result of {candidate} on {dataset}: {rate} of the decided cases pass{undecided, plural, =0 {} one {, and # of {cases} cases is undecided} other {, and # of {cases} cases are undecided}}. Later versions are compared with it.",
+      "worse": "{candidate} breaks {broke, plural, =1 {1 case} other {# cases}} that passed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
+      "better": "{candidate} fixes {fixed, plural, =1 {1 case} other {# cases}} that failed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
+      "no_difference": "No change held: {changes, plural, =0 {{candidate} does as well as {baseline} on {dataset}.} =1 {1 case changed once and came out differently when asked again, so any difference in pass rate between {candidate} and {baseline} on {dataset} is not a reproducible change.} other {# cases changed once and came out differently when asked again, so any difference in pass rate between {candidate} and {baseline} on {dataset} is not a reproducible change.}}",
+      "invalid": "{candidate} and {baseline} cannot be compared: the two sides were graded by a different judge or rubric.",
+      "mixed": "Mixed: {candidate} breaks {broke, plural, =1 {1 case} other {# cases}} and fixes {fixed, plural, =1 {1} other {#}} against {baseline}, every time they were asked. It breaks: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
+      "overall": "{overall, select, worse {Worse overall: across every confirmed change, {candidate} does worse than {baseline}.} other {Better overall: across every confirmed change, {candidate} does better than {baseline}.}}",
+      "passRate": "Pass rate {from} → {to}, each case as most of its tries came out{undecided, plural, =0 {} other { · # of {cases} cases undecided}}",
+      "firstPassRate": "First answers alone: {from} → {to}",
+      "unsteady": "Run it again, or test on a steadier model: a model that answers differently each time cannot confirm a change.",
+      "failedAlike": "Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: {error}",
+      "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}."
+    },
+    "live": {
+      "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
+      "comparisonLater": "The comparison appears when both sides finish.",
+      "confirming": "Every first answer is in. Confirming the cases that changed: {done} of {total} reruns in.",
+      "answeringSingle": "{done} of {total} answers in."
+    },
+    "answers": "{cases, plural, =1 {1 case} other {# cases}} · {first, plural, =1 {1 answer} other {# answers}}{reruns, plural, =0 {} =1 { + 1 confirming rerun} other { + # confirming reruns}}",
+    "actions": {
+      "whatChanged": "See what changed",
+      "showBroken": "{count, plural, =1 {Show the case that broke} other {Show the # cases that broke}}",
+      "backToBuild": "Back to Build",
+      "publish": "Publish",
+      "testAgain": "Test again",
+      "showBrokenOnce": "{count, plural, =1 {Show the case that broke at least once} other {Show the # cases that broke at least once}}"
+    },
+    "group": "{name} · {count, plural, =1 {1 run} other {# runs}}",
+    "trend": {
+      "label": "Pass rate by run",
+      "single": "One run so far. Run another to see a trend.",
+      "legend": "Each point is a run, oldest on the left; hover one for what ran, against what and when, and click it to open the run. Drag the handles under the chart to show more runs or fewer.",
+      "legendAll": "Each point is a run, oldest on the left; hover one for what ran, against what and when, and click it to open the run.",
+      "range": "Runs shown",
+      "tick": "{side} · {when}",
+      "comparedWith": "compared with {name}",
+      "rate": "Pass rate {rate}",
+      "verdict": "{verdict, select, better {Fixes cases} worse {Breaks cases} mixed {Breaks some cases, fixes others} no_difference {No reproducible change} invalid {Not comparable} other {First result}}",
+      "key": {
+        "worse": "Breaks cases",
+        "better": "Fixes cases",
+        "mixed": "Mixed",
+        "draft": "Draft"
+      }
+    },
+    "chip": {
+      "pending": "Pending",
+      "first": "First result",
+      "better": "Fixes {fixed}",
+      "worse": "Breaks {broke}",
+      "no_difference": "No reproducible change",
+      "invalid": "Not comparable",
+      "mixed": "Mixed · {broke} broke, {fixed} fixed",
+      "overall": "{overall, select, worse {Worse overall} other {Better overall}} · {broke} broke, {fixed} fixed",
+      "inconclusive": "Inconclusive",
+      "crashed": "The agent's run failed on {count, plural, one {# case} other {# cases}}"
+    },
+    "row": {
+      "against": "{candidate} vs {baseline}",
+      "agent": "{agent} · {title}",
+      "rate": "{model} {rate}{undecided, plural, =0 {} other { · # undecided}}",
+      "firstRate": "First answers alone: {rate}"
+    },
+    "dataset": {
+      "counted": "{runs, plural, =0 {No runs yet} =1 {1 run of 1 agent} other {# runs of {agents, plural, =1 {1 agent} other {# agents}}}}",
+      "emptyTitle": "No agent has been tested on this dataset yet",
+      "emptyBody": "Run an agent over these cases to see which it passes, how it compares with its earlier versions, and what it costs.",
+      "unnamedAgent": "An agent you cannot see"
+    },
+    "draftNote": {
+      "untested": "This draft was not tested since it last changed.",
+      "outdated": "This draft changed since its last test, so that result is out of date.",
+      "unread": "Could not read how this draft last tested.",
+      "test": "Test it",
+      "running": "This draft is being tested now.",
+      "unfinished": "The last test of this draft {status, select, cancelled {was stopped} budget_exceeded {ran out of budget} other {failed}} before it reached a verdict.",
+      "result": "{verdict, select, worse {Last test of this draft: it breaks {broke} against {baseline}.} better {Last test of this draft: it fixes {fixed} against {baseline}.} mixed {Last test of this draft: mixed against {baseline}, {broke} broke and {fixed} fixed.} no_difference {Last test of this draft: no change held against {baseline}.} invalid {The last test of this draft could not be compared with {baseline}.} other {Last test of this draft: the first result, with nothing to compare it with.}}",
+      "ungraded": "{count, plural, =1 {1 case of this draft was not graded} other {# cases of this draft were not graded}}: “{question}”{others, plural, =0 {} other { and # more}}. Grade again on the run before publishing."
+    },
+    "review": {
+      "send": "{count, plural, =1 {Send the failed case to review} other {Send # failed cases to review}}",
+      "sent": "{queued, plural, =0 {Nothing new sent to review} =1 {1 case sent to review} other {# cases sent to review}}{replaced, plural, =0 {} =1 {, replacing 1 older one that was waiting} other {, replacing # older ones that were waiting}}{already, plural, =0 {} other {; # not sent: already waiting, decided or older than the one waiting}}.",
+      "routed": "This run sent {count, plural, =1 {1 answer} other {# answers}} to review itself: the regressions it confirmed and the answers the judge failed to grade.{replaced, plural, =0 {} =1 { That replaced 1 older answer of this agent still waiting on the same case.} other { That replaced # older answers of this agent still waiting on the same cases.}}",
+      "routingFailed": "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: {reason}",
+      "checkHeld": "A check sends nothing to review by itself: nothing is accepted by checking. Send its failed answers by hand if a person should look at them.",
+      "sendOther": "{count, plural, =1 {Send the other failed case} other {Send the other # failed cases}}"
+    },
+    "draftChanged": "The draft changed after this run.",
+    "ungraded": {
+      "count": "{count, plural, =1 {1 answer was not graded: the judge failed or was skipped, so it counts as neither passed nor failed.} other {# answers were not graded: the judge failed or was skipped, so they count as neither passed nor failed.}}",
+      "again": "Grade again",
+      "done": "{count, plural, =0 {Nothing was graded again} =1 {1 answer graded again} other {# answers graded again}}",
+      "side": "{count, plural, =1 {1 case of {side} was not graded} other {# cases of {side} were not graded}}: “{question}”{others, plural, =0 {} other { and # more}}. Grade again before deciding."
+    },
+    "noAccess": {
+      "title": "You can't open this eval run",
+      "body": "Reading eval runs needs permission to view runs, and access to the agent and the dataset. Ask an admin of the organization."
+    },
+    "startedBySuite": "Started by the suite {name} {trigger, select, schedule {on its schedule} publish {when a version was published} promotion {when a version was promoted} dependency {after a skill, knowledge base or context file changed} other {by hand}}.",
+    "suites": {
+      "title": "Suites",
+      "description": "Datasets this agent is held to, run on their own: on a schedule, when a version is published or promoted, or when a skill, knowledge base or context file it reads changes.",
+      "new": "New suite",
+      "empty": {
+        "line": "No suites yet, so this agent is checked only when somebody starts a run."
+      },
+      "created": "Suite created",
+      "saved": "Suite saved",
+      "resumedToast": "Suite resumed",
+      "pausedToast": "Suite paused",
+      "runningToast": "Suite started",
+      "pinMoved": "The guard now checks the dataset as it is",
+      "pin": {
+        "badge": "Pinned to v{version}",
+        "pinned": "Pinned to dataset v{pinned}.",
+        "unpinnedBadge": "Not pinned",
+        "unpinned": "Not pinned to a dataset version yet, so it holds every promotion back until it is pinned.",
+        "current": "Guards on dataset v{pinned}, as it is now.",
+        "behind": "Pinned to dataset v{pinned}. The dataset is now at v{latest}.",
+        "scoringChanged": "Its grading has changed since.",
+        "move": "Move the pin to v{latest}",
+        "needsOverride": "Moving the pin needs permission to override promotions.",
+        "judgeChanged": "The judge has a newer publication. This guard keeps grading with its pinned version until you move the pin."
+      },
+      "removed": "Suite removed",
+      "viewResults": "Results of {name}",
+      "holds": "{dataset} · {environment, select, none {current published version} other {{environment}}}",
+      "hiddenDataset": "a dataset you cannot see",
+      "when": {
+        "publish": "On publish",
+        "promotion": "On promotion",
+        "dependency": "When a skill, knowledge base or context file changes",
+        "manualOnly": "Only when run by hand"
+      },
+      "schedule": {
+        "daily": "Daily at {time} ({zone})",
+        "weekdays": "Weekdays at {time} ({zone})",
+        "weekly": "Every {day} at {time} ({zone})",
+        "custom": "Cron {expression} ({zone})"
+      },
+      "status": {
+        "pending": "Waiting",
+        "running": "Running",
+        "passed": "Passed",
+        "failed": "Failed",
+        "inconclusive": "Inconclusive",
+        "skipped": "Did not run",
+        "error": "Error",
+        "baseline_set": "Baseline set"
+      },
+      "checkVerdict": "What the suite <suite>{name}</suite> would say, by its threshold when the check started. A check is not one of the suite's runs, so it is in no history.",
+      "lastResult": "{status} · {rate}",
+      "paused": {
+        "byPerson": "Paused",
+        "owner_inactive": "Paused: its owner left",
+        "owner_lacks_access": "Paused: its owner lost access",
+        "environment_gone": "Paused: its environment was removed"
+      },
+      "next": "Next {date}",
+      "runNow": "Run now",
+      "edit": "Edit",
+      "pause": "Pause",
+      "resume": "Resume",
+      "delete": "Delete",
+      "deleteTitle": "Delete this suite?",
+      "deleteConfirm": "{name} and its results are removed. The eval runs it started stay.",
+      "resultsCouldNotBeRead": "The results could not be read.",
+      "noResults": "No results yet. A result appears when the suite next runs.",
+      "resultCount": "{count, plural, =1 {1 result} other {# results}}",
+      "resultMeta": "{trigger, select, schedule {Scheduled} publish {On publish} promotion {On promotion} dependency {After a change} other {By hand}}{version, select, none {} other { · v{version}}} · {date}",
+      "openRun": "Open run",
+      "passRate": "Pass rate {rate} over {cases, plural, =1 {1 case} other {# cases}} · {regressions, plural, =0 {no confirmed regressions} =1 {1 confirmed regression} other {# confirmed regressions}}",
+      "enableAi": "Turn on AI assistance",
+      "failing": {
+        "regression": "Breaks reproducibly: {input}",
+        "failed": "Failed: {input}",
+        "ungraded": "Not graded: {input}",
+        "incomplete": "Could not be decided: {input}"
+      },
+      "reason": {
+        "passRateBelow": "Pass rate {value} is below the {limit} minimum.",
+        "nothingGraded": "No case could be graded.",
+        "regressions": "{count, plural, =1 {1 case breaks} other {# cases break}} reproducibly; the suite allows {limit}.",
+        "costRise": "Cost per passed case rose {value}, past the {limit} ceiling.",
+        "p95Rise": "p95 latency rose {value}, past the {limit} ceiling.",
+        "invalid": "The two sides were graded differently, so they cannot be compared.",
+        "ungraded": "{count, plural, =1 {1 case has nothing that grades it} other {# cases have nothing that grades them}}, so the suite cannot vouch for this result.",
+        "incomplete": "{count, plural, =1 {1 case} other {# cases}} could not be decided - the provider or a scorer failed on them - so the suite cannot vouch for this result.",
+        "crashed": "The agent's run failed on {count, plural, =1 {1 case} other {# cases}}; a failed run fails the suite.",
+        "costFromZero": "Cost per passed case rose from zero, exceeding every percentage ceiling.",
+        "latencyFromZero": "p95 latency rose from zero, exceeding every percentage ceiling."
+      },
+      "skip": {
+        "budget": "It would cost more than the budget has left this month.",
+        "over_cost_cap": "Its estimate was above the suite's ceiling.",
+        "ai_assistance_off": "Only the judge could grade these cases, and AI assistance is off.",
+        "no_scorer": "Nothing in the dataset's grading can decide a case.",
+        "only_anonymised": "Every case left in the dataset was anonymised after an erasure. Rewrite or remove them first.",
+        "not_published": "The agent has no published version to check.",
+        "version_gone": "The version it was to check is gone.",
+        "owner_inactive": "Its owner is no longer a member.",
+        "owner_lacks_access": "Its owner can no longer run it.",
+        "not_runnable": "The eval run was refused.",
+        "run_gone": "Its eval run is gone.",
+        "cancelled": "Its eval run was stopped.",
+        "failed": "Its eval run failed.",
+        "budget_exceeded": "Its eval run ran out of budget.",
+        "start_failed": "The suite could not start its eval run.",
+        "settle_failed": "The suite could not read its eval run's result."
+      },
+      "form": {
+        "newTitle": "New suite",
+        "editTitle": "Edit suite",
+        "intro": "A suite runs a dataset against this agent on its own and holds every result to a threshold. It runs as you: saving it agrees to the spend shown below.",
+        "name": "Name",
+        "namePlaceholder": "Nightly regression",
+        "dataset": "Dataset",
+        "datasetPlaceholder": "Choose a dataset",
+        "datasetOption": "{name} · {count, plural, =1 {1 case} other {# cases}}",
+        "datasetHint": "Its latest version is answered on every run, graded as the dataset says.",
+        "environment": "Environment",
+        "currentVersion": "Every new version",
+        "environmentHint": "Choose the version each run checks: every newly published version, or the version served by a named environment with its test connections. On promotion applies to that environment.",
+        "when": "When it runs",
+        "onPublish": "On every publish",
+        "onPublishHint": "Each new version runs beside the one before it, so a regression is caught before anyone promotes it.",
+        "onPromotion": "On promotion",
+        "onPromotionHint": "When a version is promoted onto the environment above, measured against the version it replaced.",
+        "onDependency": "When a skill, knowledge base or context file changes",
+        "onDependencyHint": "Skills, documents and context files change with no publish. A burst of changes is one run, ten minutes after the first.",
+        "onSchedule": "On a schedule",
+        "onScheduleHint": "Run daily on the production version to catch a provider's model drifting and a knowledge base changing underneath it.",
+        "frequency": "Repeats",
+        "frequencies": {
+          "daily": "Every day",
+          "weekdays": "Weekdays",
+          "weekly": "Once a week",
+          "custom": "Custom (cron)"
+        },
+        "time": "At",
+        "weekday": "On",
+        "cron": "Cron expression",
+        "cronHint": "Five fields: minute, hour, day of month, month, day of week.",
+        "timezone": "Time zone",
+        "timezoneHint": "An IANA zone, such as Europe/Warsaw.",
+        "threshold": "Threshold",
+        "thresholdHint": "A result fails when more cases break reproducibly against the baseline than allowed, or when the pass rate - each case counted by the majority of its attempts - falls below the minimum.",
+        "maxRegressions": "Confirmed regressions allowed",
+        "maxRegressionsHint": "Zero by default: one case that breaks every time it is asked fails the suite.",
+        "minPassRate": "Minimum pass rate (%)",
+        "minPassRateHint": "Leave empty to hold only regressions.",
+        "none": "None",
+        "advanced": "Efficiency and spend",
+        "efficiencyHint": "Optional ceilings against the baseline. Left empty, nothing is checked.",
+        "costRise": "Cost per passed case may rise by (%)",
+        "p95Rise": "p95 latency may rise by (%)",
+        "maxRunUsd": "Skip a run whose full estimate is above ($)",
+        "maxRunUsdHint": "Includes reruns and the previous version. The actual cost can differ; a running eval is not stopped by this cap.",
+        "description": "Note",
+        "estimateRun": "One run: about {amount} for {count, plural, =1 {1 case} other {# cases}}.",
+        "estimatePaired": "On publish or promotion the previous version runs beside it: about {amount}.",
+        "estimateMonth": "The schedule: {count, plural, =1 {1 run} other {# runs}} in 30 days, about {amount}.",
+        "runsAsYou": "The suite runs as you. Somebody else who saves it takes it over.",
+        "enableAi": "Turn on AI assistance",
+        "cancel": "Cancel",
+        "save": "Save",
+        "create": "Create suite",
+        "environmentOption": "{name} · serves v{version}"
+      },
+      "threshold": {
+        "minPassRate": "≥{rate}",
+        "regressions": "{count, plural, =0 {0 regressions} one {≤# regression} other {≤# regressions}}",
+        "costRise": "cost/pass ≤+{rise}",
+        "p95Rise": "p95 ≤+{rise}"
+      },
+      "notCompared": "Not compared: running the earlier version too would exceed the suite's cost cap.",
+      "baselineSetHint": "No minimum pass rate or earlier result was available. This measurement sets the baseline for later comparisons; it does not pass or promote a version."
+    },
+    "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",
+    "backToSuggestions": "Back to the suggestions",
+    "backToSkillChange": "Back to the skill change",
+    "backToContextChange": "Back to the context file change",
+    "all": {
+      "title": "Eval runs",
+      "description": "Every eval run you may see, across agents, newest first.",
+      "noAccess": "You can't see eval runs",
+      "noAccessBody": "Reading eval runs needs permission to view runs. Ask an admin of the organization.",
+      "empty": {
+        "title": "No eval runs yet",
+        "body": "An eval runs an agent over the cases of a dataset and says what a change did to them - which broke, which were fixed. Start one from an agent's Evals tab or from a dataset.",
+        "cta": "Open datasets"
+      }
+    },
+    "changedSinceBaseline": "{count, plural, =1 {1 case changed} other {# cases changed}} since the baseline answered, so {count, plural, =1 {it is} other {they are}} not compared.",
+    "baselineNotRerun": "The baseline was not asked these cases again, so the changes are not confirmed.",
+    "noEarlierRun": "No comparable earlier run (different grading, model or setup). This run will have nothing to compare against.",
+    "besideBaseline": "Also run the version before it",
+    "besideBaselineHint": "It answers the same cases beside this one, graded the same way, and the estimate includes it.",
+    "improvementSplit": {
+      "title": "Learning and measurement",
+      "train": "Questions used to write the changes",
+      "holdout": "Held-out questions",
+      "body": "Only held-out questions decide this proposal’s verdict. Training results remain available for the next improvement. Suites and promotion guards still evaluate every question.",
+      "excluded": "{count, plural, one {# question is} other {# questions are}} excluded from the verdict because they repeat training questions or proposal evidence.",
+      "needed": "Add {count, plural, one {# more gradable held-out question} other {# more gradable held-out questions}} to measure a change."
+    },
+    "reviewReevaluation": {
+      "by": "Re-evaluated after review by {name} · {date}",
+      "undone": "Re-evaluated after review was undone by {name} · {date}",
+      "reviewer": "a reviewer"
+    }
   },
   "remoteAgents": {
     "title": "Remote agents",
@@ -8595,6 +10173,329 @@
     "reduce": "Reduce",
     "full": "Full",
     "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations."
+  },
+  "authoring": {
+    "strip": {
+      "title": "Authoring assistant",
+      "chip": "{count, plural, =1 {1 suggestion} other {# suggestions}} · from {ratedDown, plural, =1 {1 rated-down answer} other {# rated-down answers}} across {runs, plural, =1 {1 run} other {# runs}}",
+      "working": "Reading the runs…",
+      "improve": "Improve",
+      "verify": "Verify my edits",
+      "check": "Check with evals",
+      "dismissAll": "Dismiss all",
+      "empty": "The assistant reads what people rated down and how runs ended, and suggests changes to the instructions and tool descriptions. Nothing changes until you accept it, and nothing goes live until you publish.",
+      "verifyReport": "What the assistant made of your edits"
+    },
+    "suggestion": {
+      "tool": "Tool {tool}",
+      "instructions": "Instructions",
+      "fromVerify": "From verifying your edits",
+      "status": {
+        "accepted": "Accepted into the draft",
+        "dismissed": "Dismissed"
+      },
+      "stale": "No longer fits the draft",
+      "editLabel": "Your wording of the suggestion",
+      "saveAndAccept": "Save and accept",
+      "cancel": "Cancel",
+      "accept": "Accept",
+      "edit": "Edit",
+      "dismiss": "Dismiss",
+      "undo": "Undo"
+    },
+    "field": {
+      "editLabel": "Your value",
+      "yes": "Yes",
+      "no": "No",
+      "description": "Description",
+      "model": "Model",
+      "maxSteps": "Step limit",
+      "setting": {
+        "temperature": "Temperature",
+        "top_p": "Top p",
+        "max_tokens": "Most output tokens",
+        "timeout": "Timeout",
+        "parallel_tool_calls": "Parallel tool calls"
+      },
+      "capabilityAdd": "Add capability {name}",
+      "capabilityRemove": "Remove capability {name}",
+      "collectionAdd": "Add knowledge base {name}",
+      "collectionRemove": "Remove knowledge base {name}",
+      "contextAdd": "Add context file {name}",
+      "contextRemove": "Remove context file {name}",
+      "mcpTools": "MCP tools of {name}",
+      "specialist": "Description of specialist {name}",
+      "capabilityConfig": "Settings of {name}",
+      "approval": "Approval for {name}",
+      "toolApproval": "Approval for tool {name}",
+      "unset": "Not set",
+      "adds": "Adds",
+      "removes": "Removes",
+      "cost": "A run costs about ${before} now and ${after} on the proposed model, priced on {runs, plural, =1 {1 recent run} other {# recent runs}}.",
+      "unpriced": "What a run would cost cannot be priced for one of these models.",
+      "rough": "A rough estimate, from {runs, plural, =0 {no runs} =1 {1 run} other {# runs}}.",
+      "writes": "Reaches tools that change things: {tools}. An eval holds them back, so a check does not measure what they do.",
+      "expects": "Expected: {effect}",
+      "blocked": {
+        "check_first": "A change of model is accepted once it pays off. Run Check with evals on these suggestions first.",
+        "inconclusive": "The last check of this model left cases undecided. Grade the open answers or run the check again.",
+        "regression": "The last check of this model broke cases it used to pass. Fix the suggestions or dismiss this one.",
+        "crashed": "The agent's run failed on cases in the last check of this model. Fix what failed, then run the check again.",
+        "check_outdated": "The check is out of date: the draft or the suggestions waiting on it changed since. Run a new check."
+      },
+      "access": {
+        "title": "Adds access: {items}",
+        "capability": "capability “{name}”{count, plural, =0 {} =1 {, its tool that writes asking for approval} other {, its # tools that write asking for approval}}",
+        "collection": "knowledge base “{name}”",
+        "context": "context file “{name}”",
+        "mcpTools": "{count, plural, =0 {every tool of {server}} =1 {tool {tools} of {server}} other {tools {tools} of {server}}}, asking for approval where they write",
+        "keeps": "Where the server asked for nothing, accepting makes every tool of it that writes ask for approval - not only the added ones. Undo puts the tools back and keeps them asking."
+      }
+    },
+    "evidence": {
+      "none": "No evidence that could be checked.",
+      "run": "run {id}",
+      "dropped": "{count, plural, =1 {1 cited item} other {# cited items}} could not be found in the runs and {count, plural, =1 {was} other {were}} left out."
+    },
+    "batch": {
+      "closed": {
+        "superseded": "A newer request replaced these suggestions. They are kept as a record.",
+        "published": "These suggestions were decided into a version that is now published."
+      },
+      "expected": "Expected effect:",
+      "checks": "Checked with evals:",
+      "fromEvidence": "Proposed to address problems in {count, plural, one {# source answer} other {# source answers}}. See the linked evidence below."
+    },
+    "checkResult": {
+      "running": "Checking on {name}…",
+      "ended": "The check on {name} {status, select, cancelled {was stopped} budget_exceeded {ran out of budget} other {failed}} before it reached a verdict.",
+      "unread": "Could not read this check.",
+      "unreadFindings": "Could not read what the check on {name} found. Open the run, or try again.",
+      "suite": "{name} {status, select, passed {would pass} failed {would fail} other {would be inconclusive}}: {findings}",
+      "dataset": "On {name}: {findings}",
+      "breaks": "breaks {cases}{more, plural, =0 {} =1 { and 1 more case} other { and # more cases}}{fixed, plural, =0 {} =1 {, and fixes 1 case} other {, and fixes # cases}}",
+      "fixes": "{count, plural, =1 {fixes 1 case} other {fixes # cases}}",
+      "noChange": "no reproducible change",
+      "invalid": "the two sides cannot be compared",
+      "quote": "“{text}”"
+    },
+    "verify": {
+      "nothing": "The assistant found nothing to say about your edits.",
+      "verdict": {
+        "supports": "Supported by the evidence",
+        "risk": "A risk",
+        "removed": "Removed something the evidence relied on"
+      },
+      "about": "About: {line}"
+    },
+    "improve": {
+      "improve": {
+        "title": "Improve this agent",
+        "body": "The assistant reads rated and failed chat runs and train-part eval failures, judge reasoning and Review notes from the last 30 days. Held-out answers and grades stay hidden. You decide every suggestion."
+      },
+      "verify": {
+        "title": "Verify your edits",
+        "body": "The assistant compares your draft with the published version against the same evidence: what the edits improve, risk or remove."
+      },
+      "quote": "It will read {runs, plural, =1 {1 run} other {# runs}}, {ratedDown} rated down, in {calls, plural, =1 {1 call} other {# calls}}, for about {cost}.",
+      "reason": {
+        "no_evidence": "Nothing to learn from yet: no run in the last 30 days was rated or failed.",
+        "no_draft_change": "The draft is the same as the published version, so there is nothing to verify."
+      },
+      "overBudget": "That is more than the assistant's monthly budget or the organization's has left.",
+      "cancel": "Cancel",
+      "start": "Start"
+    },
+    "check": {
+      "title": "Check with evals",
+      "body": "Runs a dataset against the draft as it would be with every waiting suggestion, beside the published version. Cases taken from the conversations behind the suggestions are left out. Nothing is accepted by checking.",
+      "skillBody": "Runs a dataset on an agent that uses the skill, with its published version on both sides and only the skill's body different. Cases taken from the conversations behind the change are left out. Nothing is applied by checking.",
+      "contextBody": "Runs a dataset on an agent that uses the file, with its published version on both sides and only the file's body different. Cases taken from the conversations behind the change are left out. Nothing is applied by checking.",
+      "agent": "Agent that uses the skill",
+      "contextAgent": "Agent that uses the file",
+      "agentPlaceholder": "Pick an agent",
+      "target": "Check against",
+      "targetPlaceholder": "Pick a suite or a dataset",
+      "suites": "Suites",
+      "datasets": "Datasets",
+      "cancel": "Cancel",
+      "start": "Start the check"
+    },
+    "aiOff": {
+      "body": "AI assistance is off for this organization, so the assistant cannot run.",
+      "enable": "Turn it on",
+      "askAdmin": "Ask an admin to turn it on."
+    },
+    "skill": {
+      "improve": "Improve with the assistant",
+      "working": "Reading the runs…",
+      "aiOff": "AI assistance is off for this organization",
+      "check": "Check with evals"
+    },
+    "context": {
+      "improve": "Improve with the assistant",
+      "working": "Reading the runs…",
+      "aiOff": "AI assistance is off for this organization",
+      "check": "Check with evals",
+      "saveFirst": "Save your changes first: the assistant reads the file as it is stored."
+    },
+    "contextChanges": {
+      "title": "Changes the assistant proposed",
+      "waiting": "{count, plural, =1 {1 change is waiting} other {# changes are waiting}}. Applying one is live for every agent that reads the file.",
+      "stale": "File changed since",
+      "staleHint": "Somebody edited this file after the change was proposed. Compare the two and edit the file by hand, or ask the assistant again.",
+      "usedBy": "Bound to {agents}",
+      "usedByNobody": "No agent you can see binds this file",
+      "show": "Show what changes in {name}",
+      "hide": "Hide",
+      "review": "Review",
+      "discard": "Discard",
+      "discardTo": "Discard the change to {name}",
+      "apply": "Apply",
+      "applyTo": "Apply the change to {name}",
+      "liveHint": "Applying is live: every agent that reads the file reads the new body on its next run.",
+      "expects": "Expected: {effect}",
+      "applied": "Applied the change to {name}",
+      "discarded": "Discarded the change to {name}"
+    },
+    "describe": {
+      "label": "Or describe it, and {name} drafts it with you",
+      "placeholder": "A support agent that answers refund questions from our policy and hands angry customers to a person.",
+      "send": "Describe it to the Architect",
+      "prompt": "Draft an agent for me: {description}"
+    },
+    "rejected": {
+      "title": "{count, plural, =1 {1 proposed change was not recorded} other {# proposed changes were not recorded}}",
+      "more": "{count, plural, =1 {1 more is not listed} other {# more are not listed}}",
+      "after": "After: {passage}",
+      "atEnd": "At the end of the instructions",
+      "proposed": "Proposed: {text}",
+      "kind": {
+        "instructions": "Instructions",
+        "tool_override": "Tool",
+        "spec_field": "Setting",
+        "finding": "Finding",
+        "create_skill": "New skill"
+      },
+      "reason": {
+        "unanchored": "The passage it changes is not in the instructions",
+        "ambiguous_anchor": "The passage it changes occurs more than once",
+        "no_change": "It changes nothing",
+        "unknown_tool": "The agent has no such tool",
+        "invalid_tool_change": "A tool name or description the agent cannot use",
+        "not_a_target": "Not something the assistant may change",
+        "operation": "Not a change that setting allows",
+        "loosens_approval": "It would loosen approval",
+        "weakens_protection": "It would weaken a safeguard",
+        "unknown_capability": "No such capability",
+        "invalid_config": "Its settings are not valid",
+        "does_not_apply": "It does not fit the draft",
+        "not_grantable": "It adds something the person who asked may not grant",
+        "dismissed_before": "Somebody dismissed it before",
+        "unsupported": "Said the edit is supported, with no evidence that could be checked",
+        "edit_not_in_diff": "The line it names is not part of the edit",
+        "superseded": "A request started later had already replaced the suggestions",
+        "insufficient_evidence": "A new skill needs verified passages from at least three distinct answers."
+      },
+      "about": "About: {line}"
+    },
+    "noChange": "The assistant found nothing to change: what it proposed is what is there now.",
+    "goesLive": {
+      "now": "Goes live now for {agents}.",
+      "agent": "{name} ({environments})",
+      "hidden": "{count, plural, =1 {1 agent you cannot see} other {# agents you cannot see}}",
+      "runsNow": "Runs now: {suites}.",
+      "atPromotion": "{suites} {count, plural, =1 {checks} other {check}} it at the next promotion.",
+      "suites": "{count, plural, =1 {1 eval suite} other {# eval suites}}",
+      "nowhere": "No published agent reads it yet, so applying it changes no answers today."
+    },
+    "result": {
+      "open": "Review result",
+      "title": "Suggested improvements",
+      "counts": "Reviewed {reviewed, plural, one {# source answer} other {# source answers}}. Proposed {proposed, plural, one {# change} other {# changes}}; {recorded, plural, one {# is ready to review} other {# are ready to review}}.",
+      "empty": "The assistant found nothing it could apply.",
+      "nothingToPlace": "Try adding rated answers or training examples, then ask again. No changes were made.",
+      "checkFirst": "Run a check to see how it would answer.",
+      "close": "Back to the agent",
+      "configuration": "Configuration",
+      "before": "Before",
+      "after": "After",
+      "emptyPassage": "No text",
+      "why": "Why",
+      "basedOn": "Based on",
+      "unavailable": "The checked answers could not be read. Open the check to retry.",
+      "loading": "Reading the checked answers…",
+      "answers": "Answers on test questions",
+      "noAnswer": "No answer was recorded.",
+      "more": "{count, plural, one {# more question in the full check} other {# more questions in the full check}}",
+      "allAnswers": "Open the full check",
+      "problems": "{count, plural, one {# problem answer found in the source evidence} other {# problem answers found in the source evidence}}"
+    },
+    "newSkill": {
+      "title": "Worth creating a skill",
+      "binding": "Accept creates this skill and binds it to the draft. It contains written know-how and grants no tools. Nothing is published.",
+      "permission": "You can review and test this proposal. Creating the skill requires skills:edit."
+    }
+  },
+  "promotionGate": {
+    "title": "Promote v{version} to {name}",
+    "body": "{name} takes a version only once the eval suites guarding it have passed on that version.",
+    "state": {
+      "passed": "Passed",
+      "failed": "Failed",
+      "inconclusive": "Inconclusive",
+      "skipped": "Did not run",
+      "error": "Error",
+      "checking": "Checking",
+      "stale": "Out of date",
+      "unchecked": "Not checked",
+      "paused": "Paused",
+      "unpinned": "Not pinned"
+    },
+    "hint": {
+      "passed": "Passed on this version.",
+      "failed": "Fell short on this version.",
+      "inconclusive": "Could not decide on this version.",
+      "skipped": "Did not run on this version.",
+      "error": "Ended without a verdict on this version.",
+      "checking": "A run on this version is waiting or going.",
+      "stale": "Its last result read other cases or another threshold than the suite holds now.",
+      "unchecked": "Has not run on this version yet.",
+      "unpinned": "This guard has no pinned dataset version. Someone who can override promotions must pin it before it can pass."
+    },
+    "passing": "Every guard passed on v{version}.",
+    "overrideTitle": "Promote anyway",
+    "overrideBody": "Your reason goes to the audit log and onto the version, and the suites' owners are told.",
+    "overrideReason": "Why",
+    "overridePlaceholder": "What makes this version safe to promote without passing its evals",
+    "overrideSubmit": "Promote past the evals",
+    "run": "Run the evals on v{version}",
+    "promote": "Promote",
+    "noSuites": "This agent has no eval suites yet. Set one up on the Evals tab to guard an environment with it.",
+    "guardsHelp": "Suites {name} requires to pass on a version before it takes it.",
+    "noCasesYet": "This suite's dataset has no cases yet. Add cases before it guards an environment.",
+    "storeGuards": "Save guards",
+    "guardsReadOnly": "Changing these needs permission to override promotions.",
+    "guardedBy": "{count, plural, =1 {Guarded by 1 suite} other {Guarded by # suites}}",
+    "guardsFor": "Eval suites guarding {name}",
+    "overriddenOn": "Overridden on {name}",
+    "overrideDetail": "{who} promoted it past {suites}: {reason}",
+    "someoneWhoLeft": "Someone who has left",
+    "readFailed": "Could not read the evals guarding this environment.",
+    "retry": "Try again",
+    "openRun": "Open the check",
+    "staysOn": "Stays on v{version}",
+    "readyToPromote": "v{version} is ready for a person to promote",
+    "readStatus": "Read guard results",
+    "guardStatus": "{name}: {status}",
+    "reviewPromotion": "Review promotion",
+    "loading": "Reading guard results…"
+  },
+  "attention": {
+    "badge": "Needs attention",
+    "rated": "{count, plural, =1 {1 answer rated down} other {# answers rated down}}",
+    "failed": "{count, plural, =1 {1 failed run} other {# failed runs}}",
+    "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}"
   },
   "watches": {
     "title": "Watches",
@@ -8772,5 +10673,232 @@
       "role_pack": "Routine pack",
       "finding": "Watch"
     }
+  },
+  "improvement": {
+    "resultDetailsUnavailable": "Open the full check for result details.",
+    "worseResult": "Worse: breaks {broken} questions.",
+    "attributionUnconfirmed": "Change {number}: the result is not confirmed.",
+    "includeInTest": "Include in the test",
+    "includeChange": "Include change {number} in the test",
+    "selectionBody": "Changing this selection requires a new check before accepting. Excluded suggestions remain undecided. The estimate includes both sides, confirming repeats and one inconclusive repeat.",
+    "selectSomeChanges": "Select at least one change to check.",
+    "estimateSelection": "Estimate checking selected changes",
+    "selectionQuote": "Check {count} selected changes: up to {cost} (estimate).",
+    "confirmSelection": "Confirm and check selected changes",
+    "selectionNeedsCheck": "The selection changed. Recheck it from Changes before accepting.",
+    "changesPending": "Waiting for the selected suggestions to load.",
+    "earlierChecks": "Earlier checks",
+    "earlierCheck": "Earlier check {number}",
+    "handledChange": "Across checked questions: {before} → {after} of {total} handled well.",
+    "baselineUnavailable": "The baseline did not finish successfully. Open the full check to see why; this is not a measured result.",
+    "trainQuestion": "Training question",
+    "holdoutQuestion": "Held-out question",
+    "sourceSignals": "Sources to learn from",
+    "signalWindow": "Ratings and failed runs from the last 30 days. Training counts show the selected evidence sample.",
+    "ratedSignals": "Answers rated down",
+    "failedSignals": "Runs that failed",
+    "trainSignals": "Selected failing training answers",
+    "noLearningExamples": "Nothing to learn from yet. Rate an answer or write test questions to establish a baseline.",
+    "evidenceSample": "{count} selected examples, up to {limit}. Sources that were erased or are no longer readable are omitted.",
+    "unknownCauses": "Some answers have no recorded cause. They remain unclassified and are shown with the agent examples for review.",
+    "cause": {
+      "agent": "Fix in the agent",
+      "missing_knowledge": "Missing from the knowledge base",
+      "not_a_problem": "Not a problem to fix"
+    },
+    "noExamplesInGroup": "No selected examples in this group.",
+    "trainExample": "Training example",
+    "chatExample": "Conversation example",
+    "whyCause": "Why we think so",
+    "causeUnknown": "This answer has not been classified. Review the conversation before deciding what needs to change.",
+    "causeTraining": "A training answer failed or has a review note. Only training questions are used to write changes.",
+    "causeRecorded": "Based on the existing feedback and classification for this answer.",
+    "openConversation": "Open conversation",
+    "questionCount": "{count} test questions · version {version}",
+    "pinnedQuestions": "This session uses the version selected at its start. Editing questions now affects future sessions. Training questions help write changes; held-out questions measure them.",
+    "noQuestions": "There are no questions in this pinned version. Add questions and start a new session.",
+    "goodAnswer": "A good answer: {answer}",
+    "sourcePreviousQuestions": "Previous questions",
+    "sourceNextQuestions": "Next questions",
+    "editQuestions": "Open the question set",
+    "baselinePending": "The baseline has not finished yet. Its answers and grades will appear here when the check finishes.",
+    "baselineHandled": "Before the changes: {passed} of {total} handled well.",
+    "baselineUndecided": "Could not grade {count} questions. They cannot demonstrate an improvement.",
+    "noWeakQuestions": "No failed questions on this page. Open the full check to review all outcomes.",
+    "title": "Improve {name}",
+    "heading": "Improve",
+    "intro": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it.",
+    "resume": "{date} · {status} — open session",
+    "testSet": "Test questions",
+    "chooseQuestions": "Choose test questions",
+    "writeQuestions": "Write test questions for me",
+    "questionCost": "We can take rated answers and write more questions. Review the estimate before starting.",
+    "estimateQuestions": "Estimate writing questions",
+    "estimatedCost": "Estimated cost: {cost}",
+    "confirmQuestions": "Confirm and write questions",
+    "questionsQueued": "Questions are being prepared in the background.",
+    "reviewQuestions": "Review the questions",
+    "baseline": "Test how the agent answers today",
+    "estimate": "Estimate the session",
+    "sessionQuote": "Up to {cost} (estimate), {rounds} rounds on {count} questions.",
+    "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
+    "budget": "Session spending limit (USD)",
+    "start": "Start improving",
+    "working": "Still working…",
+    "loading": "Loading the result…",
+    "round": "Round {number} of {max}",
+    "selected": "Selected round",
+    "selectRound": "Use this round",
+    "attributionBody": "Test each change on its own to find which questions it fixes or breaks. These checks cost extra and count against this session’s limit.",
+    "estimateAttribution": "Estimate individual checks",
+    "attributionQuote": "{count, plural, one {# check} other {# checks}} · {cost} (estimate)",
+    "confirmAttribution": "Confirm and test each change",
+    "changeAttribution": "Effect of change {number}",
+    "causedBreak": "Newly broken by this change: {question}",
+    "causedFix": "Fixed by this change: {question}",
+    "openCheck": "Open the full check",
+    "permission": "Editing this agent and viewing runs are required to improve it.",
+    "retryRead": "Try reading again",
+    "stepsLabel": "Improvement steps",
+    "running": "Running",
+    "needsYou": "Needs you",
+    "done": "Done",
+    "waiting": "Not reached",
+    "spend": "{spent} spent · {budget} limit",
+    "changesWorking": "We are preparing changes. You can close this page and return later.",
+    "noChanges": "No changes are available here. Read the result and stop reason, or open the agent to make an edit.",
+    "background": "Testing in the background. You can close this page — we’ll let you know when it is ready.",
+    "acceptBody": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes.",
+    "automatic": "Check these questions automatically on every publish, if no automatic check exists yet.",
+    "confirmation": "I have reviewed the selected changes and want to apply them.",
+    "keepDraft": "Keep as draft",
+    "publish": "Accept and publish",
+    "openAgent": "Open the agent",
+    "accept": "Accept these changes",
+    "retryStep": "Retry this step within the spending limit",
+    "stopAction": "Stop the session",
+    "close": "Close and return later",
+    "steps": {
+      "understand": "Understand",
+      "testSet": "Test set",
+      "today": "Today",
+      "changes": "Changes",
+      "check": "Check",
+      "result": "Result",
+      "accept": "Accept"
+    },
+    "explain": {
+      "understand": "The assistant uses rated conversations and failed training questions. Held-out questions stay separate. Knowledge drafts need a person to check their facts.",
+      "testSet": "These test questions and their grading are pinned for this session. Later rounds use the same questions.",
+      "today": "Open a completed check to see the original answers beside the proposed answers, with the grader’s reasons."
+    },
+    "verdict": {
+      "better": "Better: fixes {fixed}, breaks nothing",
+      "regression": "Mixed: fixes {fixed}, breaks {broken}",
+      "no_change": "No reproducible change",
+      "inconclusive": "We could not measure a reliable result"
+    },
+    "status": {
+      "queued": "Waiting to start",
+      "running": "Working",
+      "ready": "Ready for your review",
+      "stopped": "Stopped",
+      "failed": "A step failed",
+      "cancelled": "Cancelled",
+      "stale": "The starting point changed",
+      "accepted": "Kept as draft",
+      "published": "Published",
+      "rejected": "Discarded"
+    },
+    "stop": {
+      "no_data": "Add more separate test questions or feedback before improving.",
+      "no_proposal": "No applicable changes were found.",
+      "budget": "The next complete step exceeds the remaining budget.",
+      "inconclusive": "We could not grade enough answers reliably.",
+      "regression": "The changes broke questions that worked before.",
+      "no_change": "No reproducible improvement was found.",
+      "max_iterations": "The session reached its round limit.",
+      "repeat_candidate": "The assistant repeated a candidate already checked.",
+      "permission": "Required access or AI assistance is no longer available.",
+      "stale": "The draft, published version or grading changed. Start a new session.",
+      "stalled": "A child step stopped making progress.",
+      "proposal": "The proposal step failed.",
+      "eval": "The test step failed.",
+      "superseded": "A newer set of suggestions replaced this one.",
+      "knowledge_only": "The problems need more knowledge. Review the proposed documents.",
+      "draft": "Drafting knowledge failed."
+    },
+    "before": "Before",
+    "after": "After",
+    "unavailableAnswer": "No answer is available.",
+    "whichChange": "Which change caused it",
+    "notAttributed": "Not tested separately. Estimate the individual checks below.",
+    "attributionWorking": "Still checking change {number}…",
+    "attributionFailed": "The check of change {number} could not be read.",
+    "changeBroke": "Change {number}: newly broken",
+    "changeFixed": "Change {number}: newly fixed",
+    "changeUnchanged": "Change {number}: no measured change for this question",
+    "heldoutResult": "Questions not used to write the changes: {passed} of {total} handled well.",
+    "answerCost": "Cost per answer: {before} before → {after} after.",
+    "noChangedQuestions": "No changed questions to show. Open the full check for unchanged or ungraded answers.",
+    "previousStep": "Previous step",
+    "nextStep": "Next step",
+    "measurementDetails": "Show measurement details",
+    "attributionUnavailable": "This check did not produce a usable result. Open it to see why.",
+    "blockedChanges": "Some selected changes cannot be accepted with your current access. Review them in Changes.",
+    "knowledgeTitle": "Effect of the knowledge draft",
+    "knowledgeSeparate": "Compare the selected agent changes with the same changes plus a draft. This result is separate from the agent’s result and does not publish anything.",
+    "chooseDraft": "Choose a knowledge draft",
+    "knowledgeQuestions": "Questions about this topic",
+    "knowledgeQuestionsBody": "Select independent questions about the draft’s topic. Training questions, source conversations and copies of source questions are excluded from the check.",
+    "previousQuestions": "Previous questions",
+    "nextQuestions": "Next questions",
+    "estimateKnowledge": "Estimate checking the draft",
+    "confirmKnowledge": "Confirm and check the draft",
+    "unsupportedDraft": "Unsupported — verify the facts. This draft has no source document in the knowledge base.",
+    "knowledgeQuote": "{count} independent questions · {excluded} excluded · up to {cost} (estimate, including both sides and repeats).",
+    "knowledgeUnmeasurable": "Can’t be measured. Choose at least five independent, gradable questions about this topic.",
+    "contextAssumption": "Assuming search finds this passage. This check gives the draft directly to the agent; it does not test retrieval or verify that the facts are true.",
+    "reviewKnowledgeDraft": "Review the draft and decide whether to add it",
+    "noKnowledgeDrafts": "No draft is available to check for this round. Review knowledge topics in the agent’s knowledge tab.",
+    "knowledgeInvalidated": "The draft changed or was removed. Check the current draft again before using this result.",
+    "knowledgeUntracked": "Can’t be measured: this older draft did not record all its source questions. Write a new draft before checking it.",
+    "knowledgeMode": "How to test the draft",
+    "contextMode": "Assume the passage is found",
+    "retrievalMode": "Test whether search finds it",
+    "retrievalAssumption": "The draft joins search only for this check. It must be returned by search for a newly fixed answer to count as a demonstrated improvement. No document is added.",
+    "knowledgeEmbeddingUnavailable": "Retrieval cannot be measured: this knowledge base’s embedding service is unavailable. You can still test with temporary context.",
+    "knowledgeEmbeddingPriceUnavailable": "Retrieval cannot be measured: the embedding model has no known price, so a complete cost cannot be quoted. You can still test with temporary context.",
+    "knowledgeNotRetrieved": "No demonstrated improvement from the draft: search did not return it for every newly fixed answer. The full check keeps the actual answers and grades.",
+    "knowledgeSearchDisabled": "This measured candidate has knowledge search disabled. Test with temporary context, or enable search and start a new session.",
+    "knowledgeEstimate": "Includes {cost} for sorting the source answers, grouping missing knowledge and up to three drafts per knowledge base (estimate).",
+    "classificationFailed": "We couldn’t finish grouping the feedback. The source conversations remain available; unknown causes are left for the agent changes.",
+    "draftingFailed": "We couldn’t finish preparing the knowledge drafts. Any completed drafts remain available to review; nothing was added automatically.",
+    "stepState": {
+      "done": "Done",
+      "running": "Running",
+      "needs_you": "Needs you",
+      "skipped": "Skipped",
+      "pending": "Not started"
+    },
+    "paidRestartOwner": "Only the session requester using the original account and credentials can restart paid work. Other editors can review the results or start their own session.",
+    "improveAgain": "Improve again",
+    "raiseBudgetContinue": "Raise the limit and continue",
+    "continuationBody": "Review the complete continuation estimate before spending more. The same sources, test questions and round limit stay in place. Nothing is accepted or published.",
+    "estimateContinuation": "Estimate continuing the session",
+    "continuationQuote": "Round {number} of {max}: up to {cost} for the complete remaining work (estimate).",
+    "continuationUnaffordable": "This estimate does not fit the selected limit or available budget. Raise the limit and estimate again.",
+    "confirmContinuation": "Confirm the estimate and continue",
+    "continuationStopped": "No further paid round can start here. Review an existing round, resolve the stop reason, or start a new session.",
+    "discard": "Discard",
+    "discardTitle": "Discard this session’s suggestions?",
+    "discardBody": "This dismisses only the pending suggestions from this session. Applied changes and other waiting proposals are kept.",
+    "confirmDiscard": "Discard pending suggestions",
+    "changesReplaced": "These suggestions are no longer available. Open the agent to review the current draft.",
+    "donePublished": "Done. Version {version} has been published. Guarded environments wait for their checks; pinned environments keep their current version.",
+    "openVersion": "Open version {version}",
+    "doneDraft": "Done. The selected changes are saved in the draft. Publish from the agent when you are ready.",
+    "publishVersion": "Publish version {version}",
+    "publishImpact": "Publishing freezes a new version. Environments that follow it move only after their guards pass; pinned environments stay on their current version. Open the agent to review where people use it."
   }
 }

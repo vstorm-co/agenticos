@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "9b416555caa2"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -93,6 +93,34 @@ całkowicie przewidywalne.
 Można też zacząć od pliku: **Dodaj do agenta** na jego karcie dodaje go do
 szkicu agenta razem z włączoną capability Kontekst, a karta mówi, którzy agenci
 już go mają. Baza wiedzy ma tę samą akcję na swojej stronie.
+
+## Zmiany proponowane przez asystenta { #changes-the-assistant-proposes }
+
+**Ulepsz z asystentem**, w edytorze pliku, prosi
+[asystenta tworzenia](authoring.md#context-files) o lepszą treść, napisaną na
+podstawie runów agentów, którzy czytają plik. To, co proponuje, nie jest
+stosowane: czeka nad listą na stronie Context, z uzasadnieniem, runami, na
+których się opiera, i agentami, do których plik jest podpięty.
+
+Zastosowanie jej to to samo co ręczna edycja pliku - działa od razu dla każdego
+agenta, którego opublikowana wersja czyta plik - więc najpierw jest
+**Sprawdź evalami**, na jednym z tych agentów. Obok **Zastosuj** zmiana mówi, co
+robi jej zastosowanie: dla jakich agentów i środowisk zacznie działać, które
+suity evali ustawi w kolejce i którzy strażnicy sprawdzą ją dopiero przy
+następnej promocji agenta. Plik, który ktoś edytował po zaproponowaniu zmiany,
+odrzuca ją; ta edycja nigdy nie zostaje nadpisana.
+
+Ponowna prośba do asystenta przepisuje czekającą zmianę, zamiast dodawać drugą.
+Decyzja wskazuje wersję zmiany, którą przeczytałeś, więc z dwóch podjętych
+naraz liczy się tylko jedna, a strona otwarta przed przepisaniem jest odrzucana
+z komunikatem „The proposal changed since you opened it”, dopóki nie przejrzysz
+nowej wersji. Zmiana, która mówi to, co plik już mówi, w ogóle nie jest
+proponowana.
+
+Każda edycja pliku - zastosowana albo zrobiona ręcznie - i jego usunięcie
+ustawiają w kolejce suity evali uruchamiane po zmianie zależności, dla każdego
+agenta, który go czyta, a zastosowanie zmiany powiadamia właścicieli tych
+agentów.
 
 ## Dostęp { #access }
 

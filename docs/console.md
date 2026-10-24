@@ -14,7 +14,7 @@ settings, the sliders beside the microphone.
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-eight cards exist. You will not see all of them: **a card is gated on the
+Fifty-one cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -25,10 +25,16 @@ may open. Everybody opens on **Me**:
 
 | View | Answers |
 |---|---|
-| **Me** | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents and what was shared with you |
+| **Me** | A greeting, your period and everything waiting on you, in two sentences - calls, answers to review, failing suites, the assistant's suggestions; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, the agents that need attention, your agents, what was shared with you, your [datasets](datasets.md) with what their cases test against, the latest eval runs and suites, the assistant's suggestions by agent, skill and file, and knowledge gaps |
 | **Organization** | The arrangeable page below |
 | **Group** | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
+
+On **Me**, **Agents that need attention** lists the agents you may see with
+answers rated down, failed runs or a failing eval suite in the period - counts
+only, never what was said - with **Improve** on those you may edit. The Agents
+gallery marks the same agents over the last thirty days with a **Needs
+attention** badge that says why on hover. Both need `runs:view`.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
@@ -231,6 +237,15 @@ Runs are announced too, as they start, park on an approval or a question, and
 finish: a run a schedule fires appears on an open Activity page and changes
 status there, with no request from you behind it.
 
+So are datasets: a case added or removed, a change to grading, a score or a
+review decision, and drafts the [case generator](datasets.md#generating-cases)
+finishes in the background, which appear in an open dataset's Generated tab
+without a reload.
+
+Knowledge gaps are announced the same way: a topic dismissed or drafted in one
+tab, and the questions a grouping pass places every 15 minutes, appear on an
+open Knowledge gaps tab without a reload.
+
 The Builder is the exception, because it saves your draft as you type. When the
 agent you are editing changes elsewhere it stops saving and fetches the new
 version. With nothing unsaved it simply takes it; with unsaved edits it tells you
@@ -238,10 +253,11 @@ who changed it and through what, and waits for you to choose **Reload** (their
 version) or **Keep my changes** (yours, saved over theirs).
 
 You only hear about what you could read: a change to an agent, skill, knowledge
-base, context file, page, key or MCP server you cannot see never reaches your
+base, context file, page, key, MCP server or dataset you cannot see never reaches your
 console, and a deletion reaches only roles that see every row of its kind. Runs
-reach the roles that read run history or decide approvals, channel bots the roles
-that manage them, and your notifications only you. When the connection
+reach the roles that read run history or decide approvals, knowledge gaps the
+roles that read every run, channel bots the roles that manage them, and your
+notifications only you. When the connection
 drops the console works as before and reconnects on its own.
 
 ## Chat
@@ -595,6 +611,7 @@ page inside it, and stays the way you left it.
 | **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
 | **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
 | **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
+| **Datasets** | Versioned test cases, imported, exported or added from a rated answer | [Datasets](datasets.md) |
 | **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
 | **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
 | **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -649,7 +666,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **thirty-eight widgets** you arrange yourself, saved per
+- The dashboard is **fifty-one widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

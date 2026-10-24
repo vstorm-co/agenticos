@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { GitCompare, Undo2 } from "lucide-react";
+import { GitCompare, ShieldAlert, Undo2 } from "lucide-react";
 import { stringify } from "yaml";
 
 import {
@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { EntityAvatar } from "@/components/ui";
+import { CodeArea } from "@/components/ui/code-area";
 import { displayName, type IdentifiedMember } from "@/components/orgs/member-identity";
 import { LoadingState } from "@/components/states";
 import {
@@ -28,6 +29,7 @@ import { useOrgStore } from "@/stores";
 import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
+import type { PromotionOverride } from "@/types/promotion-gate";
 import { useLocale, useTranslations } from "next-intl";
 
 interface VersionHistoryProps {
@@ -44,10 +46,23 @@ interface VersionHistoryProps {
   /** Repoint one environment at this row's version - promotion. */
   onPromote?: (environmentId: string, versionId: string) => void;
   promoting?: boolean;
+  /**
+   * The comparison to open on, by version number - an eval run's "what
+   * changed" link names the two sides it measured.
+   */
+  compareFrom?: number | null;
+  compareTo?: number | "draft" | "tested";
+  /**
+   * A spec an eval run tested, offered as a side of the comparison - the draft
+   * as it was then, which the draft may no longer be.
+   */
+  testedSpec?: { spec: AgentSpec; label: string } | null;
 }
 
 /** The draft is a comparison target with no version id of its own. */
 const DRAFT = "__draft__";
+/** The spec an eval run tested, when one was handed over. */
+const TESTED = "__tested__";
 
 /**
  * "Promote to…" for one version row: pick an environment not already serving
@@ -98,6 +113,32 @@ function Publisher({
       />
       {displayName(member)}
     </span>
+  );
+}
+
+/**
+ * A promotion made past eval suites that had not passed, on the version it put
+ * in front of users - who did it and why, one hover away.
+ */
+function OverrideBadge({ override }: { override: PromotionOverride }) {
+  const t = useTranslations("promotionGate");
+  const locale = useLocale();
+  const suites = new Intl.ListFormat(locale, { type: "conjunction" }).format(
+    override.guards.filter((guard) => guard.state !== "passed").map((guard) => guard.suite_name),
+  );
+  return (
+    <Badge
+      variant="warning"
+      className="shrink-0 gap-1"
+      title={t("overrideDetail", {
+        who: override.user_email ?? t("someoneWhoLeft"),
+        suites,
+        reason: override.reason,
+      })}
+    >
+      <ShieldAlert className="h-3 w-3" aria-hidden />
+      {t("overriddenOn", { name: override.environment_name })}
+    </Badge>
   );
 }
 
@@ -163,6 +204,9 @@ export function VersionHistory({
   environments = [],
   onPromote,
   promoting,
+  compareFrom = null,
+  compareTo = "draft",
+  testedSpec = null,
 }: VersionHistoryProps) {
   const t = useTranslations("agents");
   // `timeAgo` reads its words from the shared `time` namespace, not this one.
@@ -197,17 +241,37 @@ export function VersionHistory({
   const { versions: allVersions } = useAllAgentVersions(paged ? agentId : null);
   const pickable = paged ? allVersions : versions;
   const newestId = versions[0]?.id ?? null;
+  // The comparison a link asked for, adopted once both of its versions are
+  // known - they may sit past the first page.
+  const [askedAdopted, setAskedAdopted] = useState(false);
+  const askedFrom = pickable.find((version) => version.version === compareFrom);
+  const askedTo =
+    compareTo === "draft"
+      ? DRAFT
+      : compareTo === "tested"
+        ? testedSpec
+          ? TESTED
+          : undefined
+        : pickable.find((version) => version.version === compareTo)?.id;
+  const asked = !askedAdopted && askedFrom !== undefined && askedTo !== undefined;
+  if (asked) {
+    setAskedAdopted(true);
+    setLeftId(askedFrom.id);
+    setRightId(askedTo);
+  }
   const [seenNewest, setSeenNewest] = useState<string | null>(null);
   if (page === 0 && newestId !== null && newestId !== seenNewest) {
     setSeenNewest(newestId);
-    if (leftId === null) setLeftId(newestId);
+    if (leftId === null && !asked) setLeftId(newestId);
   }
 
   const left = useAgentVersion(agentId, leftId);
-  const right = useAgentVersion(agentId, rightId === DRAFT ? null : rightId);
+  const pinned = rightId === DRAFT || rightId === TESTED;
+  const right = useAgentVersion(agentId, pinned ? null : rightId);
 
-  const rightSpec = rightId === DRAFT ? draftSpec : right.version?.spec;
-  const comparing = leftId !== null && (rightId === DRAFT || right.version !== undefined);
+  const rightSpec =
+    rightId === DRAFT ? draftSpec : rightId === TESTED ? testedSpec?.spec : right.version?.spec;
+  const comparing = leftId !== null && (pinned || right.version !== undefined);
 
   if (isLoading && versions.length === 0) return <LoadingState variant="skeleton-list" rows={3} />;
   if (total === 0) {
@@ -288,6 +352,9 @@ export function VersionHistory({
                   {environment.name}
                 </Badge>
               ))}
+              {version.overrides?.map((override) => (
+                <OverrideBadge key={override.id} override={override} />
+              ))}
               {live && <Badge className="shrink-0">{t("live")}</Badge>}
               <div className="flex shrink-0 items-center gap-1">
                 <Button
@@ -363,6 +430,7 @@ export function VersionHistory({
               {/* The draft is what most comparisons are against: "what have I
                   changed since the version that is running". */}
               <SelectItem value={DRAFT}>{t("draft")}</SelectItem>
+              {testedSpec && <SelectItem value={TESTED}>{testedSpec.label}</SelectItem>}
               {pickable.map((version) => (
                 <SelectItem key={version.id} value={version.id}>
                   v{version.version}
@@ -374,6 +442,13 @@ export function VersionHistory({
 
         {left.isLoading || right.isLoading ? (
           <LoadingState variant="skeleton-list" rows={4} />
+        ) : leftId !== null && leftId === rightId && left.version ? (
+          <CodeArea
+            name="agent.yaml"
+            aria-label={t("publishedSpec")}
+            readOnly
+            value={specText(left.version.spec)}
+          />
         ) : comparing && left.version && rightSpec ? (
           <SpecDiff before={left.version.spec} after={rightSpec} />
         ) : (

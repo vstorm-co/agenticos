@@ -19,7 +19,17 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, DateTime, case, delete, func, literal, select, type_coerce
+from sqlalchemy import (
+    CursorResult,
+    DateTime,
+    case,
+    delete,
+    func,
+    literal,
+    select,
+    type_coerce,
+    update,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +40,7 @@ from app.db.models.artifact import Artifact, ArtifactVersion
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.generated_media import GeneratedMedia
+from app.db.models.improvement import ImprovementRun
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
@@ -167,17 +178,34 @@ async def delete_runs_keeping_their_spend(
             type_coerce(AgentRun.started_at, DateTime(timezone=True)),
             AgentRun.cost_usd,
             AgentRun.parent_run_id,
+            AgentRun.improvement_run_id,
         )
     )
     rows = removed.all()
 
     by_month: dict[datetime, tuple[Decimal, int]] = {}
-    for started_at, cost, parent_run_id in rows:
+    by_improvement: dict[UUID, Decimal] = {}
+    for started_at, cost, parent_run_id, improvement_id in rows:
         if parent_run_id is not None:
             continue
         period = started_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         total, count = by_month.get(period, (Decimal(0), 0))
         by_month[period] = (total + Decimal(cost or 0), count + 1)
+        if improvement_id is not None:
+            by_improvement[improvement_id] = by_improvement.get(
+                improvement_id, Decimal(0)
+            ) + Decimal(cost or 0)
+    # The DELETE's own returned costs are archived in the same transaction.
+    # A second sweep cannot add a cost for a row it did not remove.
+    for improvement_id, amount in sorted(by_improvement.items()):
+        await db.execute(
+            update(ImprovementRun)
+            .where(
+                ImprovementRun.id == improvement_id,
+                ImprovementRun.organization_id == organization_id,
+            )
+            .values(archived_cost_usd=ImprovementRun.archived_cost_usd + amount)
+        )
     return len(rows), [(period, total, count) for period, (total, count) in by_month.items()]
 
 

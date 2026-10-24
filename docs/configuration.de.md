@@ -1,5 +1,5 @@
 ---
-source_sha: "6ebeadc2957b"
+source_sha: "cbb12aedaa0a"
 ---
 
 # Konfiguration { #configuration }
@@ -453,8 +453,9 @@ Einstellung unten gilt pro Worker-Prozess.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host |
+| `WORKER_POOLS` | `agent,eval,ingest,system` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host. Irgendein Worker muss `eval` bedienen, sonst warten Eval-Runs in der Warteschlange, bis sie nach einem Tag als fehlgeschlagen gelten; `agenticos cmd doctor` nennt einen Pool, den kein lebender Worker bedient |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Runs von Agents und ausgelöste Trigger gleichzeitig |
+| `WORKER_EVAL_CONCURRENCY` | `4` | Eval-Runs gleichzeitig. Jeder hält seinen Slot für den ganzen Run, daher haben Evals einen eigenen Pool und belegen nie einen Slot, den ein Agent-Run braucht |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Aufräumläufe, Bereinigungen und Berichte gleichzeitig |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` in den mitgelieferten Compose-Dateien) | Kindprozesse für Parsen und Embeddings, jeder mit einem Job zur Zeit |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | Wie viel ein Kindprozess samt allem, was er gestartet hat, halten darf, bevor der Watchdog ihn stoppt |
@@ -819,6 +820,14 @@ Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum
 der des Frontends; die Compose-Dateien reichen ihn an beide weiter. Ein Wert in
 nur einer von beiden zeigt einen leeren Frame, weil der Browser sich weigert, die
 Seite von einem Origin zu laden, den die Konsole nicht erlaubt hat.
+
+## Datasets { #datasets }
+
+Die Testfälle, über die Evals laufen. Siehe [Datasets](datasets.md).
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Wie viele Fallrevisionen die Datasets einer Organisation zusammen speichern dürfen. Jeder hinzugefügte Fall und jede Bearbeitung ist eine Revision, gespeichert für die Versionen, die sie enthalten; eine Version speichert nur, was sie geändert hat, ein Dataset mit 10.000 Fällen, 500-mal bearbeitet, speichert also 10.500, nicht 5 Millionen. Ein Hinzufügen oder Bearbeiten über das Limit wird abgelehnt und nennt, wie viele gespeichert sind; einen Fall zu entfernen speichert nichts und ist immer erlaubt, und das Löschen nicht mehr benötigter Datasets gibt ihre Revisionen frei. Der Name ist älter als diese Bedeutung: Er zählte jeden Fall jeder Version, solange Versionen ihre Fälle kopierten. Das Limit ist ungefähr: Jede Änderung wird für sich geprüft, daher können gleichzeitige Änderungen an verschiedenen Datasets es leicht überschreiten. Es schützt den Speicher und dient nicht der Abrechnung |
 
 ## Agent-Workspaces { #agent-workspaces }
 

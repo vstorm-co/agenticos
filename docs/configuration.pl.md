@@ -1,5 +1,5 @@
 ---
-source_sha: "6ebeadc2957b"
+source_sha: "cbb12aedaa0a"
 ---
 
 # Konfiguracja { #configuration }
@@ -435,8 +435,9 @@ ustawienie poniżej dotyczy jednego procesu workera.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host |
+| `WORKER_POOLS` | `agent,eval,ingest,system` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host. Któryś worker musi obsługiwać `eval`, inaczej eval runy czekają w kolejce, aż po dobie zostaną oznaczone jako nieudane; `agenticos cmd doctor` wskazuje pulę, której nie obsługuje żaden żywy worker |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Runy agentów i odpalenia triggerów naraz |
+| `WORKER_EVAL_CONCURRENCY` | `4` | Eval runy naraz. Każdy trzyma swój slot przez cały run, więc evale mają własną pulę i nigdy nie zajmują slotu potrzebnego runowi agenta |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Sprzątanie, porządki i raporty naraz |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` w dostarczanych plikach compose) | Procesy potomne do parsowania i embeddingów, każdy z jednym zadaniem naraz |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | Ile może zająć jeden proces potomny razem z tym, co uruchomił, zanim zatrzyma go watchdog |
@@ -779,6 +780,14 @@ podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.
 Ustaw je w środowisku backendu i w środowisku frontendu; pliki compose przekazują
 je obu. Wartość tylko w jednym z nich daje pustą ramkę, bo przeglądarka odmawia
 załadowania strony z originu, na który konsola nie pozwoliła.
+
+## Datasety { #datasets }
+
+Przypadki testowe, na których działają evale. Zobacz [Datasety](datasets.md).
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Ile rewizji przypadków mogą łącznie przechowywać datasety jednej organizacji. Każdy dodany przypadek i każda edycja to rewizja, przechowywana dla wersji, które ją zawierają; wersja zapisuje tylko to, co zmieniła, więc dataset z 10 000 przypadków edytowany 500 razy przechowuje 10 500, a nie 5 milionów. Dodanie albo edycja ponad limit jest odrzucana z podaniem, ile jest przechowywane; usunięcie przypadku nic nie zapisuje i jest zawsze dozwolone, a usunięcie niepotrzebnych datasetów zwalnia ich rewizje. Nazwa jest starsza niż to znaczenie: liczyła każdy przypadek każdej wersji, dopóki wersje kopiowały swoje przypadki. Limit jest przybliżony: każda zmiana jest sprawdzana osobno, więc zmiany w różnych datasetach w tej samej chwili mogą go nieznacznie przekroczyć. Chroni miejsce w bazie, nie służy do rozliczeń |
 
 ## Workspace'y agentów { #agent-workspaces }
 

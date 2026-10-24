@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
+from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -284,6 +285,7 @@ class AgentExposureService:
                 would never learn the two requests were not both effective.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        refuse_system_agent(agent, action="a channel")
         bot = await channel_bot_repo.get_for_org(
             self.db, data.channel_bot_id, organization_id=ctx.organization_id
         )

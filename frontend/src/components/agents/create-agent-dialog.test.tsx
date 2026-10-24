@@ -12,6 +12,11 @@ vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/components/authoring/describe-with-architect", () => ({
+  DescribeWithArchitect: ({ onAsked }: { onAsked: () => void }) => (
+    <button onClick={onAsked}>Describe it to the Architect</button>
+  ),
+}));
 
 import { toast } from "sonner";
 
@@ -58,6 +63,12 @@ describe("CreateAgentDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it("closes once the description was handed to the Architect", async () => {
+    const { onOpenChange } = open();
+    await userEvent.click(screen.getByRole("button", { name: "Describe it to the Architect" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("shows the handle the name will produce, while it is being typed", async () => {
@@ -171,6 +182,21 @@ describe("CreateAgentDialog", () => {
         }),
       ),
     );
+  });
+
+  it("asks again what a new agent starts with each time it opens", async () => {
+    const asked = () =>
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/agents/capabilities")
+        .length;
+    const { rerender } = render(
+      <CreateAgentDialog open={false} onOpenChange={vi.fn()} onCreated={vi.fn()} />,
+      { wrapper },
+    );
+    await waitFor(() => expect(asked()).toBe(1));
+
+    rerender(<CreateAgentDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+
+    await waitFor(() => expect(asked()).toBe(2));
   });
 
   it("sends private when private is asked for", async () => {
@@ -292,5 +318,48 @@ describe("CreateAgentDialog", () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("adds a judge as a system agent, asking only for its name", async () => {
+    const judge = { id: "j2", name: "Second opinion", kind: "judge" };
+    vi.mocked(apiClient.post).mockResolvedValue(judge);
+    const { onCreated } = open();
+
+    await userEvent.click(screen.getByRole("radio", { name: "System agent" }));
+    const judgeKind = screen.getByRole("radio", { name: /^Judge/ });
+    await userEvent.click(judgeKind);
+    expect(judgeKind).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("Describe it to the Architect")).toBeNull();
+    expect(screen.getByText(/A draft system agent cannot run\./)).toBeInTheDocument();
+    await userEvent.type(name(), "Second opinion");
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/agents/system", {
+        kind: "judge",
+        name: "Second opinion",
+      }),
+    );
+    expect(onCreated).toHaveBeenCalledWith(judge);
+    // Opened again, it starts from an ordinary agent.
+    expect(screen.getByRole("radio", { name: "Agent" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("lets every system kind be selected where it can now run", async () => {
+    open();
+    await userEvent.click(screen.getByRole("radio", { name: "System agent" }));
+    for (const kind of [
+      /^Case generator/,
+      /^Gap drafter/,
+      /^Gap classifier/,
+      /^Authoring assistant/,
+    ]) {
+      const option = screen.getByRole("radio", { name: kind });
+      expect(option).toBeEnabled();
+      await userEvent.click(option);
+      expect(option).toHaveAttribute("aria-checked", "true");
+    }
+    await userEvent.click(screen.getByRole("radio", { name: "Agent" }));
+    expect(screen.getByText("Describe it to the Architect")).toBeInTheDocument();
   });
 });

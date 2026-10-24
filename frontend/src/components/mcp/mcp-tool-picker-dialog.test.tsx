@@ -24,12 +24,16 @@ function Harness({
   checked,
   tools = TOOLS,
   appliesTo = "connection",
+  trustReadOnlyHints,
   onSave = vi.fn(),
+  onState = () => {},
 }: {
   checked?: string[];
-  tools?: { name: string; description: string; read_only?: boolean }[];
+  tools?: ToolPickerState["tools"];
   appliesTo?: ToolPickerState["appliesTo"];
+  trustReadOnlyHints?: boolean;
   onSave?: () => void;
+  onState?: (state: ToolPickerState | null) => void;
 }) {
   const [state, setState] = useState<ToolPickerState | null>({
     scope: "organization",
@@ -38,7 +42,9 @@ function Harness({
     tools,
     checked: new Set(checked ?? tools.map((tool) => tool.name)),
     appliesTo,
+    ...(trustReadOnlyHints === undefined ? {} : { trustReadOnlyHints }),
   });
+  onState(state);
   return (
     <McpToolPickerDialog
       toolPicker={state}
@@ -195,5 +201,46 @@ describe("a connection nothing has probed", () => {
 
     expect(screen.queryByLabelText("Search tools…")).toBeNull();
     expect(screen.queryByRole("button", { name: "Select all" })).toBeNull();
+  });
+});
+
+describe("whether evals believe the server's read-only mark", () => {
+  const [search, fetch, upload] = TOOLS as [
+    (typeof TOOLS)[number],
+    (typeof TOOLS)[number],
+    (typeof TOOLS)[number],
+  ];
+  const MARKED = [{ ...search, read_only: true }, { ...fetch, read_only: true }, upload];
+  const trust = "Let evals call tools this server marks read-only";
+
+  it("is offered only where the connection carries the choice", () => {
+    render(<Harness tools={MARKED} />);
+
+    expect(screen.queryByRole("switch", { name: trust })).not.toBeInTheDocument();
+  });
+
+  it("says how many tools the belief would cover", () => {
+    render(<Harness tools={MARKED} trustReadOnlyHints={false} />);
+
+    expect(screen.getByRole("switch", { name: trust })).not.toBeChecked();
+    expect(screen.getByText(/2 tools here claim it\./)).toBeInTheDocument();
+  });
+
+  it("is part of what Save sends, not a setting that takes effect alone", async () => {
+    let latest: ToolPickerState | null = null;
+    const onSave = vi.fn();
+    render(
+      <Harness
+        tools={MARKED}
+        trustReadOnlyHints={false}
+        onSave={onSave}
+        onState={(state) => (latest = state)}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: trust }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(latest).toMatchObject({ trustReadOnlyHints: true });
   });
 });

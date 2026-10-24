@@ -31,6 +31,8 @@ const rig = vi.hoisted(() => ({
   groups: [] as unknown[],
   groupsOrg: "",
   routines: 0,
+  datasetCases: [] as number[],
+  datasetsFetching: false,
   anyRunnable: true,
   anyRunnableLoading: false,
   anyRunnableFetching: false,
@@ -91,6 +93,14 @@ vi.mock("@/hooks/use-groups", () => ({
 vi.mock("@/hooks/use-org-triggers", () => ({
   useOrgTriggers: () => ({ total: rig.routines, isLoading: false }),
 }));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDatasets: () => ({
+    total: rig.datasetCases.length,
+    datasets: rig.datasetCases.map((case_count) => ({ case_count })),
+    isLoading: false,
+    isFetching: rig.datasetsFetching,
+  }),
+}));
 vi.mock("@/hooks/use-can-create-trigger", () => ({
   useCanCreateTriggerQuery: () => ({
     canCreate: rig.anyRunnable,
@@ -124,6 +134,8 @@ vi.mock("@/lib/onboarding/flows", async () => {
 });
 
 beforeEach(() => {
+  rig.datasetCases = [];
+  rig.datasetsFetching = false;
   rig.agentTotal = 0;
   rig.agentsLoading = false;
   rig.agentsList = [];
@@ -326,6 +338,37 @@ describe("useOnboardingFlow", () => {
   it("asks about no organization's groups before one is active", () => {
     renderHook(() => useOnboardingFlow());
     expect(rig.groupsOrg).toBe("");
+  });
+
+  it("ends the dataset's save step once a case is added to one of them", () => {
+    rig.datasetCases = [0, 4];
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-dataset"));
+    const saveAt = result.current.steps.findIndex((s) => s.id === "flow-dataset-case-save");
+    act(() => useOnboardingStore.getState().setIndex(saveAt));
+    expect(result.current.signalMet).toBe(false);
+
+    rig.datasetCases = [1, 4];
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("takes no baseline from a dataset count a refetch is about to replace", () => {
+    rig.datasetsFetching = true;
+    rig.datasetCases = [0];
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-dataset"));
+    const saveAt = result.current.steps.findIndex((s) => s.id === "flow-dataset-case-save");
+    act(() => useOnboardingStore.getState().setIndex(saveAt));
+
+    rig.datasetsFetching = false;
+    rig.datasetCases = [1];
+    rerender();
+    expect(result.current.signalMet).toBe(false);
+
+    rig.datasetCases = [2];
+    rerender();
+    expect(result.current.signalMet).toBe(true);
   });
 
   it("advances the agent flow when an agent is created", () => {

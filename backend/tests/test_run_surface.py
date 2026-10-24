@@ -47,8 +47,14 @@ class TestEveryMemberIsAssignedBySomething:
             "mattermost",
             "teams",
             "schedule",
+            "eval",
             "proactive",
         }
+
+    def test_eval_has_a_writer(self):
+        """The system agent runner stamps every judge run `eval` (that it is
+        written is proven in `tests/test_system_agent_runner.py`)."""
+        assert RunSurface.EVAL.value == "eval"
 
     def test_playground_is_absent_but_schedule_now_has_a_writer(self):
         """`playground` stays gone - nothing runs an agent in one, so a filter

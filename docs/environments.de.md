@@ -1,5 +1,5 @@
 ---
-source_sha: "012b6efb6435"
+source_sha: "642a7f01331a"
 ---
 
 # Umgebungen { #environments }
@@ -25,6 +25,7 @@ schlichte Oberfläche, wenn niemand etwas anderes gesagt hat.
 | **Version** | Welche veröffentlichte Version hier antwortet. Einen ungehefteten Zustand gibt es nicht |
 | **Tracks latest** | Ob eine Veröffentlichung diese Umgebung von sich aus umhängt. Standardmäßig aus |
 | **Tracing** | Ein Logfire-Write-Token aus dem Vault, damit die Runs dieser Umgebung in ihrem eigenen Projekt landen |
+| **Testverbindungen** | MCP-Server und Vault-Schlüssel, die diese Umgebung durch Testversionen ersetzt — ein Sandbox-CRM, ein Testpostfach. Nur benannte Umgebungen |
 
 !!! info "Es gibt keine Umgebung ohne Version"
 
@@ -44,7 +45,7 @@ flowchart LR
     OK -->|no| D
 ```
 
-1. Den Draft bearbeiten, veröffentlichen. Das prägt eine Version und ändert
+1. Den Entwurf bearbeiten, veröffentlichen. Das prägt eine Version und ändert
    nichts, was irgendjemand gerade benutzt.
 2. `staging` darauf zeigen lassen und Ihren Test-Slack-Bot oder einen privaten
    Link an `staging` binden.
@@ -55,6 +56,77 @@ flowchart LR
 Ein Rollback ist derselbe Zug rückwärts: `production` wieder auf die Version
 zeigen lassen, die funktioniert hat. Die alte Version ist noch da, noch lesbar,
 noch ausführbar.
+
+Eine [Eval-Suite](evals.md#suites), die bei Promotion läuft, prüft jede auf ihre
+Umgebung promotete Version gegen die Version, die sie ersetzt, und benachrichtigt
+ihren Eigentümer, wenn das Ergebnis nicht besteht. Allein meldet sie nur; eine
+Umgebung, die sie als [Wächter](#guarding-a-promotion-with-evals) nennt, wartet,
+bis sie besteht.
+
+## Eine Promotion mit Evals bewachen { #guarding-a-promotion-with-evals }
+
+Eine Umgebung kann die [Eval-Suites](evals.md#suites) nennen, die sie
+**bewachen**. Dann übernimmt sie eine Version erst, wenn jeder Wächter auf genau
+dieser Version bestanden hat, über die Dataset-Version und das Scoring, auf die
+der Wächter festgelegt ist, und unter der Schwelle, die er jetzt hat - ein
+Bestehen von vor dem Verschieben der Festlegung oder vor einer angehobenen
+Schwelle zählt nicht. Eine Promotion, die das
+nicht erfüllt, wird abgelehnt (`409`, `PROMOTION_BLOCKED`), und die Ablehnung
+nennt jeden Wächter und seinen Stand: nicht bestanden, ohne Ergebnis, nicht
+gelaufen und warum, prüft noch, veraltet, nicht geprüft oder pausiert.
+
+Ein Bestehen zählt für die Umgebung, neben der es lief: gemessen an der Version,
+die diese Umgebung jetzt ausliefert, und bewertet nach dem Scoring seiner
+Festlegung - eines neben der Version von Staging sagt nichts darüber, die von
+Production zu ersetzen. Ein pausierter Wächter hält die Version zurück, was
+immer er vor der Pause fand.
+
+Eine Suite, die eine Umgebung bewacht, ist auf die Dataset-Version und das
+Scoring **festgelegt**, die sie hatte, als sie Wächter wurde. Das Dataset zu
+bearbeiten - seine Fälle, seine Bewertung, seinen Bewerter - bleibt jedem offen,
+der es bearbeiten darf, und ändert nicht, was der Wächter prüft.
+
+Das Panel der
+Suite sagt, wann das Dataset weitergegangen ist, und **Move the pin**
+(`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) setzt den Wächter auf die
+neueste Version und das aktuelle Scoring; das braucht `promotions:override` und
+wird als Änderung der Wächter verzeichnet. Eine Suite, die nichts mehr bewacht,
+liest wieder die neueste Version, und eine, deren Dataset noch keine Fälle hat,
+kann kein Wächter werden. Ein Wächter, der eingerichtet wurde, bevor Wächter
+festgelegt wurden, auf einem Dataset, das damals keine Fälle hatte, ist nicht
+festgelegt: Er hält jede Version zurück, bis ihn jemand festlegt, der Promotionen
+übergehen darf. Die Version des Bewerter-Agents selbst gehört
+nicht zur Festlegung: Ein neu veröffentlichter Bewerter bewertet den nächsten Run
+des Wächters.
+
+Der Promotion-Dialog zeigt dasselbe und lässt die Wächter laufen, die auf der
+Version nicht bestanden haben, jeden neben der Version, die die Umgebung jetzt
+ausliefert (`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
+`GET …/gate?version_id=` liest das Gate). Ein Wächter, der den Bewerter braucht,
+während die [KI-Unterstützung](governance.md#ai-assistance) aus ist, sagt das,
+statt ohne Grund zu blockieren.
+
+Ein **Übergehen** promotet trotzdem an den Wächtern vorbei. Es braucht
+`promotions:override` - Owner und Admins haben es - und eine Begründung von
+mindestens zehn Zeichen, gegeben von einer Person, die als sie selbst angemeldet
+ist, nicht über einen API-Schlüssel. Das Übergehen, wer es tat, und das Ergebnis
+jedes Wächters landen im Audit-Log und an der Version in der Historie, und der
+Eigentümer jedes nicht bestandenen Wächters wird benachrichtigt.
+
+Welche Suites eine Umgebung bewachen, zu ändern, braucht dieselbe Berechtigung,
+weil ein abgenommener Wächter durchlässt, was er aufgehalten hätte, und ebenso,
+abzuschwächen, was ein Wächter prüft: eine niedrigere oder entfernte Schwelle,
+ein anderes Dataset, eine andere Umgebung oder deren Testverbindungen. Eine
+strengere Schwelle braucht kein Übergehen; sie wird ebenso verzeichnet, und ein
+Bestehen unter der alten Schwelle zählt nicht mehr. Eine Suite, die bewacht,
+oder ein Dataset, das eine solche prüft, lässt sich erst löschen, wenn sie
+abgenommen ist.
+
+Eine bewachte Umgebung mit **tracks latest** folgt einer Veröffentlichung nicht
+sofort: Die Veröffentlichung lässt ihre Wächter auf der neuen Version laufen,
+und die Umgebung zieht nach, wenn alle bestehen, verzeichnet als Promotion durch
+das Gate. Eine, deren Wächter nicht bestehen, bleibt, wo sie ist, und ihre Zeile
+sagt, dass sie wartet.
 
 ## `tracks_latest`, und warum es aus ist { #tracks_latest-and-why-it-is-off }
 
@@ -88,8 +160,84 @@ einer benannten Umgebung veröffentlicht ein eigenes
 [App](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
 Wochenbericht nie die Seite neu veröffentlicht, die Leser in Produktion öffnen.
 Eine Umgebung mit einem Run, der noch läuft oder auf eine Freigabe wartet, lässt
-sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der Standardumgebung übergeben und seine
-Seiten denen von Produktion.
+sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der
+Standardumgebung übergeben und seine Seiten denen von Produktion. Dasselbe gilt,
+solange ein Eval-Run darin wartet oder läuft, der sonst gegen die Verbindungen
+der Produktion weiterliefe.
+
+## Testverbindungen { #test-connections }
+
+Eine Version ist überall derselbe Spec, also würde `staging` sonst dasselbe CRM
+und dasselbe Postfach erreichen wie `production`. Eine benannte Umgebung kann ein
+Binding stattdessen mit einer **Testverbindung** beantworten: einen
+organisationsweiten [MCP-Server](mcp.md) mit einem Sandbox-Server oder den
+Vault-Schlüssel einer Capability mit einem Testschlüssel. Der Spec ändert sich
+nicht, also nimmt das Heraufstufen einer Version kein Test-Credential mit.
+
+| Binding | Ersetzt durch | Was das Modell sieht |
+|---|---|---|
+| Eine organisationsweite MCP-Verbindung | Eine andere organisationsweite MCP-Verbindung | Die Tool-Namen der Produktionsverbindung, sodass Staging und Produktion vergleichbar sind |
+| Der Vault-Schlüssel einer Capability | Ein anderer Schlüssel derselben Art und desselben Zwecks | Nichts: Die Capability erfährt nie, welchen Schlüssel sie bekommen hat |
+
+Jeder Run in der Umgebung nutzt sie: ein an `staging` gebundener Slack-Bot, ein
+API-Aufruf, der sie nennt, ein Zeitplan und jeder Delegat, den diese Runs
+aufrufen. Die Tools einer Testverbindung werden durch die Allowlist der
+Produktionsverbindung, die eigene der Testverbindung und die des Bindings
+eingeschränkt.
+
+!!! warning "Aus, nie die Produktion"
+
+    Ein Binding lässt sich in einer Umgebung abschalten statt ersetzen. Ebenso
+    eines, dessen Testseite gelöscht, deaktiviert wurde oder ihre Credentials
+    verloren hat: Das Binding bleibt dort dunkel, bis jemand eine andere
+    Testverbindung wählt. Die Produktionsseite ist nie der Ersatz. Eine
+    Capability, deren Testschlüssel gelöscht wurde, verweigert den Run, statt
+    ohne ihren Schlüssel zu laufen.
+
+Die Standardumgebung trägt keine Testverbindungen — sie ist das, was eine
+Oberfläche ohne genannte Umgebung ausführt, also die Produktion. Beide Seiten
+einer Ersetzung müssen der Organisation gehören, und ein Testschlüssel muss für
+die Person sichtbar sein, die ihn einträgt. Gespeichert werden nur IDs; ein
+Testschlüssel bleibt im [Vault](secrets.md), und der Audit-Eintrag hält fest,
+wie viele Ersetzungen es gibt, nicht, was sie enthalten.
+
+### In einem Eval { #in-an-eval }
+
+Ein Eval führt den Agent wirklich aus, also würden seine Tools wirklich handeln:
+Ein Agent, der E-Mails sendet, würde pro Fall eine senden. Ein **isoliert**
+gestarteter Run — so läuft ein Eval — führt ein Tool nur aus, wenn das sicher ist:
+
+| Das Tool | Was passiert |
+|---|---|
+| Erreicht eine Test-MCP-Verbindung der Umgebung | Läuft, gegen das Testsystem |
+| Liest nur | Läuft auf der normalen Verbindung |
+| Schreibt, mit einem Test-Schlüssel aus dem Vault | Läuft nur, wenn seine Capability erklärt, dass der Schlüssel allein das Ziel bestimmt; sonst **nicht ausgeführt** und aufgezeichnet |
+| Schreibt, ohne Testverbindung | **Wird nicht ausgeführt.** Als beabsichtigter Aufruf mit seinen Argumenten aufgezeichnet |
+
+Ein Testschlüssel ersetzt eine Anmeldeinformation, aber eine URL oder ein Host
+in der Konfiguration der Capability kann die Schreibvorgänge weiterhin auf die
+Produktion lenken. Deshalb lässt ein getauschter Schlüssel eine Capability in
+einem Eval nur schreiben, wenn sie `test_key_isolates` erklärt, und der
+[Katalog](reference/capabilities.md#what-an-eval-runs) führt auf, welche das tun.
+
+Ein MCP-Tool gilt nur dann als lesend, wenn sein Server es mit `readOnlyHint`
+markiert und die Verbindung dieser Markierung vertraut. Standardmäßig tut sie das
+nicht, denn die Markierung ist die eigene Angabe des Servers. Das Tool einer
+Capability erklärt es in der Registry, und der
+[Katalog](reference/capabilities.md#what-an-eval-runs) führt auf, welche es tun.
+**Ein Tool, das nichts erklärt, schreibt.** Das Modell erfährt, dass der Aufruf
+nicht gesendet wurde, und der beabsichtigte Aufruf wird für die Bewertung mit
+dem Run aufbewahrt.
+
+Ein isolierter Run kann auch aus der Aufzeichnung des Runs beantwortet werden,
+aus dem ein Fall stammt — aus den Aufrufen, die sein Transkript behalten hat. Ein
+Aufruf wird über sein Tool, seine Argumente und seine Reihenfolge unter
+identischen Aufrufen zugeordnet und bekommt das ursprüngliche Ergebnis; ein
+Aufruf, den die Aufzeichnung nicht enthält, wird nicht ausgeführt und als
+abweichend aufgezeichnet. Ein Run, dessen Transkript einen Aufruf verloren hat,
+wird gar nicht wiedergegeben. Ein isolierter Run hat niemanden, den er um eine
+Freigabe bitten kann, also wird ein gesperrter Aufruf ebenfalls nicht ausgeführt
+und als freigabepflichtig aufgezeichnet.
 
 ## Aus dem Builder heraus ausprobieren { #trying-it-from-the-builder }
 
@@ -158,5 +306,11 @@ Kunde einer Version begegnet, die niemand ausgeliefert hat.
   öffentliches Widget verschiedene Versionen eines Agents ausliefern können.
 - **Ein Rollback ist ein Umhängen**, weil alte Versionen lesbar und ausführbar
   bleiben.
+- Eine Umgebung kann von **Eval-Suites bewacht** werden: Eine Version kommt
+  erst darauf, wenn sie auf ihr bestehen, oder an ihnen vorbei mit Begründung
+  und `promotions:override`.
+- Eine benannte Umgebung kann Bindings durch **Testverbindungen** ersetzen; ein
+  Binding ohne eine ist dort aus, nie die Produktion. In einem Eval wird ein
+  schreibendes Tool ohne Testverbindung **aufgezeichnet, nicht ausgeführt**.
 - Die Standardumgebung wird vom Veröffentlichen verwaltet und ist hier bewusst
   nicht bearbeitbar.

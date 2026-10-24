@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+
+import { formatUsd } from "@/components/dashboard/format";
 import { MessageSquare, ThumbsDown } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -207,14 +209,28 @@ export function RunTable({
       hideBelow: "sm",
       header: t("surface"),
       // The mark and the name together: the mark is what makes a column of
-      // fifty rows scannable, the name is what a screen reader hears.
-      cell: (run) => (
-        <span className="text-muted-foreground flex items-center gap-1.5 whitespace-nowrap">
-          <SurfaceIcon surface={run.surface} />
-          {surfaceLabel(run.surface, t)}
-          <ModalityBadge modality={run.modality} />
-        </span>
-      ),
+      // fifty rows scannable, the name is what a screen reader hears. Under
+      // them, what the run was asked - which is how a run is found again to
+      // become a dataset case.
+      cell: (run) => {
+        const asked =
+          run.preview &&
+          (run.eval_case?.graded ? t("grading", { input: run.preview }) : run.preview);
+        return (
+          <span className="text-muted-foreground block">
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <SurfaceIcon surface={run.surface} />
+              {surfaceLabel(run.surface, t)}
+              <ModalityBadge modality={run.modality} />
+            </span>
+            {asked && (
+              <span className="block max-w-56 truncate text-xs" title={asked}>
+                {asked}
+              </span>
+            )}
+          </span>
+        );
+      },
     },
     {
       key: "model",
@@ -258,7 +274,7 @@ export function RunTable({
       // A call is one row (#54): its reconnects' runs are summed into it.
       cell: (run) => (
         <span className="font-mono text-xs whitespace-nowrap">
-          ${Number(run.voice_chain?.cost_usd ?? run.cost_usd).toFixed(4)}
+          {formatUsd(run.voice_chain?.cost_usd ?? run.cost_usd, locale, 4)}
           {run.cost_is_partial && (
             <span className="text-muted-foreground" title={t("modelRunHadNo")}>
               {" +"}
@@ -288,7 +304,7 @@ export function RunTable({
           </span>
         ) : (
           <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
-            {formatRunDuration(run.started_at, run.ended_at)}
+            {formatRunDuration(run.started_at, run.ended_at, locale)}
           </span>
         ),
     },

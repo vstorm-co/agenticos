@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -70,6 +70,17 @@ async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Age
     return result.scalar_one_or_none()
 
 
+async def lock(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:
+    """The agent locked until the transaction ends, its draft read afresh."""
+    result = await db.execute(
+        select(Agent)
+        .where(Agent.id == agent_id, Agent.organization_id == organization_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
     """A published agent its organization chose to serve over A2A, whatever the tenant.
 
@@ -99,6 +110,14 @@ async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def get_system(db: AsyncSession, *, organization_id: UUID, key: str) -> Agent | None:
+    """The organization's seeded agent registered under `key`, if it has one."""
+    result = await db.execute(
+        select(Agent).where(Agent.organization_id == organization_id, Agent.system_key == key)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_slugs(db: AsyncSession, *, organization_id: UUID) -> set[str]:
     """Every agent slug in this organization.
 
@@ -118,13 +137,18 @@ def _visible_clauses(
     shared_ids: list[UUID],
     shared_with_me: bool,
     include_archived: bool,
+    kind: AgentKind,
 ) -> list[ColumnElement[bool]]:
     """The rows a member may list, before any discovery filter narrows them.
 
     Shared by `list_visible` and `list_visible_labels` so the filter's choices
-    can never be drawn from a wider set than the listing they filter.
+    can never be drawn from a wider set than the listing they filter. `kind`
+    keeps one kind of agent: the ones people use, or the judges.
     """
-    where: list[ColumnElement[bool]] = [Agent.organization_id == organization_id]
+    where: list[ColumnElement[bool]] = [
+        Agent.organization_id == organization_id,
+        Agent.kind == kind.value,
+    ]
     if not include_archived:
         where.append(Agent.status != AgentStatus.ARCHIVED.value)
     if shared_with_me:
@@ -158,6 +182,7 @@ async def list_visible(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    kind: AgentKind = AgentKind.AGENT,
     categories: Sequence[str] = (),
     tags: Sequence[str] = (),
     skip: int = 0,
@@ -190,6 +215,7 @@ async def list_visible(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        kind=kind,
     )
     # Guard on the (already-normalized) list being non-empty: a blank param that
     # normalized to `[]` upstream must apply no predicate rather than match `{}`.
@@ -215,6 +241,7 @@ async def list_visible_labels(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    kind: AgentKind = AgentKind.AGENT,
 ) -> tuple[list[str], list[str]]:
     """Every distinct category and tag on the agents this member may list.
 
@@ -231,6 +258,7 @@ async def list_visible_labels(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        kind=kind,
     )
 
     async def distinct(column: InstrumentedAttribute[list[str]]) -> list[str]:
@@ -611,6 +639,36 @@ async def newest_version(
         select(AgentVersion)
         .where(
             AgentVersion.agent_id == agent_id,
+            AgentVersion.organization_id == organization_id,
+        )
+        .order_by(AgentVersion.version.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_version_by_number(
+    db: AsyncSession, *, agent_id: UUID, number: int, organization_id: UUID
+) -> AgentVersion | None:
+    result = await db.execute(
+        select(AgentVersion).where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.version == number,
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def version_before(
+    db: AsyncSession, *, agent_id: UUID, number: int, organization_id: UUID
+) -> AgentVersion | None:
+    """The highest-numbered version below `number` - what a version is measured against."""
+    result = await db.execute(
+        select(AgentVersion)
+        .where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.version < number,
             AgentVersion.organization_id == organization_id,
         )
         .order_by(AgentVersion.version.desc())

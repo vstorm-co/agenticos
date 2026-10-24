@@ -10,7 +10,9 @@ import {
   type OrgState,
 } from "@/lib/onboarding/flows";
 import {
+  IMPROVEMENT,
   AGENT_BUILDER,
+  DATASET_DETAIL,
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
@@ -212,16 +214,69 @@ describe("FLOWS", () => {
   });
 });
 
+describe("create-dataset", () => {
+  it("goes on past the empty dataset into its first case, field group by field group", () => {
+    const steps = FLOWS["create-dataset"].steps;
+    const ids = steps.map((step) => step.id);
+    expect(ids.slice(0, 3)).toEqual([
+      "flow-dataset-create",
+      "flow-dataset-field-name",
+      "flow-dataset-field-create",
+    ]);
+    const open = steps[3];
+    expect(open?.target).toBe("dataset-card-open");
+    expect(open?.page).toBeUndefined();
+    expect(open?.signal).toEqual({ kind: "arrived", page: DATASET_DETAIL });
+    expect(steps[4]).toMatchObject({
+      target: "datasets-add-case",
+      signal: { kind: "opened" },
+    });
+
+    const groups = steps.slice(5, -4);
+    expect(groups.map((step) => step.target)).toEqual([
+      "case-group-question",
+      "case-group-answers",
+      "case-group-tools",
+      "case-group-checks",
+      "case-group-labels",
+    ]);
+    for (const step of groups) {
+      expect(step).toMatchObject({
+        page: DATASET_DETAIL,
+        inOverlay: true,
+        blockSubmit: "case-save",
+      });
+      expect(step.signal).toBeUndefined();
+    }
+    const [save, sources, next, generate] = steps.slice(-4);
+    expect(save).toMatchObject({
+      target: "case-save",
+      signal: { kind: "created", resource: "case" },
+    });
+    expect(save?.blockSubmit).toBeUndefined();
+    expect(sources?.target).toBe("datasets-menu");
+    expect(sources?.signal).toBeUndefined();
+    expect(next).toMatchObject({ target: "datasets-grading-tab", page: DATASET_DETAIL });
+    expect(generate).toMatchObject({
+      target: "datasets-generate",
+      activate: "datasets-generated-tab",
+      page: DATASET_DETAIL,
+    });
+  });
+});
+
 describe("flowForPage", () => {
   it("maps each section, collapsing its detail routes onto the same flow", () => {
     expect(flowForPage(ROUTES.AGENTS)).toBe("create-agent");
     // An Agents "?" that walked into the builder still offers the agent flow.
-    expect(flowForPage(AGENT_BUILDER)).toBe("create-agent");
+    // Already in an agent, the builder's walk ends on testing a change to it.
+    expect(flowForPage(AGENT_BUILDER)).toBe("test-change");
     expect(flowForPage(ROUTES.SKILLS)).toBe("create-skill");
     expect(flowForPage(ROUTES.RAG)).toBe("create-kb");
     expect(flowForPage(KB_DETAIL)).toBe("create-kb");
     expect(flowForPage(ROUTES.MCP_SERVERS)).toBe("create-mcp");
     expect(flowForPage(ROUTES.ROUTINES)).toBe("create-routine");
+    expect(flowForPage(ROUTES.DATASETS)).toBe("create-dataset");
     expect(flowForPage(ROUTES.ORGS)).toBe("create-org");
     expect(flowForPage(ORG_MEMBERS)).toBe("create-org");
     expect(flowForPage(ORG_ROLES)).toBe("create-org");
@@ -249,6 +304,23 @@ describe("create-routine", () => {
     expect(stepsForFlow(FLOWS["create-routine"], STOCKED, allow, NO_CHOICES)).toHaveLength(2);
     const noRunnable = { ...STOCKED, hasRunnableAgent: false };
     expect(stepsForFlow(FLOWS["create-routine"], noRunnable, allow, NO_CHOICES)).toHaveLength(0);
+  });
+
+  it("tests a change only where something is published to test it against", () => {
+    const ids = (state: OrgState) =>
+      stepsForFlow(FLOWS["test-change"], state, allow, NO_CHOICES).map((step) => step.id);
+    expect(ids(STOCKED)).toEqual([
+      "flow-test-draft",
+      "flow-test-target",
+      "flow-test-run",
+      "flow-test-verdict",
+    ]);
+    // With nothing published there is no Test draft button to start from, so no
+    // step either: an inert flow, not a page frozen waiting for the button.
+    expect(ids(EMPTY)).toEqual([]);
+    // Nor for a reader who may read runs but not edit the agent or run a dataset.
+    const readOnly = (permission: Permission) => permission === Perm.runsView;
+    expect(stepsForFlow(FLOWS["test-change"], STOCKED, readOnly, NO_CHOICES)).toEqual([]);
   });
 });
 
@@ -566,4 +638,8 @@ describe("canOfferFlow", () => {
   it("offers an unpermissioned flow to anyone", () => {
     expect(canOfferFlow(FLOWS["create-org"], deny)).toBe(true);
   });
+});
+
+it("registers the dedicated first improvement journey", () => {
+  expect(flowForPage(IMPROVEMENT)).toBe("first-improvement");
 });

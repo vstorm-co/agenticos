@@ -1,5 +1,5 @@
 ---
-source_sha: "6ebeadc2957b"
+source_sha: "cbb12aedaa0a"
 ---
 
 # Configuración { #configuration }
@@ -448,8 +448,9 @@ proceso de worker.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | Los pools que atiende este proceso. Arranca un segundo worker con `ingest` para llevar el parseo a un host propio |
+| `WORKER_POOLS` | `agent,eval,ingest,system` | Los pools que atiende este proceso. Arranca un segundo worker con `ingest` para llevar el parseo a un host propio. Algún worker tiene que atender `eval`, o los eval runs esperan en cola hasta que se dan por fallidos un día después; `agenticos cmd doctor` nombra un pool que ningún worker vivo atiende |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Runs de agents y disparos de triggers a la vez |
+| `WORKER_EVAL_CONCURRENCY` | `4` | Eval runs a la vez. Cada uno ocupa su slot durante todo el run, así que los evals tienen un pool propio y nunca ocupan uno que necesita un run de agent |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Barridos, limpiezas e informes a la vez |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` en los archivos compose que se distribuyen) | Procesos hijos para parseo y embeddings, cada uno con un job a la vez |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | Lo que puede ocupar un proceso hijo, con todo lo que haya arrancado, antes de que el watchdog lo detenga |
@@ -798,6 +799,14 @@ consola. Fíjalo en el entorno del backend y en el del frontend; los ficheros de
 compose se lo pasan a ambos. Un valor en solo uno de ellos muestra un frame vacío,
 porque el navegador se niega a cargar la página desde un origen que la consola no
 ha permitido.
+
+## Datasets { #datasets }
+
+Los casos de prueba sobre los que corren los evals. Consulta [Datasets](datasets.md).
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Cuántas revisiones de casos pueden guardar juntos los datasets de una organización. Cada caso añadido y cada edición es una revisión, guardada para las versiones que la contienen; una versión guarda solo lo que cambió, así que un dataset de 10.000 casos editado 500 veces guarda 10.500, no 5 millones. Añadir o editar por encima del límite se rechaza indicando cuántas hay guardadas; quitar un caso no guarda nada y siempre está permitido, y borrar los datasets que nadie necesita libera sus revisiones. El nombre es anterior a este significado: contaba cada caso de cada versión mientras las versiones copiaban sus casos. El límite es aproximado: cada cambio se comprueba por separado, así que cambios simultáneos en datasets distintos pueden superarlo un poco. Protege el almacenamiento; no sirve para facturar |
 
 ## Workspaces de los agents { #agent-workspaces }
 

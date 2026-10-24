@@ -21,6 +21,7 @@ import { ErrorState } from "@/components/states";
 import {
   InviteLinkDialog,
   InviteMemberDialog,
+  OrgAiAssistance,
   OrgApprovalWaiver,
   OrgAssistant,
   OrgProactivity,
@@ -468,6 +469,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           approval in the first place. */}
       {org && <OrgApprovalWaiver org={org} />}
 
+      {org && <OrgAiAssistance org={org} />}
       {/* How people here talk to agents: dictation now, voice conversations next.
           Hidden from anybody who may not change organization settings. */}
       {org && <OrgVoiceSettings org={org} />}

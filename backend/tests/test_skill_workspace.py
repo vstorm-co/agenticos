@@ -27,6 +27,7 @@ from pydantic_ai.workspaces import FileEntry, Workspace, WrapperWorkspace
 from pydantic_ai_backends import StateBackend
 
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
+from app.agents.capabilities.skills import SkillBody
 from app.services.skill_workspace import (
     SKILLS_ROOT,
     collect_changes,
@@ -51,8 +52,10 @@ class _Skill:
         description: str = "How refunds work.",
         content: str = "Ask for the order id.",
         resources: list[_Resource] | None = None,
+        version: int = 1,
     ) -> None:
         self.id = uuid4()
+        self.version = version
         self.name = name
         self.description = description
         self.content = content
@@ -111,6 +114,21 @@ class TestWritingSkillsIntoTheWorkspace:
         assert body.startswith("---\nname: refunds\n")
         assert "description: How refunds work." in body
 
+    async def test_a_candidate_body_is_the_file_the_shell_reads(self):
+        """An eval checking a proposed skill change serves the proposal through
+        `load_capability`; the file on disk has to say the same thing."""
+        skill = _Skill()
+        document, workspace = _document()
+
+        await materialise(
+            workspace, [skill], {skill.id: SkillBody(description="Proposed.", content="New body.")}
+        )
+
+        body = document.read_bytes(f"{SKILLS_ROOT}/refunds/SKILL.md").decode()
+        assert "description: Proposed." in body
+        assert "New body." in body
+        assert "Ask for the order id." not in body
+
     async def test_a_workspace_that_refuses_a_write_still_runs_the_agent(self):
         """The skills are in the prompt either way, which is how they worked
         before this existed. Failing the run over a file would be a regression
@@ -134,7 +152,7 @@ class TestCollectingWhatTheAgentChanged:
         assert await collect_changes(workspace, state) == []
 
     async def test_an_edited_body_comes_back_as_the_new_body(self):
-        skill = _Skill()
+        skill = _Skill(version=4)
         document, workspace = _document()
         state = await materialise(workspace, [skill])
 
@@ -147,6 +165,7 @@ class TestCollectingWhatTheAgentChanged:
 
         assert change.skill_id == skill.id
         assert change.is_new is False
+        assert change.base_version == 4
         assert change.description == "How refunds work now."
         assert change.content == "Ask for the receipt."
 

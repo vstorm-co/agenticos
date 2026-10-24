@@ -7,7 +7,7 @@ read is the skills *capability*.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
@@ -16,6 +16,7 @@ from pydantic import StringConstraints, TypeAdapter
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import SkillBody
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -311,7 +312,13 @@ class SkillService:
         """Every distinct category in this organization, for the listing's filter."""
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
 
-    async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
+    async def resolve_for_agent(
+        self,
+        ctx: AuthContext,
+        skill_ids: list[UUID],
+        *,
+        projected: Mapping[UUID, SkillBody] | None = None,
+    ) -> list[Skill]:
         """The enabled skills an agent is bound to.
 
         Scoped to the run's organization and **not** to the runner's own access,
@@ -337,10 +344,35 @@ class SkillService:
         """
         if not skill_ids:
             return []
-        found = await skill_repo.get_many(self.db, skill_ids, organization_id=ctx.organization_id)
+        virtual = {
+            key: body
+            for key, body in (projected or {}).items()
+            if body.name is not None and key in skill_ids
+        }
+        found = await skill_repo.get_many(
+            self.db,
+            [key for key in skill_ids if key not in virtual],
+            organization_id=ctx.organization_id,
+        )
         resolved = []
         for skill_id in skill_ids:
-            skill = found.get(skill_id)
+            body = virtual.get(skill_id)
+            skill = (
+                Skill(
+                    id=skill_id,
+                    organization_id=ctx.organization_id,
+                    name=body.name,
+                    description=body.description,
+                    content=body.content,
+                    resources=[],
+                    enabled=True,
+                    version=1,
+                    visibility=Visibility.PRIVATE.value,
+                    owner_user_id=ctx.user_id,
+                )
+                if body is not None
+                else found.get(skill_id)
+            )
             if skill is None or not skill.enabled:
                 logger.warning(
                     "Agent references skill %s which is disabled, deleted, or not org %s's",
@@ -426,6 +458,7 @@ class SkillService:
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
         update_data = {**writable(data, over=Skill), "version": skill.version + 1}
         updated = await skill_repo.update(self.db, skill=skill, update_data=update_data)
+        await self._changed(updated)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -567,6 +600,7 @@ class SkillService:
                 "library_fingerprint": bundled.fingerprint,
             },
         )
+        await self._changed(updated)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -893,6 +927,19 @@ class SkillService:
         unchanged when its reference table had been rewritten.
         """
         await skill_repo.update(self.db, skill=skill, update_data={"version": skill.version + 1})
+        await self._changed(skill)
+
+    async def _changed(self, skill: Skill) -> None:
+        """Queue the eval suites of the agents that read this skill.
+
+        A skill has no draft: an edit reaches every bound agent on its next run,
+        so the suites watching for that change are the only check it gets.
+        """
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=skill.organization_id, kind="skill", resource_id=skill.id
+        )
 
     async def delete(self, ctx: AuthContext, skill_id: UUID) -> None:
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
@@ -903,6 +950,9 @@ class SkillService:
             resource_id=skill.id,
         )
         await skill_repo.delete(self.db, skill)
+        # A published spec keeps a deleted skill's id and runs without it, so the
+        # bound agents answer differently from now on.
+        await self._changed(skill)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

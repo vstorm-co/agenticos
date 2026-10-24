@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -105,6 +106,7 @@ def _org_read(
         welcome_dm_enabled=org.welcome_dm_enabled,
         welcome_dm_text=org.welcome_dm_text,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        ai_assistance_enabled=org.ai_assistance_enabled,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
         speech_to_text_secret_id=org.speech_to_text_secret_id,
@@ -225,7 +227,15 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, owner_id)
+        await self._seed_system_agents(org.id, owner_id)
         return org
+
+    async def _seed_system_agents(self, organization_id: UUID, owner_id: UUID) -> None:
+        # Imported locally: the system agents reach the agent registry, whose
+        # browser capability imports this module back through the user service.
+        from app.services.system_agents import SystemAgentService
+
+        await SystemAgentService(self.db).seed(organization_id=organization_id, owner_id=owner_id)
 
     async def _seed_bundled_skills(self, organization_id: UUID, owner_id: UUID) -> None:
         """Copy every bundled skill into a brand-new organization.
@@ -413,6 +423,7 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, user_id)
+        await self._seed_system_agents(org.id, user_id)
         return org
 
     async def update(
@@ -425,9 +436,9 @@ class OrganizationService:
         """Update org metadata and settings.
 
         Three permissions decide this PATCH, each covering the fields it names:
-        `org:settings` for the metadata (name, avatar), `budgets:manage` for
-        the monthly spending cap, `approvals:decide` for whether chat sessions
-        may waive approvals. The built-in Owner and Admin hold all three, so
+        `org:settings` for the metadata (name, avatar) and the AI assistance
+        switch, `budgets:manage` for the monthly spending cap, `approvals:decide`
+        for whether chat sessions may waive approvals. The built-in Owner and Admin hold all three, so
         nothing changes for them - but the catalog advertises each as its own
         entitlement, and a permission the matrix shows and no endpoint consults
         is a row that means nothing.
@@ -512,6 +523,23 @@ class OrganizationService:
         if wants_waiver and data.chat_may_waive_approvals is not None:
             org = await organization_repo.set_chat_approval_waiver(
                 self.db, org, allowed=data.chat_may_waive_approvals
+            )
+
+        if (
+            data.ai_assistance_enabled is not None
+            and data.ai_assistance_enabled != org.ai_assistance_enabled
+        ):
+            org = await organization_repo.set_ai_assistance(
+                self.db, org, enabled=data.ai_assistance_enabled
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=requester_id,
+                action="organization.ai_assistance",
+                organization_id=org.id,
+                target_type="organization",
+                target_id=str(org.id),
+                details={"enabled": data.ai_assistance_enabled},
             )
 
         if data.model_fields_set & _SPEECH_FIELDS:

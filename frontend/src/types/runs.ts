@@ -13,6 +13,17 @@ export type RunStatus =
   /** Stopped for looping on its tool calls after it was warned (#2086). */
   | "loop_stopped";
 
+/** Which eval run and case one agent run answered. */
+export interface EvalCaseLink {
+  eval_run_id: string;
+  agent_id: string;
+  case_id: string;
+  dataset_name: string;
+  case_input: string;
+  /** The run is the judge grading the case, not the agent answering it. */
+  graded: boolean;
+}
+
 /** One call as Activity shows it: every connection of it, summed (#54). */
 export interface VoiceChain {
   /** 1, plus one per reconnect. */
@@ -65,6 +76,16 @@ export interface AgentRun {
    */
   prev_run_id?: string | null;
   next_run_id?: string | null;
+  /**
+   * The eval run and case this run answered, or graded for a judge's run -
+   * only when the caller may see the dataset. Such a run keeps no conversation.
+   */
+  eval_case?: EvalCaseLink | null;
+  /**
+   * One line of what the run was asked: its first user turn, or the eval
+   * case's question. Sent on the listing; null for a run with no conversation.
+   */
+  preview?: string | null;
   error: string | null;
   /**
    * Whether an assistant answer this run produced was rated down by anybody -

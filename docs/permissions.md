@@ -87,8 +87,13 @@ Two kinds of permission, and they behave differently.
 
 **Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
-`connections:view`, `connections:manage`, `channels:manage`,
+`promotions:override`, `connections:view`, `connections:manage`, `channels:manage`,
 `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promotes a version onto an
+[environment its eval suites guard](environments.md#guarding-a-promotion-with-evals)
+although they have not passed on it, and changes which suites guard one. Owners
+and admins hold it; promoting at all is still `agents:publish` on the agent.
 
 `api_keys:create` lets a member issue [API keys](api.md#organization-api-keys)
 for themselves; `api_keys:manage` lists and revokes everybody's. A key holds a
@@ -349,10 +354,17 @@ exactly the moment it should be narrowed to nothing.
 rows already loaded, it returns the subset the caller may exercise a permission
 on, applying the same `max(role scope, grant)` rule per row but reading every
 grant in one lookup rather than one per row (and none at all when the role
-reaches everything). It is what fills a listing's per-row capability flags -
-`AgentRead.can_run`, the floor for offering "new trigger" on a card - so a Viewer
-granted run on one agent sees the control there and nowhere else. A context with
-no subject, and an empty input, both resolve to the empty set before any query.
+reaches everything).
+
+`accessible_ids` is what fills a listing's per-row capability flags -
+`AgentRead.can_run`, the floor for offering "new trigger" on a card,
+`AgentRead.can_edit`, which the console reads for the agent page's edit
+controls, testing a draft and stopping an eval run, and `AgentRead.can_publish`,
+for publishing - so a Viewer granted run on one agent sees the control there and
+nowhere else.
+
+A context with no subject, and an empty input, both resolve to the empty set
+before any query.
 
 The agents, skills and kb listings also take `?shared_with_me=true`: only rows
 deliberately shared with the caller - org-visible or explicitly granted, and

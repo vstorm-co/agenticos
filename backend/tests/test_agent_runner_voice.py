@@ -131,7 +131,7 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def runner_with_mocks():
     service = AgentRunnerService(_db())
-    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
     spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
     with (
         patch.object(
@@ -189,7 +189,7 @@ async def test_a_text_run_stays_text(runner_with_mocks):
 
 
 def _runnable(runner_with_mocks: SimpleNamespace, *capability_ids: str) -> MagicMock:
-    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
     runner_with_mocks.runnable.return_value = (
         agent,
         AgentSpec(

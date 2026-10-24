@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "5082dd13ffa3"
 ---
 
 # Die Konsole { #the-console }
@@ -19,7 +19,7 @@ neben dem Mikrofon.
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt achtunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt einundfünfzig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -31,10 +31,17 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 |---|---|
-| **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
+| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
+
+In **Ich** listet **Agents, die Aufmerksamkeit brauchen** die Agents, die Sie
+sehen dürfen, mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder einer
+durchgefallenen Eval-Suite im Zeitraum - nur Zahlen, nie das Gesagte - mit
+**Verbessern** bei denen, die Sie bearbeiten dürfen. Die Agent-Galerie markiert
+dieselben Agents der letzten dreißig Tage mit dem Abzeichen **Braucht
+Aufmerksamkeit**, das beim Überfahren sagt, warum. Beides erfordert `runs:view`.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
@@ -265,6 +272,15 @@ anhalten und enden: Ein Run, den ein Zeitplan auslöst, erscheint auf einer
 offenen Activity-Seite und ändert dort seinen Status, ohne dass eine Anfrage von
 Ihnen dahintersteht.
 
+Ebenso Datasets: ein hinzugefügter oder entfernter Fall, eine Änderung an der
+Bewertung, ein Score oder eine Review-Entscheidung und Entwürfe, die der
+[Fallgenerator](datasets.md#generating-cases) im Hintergrund fertigstellt - sie
+erscheinen ohne Neuladen im Tab Generated eines offenen Datasets.
+
+Wissenslücken werden ebenso gemeldet: Ein Thema, das in einem Tab verworfen oder
+entworfen wurde, und die Fragen, die ein Gruppierungslauf alle 15 Minuten
+einordnet, erscheinen auf einem offenen Tab Wissenslücken ohne Neuladen.
+
 Die Ausnahme ist der Builder, weil er Ihren Entwurf beim Tippen speichert. Ändert
 sich der Agent, den Sie bearbeiten, anderswo, hört er auf zu speichern und holt
 die neue Version. Ohne ungespeicherte Änderungen übernimmt er sie einfach; mit
@@ -273,10 +289,11 @@ Ihre Wahl: **Neu laden** (deren Version) oder **Meine Änderungen behalten** (Ih
 über deren gespeichert).
 
 Sie erfahren nur, was Sie lesen dürfen: Eine Änderung an einem Agent, einem
-Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel oder
-einem MCP-Server, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
+Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel,
+einem MCP-Server oder einem Dataset, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
 Löschung erreicht nur Rollen, die jede Zeile dieser Art sehen. Runs erreichen die
-Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Kanal-Bots die
+Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Wissenslücken
+die Rollen, die jeden Run lesen, Kanal-Bots die
 Rollen, die sie verwalten, und Ihre Benachrichtigungen nur Sie. Bricht die Verbindung ab, arbeitet die Konsole wie
 bisher und verbindet sich selbst wieder.
 
@@ -675,6 +692,7 @@ verlassen haben.
 | **Knowledge** | Collections, Dokumente, Sync-Quellen, Ingestion-Einstellungen | [Dateiverarbeitung](file-processing.md) |
 | **Skills** | Geschriebene Abläufe, die ein Agent bei Bedarf lädt | [Skills](skills.md) |
 | **Context** | Dauerhaftes Wissen, das an viele Agents gebunden ist | [Context-Dateien](context.md) |
+| **Datasets** | Versionierte Testfälle, importiert, exportiert oder aus einer bewerteten Antwort übernommen | [Datasets](datasets.md) |
 | **Routines** | Zeitpläne und Ereignis-Trigger | [Trigger](triggers.md) |
 | **Runs** | Was lief, was es kostete, was es berührte, ob es fehlschlug | [Governance](governance.md#audit) |
 | **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -731,7 +749,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **achtunddreißig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **einundfünfzig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.

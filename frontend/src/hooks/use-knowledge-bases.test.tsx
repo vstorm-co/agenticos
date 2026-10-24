@@ -1236,3 +1236,50 @@ describe("the sync sources feeding a collection", () => {
     expect(apiClient.patch).not.toHaveBeenCalled();
   });
 });
+
+describe("knowledge-gap helper updates", () => {
+  const helpers = { gap_classifier_agent_id: "classifier-1", gap_drafter_agent_id: null };
+  it("saves explicit helper choices and refreshes the current knowledge base", async () => {
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.kb?.id).toBe("kb-1"));
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "kb-1", name: "Handbook", ...helpers });
+    await act(async () => {
+      await result.current.updateGapHelpers(helpers);
+    });
+    expect(apiClient.patch).toHaveBeenCalledWith("/kb/kb-1", helpers);
+    await waitFor(() => expect(result.current.kb).toMatchObject(helpers));
+  });
+  it("refuses a helper update without an open knowledge base", async () => {
+    const { result } = renderHook(() => useKBDetail(null), { wrapper });
+    await expect(result.current.updateGapHelpers(helpers)).rejects.toThrow(
+      "No knowledge base is open",
+    );
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+  it("does not write a late helper choice into the next tenant's cache", async () => {
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.kb?.id).toBe("kb-1"));
+    let finish: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.patch).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    let saving: Promise<KnowledgeBase>;
+    await act(async () => {
+      saving = result.current.updateGapHelpers(helpers);
+    });
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      finish({ id: "kb-1", name: "Previous tenant's knowledge", ...helpers });
+      await saving!;
+    });
+    expect(client.getQueryData<KnowledgeBase>(qk.kb.detail("kb-1"))?.name).not.toBe(
+      "Previous tenant's knowledge",
+    );
+  });
+});

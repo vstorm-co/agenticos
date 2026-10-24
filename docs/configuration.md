@@ -427,8 +427,9 @@ reaches the database the API does. Every setting below is per worker process.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | The pools this process serves. Run a second worker with `ingest` to put parsing on a host of its own |
+| `WORKER_POOLS` | `agent,eval,ingest,system` | The pools this process serves. Run a second worker with `ingest` to put parsing on a host of its own. Some worker has to serve `eval`, or eval runs wait queued until they are failed a day later; `agenticos cmd doctor` names a pool no live worker serves |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Agent runs and trigger fires at once |
+| `WORKER_EVAL_CONCURRENCY` | `4` | Eval runs at once. Each holds its slot for the whole run, so evals have a pool of their own and never hold one an agent run needs |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Sweeps, cleanups and reports at once |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` in the shipped compose files) | Child processes for parsing and embedding, one job each at a time |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | What one child may hold, with whatever it started, before the watchdog stops it |
@@ -766,6 +767,14 @@ content addresses on it, and the frontend adds it to the console's `frame-src`.
 Set it in the backend's environment and in the frontend's; the compose files
 pass it to both. A value in only one of them shows an empty frame, because the
 browser refuses to load the page from an origin the console did not allow.
+
+## Datasets
+
+The test cases evals run over. See [Datasets](datasets.md).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Case revisions one organization's datasets may store together. Every case added and every edit is a revision, kept for the versions that hold it; a version stores only what it changed, so a dataset of 10,000 cases edited 500 times stores 10,500, not 5 million. An add or an edit past the limit is refused, naming how many are stored; removing a case stores nothing and is always allowed, and deleting datasets nobody needs frees their revisions. The name is older than this meaning: it counted every case of every version until versions stopped copying their cases. The limit is approximate: each change is checked on its own, so changes made at the same moment to different datasets can pass it by a little. It protects storage; it is not a bill |
 
 ## Agent workspaces
 

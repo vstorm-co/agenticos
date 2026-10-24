@@ -12,7 +12,10 @@ from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
+from app.db.models.agent import AgentKind
+from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.promotion_gate import PromotionOverrideRead
 from app.schemas.resource_grant import AudienceChoice
 
 # The longest a single category/tag may be, matching the `String(32)` array
@@ -124,6 +127,23 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    system_key: str | None = Field(
+        default=None,
+        description=(
+            "Set on an agent the platform seeded and starts itself - `eval_judge` for "
+            "the default eval judge. It is edited and shared like any agent."
+        ),
+    )
+    kind: AgentKind = Field(
+        default=AgentKind.AGENT,
+        description=(
+            "`judge` for an agent that grades evals, `drafter` for the one that drafts a "
+            "knowledge gap's missing content, `generator` for the one that drafts dataset "
+            "cases and `classifier` for the one that reads answers for knowledge gaps: "
+            "only the platform runs them, and the console lists them apart, without "
+            "chat, channels or delegation."
+        ),
+    )
     a2a_enabled: bool = Field(
         default=False,
         description=(
@@ -214,6 +234,26 @@ class AgentRead(BaseSchema):
             "not a security boundary, since every create endpoint re-checks server-side."
         ),
     )
+    can_edit: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may edit the agent - change its draft, test it on a "
+            "dataset, stop a run of it somebody else started. Resolved per caller like "
+            "can_run: an explicit edit grant reads true where the role-level check "
+            "would say false, and a role that may edit agents reads false on one it "
+            "cannot reach. Hides controls; every edit endpoint re-checks server-side."
+        ),
+    )
+    can_publish: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may publish the agent - a new version, a rollback, "
+            "its embeds, exposures and environments. Resolved per caller like "
+            "can_edit, and not the same answer: a Member edits the agents they own "
+            "but publishes none. Hides controls; every publish endpoint re-checks "
+            "server-side."
+        ),
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
@@ -257,6 +297,22 @@ class AgentList(BaseSchema):
         default_factory=list,
         description="Every distinct tag on the agents the caller may list, the same way",
     )
+
+
+SystemAgentKindLiteral = Literal["judge", "drafter", "generator", "classifier", "improver"]
+
+
+class SystemAgentCreate(BaseSchema):
+    """A system agent of the organization's own, made from its kind's definition."""
+
+    kind: SystemAgentKindLiteral = Field(
+        description="Which kind of system agent to create and pick where it runs"
+    )
+    name: str = Field(min_length=1, max_length=128)
+    model_profile_id: UUID | None = Field(
+        default=None, description="The model it runs on; the organization's oldest if omitted"
+    )
+    visibility: Visibility = Field(default=Visibility.ORG)
 
 
 class AgentCreate(AudienceChoice):
@@ -401,6 +457,13 @@ class AgentVersionRead(BaseSchema):
         ),
     )
     created_at: datetime | None = None
+    overrides: list[PromotionOverrideRead] = Field(
+        default_factory=list,
+        description=(
+            "Each time this version was promoted onto an environment past eval suites "
+            "that had not passed on it - who, why, and each suite's state then"
+        ),
+    )
 
 
 class AgentVersionDetail(AgentVersionRead):
@@ -532,6 +595,14 @@ class CapabilityCatalogEntry(BaseSchema):
     description: str
     side_effecting: bool = Field(
         description="The default answer for every tool below: gate it unless waived"
+    )
+    read_only: bool = Field(
+        default=False,
+        description=(
+            "The default answer for every tool below in an eval: run it on the normal "
+            "connections. False means it writes, and an eval blocks it unless the "
+            "environment gives it a test connection"
+        ),
     )
     tools: list[CapabilityToolInfo] = Field(
         description=(

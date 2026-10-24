@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { AddToDatasetDialog } from "@/components/datasets/add-to-dataset-dialog";
+import {
+  AlsoAddToDataset,
+  type AlsoAddToDatasetHandle,
+} from "@/components/datasets/also-add-to-dataset";
+import type { AskedBefore } from "@/components/datasets/follows-on";
+import { useCanAddToDataset } from "@/components/datasets/use-dataset-target";
 import { TURN_ACTION } from "./turn-action";
 
 interface RatingButtonsProps {
@@ -28,7 +35,11 @@ interface RatingButtonsProps {
     rating_count: { likes: number; dislikes: number };
   }) => void;
   isAssistant: boolean;
+  /** The question this answer replied to, for Add to dataset to offer its history. */
+  asked?: AskedBefore;
 }
+
+const ADD_TOAST_MS = 10_000;
 
 export function RatingButtons({
   messageId,
@@ -37,6 +48,7 @@ export function RatingButtons({
   ratingCount,
   onRatingChange,
   isAssistant,
+  asked,
 }: RatingButtonsProps) {
   const t = useTranslations("chat");
   const tc = useTranslations("common");
@@ -48,6 +60,10 @@ export function RatingButtons({
   // Which button's request is in flight, not what the rating is: keying the
   // spinner on currentRating (null on an unrated message) spins both thumbs.
   const [inFlight, setInFlight] = useState<RatingValue | null>(null);
+  const datasetChoice = useRef<AlsoAddToDatasetHandle>(null);
+  const tDatasets = useTranslations("datasets");
+  const canAddToDataset = useCanAddToDataset();
+  const [addingReference, setAddingReference] = useState(false);
 
   const calculateNewCounts = useMemo(
     () =>
@@ -76,7 +92,18 @@ export function RatingButtons({
         await rateMessage({ rating, comment: commentText });
         const newCounts = calculateNewCounts(currentRating, rating);
         onRatingChange?.({ rating, rating_count: newCounts });
-        toast.success(t("thankYouFeedback"));
+        if (rating === RatingValue.LIKE && canAddToDataset) {
+          // A thumbs-up asks nothing, so the add is a toast's action rather than
+          // a dialog in the way of every good answer.
+          toast.success(t("thankYouFeedback"), {
+            duration: ADD_TOAST_MS,
+            action: { label: tDatasets("addToDataset"), onClick: () => setAddingReference(true) },
+          });
+        } else {
+          toast.success(t("thankYouFeedback"));
+        }
+        // After the rating, so its comment is there to become the case's note.
+        await datasetChoice.current?.addIfChosen();
         setShowCommentDialog(false);
         setComment("");
       } catch (error) {
@@ -85,7 +112,16 @@ export function RatingButtons({
         setInFlight(null);
       }
     },
-    [rateMessage, currentRating, calculateNewCounts, onRatingChange, t, tErrors],
+    [
+      rateMessage,
+      currentRating,
+      calculateNewCounts,
+      onRatingChange,
+      canAddToDataset,
+      t,
+      tDatasets,
+      tErrors,
+    ],
   );
 
   // No guard against a missing conversation id here: both buttons are
@@ -181,6 +217,7 @@ export function RatingButtons({
             maxLength={2000}
             autoFocus
           />
+          <AlsoAddToDataset messageId={messageId} ref={datasetChoice} asked={asked} />
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-xs">{comment.length} / 2000</span>
             <div className="flex gap-2">
@@ -206,6 +243,16 @@ export function RatingButtons({
           </div>
         </DialogContent>
       </Dialog>
+      {addingReference && (
+        <AddToDatasetDialog
+          open
+          onOpenChange={setAddingReference}
+          messageId={messageId}
+          answerAs="reference_answer"
+          askAnswerAs={false}
+          asked={asked}
+        />
+      )}
     </>
   );
 }

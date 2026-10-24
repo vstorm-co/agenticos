@@ -31,11 +31,14 @@ is not ceremony.
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import UUID
 
 from pydantic_ai.workspaces import Workspace
 
+from app.agents.capabilities.skills import SkillBody
 from app.db.models.skill import Skill
 from app.services.skill_library import split_frontmatter
 
@@ -89,6 +92,9 @@ class SkillChange:
     skill_id: Any | None
     """The stored skill this edits, or `None` for one the agent created."""
 
+    base_version: int | None
+    """The version of the skill the agent was given, or `None` for one it created."""
+
     description: str
     content: str
     resources: dict[str, str]
@@ -106,25 +112,34 @@ class MaterialisedSkills:
     written: dict[str, str] = field(default_factory=dict)
     #: `directory name -> skill id`, for attributing a change back to a row.
     owners: dict[str, Any] = field(default_factory=dict)
+    #: `directory name -> skill version` written, so a change applies only onto it.
+    versions: dict[str, int] = field(default_factory=dict)
 
 
 def skill_dir(name: str) -> str:
     return f"{SKILLS_ROOT}/{name}"
 
 
-def render_body(skill: Skill) -> str:
-    """The skill as `SKILL.md`, in the format `split_frontmatter` reads back.
+def render_body(skill: Skill, body: SkillBody | None = None) -> str:
+    """The skill as `SKILL.md`, in the format `split_frontmatter` reads back, with `body` in its place.
 
     The name and description are in the frontmatter rather than implied by the
     directory, because they are what the agent edits when it improves a skill's
     one-line summary - and a summary is the only thing other agents read before
     deciding whether to load the body at all.
     """
-    return f"---\nname: {skill.name}\ndescription: {skill.description}\n---\n\n{skill.content}\n"
+    description = skill.description if body is None else body.description
+    content = skill.content if body is None else body.content
+    return f"---\nname: {skill.name}\ndescription: {description}\n---\n\n{content}\n"
 
 
-async def materialise(workspace: Workspace, skills: list[Skill]) -> MaterialisedSkills:
+async def materialise(
+    workspace: Workspace, skills: list[Skill], bodies: Mapping[UUID, SkillBody] | None = None
+) -> MaterialisedSkills:
     """Write each skill into the workspace, and remember what was written.
+
+    A skill in `bodies` is written with that body instead of its stored one - the
+    same candidate the capability serves, so the file and `load_capability` agree.
 
     Never raises. A workspace that refuses a write - past its storage ceiling,
     holding a path the backend rejects - must not stop the run: the skills are
@@ -139,7 +154,10 @@ async def materialise(workspace: Workspace, skills: list[Skill]) -> Materialised
     state = MaterialisedSkills()
     for skill in skills:
         state.owners[skill.name] = skill.id
-        files = {f"{skill_dir(skill.name)}/{BODY_FILE}": render_body(skill)}
+        state.versions[skill.name] = skill.version
+        files = {
+            f"{skill_dir(skill.name)}/{BODY_FILE}": render_body(skill, (bodies or {}).get(skill.id))
+        }
         for resource in skill.resources:
             files[f"{skill_dir(skill.name)}/{resource.name}"] = resource.content
         for path, content in files.items():
@@ -189,7 +207,7 @@ async def collect_changes(workspace: Workspace, state: MaterialisedSkills) -> li
             path: content for path, content in state.written.items() if _skill_of(path) == name
         }:
             continue
-        change = _to_change(name, files, state.owners.get(name))
+        change = _to_change(name, files, state.owners.get(name), state.versions.get(name))
         if change is not None:
             changes.append(change)
     return changes
@@ -243,7 +261,9 @@ def _skill_of(path: str) -> str | None:
     return parts[0] if len(parts) == 2 else None
 
 
-def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillChange | None:
+def _to_change(
+    name: str, files: dict[str, str], skill_id: Any | None, base_version: int | None
+) -> SkillChange | None:
     """One skill's files as a proposal, or `None` if they are not a skill.
 
     A directory with no `SKILL.md` is refused rather than filled in: the body is
@@ -267,6 +287,7 @@ def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillC
     return SkillChange(
         name=name,
         skill_id=skill_id,
+        base_version=base_version,
         description=str(frontmatter.get("description") or ""),
         content=instructions.strip(),
         resources={

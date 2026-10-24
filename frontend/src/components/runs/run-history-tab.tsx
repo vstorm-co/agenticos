@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { useAgents, useMembers, usePermissions, useRuns } from "@/hooks";
+import { useJudges } from "@/hooks/use-agents";
 import { useOrgStore } from "@/stores";
 import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { isNarrowed, type RunFilters } from "@/lib/runs/filter-params";
@@ -38,6 +39,14 @@ const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded", "loop_stoppe
 
 /** One server page - `GET /runs`' own default, so an unpaged call reads the same. */
 const PAGE_SIZE = 50;
+
+/**
+ * The eval traffic - an eval run answering a dataset, and the judge grading it -
+ * is left out unless asked for: one run of a hundred cases buries every person.
+ * `all` is everything else, `every` puts it back, and `eval` is it alone.
+ */
+const EVAL_SURFACE = "eval";
+const WIDE_SURFACES = new Set(["all", "every"]);
 
 /**
  * Run history, and whichever sentence says what it has been narrowed to.
@@ -100,11 +109,13 @@ export function RunHistoryTab({
   // column is too. The member list is any member's to read.
   const canAgents = can(Perm.agentsView);
   const { agents: agentRows } = useAgents({ enabled: canAgents });
+  // Judges are agents every other list leaves out, and their grading runs here too.
+  const { agents: judges } = useJudges({ enabled: canAgents });
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
   const agentsById = useMemo(
-    () => new Map(agentRows.map((agent) => [agent.id, agent])),
-    [agentRows],
+    () => new Map([...agentRows, ...judges].map((agent) => [agent.id, agent])),
+    [agentRows, judges],
   );
   const membersById = useMemo(
     () => new Map(members.map((member) => [member.user_id, member])),
@@ -166,7 +177,8 @@ export function RunHistoryTab({
         : filters.status === "problems"
           ? PROBLEM_STATUSES
           : [filters.status],
-    surface: filters.surface === "all" ? undefined : filters.surface,
+    surface: WIDE_SURFACES.has(filters.surface) ? undefined : filters.surface,
+    excludeSurface: filters.surface === "all" ? EVAL_SURFACE : undefined,
     modality: filters.modality === "all" ? undefined : filters.modality,
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
@@ -191,7 +203,8 @@ export function RunHistoryTab({
     exportParams.status =
       filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
   }
-  if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (!WIDE_SURFACES.has(filters.surface)) exportParams.surface = filters.surface;
+  if (filters.surface === "all") exportParams.exclude_surface = EVAL_SURFACE;
   if (filters.modality !== "all") exportParams.modality = filters.modality;
   if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;

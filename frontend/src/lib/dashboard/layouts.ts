@@ -327,6 +327,8 @@ const ME_SECTIONS: SectionDef[] = [
       // under three cards of history, which is the wrong way round.
       { widget: "approvals", span: "s6", rows: "r3" },
       { widget: "conversations", span: "s6", rows: "r3" },
+      // The agents to look at, each a click from improving it.
+      { widget: "needs-attention", span: "s12", rows: "r2" },
       // Where their ongoing work is, a row of tiles under what they left open.
       { widget: "projects", span: "s12", rows: "r2" },
       { widget: "my-agents", span: "s6", rows: "r3" },
@@ -335,6 +337,18 @@ const ME_SECTIONS: SectionDef[] = [
       // under its figure and legend, which said nothing either.
       { widget: "my-quality", span: "s6", rows: "r3" },
       { widget: "shared-with-you", span: "s6", rows: "r3" },
+      // Every role reads datasets, and a member collecting cases from their own
+      // ratings and deciding the scores sent for review is who this page is for.
+      { widget: "datasets", span: "s6", rows: "r3" },
+      { widget: "review-queue", span: "s6", rows: "r3" },
+      // How the agents fared on those datasets: the latest eval runs and their
+      // verdicts, beside the suites that run them on their own.
+      { widget: "eval-runs", span: "s6", rows: "r3" },
+      { widget: "eval-suites", span: "s6", rows: "r3" },
+      // What waits on the reader to improve an agent: the assistant's suggestions
+      // beside the questions its knowledge could not answer.
+      { widget: "authoring-suggestions", span: "s6", rows: "r3" },
+      { widget: "knowledge-gaps", span: "s6", rows: "r3" },
       // What agents drew for them lately, as pictures: the one card here that is
       // something to look at rather than a list to read. Four rows, so a
       // thumbnail is big enough to tell one drawing from another.

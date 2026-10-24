@@ -33,12 +33,14 @@ from app.repositories import agent_environment as agent_environment_repo
 from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import agent_trigger as agent_trigger_repo
+from app.repositories import intercepted_tool_call as intercepted_tool_call_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
 from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
+from app.repositories import authoring as authoring_repo
 from app.repositories import audit_log as audit_log_repo
 from app.repositories import personal_data as personal_data_repo
 from app.repositories import ingestion_spend as ingestion_spend_repo
@@ -52,6 +54,15 @@ from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
+from app.repositories import context_proposal as context_proposal_repo
+from app.repositories import case_score as case_score_repo
+from app.repositories import dataset as dataset_repo
+from app.repositories import case_generation as case_generation_repo
+from app.repositories import eval_run as eval_run_repo
+from app.repositories import eval_suite as eval_suite_repo
+from app.repositories import improvement as improvement_repo
+from app.repositories import knowledge_gap as knowledge_gap_repo
+from app.repositories import promotion_gate as promotion_gate_repo
 from app.repositories import memory as memory_repo
 
 from app.repositories import invitation as invitation_repo
@@ -129,19 +140,30 @@ __all__ = [
     "embed_visitor_repo",
     "agent_run_repo",
     "agent_trigger_repo",
+    "intercepted_tool_call_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
     "pending_sandbox_destroy_repo",
     "sandbox_connection_repo",
     "sandbox_operation_repo",
     "skill_proposal_repo",
+    "authoring_repo",
     "ingestion_spend_repo",
     "retention_repo",
     "skill_repo",
     "api_key_repo",
     "oauth_repo",
     "artifact_repo",
+    "context_proposal_repo",
     "context_repo",
+    "case_score_repo",
+    "dataset_repo",
+    "case_generation_repo",
+    "eval_run_repo",
+    "eval_suite_repo",
+    "improvement_repo",
+    "promotion_gate_repo",
+    "knowledge_gap_repo",
     "memory_repo",
     "notification_repo",
     "voice_call_repo",

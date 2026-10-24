@@ -1,5 +1,5 @@
 ---
-source_sha: "6e9ccd7fcca1"
+source_sha: "9f23de45205f"
 ---
 
 # Glosario { #glossary }
@@ -27,8 +27,14 @@ tal como se ven en pantalla.
 | Skill | Saber hacer escrito una vez y leído por cualquier agent que lo necesite | `skill` |
 | Context file | Conocimiento fijo que un agent siempre tiene, como un glosario o una política | `context` |
 | Knowledge base | Documentos que un agent busca y cita | `collection` |
+| Knowledge gap | Un tema de preguntas que una knowledge base no pudo responder, agrupadas por significado | `knowledge_gap_topic` |
 | App | Una página que publica un agent, como un informe o un pequeño panel | `artifact` |
 | Architect | El asistente en la esquina de cada página, que puede construir agents contigo | `platform-assistant` |
+| System agent | Un agent que ejecuta la propia plataforma, como un juez, el gap drafter o el gap classifier; aparece aparte en **System agents** | `kind` distinto de `agent` |
+| Asistente de autoría | Sugiere cambios a un agent, un skill o un archivo de contexto a partir de respuestas valoradas negativamente; una persona decide cada uno | `authoring` |
+| Sugerencia | Un cambio propuesto al draft, que se acepta, edita o descarta por separado | `spec_proposal_hunk` |
+| Cambio de ajuste | Una sugerencia de cambiar una parte de la configuración de un agent, como su modelo o una capability | hunk `spec_field` |
+| Cambio a un archivo de contexto | Un cuerpo nuevo que el asistente propone para un archivo de contexto, aplicado o descartado en la página Context | `context_proposal` |
 | AgenticOS | El agent de uso general con el que una organización nueva empieza en Chat, y aquello con lo que empieza un agent nuevo | `general/agenticos` |
 
 ## Dónde se ejecuta { #where-it-runs }
@@ -38,8 +44,11 @@ tal como se ven en pantalla.
 | Chat | La conversación web con un agent | `conversation` |
 | Channel | Slack, Telegram o Mattermost, donde las personas hablan con un agent | `channel_bot` |
 | Routine | Un agent que se ejecuta solo, con un horario o un evento | `trigger` |
+| Suite de evals | Un dataset con el que se mide un agent, ejecutado con un horario, al publicar o promocionar, o tras un cambio | `eval_suite` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
 | Environment | Una etapa con nombre, como producción, que apunta a una versión | `environment` |
+| Guardiana | Una suite de evals que un entorno exige que pase en una versión antes de aceptarla | `guard_suite_ids` |
+| Excepción | Una promoción por encima de guardianas que no pasaron, con un motivo | `override_reason` |
 | MCP server | Un servidor de herramientas externo al que llaman los agents, conectado una vez | `mcp_connection` |
 | Remote agent | El agent de otro proveedor, al que se llega por A2A y en el que delegan los agents | `external_agent` |
 | Agent2Agent (A2A) | El protocolo con el que los agents de otros sistemas envían tareas a un agent | `a2a_enabled` |
@@ -57,6 +66,20 @@ tal como se ven en pantalla.
 | Budget | Un límite de gasto que detiene los runs al alcanzarse | `budget` |
 | Guardrails | Comprobaciones que redactan o bloquean lo que pasa por un run | `guardrails` |
 | Vault | Donde se guardan claves y tokens, sellados y nunca más mostrados | `secret` |
+
+## Cómo se prueba { #how-it-is-tested }
+
+| En la consola | Qué es | En la API y el spec |
+|---|---|---|
+| Dataset | Casos de prueba versionados con los que se comparan las respuestas de un agent | `dataset` |
+| Case | Una pregunta y aquello con lo que se compara una buena respuesta | `dataset_case` |
+| Grading | Cómo se puntúan las respuestas de un dataset: comprobaciones, la respuesta de referencia y un juez | `scoring` |
+| Judge | Un agent que califica respuestas para evals; solo lo ejecuta la plataforma | `kind: judge` |
+| Eval | Un agent que responde cada caso de un dataset, puntuado y comparado con una versión anterior | `eval_run` |
+| Review | Puntuaciones que esperan a que una persona las confirme o las cambie | `review_state` |
+| Case generator | El agent de sistema que redacta casos a partir de un agent, su conocimiento, chats reales y red teaming | `kind: generator` |
+| Proposed case | Un caso redactado que espera en **Generated** hasta que una persona lo acepta o lo descarta | `case_proposal` |
+| Red teaming | Casos que comprueban que un agent rechaza lo que debe rechazar | etiqueta `red-team` |
 
 ## Capabilities { #capabilities }
 

@@ -331,6 +331,17 @@ async def set_chat_approval_waiver(
     return org
 
 
+async def set_ai_assistance(db: AsyncSession, org: Organization, *, enabled: bool) -> Organization:
+    """Switch the model-backed eval and authoring features on or off.
+
+    Its own function for the reason :func:`set_chat_approval_waiver` is.
+    """
+    org.ai_assistance_enabled = enabled
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_speech_settings(
     db: AsyncSession,
     org: Organization,

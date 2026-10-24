@@ -25,6 +25,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
@@ -37,10 +38,16 @@ from app.core.secret_kinds import (
 )
 from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
-from app.repositories import credential_repo, organization_repo, organization_secret_repo
+from app.repositories import (
+    credential_repo,
+    eval_run_repo,
+    organization_repo,
+    organization_secret_repo,
+)
 from app.services.model_catalog import models_for
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
+from app.services.system_agents import SystemAgentService
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +268,7 @@ class ModelProfileService:
             target_id=str(profile.id),
             details={"label": label, "provider": provider, "model": model},
         )
+        await SystemAgentService(self.db).adopt_model(organization_id=ctx.organization_id)
         return profile
 
     async def _context_length(self, ctx: AuthContext, provider: str, model: str) -> int | None:
@@ -286,6 +294,25 @@ class ModelProfileService:
         return next((entry.context_length for entry in models if entry.id == model), None)
 
     async def delete_profile(self, ctx: AuthContext, profile_id: UUID) -> None:
+        """Remove a model profile.
+
+        Raises:
+            NotFoundError: The organization has no such profile.
+            ConcurrentChangeError: A queued or running eval run has a side on it.
+                Removing it would null that side's model, and its remaining cases
+                would answer on another model than the ones before them.
+        """
+        live = await eval_run_repo.count_live_with_model(
+            self.db, model_profile_id=profile_id, organization_id=ctx.organization_id
+        )
+        if live:
+            raise ConcurrentChangeError(
+                message=(
+                    f"{live} eval run(s) on this model are still queued or running. "
+                    "Remove it once they finish, or cancel them first."
+                ),
+                details={"profile_id": str(profile_id), "eval_runs": live},
+            )
         # The organization's proactive work may run on this model. Its column
         # clears itself on delete, and on without a model is off in practice - so
         # it is switched off here, in the same transaction, rather than left

@@ -13,6 +13,8 @@ type Environment = {
   is_default: boolean;
   tracks_latest: boolean;
   behind_by: number;
+  connections: { kind: "mcp" | "secret"; production_id: string; test_id: string | null }[];
+  guard_suite_ids: string[];
 };
 
 const state = {
@@ -23,6 +25,8 @@ const state = {
   setReleaseMode: { mutate: vi.fn(), isPending: false },
   rename: { mutateAsync: vi.fn(), isPending: false },
   remove: { mutate: vi.fn(), isPending: false },
+  setConnections: { mutate: vi.fn(), isPending: false },
+  setGuards: { mutate: vi.fn(), isPending: false },
 };
 
 const versionsState = {
@@ -34,6 +38,9 @@ vi.mock("@/hooks", () => ({
   useAgentEnvironments: () => state,
   useAgentVersions: () => versionsState,
   useAllAgentVersions: () => versionsState,
+  useOrgMcpConnections: () => ({ connections: [{ id: "crm", name: "crm" }] }),
+  useSecrets: () => ({ secrets: [] }),
+  usePermissions: () => ({ can: () => true }),
 }));
 
 function environment(
@@ -50,6 +57,8 @@ function environment(
     is_default,
     tracks_latest: false,
     behind_by: 0,
+    connections: [],
+    guard_suite_ids: [],
     ...extra,
   };
 }
@@ -62,6 +71,7 @@ beforeEach(() => {
   state.setReleaseMode = { mutate: vi.fn(), isPending: false };
   state.rename = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
   state.remove = { mutate: vi.fn(), isPending: false };
+  state.setConnections = { mutate: vi.fn(), isPending: false };
   versionsState.versions = [
     { id: "v3-id", version: 3 },
     { id: "v2-id", version: 2 },
@@ -221,6 +231,8 @@ describe("the environments panel", () => {
         is_default: false,
         tracks_latest: false,
         behind_by: 0,
+        connections: [],
+        guard_suite_ids: [],
       },
     ];
     render(<EnvironmentsPanel agentId="a1" canManage />);
@@ -396,5 +408,64 @@ describe("the environments panel", () => {
     render(<EnvironmentsPanel agentId="a1" canManage />);
 
     expect(screen.getByRole("button", { name: "Remove staging" })).toBeDisabled();
+  });
+
+  describe("test connections", () => {
+    it("are offered on a named environment and never on the default", () => {
+      // The default is production, which runs what the spec binds.
+      render(<EnvironmentsPanel agentId="a1" canManage />);
+
+      expect(screen.getAllByRole("button", { name: /^Test connections for/ })).toEqual([
+        screen.getByRole("button", { name: "Test connections for staging" }),
+      ]);
+    });
+
+    it("open on their environment's row and save through the mutation", async () => {
+      state.environments = [
+        environment("production", 3, true),
+        environment("staging", 2, false, {
+          connections: [{ kind: "mcp", production_id: "crm", test_id: null }],
+        }),
+      ];
+      const user = userEvent.setup();
+      render(<EnvironmentsPanel agentId="a1" canManage />);
+
+      const toggle = screen.getByRole("button", { name: "Test connections for staging" });
+      expect(toggle).toHaveTextContent("1");
+      await user.click(toggle);
+      await user.click(screen.getByRole("button", { name: "Remove crm" }));
+
+      expect(state.setConnections.mutate).toHaveBeenCalledWith({
+        environmentId: "staging-id",
+        connections: [],
+      });
+      await user.click(toggle);
+      expect(screen.queryByText(/evals included/)).not.toBeInTheDocument();
+    });
+
+    it("point the walkthrough at the first named environment, wherever the default sits", () => {
+      state.environments = [
+        environment("staging", 2),
+        environment("production", 3, true),
+        environment("dev", 1),
+      ];
+      render(<EnvironmentsPanel agentId="a1" canManage />);
+
+      expect(screen.getByRole("button", { name: "Test connections for staging" })).toHaveAttribute(
+        "data-tour",
+        "environment-connections",
+      );
+      expect(screen.getByRole("button", { name: "Test connections for dev" })).not.toHaveAttribute(
+        "data-tour",
+      );
+    });
+
+    it("are not offered to someone who cannot manage environments", () => {
+      render(<EnvironmentsPanel agentId="a1" canManage={false} />);
+
+      expect(
+        screen.queryByRole("button", { name: /^Test connections for/ }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

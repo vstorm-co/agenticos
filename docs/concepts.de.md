@@ -1,5 +1,5 @@
 ---
-source_sha: "ea4e850dac4a"
+source_sha: "5cbd208ceaa2"
 ---
 
 # Begriffe { #concepts }
@@ -243,7 +243,7 @@ Approval parkt ihn gleich, das Audit-Protokoll benennt ihn gleich.
 
 Er ist mit der Oberfläche `schedule` gestempelt, sodass *wie wird dieser Agent
 genutzt* einen unbeaufsichtigten Run von dem einer Person unterscheiden kann.
-Jedes Auslösen ist ein eigener Run in Activity, und seine Antworten sammeln sich
+Jedes Auslösen ist ein eigener Run in **Aktivität** (Activity), und seine Antworten sammeln sich
 in einer Run-Log-Unterhaltung, die der Trigger einmal eröffnet — sofort, sobald
 der Trigger angelegt ist, sodass er ein anklickbarer Eintrag ist, bevor er je
 ausgelöst hat. Ein Trigger kann außerdem jede Antwort in einem Teams-Channel oder
@@ -627,6 +627,85 @@ Obergrenzen und die Tools, und
 wer an was delegieren darf.
 
 ---
+
+## System-Agents { #system-agents }
+
+Manche Agents werden von der Plattform gestartet und nicht von einem Menschen:
+**Bewerter**, die Antworten für die [Bewertung von Datasets](datasets.md#judge)
+benoten, der **Knowledge gap drafter**, der die Passage entwirft, die einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt, und der
+**Knowledge gap classifier**, der Antworten auf
+[Fragen liest, die eine Wissensbasis nicht beantworten konnte](knowledge-gaps.md#answers-and-comments).
+Das sind **System-Agents**. Die Art eines Agents sagt, welcher er ist - `agent`
+für die, die Menschen benutzen, `judge`, `drafter` und `classifier` für diese.
+Jede Organisation erhält bei ihrer Erstellung den Standard-Bewerter
+**Eval judge**, den Drafter und den Klassifizierer, eine
+früher erstellte Organisation erhält jeden davon, sobald etwas ihn zum ersten
+Mal braucht, und ein Dataset kann einen eigenen Bewerter bekommen.
+
+Ein System-Agent wird von der Plattform ausgeführt und ist kein Agent, den
+Menschen benutzen. Agents führt sie getrennt, in einem eingeklappten Band
+**System-Agents** unter **Agents**, nach Art gruppiert: zuerst die **Bewerter**
+- jede Karte sagt, welche Datasets er bewertet -, dann der
+**Lücken-Entwerfer** und zuletzt der **Lücken-Klassifizierer**. Der von der
+Plattform angelegte Agent jeder Art ist als Standard seiner Art markiert -
+**Standardbewerter**, **Standard-Fallgenerator** und so weiter. Agent-Auswahlen
+lassen sie weg.
+
+Wer `agents:edit` hat, öffnet einen, um Instruktionen, Modell und Budget zu
+ändern, aus dem Band oder, beim Drafter, über **Anweisungen des Drafters
+bearbeiten** an einem Entwurf. Die Seite eines Bewerters enthält diese, seine
+Limits, seinen Verlauf und die Datasets, die ihn gewählt haben, mit Bewertung
+oder ohne - jedes klappt seine letzten Bewertungen dort und die Eval-Runs auf,
+aus denen sie stammen - samt der Angabe, wie oft Menschen ihm bei den von ihm
+bewerteten und von ihnen entschiedenen Ergebnissen zustimmten, und sonst nichts.
+Die des Drafters und des Klassifizierers enthalten dasselbe ohne die Datasets.
+
+**New agent** → **Systemagent** erstellt jeden der fünf Typen: Bewerter,
+Fallgenerator, Lücken-Drafter, Lücken-Klassifizierer oder Verbesserungsassistent
+(`POST /agents/system`). Er beginnt mit den Anweisungen, der Temperatur und dem
+Budget seines Typs auf dem ersten Modell der Organisation und wird bei
+entsprechender Berechtigung veröffentlicht. Wählen Sie den Bewerter in der
+Dataset-Bewertung, den Generator beim Generieren, Wissenshelfer im Lücken-Tab
+der Wissensbasis und den Assistenten beim Verbessern. Standard ist jeweils der
+Agent der Organisation. Eine Auswahl muss den richtigen Typ haben,
+veröffentlicht und für den Benutzer ausführbar sein; eine fehlende Auswahl wird
+nie still durch den Standard ersetzt.
+
+Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
+und senden keine Run-Benachrichtigung. Ein System-Agent startet mit einem
+eigenen kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich
+ihr ganzes Budget für Evaluierung, Entwürfe oder das Prüfen von Antworten
+ausgibt.
+
+Auch der **Fallgenerator** ist ein System-Agent, von der Art `generator`: Er
+entwirft [Fälle für Datasets](datasets.md#generating-cases) und wird genauso
+angelegt, mit einem eigenen Budget. Er steht im selben Band, nach dem
+Drafter, und wird wie ein Bewerter geöffnet und bearbeitet; der Tab Generated eines
+Datasets verlinkt ihn für alle, die ihn bearbeiten dürfen.
+
+Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
+Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent
+lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
+
+Jeder Run eines System-Agents ist [isoliert](environments.md#in-an-eval) wie
+der eines Evals: Ein Tool, das liest, läuft, und eines, das etwas ändern würde,
+wird zurückgehalten und aufgezeichnet. Ein System-Agent liest Text, den niemand
+geprüft hat - eine zu bewertende Antwort, ein Dokument, ein Gespräch -, daher
+erreicht eine darin platzierte Anweisung keine Produktivverbindung über ein
+Tool, das jemand dem Agent hinzugefügt hat.
+
+Hat die Organisation bereits ein Model-Profil, wird ein System-Agent auf dem
+ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.
+Ohne eines wird er als Draft angelegt. Der mitgelieferte Eval judge, der
+Drafter und der Klassifizierer werden auf dem ersten Modell der Organisation
+veröffentlicht, sobald
+eines hinzugefügt wird; der eigene Bewerter eines Datasets wartet, bis ein
+Mensch sein Modell wählt und ihn veröffentlicht, und bis dahin sagen das die
+Funktionen, die ihn verwenden.
+
+Der [Schalter für KI-Unterstützung](governance.md#ai-assistance) der
+Organisation entscheidet, ob System-Agents überhaupt laufen.
 
 ## Model-Profile { #model-profiles }
 

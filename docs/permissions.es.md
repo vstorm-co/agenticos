@@ -1,5 +1,5 @@
 ---
-source_sha: "cf1f7216bba3"
+source_sha: "58c124e02871"
 ---
 
 # Permisos { #permissions }
@@ -97,8 +97,14 @@ Dos clases de permiso, y se comportan de forma distinta.
 
 Los permisos **globales** son binarios y valen para toda la organización:
 `members:view`, `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
-`budgets:manage`, `approvals:decide`, `connections:view`, `connections:manage`,
+`budgets:manage`, `approvals:decide`, `promotions:override`, `connections:view`,
+`connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promociona una versión a un
+[entorno que guardan sus suites de evals](environments.md#guarding-a-promotion-with-evals)
+aunque no hayan pasado en ella, y cambia qué suites guardan uno. Lo tienen
+owners y admins; promocionar en sí sigue siendo `agents:publish` sobre el agent.
 
 `api_keys:create` permite a un miembro emitir [claves de
 API](api.md#organization-api-keys) para sí mismo; `api_keys:manage` lista y
@@ -373,15 +379,21 @@ hace falta filtrar") y una **lista vacía** para un contexto sin sujeto. Son
 opuestos, así que confundirlos ampliaría un listado a toda la organización
 justo en el momento en que debería estrecharse a nada.
 
-`accessible_ids` es la contraparte por lotes de `resolve_access`: dada una página
-de filas ya cargadas, devuelve el subconjunto sobre el que quien llama puede
-ejercer un permiso. Aplica la misma regla `max(role scope, grant)` por fila, pero
-lee todas las concesiones en una consulta en vez de una por fila, y ninguna
-cuando el rol alcanza todo. Es lo que rellena las banderas de capacidad de un
-listado - `AgentRead.can_run`, el suelo para ofrecer "new trigger" en una tarjeta
-- así que un Viewer con concesión de run ve el control ahí y en ningún otro
-sitio. Un contexto sin sujeto, y una entrada vacía, se resuelven al conjunto
-vacío antes de consultar.
+`accessible_ids` es la contraparte por lotes de `resolve_access`: dada una
+página de filas ya cargadas, devuelve el subconjunto sobre el que quien llama
+puede ejercer un permiso. Aplica la misma regla `max(role scope, grant)` por
+fila, pero lee todas las concesiones en una consulta en vez de una por fila, y
+ninguna cuando el rol alcanza todo.
+
+`accessible_ids` es lo que rellena las banderas de capacidad
+de un listado - `AgentRead.can_run`, el suelo para ofrecer "new trigger" en una
+tarjeta, `AgentRead.can_edit`, con el que la consola ofrece la edición en la
+página del agent, probar un borrador o detener un eval run, y
+`AgentRead.can_publish`, para publicar - así que un Viewer con concesión de run
+ve el control ahí y en ningún otro sitio.
+
+Un contexto sin sujeto, y una entrada vacía, se resuelven al conjunto vacío
+antes de consultar.
 
 Los listados de agents, skills y kb aceptan además `?shared_with_me=true`: solo
 las filas compartidas deliberadamente con quien llama - visibles para la

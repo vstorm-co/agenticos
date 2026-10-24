@@ -1,5 +1,5 @@
 ---
-source_sha: "75c53c320348"
+source_sha: "b4de2b407949"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -145,6 +145,44 @@ teilnimmt, im Feld `voice`: `live` auf dem eigenen Modell des Anrufs,
 Bot unter *Where this agent is available* gewählt, und die Veröffentlichung lehnt
 einen Spec ab, der diese Capability zu führen versucht — siehe
 [Chat-Kanal-Abfrage](#chat-channel-lookup).
+
+## Was ein Eval ausführt { #what-an-eval-runs }
+
+Ein Eval führt den Agent wirklich aus, also führt es ein Tool nur aus, wenn das
+Tool außerhalb des Runs nichts ändert oder eine Testverbindung der
+[Umgebung](../environments.md#in-an-eval) erreicht. Jede Capability erklärt,
+welche ihrer Tools nur lesen — `read_only`, neben `side_effecting` —, und ein
+Tool, das nichts erklärt, schreibt. Dies sind die Tools, die schreiben und die
+ein Eval anhält und aufzeichnet:
+
+| id | Tools, die schreiben |
+|---|---|
+| `artifacts` | `publish_artifact` |
+| `ask_user` | `ask_user_question` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `coding_agent` | `run_coding_agent` |
+| `image_generation` | `generate_image` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
+| `memory_mem0` | `remember` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `visuals` | `draw`, `revise_visual`, `read_visual` |
+
+Jedes andere Tool oben liest nur. Delegieren zählt als Lesen: Die eigenen Tools
+eines Delegaten unterliegen ihren eigenen Erklärungen. `side_effecting` und
+`read_only` beantworten verschiedene Fragen: Das erste ist, wonach die Freigabe
+standardmäßig fragt, das zweite, was ein Eval ausführen darf, und ein nicht
+erklärtes Tool ist beim ersten ungesperrt und beim zweiten blockiert.
+
+Eine Umgebung kann den Vault-Schlüssel einer Capability gegen einen Testschlüssel
+tauschen, aber ein getauschter Schlüssel macht einen Schreibvorgang nicht von
+sich aus sicher: Der Schlüssel von `browser_use` gehört dem gehosteten Browser
+oder seinem Proxy, während ihre `cdp_url` weiterhin den Browser nennt, der
+klickt.
+Eine Capability erklärt `test_key_isolates` nur, wenn allein der Schlüssel
+bestimmt, wohin ihre Schreibvorgänge gehen, und nie mit einer URL, einem Host
+oder einem Endpoint in ihrer Konfiguration. Keine mitgelieferte Capability
+erklärt es, also wird in einem Eval jeder Schreibvorgang oben aufgezeichnet,
+nicht ausgeführt, welcher Schlüssel auch immer gilt.
 
 ## Wissenssuche { #knowledge-search }
 

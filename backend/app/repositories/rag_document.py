@@ -3,6 +3,7 @@
 Contains database operations for RAGDocument entities.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 from uuid import UUID
@@ -15,6 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
@@ -126,6 +128,29 @@ async def get_for_kb(
     return list(rows), int(total)
 
 
+async def indexed_in(
+    db: AsyncSession, knowledge_base_ids: Sequence[UUID], *, organization_id: UUID, limit: int
+) -> list[RAGDocument]:
+    """The finished documents of these collections, oldest first, at most `limit`.
+
+    The tenant is checked on the collection, which is what an agent binds.
+    """
+    if not knowledge_base_ids:
+        return []
+    result = await db.execute(
+        select(RAGDocument)
+        .join(KnowledgeBase, KnowledgeBase.id == RAGDocument.knowledge_base_id)
+        .where(
+            RAGDocument.knowledge_base_id.in_(knowledge_base_ids),
+            RAGDocument.status == DocumentStatus.DONE.value,
+            KnowledgeBase.organization_id == organization_id,
+        )
+        .order_by(RAGDocument.created_at, RAGDocument.id)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def create(
     db: AsyncSession,
     *,
@@ -145,6 +170,7 @@ async def create(
     embedding_model: str | None = None,
     organizational_unit: str | None = None,
     initiated_by_user_id: UUID | None = None,
+    knowledge_gap_topic_id: UUID | None = None,
 ) -> RAGDocument:
     """Create a new RAG document record, claimed by `sync_source_id` when a sync opens it."""
     doc = RAGDocument(
@@ -163,6 +189,7 @@ async def create(
         embedding_model=embedding_model,
         organizational_unit=organizational_unit,
         initiated_by_user_id=initiated_by_user_id,
+        knowledge_gap_topic_id=knowledge_gap_topic_id,
     )
     db.add(doc)
     await db.flush()

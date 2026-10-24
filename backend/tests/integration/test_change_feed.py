@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_access_token
 from app.db.models.agent import Agent
+from app.db.models.dataset import Dataset
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
@@ -301,8 +302,9 @@ class TestPublishing:
 
 class TestVisibility:
     @pytest.mark.security
+    @pytest.mark.parametrize("resource", ["agent", "eval_suite", "eval_run"])
     async def test_a_viewer_hears_nothing_about_an_agent_they_cannot_read(
-        self, db: AsyncSession
+        self, db: AsyncSession, resource: str
     ) -> None:
         owner = await _person(db)
         organization = await _organization(db, owner)
@@ -311,8 +313,8 @@ class TestVisibility:
         shared = await _agent(db, organization, owner, Visibility.ORG)
         ctx = _ctx(organization, viewer, OrgRoleName.VIEWER)
 
-        hidden = _event(organization, owner, id=private.id)
-        seen = _event(organization, owner, id=shared.id)
+        hidden = _event(organization, owner, id=private.id, resource=resource)
+        seen = _event(organization, owner, id=shared.id, resource=resource)
 
         assert not await change_feed.visible(db, ctx, hidden)
         assert await change_feed.visible(db, ctx, seen)
@@ -654,3 +656,45 @@ class TestStream:
 
         assert socket.closed == (1011, "Live updates were interrupted")
         assert bus.pubsubs[0].closed
+
+
+class TestDatasetVisibility:
+    @pytest.mark.security
+    async def test_a_dataset_s_change_reaches_only_who_may_read_it(self, db: AsyncSession) -> None:
+        """A generation finishing on a private dataset says it exists and changed."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        granted = await _join(db, organization, OrgRoleName.VIEWER)
+        private, shared = (
+            Dataset(
+                organization_id=organization.id,
+                owner_user_id=owner.id,
+                visibility=visibility,
+                name=f"refunds-{visibility}",
+            )
+            for visibility in (Visibility.PRIVATE, Visibility.ORG)
+        )
+        db.add_all([private, shared])
+        await db.flush()
+        db.add(
+            ResourceGrant(
+                organization_id=organization.id,
+                resource_type="dataset",
+                resource_id=private.id,
+                subject_user_id=granted.id,
+                level=GrantLevel.READ,
+            )
+        )
+        await db.flush()
+        hidden = _event(organization, owner, resource="dataset", id=private.id, surface="run")
+        seen = _event(organization, owner, resource="dataset", id=shared.id, surface="run")
+
+        assert not await change_feed.visible(
+            db, _ctx(organization, viewer, OrgRoleName.VIEWER), hidden
+        )
+        assert await change_feed.visible(db, _ctx(organization, viewer, OrgRoleName.VIEWER), seen)
+        assert await change_feed.visible(
+            db, _ctx(organization, granted, OrgRoleName.VIEWER), hidden
+        )
+        assert await change_feed.visible(db, _ctx(organization, owner, OrgRoleName.OWNER), hidden)

@@ -44,7 +44,9 @@ from app.db.models.channel_bot import ChannelBot
 from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
 from app.db.models.dashboard_layout import DashboardLayout
+from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.eval_suite import EvalSuite
 from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
@@ -72,7 +74,9 @@ from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.dashboard_layout import DashboardLayoutUpdate
+from app.schemas.dataset import DatasetCaseUpdate, DatasetUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
+from app.schemas.eval_suite import EvalSuiteUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
@@ -84,6 +88,7 @@ from app.schemas.project import ProjectUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
+from app.schemas.scoring import DatasetScoringUpdate, JudgeScorerUpdate
 from app.schemas.secret import SecretUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
@@ -108,6 +113,12 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     ArtifactUpdate: Artifact,
     ChannelBotUpdate: ChannelBot,
     ContextFileUpdate: ContextFile,
+    DatasetCaseUpdate: DatasetCase,
+    # Merged into the stored scoring, a JSONB document, and validated whole there.
+    DatasetScoringUpdate: None,
+    DatasetUpdate: Dataset,
+    EvalSuiteUpdate: EvalSuite,
+    JudgeScorerUpdate: None,
     ConversationUpdate: Conversation,
     DashboardLayoutUpdate: DashboardLayout,
     DeploymentSettingsUpdate: DeploymentSettings,
@@ -139,12 +150,14 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
 }
 
 # What is left, and none of it writes a row. `ingestion_config` merges two Pydantic
-# models - `exclude_unset` doing exactly what it is for - and `rag_document` puts an
+# models - `exclude_unset` doing exactly what it is for - as `scoring` merges a
+# grading change into the stored scoring before validating it whole; `rag_document` puts an
 # override into a JSONB payload, where a null is a value the column can hold.
 # `voice/transport` serializes a call's server frame for the socket, so a field the
 # frame was not built with stays off the wire; there is no row and no `over`.
 _DUMP_EXEMPT = {
     "app/services/ingestion_config.py",
+    "app/services/scoring.py",
     "app/services/rag_document.py",
     "app/services/voice/transport.py",
 }
@@ -214,6 +227,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
         """
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
+            "DatasetScoringUpdate",
+            "JudgeScorerUpdate",
             "NotificationPreferenceUpdate",
             "VisibilityUpdate",
         }

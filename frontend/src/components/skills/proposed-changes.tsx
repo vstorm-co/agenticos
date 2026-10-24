@@ -12,6 +12,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui";
+import { EvidenceList } from "@/components/authoring/evidence-list";
+import { GoesLive } from "@/components/authoring/goes-live";
+import { SkillCheckButton } from "@/components/authoring/skill-check-button";
 import { useSkillChanges } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
@@ -66,8 +69,8 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
             key={change.id}
             change={change}
             disabled={isDeciding}
-            onApply={() => void apply(change.id)}
-            onDiscard={() => void discard(change.id)}
+            onApply={() => void apply(change)}
+            onDiscard={() => void discard(change)}
           />
         ))}
       </CardContent>
@@ -108,6 +111,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           <p className="text-muted-foreground text-xs">
             {change.description || t("noDescriptionWorthAdding")}
           </p>
+          <GoesLive reaches={change.reaches} hidden={change.reaches_hidden} />
           {change.conversation_id !== null && (
             <a
               className="text-muted-foreground text-xs underline"
@@ -118,6 +122,9 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {change.skill_id !== null && change.authoring_request_id != null && (
+            <SkillCheckButton skillId={change.skill_id} proposalId={change.id} />
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -139,6 +146,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             {t("discard")}
           </Button>
           <Button
+            variant="outline"
             size="sm"
             disabled={disabled}
             onClick={onApply}
@@ -152,6 +160,15 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
 
       {open && (
         <div className="space-y-3">
+          {change.rationale && <p className="text-sm">{change.rationale}</p>}
+          {change.expected_effect && (
+            <p className="text-sm">
+              <span className="font-medium">{t("expectedEffect")}</span> {change.expected_effect}
+            </p>
+          )}
+          {change.authoring_request_id != null && (
+            <EvidenceList items={change.evidence ?? []} dropped={change.evidence_dropped ?? 0} />
+          )}
           <pre className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
             {change.content}
           </pre>

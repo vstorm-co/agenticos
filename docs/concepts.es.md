@@ -1,5 +1,5 @@
 ---
-source_sha: "ea4e850dac4a"
+source_sha: "5cbd208ceaa2"
 ---
 
 # Conceptos { #concepts }
@@ -596,6 +596,81 @@ techos y las tools, y
 puede delegar en qué.
 
 ---
+
+## System agents { #system-agents }
+
+Algunos agents los inicia la plataforma y no una persona: los **jueces**, que
+califican respuestas para la [calificación de datasets](datasets.md#judge), el
+**Knowledge gap drafter**, que redacta el fragmento que le falta a una
+[laguna de conocimiento](knowledge-gaps.md#drafting-the-missing-content), y el
+**Knowledge gap classifier**, que lee respuestas en busca de
+[preguntas que una base de conocimiento no pudo responder](knowledge-gaps.md#answers-and-comments).
+Son **agents del sistema**. El tipo de un agent dice cuál es: `agent` para los
+que usan las personas, `judge`, `drafter` y `classifier` para estos.
+
+Cada organización recibe el **Eval judge** por defecto, el drafter y el clasificador
+al crearse, una organización creada
+antes recibe cada uno la primera vez que algo lo necesita, y un dataset puede
+tener un juez propio.
+
+Un agent del sistema lo ejecuta la plataforma; no es un agent que usen las
+personas. Agents los muestra aparte, en una banda plegada **System agents** bajo
+**Agents**, agrupados por tipo: primero **Judges**, cada tarjeta diciendo qué
+datasets califica, y después el **Gap drafter** y, al final, el **Gap
+classifier**. El agent sembrado de cada tipo se marca como el predeterminado de
+ese tipo: **Default judge**, **Default case generator**, etc. Los selectores de
+agents los dejan fuera.
+
+Quien tiene `agents:edit` abre uno para cambiar sus instrucciones, su modelo y
+su budget, desde la banda o, para el drafter, desde **Edit the drafter's
+instructions** en un borrador. La página de un juez contiene eso, sus límites,
+su historial y los datasets que lo eligieron, califiquen o no (cada uno se abre
+en sus últimas calificaciones allí y los runs de eval de los que salieron), con
+cuántas veces las personas coincidieron con él en los resultados que calificó y
+ellas decidieron, y nada más. Las del drafter y del clasificador contienen lo
+mismo sin los datasets.
+
+**New agent** → **System agent** crea cualquiera de los cinco tipos: juez,
+generador de casos, redactor de lagunas, clasificador de lagunas o asistente de
+mejora (`POST /agents/system`). Usa las instrucciones, temperatura y presupuesto
+de su tipo sobre el primer modelo de la organización y se publica si tienes
+permiso. Elige el juez al puntuar datasets, el generador al generar casos, los
+ayudantes de conocimiento en la pestaña de lagunas y el asistente al mejorar.
+Cada opción usa por defecto el agente de la organización. La selección debe ser
+del tipo correcto, estar publicada y seguir siendo ejecutable por el usuario;
+una selección ausente nunca se sustituye silenciosamente por el valor predeterminado.
+
+Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
+notificación de run. Un agent del sistema empieza con un budget mensual pequeño
+propio, para que una organización nueva no gaste por accidente todo su budget en
+evaluación, en borradores o en revisar respuestas.
+
+El **generador de casos** también es un agent de sistema, del tipo `generator`:
+redacta [casos de datasets](datasets.md#generating-cases) y se siembra de la
+misma forma, con un budget propio. Aparece en la misma banda, después del
+drafter, y se abre y edita como un juez; la pestaña Generated de un dataset enlaza
+con él para quien puede editarlo.
+
+Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
+un canal, una programación y la delegación desde otro agent lo rechazan, en el
+servicio que iniciaría el run y no solo en la consola.
+
+Cada run de un agent del sistema está [aislado](environments.md#in-an-eval)
+como el de un eval: una herramienta que lee se ejecuta, y una que cambiaría algo
+se retiene y se registra. Un agent del sistema lee texto que nadie revisó - una
+respuesta que calificar, un documento, una conversación -, así que una
+instrucción colocada ahí no llega a una conexión de producción a través de una
+herramienta que un editor añadió al agent.
+
+Cuando la organización ya tiene un perfil de modelo, un agent del sistema se
+publica sobre el más antiguo, o sobre el que se eligió al crearlo. Sin ninguno,
+se crea como borrador. El Eval judge, el drafter y el clasificador que trae la plataforma se
+publican sobre el primer modelo de la organización en cuanto se añade uno; el
+juez propio de un dataset espera a que una persona elija su modelo y lo
+publique, y hasta entonces las funciones que lo usan lo indican.
+
+El [interruptor de asistencia de IA](governance.md#ai-assistance) de la
+organización decide si los agents del sistema se ejecutan en absoluto.
 
 ## Perfiles de modelo { #model-profiles }
 

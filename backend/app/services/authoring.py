@@ -1,0 +1,1540 @@
+"""The authoring assistant: asking it, reading what it proposed, and deciding.
+
+A person starts an Improve or a Verify on an agent - or an Improve on a skill -
+after seeing what it would read and cost; the work happens in the worker
+(:mod:`app.services.authoring_worker`). What it proposes waits here for a person:
+each hunk of an agent's batch is accepted into the draft, dismissed or undone on
+its own, and a skill change is applied or discarded on the Skills page. Nothing
+publishes and nothing changes an agent without that decision.
+
+**Who may do what.** Starting one needs `runs:view` - the evidence is runs -
+edit access to the target through its own grants, and use of the organization's
+improver, which also refuses while AI assistance is switched off. Deciding needs
+edit access to the agent and nothing more: a decision is not a model call, so it
+stays possible with the switch off.
+
+**A decision is one transaction with what it writes.** It locks the agent row
+and reads its draft afresh, so two decisions on one draft serialize instead of
+the second writing over the first; then it locks the batch row, so a decision
+and a newer request superseding the batch serialize; then it moves the hunk
+with a compare-and-set, so of two people deciding the same hunk one wins; then
+it writes the draft. A failure anywhere leaves all of it as it was.
+
+"Check with evals" runs a dataset against the draft as it would be with every
+pending hunk accepted - a projection, never stored - and leaves out the cases
+taken from the conversations the hunks were derived from.
+"""
+
+import logging
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Any, NamedTuple
+from uuid import UUID
+
+from pydantic_ai.usage import RunUsage
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.capabilities.budget import price_request
+from app.agents.capabilities.context import ContextBody
+from app.agents.capabilities.skills import SkillBody
+from app.agents.spec import AgentSpec
+from app.agents.system_agents import IMPROVER
+from app.core.audit import record_audit
+from app.core.config import settings
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+    PaymentRequiredError,
+)
+from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import Agent, AgentStatus
+from app.db.models.authoring import (
+    AuthoringKind,
+    AuthoringRequest,
+    AuthoringStatus,
+    AuthoringTarget,
+    BatchStatus,
+    HunkKind,
+    HunkStatus,
+    SpecProposalBatch,
+    SpecProposalHunk,
+)
+from app.db.models.context import ContextFile
+from app.db.models.eval_run import ArmRole, EvalRunPurpose, EvalRunStatus
+from app.db.models.skill import Skill
+from app.db.models.skill_proposal import ProposalStatus
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    authoring_repo,
+    context_proposal_repo,
+    eval_run_repo,
+    improvement_repo,
+    organization_repo,
+    skill_proposal_repo,
+)
+from app.schemas.authoring import (
+    AgentAuthoringRead,
+    AgentWaiting,
+    AuthoringEstimate,
+    AuthoringRequestRead,
+    AuthoringStart,
+    AuthoringWaiting,
+    BatchRead,
+    CreatedSkillBinding,
+    DecisionRead,
+    EvidenceItemRead,
+    FileWaiting,
+    HunkDecision,
+    HunkRead,
+    ProposalCheck,
+)
+from app.schemas.eval_run import (
+    EvalRunEstimate,
+    EvalRunRead,
+    EvalRunRequest,
+    ProposalCheckRecord,
+)
+from app.schemas.eval_threshold import EvalSuiteCheck
+from app.schemas.scoring import DatasetScoring
+from app.schemas.skill import SkillCreate
+from app.services import authoring_fields, authoring_hunks
+from app.services.access import AGENT, CONTEXT, SKILL, OwnedResource, ResourceType, accessible_ids
+from app.services.agent_registry import AgentRegistryService
+from app.services.authoring_config import ConfigurationService
+from app.services.authoring_evidence import EvidencePack, EvidenceService
+from app.services.background_jobs import enqueue
+from app.services.context import ContextService
+from app.services.eval_run import EvalRunService, spec_hash
+from app.services.eval_suite import EvalSuiteService
+from app.services.model_profile import ModelProfileService
+from app.services.skills import SkillService
+from app.services.spend import month_start, organization_monthly_spend
+from app.services.system_agent_runner import SystemAgentRunner
+from app.worker.jobs import RUN_AUTHORING, RunAuthoring
+
+logger = logging.getLogger(__name__)
+
+STALE_AFTER = timedelta(minutes=20)
+"""A request still marked running this long after it was last heard from has stopped."""
+
+QUEUED_STALE_AFTER = timedelta(hours=24)
+"""A request still waiting this long for a worker was lost rather than delayed.
+
+Far longer than :data:`STALE_AFTER`: a queue backed up behind long eval runs is
+slow, not broken, and a request it has not reached yet is still going to run.
+"""
+
+_OUTPUT_TOKENS = 1_500
+_PROMPT_TOKENS = 1_500
+_CHARS_PER_TOKEN = 4
+_CENT = Decimal("0.0001")
+
+
+_EDITABLE = frozenset(
+    {
+        "description",
+        "max_steps",
+        "model_settings/temperature",
+        "model_settings/top_p",
+        "model_settings/max_tokens",
+        "model_settings/timeout",
+        "model_settings/parallel_tool_calls",
+    }
+)
+"""The field changes whose value a person may edit before accepting, besides descriptions."""
+
+_STANDING_REFUSALS = {
+    "not_a_target": (
+        "This suggestion changes something the assistant may not propose. Make that change "
+        "in the Builder, or dismiss it."
+    ),
+    "weakens_protection": (
+        "This suggestion removes or reconfigures a safeguard, which the assistant may not "
+        "propose. Change safeguards in the Builder, or dismiss it."
+    ),
+}
+
+_GATE_MESSAGES = {
+    "check_first": (
+        "A change of model is accepted once it has paid off: run Check with evals on "
+        "these suggestions first, and accept it when the check shows no confirmed regression."
+    ),
+    "inconclusive": (
+        "The last check of this model left cases undecided - nothing graded them, the "
+        "provider or a scorer failed on them, or there was no verdict. Grade them or run "
+        "the check again before accepting."
+    ),
+    "check_outdated": "The check is out of date. Run a new check.",
+    "regression": (
+        "The last check of this model broke cases it used to pass. Fix the suggestions "
+        "or dismiss the change of model."
+    ),
+    "crashed": (
+        "The agent's run failed on cases in the last check of this model. Fix what "
+        "failed, then run the check again."
+    ),
+}
+
+
+def _changes_model(hunk: SpecProposalHunk) -> bool:
+    return hunk.kind == HunkKind.SPEC_FIELD.value and hunk.path == "model_profile_id"
+
+
+def _refers_to(hunk: SpecProposalHunk, key: str) -> bool:
+    """Whether a name belongs on this hunk's card."""
+    if hunk.kind != HunkKind.SPEC_FIELD.value:
+        return False
+    values = [hunk.base_value, hunk.new_value]
+    if hunk.path == "capabilities":
+        return any(
+            (value.get("id") if isinstance(value, dict) else value) == key for value in values
+        )
+    return any(str(value) == key for value in values) or key in (hunk.path or "")
+
+
+class _CheckRun(NamedTuple):
+    """The eval run a check asks for, and the suite it runs on, read together.
+
+    `scoring` is the scoring a guard suite is pinned to; None grades by the
+    dataset's own. `baseline_spec` is the draft when it runs as the baseline in
+    place of a version; `proposal` is what the check measures, kept on its run.
+    """
+
+    request: EvalRunRequest
+    suite: EvalSuiteCheck | None
+    scoring: DatasetScoring | None = None
+    judge_version_id: UUID | None = None
+    judge_pinned: bool = False
+    baseline_spec: AgentSpec | None = None
+    proposal: ProposalCheckRecord | None = None
+
+
+class AuthoringService:
+    """Start the assistant, read what it proposed, and decide on it."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+        self.registry = AgentRegistryService(db)
+        self.skills = SkillService(db)
+        self.contexts = ContextService(db)
+        self.runner = SystemAgentRunner(db)
+        self.evidence = EvidenceService(db)
+        self.models = ModelProfileService(db)
+
+    async def _improver(self, ctx: AuthContext, agent_id: UUID | None = None) -> Agent:
+        """The improver, once it is known the caller may run it now.
+
+        Raises:
+            AiAssistanceDisabledError: The organization switched AI assistance off.
+            SystemAgentUnavailableError: It cannot run for this caller.
+        """
+        return await self.runner.require_runnable(ctx, key=IMPROVER.key, agent_id=agent_id)
+
+    @staticmethod
+    def _require_runs_view(ctx: AuthContext) -> None:
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="The assistant reads runs, which needs runs:view",
+                details={"permission": Perm.RUNS_VIEW.value},
+            )
+
+    async def _editable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
+        agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message=f"Agent '{agent.name}' is archived", details={"agent_id": agent.id}
+            )
+        return agent
+
+    async def _improver_spec(self, ctx: AuthContext, improver: Agent) -> AgentSpec:
+        """The improver's published spec; `_improver` refused it unless it has one."""
+        assert improver.current_version_id is not None
+        version = await self.registry.get_version(ctx, improver.id, improver.current_version_id)
+        return AgentSpec.model_validate(version.spec)
+
+    async def estimate_agent(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        body: AuthoringStart,
+        *,
+        excluded_message_ids: Sequence[UUID] = (),
+        improvement_run_id: UUID | None = None,
+        evidence_dataset_id: UUID | None = None,
+    ) -> AuthoringEstimate:
+        """What an Improve or Verify on this agent would read and cost.
+
+        `excluded_message_ids` is an improvement session's, never a person's:
+        the answers it found missing knowledge, which the improver does not read.
+        """
+        self._require_runs_view(ctx)
+        agent = await self._editable(ctx, agent_id)
+        improver = await self._improver(ctx, body.improver_agent_id)
+        if body.kind == AuthoringKind.VERIFY.value:
+            base = await agent_repo.newest_version(
+                self.db, agent_id=agent.id, organization_id=ctx.organization_id
+            )
+            if base is None or AgentSpec.model_validate(base.spec) == AgentSpec.model_validate(
+                agent.draft_spec
+            ):
+                return await self._estimate(ctx, improver, EvidencePack(), "no_draft_change")
+        pack = (
+            await self.evidence.for_agent(
+                ctx,
+                agent.id,
+                window_days=body.window_days,
+                excluded_message_ids=excluded_message_ids,
+                dataset_id=evidence_dataset_id,
+            )
+            if improvement_run_id is None
+            else await self.evidence.for_improvement(
+                ctx, improvement_run_id, excluded_message_ids=excluded_message_ids
+            )
+        )
+        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+
+    async def estimate_skill(
+        self, ctx: AuthContext, skill_id: UUID, body: AuthoringStart
+    ) -> AuthoringEstimate:
+        """What an Improve on this skill would read and cost."""
+        self._require_runs_view(ctx)
+        skill = await self.skills.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        if body.kind != AuthoringKind.IMPROVE.value:
+            raise BadRequestError(
+                message="A skill has no draft to verify; review its pending change instead",
+                details={"kind": body.kind},
+            )
+        improver = await self._improver(ctx, body.improver_agent_id)
+        pack = await self.evidence.for_skill(ctx, skill.name, window_days=body.window_days)
+        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+
+    async def estimate_context(
+        self, ctx: AuthContext, context_id: UUID, body: AuthoringStart
+    ) -> AuthoringEstimate:
+        """What an Improve on this context file would read and cost."""
+        self._require_runs_view(ctx)
+        file = await self.contexts.get(ctx, context_id, perm=Perm.CONTEXT_EDIT)
+        if body.kind != AuthoringKind.IMPROVE.value:
+            raise BadRequestError(
+                message="A context file has no draft to verify; review its pending change instead",
+                details={"kind": body.kind},
+            )
+        improver = await self._improver(ctx, body.improver_agent_id)
+        pack = await self.evidence.for_context(ctx, file.id, window_days=body.window_days)
+        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+
+    async def _estimate(
+        self, ctx: AuthContext, improver: Agent, pack: EvidencePack, reason: str | None
+    ) -> AuthoringEstimate:
+        groups = pack.groups()
+        calls = 0 if not groups else (1 if len(groups) == 1 else len(groups) + 1)
+        evidence_chars = sum(len(run.render()) for run in pack.runs) + len(pack.training_feedback)
+        per_call = await self._per_call(ctx, improver, evidence_chars // max(1, len(groups)))
+        total = (per_call * calls).quantize(_CENT)
+        improver_left = await self._improver_left(ctx, improver)
+        org_left = await self._org_left(ctx)
+        return AuthoringEstimate(
+            runs=len(pack.runs),
+            rated_down=sum(1 for run in pack.runs if run.rating < 0),
+            calls=calls,
+            estimate_usd=total,
+            affordable=(improver_left is None or total <= improver_left)
+            and (org_left is None or total <= org_left),
+            reason=reason,
+        )
+
+    async def _per_call(self, ctx: AuthContext, improver: Agent, chars: int) -> Decimal:
+        """One improver call: its recent average, or a call this size at its model's price."""
+        average = await agent_run_repo.average_cost(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=improver.id,
+            sample=settings.EVAL_ESTIMATE_SAMPLE,
+        )
+        if average is not None:
+            return average
+        published = await self._improver_spec(ctx, improver)
+        if published.model_profile_id is not None:
+            model = await self.models.resolve(ctx, profile_id=published.model_profile_id)
+            usage = RunUsage(
+                input_tokens=chars // _CHARS_PER_TOKEN + _PROMPT_TOKENS,
+                output_tokens=_OUTPUT_TOKENS,
+            )
+            priced = price_request(usage, model.model, model.provider)
+            if priced is not None:
+                return Decimal(priced)
+        return settings.EVAL_FALLBACK_CASE_COST_USD
+
+    async def _improver_left(self, ctx: AuthContext, improver: Agent) -> Decimal | None:
+        published = await self._improver_spec(ctx, improver)
+        cap = None if published.budget is None else published.budget.monthly_usd
+        if cap is None:
+            return None
+        spent = await agent_run_repo.sum_cost_since(
+            self.db, organization_id=ctx.organization_id, since=month_start(), agent_id=improver.id
+        )
+        return Decimal(str(cap)) - spent
+
+    async def _org_left(self, ctx: AuthContext) -> Decimal | None:
+        organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if organization is None or organization.monthly_budget_usd is None:
+            return None
+        spent = await organization_monthly_spend(self.db, ctx.organization_id)
+        return organization.monthly_budget_usd - spent
+
+    async def start_agent(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        body: AuthoringStart,
+        *,
+        excluded_message_ids: Sequence[UUID] = (),
+        improvement_run_id: UUID | None = None,
+    ) -> AuthoringRequestRead:
+        """Queue an Improve or Verify on an agent, after the same checks its estimate makes.
+
+        `excluded_message_ids` is kept on the request, as :meth:`estimate_agent` reads it.
+
+        Raises:
+            BadRequestError: Nothing to read (`no_evidence`), or nothing to verify
+                (`no_draft_change`).
+            PaymentRequiredError: The estimate is more than the improver or the
+                organization has left this month. Nothing is written.
+        """
+        estimate = await self.estimate_agent(
+            ctx,
+            agent_id,
+            body,
+            excluded_message_ids=excluded_message_ids,
+            improvement_run_id=improvement_run_id,
+        )
+        return await self._start(
+            ctx,
+            estimate,
+            body,
+            improvement_run_id=improvement_run_id,
+            target=AuthoringTarget.AGENT,
+            agent_id=agent_id,
+            skill_id=None,
+            excluded_message_ids=excluded_message_ids,
+        )
+
+    async def start_skill(
+        self, ctx: AuthContext, skill_id: UUID, body: AuthoringStart
+    ) -> AuthoringRequestRead:
+        """Queue an Improve on a skill. Raises as :meth:`start_agent` does."""
+        estimate = await self.estimate_skill(ctx, skill_id, body)
+        return await self._start(
+            ctx,
+            estimate,
+            body,
+            target=AuthoringTarget.SKILL,
+            agent_id=None,
+            skill_id=skill_id,
+        )
+
+    async def start_context(
+        self, ctx: AuthContext, context_id: UUID, body: AuthoringStart
+    ) -> AuthoringRequestRead:
+        """Queue an Improve on a context file. Raises as :meth:`start_agent` does."""
+        estimate = await self.estimate_context(ctx, context_id, body)
+        return await self._start(
+            ctx,
+            estimate,
+            body,
+            target=AuthoringTarget.CONTEXT,
+            agent_id=None,
+            skill_id=None,
+            context_id=context_id,
+        )
+
+    async def _start(
+        self,
+        ctx: AuthContext,
+        estimate: AuthoringEstimate,
+        body: AuthoringStart,
+        *,
+        target: AuthoringTarget,
+        agent_id: UUID | None,
+        skill_id: UUID | None,
+        context_id: UUID | None = None,
+        excluded_message_ids: Sequence[UUID] = (),
+        improvement_run_id: UUID | None = None,
+    ) -> AuthoringRequestRead:
+        if estimate.reason == "no_draft_change":
+            raise BadRequestError(
+                message="The draft is the same as the published version: there is nothing to verify",
+                details={"reason": estimate.reason},
+            )
+        if estimate.reason == "no_evidence":
+            raise BadRequestError(
+                message=(
+                    "Nothing to learn from yet: no run in this window was rated or failed. "
+                    "Widen the window, or come back once people have rated some answers."
+                ),
+                details={"reason": estimate.reason},
+            )
+        if not estimate.affordable:
+            raise PaymentRequiredError(
+                message=(
+                    "The authoring assistant has too little budget left this month for this. "
+                    "Raise its monthly budget on its agent page, or the organization's."
+                ),
+                details={"estimate_usd": str(estimate.estimate_usd)},
+            )
+        request = await authoring_repo.create_request(
+            self.db,
+            organization_id=ctx.organization_id,
+            kind=body.kind,
+            target=target.value,
+            agent_id=agent_id,
+            skill_id=skill_id,
+            context_id=context_id,
+            created_by_user_id=ctx.user_id,
+            created_by_api_key_id=ctx.api_key_id,
+            estimate_usd=estimate.estimate_usd,
+            window_days=body.window_days,
+            excluded_message_ids=excluded_message_ids,
+            improvement_run_id=improvement_run_id,
+            improver_agent_id=body.improver_agent_id,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action=f"authoring.{body.kind}_requested",
+            target_type=target.value,
+            target_id=str(agent_id or skill_id or context_id),
+            details={"request_id": str(request.id), "estimate_usd": str(estimate.estimate_usd)},
+        )
+        await enqueue(
+            self.db,
+            RUN_AUTHORING,
+            RunAuthoring(request_id=request.id, organization_id=ctx.organization_id),
+            organization_id=ctx.organization_id,
+        )
+        return AuthoringRequestRead.model_validate(request)
+
+    async def _settled(self, request: AuthoringRequest) -> AuthoringRequest:
+        """The request, marked failed when the worker stopped without saying so."""
+        if request.status not in (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value):
+            return request
+        if request.status == AuthoringStatus.QUEUED.value:
+            heard, after = request.created_at, QUEUED_STALE_AFTER
+        else:
+            heard = request.heartbeat_at or request.started_at or request.created_at
+            after = STALE_AFTER
+        if datetime.now(UTC) - heard < after:
+            return request
+        return await authoring_repo.update_request(
+            self.db,
+            request=request,
+            values={
+                "status": AuthoringStatus.FAILED.value,
+                "error": "The assistant stopped without finishing. Try again.",
+                "finished_at": datetime.now(UTC),
+            },
+        )
+
+    async def for_agent(self, ctx: AuthContext, agent_id: UUID) -> AgentAuthoringRead:
+        """The open batch - or the last one - and the newest requests, for the Builder."""
+        agent = await self.registry.get(ctx, agent_id)
+        return await self._read(ctx, agent)
+
+    async def waiting(self, ctx: AuthContext) -> AuthoringWaiting:
+        """The suggestions waiting on agents the caller may edit, for the dashboard."""
+        rows = await authoring_repo.agents_with_pending(
+            self.db, organization_id=ctx.organization_id
+        )
+        editable = await accessible_ids(
+            self.db, ctx, [agent for agent, _ in rows], Perm.AGENTS_EDIT, resource_type=AGENT
+        )
+        skill_files: list[FileWaiting] = []
+        new_skills = 0
+        if ctx.has(Perm.SKILLS_EDIT):
+            skill_files = await self._editable_files(
+                ctx,
+                await authoring_repo.skills_with_pending(
+                    self.db, organization_id=ctx.organization_id
+                ),
+                SKILL,
+            )
+            new_skills = await authoring_repo.count_pending_new_skills(
+                self.db, organization_id=ctx.organization_id
+            )
+        context_files: list[FileWaiting] = []
+        if ctx.has(Perm.CONTEXT_EDIT):
+            context_files = await self._editable_files(
+                ctx,
+                await context_proposal_repo.files_with_pending(
+                    self.db, organization_id=ctx.organization_id
+                ),
+                CONTEXT,
+            )
+        return AuthoringWaiting(
+            agents=[
+                AgentWaiting(
+                    agent_id=agent.id,
+                    name=agent.name,
+                    instructions=counts.get(HunkKind.INSTRUCTIONS.value, 0),
+                    tools=counts.get(HunkKind.TOOL_OVERRIDE.value, 0),
+                    fields=counts.get(HunkKind.SPEC_FIELD.value, 0),
+                )
+                for agent, counts in rows
+                if agent.id in editable
+            ],
+            skills=sum(file.changes for file in skill_files) + new_skills,
+            contexts=sum(file.changes for file in context_files),
+            skill_files=skill_files,
+            context_files=context_files,
+        )
+
+    async def _editable_files(
+        self,
+        ctx: AuthContext,
+        rows: list[tuple[Skill, int]] | list[tuple[ContextFile, int]],
+        resource_type: ResourceType,
+    ) -> list[FileWaiting]:
+        """The rows whose skill or file the caller may edit, as the dashboard lists them."""
+        resources: list[OwnedResource] = [row for row, _ in rows]
+        editable = await accessible_ids(
+            self.db, ctx, resources, resource_type.edit, resource_type=resource_type
+        )
+        return [
+            FileWaiting(id=row.id, name=row.name, changes=changes)
+            for row, changes in rows
+            if row.id in editable
+        ]
+
+    async def for_skill(self, ctx: AuthContext, skill_id: UUID) -> list[AuthoringRequestRead]:
+        """The newest requests on one skill, for its page."""
+        skill = await self.skills.get(ctx, skill_id)
+        return [
+            AuthoringRequestRead.model_validate(await self._settled(request))
+            for request in await authoring_repo.list_requests(
+                self.db, organization_id=ctx.organization_id, skill_id=skill.id
+            )
+        ]
+
+    async def for_context(self, ctx: AuthContext, context_id: UUID) -> list[AuthoringRequestRead]:
+        """The newest requests on one context file, for its page."""
+        file = await self.contexts.get(ctx, context_id)
+        return [
+            AuthoringRequestRead.model_validate(await self._settled(request))
+            for request in await authoring_repo.list_requests(
+                self.db, organization_id=ctx.organization_id, context_id=file.id
+            )
+        ]
+
+    async def _read(self, ctx: AuthContext, agent: Agent) -> AgentAuthoringRead:
+        requests = [
+            await self._settled(request)
+            for request in await authoring_repo.list_requests(
+                self.db, organization_id=ctx.organization_id, agent_id=agent.id
+            )
+        ]
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id
+        ) or await authoring_repo.latest_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
+        verify = next(
+            (
+                request
+                for request in requests
+                if request.kind == AuthoringKind.VERIFY.value
+                and request.status == AuthoringStatus.COMPLETED.value
+            ),
+            None,
+        )
+        quotes = ctx.has(Perm.RUNS_VIEW)
+        has_evidence = None
+        if quotes and not requests and batch is None:
+            has_evidence = bool((await self.evidence.for_agent(ctx, agent.id, window_days=30)).runs)
+        return AgentAuthoringRead(
+            has_evidence=has_evidence,
+            batch=None if batch is None else await self._batch(ctx, agent, batch),
+            latest=None if not requests else self._request(requests[0], quotes=quotes),
+            verify=None if verify is None else self._request(verify, quotes=quotes),
+        )
+
+    @staticmethod
+    def _request(request: AuthoringRequest, *, quotes: bool) -> AuthoringRequestRead:
+        """A request as a reader sees it - a verify's quotes only for a reader of runs."""
+        read = AuthoringRequestRead.model_validate(request)
+        findings = None if read.report is None else read.report.get("findings")
+        if quotes or read.report is None or not isinstance(findings, list):
+            return read
+        redacted = [
+            {
+                **finding,
+                "evidence": [{"run_id": item["run_id"]} for item in finding.get("evidence", [])],
+            }
+            for finding in findings
+        ]
+        return read.model_copy(update={"report": {**read.report, "findings": redacted}})
+
+    async def _batch(self, ctx: AuthContext, agent: Agent, batch: SpecProposalBatch) -> BatchRead:
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        hunks = await authoring_repo.list_hunks(
+            self.db, organization_id=ctx.organization_id, batch_id=batch.id
+        )
+        quotes = ctx.has(Perm.RUNS_VIEW)
+        names = await ConfigurationService(self.db).names(ctx, hunks)
+        waiting = [hunk for hunk in hunks if hunk.status == HunkStatus.PENDING.value]
+        measured = (
+            await improvement_repo.measured_hunks(
+                self.db, organization_id=ctx.organization_id, batch_id=batch.id
+            )
+            if batch.improvement_run_id is not None
+            else None
+        )
+        gates = {
+            hunk.id: await self._model_gate(
+                ctx,
+                batch,
+                authoring_hunks.projection(
+                    spec,
+                    selected := [
+                        item
+                        for item in waiting
+                        if measured is None or hunk.id not in measured or item.id in measured
+                    ],
+                )[0],
+                skills=authoring_hunks.projected_skills(selected),
+            )
+            for hunk in waiting
+            if _changes_model(hunk)
+        }
+        if not ctx.has(Perm.SKILLS_EDIT):
+            gates.update(
+                {
+                    hunk.id: "create_skill_permission"
+                    for hunk in waiting
+                    if hunk.kind == HunkKind.CREATE_SKILL
+                }
+            )
+        return BatchRead(
+            id=batch.id,
+            agent_id=batch.agent_id,
+            status=batch.status,
+            expected_effect=batch.expected_effect,
+            request_id=batch.request_id,
+            hunks=[
+                self._hunk(spec, hunk, quotes=quotes, names=names, blocked=gates.get(hunk.id))
+                for hunk in hunks
+            ],
+            check_eval_run_ids=list(batch.check_eval_run_ids),
+            created_at=batch.created_at,
+        )
+
+    async def _model_gate(
+        self,
+        ctx: AuthContext,
+        batch: SpecProposalBatch,
+        combination: AgentSpec,
+        *,
+        skills: Mapping[UUID, SkillBody] | None = None,
+    ) -> str | None:
+        """Why a change of model may not be accepted yet, or `None` when it may.
+
+        `combination` is the draft as accepting would leave it, with every other
+        suggestion still waiting made: what a check measures. It pays off only once
+        a check of exactly that - one the reader can see - came out with nothing
+        graded left open, a verdict, and no confirmed regression. `check_first`
+        until a check ran the model, `check_outdated` when the checks that did
+        measured something else, `inconclusive` when it decided nothing,
+        `regression` when it broke cases, `crashed` when the agent crashed.
+        """
+        evals = EvalRunService(self.db)
+        wanted = spec_hash(combination, skills)
+        ran_model = False
+        for run_id in reversed(batch.check_eval_run_ids):
+            try:
+                run = await evals.get(ctx, run_id)
+            except AuthorizationError, NotFoundError:
+                continue
+            candidate = next((arm for arm in run.arms if arm.role == ArmRole.CANDIDATE), None)
+            if run.status != EvalRunStatus.COMPLETED.value or candidate is None:
+                continue
+            stored = await eval_run_repo.get_arm(
+                self.db, candidate.id, organization_id=ctx.organization_id
+            )
+            ran = None if stored is None or stored.spec is None else stored.spec
+            if ran is None or str(ran.get("model_profile_id")) != str(combination.model_profile_id):
+                continue
+            ran_model = True
+            if candidate.spec_hash != wanted:
+                continue
+            summary = (
+                (await evals.compare(ctx, run.id)).candidate_summary
+                if run.proposal_check is not None and run.proposal_check.measurement is not None
+                else candidate.summary
+            )
+            if summary.crashed:
+                return "crashed"
+            if run.outcome is not None and (
+                run.outcome.regressions_confirmed or run.outcome.verdict in ("worse", "mixed")
+            ):
+                return "regression"
+            undecided = summary.incomplete + summary.ungraded
+            if undecided or run.outcome is None or run.outcome.verdict in (None, "invalid"):
+                return "inconclusive"
+            return None
+        return "check_outdated" if ran_model else "check_first"
+
+    @staticmethod
+    def _hunk(
+        spec: AgentSpec,
+        hunk: SpecProposalHunk,
+        *,
+        quotes: bool,
+        names: dict[str, str],
+        blocked: str | None,
+    ) -> HunkRead:
+        """One hunk as a reader sees it - quotes only for a reader of runs."""
+        return HunkRead(
+            id=hunk.id,
+            kind=hunk.kind,
+            origin=hunk.origin,
+            status=hunk.status,
+            old_text=hunk.old_text,
+            new_text=hunk.new_text,
+            accepted_text=hunk.accepted_text,
+            context_before=hunk.context_before,
+            context_after=hunk.context_after,
+            capability_id=hunk.capability_id,
+            tool_id=hunk.tool_id,
+            base_name=hunk.base_name,
+            base_description=hunk.base_description,
+            new_name=hunk.new_name,
+            new_description=hunk.new_description,
+            path=hunk.path,
+            op=hunk.op,
+            base_value=hunk.base_value,
+            new_value=hunk.new_value,
+            accepted_value=hunk.accepted_value,
+            effect=hunk.effect,
+            names={key: name for key, name in names.items() if _refers_to(hunk, key)},
+            blocked=blocked,
+            rationale=hunk.rationale,
+            expected_effect=hunk.expected_effect,
+            evidence=[
+                EvidenceItemRead(
+                    run_id=UUID(item["run_id"]), quote=item.get("quote") if quotes else None
+                )
+                for item in hunk.evidence
+            ],
+            evidence_dropped=hunk.evidence_dropped,
+            applies=authoring_hunks.applies(spec, hunk),
+            decided_at=hunk.decided_at,
+        )
+
+    async def _locked(self, ctx: AuthContext, agent: Agent) -> Agent:
+        """The agent locked for this transaction, so its draft is the one a decision writes over."""
+        locked = await agent_repo.lock(self.db, agent.id, organization_id=ctx.organization_id)
+        if locked is None:
+            raise NotFoundError(message="Agent not found", details={"agent_id": agent.id})
+        return locked
+
+    async def _open_batch_of(
+        self, ctx: AuthContext, agent: Agent, batch_id: UUID
+    ) -> SpecProposalBatch:
+        batch = await authoring_repo.get_batch(
+            self.db, batch_id, organization_id=ctx.organization_id, lock=True
+        )
+        if batch is None or batch.agent_id != agent.id:
+            raise NotFoundError(message="Suggestion not found", details={"batch_id": batch_id})
+        if batch.status != BatchStatus.OPEN.value:
+            raise ConcurrentChangeError(
+                message=(
+                    "These suggestions were replaced by a newer run, or the draft they were "
+                    "for was published. Reload to see what is waiting now."
+                ),
+                details={"batch_id": batch.id, "status": batch.status},
+            )
+        return batch
+
+    async def decide(
+        self, ctx: AuthContext, agent_id: UUID, hunk_id: UUID, decision: HunkDecision
+    ) -> DecisionRead:
+        """Accept, dismiss or undo one hunk, and write the draft when that changes it.
+
+        Raises:
+            NotFoundError: No such hunk on this agent, or the caller may not edit it.
+            ConcurrentChangeError: The batch closed, or somebody decided the hunk first.
+            BadRequestError: The hunk is stale - its passage or the tool's override
+                moved on - or Undo would reverse a later manual edit.
+        """
+        agent = await self._locked(ctx, await self._editable(ctx, agent_id))
+        hunk = await authoring_repo.get_hunk(self.db, hunk_id, organization_id=ctx.organization_id)
+        if hunk is None:
+            raise NotFoundError(message="Suggestion not found", details={"hunk_id": hunk_id})
+        batch = await self._open_batch_of(ctx, agent, hunk.batch_id)
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        written: AgentSpec | None = None
+        if decision.action == "accept" and hunk.kind == HunkKind.CREATE_SKILL.value:
+            if not ctx.has(Perm.SKILLS_EDIT):
+                raise AuthorizationError(message="Creating this skill requires skills:edit")
+            if decision.text is not None or decision.value is not None:
+                raise BadRequestError(
+                    message="Review a new skill as proposed; edit it after creation"
+                )
+            if hunk.status != HunkStatus.PENDING:
+                raise ConcurrentChangeError(message="This suggestion has already been decided")
+            data = SkillCreate.model_validate(hunk.new_value)
+            if hunk.accepted_value is not None:
+                created = CreatedSkillBinding.model_validate(hunk.accepted_value)
+                skill = await self.skills.get(ctx, created.skill_id, perm=Perm.SKILLS_EDIT)
+                if (skill.name, skill.description, skill.content) != (
+                    data.name,
+                    data.description,
+                    data.content,
+                ):
+                    raise ConcurrentChangeError(
+                        message="The created skill was edited; bind it from the skill library"
+                    )
+            else:
+                skill = await self.skills.create(
+                    ctx, name=data.name, description=data.description, content=data.content
+                )
+            written = spec.model_copy(update={"skill_ids": [*spec.skill_ids, skill.id]})
+            moved = await self._move(
+                ctx,
+                hunk,
+                HunkStatus.PENDING,
+                HunkStatus.ACCEPTED,
+                {"accepted_value": {"skill_id": str(skill.id)}},
+            )
+        elif decision.action == "accept" and hunk.kind == HunkKind.SPEC_FIELD.value:
+            written, values = await self._accepted_field(ctx, spec, batch, hunk, decision)
+            moved = await self._move(ctx, hunk, HunkStatus.PENDING, HunkStatus.ACCEPTED, values)
+        elif decision.action == "accept":
+            written, values = self._accepted(spec, hunk, decision.text)
+            moved = await self._move(ctx, hunk, HunkStatus.PENDING, HunkStatus.ACCEPTED, values)
+        elif decision.action == "dismiss":
+            moved = await self._move(ctx, hunk, HunkStatus.PENDING, HunkStatus.DISMISSED)
+        elif hunk.status == HunkStatus.DISMISSED.value:
+            moved = await self._move(ctx, hunk, HunkStatus.DISMISSED, HunkStatus.PENDING)
+        elif hunk.status == HunkStatus.PENDING.value:
+            raise BadRequestError(
+                message="This suggestion has not been decided, so there is nothing to undo",
+                details={"hunk_id": hunk.id},
+            )
+        else:
+            written = self._undone(spec, hunk)
+            moved = await self._move(
+                ctx,
+                hunk,
+                HunkStatus.ACCEPTED,
+                HunkStatus.PENDING,
+                {
+                    "accepted_text": None,
+                    "accepted_override": None,
+                    "accepted_value": hunk.accepted_value
+                    if hunk.kind == HunkKind.CREATE_SKILL
+                    else None,
+                },
+            )
+        if written is not None:
+            agent = await self.registry.save_draft(ctx, agent.id, written)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action=f"authoring.suggestion_{decision.action}",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={"hunk_id": str(moved.id), "kind": moved.kind},
+        )
+        return DecisionRead(
+            authoring=await self._read(ctx, agent), draft_spec=dict(agent.draft_spec)
+        )
+
+    @staticmethod
+    def _stale() -> BadRequestError:
+        return BadRequestError(
+            message=(
+                "This suggestion no longer fits the draft: the passage or setting it changes "
+                "was edited since. Edit the draft by hand, or run the assistant again."
+            ),
+            details={"reason": "stale"},
+        )
+
+    def _accepted(
+        self, spec: AgentSpec, hunk: SpecProposalHunk, text: str | None
+    ) -> tuple[AgentSpec, dict[str, Any]]:
+        if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
+            applied = authoring_hunks.apply_tool(spec, hunk)
+            if applied is None:
+                raise self._stale()
+            return applied[0], {"accepted_override": applied[1]}
+        replacement = hunk.new_text if text is None else text
+        written = authoring_hunks.apply(spec, hunk, text=replacement)
+        if written is None:
+            raise self._stale()
+        return written, {"accepted_text": replacement}
+
+    async def _accepted_field(
+        self,
+        ctx: AuthContext,
+        spec: AgentSpec,
+        batch: SpecProposalBatch,
+        hunk: SpecProposalHunk,
+        decision: HunkDecision,
+    ) -> tuple[AgentSpec, dict[str, Any]]:
+        """The draft with a field change accepted, as the person accepting it.
+
+        Raises:
+            BadRequestError: It is not a change the assistant may propose, it
+                removes or reconfigures a safeguard, the value was edited where
+                editing is not offered or does not validate, the draft moved since,
+                or - for a change of model - no check of exactly what accepting
+                leaves shows it pays off yet.
+            AuthorizationError: It adds something the person accepting it may not
+                grant: a capability, a collection, a context file, a model, MCP tools.
+        """
+        refused = authoring_fields.standing_refusal(
+            hunk.path or "", hunk.op or "", hunk.base_value, hunk.new_value
+        )
+        if refused is not None:
+            raise BadRequestError(
+                message=_STANDING_REFUSALS[refused], details={"hunk_id": hunk.id, "reason": refused}
+            )
+        value = hunk.new_value
+        if decision.value is not None:
+            if hunk.path not in _EDITABLE and not (hunk.path or "").endswith("/description"):
+                raise BadRequestError(
+                    message="Only a single setting or a text can be edited before accepting",
+                    details={"hunk_id": hunk.id},
+                )
+            staged = authoring_fields.stage(spec, hunk.path or "", hunk.op or "", decision.value)
+            if isinstance(staged, str):
+                raise BadRequestError(
+                    message="That value cannot be accepted here", details={"reason": staged}
+                )
+            value = staged.new
+        value = authoring_fields.as_accepted(hunk.path or "", hunk.op or "", value)
+        written = authoring_hunks.apply_field(spec, hunk, value)
+        if written is None:
+            raise self._stale()
+        problems = await self.registry.reference_problems(
+            ctx, written, path=hunk.path or "", op=hunk.op or ""
+        )
+        if problems:
+            raise AuthorizationError(
+                message=(
+                    "This suggestion adds something you may not grant. Ask somebody who "
+                    "can reach it, or dismiss it."
+                ),
+                details={"problems": problems},
+            )
+        if _changes_model(hunk):
+            measured = (
+                await improvement_repo.measured_hunks(
+                    self.db, organization_id=ctx.organization_id, batch_id=batch.id
+                )
+                if batch.improvement_run_id is not None
+                else None
+            )
+            others = [
+                other
+                for other in await authoring_repo.list_hunks(
+                    self.db, organization_id=ctx.organization_id, batch_id=batch.id
+                )
+                if other.status == HunkStatus.PENDING.value
+                and other.id != hunk.id
+                and (measured is None or hunk.id not in measured or other.id in measured)
+            ]
+            combination = authoring_hunks.projection(written, others)[0]
+            reason = await self._model_gate(
+                ctx, batch, combination, skills=authoring_hunks.projected_skills(others)
+            )
+            if reason is not None:
+                raise BadRequestError(message=_GATE_MESSAGES[reason], details={"reason": reason})
+        return written, {"accepted_value": value}
+
+    def _undone(self, spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec:
+        if hunk.kind == HunkKind.CREATE_SKILL.value:
+            undone = authoring_hunks.undo_created_skill(spec, hunk)
+        elif hunk.kind == HunkKind.SPEC_FIELD.value:
+            undone = authoring_hunks.undo_field(spec, hunk)
+        elif hunk.kind == HunkKind.TOOL_OVERRIDE.value:
+            undone = authoring_hunks.undo_tool(spec, hunk)
+        else:
+            text = authoring_hunks.undo_text(spec.instructions, hunk)
+            undone = None if text is None else spec.model_copy(update={"instructions": text})
+        if undone is None:
+            raise BadRequestError(
+                message=(
+                    "This was edited by hand after it was accepted, so undoing it would "
+                    "throw that edit away. Change the draft by hand instead."
+                ),
+                details={"reason": "stale"},
+            )
+        return undone
+
+    async def _move(
+        self,
+        ctx: AuthContext,
+        hunk: SpecProposalHunk,
+        expected: HunkStatus,
+        status: HunkStatus,
+        values: dict[str, Any] | None = None,
+    ) -> SpecProposalHunk:
+        moved = await authoring_repo.decide_hunk(
+            self.db,
+            organization_id=ctx.organization_id,
+            hunk_id=hunk.id,
+            expected=expected,
+            status=status,
+            decided_by=ctx.user_id,
+            values=values,
+        )
+        if moved is None:
+            raise ConcurrentChangeError(
+                message="Somebody decided this suggestion a moment ago. Reload to see what they chose.",
+                details={"hunk_id": hunk.id},
+            )
+        return moved
+
+    async def dismiss_all(self, ctx: AuthContext, agent_id: UUID) -> AgentAuthoringRead:
+        """Dismiss every pending hunk of the open batch."""
+        agent = await self._editable(ctx, agent_id)
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
+        )
+        if batch is not None:
+            for hunk in await authoring_repo.list_hunks(
+                self.db, organization_id=ctx.organization_id, batch_id=batch.id
+            ):
+                if hunk.status == HunkStatus.PENDING.value:
+                    await authoring_repo.decide_hunk(
+                        self.db,
+                        organization_id=ctx.organization_id,
+                        hunk_id=hunk.id,
+                        expected=HunkStatus.PENDING,
+                        status=HunkStatus.DISMISSED,
+                        decided_by=ctx.user_id,
+                    )
+        return await self._read(ctx, agent)
+
+    async def _projection(
+        self, ctx: AuthContext, agent_id: UUID
+    ) -> tuple[Agent, SpecProposalBatch, AgentSpec, int]:
+        """The agent, its open batch, the draft with every pending suggestion made, and their count."""
+        agent = await self._editable(ctx, agent_id)
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
+        hunks = (
+            []
+            if batch is None
+            else await authoring_repo.list_hunks(
+                self.db, organization_id=ctx.organization_id, batch_id=batch.id
+            )
+        )
+        pending = [hunk for hunk in hunks if hunk.status == HunkStatus.PENDING.value]
+        if batch is None or not pending:
+            raise BadRequestError(
+                message="No suggestion is waiting to be checked",
+                details={"agent_id": agent.id},
+            )
+        projected, skipped = authoring_hunks.projection(
+            AgentSpec.model_validate(agent.draft_spec), pending
+        )
+        if skipped:
+            # A check that silently left suggestions out would be read as having measured them.
+            raise BadRequestError(
+                message=(
+                    f"{len(skipped)} of the {len(pending)} waiting suggestions no longer fit the "
+                    "draft, or clash with another. Accept or dismiss them first, so the check "
+                    "measures exactly what is waiting."
+                ),
+                details={"hunk_ids": [hunk.id for hunk in skipped]},
+            )
+        return agent, batch, projected, len(pending)
+
+    async def _check_request(
+        self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
+    ) -> _CheckRun:
+        """The run a check makes: on the dataset named, or on a suite's dataset and environment.
+
+        A suite is read once, so its dataset, environment and threshold are the
+        ones of the same moment. A guard is checked on the dataset version and
+        scoring it is pinned to, so the check foretells the guard's verdict.
+        """
+        if body.suite_id is not None:
+            suites = EvalSuiteService(self.db)
+            suite = await suites.get(ctx, agent_id, body.suite_id)
+            pin = await suites.pinned(ctx, agent_id, body.suite_id)
+            return _CheckRun(
+                request=EvalRunRequest(
+                    dataset_id=suite.dataset_id,
+                    dataset_version=None if pin is None else pin[0],
+                    environment_id=suite.environment_id,
+                    paired_baseline=True,
+                ),
+                suite=EvalSuiteCheck(suite_id=suite.id, name=suite.name, threshold=suite.threshold),
+                scoring=None if pin is None else pin[1],
+                judge_version_id=None if pin is None else pin[2],
+                judge_pinned=pin is not None,
+            )
+        assert body.dataset_id is not None, "ProposalCheck names a dataset or a suite"
+        return _CheckRun(
+            request=EvalRunRequest(
+                dataset_id=body.dataset_id,
+                dataset_version=body.dataset_version,
+                environment_id=body.environment_id,
+                paired_baseline=True,
+            ),
+            suite=None,
+        )
+
+    async def evidence_run_ids(self, ctx: AuthContext, batch: SpecProposalBatch) -> list[UUID]:
+        from pydantic import TypeAdapter, ValidationError
+
+        request = (
+            None
+            if batch.request_id is None
+            else await authoring_repo.get_request(
+                self.db, batch.request_id, organization_id=ctx.organization_id
+            )
+        )
+        if request is None:
+            return []
+        try:
+            return TypeAdapter(list[UUID]).validate_python(
+                request.evidence.get("source_run_ids", [])
+            )
+        except ValidationError:
+            raise BadRequestError(
+                message="The proposal's source identities no longer read. Request a new proposal.",
+                details={"reason": "invalid_evidence"},
+            ) from None
+
+    async def _agent_check(
+        self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
+    ) -> tuple[Agent, SpecProposalBatch, AgentSpec, _CheckRun]:
+        """The run checking every pending suggestion makes, measured on the draft's base.
+
+        The base is the latest published version - what the draft was made
+        from - not the version production runs, which a failing guard may hold
+        back. When the draft no longer equals it, the draft itself is the
+        baseline, so the suggestions are the one difference between the sides.
+        """
+        agent, batch, projected, pending = await self._projection(ctx, agent_id)
+        base = await agent_repo.newest_version(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
+        )
+        draft = AgentSpec.model_validate(agent.draft_spec)
+        on_draft = base is None or AgentSpec.model_validate(base.spec) != draft
+        checked = await self._check_request(ctx, agent.id, body)
+        return (
+            agent,
+            batch,
+            projected,
+            checked._replace(
+                request=(
+                    checked.request
+                    if base is None or on_draft
+                    else checked.request.model_copy(update={"baseline_version": base.version})
+                ),
+                baseline_spec=draft if on_draft else None,
+                proposal=ProposalCheckRecord(
+                    kind="agent",
+                    base_version=None if base is None else base.version,
+                    on_draft=on_draft,
+                    suggestions=pending,
+                    evidence_run_ids=await self.evidence_run_ids(ctx, batch),
+                ),
+            ),
+        )
+
+    async def projected_skills(
+        self, ctx: AuthContext, batch_id: UUID, *, hunk_ids: Sequence[UUID] | None = None
+    ) -> dict[UUID, SkillBody]:
+        hunks = await authoring_repo.list_hunks(
+            self.db, organization_id=ctx.organization_id, batch_id=batch_id
+        )
+        return authoring_hunks.projected_skills(
+            hunks if hunk_ids is None else [hunk for hunk in hunks if hunk.id in hunk_ids]
+        )
+
+    async def estimate_check(
+        self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
+    ) -> EvalRunEstimate:
+        """What checking the pending suggestions against a dataset would cost."""
+        agent, batch, projected, checked = await self._agent_check(ctx, agent_id, body)
+        return await EvalRunService(self.db).estimate(
+            ctx,
+            agent.id,
+            checked.request,
+            scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
+            purpose=EvalRunPurpose.GATE,
+            candidate_spec=projected,
+            candidate_skills=await self.projected_skills(ctx, batch.id),
+            exclude_conversations=batch.evidence_conversation_ids,
+            baseline_spec=checked.baseline_spec,
+            proposal_check=checked.proposal,
+        )
+
+    async def _skill_check(
+        self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
+    ) -> tuple[Agent, _CheckRun, dict[UUID, SkillBody], list[UUID]]:
+        """The agent a skill change is checked on, the run that checks it, the body, and what to leave out.
+
+        Both sides run the agent's published version - frozen and already
+        validated at publish - so checking needs only `agents:run` on it, and
+        the skill's body is the one difference.
+
+        Raises:
+            NotFoundError: No such pending change to this skill.
+            BadRequestError: No agent named, or one that does not use the skill.
+        """
+        skill = await self.skills.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        proposal = (
+            None
+            if body.proposal_id is None
+            else await skill_proposal_repo.get(
+                self.db, body.proposal_id, organization_id=ctx.organization_id
+            )
+        )
+        if (
+            proposal is None
+            or proposal.skill_id != skill.id
+            or proposal.status != ProposalStatus.PENDING.value
+        ):
+            raise NotFoundError(
+                message="No change to this skill is waiting", details={"skill_id": skill.id}
+            )
+        if body.agent_id is None:
+            raise BadRequestError(
+                message="Pick an agent that uses this skill to check the change on",
+                details={"skill_id": skill.id},
+            )
+        agent = await self.registry.get(ctx, body.agent_id, perm=Perm.AGENTS_RUN)
+        version = (
+            None
+            if agent.current_version_id is None
+            else await self.registry.get_version(ctx, agent.id, agent.current_version_id)
+        )
+        if version is None or skill.id not in AgentSpec.model_validate(version.spec).skill_ids:
+            raise BadRequestError(
+                message=f"'{agent.name}' does not use '{skill.name}' in its published version",
+                details={"agent_id": agent.id, "skill_id": skill.id},
+            )
+        request = (
+            None
+            if proposal.authoring_request_id is None
+            else await authoring_repo.get_request(
+                self.db, proposal.authoring_request_id, organization_id=ctx.organization_id
+            )
+        )
+        evidence = [] if request is None else request.evidence.get("conversation_ids", [])
+        bodies = {skill.id: SkillBody(description=proposal.description, content=proposal.content)}
+        checked = await self._check_request(ctx, agent.id, body)
+        pinned = checked.request.model_copy(
+            update={"version": version.version, "baseline_version": version.version}
+        )
+        return (
+            agent,
+            checked._replace(
+                request=pinned,
+                proposal=ProposalCheckRecord(
+                    kind="skill", base_version=version.version, suggestions=1
+                ),
+            ),
+            bodies,
+            [UUID(str(conversation)) for conversation in evidence],
+        )
+
+    async def estimate_skill_check(
+        self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
+    ) -> EvalRunEstimate:
+        """What checking a pending skill change on one agent would cost."""
+        agent, checked, bodies, evidence = await self._skill_check(ctx, skill_id, body)
+        return await EvalRunService(self.db).estimate(
+            ctx,
+            agent.id,
+            checked.request,
+            scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
+            purpose=EvalRunPurpose.GATE,
+            candidate_skills=bodies,
+            exclude_conversations=evidence,
+            proposal_check=checked.proposal,
+        )
+
+    async def check_skill(
+        self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
+    ) -> EvalRunRead:
+        """Run a dataset on an agent using the skill, with the proposed body in place of its own.
+
+        The agent is held still - its published version on both sides - so the
+        comparison measures the skill change alone. Applying the change is live
+        for every agent bound to the skill, which is why it is checked before.
+        """
+        agent, checked, bodies, evidence = await self._skill_check(ctx, skill_id, body)
+        return await EvalRunService(self.db).start(
+            ctx,
+            agent.id,
+            checked.request,
+            scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
+            purpose=EvalRunPurpose.GATE,
+            candidate_skills=bodies,
+            exclude_conversations=evidence,
+            suite=checked.suite,
+            proposal_check=checked.proposal,
+        )
+
+    async def _context_check(
+        self, ctx: AuthContext, context_id: UUID, body: ProposalCheck
+    ) -> tuple[Agent, _CheckRun, dict[UUID, ContextBody], list[UUID]]:
+        """The agent a context change is checked on, the run, the body, and what to leave out.
+
+        As for a skill: both sides run the agent's published version, and the
+        file's body is the one difference.
+
+        Raises:
+            NotFoundError: No such pending change to this file.
+            BadRequestError: No agent named, or one that does not bind the file.
+        """
+        file = await self.contexts.get(ctx, context_id, perm=Perm.CONTEXT_EDIT)
+        proposal = (
+            None
+            if body.proposal_id is None
+            else await context_proposal_repo.get(
+                self.db, body.proposal_id, organization_id=ctx.organization_id
+            )
+        )
+        if (
+            proposal is None
+            or proposal.context_id != file.id
+            or proposal.status != ProposalStatus.PENDING.value
+        ):
+            raise NotFoundError(
+                message="No change to this context file is waiting",
+                details={"context_id": file.id},
+            )
+        if body.agent_id is None:
+            raise BadRequestError(
+                message="Pick an agent that uses this context file to check the change on",
+                details={"context_id": file.id},
+            )
+        agent = await self.registry.get(ctx, body.agent_id, perm=Perm.AGENTS_RUN)
+        version = (
+            None
+            if agent.current_version_id is None
+            else await self.registry.get_version(ctx, agent.id, agent.current_version_id)
+        )
+        if version is None or file.id not in AgentSpec.model_validate(version.spec).context_ids:
+            raise BadRequestError(
+                message=f"'{agent.name}' does not use '{file.name}' in its published version",
+                details={"agent_id": agent.id, "context_id": file.id},
+            )
+        request = (
+            None
+            if proposal.authoring_request_id is None
+            else await authoring_repo.get_request(
+                self.db, proposal.authoring_request_id, organization_id=ctx.organization_id
+            )
+        )
+        evidence = [] if request is None else request.evidence.get("conversation_ids", [])
+        bodies = {file.id: ContextBody(description=proposal.description, content=proposal.content)}
+        checked = await self._check_request(ctx, agent.id, body)
+        pinned = checked.request.model_copy(
+            update={"version": version.version, "baseline_version": version.version}
+        )
+        return (
+            agent,
+            checked._replace(
+                request=pinned,
+                proposal=ProposalCheckRecord(
+                    kind="context", base_version=version.version, suggestions=1
+                ),
+            ),
+            bodies,
+            [UUID(str(conversation)) for conversation in evidence],
+        )
+
+    async def estimate_context_check(
+        self, ctx: AuthContext, context_id: UUID, body: ProposalCheck
+    ) -> EvalRunEstimate:
+        """What checking a pending context change on one agent would cost."""
+        agent, checked, bodies, evidence = await self._context_check(ctx, context_id, body)
+        return await EvalRunService(self.db).estimate(
+            ctx,
+            agent.id,
+            checked.request,
+            scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
+            purpose=EvalRunPurpose.GATE,
+            candidate_contexts=bodies,
+            exclude_conversations=evidence,
+            proposal_check=checked.proposal,
+        )
+
+    async def check_context(
+        self, ctx: AuthContext, context_id: UUID, body: ProposalCheck
+    ) -> EvalRunRead:
+        """Run a dataset on an agent using the file, with the proposed body in place of its own.
+
+        Applying the change is live for every agent bound to the file, which is
+        why it is checked before.
+        """
+        agent, checked, bodies, evidence = await self._context_check(ctx, context_id, body)
+        return await EvalRunService(self.db).start(
+            ctx,
+            agent.id,
+            checked.request,
+            scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
+            purpose=EvalRunPurpose.GATE,
+            candidate_contexts=bodies,
+            exclude_conversations=evidence,
+            suite=checked.suite,
+            proposal_check=checked.proposal,
+        )
+
+    async def check(self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck) -> EvalRunRead:
+        """Run a dataset against the draft's base with every pending suggestion made.
+
+        The baseline - the latest published version, or the draft when it has
+        moved from it - runs beside it in the same run, and the cases taken from
+        the suggestions' own evidence are left out. The draft does not change,
+        and the run sends nothing to review by itself.
+        """
+        agent, batch, projected, checked = await self._agent_check(ctx, agent_id, body)
+        started = await EvalRunService(self.db).start(
+            ctx,
+            agent.id,
+            checked.request,
+            scoring=checked.scoring,
+            judge_version_id=checked.judge_version_id,
+            judge_pinned=checked.judge_pinned,
+            purpose=EvalRunPurpose.GATE,
+            candidate_spec=projected,
+            candidate_skills=await self.projected_skills(ctx, batch.id),
+            exclude_conversations=batch.evidence_conversation_ids,
+            suite=checked.suite,
+            baseline_spec=checked.baseline_spec,
+            proposal_check=checked.proposal,
+        )
+        await authoring_repo.update_batch(
+            self.db,
+            batch=batch,
+            values={"check_eval_run_ids": [*batch.check_eval_run_ids, started.id]},
+        )
+        return started

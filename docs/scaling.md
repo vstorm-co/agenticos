@@ -133,7 +133,7 @@ schedule. A worker that dies gives its jobs back within `WORKER_LEASE_SECONDS`.
 Why the queue is rows in Postgres, measured against nine other engines, is on
 [the background-job benchmark](task-queue-benchmark.md).
 
-Split the pools when parsing competes with agent runs. `WORKER_POOLS=agent,system`
+Split the pools when parsing competes with agent runs. `WORKER_POOLS=agent,eval,system`
 on one set of processes and `WORKER_POOLS=ingest` on hosts with memory to spare
 keep a large upload from delaying a routine. The health probe and
 `agenticos cmd doctor` report a pool that no live worker serves. The

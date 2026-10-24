@@ -1,5 +1,5 @@
 ---
-source_sha: "22652979b979"
+source_sha: "f084d500d1b5"
 ---
 
 # Kod konsoli { #the-consoles-code }
@@ -174,3 +174,14 @@ powodem, by trzymać spec montujący więcej, niż czytają jego asercje.
 
 [Backend →](architecture.md) · [Dodawanie funkcji →](adding_features.md) ·
 [Testowanie →](testing.md)
+
+
+## Testy w konsoli { #evals-in-the-console }
+
+Testy korzystają z konsolowych `PageHeader`, `ListCard`, rozmiarów dialogów, kart i `WizardSteps`. Zmiany danych odświeżają zarejestrowane rodziny zapytań przez `/ws/events`; ręczna ocena odświeża też zestawy sprawdzeń, sesje poprawiania i ochronę środowisk. Błąd odczytu udostępnia ponowienie zamiast pustego widoku sukcesu. Wąskie układy zachowują pola formularzy o rozmiarze 16 px i miejsce na przycisk Architekta.
+
+Datasety zachowują własne udostępnianie i uprawnienia zasobów. Są używane przez wiele agentów i działów, więc konsola nie wyprowadza działu z agenta, który je testuje. Oceniający pozostają agentami określonego typu i korzystają z udostępniania oraz grup katalogu agentów. Powiązania wybiera się na karcie testów agenta i karcie oceniania datasetu; nie powstaje druga, konkurencyjna relacja dodawania do agenta.
+
+Architekt nie otrzymuje w tym milestone nowej capability do zapisywania datasetów. Tworzenie pytań jest jawnie wycenianą akcją z kontrolą uprawnień w procesie poprawiania; asystent w rogu nie może sam uruchamiać tej płatnej pracy. Jego przycisk pozostaje dostępny obok widoków testów.
+
+`e2e/improvement.mobile.spec.ts` przechodzi przez rzeczywiste API i worker. Sprawdza przypadki datasetu, edytor przypadku, ocenianie, przegląd, wynik testu, kreator poprawiania oraz potwierdzoną publikację z ochroną środowiska. Zastąpiony jest wyłącznie zewnętrzny model. GitHub Actions zachowuje zrzuty w obu motywach przy szerokości telefonu i komputera do kontroli wizualnej.

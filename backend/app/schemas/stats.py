@@ -156,12 +156,20 @@ class CostBlock(BaseSchema):
     it were two different definitions of cost sitting on one card with nothing
     saying so - on a deployment that indexes documents they simply disagreed.
 
-    `model_usd` and `ingestion_usd` sum to it. They are separate fields rather
+    `model_usd`, `eval_usd`, `authoring_usd` and `ingestion_usd` sum to it. They are separate fields rather
     than a computed split because the two are answered by different tables and
     a reader deciding where the money went should not have to subtract.
 
     `previous_period_usd` is the whole bill too, so the change against the last
     window compares like with like.
+
+    `eval_usd` is what eval runs and their judge cost - inside `period_usd`,
+    because it is money spent, but outside `model_usd`, which is production
+    traffic as every other figure on the dashboard is. `authoring_usd` is what
+    the platform's improvers cost - the authoring assistant proposing changes to
+    agents, and the knowledge-gap classifier and drafter finding and filling what
+    a knowledge base lacks: they run on the eval surface too, but are not
+    measurement, so they are named apart from `eval_usd`.
 
     The calendar month-to-date figure still lives on `GET /spend`: it
     reconciles against an invoice and must not move with a period filter.
@@ -170,6 +178,8 @@ class CostBlock(BaseSchema):
     period_usd: Decimal
     previous_period_usd: Decimal
     model_usd: Decimal
+    eval_usd: Decimal
+    authoring_usd: Decimal = Decimal(0)
     ingestion_usd: Decimal
     by_provider: list[ProviderCost]
 
@@ -284,3 +294,37 @@ class UsageStats(BaseSchema):
     by_version: list[VersionUsageRow] | None = None
     by_user: list[PersonUsageRow] | None = None
     by_hour: list[HourCount] | None = None
+
+
+class AgentAttention(BaseSchema):
+    """One agent with something to look at in the window.
+
+    Counts only: the answers, runs and results behind them stay behind each
+    one's own gate.
+
+    Attributes:
+        agent_id: The agent.
+        name: Its name.
+        rated_down: Answers of its runs in the window somebody rated down, each
+            counted once - only the runs improving it reads as evidence.
+        failed_runs: Those runs that failed, ran out of budget or were stopped in
+            a loop - not an eval's, a test's or a delegate's.
+        failing_suites: Its active eval suites whose latest result alerts its owner -
+            anything but a pass, as `EvalSuiteResultStatus.alerting` says.
+        can_edit: Whether the caller may edit it, a grant included - where Improve is offered.
+    """
+
+    agent_id: UUID
+    name: str
+    rated_down: int
+    failed_runs: int
+    failing_suites: int
+    can_edit: bool
+
+
+class AgentAttentionList(BaseSchema):
+    """The agents that need attention in a window, those with the most first."""
+
+    from_date: date = Field(alias="from")
+    to_date: date = Field(alias="to")
+    items: list[AgentAttention]

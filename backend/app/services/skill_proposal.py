@@ -24,11 +24,17 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.permissions import AuthContext, Perm
+from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
-from app.repositories import skill_proposal_repo
+from app.repositories import skill_proposal_repo, skill_repo
+from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill import SkillUpdate
+from app.schemas.skill_proposal import SkillProposalRead
+from app.services import proposal_reach
+from app.services.access import SKILL, accessible_ids, resolve_access
+from app.services.notifications import NotificationService
 from app.services.skill_workspace import SkillChange
 from app.services.skills import SkillService
 
@@ -58,23 +64,20 @@ class SkillProposalService:
         """
         recorded: list[SkillProposal] = []
         for change in changes:
-            existing = await skill_proposal_repo.get_pending_for_skill(
+            rewritten = await skill_proposal_repo.replace_pending(
                 self.db,
                 organization_id=ctx.organization_id,
                 skill_id=change.skill_id,
                 name=change.name,
+                agent_id=agent_id,
+                description=change.description,
+                content=change.content,
+                resources=change.resources,
+                conversation_id=conversation_id,
+                base_version=change.base_version,
             )
-            if existing is not None:
-                recorded.append(
-                    await skill_proposal_repo.replace_body(
-                        self.db,
-                        proposal=existing,
-                        description=change.description,
-                        content=change.content,
-                        resources=change.resources,
-                        conversation_id=conversation_id,
-                    )
-                )
+            if rewritten is not None:
+                recorded.append(rewritten)
                 continue
             recorded.append(
                 await skill_proposal_repo.create(
@@ -87,6 +90,7 @@ class SkillProposalService:
                     description=change.description,
                     content=change.content,
                     resources=change.resources,
+                    base_version=change.base_version,
                 )
             )
         if recorded:
@@ -104,34 +108,147 @@ class SkillProposalService:
     async def list_proposals(
         self, ctx: AuthContext, *, status: str | None = None
     ) -> list[SkillProposal]:
-        return await skill_proposal_repo.list_for_organization(
+        """The proposals the caller could decide: those for skills they may edit.
+
+        A proposal for a skill nobody has written yet is one anybody who may create
+        skills could accept - the route's own `skills:edit` - so it is listed for them.
+        """
+        proposals = await skill_proposal_repo.list_for_organization(
             self.db, organization_id=ctx.organization_id, status=status
         )
+        skills = await skill_repo.get_many(
+            self.db,
+            sorted({proposal.skill_id for proposal in proposals if proposal.skill_id is not None}),
+            organization_id=ctx.organization_id,
+        )
+        editable = await accessible_ids(
+            self.db, ctx, list(skills.values()), Perm.SKILLS_EDIT, resource_type=SKILL
+        )
+        return [
+            proposal
+            for proposal in proposals
+            if proposal.skill_id is None or proposal.skill_id in editable
+        ]
+
+    async def list_read(
+        self, ctx: AuthContext, *, status: str | None = None
+    ) -> list[SkillProposalRead]:
+        """Every proposal as a reviewer reads it - see :meth:`read`."""
+        proposals = await self.list_proposals(ctx, status=status)
+        reaches = await self._reaches(ctx, proposals)
+        return [await self._readable(ctx, proposal, reaches) for proposal in proposals]
+
+    async def read(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposalRead:
+        """One proposal as a reviewer reads it.
+
+        The evidence an assistant cited quotes conversations, so a reviewer
+        without `runs:view` gets the run ids and not the words. A waiting change
+        to a skill says which agents applying it goes live for, and where.
+        """
+        proposal = await self.get(ctx, proposal_id)
+        return await self._readable(ctx, proposal, await self._reaches(ctx, [proposal]))
+
+    async def _reaches(
+        self, ctx: AuthContext, proposals: list[SkillProposal]
+    ) -> dict[UUID, list[proposal_reach.Reach]]:
+        waiting = sorted(
+            {
+                proposal.skill_id
+                for proposal in proposals
+                if proposal.skill_id is not None and proposal.status == ProposalStatus.PENDING.value
+            }
+        )
+        return await proposal_reach.reach(
+            self.db, organization_id=ctx.organization_id, kind="skill", resource_ids=waiting
+        )
+
+    async def _readable(
+        self,
+        ctx: AuthContext,
+        proposal: SkillProposal,
+        reaches: dict[UUID, list[proposal_reach.Reach]],
+    ) -> SkillProposalRead:
+        read = SkillProposalRead.model_validate(proposal)
+        skill_id = proposal.skill_id
+        pending = proposal.status == ProposalStatus.PENDING.value
+        if skill_id is not None and pending:
+            reached, hidden_agents = await proposal_reach.reached(self.db, ctx, reaches[skill_id])
+            read = read.model_copy(update={"reaches": reached, "reaches_hidden": hidden_agents})
+        if ctx.has(Perm.RUNS_VIEW):
+            return read
+        hidden = [{"run_id": item.get("run_id"), "quote": None} for item in read.evidence]
+        return read.model_copy(update={"evidence": hidden})
 
     async def get(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:
+        """One proposal the caller could decide - see :meth:`list_proposals`.
+
+        Raises:
+            NotFoundError: No such proposal in the organization, or one for a skill
+                the caller may not edit - which they may not learn exists.
+        """
         proposal = await skill_proposal_repo.get(
             self.db, proposal_id, organization_id=ctx.organization_id
         )
-        if proposal is None:
+        skill = (
+            None
+            if proposal is None or proposal.skill_id is None
+            else await skill_repo.get(
+                self.db, proposal.skill_id, organization_id=ctx.organization_id
+            )
+        )
+        hidden = skill is not None and not await resolve_access(
+            self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
+        )
+        if proposal is None or hidden:
             raise NotFoundError(
                 message="Skill change not found", details={"proposal_id": str(proposal_id)}
             )
         return proposal
 
-    async def apply(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:
-        """Accept a change: write it to the skill, then mark it applied.
+    async def apply(
+        self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
+    ) -> SkillProposal:
+        """Accept a change: mark it applied at the revision read, then write it to the skill.
 
-        In that order deliberately. If the write fails - a name taken since, the
-        skill deleted - the proposal stays pending and the reviewer sees why,
-        rather than reading "applied" beside a skill that never moved.
+        One transaction: if the write fails - a name taken since, the skill
+        deleted - nothing of it stays, and the proposal is still pending. The
+        mark is a conditional update, so of two decisions made at once exactly
+        one wins. It goes live at once for every agent whose served version reads
+        the skill: their suites are queued with the edit, their owners notified.
+
+        A proposal applies only while the skill is still at the version it was
+        written against: a body reviewed against v3 must not silently replace a v4
+        somebody wrote meanwhile.
 
         Raises:
             AlreadyExistsError: If it was already decided.
             NotFoundError: If the proposal is not this organization's.
+            ConcurrentChangeError: If the skill moved past the version it was written
+                against, or the proposal since the reviewer read it.
         """
         proposal = await self.get(ctx, proposal_id)
-        self._refuse_second_decision(proposal)
+        self._refuse_second_decision(proposal, decision.revision)
 
+        if proposal.skill_id is not None:
+            current = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
+            # Locking re-reads the row into `current`: every edit writes the skill
+            # row, so an edit or a second apply committed meanwhile is seen, not overwritten.
+            await skill_repo.lock(self.db, current.id)
+            if _moved_since(proposal, current):
+                raise ConcurrentChangeError(
+                    message=(
+                        f"'{current.name}' changed since this was proposed "
+                        f"(now v{current.version}). Compare the two and edit the skill "
+                        "by hand, or ask again."
+                    ),
+                    details={
+                        "proposal_id": proposal.id,
+                        "base_version": proposal.base_version,
+                        "version": current.version,
+                    },
+                )
+
+        decided = await self._claim(ctx, proposal, decision, ProposalStatus.APPLIED)
         if proposal.skill_id is None:
             skill = await self.skills.create(
                 ctx,
@@ -156,12 +273,20 @@ class SkillProposalService:
                 ],
             )
 
-        decided = await skill_proposal_repo.decide(
-            self.db,
-            proposal=proposal,
-            status=ProposalStatus.APPLIED,
-            decided_by=ctx.subject_id,
-        )
+        reaches = (
+            await proposal_reach.reach(
+                self.db, organization_id=ctx.organization_id, kind="skill", resource_ids=[skill.id]
+            )
+        )[skill.id]
+        notifications = NotificationService(self.db)
+        for item in reaches:
+            await notifications.shared_change_applied(
+                agent=item.agent,
+                kind="skill",
+                resource=skill,
+                occurrence=f"{decided.id}:{decided.revision}",
+                actor_user_id=ctx.user_id,
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -169,11 +294,18 @@ class SkillProposalService:
             action="skill.change_applied",
             target_type="skill",
             target_id=str(skill.id),
-            details={"name": skill.name, "proposal_id": str(proposal_id)},
+            details={
+                "name": skill.name,
+                "proposal_id": str(proposal_id),
+                "revision": decided.revision,
+                "agents": sorted(str(item.agent.id) for item in reaches),
+            },
         )
         return decided
 
-    async def discard(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:
+    async def discard(
+        self, ctx: AuthContext, proposal_id: UUID, decision: ProposalDecision
+    ) -> SkillProposal:
         """Refuse a change, keeping the record of what was proposed.
 
         Kept rather than deleted: an agent that keeps proposing the same edit is
@@ -181,13 +313,8 @@ class SkillProposalService:
         pattern becomes invisible.
         """
         proposal = await self.get(ctx, proposal_id)
-        self._refuse_second_decision(proposal)
-        decided = await skill_proposal_repo.decide(
-            self.db,
-            proposal=proposal,
-            status=ProposalStatus.DISCARDED,
-            decided_by=ctx.subject_id,
-        )
+        self._refuse_second_decision(proposal, decision.revision)
+        decided = await self._claim(ctx, proposal, decision, ProposalStatus.DISCARDED)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -195,12 +322,36 @@ class SkillProposalService:
             action="skill.change_discarded",
             target_type="skill",
             target_id=str(proposal.skill_id) if proposal.skill_id else None,
-            details={"name": proposal.name, "proposal_id": str(proposal_id)},
+            details={
+                "name": proposal.name,
+                "proposal_id": str(proposal_id),
+                "revision": decided.revision,
+            },
         )
         return decided
 
+    async def _claim(
+        self,
+        ctx: AuthContext,
+        proposal: SkillProposal,
+        decision: ProposalDecision,
+        status: ProposalStatus,
+    ) -> SkillProposal:
+        """Decide the proposal if it is still pending at the revision read, or refuse."""
+        decided = await skill_proposal_repo.decide_if(
+            self.db,
+            proposal_id=proposal.id,
+            organization_id=ctx.organization_id,
+            revision=decision.revision,
+            status=status,
+            decided_by=ctx.subject_id,
+        )
+        if decided is None:
+            raise _changed(proposal)
+        return decided
+
     @staticmethod
-    def _refuse_second_decision(proposal: SkillProposal) -> None:
+    def _refuse_second_decision(proposal: SkillProposal, revision: int) -> None:
         if proposal.status != ProposalStatus.PENDING.value:
             raise AlreadyExistsError(
                 message=(
@@ -209,3 +360,23 @@ class SkillProposalService:
                 ),
                 details={"proposal_id": str(proposal.id), "status": proposal.status},
             )
+        if proposal.revision != revision:
+            raise _changed(proposal)
+
+
+def _moved_since(proposal: SkillProposal, skill: Skill) -> bool:
+    """Whether the skill is no longer what the proposal was written against.
+
+    A workspace change recorded before proposals kept a version has only its age to
+    go by, so any write to the skill after it was proposed counts as moving it.
+    """
+    if proposal.base_version is not None:
+        return skill.version != proposal.base_version
+    return skill.updated_at is not None and skill.updated_at > proposal.created_at
+
+
+def _changed(proposal: SkillProposal) -> ConcurrentChangeError:
+    return ConcurrentChangeError(
+        message="The proposal changed since you opened it. Review the new version.",
+        details={"proposal_id": proposal.id, "reason": "proposal_changed"},
+    )

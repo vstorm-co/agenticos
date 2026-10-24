@@ -119,6 +119,8 @@ class RunSurface(enum.StrEnum):
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # Kept apart so a filter can leave evaluation out of production traffic.
+    EVAL = "eval"
     # Work the platform did for a person on its own initiative, in the background
     # (#2301): noticing a request they keep repeating, writing their first
     # messages. Metered against the organization's per-person proactivity limit.
@@ -168,6 +170,12 @@ class AgentRun(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),

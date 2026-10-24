@@ -50,6 +50,7 @@ from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
+from app.repositories import dataset as dataset_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import member as member_repo
@@ -61,6 +62,7 @@ from app.services.access import (
     ARTIFACT,
     COLLECTION,
     CONTEXT,
+    DATASET,
     MCP_CONNECTION,
     SECRET,
     SKILL,
@@ -136,6 +138,16 @@ _FEEDS = (
     # Firing a routine by hand is a run, which publishes its own events.
     _Feed("/agents/{agent_id}/triggers/{trigger_id}/run", None),
     _Feed("/agents/{agent_id}/triggers", "trigger", "agent_id"),
+    # An estimate writes nothing.
+    _Feed("/agents/{agent_id}/improvements/estimate", None),
+    _Feed("/agents/{agent_id}/improvements/{run_id}/knowledge/estimate", None),
+    _Feed("/agents/{agent_id}/improvements/{run_id}/continue/estimate", None),
+    _Feed("/agents/{agent_id}/improvements/{run_id}/rounds/{number}/selection/estimate", None),
+    _Feed("/agents/{agent_id}/improvements/{run_id}/rounds/{number}/attribution/estimate", None),
+    _Feed("/agents/{agent_id}/eval-runs/estimate", None),
+    _Feed("/agents/{agent_id}/eval-runs", "eval_run", "agent_id"),
+    _Feed("/agents/{agent_id}/eval-suites/estimate", None),
+    _Feed("/agents/{agent_id}/eval-suites", "eval_suite", "agent_id"),
     # An embed is its own row with its own page, not a change to an agent.
     _Feed("/agents/embeds", None),
     _shared("/agents", "agent"),
@@ -153,6 +165,12 @@ _FEEDS = (
     _Feed("/kb", "knowledge_base", "kb_id"),
     _shared("/skills", "skill"),
     _Feed("/skills", "skill", "skill_id"),
+    # Estimating a generation spends and writes nothing, and finding a case's
+    # twins is a read that posts its question in the body.
+    _Feed("/datasets/{dataset_id}/generations/estimate", None),
+    _Feed("/datasets/{dataset_id}/cases/twins", None),
+    _shared("/datasets", "dataset"),
+    _Feed("/datasets", "dataset", "dataset_id"),
     _shared("/secrets", "secret"),
     _Feed("/secrets", "secret", "secret_id"),
     # Starting an OAuth dance or probing a server changes no row.
@@ -161,6 +179,11 @@ _FEEDS = (
     _shared("/mcp-connections", "mcp_connection"),
     _Feed("/mcp-connections", "mcp_connection", "connection_id"),
     _Feed("/channels/bots", "channel", "bot_id"),
+    # Grouping now and a check of answers are started here and land later; the
+    # work announces what it placed.
+    _Feed("/knowledge-gaps/collections/{knowledge_base_id}/regroup", None),
+    _Feed("/knowledge-gaps/collections/{knowledge_base_id}/classify", None),
+    _Feed("/knowledge-gaps", "knowledge_gap", "topic_id", creates=False),
     _Feed("/notifications", "notification", "notification_id", creates=False),
     _Feed("/orgs/{org_id}/members", "member", "target_user_id"),
     _Feed("/orgs/{org_id}/invitations", "invitation", "invitation_id"),
@@ -173,12 +196,15 @@ _FEEDS = (
 _OWNED: dict[ChangeResource, ResourceType] = {
     "agent": AGENT,
     "trigger": AGENT,
+    "eval_suite": AGENT,
+    "eval_run": AGENT,
     "skill": SKILL,
     "context": CONTEXT,
     "knowledge_base": COLLECTION,
     "artifact": ARTIFACT,
     "secret": SECRET,
     "mcp_connection": MCP_CONNECTION,
+    "dataset": DATASET,
 }
 
 _redis: RedisClient | None = None
@@ -326,6 +352,40 @@ async def publish_run(run: AgentRun, action: ChangeAction) -> None:
     await publish(run_event(run, action))
 
 
+async def publish_dataset(
+    *, organization_id: UUID, dataset_id: UUID, actor_user_id: UUID | None
+) -> None:
+    """Tell open consoles a dataset changed with no request to say so - a
+    generation finishing in the background. Called after its commit."""
+    await publish(
+        ChangeEvent(
+            organization_id=organization_id,
+            resource="dataset",
+            id=dataset_id,
+            action="updated",
+            surface="run",
+            actor_user_id=actor_user_id,
+            actor_name=None,
+        )
+    )
+
+
+async def publish_knowledge_gaps_grouped(organization_id: UUID) -> None:
+    """Tell open consoles a grouping pass placed new questions in the organization's
+    topics. Called after the pass committed, from the worker that ran it."""
+    await publish(
+        ChangeEvent(
+            organization_id=organization_id,
+            resource="knowledge_gap",
+            id=None,
+            action="updated",
+            surface="system",
+            actor_user_id=None,
+            actor_name=None,
+        )
+    )
+
+
 async def publish(event: ChangeEvent) -> None:
     """Tell the organization's open consoles. Never raises: the write it reports
     has already succeeded, and a page that misses it is no worse off than before."""
@@ -387,7 +447,7 @@ class ChangeFeedMiddleware:
 
 async def _row(db: AsyncSession, event: ChangeEvent, row_id: UUID) -> OwnedResource | None:
     organization_id = event.organization_id
-    if event.resource in ("agent", "trigger"):
+    if event.resource in ("agent", "trigger", "eval_suite", "eval_run"):
         return await agent_repo.get(db, row_id, organization_id=organization_id)
     if event.resource == "secret":
         return await secret_repo.get(db, row_id, organization_id=organization_id)
@@ -401,6 +461,8 @@ async def _row(db: AsyncSession, event: ChangeEvent, row_id: UUID) -> OwnedResou
         return await context_repo.get(db, row_id, organization_id=organization_id)
     if event.resource == "artifact":
         return await artifact_repo.get(db, row_id, organization_id=organization_id)
+    if event.resource == "dataset":
+        return await dataset_repo.get(db, row_id, organization_id=organization_id)
     return await knowledge_base_repo.get_by_id(db, row_id)
 
 
@@ -438,6 +500,9 @@ async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> boo
     if event.resource == "run":
         # The approvals inbox lists parked runs to whoever decides them.
         return ctx.has(Perm.RUNS_VIEW) or ctx.has(Perm.APPROVALS_DECIDE)
+    if event.resource == "knowledge_gap":
+        # Gaps are people's questions, read with the whole run history or not at all.
+        return ctx.scope_for(Perm.RUNS_VIEW) is PermScope.ALL
     resource_type = _OWNED.get(event.resource)
     if resource_type is None:
         return True

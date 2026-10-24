@@ -2,6 +2,7 @@
 
 import contextvars
 import logging
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +12,7 @@ from app.db.session import on_the_pooled_loop
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalFilters
 from app.services.rag.models import ParentContextMode, SearchResult
+from app.services.rag.overlay import active_overlay
 from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
 from app.services.rag.retrieval import RetrievalService, fuse_over_queries
 from app.services.rag.vectorstore import process_vector_store, unpooled_vector_store
@@ -152,6 +154,7 @@ async def search_knowledge_base(
     analysis_max_variants: int = 3,
     generate: GenerateText | None = None,
     parent_context: ParentContextMode = ParentContextMode.OFF,
+    on_results: Callable[[list[str], list[SearchResult]], None] | None = None,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -181,6 +184,8 @@ async def search_knowledge_base(
             (the default) returns the matched chunks unchanged. With several
             queries it runs once, after fusion, so the passage budget is spent
             on the fused list rather than on each variant's.
+        on_results: Called with the collections searched and what came back,
+            once retrieval has succeeded; never for a refused or failed search.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
@@ -249,11 +254,15 @@ async def search_knowledge_base(
                 scopes={resolved[0]: single_scope} if one_collection else scopes_by_name,
             )
     except AppException:
+        if overlay := active_overlay():
+            overlay.failed = True
         # Already an account of what is wrong and what to do about it - an
         # unconfigured embedding credential names the setting to set. Rewrapping
         # it as "search failed" would replace that with a symptom.
         raise
     except Exception as e:
+        if overlay := active_overlay():
+            overlay.failed = True
         # The upstream text stays here and goes no further. `details` is
         # serialized into the response body, and `str(e)` on an embedding or
         # vector-store client is not a controlled string: provider SDKs put the
@@ -269,6 +278,10 @@ async def search_knowledge_base(
             },
         ) from e
 
+    if overlay := active_overlay():
+        overlay.record(results)
+    if on_results is not None:
+        on_results(resolved, results)
     return _format_results(results)
 
 

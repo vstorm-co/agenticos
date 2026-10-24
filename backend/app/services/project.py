@@ -27,6 +27,7 @@ from app.repositories import (
     agent_workspace_repo,
     conversation_repo,
     organization_assistant_repo,
+    personal_data_repo,
     project_repo,
     resource_grant_repo,
 )
@@ -282,10 +283,15 @@ class ProjectService:
         """Delete a project and its files; its chats stay, as ordinary chats."""
         project = await self.get(ctx, project_id, perm=Perm.PROJECTS_EDIT)
         await self.workspaces.purge_project(ctx, project)
-        # The chats that go with it take their attachments and offloaded media.
-        await ConversationService(self.db).forget_stored_files(
-            ctx.organization_id, await project_repo.ownerless_chat_ids(self.db, project=project)
-        )
+        # The chats that go with it take their attachments and offloaded media, and
+        # leave the dataset cases taken from them with no link back - their run
+        # outlives them, so no cascade clears that one.
+        going = await project_repo.ownerless_chat_ids(self.db, project=project)
+        for conversation_id in going:
+            await personal_data_repo.unlink_dataset_cases_from_conversation(
+                self.db, conversation_id, organization_id=ctx.organization_id
+            )
+        await ConversationService(self.db).forget_stored_files(ctx.organization_id, going)
         await project_repo.detach_conversations(self.db, project=project)
         await resource_grant_repo.delete_for_resource(
             self.db,

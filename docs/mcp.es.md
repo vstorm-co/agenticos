@@ -1,5 +1,5 @@
 ---
-source_sha: "9025a904cc03"
+source_sha: "2123bd72158e"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -548,6 +548,23 @@ siendo dos herramientas. Al servidor se le sigue llamando por su nombre real.
 Es un intercambio deliberado. El endpoint `/test` y `last_status` son cómo te
 enteras, y el [rastro de auditoría](governance.md#audit) registra lo que se
 ejecutó de verdad.
+
+### En un entorno de prueba, y en un eval { #in-a-test-environment-and-in-an-eval }
+
+Un [entorno](environments.md#test-connections) con nombre puede responder a un
+binding de la organización con una conexión de prueba — un CRM sandbox en
+`staging`. El turno llega entonces al servidor de prueba con el nombre de la
+conexión de producción, así que el modelo ve las mismas herramientas; si la
+conexión de prueba ya no existe o está desactivada, el binding queda apagado en
+ese turno y nunca se llega a producción en su lugar.
+
+En un eval, cada llamada a una conexión de producción se retiene y se registra con
+sus argumentos en lugar de ejecutarse. La única excepción es una herramienta que
+el servidor marca con `readOnlyHint`, en una conexión que confía en esa marca. La
+marca es una afirmación del propio servidor, así que la confianza está
+desactivada en todas las conexiones. Se activa en el diálogo **Tools** de la
+conexión. El diálogo indica cuántas herramientas declaran la marca, y el cambio
+queda en la auditoría con ese número.
 
 ### Conectar uno desde el Builder { #connecting-one-from-the-builder }
 

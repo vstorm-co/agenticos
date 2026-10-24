@@ -1,5 +1,5 @@
 ---
-source_sha: "ea4e850dac4a"
+source_sha: "5cbd208ceaa2"
 ---
 
 # Koncepcje { #concepts }
@@ -224,7 +224,7 @@ parkuje go tak samo, ślad audytowy nazywa go tak samo.
 
 Jest stemplowany powierzchnią `schedule`, więc pytanie *jak ten agent jest
 używany* potrafi odróżnić run bez nadzoru od runa człowieka. Każde odpalenie to
-osobny run w Activity, a jego odpowiedzi zbierają się w jednej rozmowie będącej
+osobny run w **Aktywności** (Activity), a jego odpowiedzi zbierają się w jednej rozmowie będącej
 dziennikiem runów, którą trigger otwiera raz — zawczasu, w momencie utworzenia
 triggera, więc jest klikalną pozycją, zanim jeszcze kiedykolwiek się odpali.
 Trigger może też publikować każdą odpowiedź na kanale albo w czacie grupowym Teams,
@@ -590,6 +590,80 @@ poznać pułapy i narzędzia, oraz
 dowiedzieć się, kto komu może delegować.
 
 ---
+
+## Agenci systemowi { #system-agents }
+
+Niektórych agentów uruchamia platforma, a nie człowiek: **sędziów**, którzy
+oceniają odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge),
+**Knowledge gap drafter**, który pisze szkic fragmentu, którego brakuje przy
+[luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz
+**Knowledge gap classifier**, który czyta odpowiedzi w poszukiwaniu
+[pytań, na które baza wiedzy nie umiała odpowiedzieć](knowledge-gaps.md#answers-and-comments).
+To są **agenci systemowi**. Rodzaj agenta mówi, którym jest - `agent` dla tych,
+których używają ludzie, `judge`, `drafter` i `classifier` dla tych. Każda
+organizacja dostaje domyślnego **Eval judge**, draftera i klasyfikator przy
+utworzeniu, organizacja utworzona
+wcześniej dostaje każdego z nich wtedy, gdy coś po raz pierwszy go potrzebuje,
+a dataset może dostać własnego sędziego.
+
+Agent systemowy należy do platformy, która go uruchamia, a nie jest agentem,
+którego używają ludzie. Agents pokazuje ich osobno, w zwiniętym pasie **Agenci
+systemowi** pod **Agenci**, pogrupowanych według rodzaju: najpierw **Sędziowie**
+- każda karta mówi, które datasety ocenia dany sędzia - potem **Autor szkiców
+luk**, a na końcu **Klasyfikator luk**. Agent każdego rodzaju utworzony przez
+platformę jest oznaczony jako domyślny dla tego rodzaju - **Domyślny sędzia**,
+**Domyślny generator przypadków** i tak dalej.
+Wybory agenta ich pomijają.
+
+Kto ma `agents:edit`, otwiera takiego agenta, żeby zmienić jego instrukcje,
+model i budżet, z pasa albo, w przypadku draftera, przez **Edytuj instrukcje
+draftera** przy szkicu. Strona sędziego zawiera je, jego limity, historię i
+datasety, które go wybrały, z włączonym ocenianiem albo bez - każdy rozwija się
+na jego ostatnie oceny i runy ewaluacji, z których pochodzą - wraz z tym, jak
+często ludzie zgodzili się z nim w wynikach, które ocenił, a oni rozstrzygnęli,
+i nic więcej. Strony draftera i klasyfikatora zawierają to samo bez datasetów.
+
+**Nowy agent** → **Agent systemowy** tworzy dowolny z pięciu rodzajów: sędziego,
+generator przypadków, autora szkiców luk, klasyfikator luk lub asystenta
+poprawiania (`POST /agents/system`). Zaczyna od instrukcji, temperatury i budżetu
+danego rodzaju, na pierwszym modelu organizacji; publikacja wymaga odpowiednich
+uprawnień. Sędziego wybierasz w ocenianiu datasetu, generator przy generowaniu
+przypadków, pomocników wiedzy na zakładce luk bazy wiedzy, a asystenta przy
+poprawianiu. Domyślnie działa agent organizacji. Wybrany pomocnik musi mieć
+odpowiedni rodzaj, być opublikowany i dostępny do uruchomienia przez użytkownika.
+Usunięty wybór nigdy nie jest automatycznie zastępowany domyślnym.
+
+Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
+wysyłają powiadomienia o runie. Agent systemowy startuje z niewielkim własnym
+miesięcznym budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego
+swojego budżetu na ewaluację, szkice albo sprawdzanie odpowiedzi.
+
+Agentem systemowym jest też **generator przypadków**, rodzaju `generator`:
+przygotowuje [przypadki do datasetów](datasets.md#generating-cases) i jest
+tworzony tak samo, z własnym budżetem. Jest w tym samym pasie, po drafterze, i
+otwiera się go i edytuje tak jak sędziego; zakładka Generated datasetu prowadzi
+do niego każdego, kto może go edytować.
+
+Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
+harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
+uruchomiłaby run, a nie tylko w konsoli.
+
+Każdy run agenta systemowego jest [izolowany](environments.md#in-an-eval) tak
+jak run evala: narzędzie, które czyta, działa, a takie, które coś by zmieniło,
+jest wstrzymywane i zapisywane. Agent systemowy czyta tekst, którego nikt nie
+sprawdził - odpowiedź do oceny, dokument, rozmowę - więc podrzucona w nim
+instrukcja nie dosięgnie produkcyjnego połączenia przez narzędzie, które edytor
+dodał agentowi.
+
+Gdy organizacja ma już profil modelu, agent systemowy jest publikowany na
+najstarszym z nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu
+jest tworzony jako draft. Seedowani Eval judge, drafter i klasyfikator są publikowani na
+pierwszym modelu organizacji, gdy tylko zostanie on dodany; własny sędzia
+datasetu czeka, aż człowiek wybierze mu model i go opublikuje, a do tego czasu
+mówią o tym funkcje, które z niego korzystają.
+
+[Przełącznik wsparcia AI](governance.md#ai-assistance) organizacji decyduje, czy
+agenci systemowi w ogóle działają.
 
 ## Profile modeli { #model-profiles }
 

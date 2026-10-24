@@ -73,6 +73,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
     subscription_tier: "free",
     seats_limit: null,
     monthly_budget_usd: null,
+    ai_assistance_enabled: true,
     speech_to_text_provider: null,
     speech_to_text_model: null,
     speech_to_text_secret_id: null,

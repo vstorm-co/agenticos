@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   preferredOrg,
   serverFallbackOrg,
+  useAiAssistance,
   useOrganizationList,
   useOrganizations,
   useTenantId,
@@ -98,6 +99,25 @@ describe("preferredOrg", () => {
       "b",
     );
     expect(preferredOrg([org({ id: "a" })], ["a"])).toBeNull();
+  });
+});
+
+describe("useAiAssistance", () => {
+  it("reads the active organization's own switch, not the cached list", async () => {
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    vi.mocked(apiClient.get).mockResolvedValue(org({ ai_assistance_enabled: false }));
+
+    const { result } = renderHook(() => useAiAssistance(), { wrapper });
+
+    await waitFor(() => expect(result.current).toEqual({ orgId: "org-1", enabled: false }));
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/org-1");
+  });
+
+  it("knows nothing before an organization is chosen", () => {
+    const { result } = renderHook(() => useAiAssistance(), { wrapper });
+
+    expect(result.current).toEqual({ orgId: null, enabled: null });
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 
@@ -331,6 +351,16 @@ describe("useOrganizations", () => {
     await result.current.setChatApprovalWaiver("org-1", true);
 
     await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
+  });
+
+  it("switches AI assistance with only that field, and keeps the answer", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ ai_assistance_enabled: false }));
+
+    await result.current.setAiAssistance("org-1", false);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { ai_assistance_enabled: false });
+    await waitFor(() => expect(result.current.orgs[0]?.ai_assistance_enabled).toBe(false));
   });
 
   it("sends the voice settings in one PATCH and caches the answer", async () => {

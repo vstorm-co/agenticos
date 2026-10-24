@@ -8,6 +8,7 @@ from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
+from app.agents.capabilities.knowledge._log import KnowledgeSearchLog
 from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
 from app.services.rag.models import ParentContextMode
 from app.services.rag.query_analysis import QueryAnalysisMode
@@ -112,6 +113,7 @@ class Knowledge(AbstractCapability[AgentDepsT]):
     query_analysis_mode: QueryAnalysisMode = "off"
     query_analysis_max_variants: int = 3
     parent_context: ParentContextMode = ParentContextMode.OFF
+    search_log: KnowledgeSearchLog | None = field(default=None, repr=False, compare=False)
 
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
@@ -126,5 +128,6 @@ class Knowledge(AbstractCapability[AgentDepsT]):
                 query_analysis_mode=self.query_analysis_mode,
                 query_analysis_max_variants=self.query_analysis_max_variants,
                 parent_context=self.parent_context,
+                search_log=self.search_log,
             )
         return self._toolset

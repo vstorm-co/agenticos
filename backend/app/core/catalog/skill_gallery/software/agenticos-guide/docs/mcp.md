@@ -506,6 +506,21 @@ two long names stay two tools. The server is still called by its real name.
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.
 
+### In a test environment, and in an eval
+
+A named [environment](environments.md#test-connections) can answer an
+organization binding with a test connection — a sandbox CRM in `staging`. The
+turn then reaches the test server under the production connection's name, so the
+model sees the same tools; if the test connection is gone or disabled, the
+binding is off for that turn and production is never reached instead.
+
+In an eval, every call to a production connection is held and recorded with its
+arguments rather than executed. The one exception is a tool the server marks
+`readOnlyHint` on a connection set to trust that mark. The mark is the server's
+own claim, so trusting it is off on every connection. To turn it on, open the
+connection's **Tools** dialog. The dialog says how many tools claim the mark,
+and the change is audited with that count.
+
 ### Connecting one from the Builder
 
 An agent's **MCP servers** tab lists the whole catalog, not only what has

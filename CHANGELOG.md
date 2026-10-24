@@ -19,9 +19,106 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- New test-question identities use SHA-256 for their train/holdout allocation; existing stored assignments remain unchanged across edits and versions.
+
+- The improvement wizard keeps its publication link when reopened, names the next version, offers the first automatic check only when needed, and distinguishes failed or replaced suggestions from loading.
+
+### Changed
+
+- Show pinned source examples, recorded causes, question versions and completed baseline results in the improvement wizard, with explicit loading and refusal states.
+
+- Notify requesters when manual tests or test-question generation finish, including failed jobs, and refresh open eval pages through the live change feed.
+
+- Measure a knowledge draft separately from agent changes using run-only context or retrieval,
+  independently selected holdout questions and explicit cost consent; invalidate
+  changed drafts and remove derived content when source data is erased.
+
+- Propose reusable skills from three verified evidence answers, test them as
+  temporary candidate resources, and create and bind them only after an
+  authorized human accepts.
+
+- Open resumable improvement sessions, compare rounds, confirm per-change
+  attribution costs, retry failed steps explicitly, and accept or publish checked
+  changes in one human-confirmed transaction.
+- Recompute eval, suite and promotion evidence after human review or undo, with
+  reviewer annotations and notifications, while requiring manual promotion.
+
+- Choose published system agents where they run: case generation, Improve and
+  each knowledge base’s gap classifier and drafter. Create every selectable
+  kind from New agent.
+
+- Add durable background improvement sessions with paired candidate checks, an
+  audit timeline, cancellation, creator notifications and actual child costs.
+- Check eval and suite spend limits against confirming reruns and both sides;
+  treat a positive cost or latency increase from zero as exceeding every
+  percentage ceiling.
+
+### Fixed
+
+- Human review and undo refresh the improvement wizard’s current verdict, without new paid work, publication or replacing the selected round with an archived check.
+
+- **Dataset access no longer exposes private source conversations.** Case reads,
+  historical versions and exports mask inaccessible conversation text. Review
+  answers and evidence require run-reading access, hidden text cannot be
+  edited, and copying another person’s private conversation shows a warning
+  before adding it. Eval execution keeps the full stored text (#2372).
+
+- **Eval refusals explain what needs changing.** Unknown environments return
+  404, concurrent suite-name conflicts return 409, and visible datasets name
+  missing permissions. Draft validation talks about evaluation. Agent and
+  dataset links show a no-access view; Evals deep links explain `runs:view`,
+  and read-only grading controls are visibly disabled (#2367).
+
+- **Judge criteria can be scoped to case tags.** Unmatched criteria are omitted,
+  the rubric editor shows coverage without double counting, and Review notes
+  can target a case tag. Existing unscoped criteria and their hashes remain
+  unchanged (#2377).
+
+- **Promotion guards pin their judge publication.** A new judge publication cannot
+  relax a guard; changing it requires an audited pin move. Guard runs and
+  rescoring use the held version, and old unpinned passes do not open the gate
+  after upgrade (#2413).
+
+- **Eval runs distinguish refusals and waiting from crashes.** Guardrail blocks
+  are graded as refusals; parked or cancelled runs stay incomplete. Broken
+  runs, loops and step limits still fail the suite and have a red chip in the
+  run list, even when later attempts pass (#2412).
+
+- **A first suite measurement without a minimum cannot pass by default.** It
+  establishes a baseline for later comparisons and leaves guarded environments
+  in place. Existing unqualified passes are reclassified on upgrade (#2401).
+
+- **Publishing explains guarded environments accurately.** Followers move only
+  after their named guard suites pass. A draft whose last test broke cases
+  offers testing first and an explicit secondary Publish anyway action. Suite
+  forms name environments and their served versions, and regression notices
+  use the correct singular or plural (#2366).
+
+- **Eval results redact recognized secrets before storage.** Answers, nested
+  tool-call evidence and errors use the same detector as Review. Existing
+  results are redacted on upgrade; grading still reads the original answer in
+  memory before it is stored (#2375).
+
+- **Queued case generation retains API key permissions.** Workers recheck the
+  original key's current scopes and membership before reading sources, and stop
+  explicitly if it was revoked, expired or deleted (#2429).
+- **Eval results are easier to scan.** Failing scorers appear first, with icons,
+  scores and expandable evidence; each case shows one unverified-grade warning.
+  Execution status stays neutral beside the verdict. Single-version progress
+  avoids comparison promises, identical drafts cannot start a comparison, and
+  a single broken case opens automatically (#2362).
+
 ## [1.16.0] - 2026-10-23
 
 ### Added
+
+- Improvement sessions offer a priced, confirmed next round or budget resumption, keep retries in the same round, and let their creator discard pending proposals without undoing applied work.
+
+- Improvement steps show their actual work state and can be inspected directly, with keyboard access and a compact phone layout.
+
+- Improvement sessions classify source answers and draft missing knowledge within their confirmed budget, preserving source isolation, API-key scopes and embedding spend. Knowledge-only sessions can check drafts without publishing an empty agent version.
+
+- Recheck a selected subset of improvement suggestions with a confirmed estimate; retain earlier measurements and accept only the tested selection. Show distinct mixed and worse results, and attribute only confirmed differences.
 
 - **An agent can override its speech and video settings per clip.** The voice,
   resolution, shape, length and sound an author sets are now defaults the

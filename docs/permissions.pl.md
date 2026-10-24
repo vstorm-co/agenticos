@@ -1,5 +1,5 @@
 ---
-source_sha: "cf1f7216bba3"
+source_sha: "58c124e02871"
 ---
 
 # Uprawnienia { #permissions }
@@ -94,8 +94,13 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`,
+`approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promuje wersję na
+[środowisko strzeżone przez suity evali](environments.md#guarding-a-promotion-with-evals),
+choć te na niej nie przeszły, i zmienia, które suity go strzegą. Mają je owner i
+admin; sama promocja nadal wymaga `agents:publish` na agencie.
 
 `api_keys:create` pozwala członkowi wydawać [klucze
 API](api.md#organization-api-keys) dla siebie; `api_keys:manage` pokazuje i
@@ -360,15 +365,21 @@ filtrować”), a **pustą listę** dla kontekstu bez podmiotu. To przeciwieńst
 pomylenie ich poszerzyłoby listowanie do całej organizacji dokładnie w momencie, w
 którym powinno zostać zawężone do niczego.
 
-`accessible_ids` jest wsadowym odpowiednikiem `resolve_access`: dla wczytanej już
-strony wierszy zwraca ten podzbiór, na którym wywołujący może skorzystać z
+`accessible_ids` jest wsadowym odpowiednikiem `resolve_access`: dla wczytanej
+już strony wierszy zwraca ten podzbiór, na którym wywołujący może skorzystać z
 uprawnienia, stosując tę samą regułę `max(role scope, grant)` na każdym wierszu,
 ale czytając wszystkie granty w jednym odczycie zamiast po jednym na wiersz (i
-wcale, kiedy rola sięga wszystkiego). To ono wypełnia flagi możliwości przy każdym
-wierszu listowania — `AgentRead.can_run`, podłogę dla zaoferowania „new trigger”
-na karcie — więc Viewer z przyznanym runem na jednym agencie widzi tę kontrolkę
-tam i nigdzie indziej. Kontekst bez podmiotu oraz puste wejście rozwiązują się
-oba do pustego zbioru przed jakimkolwiek zapytaniem.
+wcale, kiedy rola sięga wszystkiego).
+
+To `accessible_ids` wypełnia flagi możliwości przy
+każdym wierszu listowania — `AgentRead.can_run`, podłogę dla zaoferowania „new
+trigger” na karcie, `AgentRead.can_edit`, z którego konsola czyta, czy
+zaoferować kontrolki edycji na stronie agenta, test draftu i zatrzymanie eval
+runa, oraz `AgentRead.can_publish` dla publikacji — więc Viewer z przyznanym
+runem na jednym agencie widzi tę kontrolkę tam i nigdzie indziej.
+
+Kontekst bez podmiotu oraz puste wejście rozwiązują się oba do pustego zbioru
+przed jakimkolwiek zapytaniem.
 
 Listowania agentów, skilli i kb przyjmują też `?shared_with_me=true`: tylko
 wiersze celowo udostępnione wywołującemu — widoczne dla organizacji albo jawnie

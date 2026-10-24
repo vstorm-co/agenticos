@@ -46,9 +46,10 @@ from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
+from app.agents.system_agents import refuse_system_agent
 from app.agents.visual_reports import VisualReports
 from app.core.exceptions import AuthorizationError, BadRequestError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
@@ -379,6 +380,20 @@ class ChatAgentRunner:
         self.db = db
         self.runner = AgentRunnerService(db)
         self.usage = UsageReportService(db)
+
+    async def refuse_system_agent(
+        self, *, user: User, organization_id: UUID, agent_id: UUID
+    ) -> None:
+        """Refuse a chat with an agent only the platform runs, before anything is written.
+
+        Raises:
+            AuthorizationError: If the user is not a member of this organization.
+            NotFoundError: If no agent here has that id, or they may not run it.
+            SystemAgentRestrictedError: If the agent is a system agent, such as a judge.
+        """
+        ctx = await self._context(user, organization_id)
+        agent = await self.runner.registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        refuse_system_agent(agent, action=f"a {RunSurface.WEB.value} run")
 
     async def run(
         self,

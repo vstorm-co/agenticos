@@ -25,6 +25,8 @@ class Pool(enum.StrEnum):
 
     AGENT = "agent"
     """Agent runs: long, waiting on models, cheap in memory."""
+    EVAL = "eval"
+    """Eval runs: hours over a large dataset, so they never hold a slot an agent run needs."""
     INGEST = "ingest"
     """Parsing and embedding: CPU and memory heavy, each job in a child process."""
     SYSTEM = "system"
@@ -107,6 +109,59 @@ class RunAgent(Payload):
     """The request's fingerprint: an idempotent retry must send the same one."""
 
 
+class AdvanceImprovement(Payload):
+    """One short, restartable transition; paid work runs in its own child job."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
+class RunEval(Payload):
+    """One eval run, answered, scored and compared case by case."""
+
+    eval_run_id: UUID
+    organization_id: UUID
+
+
+class GenerateCases(Payload):
+    """One case generation, drafted by the case generator."""
+
+    generation_id: UUID
+    organization_id: UUID
+
+
+class RunAuthoring(Payload):
+    """One Improve or Verify the authoring assistant was asked for."""
+
+    request_id: UUID
+    organization_id: UUID
+
+
+class ClassifyGaps(Payload):
+    """Answers read for the knowledge gaps of these knowledge bases, as the person who asked.
+
+    Without `message_ids`, a knowledge base's newest unread answers, as its
+    Knowledge gaps tab asks; with them, those answers alone, as an improvement
+    session sorts the answers it found bad.
+    """
+
+    organization_id: UUID
+    knowledge_base_ids: list[UUID] = Field(max_length=50)
+    user_id: UUID
+    message_ids: list[UUID] | None = Field(default=None, max_length=500)
+    improvement_run_id: UUID | None = None
+
+
+class DraftGaps(Payload):
+    """The missing knowledge of these answers drafted, as the person a session acts for."""
+
+    organization_id: UUID
+    knowledge_base_ids: list[UUID] = Field(max_length=50)
+    user_id: UUID
+    message_ids: list[UUID] = Field(max_length=500)
+    improvement_run_id: UUID | None = None
+
+
 class ThinkForPerson(Payload):
     """One person in one organization, for the platform's nightly look at their week (#2301)."""
 
@@ -158,6 +213,14 @@ class CleanupExternalState(Payload):
     whose rows went with the delete that queued this (#2310). Defaulted and left
     out of the dump when empty, as `prefixes` is. A previous-release worker
     refuses a job that carries them; a current one runs it."""
+
+
+class SettleLater(Exception):
+    """A settler that cannot close what its job left yet - a worker still holds it.
+
+    The worker logs it without a traceback and leaves the end owed, so the
+    rescuer's next pass runs the settler again.
+    """
 
 
 @dataclass(frozen=True)
@@ -252,6 +315,63 @@ RUN_AGENT = Task(
     timeout=timedelta(hours=3),
     priority=Priority.INTERACTIVE,
 )
+# One attempt, for `RUN_AGENT`'s reason: the cases a dead worker answered were
+# paid for. A job that ends for good - withdrawn, timed out, its worker dead -
+# closes its run through the kind's settler, which frees the organization's eval
+# slots it held; `REAP_ABANDONED_EVALS` is the ceiling when that settler cannot
+# run. A pool of its own, because a run holds its slot for as long as it lasts -
+# waiting on the organization's eval slots included - and in a shared pool enough
+# of them would leave a person's API run and every trigger fire with no slot at
+# all.
+RUN_EVAL = Task(
+    kind="run-eval",
+    payload_type=RunEval,
+    pool=Pool.EVAL,
+    max_attempts=1,
+    timeout=timedelta(hours=12),
+    priority=Priority.BULK,
+)
+# One attempt: each improver call is billed. A job that ends for good fails its
+# request through the kind's settler, and the request's own staleness check, when
+# it is next read, is the ceiling when that settler cannot run.
+RUN_AUTHORING = Task(
+    kind="run-authoring",
+    payload_type=RunAuthoring,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+# One attempt each: every classifying and drafting call is billed, and what one
+# recorded stays recorded, so a session reads the job's end and the verdicts it left.
+CLASSIFY_GAPS = Task(
+    kind="classify-gaps",
+    payload_type=ClassifyGaps,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+)
+DRAFT_GAPS = Task(
+    kind="draft-gaps",
+    payload_type=DraftGaps,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=15),
+    priority=Priority.INTERACTIVE,
+)
+# One attempt: the generator's call is billed. A job that ends without the
+# handler finishing the generation - its worker killed - fails the generation
+# through its settler, so nothing waits on it for ever.
+GENERATE_CASES = Task(
+    kind="generate-cases",
+    payload_type=GenerateCases,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
 # One attempt: it is a model call booked to the person's proactivity limit, and
 # the next night is the retry - nothing a person asked for waits on it.
 THINK_FOR_PERSON = Task(
@@ -312,6 +432,16 @@ CLEANUP_EXTERNAL_STATE = Task(
     priority=Priority.SCHEDULED,
 )
 
+ADVANCE_IMPROVEMENT = Task(
+    kind="advance-improvement",
+    payload_type=AdvanceImprovement,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_IMPROVEMENTS = _sweep("sweep-improvements")
+
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
 DELIVER_NOTIFICATIONS = _sweep("deliver-notifications")
@@ -327,6 +457,9 @@ APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
+CHECK_EVAL_SUITES = _sweep("check-eval-suites")
+REAP_ABANDONED_EVALS = _sweep("reap-abandoned-evals")
+GROUP_KNOWLEDGE_GAPS = _sweep("group-knowledge-gaps")
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
 WATCH_SWEEP = _sweep("watch-sweep")
@@ -345,6 +478,13 @@ TASKS: dict[str, TaskKind] = {
         SYNC_SOURCE,
         FIRE_TRIGGER,
         RUN_AGENT,
+        RUN_EVAL,
+        RUN_AUTHORING,
+        ADVANCE_IMPROVEMENT,
+        SWEEP_IMPROVEMENTS,
+        CLASSIFY_GAPS,
+        DRAFT_GAPS,
+        GENERATE_CASES,
         THINK_FOR_PERSON,
         LOOK_THROUGH_WATCH,
         BRIEF_PERSON,
@@ -366,6 +506,9 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
         REAP_VOICE_CALLS,
+        CHECK_EVAL_SUITES,
+        REAP_ABANDONED_EVALS,
+        GROUP_KNOWLEDGE_GAPS,
         SWEEP_GENERATED_MEDIA,
         PROACTIVE_SWEEP,
         WATCH_SWEEP,

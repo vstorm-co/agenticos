@@ -1,5 +1,5 @@
 ---
-source_sha: "cf1f7216bba3"
+source_sha: "58c124e02871"
 ---
 
 # Berechtigungen { #permissions }
@@ -98,8 +98,14 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 
 **Globale** Berechtigungen sind binär und organisationsweit: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`,
+`approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promotet eine Version auf eine
+[Umgebung, die ihre Eval-Suites bewachen](environments.md#guarding-a-promotion-with-evals),
+obwohl sie auf ihr nicht bestanden haben, und ändert, welche Suites eine
+bewachen. Owner und Admins haben es; überhaupt zu promoten bleibt
+`agents:publish` auf dem Agent.
 
 `api_keys:create` erlaubt einem Mitglied,
 [API-Schlüssel](api.md#organization-api-keys) für sich auszustellen;
@@ -386,12 +392,18 @@ sie auf nichts verengt werden sollte.
 bereits geladener Zeilen gibt es die Teilmenge zurück, auf der der Aufrufer eine
 Berechtigung ausüben darf, wendet dieselbe Regel `max(role scope, grant)` je
 Zeile an, liest aber jeden Grant in einem Nachschlagen statt einem je Zeile (und
-gar keinen, wenn die Rolle alles erreicht). Es ist das, was die
-Capability-Kennzeichen je Zeile einer Auflistung füllt - `AgentRead.can_run`, die
-Untergrenze dafür, auf einer Karte "new trigger" anzubieten - sodass ein Viewer,
-dem run auf einem Agent gewährt wurde, die Bedienung dort und sonst nirgends
-sieht. Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder
-Abfrage zur leeren Menge auf.
+gar keinen, wenn die Rolle alles erreicht).
+
+`accessible_ids` ist das, was die
+Capability-Kennzeichen je Zeile einer Auflistung füllt - `AgentRead.can_run`,
+die Untergrenze dafür, auf einer Karte "new trigger" anzubieten,
+`AgentRead.can_edit`, aus dem die Konsole liest, ob sie die Bearbeitung auf der
+Agent-Seite, das Testen eines Drafts und das Stoppen eines Eval-Runs anbietet,
+und `AgentRead.can_publish` für das Veröffentlichen - sodass ein Viewer, dem run
+auf einem Agent gewährt wurde, die Bedienung dort und sonst nirgends sieht.
+
+Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder Abfrage
+zur leeren Menge auf.
 
 Die Auflistungen für Agents, Skills und die kb nehmen außerdem
 `?shared_with_me=true` entgegen: nur Zeilen, die bewusst mit dem Aufrufer geteilt

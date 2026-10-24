@@ -1,5 +1,5 @@
 ---
-source_sha: "bb644bc0a7d4"
+source_sha: "f6ac7e75e837"
 ---
 
 # Skills { #skills }
@@ -173,7 +173,9 @@ nächste Leser hätte keine Möglichkeit, eine durchdachte Verbesserung von eine
 halluzinierten zu unterscheiden.
 
 Ein Schreibvorgang wird deshalb zu einem **Vorschlag**, und dieser erscheint über
-der Liste auf der Seite Skills für jeden, der `skills:edit` hält:
+der Liste auf der Seite Skills für alle, die diesen Skill bearbeiten dürfen - seinen
+Besitzer oder wer eine Bearbeitungsfreigabe darauf hat - und bei einem Skill, den
+es noch nicht gibt, für alle, die Skills anlegen dürfen. Sonst sieht ihn niemand:
 
 - **Apply** schreibt den Skill neu und erhöht seine Version, was jeden gebundenen
   Agent bei seinem nächsten Run erreicht.
@@ -200,6 +202,26 @@ Abwesenheit.
 Drei Runden einer Unterhaltung, die denselben Skill verfeinern, hinterlassen
 **einen** Vorschlag, nicht drei. Wer dreimal dieselbe Frage gestellt bekommt, hat
 mehr Arbeit bekommen statt mehr Information.
+
+Eine Änderung hält fest, für welche Version des Skills sie geschrieben wurde:
+bei einem Run die Version, die dieser Run bekommen hat, und ein späterer Turn,
+der die Änderung überschreibt, hält seine eigene fest. Apply lehnt sie ab, sobald
+jemand den Skill seitdem geändert hat, sodass eine Bearbeitung, die während des
+Wartens entstand, nicht überschrieben wird. Vergleiche beide und bearbeite den
+Skill von Hand, oder frage erneut.
+
+Der [Authoring-Assistent](authoring.md#skills) schlägt Skill-Änderungen auf
+dieselbe Weise vor, mit seiner Begründung und den Runs, auf die sie sich stützt,
+und Apply lehnt sie auf dieselbe Weise ab.
+
+Jede Änderung sagt neben **Apply**, welche veröffentlichten Agent-Versionen den
+Skill lesen, welche Eval-Suites ihr Anwenden in die Warteschlange stellt und
+welche Wächter sie erst bei der nächsten Promotion prüfen, und
+**Check with evals** kommt zuerst. Das Anwenden benachrichtigt die Besitzer
+dieser Agents. Eine Entscheidung nennt die Version der Änderung, die Sie gelesen
+haben: Eine seitdem umgeschriebene Änderung - durch eine spätere Runde oder eine
+neue Anfrage - wird mit „The proposal changed since you opened it“ abgelehnt,
+und von zwei gleichzeitig getroffenen Entscheidungen zählt nur eine.
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 
@@ -403,3 +425,11 @@ er ist nicht kaputt.
   muss ihn also sehen können — und zur Laufzeit wird nichts erneut geprüft.
 - Die **Gallery** sind siebzig fertige Skills nach Branche, auf Anfrage
   installiert — anders als die mitgelieferten drei, die von allein ankommen.
+
+### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
+
+Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverwendbarer Ablauf in mindestens drei verschiedenen Quellantworten vorkommt. Jede Textstelle muss in der Antwort selbst stehen; Kommentare allein belegen keinen wiederholten Ablauf. Die Karte zeigt Name, Beschreibung, vollständigen Inhalt, Begründung und geprüfte Belege. Eine Evaluation bindet einen temporären Skill nur an den Kandidaten: Sie erstellt weder einen Skill-Datensatz noch eine veröffentlichte Version.
+
+**Accept** erstellt den privaten Skill und bindet ihn in derselben Transaktion an den Draft des Agenten. Dafür sind `skills:edit` und Bearbeitungszugriff auf den Agenten nötig. Ohne Erstellungsrecht bleibt der Vorschlag lesbar und prüfbar; die deaktivierte Annahme erklärt den Grund. **Dismiss** erstellt nichts. **Undo** entfernt die Bindung und behält den unabhängigen Skill. Erneutes Annehmen verwendet ihn nur bei unverändertem Namen und Inhalt. Skills enthalten Anweisungen und gewähren keine Tools. Zusätzlicher Tool-Zugriff benötigt eigene Richtlinienprüfungen; schreibende Tools erfordern eine Freigabe.
+
+Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.

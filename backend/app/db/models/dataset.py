@@ -1,0 +1,357 @@
+"""Datasets - the questions an agent is tested on, kept as versioned cases.
+
+A dataset is an owned, shareable resource like a skill or a context file: an
+owner, a visibility and grants decide who reads, edits and runs it. What it
+holds is cases - an input to answer, optionally a reference answer, the tool
+calls the agent is expected to make and the checks to apply.
+
+**Every change to the cases mints a version, and a version never changes.** An
+eval run points at a version, so two runs over the same version saw the same
+questions and their results compare. That is two tables rather than one:
+
+- `dataset_cases` holds case *revisions*. A row's content is never updated;
+  editing a case writes a new row with the same `case_id`, so the version that
+  held the old one still reads it. The links to where a case came from are
+  cleared later, when that conversation or its author is deleted; and erasing
+  the person a case was taken from replaces its text in every revision.
+- `dataset_versions` is one row per change, numbered from 1 within a dataset.
+
+Which revisions a version holds is kept on the revisions themselves. A revision
+joins at the end, or in the place of the revision it edits, and leaves at most
+once, so it is held by one unbroken run of versions at one position:
+`added_in` is the first version holding it and `removed_in` the first that no
+longer does. Version N holds the revisions with `added_in <= N` and no
+`removed_in`, or one past N. A change sets `removed_in` only to the version it
+mints, so it never alters what an earlier version holds, and storage grows with
+what changed rather than with every version times every case.
+
+The name, the description and the sharing are not versioned: they say what the
+dataset is for and who reaches it, and neither changes what a run was asked.
+"""
+
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from enum import StrEnum
+from typing import Any, Literal
+
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base, TimestampMixin
+from app.db.models.resource_grant import Visibility
+
+
+class CaseSource(StrEnum):
+    """Where a case came from."""
+
+    MANUAL = "manual"
+    """Written in the console."""
+
+    IMPORT = "import"
+    """A row of an imported CSV or JSONL file."""
+
+    CONVERSATION = "conversation"
+    """Taken from an answer somebody rated, with "Add to dataset"."""
+
+    SYNTHETIC = "synthetic"
+    """Drafted by the case generator and accepted by a person."""
+
+
+class ToolOrderMode(StrEnum):
+    """How the calls an agent made are matched against a case's expected ones."""
+
+    ANY = "any"
+    """Every expected call happened, in any order, other calls allowed."""
+
+    IN_ORDER = "in_order"
+    """The expected calls happened in the listed order, other calls allowed between them."""
+
+    EXACT = "exact"
+    """Exactly the expected calls, in the listed order, and nothing else."""
+
+
+class DatasetChange(StrEnum):
+    """What a version changed, so its history reads without a diff."""
+
+    ADD = "add"
+    EDIT = "edit"
+    REMOVE = "remove"
+    IMPORT = "import"
+    GENERATE = "generate"
+    """Generated cases a person accepted."""
+
+
+class Dataset(Base, TimestampMixin):
+    """One set of test cases, and who may use it."""
+
+    __tablename__ = "datasets"
+
+    improvement_holdout_share: Mapped[Decimal] = mapped_column(
+        Numeric(4, 3), nullable=False, default=Decimal("0.5"), server_default="0.5"
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    visibility: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=Visibility.PRIVATE.value
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # The agent the dataset was made to test, when one was named; an agent's test
+    # set is found by it, never by a name somebody may change.
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Kept in step with the newest version under the minting row lock, so a listing
+    # needs no aggregate; 0 means no case was ever added.
+    latest_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # Not versioned with the cases - how a team grades is not what it asks - so
+    # each score keeps a copy of the configuration it was computed with.
+    scoring: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "improvement_holdout_share BETWEEN 0 AND 1", name="ck_dataset_improvement_holdout_share"
+        ),
+        UniqueConstraint("organization_id", "name", name="uq_dataset_org_name"),
+        CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_dataset_visibility"),
+        CheckConstraint("latest_version >= 0", name="ck_dataset_latest_version"),
+        CheckConstraint("case_count >= 0", name="ck_dataset_case_count"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Dataset(org={self.organization_id}, name={self.name}, v={self.latest_version})>"
+
+
+class DatasetVersion(Base):
+    """One immutable state of a dataset's cases."""
+
+    __tablename__ = "dataset_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    dataset_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("datasets.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    change: Mapped[str] = mapped_column(String(16), nullable=False)
+    changed_cases: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("dataset_id", "number", name="uq_dataset_version_number"),
+        CheckConstraint("number >= 1", name="ck_dataset_version_number"),
+        CheckConstraint("case_count >= 0", name="ck_dataset_version_case_count"),
+        CheckConstraint("changed_cases >= 0", name="ck_dataset_version_changed_cases"),
+        CheckConstraint(
+            "change IN ('add', 'edit', 'remove', 'import', 'generate')",
+            name="ck_dataset_version_change",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<DatasetVersion(dataset={self.dataset_id}, number={self.number})>"
+
+
+class DatasetCase(Base):
+    """One revision of one case. Its content is never updated after insert."""
+
+    __tablename__ = "dataset_cases"
+
+    improvement_partition: Mapped[Literal["train", "holdout"]] = mapped_column(
+        String(7), nullable=False
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    dataset_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("datasets.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # The case across its revisions: what an edit keeps, and what a comparison
+    # of two eval runs matches results on.
+    case_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
+    input: Mapped[str] = mapped_column(Text, nullable=False)
+    history: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    reference_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    counter_example: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected_tool_calls: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    order_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=ToolOrderMode.ANY.value, server_default="any"
+    )
+    # Open objects named by `type`: scoring decides the vocabulary, and any validation
+    # it adds must still accept the rows already stored here.
+    checks: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    tags: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    # `SET NULL`: the question and answer were copied into this row, so a case
+    # outlives the run, conversation and message it was taken from.
+    source_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("rag_documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    # The versions holding this revision, and its place in their order. Set when
+    # the revision is written; only `removed_in` is set later, once, by the change
+    # that edits or removes it.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    added_in: Mapped[int] = mapped_column(Integer, nullable=False)
+    removed_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Set when erasing the person the case was taken from replaced its text in
+    # place - the one change made to a revision's content after insert.
+    anonymised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Whose words the case holds, written with it and never shown: what an
+    # erasure finds the case by once the conversation or run it came from is gone.
+    asked_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # One entry per turn of `history`, in order: who wrote it, or null for the
+    # agent's turns and for text a curator typed.
+    history_author_ids: Mapped[list[uuid.UUID | None]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
+    noted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "improvement_partition IN ('train', 'holdout')",
+            name="ck_dataset_case_improvement_partition",
+        ),
+        CheckConstraint(
+            "source IN ('manual', 'import', 'conversation', 'synthetic')",
+            name="ck_dataset_case_source",
+        ),
+        CheckConstraint(
+            "order_mode IN ('any', 'in_order', 'exact')", name="ck_dataset_case_order_mode"
+        ),
+        CheckConstraint(
+            "added_in >= 1 AND (removed_in IS NULL OR removed_in > added_in)",
+            name="ck_dataset_case_held",
+        ),
+        CheckConstraint(
+            "cardinality(history_author_ids) = jsonb_array_length(history)",
+            name="ck_dataset_case_history_authors",
+        ),
+        Index(
+            "ix_dataset_cases_history_author_ids",
+            "history_author_ids",
+            postgresql_using="gin",
+        ),
+        Index("ix_dataset_cases_held", "dataset_id", "added_in"),
+        Index(
+            "ix_dataset_cases_current",
+            "dataset_id",
+            "position",
+            postgresql_where=text("removed_in IS NULL"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<DatasetCase(dataset={self.dataset_id}, case={self.case_id}, rev={self.id})>"

@@ -33,6 +33,7 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 CONTEXT_PATH = "app.services.context"
+SUITE_PATH = "app.services.eval_suite.EvalSuiteService"
 
 
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthContext:
@@ -262,12 +263,30 @@ class TestUpdate:
             patch(f"{CONTEXT_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{CONTEXT_PATH}.context_repo.update", new=AsyncMock(return_value=file)),
             patch(f"{CONTEXT_PATH}.record_audit", new=AsyncMock()) as audit,
+            patch(f"{SUITE_PATH}.dependency_changed", new=AsyncMock()) as changed,
         ):
             await service.update(ctx, file.id, ContextFileUpdate(content="new", mode="link"))
         details = audit.call_args.kwargs["details"]
         assert details["fields"] == ["content", "mode"]
         # The submitted body is never audit data.
         assert "new" not in str(details)
+        changed.assert_awaited_once_with(
+            organization_id=file.organization_id, kind="context", resource_id=file.id
+        )
+
+    async def test_an_empty_edit_queues_no_suite(self):
+        service = _service()
+        ctx = _ctx()
+        file = _file(ctx=ctx)
+        with (
+            patch(f"{CONTEXT_PATH}.context_repo.get", new=AsyncMock(return_value=file)),
+            patch(f"{CONTEXT_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{CONTEXT_PATH}.context_repo.update", new=AsyncMock(return_value=file)),
+            patch(f"{CONTEXT_PATH}.record_audit", new=AsyncMock()),
+            patch(f"{SUITE_PATH}.dependency_changed", new=AsyncMock()) as changed,
+        ):
+            await service.update(ctx, file.id, ContextFileUpdate())
+        changed.assert_not_awaited()
 
 
 class TestDelete:
@@ -283,8 +302,10 @@ class TestDelete:
             ) as clear,
             patch(f"{CONTEXT_PATH}.context_repo.delete", new=AsyncMock()) as remove,
             patch(f"{CONTEXT_PATH}.record_audit", new=AsyncMock()) as audit,
+            patch(f"{SUITE_PATH}.dependency_changed", new=AsyncMock()) as changed,
         ):
             await service.delete(ctx, file.id)
         clear.assert_awaited_once()
         remove.assert_awaited_once()
+        changed.assert_awaited_once()
         assert audit.call_args.kwargs["action"] == "context.deleted"

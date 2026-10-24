@@ -53,20 +53,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.permissions import OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.case_generation import CaseGeneration, GenerationStatus
+from app.db.models.context import ContextFile
+from app.db.models.eval_run import EvalRun, EvalRunPurpose, EvalRunStatus
+from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResultStatus
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
+from app.db.models.promotion_gate import PromotionOverride
 from app.db.models.rag_document import RAGDocument
+from app.db.models.resource_grant import Visibility
+from app.db.models.skill import Skill
 from app.repositories import agent as agent_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import group as group_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import user as user_repo
+from app.schemas.change_event import ChangeEvent
+from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.spend import month_start, organization_spend_since
 
@@ -898,6 +908,292 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def eval_run_finished(self, run: EvalRun) -> None:
+        """Announce a terminal eval; only a manual check notifies its requester.
+
+        Suite and improvement checks have their own terminal notification, so
+        every child finishing must not produce another inbox entry. Answers,
+        grading notes and provider errors never enter this notice.
+        """
+        from app.services import change_feed
+
+        if run.status in {EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value}:
+            return
+        spawn_after_commit(
+            self.db,
+            change_feed.publish(
+                ChangeEvent(
+                    organization_id=run.organization_id,
+                    resource="eval_run",
+                    id=run.agent_id,
+                    action="updated",
+                    surface="run",
+                    actor_user_id=run.created_by_user_id,
+                    actor_name=None,
+                )
+            ),
+            name=f"eval-run-finished:{run.id}",
+        )
+        if run.purpose != EvalRunPurpose.MANUAL.value or run.proposal_check is not None:
+            return
+        await self._evaluation_finished(
+            organization_id=run.organization_id,
+            user_id=run.created_by_user_id,
+            event_type=NotificationEventType.EVAL_RUN_FINISHED,
+            occurrence_id=run.id,
+            status=run.status,
+            summary=f"Your test finished: {run.status}.",
+            path=f"/agents/{run.agent_id}/evals/{run.id}",
+        )
+
+    async def case_generation_finished(self, generation: CaseGeneration) -> None:
+        """Tell the requester their proposed questions are ready or generation failed."""
+        if generation.status == GenerationStatus.RUNNING.value:
+            return
+        await self._evaluation_finished(
+            organization_id=generation.organization_id,
+            user_id=generation.requested_by_user_id,
+            event_type=NotificationEventType.CASE_GENERATION_FINISHED,
+            occurrence_id=generation.id,
+            status=generation.status,
+            summary=f"Writing your test questions finished: {generation.status}.",
+            path=f"/datasets/{generation.dataset_id}?tab=generated",
+        )
+
+    async def _evaluation_finished(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID | None,
+        event_type: NotificationEventType,
+        occurrence_id: UUID,
+        status: str,
+        summary: str,
+        path: str,
+    ) -> None:
+        if user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        link = self._link(path, organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=event_type,
+            occurrence_id=str(occurrence_id),
+            summary=summary,
+            context_url=link,
+            render_context={
+                "status": status,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(link),
+            },
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def improvement_finished(
+        self, *, agent: Agent, run_id: UUID, user_id: UUID | None, status: str, reason: str | None
+    ) -> None:
+        """A terminal pipeline result, once; no evidence text is put in the notification."""
+        if user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=agent.organization_id, user_ids=[user_id]
+        )
+        path = self._link(f"/agents/{agent.id}/improve/{run_id}", agent.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.IMPROVEMENT_FINISHED,
+            occurrence_id=str(run_id),
+            summary=f"Improvement of {agent.name}: {status}" + (f" ({reason})" if reason else ""),
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "status": status,
+                "reason": reason,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=agent.organization_id,
+            use_savepoint=True,
+        )
+
+    async def eval_suite_reevaluated(
+        self, suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent
+    ) -> None:
+        """A changed verdict after human review; no automatic promotion or answer text."""
+        summary = EvalSuiteSummary.model_validate(result.summary) if result.summary else None
+        if summary is None or summary.review is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db,
+            organization_id=suite.organization_id,
+            user_ids=[suite.owner_user_id] if suite.owner_user_id else [],
+        )
+        if not recipients:
+            return
+        review = summary.review
+        path = self._link(f"/agents/{agent.id}/evals/{result.eval_run_id}", suite.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.EVAL_SUITE_REEVALUATED,
+            occurrence_id=f"{result.id}:{review.at.isoformat()}",
+            summary=f"{suite.name} on {agent.name}: {review.previous_verdict} → {result.status} after review. Promotion requires a person.",
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "suite_name": suite.name,
+                "status": result.status,
+                "run_url": absolute_context_url(path),
+                "app_name": settings.PROJECT_NAME,
+            },
+            organization_id=suite.organization_id,
+            use_savepoint=True,
+        )
+
+    async def eval_suite_failed(
+        self, suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent
+    ) -> None:
+        """A suite's run fell below its threshold, could not run, or passed uncompared.
+
+        Its owner hears once per run of such results on a version - the caller
+        sends only the first - and the occurrence is that first result, so a
+        retried write is a no-op. A failure names the cases that broke, so the
+        owner knows what to open before they open anything.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db,
+            organization_id=suite.organization_id,
+            user_ids=[suite.owner_user_id] if suite.owner_user_id else [],
+        )
+        if not recipients:
+            return
+        summary = EvalSuiteSummary.model_validate(result.summary) if result.summary else None
+        path = (
+            f"/agents/{agent.id}/evals/{result.eval_run_id}"
+            if result.eval_run_id is not None
+            else f"/agents/{agent.id}?tab=evals"
+        )
+        failing = [case.input for case in summary.failing_cases] if summary else []
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.EVAL_SUITE_FAILED,
+            occurrence_id=f"{suite.id}:{result.id}",
+            summary=_suite_summary(suite, result, agent=agent, summary=summary),
+            context_url=self._link(path, suite.organization_id),
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "suite_name": suite.name,
+                "status": result.status,
+                "reason": result.reason,
+                "version": result.version_number,
+                "failing_cases": failing,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(self._link(path, suite.organization_id)),
+            },
+            organization_id=suite.organization_id,
+            use_savepoint=True,
+        )
+
+    async def promotion_overridden(
+        self,
+        override: PromotionOverride,
+        *,
+        agent: Agent,
+        version: AgentVersion,
+        owners: list[UUID],
+    ) -> None:
+        """A version was promoted onto an environment past eval suites that had not passed.
+
+        The owners of those suites hear it - they set the bar that was waved
+        aside - and the occurrence is the override, so a retried write is a
+        no-op.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=override.organization_id, user_ids=owners
+        )
+        if not recipients:
+            return
+        overridden = [guard["suite_name"] for guard in override.gate if guard["state"] != "passed"]
+        path = f"/agents/{agent.id}?tab=history"
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.PROMOTION_OVERRIDDEN,
+            occurrence_id=str(override.id),
+            summary=(
+                f"v{version.version} of {agent.name} went to {override.environment_name} "
+                f"without passing {', '.join(overridden)}: {_clip(override.reason)}"
+            ),
+            context_url=self._link(path, override.organization_id),
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "environment_name": override.environment_name,
+                "version": version.version,
+                "suites": overridden,
+                "reason": override.reason,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(self._link(path, override.organization_id)),
+            },
+            organization_id=override.organization_id,
+            use_savepoint=True,
+        )
+
+    async def shared_change_applied(
+        self,
+        *,
+        agent: Agent,
+        kind: Literal["context", "skill"],
+        resource: ContextFile | Skill,
+        occurrence: str,
+        actor_user_id: UUID | None,
+    ) -> None:
+        """A change to a context file or skill an agent reads went live for it.
+
+        The agent's owner hears it - unless they applied it themselves - and is
+        pointed at the agent's evals, where the suites it queued run. The file's
+        or skill's content is never in it. Its name is only when the owner can see
+        the resource anyway - it is the organization's, or theirs - since an
+        agent may read a private one somebody else shared with its publisher.
+        """
+        owners = [agent.owner_user_id] if agent.owner_user_id not in (None, actor_user_id) else []
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=agent.organization_id, user_ids=owners
+        )
+        if not recipients:
+            return
+        what = "context file" if kind == "context" else "skill"
+        named = (
+            resource.visibility == Visibility.ORG.value
+            or resource.owner_user_id == agent.owner_user_id
+        )
+        path = f"/agents/{agent.id}?tab=evals"
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.SHARED_CHANGE_APPLIED,
+            occurrence_id=f"{occurrence}:{agent.id}",
+            summary=(
+                f"A change to the {what} {resource.name} went live for {agent.name}"
+                if named
+                else f"A change to a {what} it reads went live for {agent.name}"
+            ),
+            context_url=self._link(path, agent.organization_id),
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "kind": kind,
+                **({"name": resource.name} if named else {}),
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(self._link(path, agent.organization_id)),
+            },
+            organization_id=agent.organization_id,
+            use_savepoint=True,
+        )
+
     async def _mcp_audience(self, connection: McpConnection, organization_id: UUID) -> set[UUID]:
         """Whoever manages the organization's servers, and whoever owns an agent bound to this one.
 
@@ -1385,3 +1681,81 @@ class NotificationService:
             )
 
         return recipients
+
+
+_SHOWN_CASES = 5
+
+
+def _clip(text: str, limit: int = 200) -> str:
+    """One line of a person's text, short enough for a notification's summary."""
+    line = " ".join(text.split())
+    return line if len(line) <= limit else f"{line[: limit - 1]}…"
+
+
+def _suite_summary(
+    suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent, summary: EvalSuiteSummary | None
+) -> str:
+    """One line saying which suite, on what, why - and, for a failure, which cases. A
+    pass is told only when it ran uncompared, and says why."""
+    on = f"{agent.name} v{result.version_number}" if result.version_number else agent.name
+    deciding = result.status in (
+        EvalSuiteResultStatus.FAILED.value,
+        EvalSuiteResultStatus.INCONCLUSIVE.value,
+    )
+    if result.status == EvalSuiteResultStatus.PASSED.value and summary and summary.message:
+        return f"{suite.name} passed on {on}. {summary.message}"
+    if not deciding:
+        why = (summary.message if summary and summary.message else None) or (result.reason or "")
+        return f"{suite.name} did not run on {on}: {why.rstrip('.')}."
+    failed = result.status == EvalSuiteResultStatus.FAILED.value
+    reasons = summary.reasons if summary else []
+    if reasons:
+        said = "; ".join(_reason_text(reason) for reason in reasons)
+    elif summary and summary.message:
+        said = summary.message.rstrip(".")
+    else:
+        said = "below its threshold"
+    line = f"{suite.name} {'failed' if failed else 'could not decide'} on {on}: {said}."
+    cases = [
+        case.input
+        for case in (summary.failing_cases if summary else [])
+        if failed or case.kind in ("ungraded", "incomplete")
+    ]
+    if cases:
+        named = ", ".join(f"'{text}'" for text in cases[:_SHOWN_CASES])
+        more = len(cases) - _SHOWN_CASES
+        label = "Failing" if failed else "Undecided"
+        line += f" {label}: {named}" + (f" and {more} more." if more > 0 else ".")
+    return line
+
+
+def _reason_text(reason: ThresholdReason) -> str:
+    value = reason.value or 0
+    limit = reason.limit or 0
+    match reason.code:
+        case "pass_rate_below":
+            return f"pass rate {value:.0%} is below {limit:.0%}"
+        case "nothing_graded":
+            return "no case could be graded"
+        case "regressions":
+            return (
+                "1 case breaks reproducibly"
+                if int(value) == 1
+                else f"{int(value)} cases break reproducibly"
+            )
+        case "cost_per_pass_rise":
+            if reason.detail == "zero_baseline":
+                return "cost per passed case rose from zero, exceeding every percentage ceiling"
+            return f"cost per passed case rose {value:.0%}"
+        case "p95_rise":
+            if reason.detail == "zero_baseline":
+                return "p95 latency rose from zero, exceeding every percentage ceiling"
+            return f"p95 latency rose {value:.0%}"
+        case "ungraded":
+            return f"{int(value)} case(s) nothing grades"
+        case "incomplete":
+            return f"{int(value)} case(s) the provider or a scorer failed on"
+        case "crashed":
+            return f"the agent's run failed on {int(value)} case(s)"
+        case _:
+            return "the comparison is invalid"

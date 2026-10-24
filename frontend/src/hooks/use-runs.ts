@@ -62,6 +62,8 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** A surface left out - the eval traffic, which outnumbers people. */
+    excludeSurface?: string;
     /** Voice calls or text runs (#54); a call is one row, however often it reconnected. */
     modality?: "text" | "voice";
     /** The model as the run recorded it - the dashboard's bars count these. */
@@ -93,6 +95,7 @@ export function useRuns(
     rated,
     statuses,
     surface,
+    excludeSurface,
     modality,
     modelLabel,
     userId,
@@ -111,6 +114,7 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      excludeSurface,
       modality,
       modelLabel,
       userId,
@@ -135,6 +139,7 @@ export function useRuns(
       if (isTest !== undefined) params.test = String(isTest);
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (excludeSurface) params.exclude_surface = excludeSurface;
       if (modality) params.modality = modality;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
