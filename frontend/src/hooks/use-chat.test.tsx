@@ -2634,9 +2634,15 @@ describe("useChat - a socket that went away mid-answer", () => {
     first.unmount();
 
     const onTurnInterrupted = vi.fn();
-    renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+    const { rerender } = renderHook(({ callback }) => useChat({ onTurnInterrupted: callback }), {
+      wrapper,
+      initialProps: { callback: onTurnInterrupted },
+    });
+    const nextCallback = vi.fn();
+    rerender({ callback: nextCallback });
 
     expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+    expect(nextCallback).not.toHaveBeenCalled();
   });
 
   it("re-reads nothing on a page opened with no turn left streaming", () => {
