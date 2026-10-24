@@ -452,6 +452,7 @@ class EvalRunWorker:
                 cost_usd=agent_run.cost_usd,
                 latency_ms=_latency_ms(agent_run),
                 run_id=agent_run.id,
+                agent_id=agent_run.agent_id,
             )
             try:
                 score = await ScoringService(db).score_case(

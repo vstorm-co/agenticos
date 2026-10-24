@@ -1,5 +1,5 @@
 ---
-source_sha: "04174f773ae2"
+source_sha: "a5f4d8e7cde0"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -86,7 +86,8 @@ Urteil gilt weiter für alle Fälle.
 Sobald seine Wiederholungen vorliegen, schickt ein Run in die
 [Review-Warteschlange](datasets.md#review) des Datasets, wofür er einstehen
 kann - jede bestätigte Regression und jede Antwort, an deren Bewertung sein
-Judge gescheitert ist, eine pro Fall - und sagt, wie viele (`routed_to_review`).
+Judge gescheitert ist, eine pro Fall und Agent - und sagt, wie viele
+(`routed_to_review`).
 Eine [Prüfung des Vorschlags des Assistenten](authoring.md#check-with-evals)
 schickt von sich aus nichts, da nichts angenommen wurde. Ein übersprungener
 Judge schickt nichts: Seine Antworten warten auf der Seite des Runs auf
@@ -98,9 +99,10 @@ Seite, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
 Bewertung eine Person überstimmt hat, wird als korrigiert markiert.
 
 In beiden Fällen nimmt eine Antwort den Platz einer älteren, noch wartenden
-Antwort desselben Falls ein, die die Warteschlange unentschieden verlässt - ein
-Run nennt deren Zahl als `routed_replacing` - und eine Antwort, die älter ist
-als die wartende, wird nicht gesendet.
+Antwort desselben Falls und Agents ein, die die Warteschlange unentschieden
+verlässt - ein Run nennt deren Zahl als `routed_replacing` - und eine Antwort,
+die älter ist als die wartende, wird nicht gesendet. Die Antwort eines anderen
+Agents auf den Fall wartet daneben.
 
 Der eigene Tab **Evals** eines Datasets listet jeden darauf gemessenen Agent,
 jeden mit seinem Verlauf und seinen Runs, und **Run evals** in seinem

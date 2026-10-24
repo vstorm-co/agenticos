@@ -205,11 +205,25 @@ async def test_the_outcome_agent_eval_run_judge_and_tag_filters_reach_the_servic
 
 async def test_a_scoring_configuration_the_schema_refuses_is_a_422(client: OpenClient) -> None:
     async with client() as http:
-        response = await http.put(
-            _url(f"/{_DATASET.id}/scoring"), json={"judge": {"scale_max": 3, "pass_at": 5}}
-        )
+        response = await http.put(_url(f"/{_DATASET.id}/scoring"), json={"judge": {"scale_max": 1}})
 
     assert response.status_code == 422
+    assert response.json()["error"]["details"]["fields"][0]["field"] == "judge.scale_max"
+
+
+async def test_a_grading_change_reaches_the_service_naming_only_what_was_sent(
+    client: OpenClient, service: MagicMock
+) -> None:
+    """A field the body leaves out must not arrive as its default, or saving one
+    setting would reset the rest."""
+    async with client() as http:
+        empty = await http.put(_url(f"/{_DATASET.id}/scoring"), json={})
+        one = await http.put(_url(f"/{_DATASET.id}/scoring"), json={"judge": {"pass_at": 9}})
+
+    assert (empty.status_code, one.status_code) == (200, 200)
+    [nothing, pass_mark] = [call.args[2] for call in service.set_scoring.await_args_list]
+    assert nothing.model_dump(exclude_unset=True) == {}
+    assert pass_mark.model_dump(exclude_unset=True) == {"judge": {"pass_at": 9}}
 
 
 async def test_a_review_request_with_no_score_or_too_many_is_a_422(client: OpenClient) -> None:

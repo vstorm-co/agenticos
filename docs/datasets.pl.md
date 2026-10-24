@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "43d6823064b0"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -298,6 +298,13 @@ oceniacze wyłączone albo sędzia włączony bez żadnego kryterium. Tak samo o
 przypadku, w którym żaden ze skonfigurowanych oceniaczy nie ma czego sprawdzić -
 nic nie jest zapisywane, a sędzia nie jest wywoływany.
 
+Przez API `PUT /datasets/{id}/scoring` zmienia tylko ustawienia wymienione w
+treści żądania, na każdym poziomie: pominięte zachowuje swoją wartość, a podana
+lista - kryteria, domyślne sprawdzenia - zastępuje zapisaną w całości. Próg
+zaliczenia jest sprawdzany względem skali po scaleniu, więc samo
+`{"judge": {"pass_at": 8}}` jest odczytywane na zapisanej skali, a próg powyżej
+niej jest odrzucany ze wskazaniem `judge.pass_at`.
+
 ### Sprawdzenia { #checks }
 
 | `type` | Parametry | Zalicza, gdy |
@@ -433,8 +440,10 @@ Wynik jest przypinany niezależnie od tego, czy sędzia ocenił, czy zawiódł, 
 nieudany trzyma się wersji i promptu, przy których zawiódł.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
-zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
-pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje.
+zawiera słowo w słowo - pomijając odstępy, rodzaj cudzysłowów i apostrofów oraz
+otaczające cytat cudzysłowy i jego końcową interpunkcję - jest zachowywany obok
+oceny jako niezweryfikowany, pokazywany w osobnej linii pod uzasadnieniem, a
+ocena pozostaje.
 
 To, co uzasadnia ocenę, nigdy jej nie unieważnia: pusty albo za długi cytat jest
 pomijany, cytaty ponad dwanaście i reguła ponad 300 znaków są przycinane, a
@@ -457,23 +466,26 @@ Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła
 potwierdzone regresje i odpowiedzi, przy których sędzia zawiódł z błędem - nie
 te, które pominął i które czekają na ponowną ocenę - po jednym wyniku na
-przypadek. Jego strona wysyła inne wybrane przez ciebie wyniki, wszystkie naraz
+przypadek i agenta. Jego strona wysyła inne wybrane przez ciebie wyniki, wszystkie naraz
 przez `POST /datasets/{id}/scores/review`, do 500 identyfikatorów wyników -
 wszystkie albo żaden.
 
-Wynik wysłany do kolejki, przez run ewaluacji albo ręcznie, zajmuje miejsce
-wyniku swojego przypadku, który jeszcze czeka, gdy jest od niego ważniejszy albo
-tak samo ważny i nowszy. Wynik oceniony - regresja albo fail wysłany ręcznie -
-jest ważniejszy od nieocenionego, takiego jak błąd sędziego, więc błąd sędziego
-nigdy nie wypycha regresji z kolejki. Zastąpiony wychodzi z kolejki
-nierozstrzygnięty i zostaje zwykłym wynikiem; w przeciwnym razie czekający
-zostaje na miejscu, a wysłany nie trafia do kolejki. Wyniku rozstrzygniętego nic
-nie rusza.
+Odpowiedzi każdego agenta na przypadek czekają osobno: wynik wysłany do
+kolejki, przez run ewaluacji albo ręcznie, zajmuje miejsce wyniku tego samego
+przypadku i agenta, który jeszcze czeka, gdy jest od niego ważniejszy albo tak
+samo ważny i nowszy, a wynik innego agenta dla tego przypadku czeka obok.
+
+Wynik oceniony - regresja albo fail wysłany ręcznie - jest ważniejszy od
+nieocenionego, takiego jak błąd sędziego, więc błąd sędziego nigdy nie wypycha
+regresji z kolejki. Zastąpiony wychodzi z kolejki nierozstrzygnięty i zostaje
+zwykłym wynikiem; w przeciwnym razie czekający zostaje na miejscu, a wysłany nie
+trafia do kolejki. Wyniku rozstrzygniętego nic nie rusza.
 
 Wynik, o który poproszono ręcznie z Activity, podlega ustawieniu **Przegląd
 przez człowieka** datasetu: nic, dopóki ktoś czegoś nie wyśle, każdy wynik,
 który nie zaliczył, albo każdy wynik. Wynik już rozstrzygnięty pozostaje
-rozstrzygnięty.
+rozstrzygnięty. Taki wynik, i wynik, którego decyzję cofnięto, przechodzi przez
+to samo zastępowanie, więc przypadek nigdy nie czeka dwa razy na jednego agenta.
 
 Zakładka **Przegląd** otwiera się na tym, co czeka na decyzję, a wszystkie
 wyniki są o jedno kliknięcie dalej, każdy filtr ze swoją liczbą; widok zawęża

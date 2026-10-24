@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "43d6823064b0"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -318,6 +318,13 @@ ausgeschaltet oder der Judge eingeschaltet ohne ein Kriterium. Ebenso die
 Bewertung eines Falls, an dem keiner der konfigurierten Scorer etwas zu prüfen
 hat - nichts wird gespeichert, und der Judge wird nicht aufgerufen.
 
+Über die API ändert `PUT /datasets/{id}/scoring` nur die Einstellungen, die der
+Body nennt, auf jeder Ebene: Eine ausgelassene behält ihren Wert, und eine
+angegebene Liste - die Kriterien, die Standardprüfungen - ersetzt die
+gespeicherte ganz. Die Bestehensgrenze wird nach dem Zusammenführen an der Skala
+geprüft, sodass `{"judge": {"pass_at": 8}}` allein auf der gespeicherten Skala
+gelesen wird, und eine darüber wird mit Verweis auf `judge.pass_at` abgelehnt.
+
 ### Prüfungen { #checks }
 
 | `type` | Parameter | Besteht, wenn |
@@ -463,9 +470,11 @@ ob sein Bewerter bewertet hat oder gescheitert ist, also bleibt ein
 gescheitertes an die Version und den Prompt gebunden, mit denen es scheiterte.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
-Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
-aufbewahrt und in einer eigenen Zeile unter der Begründung angezeigt, und die
-Bewertung bleibt bestehen.
+Antwort nicht wörtlich enthält - abgesehen von Leerraum, der Art der
+Anführungszeichen und Apostrophe sowie den umschließenden Anführungszeichen und
+dem Satzzeichen am Ende des Zitats -, wird neben der Bewertung als nicht
+verifiziert aufbewahrt und in einer eigenen Zeile unter der Begründung angezeigt,
+und die Bewertung bleibt bestehen.
 
 Was eine Bewertung stützt, macht sie nie ungültig: Ein leeres oder zu langes
 Zitat wird verworfen, Zitate über zwölf und eine Regel über 300 Zeichen werden
@@ -490,23 +499,30 @@ Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
 schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,
 schickt ein Eval-Run die Regressionen, die er bestätigt hat, und die Antworten,
 an denen der Bewerter mit einem Fehler scheiterte - nicht die, die er
-übersprungen hat und die auf eine erneute Bewertung warten - ein Score pro Fall.
+übersprungen hat und die auf eine erneute Bewertung warten - ein Score pro Fall
+und Agent.
 Seine Seite schickt weitere Scores, die Sie auswählen, alle auf einmal über
 `POST /datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
 
-Ein dorthin geschickter Score, von einem Eval-Run oder von Hand, nimmt den Platz
-eines noch wartenden Scores seines Falls ein, wenn er höher rangiert oder gleich
-rangiert und neuer ist. Ein bewerteter Score - eine Regression oder ein von Hand
-geschicktes Fail - rangiert über einem, den nichts bewertet hat, etwa einem
-Fehler des Bewerters, sodass ein scheiternder Bewerter die Regression eines
-Falls nie verdrängt. Der ersetzte verlässt die Warteschlange unentschieden und
-bleibt ein Score; sonst behält der wartende seinen Platz, und der geschickte
-wird nicht eingereiht. Ein entschiedener Score wird nie angetastet.
+Die Antworten jedes Agents auf einen Fall warten für sich: Ein dorthin
+geschickter Score, von einem Eval-Run oder von Hand, nimmt den Platz eines noch
+wartenden Scores desselben Falls und Agents ein, wenn er höher rangiert oder
+gleich rangiert und neuer ist, und der Score eines anderen Agents für den Fall
+wartet daneben.
+
+Ein bewerteter Score - eine Regression oder ein von Hand geschicktes Fail -
+rangiert über einem, den nichts bewertet hat, etwa einem Fehler des Bewerters,
+sodass ein scheiternder Bewerter die Regression eines Falls nie verdrängt. Der
+ersetzte verlässt die Warteschlange unentschieden und bleibt ein Score; sonst
+behält der wartende seinen Platz, und der geschickte wird nicht eingereiht. Ein
+entschiedener Score wird nie angetastet.
 
 Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
 **Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,
 jedes Ergebnis, das nicht bestanden hat, oder jedes Ergebnis. Ein bereits
-entschiedener Score bleibt entschieden.
+entschiedener Score bleibt entschieden. Ein solcher Score, und einer, dessen
+Entscheidung zurückgenommen wird, durchläuft dieselbe Ersetzung, sodass ein Fall
+nie zweimal für einen Agent wartet.
 
 Der Tab **Prüfung** öffnet sich mit dem, was auf eine Entscheidung wartet, jedes
 Ergebnis einen Klick entfernt, jeweils mit seiner Anzahl, und lässt sich nach

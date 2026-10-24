@@ -13,7 +13,6 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent_run import AgentRun
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase
 from app.repositories._visibility import visible_to_caller
@@ -28,6 +27,7 @@ async def create(
     case_revision_id: UUID,
     case_id: UUID,
     run_id: UUID | None,
+    agent_id: UUID | None,
     eval_run_id: UUID | None,
     answer: str | None,
     scoring: dict[str, Any],
@@ -43,6 +43,7 @@ async def create(
         case_revision_id=case_revision_id,
         case_id=case_id,
         run_id=run_id,
+        agent_id=agent_id,
         eval_run_id=eval_run_id,
         answer=answer,
         scoring=scoring,
@@ -189,10 +190,7 @@ async def list_for_dataset(
             settled.is_(None) if outcome == "not_graded" else settled.is_(outcome == "passed")
         )
     if agent_id is not None:
-        runs = select(AgentRun.id).where(
-            AgentRun.organization_id == organization_id, AgentRun.agent_id == agent_id
-        )
-        where.append(CaseScore.run_id.in_(runs))
+        where.append(CaseScore.agent_id == agent_id)
     if eval_run_id is not None:
         where.append(CaseScore.eval_run_id == eval_run_id)
     if judge_id is not None:

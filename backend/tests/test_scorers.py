@@ -21,6 +21,8 @@ from app.schemas.scoring import (
     RubricCriterion,
     ScorerResult,
 )
+from app.services import scorers as scorers_module
+from app.services.authoring_hunks import evened
 from app.services.scorers import (
     MAX_MATCH_TEXT,
     MAX_QUOTE,
@@ -35,6 +37,7 @@ from app.services.scorers import (
     case_passed,
     copies,
     graded,
+    holds,
     judge_criteria,
     judge_prompt,
     not_graded,
@@ -866,6 +869,89 @@ class TestGrades:
             ("pass", "4/5: Right", []),
             ("pass", "5/5: Warm", ["Happy to help", f"{'x' * 80}…"]),
         ]
+
+    @pytest.mark.parametrize(
+        "quote",
+        [
+            "Refunds above $500 require a manager's approval.",
+            "Refunds above  $500 require\na manager\u2019s approval",
+            "\u201cRefunds above $500 require a manager's approval\u201d",
+            "Refunds above $500 require a manager\u2019s approval, and I will",
+        ],
+    )
+    def test_a_quote_differing_only_in_marks_spacing_or_its_last_stop_is_held(self, quote) -> None:
+        answer = "Refunds above $500 require a manager\u2019s approval, and I will ask one today."
+
+        assert holds(evened(answer), quote) is True
+
+    def test_a_quote_with_a_plain_dash_for_the_answer_s_long_one_is_held(self) -> None:
+        answer = "Refunds need approval \u2013 sorry\u00a0for the wait."
+
+        assert holds(evened(answer), "approval - sorry for the wait.") is True
+
+    @pytest.mark.parametrize(
+        "quote",
+        [
+            "Refunds above $600 require a manager's approval.",
+            "refunds above $500 require a manager's approval",
+            "Refunds above $500 require approval.",
+            "...",
+            "\u201d \u201c",
+        ],
+    )
+    def test_a_quote_the_answer_does_not_say_word_for_word_is_not_held(self, quote) -> None:
+        answer = "Refunds above $500 require a manager\u2019s approval, and I will ask one today."
+
+        assert holds(evened(answer), quote) is False
+
+    def test_a_verdict_evens_the_answer_once_however_many_quotes_it_carries(
+        self, monkeypatch
+    ) -> None:
+        """Evening a long answer once per quote made one verdict cost seconds of CPU."""
+        evenings = []
+
+        def counted(text: str) -> str:
+            evenings.append(len(text))
+            return evened(text)
+
+        monkeypatch.setattr(scorers_module, "evened", counted)
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
+        quotes = [f"absent {n}" for n in range(MAX_QUOTES)]
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id=c.id, score=4, reason="Fine", quotes=quotes) for c in criteria]
+        )
+
+        graded(
+            criteria,
+            verdict,
+            answer="word " * 50_000,
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+        )
+
+        assert evenings == [MAX_MATCH_TEXT]
+
+    def test_a_quote_with_a_curly_apostrophe_and_a_full_stop_is_not_flagged(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+        quote = (
+            "According to our refund policy, refunds above $500 require a manager\u2019s approval."
+        )
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="r1", score=5, reason="Right", quotes=[quote])]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="According to our refund policy, refunds above $500 require a manager's "
+            "approval, and I will ask one for you.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+        )
+
+        assert (result.unverified_quotes, result.unverified) == ([], False)
 
     def test_an_unverified_quote_stays_out_of_a_reason_at_the_length_limit(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]

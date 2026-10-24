@@ -8,7 +8,7 @@ a person's verdict on it.
 """
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 import regex
@@ -20,6 +20,7 @@ from pydantic import (
     Field,
     JsonValue,
     TypeAdapter,
+    ValidationInfo,
     computed_field,
     field_validator,
     model_validator,
@@ -181,15 +182,7 @@ class RubricCriterion(BaseSchema):
     required: bool = True
 
 
-class JudgeScorer(BaseSchema):
-    """The judge grading every case on a rubric.
-
-    `agent_id` is the dataset's own judge, one of the organization's judges;
-    null is the platform's default eval judge. Each criterion is graded from 1
-    to `scale_max` and passes at `pass_at` or above. A judge grades on the model
-    its own page publishes it on.
-    """
-
+class _JudgeSettings(BaseSchema):
     enabled: bool = False
     agent_id: UUID | None = None
     model_profile_id: UUID | None = Field(
@@ -201,7 +194,7 @@ class JudgeScorer(BaseSchema):
         json_schema_extra={"deprecated": True},
     )
     scale_max: int = Field(default=5, ge=2, le=10)
-    pass_at: int = Field(default=4, ge=1, le=10)
+    pass_at: int = Field(default=4, ge=1, le=10, validate_default=True)
     criteria: list[RubricCriterion] = Field(default_factory=list, max_length=20)
 
     @field_validator("model_profile_id")
@@ -210,13 +203,40 @@ class JudgeScorer(BaseSchema):
         return None
 
     @model_validator(mode="after")
-    def _pass_mark_on_the_scale(self) -> JudgeScorer:
-        if self.pass_at > self.scale_max:
-            raise ValueError("The pass mark cannot be above the top of the scale")
+    def _criteria_named_once(self) -> Self:
         names = [criterion.name for criterion in self.criteria]
         if len(set(names)) != len(names):
             raise ValueError("Two criteria share a name")
         return self
+
+
+class JudgeScorerUpdate(_JudgeSettings):
+    """The judge's settings in a change to how a dataset is scored.
+
+    The pass mark is checked against the scale only once merged with the settings
+    a dataset keeps, so one sent alone is read on the stored scale.
+    """
+
+
+class JudgeScorer(_JudgeSettings):
+    """The judge grading every case on a rubric.
+
+    `agent_id` is the dataset's own judge, one of the organization's judges;
+    null is the platform's default eval judge. Each criterion is graded from 1
+    to `scale_max` and passes at `pass_at` or above. A judge grades on the model
+    its own page publishes it on.
+    """
+
+    @field_validator("pass_at")
+    @classmethod
+    def _pass_mark_on_the_scale(cls, pass_at: int, info: ValidationInfo) -> int:
+        scale_max = info.data.get("scale_max")
+        if scale_max is not None and pass_at > scale_max:
+            raise ValueError(
+                f"A pass mark of {pass_at} is above the top of the scale, {scale_max}: "
+                f"it needs a scale_max of at least {pass_at}"
+            )
+        return pass_at
 
 
 class ReferenceScorer(BaseSchema):
@@ -238,6 +258,16 @@ class DatasetScoring(BaseSchema):
     checks: ChecksScorer = Field(default_factory=ChecksScorer)
     trajectory: TrajectoryScorer = Field(default_factory=TrajectoryScorer)
     judge: JudgeScorer = Field(default_factory=JudgeScorer)
+    reference: ReferenceScorer = Field(default_factory=ReferenceScorer)
+    review: ReviewScorer = Field(default_factory=ReviewScorer)
+
+
+class DatasetScoringUpdate(BaseSchema):
+    """A change to how a dataset's cases are scored: a field left out keeps its value."""
+
+    checks: ChecksScorer = Field(default_factory=ChecksScorer)
+    trajectory: TrajectoryScorer = Field(default_factory=TrajectoryScorer)
+    judge: JudgeScorerUpdate = Field(default_factory=JudgeScorerUpdate)
     reference: ReferenceScorer = Field(default_factory=ReferenceScorer)
     review: ReviewScorer = Field(default_factory=ReviewScorer)
 

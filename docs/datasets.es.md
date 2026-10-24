@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "43d6823064b0"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -304,6 +304,13 @@ apagados, o el juez encendido sin ningún criterio. También la puntuación de u
 caso en el que ninguno de los evaluadores configurados tiene nada que
 comprobar: no se guarda nada y no se llama al juez.
 
+Por la API, `PUT /datasets/{id}/scoring` cambia solo los ajustes que nombra su
+cuerpo, a cualquier profundidad: uno omitido conserva su valor, y una lista dada
+(los criterios, las comprobaciones por defecto) sustituye entera a la guardada.
+El umbral de aprobado se comprueba contra la escala una vez fusionados, así que
+`{"judge": {"pass_at": 8}}` solo se lee sobre la escala guardada, y uno por
+encima de ella se rechaza nombrando `judge.pass_at`.
+
 ### Comprobaciones { #checks }
 
 | `type` | Parámetros | Aprueba cuando |
@@ -442,7 +449,9 @@ falló, así que una fallida queda atada a la versión y al prompt con los que
 falló.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
-respuesta no contiene palabra por palabra se guarda junto a la calificación
+respuesta no contiene palabra por palabra (dejando aparte los espacios, el tipo
+de comillas y apóstrofos, y las comillas que rodean la cita y su puntuación
+final) se guarda junto a la calificación
 como no verificada, se muestra en su propia línea bajo el motivo, y la
 calificación se mantiene.
 
@@ -468,12 +477,15 @@ Una puntuación espera en la **cola de revisión** cuando alguien la envía all�
 lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval
 envía las regresiones que confirmó y las respuestas en las que el juez falló con
 un error (no las que omitió, que esperan a volver a puntuarse): una puntuación
-por caso. Su página envía otras puntuaciones que elijas, todas a la vez mediante
+por caso y agent. Su página envía otras puntuaciones que elijas, todas a la vez mediante
 `POST /datasets/{id}/scores/review` con hasta 500 identificadores de puntuación:
 todas o ninguna.
 
-Una puntuación enviada allí, por un run de eval o a mano, ocupa el lugar de una
-de su caso que aún espera cuando tiene más rango, o el mismo y es más reciente.
+Las respuestas de cada agent a un caso esperan por separado: una puntuación
+enviada allí, por un run de eval o a mano, ocupa el lugar de una de su caso y
+agent que aún espera cuando tiene más rango, o el mismo y es más reciente, y la
+puntuación de otro agent para el caso espera a su lado.
+
 Una puntuación calificada (una regresión, o un fail enviado a mano) tiene más
 rango que una que nada calificó, como un error del juez, así que un juez que
 falla en un caso nunca saca su regresión de la cola. La sustituida sale de la
@@ -482,7 +494,9 @@ lugar y la enviada no entra en la cola. Una puntuación decidida nunca se toca.
 
 Una puntuación pedida a mano desde Activity sigue el ajuste **Review by a
 person** del dataset: nada hasta que alguien envíe una, cada resultado que no
-aprobó, o cada resultado. Una puntuación ya decidida sigue decidida.
+aprobó, o cada resultado. Una puntuación ya decidida sigue decidida. Esa
+puntuación, y una cuya decisión se deshace, pasan por la misma sustitución, así
+que un caso nunca espera dos veces por un mismo agent.
 
 La pestaña **Review** se abre en lo que espera una decisión, con cada resultado
 a un clic de distancia, cada uno con su recuento, y se filtra por resultado, por

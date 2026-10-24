@@ -286,6 +286,12 @@ A configuration that could score nothing is refused: every scorer off, or the
 judge on with no criteria. So is a score of a case none of the configured
 scorers has anything to check on - nothing is kept and the judge is not called.
 
+Through the API, `PUT /datasets/{id}/scoring` changes only the settings its body
+names, at any depth: one left out keeps its value, and a list given - the
+criteria, the default checks - replaces the stored one whole. The pass mark is
+checked against the scale once merged, so `{"judge": {"pass_at": 8}}` alone is
+read on the stored scale, and one above it is refused naming `judge.pass_at`.
+
 ### Checks { #checks }
 
 | `type` | Parameters | Passes when |
@@ -414,8 +420,10 @@ version. A score is pinned whether its judge graded or failed, so a failed one
 is held to the version and prompt it failed with.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
-contain word for word is kept beside the grade as unverified, shown on its own
-line under the reason, and the grade stands.
+contain word for word - spacing, the style of quotation marks and apostrophes,
+and the quote's own surrounding quotation marks and final punctuation aside - is
+kept beside the grade as unverified, shown on its own line under the reason, and
+the grade stands.
 
 What backs a grade never sinks it: an empty or overlong quote is dropped, quotes
 past twelve and a rule past 300 characters are cut, and only a missing criterion
@@ -436,13 +444,17 @@ before will not compare with the ones graded after.
 A score waits in the **review queue** when somebody sends it there, or an eval
 run does. Once it has rerun what flipped, an eval run sends the regressions it
 confirmed and the answers the judge failed on with an error - not one it
-skipped, which waits to be scored again - one score per case. Its page sends any
-others you pick, all at once through `POST /datasets/{id}/scores/review` with up
-to 500 score ids - all of them or none.
+skipped, which waits to be scored again - one score per case and agent. Its
+page sends any others you pick, all at once through
+`POST /datasets/{id}/scores/review` with up to 500 score ids - all of them or
+none.
 
-A score sent there, by an eval run or by hand, takes the place of one of its
-case that still waits when it ranks higher, or ranks the same and is newer. A
-graded score - a regression, or a fail sent by hand - ranks above one nothing
+Each agent's answers to a case wait on their own: a score sent there, by an
+eval run or by hand, takes the place of one of its case and agent that still
+waits when it ranks higher, or ranks the same and is newer, and another agent's
+score of the case waits beside it.
+
+A graded score - a regression, or a fail sent by hand - ranks above one nothing
 graded, such as a judge's error, so a judge failing on a case never pushes its
 regression out. The one replaced leaves the queue undecided and stays a score;
 otherwise the one waiting keeps its place, and the one sent is not queued. A
@@ -450,7 +462,9 @@ decided score is never touched.
 
 A score asked for by hand from Activity follows the dataset's **Review by a
 person** setting: nothing until somebody sends one, every result that did not
-pass, or every result. A score already decided stays decided.
+pass, or every result. A score already decided stays decided. Such a score,
+and one whose decision is undone, goes through the same replacement, so a case
+never waits twice for one agent.
 
 The **Review** tab opens on what waits for a decision, with every result one click
 away, each with its count, and narrows by outcome, by the agent that answered and

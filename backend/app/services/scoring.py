@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
 from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +37,7 @@ from app.core.exceptions import (
     SystemAgentRunError,
     SystemAgentUnavailableError,
 )
-from app.core.field_errors import refused_field
+from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import AgentKind
@@ -62,6 +63,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    DatasetScoringUpdate,
     JudgeAgreement,
     JudgeCreate,
     JudgePin,
@@ -169,6 +171,16 @@ def _with_knowledge(instructions: str, knowledge: str | None) -> str:
     return f"{instructions}\n\nWhat you must know to grade:\n{knowledge.strip()}"
 
 
+def _merged(kept: dict[str, Any], changed: dict[str, Any]) -> dict[str, Any]:
+    """`kept` with every value `changed` gives in its place, object by object."""
+    merged = dict(kept)
+    for key, value in changed.items():
+        before = merged.get(key)
+        both = isinstance(value, dict) and isinstance(before, dict)
+        merged[key] = _merged(before, value) if both else value
+    return merged
+
+
 def _by_dataset(counts: list[tuple[UUID, str, bool | None, int]]) -> list[PendingDataset]:
     """Each dataset's waiting scores by outcome, the dataset with the most first."""
     tallies: dict[UUID, dict[str, int]] = {}
@@ -223,21 +235,35 @@ class ScoringService:
         self.judge = SystemAgentRunner(db)
 
     async def set_scoring(
-        self, ctx: AuthContext, dataset_id: UUID, data: DatasetScoring
+        self, ctx: AuthContext, dataset_id: UUID, changes: DatasetScoringUpdate
     ) -> DatasetRead:
-        """Replace how a dataset's cases are scored. Needs `datasets:edit` on it.
+        """Change how a dataset's cases are scored. Needs `datasets:edit` on it.
 
-        Scores already written keep the configuration they were computed with.
+        Only the fields `changes` sets change, at any depth: a setting left out
+        keeps its stored value, and a list given - the criteria, the default
+        checks - replaces the stored one whole. Scores already written keep the
+        configuration they were computed with.
 
         Raises:
             NotFoundError: The dataset is not one the caller may edit.
-            BadRequestError: Every scorer is off, the judge is on with nothing to
-                grade, the judge picked is not one of the organization's judges,
-                or the judge or the reference comparison is turned on while AI
-                assistance is off. One already on stays on, and is skipped.
+            BadRequestError: The settings changed do not fit the ones kept, such
+                as a pass mark above the stored scale; every scorer is off, the
+                judge is on with nothing to grade, the judge picked is not one of
+                the organization's judges, or the judge or the reference
+                comparison is turned on while AI assistance is off. One already
+                on stays on, and is skipped.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         stored = DatasetScoring.model_validate(dataset.scoring)
+        kept = stored.model_dump(mode="json", by_alias=True)
+        changed = changes.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        try:
+            data = DatasetScoring.model_validate(_merged(kept, changed))
+        except ValidationError as exc:
+            raise BadRequestError(
+                message="These settings do not fit the ones the dataset keeps",
+                details={"fields": field_problems(exc.errors(), root="")},
+            ) from exc
         turned_on = [
             field
             for field, now, before in (
@@ -392,6 +418,7 @@ class ScoringService:
             cost_usd=run.cost_usd,
             latency_ms=latency,
             run_id=run.id,
+            agent_id=run.agent_id,
         )
 
     async def _calls_of(self, ctx: AuthContext, run_id: UUID) -> tuple[ScoredCall, ...]:
@@ -437,10 +464,11 @@ class ScoringService:
         already decided the caller may score this dataset.
 
         Args:
-            enqueue_review: Whether the dataset's review setting may put the
-                score in the review queue. A score asked for by hand passes
-                `True`; an eval run passes `False` and sends what a person
-                chooses with :meth:`request_reviews`.
+            enqueue_review: Whether the dataset's review setting may send the
+                score to the review queue, through :meth:`route_to_review`. A
+                score asked for by hand passes `True`; an eval run passes
+                `False` and sends what a person chooses with
+                :meth:`request_reviews`.
             eval_run_id: The eval run scoring the answer, if one is.
 
         Raises:
@@ -455,22 +483,26 @@ class ScoringService:
         passed = case_passed(results)
         select = config.review.select
         waits = enqueue_review and (select == "all" or (select == "failed" and passed is not True))
-        return await case_score_repo.create(
+        score = await case_score_repo.create(
             self.db,
             organization_id=ctx.organization_id,
             dataset_id=dataset.id,
             case_revision_id=case.id,
             case_id=case.case_id,
             run_id=answer.run_id,
+            agent_id=answer.agent_id,
             eval_run_id=eval_run_id,
             answer=_kept_answer(answer.text),
             scoring=config.model_dump(mode="json", by_alias=True),
             results=_kept_results(results),
             judge=None if evaluation.judge is None else evaluation.judge.model_dump(mode="json"),
             passed=passed,
-            review_state="pending" if waits else "none",
+            review_state="none",
             created_by_user_id=ctx.user_id,
         )
+        if waits:
+            await self.route_to_review(ctx, dataset_id=dataset.id, score_ids=[score.id])
+        return score
 
     async def rescore(self, ctx: AuthContext, dataset_id: UUID, data: RescoreRequest) -> Rescored:
         """Grade again the scores that reached no verdict, on the answers they graded.
@@ -933,8 +965,11 @@ class ScoringService:
         """Record a person's verdict on a score, or withdraw it. Needs `datasets:edit`.
 
         Only the verdict's own columns change: the scorers' results, the judge's
-        grades among them, stay as they were written. A score of an eval run drops
-        the run's kept verdict, given or withdrawn, so it is compared afresh.
+        grades among them, stay as they were written. A withdrawn verdict sends
+        the score back to the review queue as :meth:`route_to_review` does, so
+        it stays out when a newer score of its case and agent waits there. A
+        score of an eval run drops the run's kept verdict, given or withdrawn,
+        so it is compared afresh.
         """
         score = await self._score(ctx, dataset_id, score_id)
         decided = data.passed is not None
@@ -946,9 +981,11 @@ class ScoringService:
                 "human_note": _redact(data.note) if decided else None,
                 "reviewed_by_user_id": ctx.user_id if decided else None,
                 "reviewed_at": datetime.now(UTC) if decided else None,
-                "review_state": "done" if decided else "pending",
+                "review_state": "done" if decided else "none",
             },
         )
+        if not decided:
+            await self.route_to_review(ctx, dataset_id=dataset_id, score_ids=[score.id])
         if score.eval_run_id is not None:
             await eval_run_repo.forget_outcomes(
                 self.db, [score.eval_run_id], organization_id=ctx.organization_id
@@ -969,7 +1006,7 @@ class ScoringService:
     ) -> CaseScoreRead:
         """Put a score in the review queue. Needs `datasets:edit`.
 
-        It replaces an older score of its case waiting there, as
+        It replaces an older score of its case and agent waiting there, as
         `route_to_review` says; a decided one stays decided.
         """
         score = await self._score(ctx, dataset_id, score_id)
@@ -982,7 +1019,8 @@ class ScoringService:
         """Put several of a dataset's scores in the review queue. Needs `datasets:edit`.
 
         All of them or none: one that is not a score of this dataset refuses the
-        request. Each case gets one score in the queue, as `route_to_review` says.
+        request. Each case gets one score in the queue for each agent, as
+        `route_to_review` says.
 
         Raises:
             NotFoundError: The dataset is not one the caller may edit, or it has
@@ -994,41 +1032,45 @@ class ScoringService:
     async def route_to_review(
         self, ctx: AuthContext, *, dataset_id: UUID, score_ids: list[UUID]
     ) -> ReviewRequested:
-        """Send scores to the review queue, one per case, the newest replacing an older one.
+        """Send scores to the review queue, one per case and agent, the newest
+        replacing an older one.
 
         For the eval run's own worker, which has already decided what deserves a
         person - its confirmed regressions and the scores its judge failed on -
-        and for the routes, which check `datasets:edit` first; no permission is
-        checked here. A graded score - a regression, or a fail sent by hand -
-        outranks one no scorer reached a verdict on, such as a judge's error, so
-        a judge failing on a case never pushes its regression out of the queue.
-        Of the scores sent for one case the highest ranked is queued, the newest
-        of those, and the first given among those scored at the same moment. A
-        waiting score of the case ranked no higher and scored earlier leaves the
-        queue undecided and stays a score; one ranked higher, or scored as late
-        or later, keeps its place, and the one sent is not queued. A decided
-        score is never touched, and one already waiting or decided is not queued
+        and for the routes and :meth:`score_case`, which check their permission
+        first; none is checked here. Only scores of one case answered by one
+        agent compete: another agent's result never replaces it. A graded score
+        - a regression, or a fail sent by hand - outranks one no scorer reached
+        a verdict on, such as a judge's error, so a judge failing on a case never
+        pushes its regression out of the queue. Of the scores sent for one case
+        and agent the highest ranked is queued, the newest of those, and the
+        first given among those scored at the same moment. A waiting score of
+        that case and agent ranked no higher and scored earlier leaves the queue
+        undecided and stays a score; one ranked higher, or scored as late or
+        later, keeps its place, and the one sent is not queued. A decided score
+        is never touched, and one already waiting or decided is not queued
         again. Ids of another dataset are ignored.
         """
         scores = await case_score_repo.get_many(
             self.db, score_ids, organization_id=ctx.organization_id, dataset_id=dataset_id
         )
-        newest: dict[UUID, CaseScore] = {}
+        newest: dict[tuple[UUID, UUID | None], CaseScore] = {}
         for score_id in dict.fromkeys(score_ids):
             score = scores.get(score_id)
             if score is None or score.review_state != "none":
                 continue
-            held = newest.get(score.case_id)
+            held = newest.get((score.case_id, score.agent_id))
             if held is None or _rank(score) > _rank(held):
-                newest[score.case_id] = score
-        for case_id in sorted(newest):
+                newest[(score.case_id, score.agent_id)] = score
+        cases = sorted({case_id for case_id, _ in newest})
+        for case_id in cases:
             await hold_subject(self.db, LockScope.REVIEW_PER_CASE, case_id)
         waiting = await case_score_repo.waiting_for_cases(
-            self.db, list(newest), organization_id=ctx.organization_id, dataset_id=dataset_id
+            self.db, cases, organization_id=ctx.organization_id, dataset_id=dataset_id
         )
         chosen, older = [], []
-        for case_id, score in newest.items():
-            others = [other for other in waiting if other.case_id == case_id]
+        for key, score in newest.items():
+            others = [other for other in waiting if (other.case_id, other.agent_id) == key]
             if any(_rank(other) >= _rank(score) for other in others):
                 continue
             chosen.append(score.id)

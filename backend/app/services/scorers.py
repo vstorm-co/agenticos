@@ -33,12 +33,15 @@ from app.schemas.scoring import (
     ScorerResult,
     TextCheck,
 )
+from app.services.authoring_hunks import evened, mentioned
 
 MAX_QUOTES = 12
 MAX_QUOTE = 600
 MAX_RULE = 300
 MAX_REASON = 2000
 _QUOTE_SHOWN = 80
+_QUOTE_EDGES = " '\"\u2018\u2019\u201c\u201d\u201e\u00ab\u00bb"
+_QUOTE_END = ".,;:!?\u2026 "
 
 MAX_MATCH_TEXT = 100_000
 # A pattern is a person's input and backtracking is exponential in the text it
@@ -71,6 +74,7 @@ class ScoredAnswer:
         cost_usd: What the run cost, when known.
         latency_ms: How long it took, when it ended.
         run_id: The recorded run, when there is one.
+        agent_id: The agent that answered, when it is known.
     """
 
     text: str
@@ -78,6 +82,7 @@ class ScoredAnswer:
     cost_usd: Decimal | None = None
     latency_ms: int | None = None
     run_id: UUID | None = None
+    agent_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -593,12 +598,26 @@ def rubric_hash(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def holds(answer: str, quote: str) -> bool:
+    """Whether the answer, already put through :func:`evened`, says the quote word
+    for word.
+
+    Compared as loosely as an authoring anchor is - spacing, and the style of
+    quotation marks, apostrophes and dashes aside - and without the quote's own
+    surrounding quotation marks and final punctuation: a judge quoting a clause
+    ends it with a full stop where the answer goes on. The answer is evened once
+    by the caller: a verdict carries a dozen quotes for each of many criteria.
+    """
+    said = quote.strip(_QUOTE_EDGES).rstrip(_QUOTE_END).rstrip(_QUOTE_EDGES)
+    return mentioned(answer, said)
+
+
 def _unverified(quotes: Sequence[str], answer: str) -> list[str]:
-    """The quotes the answer does not hold, each cut to what a reader needs to spot it."""
+    """The quotes the evened answer does not hold, each cut to what a reader needs."""
     return [
         quote if len(quote) <= _QUOTE_SHOWN else f"{quote[:_QUOTE_SHOWN]}…"
         for quote in quotes
-        if quote not in answer
+        if not holds(answer, quote)
     ]
 
 
@@ -703,6 +722,7 @@ def graded(
         id_ for id_, times in Counter(g.id for g in verdict.grades).items() if times > 1
     }
     shown = answer[:MAX_MATCH_TEXT]
+    looked_in = evened(shown)
     results = []
     for criterion in criteria:
         if criterion.id == COUNTER_ID and repeats(shown, counter_example or ""):
@@ -745,7 +765,7 @@ def graded(
                 )
             )
             continue
-        quoted = any(quote in shown for quote in grade.quotes)
+        quoted = any(holds(looked_in, quote) for quote in grade.quotes)
         if not quoted and restates(grade.reason, criterion.description):
             results.append(
                 ScorerResult(
@@ -787,7 +807,7 @@ def graded(
                 reason=f"{grade.score}/{scale_max}: {grade.reason}"[:MAX_REASON],
                 rule=grade.rule.strip() or None,
                 unverified=(grade.score == scale_max or countered) and not quoted,
-                unverified_quotes=_unverified(grade.quotes, shown),
+                unverified_quotes=_unverified(grade.quotes, looked_in),
                 judge_run_id=run_id,
             )
         )

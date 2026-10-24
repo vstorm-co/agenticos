@@ -73,18 +73,21 @@ it; the verdict stays over every case.
 
 Once its reruns are in, a run sends to the dataset's
 [review queue](datasets.md#review) what it can stand behind - each regression
-it confirmed and each answer its judge failed to grade, one per case - and says
-how many (`routed_to_review`). A
+it confirmed and each answer its judge failed to grade, one per case and agent -
+and says how many (`routed_to_review`). A
 [check of the assistant's proposal](authoring.md#check-with-evals) sends nothing
-by itself, since nothing was accepted. A judge that was skipped sends nothing: its
-answers wait on the run's page for **Grade again**. When sending is refused, the
+by itself, since nothing was accepted.
+
+A judge that was skipped sends nothing: its answers wait on the run's page for
+**Grade again**. When sending is refused, the
 run still completes and its page says why (`routing_error`). **Send failed to review** sends the rest of one
 side's failed answers, for whoever may edit the dataset, and a case whose grade
 a person overturned is marked as corrected.
 
-Either way an answer takes the place of an older one of its case still waiting,
-which leaves the queue undecided - a run says how many as `routed_replacing` -
-and an answer older than the one waiting is not sent.
+Either way an answer takes the place of an older one of its case and agent still
+waiting, which leaves the queue undecided - a run says how many as
+`routed_replacing` - and an answer older than the one waiting is not sent.
+Another agent's answer to the case waits beside it.
 
 A dataset's own **Evals** tab lists every agent measured on it, each with its
 trend and runs, and its header's **Run evals** opens the start dialog on the

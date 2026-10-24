@@ -7524,7 +7524,7 @@
       },
       "reviewCard": {
         "title": "Review by a person",
-        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers its judge failed to grade, one per case."
+        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers its judge failed to grade, one per case for each agent."
       },
       "suggestReference": "{count, plural, =1 {1 case has a reference answer, and nothing compares answers with it yet.} other {# cases have a reference answer, and nothing compares answers with it yet.}}",
       "suggestReferenceAction": "Compare with the reference",
@@ -9214,7 +9214,7 @@
     "review": {
       "send": "{count, plural, =1 {Send the failed case to review} other {Send # failed cases to review}}",
       "sent": "{queued, plural, =0 {Nothing new sent to review} =1 {1 case sent to review} other {# cases sent to review}}{replaced, plural, =0 {} =1 {, replacing 1 older one that was waiting} other {, replacing # older ones that were waiting}}{already, plural, =0 {} other {; # not sent: already waiting, decided or older than the one waiting}}.",
-      "routed": "This run sent {count, plural, =1 {1 answer} other {# answers}} to review itself: the regressions it confirmed and the answers the judge failed to grade.{replaced, plural, =0 {} =1 { That replaced 1 older answer still waiting on the same case.} other { That replaced # older answers still waiting on the same cases.}}",
+      "routed": "This run sent {count, plural, =1 {1 answer} other {# answers}} to review itself: the regressions it confirmed and the answers the judge failed to grade.{replaced, plural, =0 {} =1 { That replaced 1 older answer of this agent still waiting on the same case.} other { That replaced # older answers of this agent still waiting on the same cases.}}",
       "routingFailed": "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: {reason}",
       "checkHeld": "A check sends nothing to review by itself: nothing is accepted by checking. Send its failed answers by hand if a person should look at them.",
       "sendOther": "{count, plural, =1 {Send the other failed case} other {Send the other # failed cases}}"
