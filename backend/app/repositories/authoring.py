@@ -1,5 +1,6 @@
 """Data access for the authoring assistant's requests, proposals and evidence."""
 
+import dataclasses
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -394,11 +395,13 @@ class EvidenceRun:
         rating: -1 when any answer of the run was rated down, 1 when rated up
             and never down, 0 when nobody rated it.
         comments: The comments left with its down-ratings.
+        commenters: Who left them.
     """
 
     run: AgentRun
     rating: int
     comments: list[str]
+    commenters: list[UUID] = dataclasses.field(default_factory=list)
 
 
 def _readable_runs(*, organization_id: UUID, since: datetime) -> list[Any]:
@@ -457,6 +460,21 @@ async def evidence_runs(
                 ),
                 None,
             ).label("comments"),
+            func.array_remove(
+                func.array_agg(
+                    case(
+                        (
+                            and_(
+                                MessageRating.rating < 0,
+                                func.nullif(MessageRating.comment, "").is_not(None),
+                            ),
+                            MessageRating.user_id,
+                        ),
+                        else_=None,
+                    )
+                ),
+                None,
+            ).label("commenters"),
         )
         .join(MessageRating, MessageRating.message_id == Message.id)
         .where(Message.run_id.is_not(None))
@@ -475,7 +493,7 @@ async def evidence_runs(
         else_=4,
     )
     statement = (
-        select(AgentRun, rating.c.worst, rating.c.best, rating.c.comments)
+        select(AgentRun, rating.c.worst, rating.c.best, rating.c.comments, rating.c.commenters)
         .outerjoin(rating, rating.c.run_id == AgentRun.id)
         .where(*_readable_runs(organization_id=organization_id, since=since))
         .where(or_(worst < 0, failed, rating.c.best > 0))
@@ -504,7 +522,14 @@ async def evidence_runs(
         statement = statement.where(loaded.exists())
     result = await db.execute(statement.order_by(rank, AgentRun.started_at.desc()).limit(limit))
     rows: list[EvidenceRun] = []
-    for run, worst_value, best_value, comments in result.all():
+    for run, worst_value, best_value, comments, commenters in result.all():
         value = -1 if (worst_value or 0) < 0 else (1 if (best_value or 0) > 0 else 0)
-        rows.append(EvidenceRun(run=run, rating=value, comments=list(comments or [])))
+        rows.append(
+            EvidenceRun(
+                run=run,
+                rating=value,
+                comments=list(comments or []),
+                commenters=list(commenters or []),
+            )
+        )
     return rows

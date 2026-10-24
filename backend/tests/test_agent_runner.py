@@ -2247,6 +2247,37 @@ class TestRunAccounting:
         assert "401 from https://llm.acme.internal/v1/chat" in caplog.text
 
 
+class TestBeingToldTheRunStarted:
+    @pytest.mark.anyio
+    async def test_the_caller_has_the_run_before_the_model_and_keeps_it_when_it_fails(self):
+        """An eval attempt links its run this way, so a run that fails or is stopped is
+        still found - which only holds if what the caller wrote is committed with it."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        commits: dict[str, int] = {}
+        told: list[object] = []
+
+        async def started(run) -> None:
+            told.append(run)
+            commits["started"] = service.db.commit.await_count
+
+        async def model(*args, **kwargs):
+            commits["model"] = service.db.commit.await_count
+            raise RuntimeError("503 from the provider")
+
+        prepared.built.agent.run = AsyncMock(side_effect=model)
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            pytest.raises(RuntimeError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello", started=started)
+
+        assert told == [prepared.run]
+        # Committed between the two, so what the caller wrote outlives the failure.
+        assert commits["model"] > commits["started"]
+
+
 class TestWhatAFailedRunIsAllowedToSay:
     """`run_failure_summary` - the one sentence `agent_runs.error` may hold.
 

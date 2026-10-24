@@ -403,13 +403,17 @@ class EvalRunService:
         `candidate_contexts` does the same for context files. `baseline_spec`
         runs the draft as the baseline in place of a version - the caller has
         checked it may read the draft - and is never served from a cached run.
+        A case anonymised after its person was erased is always left out: it asks
+        a placeholder, so an answer to it measures nothing until its curator
+        rewrites it.
 
         Raises:
             NotFoundError: The agent, dataset or environment cannot be reached.
             AuthorizationError: Running the draft without edit access to it.
-            BadRequestError: An empty dataset version, scoring that decides
-                nothing, an unpublished agent asked for a version, or a
-                baseline with no earlier version to be.
+            BadRequestError: An empty dataset version, or one whose every case
+                was anonymised, scoring that decides nothing, an unpublished
+                agent asked for a version, or a baseline with no earlier version
+                to be.
         """
         dataset = await self.datasets.get(ctx, request.dataset_id, perm=Perm.DATASETS_RUN)
         dataset_version = await self._dataset_version(ctx, dataset, request.dataset_version)
@@ -421,6 +425,22 @@ class EvalRunService:
                 message=f"Version {dataset_version.number} of '{dataset.name}' holds no cases",
                 details={"dataset_id": dataset.id, "version": dataset_version.number},
             )
+        anonymised = [case.case_id for case in cases if case.anonymised_at is not None]
+        if anonymised:
+            cases = [case for case in cases if case.anonymised_at is None]
+            if not cases:
+                raise BadRequestError(
+                    message=(
+                        f"Every case of '{dataset.name}' version {dataset_version.number} was "
+                        "anonymised when the person it was taken from was erased. Rewrite or "
+                        "remove those cases first."
+                    ),
+                    details={
+                        "dataset_id": dataset.id,
+                        "anonymised": len(anonymised),
+                        "reason": "only_anonymised",
+                    },
+                )
         left_out = set(exclude_conversations)
         excluded = [case.case_id for case in cases if case.source_conversation_id in left_out]
         if excluded:

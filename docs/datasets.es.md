@@ -1,5 +1,5 @@
 ---
-source_sha: "7e7f2f752192"
+source_sha: "a992709fc3ca"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -664,11 +664,32 @@ agents de la organización.
 ## Datos personales { #personal-data }
 
 Un caso tomado de una conversación es una copia de lo que escribió una persona y
-de lo que respondió el agent. Cuando se borra la conversación, o se borra a la
-persona que la escribió, el caso se queda y se elimina todo vínculo con ella: el
-run, la conversación y el mensaje de los que procede, y quién lo añadió si era
-la persona borrada. Lo que queda es el texto, que puede seguir conteniendo datos
-personales que alguien escribió y que solo desaparece al eliminar el caso.
+de lo que respondió el agent. Cuando se borra la conversación, el caso se queda
+y se elimina todo vínculo con la conversación: el run, la conversación y el
+mensaje de los que procede. El texto se queda, y puede seguir conteniendo datos
+personales que alguien escribió. Eliminar el caso lo elimina.
+
+Cuando se borra a la persona que hizo la pregunta de un caso, el texto también se va.
+La pregunta, los turnos anteriores, ambas respuestas y la nota se sustituyen en
+todas las versiones que contienen el caso, y también las respuestas y llamadas
+que los eval runs registraron para él. El caso conserva su id, sus llamadas
+esperadas, sus comprobaciones y sus etiquetas, y se marca como anonimizado tras
+el borrado (**Anonymised after erasure**), para que su curador pueda reescribirlo
+o eliminarlo. Hasta entonces un eval run lo deja fuera, porque una respuesta al
+texto de sustitución no mide nada.
+
+Un caso guarda de quién son las palabras que contiene: quién hizo su pregunta,
+quién escribió cada uno de sus turnos anteriores y de quién es el comentario que
+se convirtió en su nota. Esto nunca se muestra ni se exporta, y sobrevive a la
+conversación, así que un borrado sigue encontrando el caso después de que se
+borrara la conversación de la que procede. Un caso cuya pregunta hizo otra
+persona conserva su pregunta y su respuesta: los turnos de la persona borrada en
+su historial anterior se sustituyen, con las respuestas del agent a ellos, y su
+comentario guardado como nota se vacía.
+
+Un caso escrito antes de que se guardara la autoría la tiene completada a partir
+de los vínculos que aún conservaba; uno cuya conversación ya no existía no tiene
+ninguna, y solo eliminar el caso elimina su texto.
 Consulta [Protección de datos](data-protection.md#what-deletion-reaches).
 
 Una puntuación se conserva de la misma forma. Guarda una copia de la respuesta

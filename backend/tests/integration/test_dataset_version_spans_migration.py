@@ -38,7 +38,9 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_dataset_spans_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_REVISION = "0169_dataset_version_spans"
+# The data is written and read through today's models, so at the head; the
+# membership table is what the schema before the revision holds.
+_BEFORE = "0168_authoring_proposals"
 _CSV = b"input,reference_answer,tags\nImported?,Yes,import\nAlso imported?,No,import\n"
 
 # A version as a reader sees it: its revisions in order, and what scoring counts.
@@ -249,22 +251,22 @@ def _sql(statement: str, **params: Any) -> None:
 
 
 async def test_every_version_reads_the_same_through_a_downgrade_and_an_upgrade() -> None:
-    _migrate("upgrade", _REVISION)
+    _migrate("upgrade", "head")
     organization_id = await _seed()
     before = await _read_through_the_repository(organization_id)
     assert len(before) == 9
     assert [len(snapshot["revisions"]) for snapshot in before.values()].count(0) == 1
 
-    _migrate("downgrade", "-1")
+    _migrate("downgrade", _BEFORE)
     assert _read_the_membership_table(organization_id) == before
 
-    _migrate("upgrade", _REVISION)
+    _migrate("upgrade", "head")
     assert await _read_through_the_repository(organization_id) == before
 
 
 async def _corruptible() -> tuple[uuid.UUID, uuid.UUID, list[uuid.UUID]]:
     """A dataset of two revisions over three versions, downgraded: its id, a revision, versions."""
-    _migrate("upgrade", _REVISION)
+    _migrate("upgrade", "head")
     async with _session() as db:
         ctx = await _owner(db)
         service = DatasetService(db)
@@ -273,7 +275,7 @@ async def _corruptible() -> tuple[uuid.UUID, uuid.UUID, list[uuid.UUID]]:
             await service.add_case(ctx, dataset.id, _case(question))
         first = (await service.list_cases(ctx, dataset.id)).items[0]
         await db.commit()
-    _migrate("downgrade", "-1")
+    _migrate("downgrade", _BEFORE)
     engine = create_engine(_url(MIGRATION_DATABASE))
     try:
         with engine.connect() as conn:
@@ -313,13 +315,13 @@ async def test_an_upgrade_stops_on_membership_the_code_never_writes(
     dataset_id, revision_id, versions = await _corruptible()
     _sql(corruption, revision=revision_id, middle=versions[1], last=versions[2])
 
-    refused = _alembic("upgrade", _REVISION)
+    refused = _alembic("upgrade", "head")
 
     assert refused.returncode != 0
     assert says in refused.stderr
     assert f"Case revision {revision_id} of dataset {dataset_id}" in refused.stderr
     _sql("DELETE FROM datasets WHERE id = :d", d=dataset_id)
-    _migrate("upgrade", _REVISION)
+    _migrate("upgrade", "head")
 
 
 async def test_an_upgrade_stops_on_a_revision_held_by_another_dataset() -> None:
@@ -332,22 +334,22 @@ async def test_an_upgrade_stops_on_a_revision_held_by_another_dataset() -> None:
         revision=revision_id,
     )
 
-    refused = _alembic("upgrade", _REVISION)
+    refused = _alembic("upgrade", "head")
 
     assert refused.returncode != 0
     assert "is held by another dataset's version" in refused.stderr
     assert str(dataset_id) in refused.stderr
     _sql("DELETE FROM datasets WHERE id IN (:a, :b)", a=dataset_id, b=other_id)
-    _migrate("upgrade", _REVISION)
+    _migrate("upgrade", "head")
 
 
 async def test_a_downgrade_refuses_a_history_the_earlier_schema_could_not_hold() -> None:
     """The old table holds a row per case per version, and its code capped them per org."""
-    _migrate("upgrade", _REVISION)
+    _migrate("upgrade", "head")
     organization_id = await _seed()
     before = await _read_through_the_repository(organization_id)
 
-    refused = _alembic("downgrade", "-1", DATASET_MAX_VERSION_ROWS_PER_ORG="20")
+    refused = _alembic("downgrade", _BEFORE, DATASET_MAX_VERSION_ROWS_PER_ORG="20")
 
     assert refused.returncode != 0
     # The largest history is named; every organization seeded in this module holds 26.

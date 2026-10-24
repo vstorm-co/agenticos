@@ -50,6 +50,7 @@ from app.repositories import (
     conversation_repo,
     dataset_repo,
     message_rating_repo,
+    personal_data_repo,
     promotion_gate_repo,
     resource_grant_repo,
 )
@@ -86,6 +87,29 @@ logger = logging.getLogger(__name__)
 MAX_CASES = MAX_EXPORT_ROWS
 _MAX_REPLY_STEPS = 50
 _MAX_EXPECTED_CALLS = 50
+
+
+@dataclass(frozen=True)
+class Authorship:
+    """Whose words a case holds, kept on it and never shown.
+
+    What an erasure finds a case by once the conversation or run it was taken
+    from is gone.
+
+    Attributes:
+        asked_by: Who asked the case's question.
+        history: Who wrote each turn of its history, in order; `None` for the
+            agent's turns and for text a curator typed. Empty means nobody known.
+        noted_by: Whose rating comment became its note.
+    """
+
+    asked_by: UUID | None = None
+    history: tuple[UUID | None, ...] = ()
+    noted_by: UUID | None = None
+
+    def history_for(self, turns: int) -> list[UUID | None]:
+        """One author per turn: these, or nobody known when they do not line up."""
+        return list(self.history) if len(self.history) == turns else [None] * turns
 
 
 def _name_taken(name: str) -> AlreadyExistsError:
@@ -206,6 +230,40 @@ def redacted_case(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
     data["tags"], count = _redact_json(data["tags"])
     found += count
     return data, found
+
+
+def _realigned(current: DatasetCase, history: list[dict[str, Any]]) -> tuple[UUID | None, ...]:
+    """The authors of an edited history.
+
+    A turn kept from the revision it edits keeps its author, wherever it moved.
+    A turn that matches none keeps the author of an unmatched turn that stood in
+    its place with the same role - a curator touching up somebody's words leaves
+    them that person's - and is the curator's only where nothing stood.
+    """
+    earlier = list(zip(current.history, current.history_author_ids, strict=True))
+    left = set(range(len(earlier)))
+    authors: list[UUID | None] = [None] * len(history)
+    unmatched: list[int] = []
+    for position, turn in enumerate(history):
+        same = next(
+            (
+                index
+                for index in sorted(left)
+                if earlier[index][0].get("role") == turn.get("role")
+                and earlier[index][0].get("content") == turn.get("content")
+            ),
+            None,
+        )
+        if same is None:
+            unmatched.append(position)
+        else:
+            left.discard(same)
+            authors[position] = earlier[same][1]
+    for position in unmatched:
+        if position in left and earlier[position][0].get("role") == history[position].get("role"):
+            left.discard(position)
+            authors[position] = earlier[position][1]
+    return tuple(authors)
 
 
 def _case_read(case: DatasetCase) -> DatasetCaseRead:
@@ -738,6 +796,7 @@ class DatasetService:
         *,
         source: CaseSource,
         case_id: UUID | None = None,
+        authorship: Authorship = Authorship(),
         **provenance: UUID | None,
     ) -> DatasetCase:
         return DatasetCase(
@@ -747,6 +806,9 @@ class DatasetService:
             case_id=case_id or uuid.uuid4(),
             source=source.value,
             created_by_user_id=ctx.subject_id,
+            asked_by_user_id=authorship.asked_by,
+            history_author_ids=authorship.history_for(len(fields.get("history") or [])),
+            noted_by_user_id=authorship.noted_by,
             **fields,
             **provenance,
         )
@@ -758,6 +820,7 @@ class DatasetService:
         content: DatasetCaseContent,
         *,
         source: CaseSource,
+        authorship: Authorship = Authorship(),
         **provenance: UUID | None,
     ) -> DatasetCaseRead:
         dataset = await self._locked(ctx, dataset_id)
@@ -768,7 +831,9 @@ class DatasetService:
             # both pass the check made before it, and the second would add a twin.
             await self._refuse_held_answer(ctx, previous, message_id)
         fields, redacted = redacted_case(content)
-        case = self._revision(ctx, dataset, fields, source=source, **provenance)
+        case = self._revision(
+            ctx, dataset, fields, source=source, authorship=authorship, **provenance
+        )
         await self._mint(
             ctx,
             dataset,
@@ -816,6 +881,7 @@ class DatasetService:
                     dataset,
                     fields,
                     source=CaseSource.SYNTHETIC,
+                    authorship=await self._generated_from(ctx, case),
                     source_document_id=case.source_document_id,
                     source_run_id=case.source_run_id,
                     source_conversation_id=case.source_conversation_id,
@@ -831,6 +897,43 @@ class DatasetService:
             redacted=redacted,
         )
         return _version_read(version)
+
+    async def _generated_from(self, ctx: AuthContext, case: GeneratedCase) -> Authorship:
+        """Whose words a drafted case paraphrases: the question it was drafted from, whose
+        thread its earlier turns came from, and whose comment its note repeats."""
+        asked_by: UUID | None = None
+        if case.source_message_id is not None:
+            message = await conversation_repo.get_message_by_id(self.db, case.source_message_id)
+            if message is not None:
+                conversation = await conversation_repo.get_conversation_by_id(
+                    self.db, message.conversation_id
+                )
+                if conversation is not None and conversation.organization_id == ctx.organization_id:
+                    asked_by = (
+                        await self._speakers(
+                            [message],
+                            owner=conversation.user_id,
+                            in_project=conversation.project_id is not None,
+                        )
+                    ).get(message.id)
+        if asked_by is None and case.source_run_id is not None:
+            asked_by = await personal_data_repo.asker_of(
+                self.db, case.source_run_id, organization_id=ctx.organization_id
+            )
+        note = case.content.note
+        return Authorship(
+            asked_by=asked_by,
+            history=tuple(
+                asked_by if turn.role == "user" else None for turn in case.content.history
+            ),
+            noted_by=(
+                None
+                if note is None or case.source_run_id is None
+                else await message_rating_repo.noter_of(
+                    self.db, case.source_run_id, note, organization_id=ctx.organization_id
+                )
+            ),
+        )
 
     async def _held_case(
         self, ctx: AuthContext, dataset: Dataset, case_id: UUID
@@ -920,8 +1023,16 @@ class DatasetService:
             fields,
             source=CaseSource(current.source),
             case_id=current.case_id,
+            authorship=Authorship(
+                asked_by=current.asked_by_user_id,
+                history=_realigned(current, fields.get("history") or []),
+                noted_by=current.noted_by_user_id,
+            ),
             **provenance,
         )
+        if data.input is None:
+            # Still the placeholder an erasure left, so still not worth asking.
+            revision.anonymised_at = current.anonymised_at
         await self._mint(
             ctx,
             dataset,
@@ -1047,11 +1158,16 @@ class DatasetService:
                 case made from this answer.
         """
         dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
-        content, provenance = await self._case_from_message(
+        content, provenance, authorship = await self._case_from_message(
             ctx, dataset, data.message_id, data.answer_as, with_history=data.with_history
         )
         return await self._add(
-            ctx, dataset_id, content, source=CaseSource.CONVERSATION, **provenance
+            ctx,
+            dataset_id,
+            content,
+            source=CaseSource.CONVERSATION,
+            authorship=authorship,
+            **provenance,
         )
 
     async def _case_from_message(
@@ -1062,7 +1178,7 @@ class DatasetService:
         answer_as: AnswerAs,
         *,
         with_history: bool = True,
-    ) -> tuple[DatasetCaseContent, dict[str, UUID | None]]:
+    ) -> tuple[DatasetCaseContent, dict[str, UUID | None], Authorship]:
         """The case an agent's answer makes, and the links back to where it came from.
 
         Raises as :meth:`add_from_message` documents.
@@ -1139,37 +1255,66 @@ class DatasetService:
         )
         if asked is None:
             raise refused_field("message_id", "This answer has no question before it to test on")
-        comments = await message_rating_repo.get_down_rating_comments_for_messages(
-            self.db, message_ids=[turn.id for turn in reply]
+        notes = await message_rating_repo.get_down_rating_notes_for_messages(
+            self.db, message_ids=[turn.id for turn in reply], organization_id=ctx.organization_id
+        )
+        noted = next((notes[turn.id] for turn in reversed(reply) if turn.id in notes), None)
+        shown = earlier[:asked][-MAX_HISTORY_TURNS:] if with_history else []
+        speakers = await self._speakers(
+            [*shown, earlier[asked]],
+            owner=conversation.user_id,
+            in_project=conversation.project_id is not None,
         )
         try:
             content = DatasetCaseContent(
                 input=earlier[asked].content,
-                history=[
-                    {"role": turn.role, "content": turn.content}
-                    for turn in earlier[:asked][-MAX_HISTORY_TURNS:]
-                ]
-                if with_history
-                else [],
+                history=[{"role": turn.role, "content": turn.content} for turn in shown],
                 counter_example=None if keeps_good else answer,
                 reference_answer=(answer or None) if keeps_good else None,
                 expected_tool_calls=[
                     ExpectedToolCall(tool=name) for name in calls[:_MAX_EXPECTED_CALLS]
                 ],
-                note=next(
-                    (comments[turn.id] for turn in reversed(reply) if turn.id in comments), None
-                ),
+                note=None if noted is None else noted[0],
             )
         except ValidationError as exc:
             raise BadRequestError(
                 message="This conversation is too long to keep as a case",
                 details={"fields": field_problems(exc.errors(), root="message_id")},
             ) from None
-        return content, {
-            "source_run_id": last.run_id or message.run_id,
-            "source_conversation_id": conversation.id,
-            "source_message_id": last.id,
-        }
+        return (
+            content,
+            {
+                "source_run_id": last.run_id or message.run_id,
+                "source_conversation_id": conversation.id,
+                "source_message_id": last.id,
+            },
+            Authorship(
+                asked_by=speakers.get(earlier[asked].id),
+                history=tuple(speakers.get(turn.id) for turn in shown),
+                noted_by=None if noted is None else noted[1],
+            ),
+        )
+
+    async def _speakers(
+        self, turns: list[Message], *, owner: UUID | None, in_project: bool
+    ) -> dict[UUID, UUID | None]:
+        """Who typed each person's turn: its signed-in author, the account its chat identity
+        is linked to, or - for a console thread outside a project, from before authors were
+        kept - the thread's owner. Nobody for an agent's turn."""
+        linked = await personal_data_repo.linked_people(
+            self.db, [turn.channel_identity_id for turn in turns if turn.channel_identity_id]
+        )
+        speakers: dict[UUID, UUID | None] = {}
+        for turn in turns:
+            if turn.role != "user":
+                speakers[turn.id] = None
+            elif turn.author_user_id is not None:
+                speakers[turn.id] = turn.author_user_id
+            elif turn.channel_identity_id is not None:
+                speakers[turn.id] = linked.get(turn.channel_identity_id)
+            else:
+                speakers[turn.id] = None if in_project else owner
+        return speakers
 
     async def _refuse_held_answer(
         self, ctx: AuthContext, version: DatasetVersion, message_id: UUID
@@ -1220,7 +1365,7 @@ class DatasetService:
                 :data:`MAX_CASES`.
         """
         current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
-        built: list[tuple[DatasetCaseContent, dict[str, UUID | None]]] = []
+        built: list[tuple[DatasetCaseContent, dict[str, UUID | None], Authorship]] = []
         replies: set[UUID | None] = set()
         examined = 0
         for message_id in message_ids:
@@ -1247,12 +1392,17 @@ class DatasetService:
             return None, skipped
         _refuse_past_ceiling(current.case_count, len(built))
         redacted_revisions: list[tuple[DatasetCase, int]] = []
-        for content, provenance in built:
+        for content, provenance, authorship in built:
             fields, found = redacted_case(content)
             redacted_revisions.append(
                 (
                     self._revision(
-                        ctx, current, fields, source=CaseSource.CONVERSATION, **provenance
+                        ctx,
+                        current,
+                        fields,
+                        source=CaseSource.CONVERSATION,
+                        authorship=authorship,
+                        **provenance,
                     ),
                     found,
                 )

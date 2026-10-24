@@ -118,6 +118,57 @@ async def get_rating_counts_for_messages(
     }
 
 
+async def get_down_rating_notes_for_messages(
+    db: AsyncSession,
+    *,
+    message_ids: list[UUID],
+    organization_id: UUID,
+) -> dict[UUID, tuple[str, UUID]]:
+    """Like :func:`get_down_rating_comments_for_messages`, with who left each comment.
+
+    A case that keeps a comment as its note keeps who wrote it too, so erasing
+    that person finds the note after the rating is gone.
+    """
+    if not message_ids:
+        return {}
+    result = await db.execute(
+        select(MessageRating.message_id, MessageRating.comment, MessageRating.user_id)
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            MessageRating.message_id.in_(message_ids),
+            MessageRating.rating == -1,
+            MessageRating.comment.is_not(None),
+        )
+        .order_by(MessageRating.created_at.desc())
+    )
+    notes: dict[UUID, tuple[str, UUID]] = {}
+    for message_id, comment, user_id in result.tuples():
+        if message_id not in notes and comment:
+            notes[message_id] = (comment, user_id)
+    return notes
+
+
+async def noter_of(
+    db: AsyncSession, run_id: UUID, note: str, *, organization_id: UUID
+) -> UUID | None:
+    """Who left `note` as a comment on one of a run's answers, when exactly one person did."""
+    result = await db.execute(
+        select(MessageRating.user_id)
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            Message.run_id == run_id,
+            func.btrim(MessageRating.comment) == note.strip(),
+        )
+        .distinct()
+    )
+    people = list(result.scalars().all())
+    return people[0] if len(people) == 1 else None
+
+
 async def get_down_rating_comments_for_messages(
     db: AsyncSession,
     *,

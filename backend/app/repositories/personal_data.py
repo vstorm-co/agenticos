@@ -12,32 +12,60 @@ removing it: deleting a colleague's account must not delete the agent the team
 runs on. `docs/security.md` has the table, with the reason for each.
 """
 
+import re
+from collections import defaultdict
+from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    Text,
+    and_,
+    cast,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+    update,
+)
+from sqlalchemy import case as sa_case
 from sqlalchemy import delete as sa_delete
+from sqlalchemy.dialects.postgresql import JSONPATH
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
-from app.db.models.agent_run import AgentRun
+from app.db.locks import LockScope, try_hold_subject
+from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
+from app.db.models.authoring import AuthoringRequest, SpecProposalHunk
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.case_generation import CaseProposal
 from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
+from app.db.models.context_proposal import ContextProposal
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import DatasetCase
-from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeSearch
+from app.db.models.eval_run import EvalRunCase
+from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.knowledge_gap import DraftAuthor, KnowledgeGapClassification, KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.run_manifest import RunManifest
 from app.db.models.session import Session
+from app.db.models.skill_proposal import SkillProposal
+from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
 
 
@@ -165,18 +193,11 @@ async def verdicts_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
     return list(result.scalars().all())
 
 
-def _runs_they_started(user_id: UUID) -> Select[UUID]:
-    """Their runs, not a visitor's a surface they published ran in their name."""
-    return select(AgentRun.id).where(
-        AgentRun.user_id == user_id, AgentRun.initiated_by_publisher_fallback.is_(False)
-    )
-
-
 async def scored_answers_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
     """Eval scores of runs they started, each holding a copy of the answer it scored."""
     result = await db.execute(
         select(CaseScore)
-        .where(CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_started(user_id)))
+        .where(CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_asked(user_id)))
         .order_by(CaseScore.created_at.desc())
     )
     return list(result.scalars().all())
@@ -235,7 +256,7 @@ def _proposals_drafted_from(user_id: UUID) -> ColumnElement[bool]:
                 Conversation.user_id == user_id, Conversation.project_id.is_(None)
             )
         ),
-        CaseProposal.source_run_id.in_(_runs_they_started(user_id)),
+        CaseProposal.source_run_id.in_(_runs_they_asked(user_id)),
     )
 
 
@@ -254,12 +275,12 @@ async def case_proposals_from(db: AsyncSession, user_id: UUID) -> list[CasePropo
 
 
 def _their_searches(user_id: UUID) -> ColumnElement[bool]:
-    """Searches of runs they started.
+    """Searches of runs that answered them, a chat account of theirs included.
 
     By the run, never the conversation: a project chat is continued by other
     members, whose questions are in it too.
     """
-    return KnowledgeSearch.run_id.in_(_runs_they_started(user_id))
+    return KnowledgeSearch.run_id.in_(_runs_they_asked(user_id))
 
 
 async def knowledge_searches_of(db: AsyncSession, user_id: UUID) -> list[KnowledgeSearch]:
@@ -306,7 +327,7 @@ async def clear_gap_reasons_of(db: AsyncSession, user_id: UUID) -> int:
     Returns:
         How many reasons were cleared.
     """
-    answered = select(Message.id).where(Message.run_id.in_(_runs_they_started(user_id)))
+    answered = select(Message.id).where(Message.run_id.in_(_runs_they_asked(user_id)))
     result = await db.execute(
         update(KnowledgeGapClassification)
         .where(
@@ -538,18 +559,473 @@ async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
     """
     result = await db.execute(
         select(CaseScore).where(
-            CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_started(user_id))
+            CaseScore.answer.is_not(None), CaseScore.run_id.in_(_runs_they_asked(user_id))
         )
     )
     scores = list(result.scalars().all())
     for score in scores:
-        score.answer = None
-        score.results = [
-            {**result, "reason": "", "unverified_quotes": [], "judge_said": None}
-            for result in score.results
-        ]
+        forget_answer(score)
     await db.flush()
     return len(scores)
+
+
+def forget_answer(score: CaseScore) -> None:
+    """Drop the answer a score copied, and every part of its results that can repeat it."""
+    score.answer = None
+    score.results = [
+        {**result, "reason": "", "unverified_quotes": [], "judge_said": None}
+        for result in score.results
+    ]
+
+
+def _their_own_threads(user_id: UUID) -> Select[UUID]:
+    """Their console and API conversations outside any project, whose turns are theirs alone.
+
+    Not a channel thread, which belongs to whoever spoke first and holds
+    everyone else who spoke in it: a turn there carries the speaker's identity.
+    """
+    spoken_in_a_channel = (
+        select(Message.id)
+        .where(Message.conversation_id == Conversation.id, Message.channel_identity_id.is_not(None))
+        .exists()
+    )
+    return select(Conversation.id).where(
+        Conversation.user_id == user_id,
+        Conversation.project_id.is_(None),
+        ~spoken_in_a_channel,
+    )
+
+
+def _runs_they_asked(user_id: UUID) -> Select[UUID]:
+    """Runs answering a question of theirs: started by them, or by a chat account of theirs.
+
+    Read before :func:`purge_identities_of` unlinks those accounts, as
+    :func:`runs_started_by` reads them for the export.
+    """
+    linked = select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+    return select(AgentRun.id).where(
+        or_(
+            and_(
+                AgentRun.user_id == user_id,
+                AgentRun.initiated_by_publisher_fallback.is_(False),
+            ),
+            AgentRun.channel_identity_id.in_(linked),
+        )
+    )
+
+
+def _their_turns(user_id: UUID) -> ColumnElement[bool]:
+    linked = select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+    return or_(Message.author_user_id == user_id, Message.channel_identity_id.in_(linked))
+
+
+async def anonymise_dataset_cases_of(
+    db: AsyncSession, user_id: UUID, *, placeholder: str, at: datetime
+) -> list[UUID]:
+    """Replace the text of every case revision taken from this person, in every version.
+
+    A case whose question they asked holds it, the turns before it and the
+    answer they got, so all of it goes:
+    the input becomes `placeholder`, and the history, both answers and the note -
+    the comment a down-rating left - are emptied. The case keeps its id, its
+    place, its expected tool calls and its checks, which are the curator's, and
+    is marked anonymised, so its curator can rewrite it or remove it.
+
+    Revisions are immutable everywhere else; an erasure is the exception, and
+    reaches the revisions only earlier versions still hold. Unscoped by
+    organization, as every erasure is. Found by `asked_by_user_id`, which the
+    case keeps after its conversation and run are gone; a case with no asker
+    recorded is found by the links :func:`unlink_dataset_cases_of` clears, so
+    this runs first. A revision already anonymised is skipped.
+
+    Returns:
+        The revisions anonymised, whose copies in eval results go next.
+    """
+    result = await db.execute(
+        update(DatasetCase)
+        .where(
+            or_(
+                DatasetCase.asked_by_user_id == user_id,
+                and_(
+                    DatasetCase.asked_by_user_id.is_(None),
+                    or_(
+                        DatasetCase.source_conversation_id.in_(_their_own_threads(user_id)),
+                        DatasetCase.source_run_id.in_(_runs_they_asked(user_id)),
+                    ),
+                ),
+            ),
+            DatasetCase.anonymised_at.is_(None),
+        )
+        .values(
+            input=placeholder,
+            history=[],
+            reference_answer=None,
+            counter_example=None,
+            note=None,
+            history_author_ids=[],
+            noted_by_user_id=None,
+            anonymised_at=at,
+        )
+        .returning(DatasetCase.id)
+    )
+    revisions = list(result.scalars().all())
+    await db.flush()
+    return revisions
+
+
+async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
+    """Clear what eval runs recorded while answering these case revisions.
+
+    An agent asked an anonymised question answers about it, and its calls carry
+    the question's details as arguments, so the answer and calls of every
+    attempt go, and every score's copy of the answer with the parts of its
+    results that can repeat it - and, through :func:`forget_runs`, what the
+    agent's and the judge's runs kept of the question. The outcome stays:
+    whether the case passed is the organization's.
+
+    Returns:
+        How many attempts and scores were cleared.
+    """
+    if not revision_ids:
+        return 0
+    answered = await db.execute(
+        select(EvalRunCase.agent_run_id).where(
+            EvalRunCase.case_revision_id.in_(revision_ids), EvalRunCase.agent_run_id.is_not(None)
+        )
+    )
+    runs = {run_id for run_id in answered.scalars() if run_id is not None}
+    attempts = await db.execute(
+        update(EvalRunCase)
+        .where(EvalRunCase.case_revision_id.in_(revision_ids))
+        .values(answer=None, calls=[])
+    )
+    result = await db.execute(select(CaseScore).where(CaseScore.case_revision_id.in_(revision_ids)))
+    scores = list(result.scalars().all())
+    for score in scores:
+        runs |= judge_runs_of(score)
+        forget_answer(score)
+    await forget_runs(db, runs)
+    await db.flush()
+    return (attempts.rowcount or 0) + len(scores)  # ty: ignore[unresolved-attribute]
+
+
+_LOCK_NOT_AVAILABLE = "55P03"
+
+_SPEC_PARTS = frozenset({"instructions", "system_prompts", "tools", "settings", "requests"})
+"""What a manifest keeps after an erasure: what the spec decided and what each request
+cost, never the messages, reviews or code that carried what was asked."""
+
+
+def judge_runs_of(score: CaseScore) -> set[UUID]:
+    """The runs a judge made to grade one score."""
+    return {
+        UUID(str(result["judge_run_id"])) for result in score.results if result.get("judge_run_id")
+    }
+
+
+async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
+    """Drop what these runs kept of what they were asked, keeping the runs.
+
+    A run's manifest is the request its model was handed - for an eval attempt,
+    the case's question and history; for a judge, the answer too - and the
+    calls an isolated run held back, or one that waited for approval, keep their
+    arguments. The manifest keeps what the spec decided and what each request
+    cost, and is marked trimmed; the messages go. The run row stays: what it
+    cost is the organization's record.
+    """
+    wanted = list(set(run_ids))
+    if not wanted:
+        return
+    manifests = await db.execute(select(RunManifest).where(RunManifest.run_id.in_(wanted)))
+    for manifest in manifests.scalars():
+        manifest.payload = {
+            key: value for key, value in manifest.payload.items() if key in _SPEC_PARTS
+        }
+        manifest.truncated = True
+    await db.execute(
+        update(InterceptedToolCall).where(InterceptedToolCall.run_id.in_(wanted)).values(args={})
+    )
+    await db.execute(
+        update(ToolApproval).where(ToolApproval.run_id.in_(wanted)).values(tool_args={})
+    )
+    await db.flush()
+
+
+async def scrub_history_turns_of(
+    db: AsyncSession, user_id: UUID, *, placeholder: str
+) -> list[UUID]:
+    """Replace their turns in the history of cases asked by somebody else.
+
+    A case taken from a shared thread - a project chat, a channel - keeps the
+    turns before its question, whoever wrote them. Their turn goes, and so do
+    the agent's turns answering it, up to the next person's: an answer repeats
+    what it was asked. Found by the author the case recorded for each turn; a
+    turn with none recorded is matched against what they wrote in the thread the
+    case came from, as long as that thread is there.
+
+    Returns:
+        The revisions that lost a turn, whose copies in eval results go next.
+    """
+    written = await db.execute(
+        select(Message.conversation_id, Message.content).where(
+            Message.role == "user", _their_turns(user_id)
+        )
+    )
+    said: defaultdict[UUID, set[str]] = defaultdict(set)
+    for conversation_id, content in written.tuples():
+        said[conversation_id].add(_normal(content))
+    result = await db.execute(
+        select(DatasetCase).where(
+            DatasetCase.anonymised_at.is_(None),
+            or_(
+                DatasetCase.history_author_ids.contains([user_id]),
+                DatasetCase.source_conversation_id.in_(list(said)),
+            ),
+        )
+    )
+    scrubbed: list[UUID] = []
+    for case in result.scalars().all():
+        theirs = said.get(case.source_conversation_id) if case.source_conversation_id else None
+        history: list[dict[str, Any]] = []
+        authors: list[UUID | None] = []
+        answering = False
+        for turn, author in zip(case.history, case.history_author_ids, strict=True):
+            if turn.get("role") == "user":
+                answering = author == user_id or (
+                    author is None
+                    and theirs is not None
+                    and _normal(str(turn.get("content", ""))) in theirs
+                )
+            if answering:
+                history.append({**turn, "content": placeholder})
+                authors.append(None)
+            else:
+                history.append(turn)
+                authors.append(author)
+        if history != case.history:
+            case.history = history
+            case.history_author_ids = authors
+            scrubbed.append(case.id)
+    await db.flush()
+    return scrubbed
+
+
+async def comments_of(db: AsyncSession, user_id: UUID) -> dict[UUID, list[str]]:
+    """What this person wrote when rating answers, by the run that gave the answer.
+
+    Their words reach other people's runs this way: a case keeps a rated-down
+    answer's comment as its note, and the authoring assistant quotes the
+    comments of the runs it reads as evidence.
+    """
+    result = await db.execute(
+        select(Message.run_id, MessageRating.comment)
+        .join(MessageRating, MessageRating.message_id == Message.id)
+        .where(
+            MessageRating.user_id == user_id,
+            Message.run_id.is_not(None),
+            MessageRating.comment.is_not(None),
+            MessageRating.comment != "",
+        )
+    )
+    comments: defaultdict[UUID, list[str]] = defaultdict(list)
+    for run_id, comment in result.tuples():
+        assert run_id is not None and comment is not None
+        comments[run_id].append(comment)
+    return dict(comments)
+
+
+async def clear_case_notes_of(
+    db: AsyncSession, user_id: UUID, *, comments: dict[UUID, list[str]]
+) -> int:
+    """Clear the note of every case, or drafted case, that holds their comment.
+
+    A case keeps a rated-down answer's comment as its note, and a draft from the
+    case generator does too. The note goes whole when it holds the comment's
+    words anywhere - a curator may have written around it - and the rest of the case
+    stays: a question somebody else asked, and the answer they got, are not the
+    commenter's to erase. Found by `noted_by_user_id`, which a case keeps after
+    the rating is gone, and otherwise by the comments they still have:
+    `comments` carries each as written and as credential redaction stored it.
+
+    Returns:
+        How many cases and drafts lost their note.
+    """
+    noted = await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.noted_by_user_id == user_id)
+        .values(note=None, noted_by_user_id=None)
+    )
+    cleared = noted.rowcount or 0  # ty: ignore[unresolved-attribute]
+    if not comments:
+        await db.flush()
+        return cleared
+    for model in (DatasetCase, CaseProposal):
+        result = await db.execute(
+            select(model).where(model.source_run_id.in_(list(comments)), model.note.is_not(None))
+        )
+        for row in result.scalars().all():
+            assert row.source_run_id is not None and row.note is not None
+            note = _words(row.note)
+            if any(_within(_words(comment), note) for comment in comments[row.source_run_id]):
+                row.note = None
+                cleared += 1
+    await db.flush()
+    return cleared
+
+
+def _normal(text: str) -> str:
+    return " ".join(text.split())
+
+
+_EDGE_WORDS = 3
+"""How many of a comment's words a quote must carry across its edge to repeat it."""
+
+
+def _words(text: str) -> list[str]:
+    """The words of a text, without the punctuation and case a curator may have changed."""
+    return re.findall(r"\w+", text.casefold())
+
+
+def _within(inner: list[str], outer: list[str]) -> bool:
+    return bool(inner) and any(
+        outer[start : start + len(inner)] == inner for start in range(len(outer))
+    )
+
+
+def _repeats(quote: str, comment: str) -> bool:
+    """Whether a quote repeats a comment, in whole words.
+
+    An assistant quote is whitespace-normalized and taken word for word from a
+    run's text, in which a comment is followed by the next comment or the
+    question, so a quote can sit inside the comment, hold it, or run across its
+    edge. Across an edge, a few words shared by chance are not the comment:
+    the quote must carry at least `_EDGE_WORDS` of them, or all of a shorter one.
+    """
+    quoted, said = _normal(quote).split(), _normal(comment).split()
+    if not quoted or not said:
+        return False
+    if _within(quoted, said) or _within(said, quoted):
+        return True
+    least = min(_EDGE_WORDS, len(said))
+    return any(
+        quoted[:size] == said[-size:] or quoted[-size:] == said[:size]
+        for size in range(least, min(len(quoted), len(said)) + 1)
+    )
+
+
+def _cites(
+    document: InstrumentedAttribute[list[dict[str, Any]]]
+    | InstrumentedAttribute[dict[str, Any] | None],
+    path: str,
+    runs: ColumnElement[bool],
+) -> ColumnElement[bool]:
+    """Whether a JSONB document holds, at `path`, the id of a run matching `runs`."""
+    cited = func.jsonb_path_query(document, cast(path, JSONPATH)).column_valued("run_id")
+    named = select(func.to_jsonb(cast(AgentRun.id, Text))).where(runs)
+    return exists(select(literal(1)).where(cited.in_(named)))
+
+
+def _without_theirs(
+    items: list[dict[str, Any]], theirs: set[str], comments: dict[str, list[str]]
+) -> list[dict[str, Any]]:
+    return [
+        item
+        for item in items
+        if item.get("run_id") not in theirs
+        and not any(
+            _repeats(str(item.get("quote") or ""), comment)
+            for comment in comments.get(str(item.get("run_id")), [])
+        )
+    ]
+
+
+async def purge_evidence_of(
+    db: AsyncSession, user_id: UUID, *, comments: dict[UUID, list[str]]
+) -> int:
+    """Remove the authoring assistant's quotes of this person, wherever it kept one.
+
+    An evidence item is `{"run_id", "quote"}`, quoted word for word from a run
+    the assistant read: its question, its answer, its calls and the comments of
+    its ratings. An item about a run that answered them goes whole, since anything it
+    quotes is from their conversation. From a run they only rated, only what
+    repeats their comment goes - the rest is somebody else's question.
+
+    Kept on change proposals' hunks, skill and context proposals, and the
+    findings of a verify request's report. Unscoped by organization, as every
+    erasure is.
+
+    Returns:
+        How many quotes were removed.
+    """
+    reached = or_(AgentRun.id.in_(_runs_they_asked(user_id)), AgentRun.id.in_(list(comments)))
+    theirs = {str(run_id) for run_id in (await db.execute(_runs_they_asked(user_id))).scalars()}
+    said = {str(run_id): text for run_id, text in comments.items()}
+    removed = 0
+    for model in (SpecProposalHunk, SkillProposal, ContextProposal):
+        rows = await db.execute(select(model).where(_cites(model.evidence, "$[*].run_id", reached)))
+        for row in rows.scalars().all():
+            kept = _without_theirs(row.evidence, theirs, said)
+            removed += len(row.evidence) - len(kept)
+            row.evidence = kept
+    requests = await db.execute(
+        select(AuthoringRequest).where(
+            _cites(AuthoringRequest.report, "$.findings[*].evidence[*].run_id", reached)
+        )
+    )
+    for request in requests.scalars().all():
+        assert request.report is not None
+        findings = []
+        for finding in request.report.get("findings", []):
+            kept = _without_theirs(finding.get("evidence", []), theirs, said)
+            removed += len(finding.get("evidence", [])) - len(kept)
+            findings.append({**finding, "evidence": kept})
+        request.report = {**request.report, "findings": findings}
+    await db.flush()
+    return removed
+
+
+async def clear_gap_drafts_of(db: AsyncSession, user_id: UUID) -> int:
+    """Discard the draft of every knowledge-gap topic that holds one of their searches.
+
+    The drafter reads a topic's newest questions, what each found and the
+    answer each got, and cites only some of them, so a draft can repeat their
+    question without naming it: every draft of a topic they asked into goes,
+    whoever else asked into it too. The topic stays, without a draft, and
+    reads as one somebody can draft again. Runs before
+    :func:`purge_knowledge_searches_of`, which takes the memberships with the
+    searches.
+
+    Returns:
+        How many drafts were discarded.
+    """
+    result = await db.execute(
+        update(KnowledgeGapTopic)
+        .where(
+            KnowledgeGapTopic.id.in_(
+                select(KnowledgeGapMember.topic_id)
+                .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+                .where(_their_searches(user_id))
+            ),
+            KnowledgeGapTopic.draft_author == DraftAuthor.MODEL.value,
+            or_(
+                KnowledgeGapTopic.draft_content.is_not(None),
+                KnowledgeGapTopic.draft_title.is_not(None),
+            ),
+        )
+        .values(
+            draft_author=None,
+            draft_already_covered=None,
+            draft_title=None,
+            draft_content=None,
+            draft_sources=[],
+            draft_unverified=0,
+            draft_run_id=None,
+            drafted_by_user_id=None,
+            drafted_at=None,
+        )
+    )
+    await db.flush()
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
 
 async def attachment_paths_in(db: AsyncSession, conversation_id: UUID) -> list[str]:
@@ -651,3 +1127,95 @@ def as_rows(items: list[Any], fields: tuple[str, ...]) -> list[dict[str, Any]]:
     right there on the row.
     """
     return [{field: getattr(item, field) for field in fields} for item in items]
+
+
+async def present_among(db: AsyncSession, people: Iterable[UUID]) -> set[UUID]:
+    """Which of these people may still be quoted, held against an erasure until this transaction ends.
+
+    For a writer that read somebody's words before a slow step and writes them
+    down after it. An erasure takes `PERSONAL_DATA_PER_USER` before it purges,
+    so a person whose lock is free here, and whose account is still there, is
+    not being erased; held, the lock lasts to this transaction's commit and the
+    erasure that follows finds what was written. Taken without waiting, as
+    :meth:`AgentRunnerService._may_record_about` does: a writer may hold rows
+    the erasure is about to update. The lock is also taken by a note being
+    written about the person, so a busy one is checked against the account's
+    row, which only a deletion holds.
+    """
+    present: set[UUID] = set()
+    for person in sorted(set(people)):
+        held = await try_hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person)
+        if (held or await _not_being_deleted(db, person)) and await db.scalar(
+            select(User.id).where(User.id == person)
+        ) is not None:
+            present.add(person)
+    return present
+
+
+async def _not_being_deleted(db: AsyncSession, person: UUID) -> bool:
+    """Whether a busy lock is somebody writing about the person rather than erasing them.
+
+    Deleting an account locks its row before it purges, and a note being
+    written about them does not, so a share of the row taken without waiting
+    means no deletion is under way - and, held to this transaction's commit,
+    makes one that starts later wait for this write and then remove it.
+    """
+    try:
+        async with db.begin_nested():
+            await db.execute(
+                select(User.id)
+                .where(User.id == person)
+                .with_for_update(key_share=True, nowait=True)
+            )
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE:
+            raise
+        return False
+    return True
+
+
+async def askers_of(db: AsyncSession, run_ids: Iterable[UUID]) -> set[UUID]:
+    """Who these runs answered, for :func:`present_among`: the account that started each,
+    or the one its chat identity is linked to."""
+    result = await db.execute(
+        select(
+            sa_case(
+                (AgentRun.initiated_by_publisher_fallback.is_(False), AgentRun.user_id),
+                else_=None,
+            ),
+            ChannelIdentity.user_id,
+        )
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == AgentRun.channel_identity_id)
+        .where(AgentRun.id.in_(list(run_ids)))
+    )
+    return {person for row in result.tuples() for person in row if person is not None}
+
+
+async def linked_people(db: AsyncSession, identity_ids: Iterable[UUID]) -> dict[UUID, UUID]:
+    """The account each of these chat identities is linked to, for those that are."""
+    wanted = list(set(identity_ids))
+    if not wanted:
+        return {}
+    result = await db.execute(
+        select(ChannelIdentity.id, ChannelIdentity.user_id).where(
+            ChannelIdentity.id.in_(wanted), ChannelIdentity.user_id.is_not(None)
+        )
+    )
+    return {identity: user for identity, user in result.tuples() if user is not None}
+
+
+async def asker_of(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> UUID | None:
+    """Who one run answered: the account that started it, else the one its chat identity is linked to."""
+    result = await db.execute(
+        select(
+            sa_case(
+                (AgentRun.initiated_by_publisher_fallback.is_(False), AgentRun.user_id),
+                else_=None,
+            ),
+            ChannelIdentity.user_id,
+        )
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == AgentRun.channel_identity_id)
+        .where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
+    )
+    row = result.tuples().first()
+    return None if row is None else row[0] or row[1]

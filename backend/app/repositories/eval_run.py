@@ -451,6 +451,23 @@ async def finish_case(db: AsyncSession, *, case: EvalRunCase, values: dict[str, 
     return result.scalar_one_or_none() is not None
 
 
+async def link_run(db: AsyncSession, *, case: EvalRunCase, agent_run_id: UUID) -> bool:
+    """Record the run answering an attempt as soon as it exists. `False` when the attempt is gone.
+
+    Written before the model is called, so a run that then fails or is stopped
+    can still be found from the attempt. An update rather than a write through
+    the attempt's object, which a deleted dataset or eval run may have taken
+    with it meanwhile.
+    """
+    result = await db.execute(
+        update(EvalRunCase)
+        .where(EvalRunCase.id == case.id, EvalRunCase.organization_id == case.organization_id)
+        .values(agent_run_id=agent_run_id)
+        .returning(EvalRunCase.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def claim_next(
     db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID, org_limit: int, now: datetime
 ) -> EvalRunCase | None:

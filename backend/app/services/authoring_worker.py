@@ -435,6 +435,7 @@ class AuthoringRun:
         proposal = await self._ask(
             _improve_prompt(agent.name, spec, configuration, pack, digests), ImprovementProposal
         )
+        pack = await self.evidence.forget_erased(pack)
         hunks = [
             *self._instruction_hunks(spec, pack, proposal.instructions, HunkOrigin.IMPROVE),
             *self._tool_hunks(spec, pack, proposal.tools, HunkOrigin.IMPROVE),
@@ -477,6 +478,7 @@ class AuthoringRun:
             _verify_prompt(agent.name, published, draft, configuration, pack, digests),
             VerifyReport,
         )
+        pack = await self.evidence.forget_erased(pack)
         findings = self._findings(report.findings, pack, _edited(published, draft))
         hunks = [
             *self._instruction_hunks(draft, pack, report.instructions, HunkOrigin.VERIFY),
@@ -514,6 +516,7 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
         proposal = await self._ask(_skill_prompt(skill, pack, digests), SkillImprovement)
+        pack = await self.evidence.forget_erased(pack)
         kept, dropped = pack.verify(proposal.evidence)
         improver = await self.runner.agents.ensure(
             organization_id=self.ctx.organization_id, key=IMPROVER.key
@@ -583,6 +586,7 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'agents using the context file "{file.name}"')
         proposal = await self._ask(_context_prompt(file, pack, digests), ContextImprovement)
+        pack = await self.evidence.forget_erased(pack)
         kept, dropped = pack.verify(proposal.evidence)
         values = {
             "base_updated_at": file.updated_at,

@@ -69,6 +69,7 @@ from app.repositories import (
     knowledge_base_repo,
     knowledge_gap_repo,
     member_repo,
+    personal_data_repo,
 )
 from app.repositories.knowledge_gap import (
     REFUSED,
@@ -946,6 +947,8 @@ class KnowledgeGapService:
                 asked, or of one whose content a person wrote.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
+            BadRequestError: Somebody whose question the draft read was erased,
+                or was busy being changed, while it was being written.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
             SystemAgentRunError: The run ended without an answer, as a budget
                 refusal does; it is recorded.
@@ -976,6 +979,9 @@ class KnowledgeGapService:
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
         kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+        askers = await personal_data_repo.askers_of(
+            self.db, {row.search.run_id for row in material}
+        )
         documents = await knowledge_gap_repo.documents_named(
             self.db,
             kb.id,
@@ -992,6 +998,15 @@ class KnowledgeGapService:
             prompt=_drafting_prompt(kb.name, material, documents, context_files),
             output_type=KnowledgeGapDraft,
         )
+        if askers - await personal_data_repo.present_among(self.db, askers):
+            raise BadRequestError(
+                message=(
+                    "Somebody whose question this draft was written from is being erased, or "
+                    "their data is being changed right now, so it was not kept. Draft the "
+                    "topic again."
+                ),
+                details={"topic_id": topic.id},
+            )
         cited_documents, unknown_documents = _cited(result.output.documents, documents)
         cited_questions, unknown_questions = _cited(
             result.output.questions, [row.search for row in material]

@@ -55,6 +55,7 @@ from app.repositories import (
     dataset_repo,
     eval_run_repo,
     intercepted_tool_call_repo,
+    personal_data_repo,
 )
 from app.schemas.dataset import DatasetRead
 from app.schemas.scoring import (
@@ -646,8 +647,28 @@ class ScoringService:
         return await self.answer_of(ctx, score.run_id)
 
     async def _rescore(self, ctx: AuthContext, score: CaseScore, answer: ScoredAnswer) -> CaseScore:
+        """Grade the answer again, keeping the new grade unless an erasure reached the case meanwhile.
+
+        The judge's run commits, so the case can be anonymised - or lose an
+        erased person's turns - while it grades. The revision is then held in
+        share mode and compared with what was graded: a changed one keeps no
+        grade, and the judge's runs forget what they were shown. The judge runs
+        a new grade replaces forget it too, since nothing names them any more.
+        """
         config = DatasetScoring.model_validate(score.scoring)
-        evaluation = await self.evaluate(ctx, _case_view(score.case_revision), answer, config)
+        graded = score.case_revision
+        asked = (graded.input, list(graded.history or []))
+        replaced = personal_data_repo.judge_runs_of(score)
+        evaluation = await self.evaluate(ctx, _case_view(graded), answer, config)
+        judged = {result.judge_run_id for result in evaluation.results if result.judge_run_id}
+        held = await dataset_repo.lock_revision(
+            self.db, score.case_revision_id, organization_id=ctx.organization_id
+        )
+        if held is None or held.anonymised_at is not None or (held.input, held.history) != asked:
+            await personal_data_repo.forget_runs(self.db, replaced | judged)
+            personal_data_repo.forget_answer(score)
+            return score
+        await personal_data_repo.forget_runs(self.db, replaced - judged)
         passed = case_passed(evaluation.results)
         # A score waiting because nothing graded it, now graded a pass, has
         # nothing left for a person to decide; one somebody decided stays decided.

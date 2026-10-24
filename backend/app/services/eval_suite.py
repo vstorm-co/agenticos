@@ -122,7 +122,7 @@ _BOUND_FIELD: dict[DependencyKind, Literal["skill_ids", "collection_ids"]] = {
 }
 # A refusal the eval run gave that means the suite cannot run as set up, rather
 # than that its owner lost access - the reason the console words for each.
-_REFUSALS = ("ai_assistance_off", "no_scorer")
+_REFUSALS = ("ai_assistance_off", "no_scorer", "only_anonymised")
 
 
 class _OverCap(Exception):

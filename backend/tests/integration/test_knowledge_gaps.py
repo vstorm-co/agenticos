@@ -966,6 +966,8 @@ async def test_a_topics_questions_become_cases_of_a_dataset_in_one_version(db) -
         "Where can visitors park?",
     ]
     assert {c.note for c in cases} == {"No parking info", None}
+    assert {c.asked_by_user_id for c in cases} == {ctx.user_id}
+    assert {c.noted_by_user_id for c in cases} == {ctx.user_id, None}
 
 
 async def test_a_question_asked_over_the_api_has_no_answer_to_keep_and_is_skipped(db) -> None:
@@ -1078,6 +1080,27 @@ async def _document(db, ctx: AuthContext, kb: KnowledgeBase, filename: str) -> R
     db.add(document)
     await db.flush()
     return document
+
+
+async def test_a_draft_is_not_kept_when_an_asker_was_erased_while_it_was_written(db) -> None:
+    ctx = await _owner(db)
+    _, agent, topic_id = await _a_topic(db, ctx)
+    drafting_run, _ = await _turn(db, ctx, agent)
+    present = AsyncMock(return_value=set())
+
+    with (
+        _drafter(
+            KnowledgeGapDraft(title="Parking", content="Level -2.", documents=[], questions=[1]),
+            drafting_run,
+        ),
+        patch.object(personal_data_repo, "present_among", new=present),
+        pytest.raises(BadRequestError, match="Draft the topic again"),
+    ):
+        await KnowledgeGapService(db).draft(ctx, topic_id)
+
+    assert set(present.await_args.args[1]) == {ctx.user_id}
+    detail = await KnowledgeGapService(db).read(ctx, topic_id)
+    assert detail.draft is None
 
 
 async def test_a_draft_cites_only_the_documents_and_questions_it_was_shown(db) -> None:

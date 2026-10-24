@@ -204,6 +204,13 @@ class DatasetCaseRead(StoredCaseContent):
     source_document_id: UUID | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
+    anonymised_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When erasing the person this case was taken from replaced its text. An eval run "
+            "leaves the case out until somebody rewrites it"
+        ),
+    )
 
 
 class DatasetCaseQuestion(BaseSchema):

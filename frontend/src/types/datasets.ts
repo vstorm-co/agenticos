@@ -59,6 +59,8 @@ export interface DatasetCase extends DatasetCaseContent {
   source_document_id: string | null;
   created_by_user_id: string | null;
   created_at: string;
+  /** When erasing the person it was taken from replaced its text; eval runs skip it until rewritten. */
+  anonymised_at?: string | null;
 }
 
 export interface DatasetCaseList {

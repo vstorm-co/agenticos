@@ -128,6 +128,9 @@ describe("skipText", () => {
     expect(skipText(suiteResult({ status: "error", reason: "start_failed" }), t)).toBe(
       "skip.start_failed",
     );
+    expect(skipText(suiteResult({ status: "error", reason: "only_anonymised" }), t)).toBe(
+      "skip.only_anonymised",
+    );
     expect(
       skipText(
         suiteResult({

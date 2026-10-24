@@ -34,6 +34,7 @@ from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, hold_subject
 from app.repositories import personal_data_repo, user_repo
 from app.schemas.personal_data import PersonalDataExport, PersonalDataPurge
+from app.services.dataset import redact_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ _NOTIFICATION_FIELDS = (
     "read_at",
     "created_at",
 )
+ANONYMISED_CASE_INPUT = "[Removed: the person this case was taken from was erased]"
 _NOTIFICATION_PREFERENCE_FIELDS = ("event_type", "channel", "enabled", "updated_at")
 # Every field a draft can carry a person's words in, and every link back to them.
 _CASE_PROPOSAL_FIELDS = (
@@ -291,6 +293,14 @@ class PersonalDataService:
         - `knowledge_searches` of the runs they started, whose
           `agent_runs.user_id` is `SET NULL` and whose project chat outlives
           them, so the query an agent phrased from their question would too.
+        - text copied out of their conversations: dataset cases taken from
+          them, in every revision, are anonymised, and what eval runs recorded
+          while answering those cases goes; a case that kept their comment on
+          somebody else's answer loses only the comment. The authoring
+          assistant's quotes of them go from its proposals and reports, and a
+          knowledge-gap topic holding one of their searches loses its draft.
+          Draft overlays an eval arm will keep once knowledge drafts can be
+          tested (#2391) belong to this list too.
 
         Called from `UserService.delete`, inside the same transaction, so a
         deletion that fails afterwards takes this with it.
@@ -306,46 +316,60 @@ class PersonalDataService:
         # commit. A memory write for the same person takes it too, so the two
         # cannot interleave into a note that survives the account it is about.
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id)
+        comments = _as_stored(await personal_data_repo.comments_of(self.db, user_id))
+        # Before the unlink below, which clears the links these are found by.
+        anonymised = await personal_data_repo.anonymise_dataset_cases_of(
+            self.db, user_id, placeholder=ANONYMISED_CASE_INPUT, at=datetime.now(UTC)
+        )
+        scrubbed = await personal_data_repo.scrub_history_turns_of(
+            self.db, user_id, placeholder=ANONYMISED_CASE_INPUT
+        )
+        case_copies = await personal_data_repo.purge_case_copies(self.db, [*anonymised, *scrubbed])
+        case_notes = await personal_data_repo.clear_case_notes_of(
+            self.db, user_id, comments=comments
+        )
+        dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
+        evidence_quotes = await personal_data_repo.purge_evidence_of(
+            self.db, user_id, comments=comments
+        )
+        # Before the searches go, since a topic is found through its members.
+        gap_drafts = await personal_data_repo.clear_gap_drafts_of(self.db, user_id)
         notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
-        identities = await personal_data_repo.purge_identities_of(self.db, user_id)
         workspaces = await personal_data_repo.purge_workspaces_of(
             self.db, person_owner_key(user_id)
         )
-        dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
         searches = await personal_data_repo.purge_knowledge_searches_of(self.db, user_id)
         gap_reasons = await personal_data_repo.clear_gap_reasons_of(self.db, user_id)
         scored_answers = await personal_data_repo.purge_scored_answers_of(self.db, user_id)
         case_proposals = await personal_data_repo.delete_case_proposals_of(self.db, user_id)
-        if (
-            notes
-            or identities
-            or workspaces
-            or dataset_cases
-            or searches
-            or gap_reasons
-            or scored_answers
-            or case_proposals
-        ):
-            logger.info(
-                "personal_data_purged",
-                extra={
-                    "user_id": str(user_id),
-                    "notes": notes,
-                    "identities": identities,
-                    "workspaces": workspaces,
-                    "dataset_cases": dataset_cases,
-                    "knowledge_searches": searches,
-                    "knowledge_gap_reasons": gap_reasons,
-                    "scored_answers": scored_answers,
-                    "case_proposals": case_proposals,
-                },
-            )
-        return PersonalDataPurge(
+        # Last: which runs answered them through a chat account is read through the link.
+        identities = await personal_data_repo.purge_identities_of(self.db, user_id)
+        purged = PersonalDataPurge(
             memory_notes=notes,
             channel_identities=identities,
             workspaces=workspaces,
             dataset_cases=dataset_cases,
+            anonymised_cases=len(anonymised),
+            case_copies=case_copies,
+            history_turns=len(scrubbed),
+            case_notes=case_notes,
+            evidence_quotes=evidence_quotes,
+            gap_drafts=gap_drafts,
             knowledge_searches=searches,
+            knowledge_gap_reasons=gap_reasons,
             scored_answers=scored_answers,
             case_proposals=case_proposals,
         )
+        if any(purged.model_dump().values()):
+            logger.info(
+                "personal_data_purged", extra={"user_id": str(user_id), **purged.model_dump()}
+            )
+        return purged
+
+
+def _as_stored(comments: dict[UUID, list[str]]) -> dict[UUID, list[str]]:
+    """Each comment as written and as a case stored it, credentials redacted."""
+    return {
+        run_id: [*said, *(redact_credentials(comment)[0] or comment for comment in said)]
+        for run_id, said in comments.items()
+    }

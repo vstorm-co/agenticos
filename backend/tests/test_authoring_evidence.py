@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.repositories import authoring_repo, conversation_repo
+from app.repositories import authoring_repo, conversation_repo, personal_data_repo
 from app.repositories.authoring import EvidenceRun
 from app.schemas.authoring import MAX_EVIDENCE_ITEMS, MAX_QUOTE_CHARS, EvidenceQuote
 from app.services import authoring_evidence
@@ -123,11 +123,24 @@ class TestVerify:
         assert dropped == 1 + (len(words) - 1 + 1 - MAX_EVIDENCE_ITEMS)
 
 
-def _row(*, rating: int = -1, error: str | None = None) -> EvidenceRun:
+def _row(
+    *,
+    rating: int = -1,
+    error: str | None = None,
+    user_id: uuid.UUID | None = None,
+    for_a_visitor: bool = False,
+    commenters: tuple[uuid.UUID, ...] = (),
+) -> EvidenceRun:
     run = SimpleNamespace(
-        id=uuid.uuid4(), conversation_id=uuid.uuid4(), status="completed", error=error
+        id=uuid.uuid4(),
+        conversation_id=uuid.uuid4(),
+        status="completed",
+        error=error,
+        user_id=user_id,
+        initiated_by_publisher_fallback=for_a_visitor,
+        channel_identity_id=None,
     )
-    return EvidenceRun(run=run, rating=rating, comments=["Wrong"])  # type: ignore[arg-type]
+    return EvidenceRun(run=run, rating=rating, comments=["Wrong"], commenters=list(commenters))  # type: ignore[arg-type]
 
 
 def _message(role: str, content: str, calls=()) -> SimpleNamespace:
@@ -135,6 +148,30 @@ def _message(role: str, content: str, calls=()) -> SimpleNamespace:
 
 
 class TestService:
+    async def test_the_runs_of_somebody_being_erased_are_forgotten_before_a_write(
+        self, monkeypatch, mock_db_session
+    ):
+        """Whose words a run holds is read with it, and checked again just before writing."""
+        asker, commenter, publisher, gone = (uuid.uuid4() for _ in range(4))
+        rows = [
+            _row(user_id=asker, commenters=(commenter,)),
+            _row(user_id=publisher, for_a_visitor=True),
+            _row(user_id=gone),
+            _row(user_id=asker, commenters=(gone,)),
+        ]
+        monkeypatch.setattr(authoring_repo, "evidence_runs", AsyncMock(return_value=rows))
+        monkeypatch.setattr(conversation_repo, "get_messages_by_run", AsyncMock(return_value=[]))
+        present = AsyncMock(return_value={asker, commenter})
+        monkeypatch.setattr(personal_data_repo, "present_among", present)
+        service = EvidenceService(mock_db_session)
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+        pack = await service.for_agent(ctx, uuid.uuid4(), window_days=30)
+
+        kept = await service.forget_erased(pack)
+
+        assert [run.run_id for run in kept.runs] == [rows[0].run.id, rows[1].run.id]
+        assert set(present.await_args.args[1]) == {asker, commenter, gone}
+
     async def test_an_agents_runs_are_read_with_their_turns(self, monkeypatch, mock_db_session):
         row = _row(error="x" * 3000)
         reads = AsyncMock(return_value=[row])

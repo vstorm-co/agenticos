@@ -1,5 +1,5 @@
 ---
-source_sha: "7e7f2f752192"
+source_sha: "a992709fc3ca"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -695,12 +695,34 @@ mehr existiert, sieht nur, wer jeden Agent der Organisation sehen darf.
 ## Personenbezogene Daten { #personal-data }
 
 Ein Fall aus einem Gespräch ist eine Kopie dessen, was eine Person geschrieben
-und der Agent geantwortet hat. Wird das Gespräch gelöscht oder die Person, die
-es geschrieben hat, gelöscht, bleibt der Fall, und jede Verbindung zurück zu ihr
-wird entfernt: der Run, das Gespräch und die Nachricht, aus denen er stammt, und
-wer ihn hinzugefügt hat, falls das die gelöschte Person war. Es bleibt der Text -
-der weiterhin personenbezogene Daten enthalten kann, die jemand eingegeben hat,
-und erst mit dem Löschen des Falls verschwindet. Siehe
+und der Agent geantwortet hat. Wird das Gespräch gelöscht, bleibt der Fall, und
+jede Verbindung zurück zum Gespräch wird entfernt: der Run, das Gespräch und die
+Nachricht, aus denen er stammt. Der Text bleibt und kann weiterhin
+personenbezogene Daten enthalten, die jemand eingegeben hat. Das Löschen des
+Falls entfernt ihn.
+
+Wird die Person gelöscht, die die Frage eines Falls gestellt hat, geht auch der Text. Die
+Frage, die früheren Züge, beide Antworten und die Notiz werden in jeder Version
+ersetzt, die den Fall enthält, und ebenso die Antworten und Aufrufe, die
+Eval-Runs für ihn aufgezeichnet haben. Der Fall behält seine Id, seine
+erwarteten Aufrufe, seine Prüfungen und seine Tags und wird als **Nach Löschung
+anonymisiert** markiert, damit sein Kurator ihn umschreiben oder entfernen kann.
+Bis dahin lässt ein Eval-Run ihn aus, denn eine Antwort auf den Platzhalter misst
+nichts.
+
+Ein Fall hält fest, wessen Worte er enthält: wer seine Frage gestellt hat, wer
+jeden seiner früheren Züge geschrieben hat und wessen Kommentar zu seiner Notiz
+wurde. Das wird nie angezeigt oder exportiert und überdauert das Gespräch,
+sodass eine Löschung den Fall auch dann noch findet, wenn das Gespräch, aus dem
+er stammt, gelöscht wurde. Ein Fall, dessen Frage jemand anderes gestellt hat,
+behält Frage und Antwort: Die Züge der gelöschten Person in seinem früheren
+Verlauf werden ersetzt, mit den Antworten des Agents darauf, und ihr als Notiz
+aufbewahrter Kommentar wird geleert.
+
+Bei einem Fall, der geschrieben wurde, bevor die Urheberschaft festgehalten
+wurde, wird sie aus den Verbindungen ergänzt, die er noch hatte; einer, dessen
+Gespräch schon gelöscht war, hat keine, und nur das Löschen des Falls entfernt
+seinen Text. Siehe
 [Datenschutz](data-protection.md#what-deletion-reaches).
 
 Ein Score wird auf dieselbe Weise aufbewahrt. Er enthält eine Kopie der
