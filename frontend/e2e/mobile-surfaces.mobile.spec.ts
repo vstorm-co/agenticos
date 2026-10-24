@@ -6,8 +6,11 @@ import { OWNER_EMAIL, OWNER_PASSWORD } from "./helpers";
 async function expectTouchTarget(control: Locator) {
   await expect(control).toBeVisible();
   const box = await control.boundingBox();
-  expect(box?.width).toBeGreaterThanOrEqual(44);
-  expect(box?.height).toBeGreaterThanOrEqual(44);
+  if (!box) throw new Error("The touch control has no visible bounds");
+  // Chromium can return 43.999998 for a 44px transformed box. Keep the target
+  // requirement while comparing at a thousandth of a CSS pixel.
+  expect(Math.round(box.width * 1000) / 1000).toBeGreaterThanOrEqual(44);
+  expect(Math.round(box.height * 1000) / 1000).toBeGreaterThanOrEqual(44);
 }
 
 async function expectContained(page: Page) {
