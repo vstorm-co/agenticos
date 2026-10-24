@@ -1,5 +1,5 @@
 ---
-source_sha: "a8fe39ec824c"
+source_sha: "f1828d3eb269"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1096,3 +1096,5 @@ konsoli, gdy się go o to poprosi.
   odpowiada bez tych narzędzi.
 
 Każda zaplanowana kontrola obejmuje najwyżej 64 aktywne serwery organizacji, zaczynając od najdawniej sprawdzanych, i wykonuje najwyżej osiem prób równocześnie. Nieużyteczne poświadczenia również aktualizują czas kontroli, bez zgłaszania awarii. Większe instalacje sprawdzają więc wszystkie serwery w kolejnych cyklach.
+
+Odświeżenie OAuth ma osobną krótką transakcję: blokuje i ponownie sprawdza konto, wymienia poświadczenie i zatwierdza zapis przed zwróceniem tokena. Anulowanie czeka na zakończenie tej operacji; późniejszy rollback uruchomienia jej nie cofa. Błąd zapisu po wymianie u dostawcy jawnie przerywa żądanie i może wymagać ponownej autoryzacji konta. Polling skrzynek używa osobnej blokady doradczej konta; pozycja odczytu i zlecone zadania zatwierdzają się razem, a nieprawidłowa odpowiedź wycofuje tylko pracę tej skrzynki.

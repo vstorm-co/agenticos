@@ -181,7 +181,7 @@ class TestTheScheduledCheck:
             AsyncMock(return_value=[answering, dead, unauthorized]),
         )
 
-        async def headers(db: object, connection: McpConnection) -> dict[str, str] | None:
+        async def headers(connection: McpConnection) -> dict[str, str] | None:
             return None if connection is unauthorized else {}
 
         async def probe(url: str, headers: dict[str, str]) -> list[McpToolInfo]:

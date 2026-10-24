@@ -69,6 +69,8 @@ class LockScope(IntEnum):
     GENERATED_MEDIA_PER_ORG = 11
     #: First-account admission and deployment-administrator bootstrap.
     ACCOUNT_BOOTSTRAP = 12
+    #: One mailbox poll, independent of its separately committed OAuth refresh.
+    PORTAL_POLL = 13
 
 
 def _key(subject: UUID) -> int:

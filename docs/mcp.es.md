@@ -1,5 +1,5 @@
 ---
-source_sha: "a8fe39ec824c"
+source_sha: "f1828d3eb269"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1128,3 +1128,5 @@ rutina o cambia el idioma de la consola cuando se lo piden.
   esas herramientas.
 
 Cada comprobación programada incluye como máximo 64 servidores activos de la organización, empezando por los comprobados hace más tiempo, y ejecuta hasta ocho sondeos simultáneos. Las credenciales inutilizables también actualizan la fecha de comprobación sin declarar una caída. Las instalaciones más grandes cubren así todos los servidores en ciclos sucesivos.
+
+La renovación OAuth tiene una transacción breve e independiente: bloquea y comprueba de nuevo la cuenta, rota la credencial y confirma su almacenamiento antes de devolver el token. La cancelación espera a que termine; un rollback posterior de la ejecución no la deshace. Si falla la persistencia después de la rotación del proveedor, la solicitud falla explícitamente y puede ser necesario autorizar la cuenta otra vez. El sondeo de buzones utiliza un bloqueo asesor separado por cuenta; el cursor y los trabajos encolados se confirman juntos, y una respuesta incorrecta revierte solo el trabajo de ese buzón.

@@ -1,5 +1,5 @@
 ---
-source_sha: "a8fe39ec824c"
+source_sha: "f1828d3eb269"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1147,3 +1147,5 @@ Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bit
   antwortet ohne diese Tools.
 
 Jede geplante Prüfung umfasst höchstens 64 aktive Organisationsserver, beginnend mit der ältesten Prüfung, und führt höchstens acht Verbindungsprüfungen gleichzeitig aus. Auch unbrauchbare Zugangsdaten aktualisieren den Prüfzeitpunkt, ohne einen Ausfall zu melden. Größere Installationen prüfen dadurch alle Server über mehrere Durchläufe.
+
+Die OAuth-Erneuerung besitzt eine eigene kurze Transaktion: Sie sperrt und prüft das Konto erneut, rotiert die Zugangsdaten und bestätigt den Commit vor der Token-Rückgabe. Ein Abbruch wartet auf diesen Abschluss; ein späteres Run-Rollback macht ihn nicht rückgängig. Scheitert die Speicherung nach der Rotation beim Anbieter, schlägt die Anfrage ausdrücklich fehl und eine erneute Autorisierung kann nötig sein. Mailbox-Polling verwendet eine separate Advisory-Sperre pro Konto; Cursor und eingereihte Jobs werden gemeinsam bestätigt, und eine fehlerhafte Antwort rollt nur die Arbeit dieser Mailbox zurück.

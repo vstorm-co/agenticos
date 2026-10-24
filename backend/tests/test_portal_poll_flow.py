@@ -55,7 +55,10 @@ class _Recorder:
 def _service(recorder: _Recorder, *, read: PolledEvents | None, decisions: list):
     """A connection service and a trigger service that record their calls."""
     connections = MagicMock()
-    connections.claim_grants_to_poll = AsyncMock(return_value=[_grant()])
+    grant = _grant()
+    connections.portal_poll_candidates = AsyncMock(return_value=[grant.id])
+    connections.claim_grant_to_poll = AsyncMock(return_value=grant)
+    connections.record_poll_processing_failure = AsyncMock()
 
     async def poll_grant(grant):
         recorder.steps.append("poll")
@@ -198,7 +201,9 @@ class TestOneMailboxIsOneTenant:
         recorder = _Recorder()
         one, two = _grant(portal_key="google"), _grant(portal_key="google")
         connections = MagicMock()
-        connections.claim_grants_to_poll = AsyncMock(return_value=[one, two])
+        connections.portal_poll_candidates = AsyncMock(return_value=[one.id, two.id])
+        connections.claim_grant_to_poll = AsyncMock(side_effect=[one, two])
+        connections.record_poll_processing_failure = AsyncMock()
 
         async def poll_grant(grant):
             recorder.steps.append(f"poll:{grant.id}")
@@ -254,7 +259,7 @@ class TestWhichGrantsAreRead:
         from app.worker.tasks import trigger_tasks
 
         connections = MagicMock()
-        connections.claim_grants_to_poll = AsyncMock(return_value=[])
+        connections.portal_poll_candidates = AsyncMock(return_value=[])
         session = MagicMock()
 
         class _Ctx:
@@ -270,7 +275,7 @@ class TestWhichGrantsAreRead:
         ):
             await trigger_tasks.poll_portal_grants()
 
-        [call] = connections.claim_grants_to_poll.await_args_list
+        [call] = connections.portal_poll_candidates.await_args_list
         assert call.kwargs["portal_keys"] == ["google"]
 
 
@@ -402,7 +407,11 @@ class TestReadingAGrant:
         from app.services.mcp_connection import McpConnectionService
 
         service = McpConnectionService(MagicMock())
-        with patch("app.services.mcp_connection.portals") as portals_module:
+        with (
+            patch("app.services.mcp_connection.portals") as portals_module,
+            patch("app.services.mcp_connection.mcp_connection_repo") as repo,
+        ):
+            repo.update = AsyncMock()
             portals_module.get_adapter.return_value = None
             assert await service.poll_grant(_grant()) is None
 
@@ -427,10 +436,10 @@ class TestClaimingGrants:
 
         service = McpConnectionService(MagicMock())
         with patch("app.services.mcp_connection.mcp_connection_repo") as repo:
-            repo.claim_portal_grants_to_poll = AsyncMock(return_value=[])
-            await service.claim_grants_to_poll(portal_keys=["google"])
+            repo.portal_poll_candidates = AsyncMock(return_value=[])
+            await service.portal_poll_candidates(portal_keys=["google"])
 
-        asked = repo.claim_portal_grants_to_poll.await_args.kwargs
+        asked = repo.portal_poll_candidates.await_args.kwargs
         assert asked["portal_keys"] == ["google"]
         assert asked["not_polled_since"] < datetime.now(UTC)
 
