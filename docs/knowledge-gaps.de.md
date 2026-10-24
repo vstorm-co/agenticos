@@ -1,5 +1,5 @@
 ---
-source_sha: "dd4cda566597"
+source_sha: "cf402ff0accf"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -192,7 +192,9 @@ gesucht und was er gefunden hat, welche Antwort die Person bekam und jeden
 Kommentar zu einer negativen Bewertung. Was Personen identifiziert, wird
 vorher entfernt (siehe [Personenbezogene Daten](#personal-data)); aus dem, was
 die Suche gefunden hat, dem eigenen Text der Wissensdatenbank, nur
-personenbezogene Daten, sodass seine Zahlen bleiben. Er sieht
+personenbezogene Daten, sodass seine Zahlen bleiben. Was die Suche gefunden
+hat, ist immer nur das eigene Ergebnis der Wissenssuche, nie das, was ein
+anderes Werkzeug für dieselben Worte zurückgab. Er sieht
 außerdem die [Kontextdateien](context.md), die die Agents des Themas in ihren
 veröffentlichten Versionen lesen, soweit du sie lesen darfst, damit der Entwurf
 den Regeln folgt, denen die Agents schon folgen.

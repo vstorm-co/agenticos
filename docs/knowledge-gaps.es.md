@@ -1,5 +1,5 @@
 ---
-source_sha: "dd4cda566597"
+source_sha: "cf402ff0accf"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -195,7 +195,9 @@ encontró el agent, qué respuesta recibió la persona y cualquier comentario
 dejado con una valoración negativa. Antes se quita lo que identifica a las
 personas (consulta [Datos personales](#personal-data)); de lo que encontró la
 búsqueda, el propio texto de la base de conocimiento, solo los datos personales,
-así que sus cifras se quedan. También ve los
+así que sus cifras se quedan. Lo que encontró es siempre el resultado de la
+propia búsqueda en la base de conocimiento, nunca lo que otra herramienta
+devolvió para las mismas palabras. También ve los
 [archivos de contexto](context.md) que los agents del tema leen en sus
 versiones publicadas, los que tú puedes leer, para que el borrador siga las
 reglas que los agents ya siguen.

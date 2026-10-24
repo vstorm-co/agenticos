@@ -35,6 +35,7 @@ import numpy.typing as npt
 from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.knowledge._log import MAX_QUERY_CHARS
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
@@ -123,6 +124,9 @@ TOPIC_TO_DATASET = 200
 
 DRAFT_QUESTIONS = 20
 """The most recent questions a drafting model is shown."""
+
+KNOWLEDGE_CAPABILITY = "knowledge"
+"""The capability whose search tool a topic's searches were made with."""
 
 DRAFT_DOCUMENTS = 20
 """The most documents a drafting model is offered to cite."""
@@ -767,6 +771,33 @@ class KnowledgeGapService:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic.id})
         return rows[0]
 
+    async def _knowledge_tools(
+        self, ctx: AuthContext, topic: KnowledgeGapTopic
+    ) -> dict[UUID | None, frozenset[str]]:
+        """The knowledge search tool's name as each version that searched the topic called it.
+
+        A binding may rename the tool for its model, and the transcript records
+        the name the model called; `None` maps to the name it is declared with.
+        """
+        knowledge = get_capability(KNOWLEDGE_CAPABILITY)
+        declared = frozenset(tool.name for tool in knowledge.tools)
+        version_ids = await knowledge_gap_repo.topic_versions(
+            self.db, topic.id, organization_id=ctx.organization_id
+        )
+        versions = await agent_repo.get_versions_by_ids(
+            self.db, [v for v in version_ids if v is not None], organization_id=ctx.organization_id
+        )
+        names: dict[UUID | None, frozenset[str]] = {None: declared}
+        for version_id, version in versions.items():
+            spec = AgentSpec.model_validate(version.spec)
+            names[version_id] = frozenset(
+                tool.name
+                for binding in spec.capabilities
+                if binding.id == KNOWLEDGE_CAPABILITY
+                for tool in knowledge.effective_tools(binding.tool_overrides)
+            )
+        return names
+
     async def _context_files(self, ctx: AuthContext, agent_ids: list[UUID]) -> list[ContextFile]:
         """The enabled context files these agents' published versions read, as the caller may.
 
@@ -834,6 +865,7 @@ class KnowledgeGapService:
             organization_id=ctx.organization_id,
             threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
             limit=DRAFT_QUESTIONS,
+            knowledge_tools=await self._knowledge_tools(ctx, topic),
         )
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})

@@ -1,5 +1,5 @@
 ---
-source_sha: "dd4cda566597"
+source_sha: "cf402ff0accf"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -182,7 +182,9 @@ zapytała każda osoba, czego agent szukał i co znalazł, jaką odpowiedź dost
 osoba i komentarz zostawiony przy ocenie łapką w dół. To, co identyfikuje
 ludzi, jest najpierw usuwane (zobacz [Dane osobowe](#personal-data)); z tego,
 co znalazło wyszukiwanie, czyli z własnej treści bazy wiedzy, usuwane są tylko
-dane osobowe, więc jej liczby zostają. Agent
+dane osobowe, więc jej liczby zostają. To, co znalazło, jest zawsze wynikiem
+samego wyszukiwania w bazie wiedzy, nigdy tego, co inne narzędzie zwróciło dla
+tych samych słów. Agent
 widzi też [pliki kontekstowe](context.md), które agenci tematu czytają w swoich
 opublikowanych wersjach, te, które możesz czytać, żeby szkic trzymał się reguł,
 których agenci już się trzymają.

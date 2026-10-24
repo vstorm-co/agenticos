@@ -178,7 +178,8 @@ each person asked, what the agent searched for and found, the answer the
 person got, and any comment left with a thumbs-down. What identifies people is
 taken out first (see [Personal data](#personal-data)); from what the search
 found, the knowledge base's own text, only personal data is, so its figures
-stay. It is also shown the
+stay. What it found is only ever the knowledge search's own result, never what
+another tool returned for the same words. It is also shown the
 [context files](context.md) the topic's agents read in their published
 versions, those you may read, so the draft follows the rules the agents
 already follow.
