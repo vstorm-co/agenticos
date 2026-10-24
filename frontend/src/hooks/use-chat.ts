@@ -1126,6 +1126,7 @@ export function useChat(options: UseChatOptions = {}) {
   const refreshingRef = useRef(false);
 
   const { isConnected, connect, disconnect, reopen, sendMessage } = useWebSocket({
+    batchMessages: true,
     url: wsUrl,
     protocols: wsProtocols,
     onMessage: handleWebSocketMessage,

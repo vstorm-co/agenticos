@@ -672,6 +672,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Open chat without downloading full transcripts for project metadata or decoding
+  model summaries. Reuse unchanged message renders, lay out long turns in linear
+  work, batch replay frames and release offscreen historical drawing frames (#2469).
+
 - Reopen long conversations at the newest messages and load older pages on
   demand, preserving scroll position and live answers (#2468).
 

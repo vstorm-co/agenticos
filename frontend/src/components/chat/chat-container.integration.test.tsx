@@ -288,6 +288,9 @@ describe("the chat container - following the transcript", () => {
     mount();
     await screen.findByRole("button", { name: "Voice input" });
     scrollTo.mockClear();
+    const scroller = screen.getByRole("textbox").closest(".absolute")
+      ?.previousElementSibling as HTMLElement;
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
     act(() =>
       useChatStore.getState().addMessage({
         id: "m-1",
@@ -298,11 +301,10 @@ describe("the chat container - following the transcript", () => {
     );
     // `scrollIntoView` scrolls every scrollable ancestor, and the page column
     // around the chat is one: during a call it scrolled the whole chat up and out.
-    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
-    const scroller = scrollTo.mock.contexts.at(-1) as HTMLElement;
+    await waitFor(() => expect(scroller.scrollTop).toBe(2000));
     expect(scroller).toHaveClass("overflow-y-auto");
     expect(scroller).toContainElement(await screen.findByText("Send the invoice"));
-    expect(scrollTo).toHaveBeenLastCalledWith({ top: scroller.scrollHeight, behavior: "smooth" });
+    expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
     expect(scrollIntoView).not.toHaveBeenCalled();
     scrollTo.mockRestore();
     scrollIntoView.mockRestore();
@@ -866,7 +868,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     // was detached by the time it was asserted on (230 ms, well inside the
     // timeout), so what is checked is the message on screen, not one node.
     await waitFor(() => expect(screen.getByText("Hi.")).toBeInTheDocument());
-    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
+    expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
     scrollTo.mockRestore();
   });
 });
@@ -1280,4 +1282,34 @@ describe("loading earlier chat messages (#2468)", () => {
     expect(scroller.scrollTop).toBe(700);
     expect(screen.queryByRole("button", { name: "Load older messages" })).not.toBeInTheDocument();
   });
+});
+
+it("opens another conversation at its bottom after the reader loaded older history", async () => {
+  const saved = {
+    id: "first-page",
+    conversation_id: "c-first",
+    role: "user" as const,
+    content: "first thread",
+    created_at: "2026-10-24T10:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("c-first");
+  useConversationStore.getState().setCurrentMessages([saved], null, true);
+  mount();
+  await screen.findByText("first thread");
+  const scroller = screen.getByRole("textbox").closest(".absolute")
+    ?.previousElementSibling as HTMLElement;
+  Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
+  scroller.scrollTop = 100;
+  fireEvent.click(screen.getByRole("button", { name: "Load older messages" }));
+  await waitFor(() => expect(useConversationStore.getState().loadingOlderMessages).toBe(false));
+  act(() => {
+    useConversationStore.getState().setCurrentConversationId("c-second");
+    useConversationStore
+      .getState()
+      .setCurrentMessages([
+        { ...saved, id: "second-page", conversation_id: "c-second", content: "second thread" },
+      ]);
+  });
+  await screen.findByText("second thread");
+  expect(scroller.scrollTop).toBe(2000);
 });

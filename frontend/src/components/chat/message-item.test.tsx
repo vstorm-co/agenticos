@@ -18,6 +18,7 @@ vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
   ArtifactThumbnail: ({ title }: { title: string }) => <span>thumbnail of {title}</span>,
 }));
 vi.mock("@/hooks/use-knowledge-bases", () => ({ useKnowledgeBaseFor: () => () => undefined }));
+const markdownRenders = vi.hoisted(() => vi.fn());
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({
     content,
@@ -25,16 +26,19 @@ vi.mock("./markdown-content", () => ({
   }: {
     content: string;
     onCiteClick?: (index: number) => void;
-  }) => (
-    <div data-testid="markdown">
-      {content}
-      {onCiteClick ? (
-        <button type="button" onClick={() => onCiteClick(2)}>
-          cite 2
-        </button>
-      ) : null}
-    </div>
-  ),
+  }) => {
+    markdownRenders(content);
+    return (
+      <div data-testid="markdown">
+        {content}
+        {onCiteClick ? (
+          <button type="button" onClick={() => onCiteClick(2)}>
+            cite 2
+          </button>
+        ) : null}
+      </div>
+    );
+  },
 }));
 // The card is tested on its own; here it only needs to be identifiable.
 vi.mock("./tool-call-card", () => ({
@@ -1352,4 +1356,20 @@ describe("the work before an answer", () => {
 
     expect(screen.getByText("stopped")).toBeInTheDocument();
   });
+});
+
+it("does not parse a historical answer again when another turn streams (#2469)", async () => {
+  const saved: ChatMessage = {
+    id: "saved",
+    role: "assistant",
+    content: "old answer",
+    timestamp: new Date(),
+  };
+  const props = { message: saved };
+  const { rerender } = render(<MessageItem {...props} />);
+  const before = markdownRenders.mock.calls.filter(([text]) => text === "old answer").length;
+  for (let index = 0; index < 100; index++) rerender(<MessageItem {...props} />);
+  expect(markdownRenders.mock.calls.filter(([text]) => text === "old answer")).toHaveLength(before);
+  rerender(<MessageItem message={{ ...saved, content: "corrected answer" }} />);
+  expect(await screen.findByText("corrected answer")).toBeInTheDocument();
 });

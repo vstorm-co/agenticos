@@ -618,26 +618,19 @@ export function ChatContainer({
     }
   }, [messages, currentConversationId]);
 
-  // Auto-scroll on every messages update unless user has scrolled up. The
-  // transcript scrolls itself rather than calling `scrollIntoView`, which also
-  // scrolls every page framing the chat - the Builder under its test panel
-  // jumped to its foot on each answer (#2074).
-  // An empty conversation is not followed at all: its welcome reads from the
-  // top, and in a narrow window - the Architect's, the test panel - following
-  // the foot scrolled the greeting and the face above it out of view. A call is
-  // content even before any of its turns is saved: its captions are followed.
+  // Initial selection follows the newest page; resize observation follows streaming.
   const empty = messages.length === 0 && callPhase === "idle";
   const emptyRef = useRef(empty);
+  useLayoutEffect(() => {
+    userScrolledUpRef.current = false;
+    olderScroll.current = null;
+    const container = scrollContainerRef.current;
+    if (currentConversationId !== null && container) container.scrollTop = container.scrollHeight;
+  }, [currentConversationId]);
   useEffect(() => {
     emptyRef.current = empty;
-    const container = scrollContainerRef.current;
-    if (emptyRef.current) {
-      container?.scrollTo({ top: 0 });
-      return;
-    }
-    if (userScrolledUpRef.current) return;
-    container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [messages, empty]);
+    if (empty) scrollContainerRef.current?.scrollTo({ top: 0 });
+  }, [empty]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
   const holdFollow = useCallback(() => emptyRef.current || userScrolledUpRef.current, []);
@@ -1267,7 +1260,6 @@ function ChatUI({
           className="flex-1 scrollbar-thin overflow-y-auto"
           style={{
             paddingBottom: dockHeight,
-            overflowAnchor: "none",
             // In the page the transcript fades out as it reaches the glass
             // composer, so nothing sharp is ever behind it: a backdrop blur is
             // drawn by the GPU and is not always drawn - a screen capture, a

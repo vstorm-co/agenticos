@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { VisualFrameProps } from "./visual-frame";
 import { ConversationVisualsProvider, TurnVisuals } from "./visual-panel";
@@ -106,6 +106,17 @@ function show(
     </ConversationVisualsProvider>,
   );
 }
+
+class VisibleObserver {
+  constructor(private readonly report: (entries: { isIntersecting: boolean }[]) => void) {}
+  observe() {
+    this.report([{ isIntersecting: true }]);
+  }
+  disconnect() {}
+  unobserve() {}
+}
+beforeEach(() => vi.stubGlobal("IntersectionObserver", VisibleObserver));
+afterEach(() => vi.unstubAllGlobals());
 
 describe("TurnVisuals", () => {
   beforeEach(() => {
@@ -479,10 +490,10 @@ describe("inside another site's frame", () => {
 });
 
 describe("on the server", () => {
-  it("renders the framed panel, since no server page is inside another site", () => {
+  it("renders a measured placeholder until the history enters the viewport", () => {
     const html = renderToString(<TurnVisuals calls={[call()]} />);
-    expect(html).toContain("Flow");
-    expect(html).toContain('data-testid="frame"');
+    expect(html).toContain("min-height");
+    expect(html).not.toContain('data-testid="frame"');
   });
 
   it("lets go of the page when the panel goes", () => {
@@ -610,5 +621,47 @@ describe("follow-ups", () => {
 
     expect(screen.queryByTestId("full-frame")).toBeNull();
     expect(screen.getByText("Plan this stop")).toBeInTheDocument();
+  });
+});
+
+describe("viewport-bound historical drawings (#2469)", () => {
+  it("mounts only on visibility, removes an offscreen frame and restores it", () => {
+    frames.length = 0;
+    let visibility: (visible: boolean) => void = () => {};
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(report: (entries: { isIntersecting: boolean }[]) => void) {
+          visibility = (visible) => report([{ isIntersecting: visible }]);
+        }
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+      },
+    );
+    show([call()]);
+    expect(screen.queryByTestId("frame")).toBeNull();
+    act(() => visibility(true));
+    expect(screen.getByTestId("frame")).toBeInTheDocument();
+    act(() => visibility(false));
+    expect(screen.queryByTestId("frame")).toBeNull();
+    act(() => visibility(true));
+    expect(screen.getByTestId("frame")).toBeInTheDocument();
+  });
+
+  it("keeps a running offscreen drawing alive so the tool receives its render report", () => {
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+      },
+    );
+    const onReport = vi.fn();
+    show([call({ status: "running" })], { onReport });
+    expect(screen.getByTestId("frame")).toBeInTheDocument();
+    act(() => lastFrame().onRendered?.());
+    expect(onReport).toHaveBeenCalledWith("d1", []);
   });
 });

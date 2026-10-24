@@ -22,7 +22,7 @@ from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, load_only, raiseload, selectinload
+from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
@@ -188,6 +188,7 @@ async def get_conversation_by_id(
     conversation_id: UUID,
     *,
     include_messages: bool = False,
+    include_summary: bool = False,
 ) -> Conversation | None:
     """Get a conversation by ID without a tenant filter.
 
@@ -196,21 +197,28 @@ async def get_conversation_by_id(
     :meth:`app.services.conversation.ConversationService.get_conversation`, which
     takes the active organization and enforces it. Grep for this function when
     auditing cross-tenant reads.
+
+    Summary messages are run context, excluded unless explicitly requested.
+    Metadata and transcript authorization must not decode the entire summary.
     """
-    if include_messages:
-        query = (
-            select(Conversation)
-            .options(
-                selectinload(Conversation.messages).selectinload(Message.tool_calls),
-                selectinload(Conversation.messages)
-                .selectinload(Message.files)
-                .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
-            )
-            .where(Conversation.id == conversation_id)
+    options = [] if include_summary else [defer(Conversation.summary_messages, raiseload=True)]
+    if not include_messages:
+        return await db.get(Conversation, conversation_id, options=options, populate_existing=True)
+    query = (
+        select(Conversation)
+        .where(Conversation.id == conversation_id)
+        .options(
+            *options,
+            selectinload(Conversation.messages).selectinload(Message.tool_calls),
+            selectinload(Conversation.messages)
+            .selectinload(Message.files)
+            .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
         )
-        result = await db.execute(query)
-        return result.scalar_one_or_none()
-    return await db.get(Conversation, conversation_id)
+    )
+    if include_summary:
+        query = query.execution_options(populate_existing=True)
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
 
 
 def _list_filters(

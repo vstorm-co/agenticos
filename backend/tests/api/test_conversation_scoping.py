@@ -18,6 +18,7 @@ Cross-user reads still exist, on `/admin/conversations`, gated on
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -98,6 +99,23 @@ class TestReadingOneConversation:
             await client.get(f"{settings.API_V1_STR}/conversations/{uuid4()}")
 
         assert service.get_conversation.await_args.kwargs["user_id"] is not None
+
+    async def test_metadata_read_does_not_request_the_transcript(self) -> None:
+        from app.schemas.conversation import ConversationRead
+
+        caller, org, identifier = uuid4(), uuid4(), uuid4()
+        metadata = ConversationRead(
+            id=identifier, user_id=caller, title="metadata", created_at=datetime.now(UTC)
+        )
+        service = MagicMock(get_conversation=AsyncMock(return_value=metadata))
+        async with _client(user_id=caller, service=service, organization_id=org) as client:
+            response = await client.get(
+                f"{settings.API_V1_STR}/conversations/{identifier}",
+                params={"include_messages": "false"},
+            )
+        assert response.status_code == 200
+        assert response.json()["messages"] == []
+        assert service.get_conversation.await_args.kwargs["include_messages"] is False
 
 
 class TestListingItsMessages:

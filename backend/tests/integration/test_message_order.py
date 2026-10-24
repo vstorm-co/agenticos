@@ -208,3 +208,25 @@ class TestConsoleTranscriptPagination:
             )
             == []
         )
+
+
+class TestConversationMetadataReads:
+    async def test_metadata_leaves_large_summary_and_messages_unloaded(self, db) -> None:
+        from sqlalchemy import inspect
+
+        conversation = await _conversation(db)
+        conversation.summary_messages = [{"large": "x" * 500_000}]
+        await conversation_repo.create_message(
+            db, conversation_id=conversation.id, role="user", content="history"
+        )
+        identifier = conversation.id
+        await db.flush()
+        db.expire_all()
+        metadata = await conversation_repo.get_conversation_by_id(db, identifier)
+        assert metadata is not None
+        assert "summary_messages" in inspect(metadata).unloaded
+        assert "messages" in inspect(metadata).unloaded
+        context = await conversation_repo.get_conversation_by_id(
+            db, identifier, include_summary=True
+        )
+        assert context is not None and context.summary_messages == [{"large": "x" * 500_000}]

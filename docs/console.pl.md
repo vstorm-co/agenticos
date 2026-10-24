@@ -1,5 +1,5 @@
 ---
-source_sha: "efcb010bd679"
+source_sha: "c74cc1214d3a"
 ---
 
 # Konsola { #the-console }
@@ -271,6 +271,12 @@ go ją gasi - tylko dla ciebie, bo udostępniony wątek każdy czytelnik czyta o
 Po ponownym otwarciu rozmowy zobaczysz jej 100 najnowszych wiadomości.
 **Wczytaj starsze wiadomości** u góry dodaje poprzednią stronę, zachowując pozycję
 czytanego fragmentu. Nowe odpowiedzi i koszt nadal dotyczą bieżącej rozmowy.
+
+Otwarcie czatu pobiera metadane rozmowy bez całej historii i podsumowania modelu.
+Streaming zachowuje komponenty niezmienionych wiadomości i grupuje ramki według
+klatek animacji, z limitem kolejki i zastępczym terminem 50 ms w karcie w tle.
+Historyczne rysunki działają blisko widocznego obszaru, a poza nim zwalniają ramki;
+rysunki trwającego wywołania nadal renderują się, aby raportować błędy narzędziu.
 
 Trzy rzeczy w kompozytorze, które warto znać.
 

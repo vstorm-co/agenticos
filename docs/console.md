@@ -261,6 +261,12 @@ Reopening a conversation shows its newest 100 messages. **Load older messages**
 at the top adds the preceding page without moving the passage you are reading.
 New answers and the conversation cost still cover the current thread.
 
+Opening chat reads conversation metadata without downloading the full history or
+its model summary. Streaming updates reuse unchanged message components and
+coalesce replay frames per animation frame, with a 50 ms background-tab fallback
+and bounded queues. Historical drawings activate near the viewport and release
+their frames outside it; running drawings still render to report tool errors.
+
 Three things in the composer worth knowing.
 
 **Your own accounts.** An agent bound to

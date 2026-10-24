@@ -150,7 +150,9 @@ class ConversationService:
         before the run so a refusal cannot lose it, so it is a row by the time
         this reads - and left in, the model is asked the same question twice.
         """
-        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        conversation = await conversation_repo.get_conversation_by_id(
+            self.db, conversation_id, include_summary=True
+        )
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
             return await self._from_transcript(

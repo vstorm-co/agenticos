@@ -1,5 +1,5 @@
 ---
-source_sha: "efcb010bd679"
+source_sha: "c74cc1214d3a"
 ---
 
 # La consola { #the-console }
@@ -280,6 +280,13 @@ Al volver a abrir una conversación se muestran sus 100 mensajes más recientes.
 **Cargar mensajes anteriores** añade la página anterior arriba y conserva la
 posición del pasaje que estás leyendo. Las respuestas nuevas y el coste siguen
 correspondiendo a la conversación actual.
+
+Al abrir el chat se leen metadatos sin descargar todo el historial ni el resumen
+del modelo. El streaming reutiliza componentes de mensajes sin cambios y agrupa
+el replay por fotograma de animación, con colas limitadas y un plazo alternativo
+de 50 ms en segundo plano. Los dibujos históricos se activan cerca del área visible
+y liberan sus marcos fuera de ella; los dibujos en curso siguen renderizándose
+para informar de errores a la herramienta.
 
 Tres cosas del compositor que conviene saber.
 

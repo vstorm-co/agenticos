@@ -234,3 +234,24 @@ Regressions cover a 205-message conversation with a concurrent new turn, foreign
 cursors, API validation, account/tenant switches, duplicate clicks and the actual
 chat container. This issue was requested separately and is outside the 56-issue
 milestone count.
+
+
+### Additional requested fix: #2469
+
+Project metadata reads explicitly omit messages, and ordinary conversation reads
+omit model-summary JSON; only model-context reconstruction opts into that column.
+The console reuses unchanged message/markdown components and builds request,
+group and usage metadata in linear passes. Collapsed tool results are not
+stringified. Replay delivery is ordered and batched per animation frame, flushed
+at 256 frames or 1 MiB of estimated text memory with a 50 ms background fallback;
+socket replacement cancels queued frames and close flushes completion first.
+Resize observation follows streaming without a smooth-scroll layout per delta.
+Historical drawing iframes mount near the viewport and unmount outside it; live
+running calls still render offscreen so the tool receives diagnostics. Explicitly
+loaded old history can still grow the DOM; full transcript virtualization remains
+a later option. Database count/cost aggregates still scale with stored rows; this
+change bounds fetched message payloads and browser work, without claiming measured
+production latency. Evidence: 7 real database tests, 130 service/API cases and
+377 UI cases across ten named files, including a 100-frame single-render regression,
+unchanged markdown reuse, linear layout, lazy serialization and drawing lifecycle.
+No app or full local suite was started.

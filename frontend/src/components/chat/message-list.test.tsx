@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  messagePresentation,
   MessageList,
   continuesTurn,
   endsTurn,
@@ -590,4 +591,23 @@ describe("the request a skill can be made of", () => {
     rerender(<MessageList messages={messages} pins={{ pinned: [], toggle: vi.fn() }} />);
     expect(rendered("a")?.request).toBeUndefined();
   });
+});
+
+it("lays out a long segmented answer in linear work (#2469)", () => {
+  let reads = 0;
+  const messages = Array.from({ length: 1000 }, (_, index) => ({
+    id: `m-${index}`,
+    role: "assistant" as const,
+    content: "answer",
+    timestamp: new Date(),
+    get runId() {
+      reads++;
+      return "one-run";
+    },
+    groupId: "one-group",
+  }));
+  const result = messagePresentation(messages);
+  expect(result[0]?.groupPosition).toBe("first");
+  expect(result.at(-1)?.groupPosition).toBe("last");
+  expect(reads).toBeLessThan(10_000);
 });

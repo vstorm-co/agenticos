@@ -1,5 +1,5 @@
 ---
-source_sha: "efcb010bd679"
+source_sha: "c74cc1214d3a"
 ---
 
 # Die Konsole { #the-console }
@@ -298,6 +298,13 @@ Beim erneuten Öffnen zeigt eine Unterhaltung ihre neuesten 100 Nachrichten.
 **Ältere Nachrichten laden** ergänzt oben die vorherige Seite und erhält die
 Position der gelesenen Passage. Neue Antworten und die Kosten gehören weiterhin
 zur aktuellen Unterhaltung.
+
+Beim Öffnen lädt der Chat Metadaten ohne den gesamten Verlauf oder die
+Modellzusammenfassung. Streaming verwendet unveränderte Nachrichtenkomponenten
+weiter und bündelt Replay-Nachrichten pro Animationsframe, mit begrenzten
+Warteschlangen und einem 50-ms-Ersatztermin im Hintergrund. Historische Zeichnungen
+aktivieren sich nahe dem sichtbaren Bereich und geben ihre Frames außerhalb frei;
+laufende Zeichnungen rendern weiterhin, um Werkzeugfehler zu melden.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 
