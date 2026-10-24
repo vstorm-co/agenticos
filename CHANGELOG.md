@@ -25,6 +25,18 @@ Two things are versioned separately from this file and worth knowing about:
   0.59.0 to address the dependency audit advisories. Pydantic AI and its graph
   package resolve to 2.59.0 for the harness and the web-fetch security fix.
 
+- **Session cookies no longer overwrite another app's login cookies on the same
+  hostname.** The console uses `agenticos_access_token` and
+  `agenticos_refresh_token` for sign-in, refresh and logout. **After upgrading,
+  sign in again once:** existing cookies with the generic names are ignored and
+  left untouched. HTTP API token fields are unchanged. Use separate hostnames
+  for unrelated apps to keep authentication cookies from reaching another app's
+  server; different ports and cookie names do not provide that isolation.
+
+- Keep Stop available while chat waits on a question, approval or account
+  connection, including reloaded parked runs. Cancelling a parked run closes
+  pending calls without continuing the model and preserves its recorded spend.
+
 ## [1.16.0] - 2026-10-23
 
 ### Added
@@ -112,9 +124,6 @@ Two things are versioned separately from this file and worth knowing about:
   another name in the draft, and publish it.
 
 ### Fixed
-
-- Sandbox launchers use Docker Desktop's VM socket group on macOS, retain the
-  socket group on Linux and respect explicit `DOCKER_GID` overrides (#2296).
 
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
