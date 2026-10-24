@@ -267,7 +267,7 @@ async def live_token(conversation_id: str) -> str | None:
 async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, Any]]:
     """Follow an unfinished turn, or tell the reader to reload a finished transcript.
 
-    A trace already carrying a terminal frame yields only END: its answer is
+    A terminal trace with a message_saved frame yields only END: its answer is
     persisted and replaying its earlier frames would animate it as a new answer.
     Otherwise, send the trace so far and then the frames arriving live.
 
@@ -289,7 +289,7 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
         finished = next(
             (frame for frame in reversed(frames) if frame["type"] in {"complete", END}), None
         )
-        if finished is not None:
+        if finished is not None and any(frame["type"] == "message_saved" for frame in frames):
             # The transcript already holds this answer. Replaying it as live
             # frames would create an empty bubble and type it out again.
             await _forget(turn)
@@ -303,6 +303,9 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
         for frame in frames:
             last = frame["seq"]
             yield frame
+            if frame["type"] == END:
+                await _forget(turn)
+                return
         if not await _alive(turn):
             return
         while True:
