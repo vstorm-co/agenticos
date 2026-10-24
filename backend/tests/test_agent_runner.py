@@ -1123,6 +1123,10 @@ class TestSpendReporting:
 
         with (
             patch(
+                "app.services.spend.workflow_run_repo.node_spend_since",
+                new=AsyncMock(return_value=Decimal("0.4")),
+            ),
+            patch(
                 "app.services.agent_runner.agent_run_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal("10")),
             ),
@@ -1139,7 +1143,7 @@ class TestSpendReporting:
         ):
             spent = await AgentRunnerService(_db()).monthly_spend(ctx)
 
-        assert spent == Decimal("12.5")
+        assert spent == Decimal("12.9")
         assert ingested.call_args.kwargs["organization_id"] == ctx.organization_id
         assert ingested.call_args.kwargs["since"] == month_start()
 
