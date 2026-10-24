@@ -983,10 +983,13 @@ class TestContentAudience:
 
     @pytest.mark.security
     @pytest.mark.parametrize("audience", ["member", "public"])
-    async def test_public_link_expiry_cuts_off_existing_public_content_tokens(self, audience):
+    @pytest.mark.parametrize("expired", [False, True])
+    async def test_public_link_expiry_cuts_off_existing_public_content_tokens(
+        self, audience, expired
+    ):
         artifact, version, token = self._served(audience)
-        artifact.public_expires_at = datetime.now(UTC) - timedelta(seconds=1)
-        if audience == "public":
+        artifact.public_expires_at = datetime.now(UTC) + timedelta(seconds=-1 if expired else 3600)
+        if audience == "public" and expired:
             with patch(f"{PATH}._load_version", new_callable=AsyncMock) as load:
                 with pytest.raises(NotFoundError, match="App not found"):
                     await self._content(artifact, version, token)
