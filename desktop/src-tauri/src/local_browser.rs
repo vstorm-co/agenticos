@@ -80,6 +80,7 @@ fn executable() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     let candidates = vec![
         PathBuf::from("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        PathBuf::from("/Applications/Chromium.app/Contents/MacOS/Chromium"),
         PathBuf::from("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
         PathBuf::from("/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"),
     ];
@@ -90,7 +91,8 @@ fn executable() -> Result<PathBuf, String> {
         .flat_map(|root| {
             [
                 PathBuf::from(&root).join("Google/Chrome/Application/chrome.exe"),
-                PathBuf::from(root).join("Microsoft/Edge/Application/msedge.exe"),
+                PathBuf::from(&root).join("Microsoft/Edge/Application/msedge.exe"),
+                PathBuf::from(root).join("BraveSoftware/Brave-Browser/Application/brave.exe"),
             ]
         })
         .collect();
@@ -101,6 +103,9 @@ fn executable() -> Result<PathBuf, String> {
                 root.join("chromium"),
                 root.join("chromium-browser"),
                 root.join("google-chrome"),
+                root.join("microsoft-edge"),
+                root.join("microsoft-edge-stable"),
+                root.join("brave-browser"),
             ]
         })
         .collect();
