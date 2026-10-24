@@ -14,14 +14,34 @@ import anyio
 from pydantic import JsonValue, TypeAdapter
 
 from app.agents.browser_sign_ins import SignIn
-from app.agents.capabilities.browser_use._endpoint import domain_allowed
-from app.agents.capabilities.browser_use._page import CdpPage, DomainRefused, PagePolicy
+from app.agents.capabilities.browser_use._endpoint import EndpointError, domain_allowed
+from app.agents.capabilities.browser_use._page import (
+    _SAME_TAB_JS,
+    CdpPage,
+    DomainRefused,
+    PagePolicy,
+)
 from app.agents.capabilities.browser_use._route import BrowserRoute
 from app.agents.capabilities.browser_use._toolset import PageFactory
 from app.services import device_hub
 
 logger = logging.getLogger(__name__)
 _object = TypeAdapter(dict[str, JsonValue])
+
+
+async def _call(
+    session_id: UUID, op: str, args: dict[str, JsonValue], *, timeout: float
+) -> dict[str, JsonValue]:
+    try:
+        return _object.validate_python(await device_hub.call(session_id, op, args, timeout=timeout))
+    except (
+        device_hub.DeviceUnavailable,
+        device_hub.DeviceCallFailed,
+        device_hub.DeviceCallTimedOut,
+    ) as exc:
+        # The shared page and toolset handle EndpointError, including the CDP
+        # context-loss retry when a navigation replaces a document mid-command.
+        raise EndpointError(exc.message) from exc
 
 
 class _Commands:
@@ -38,13 +58,11 @@ class _Commands:
         self.Emulation = self
 
     async def _send(self, method: str, params: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        return _object.validate_python(
-            await device_hub.call(
-                self.session_id,
-                "browser.command",
-                {"id": self.browse_id, "method": method, "params": params},
-                timeout=35,
-            )
+        return await _call(
+            self.session_id,
+            "browser.command",
+            {"id": self.browse_id, "method": method, "params": params},
+            timeout=35,
         )
 
     async def evaluate(
@@ -125,7 +143,7 @@ def page_factory(session_id: UUID) -> PageFactory:
             raise DomainRefused(
                 "Local browsing needs the local or built-in connection, without a proxy or hosted browser."
             )
-        answer = await device_hub.call(session_id, "browser.open", {}, timeout=120)
+        answer = await _call(session_id, "browser.open", {}, timeout=120)
         browse_id = answer.get("id")
         if not isinstance(browse_id, str) or not browse_id:
             raise RuntimeError("The computer did not open a browser window.")
@@ -148,7 +166,10 @@ def page_factory(session_id: UUID) -> PageFactory:
                     "Emulation.setUserAgentOverride",
                     {"userAgent": agent, "acceptLanguage": route.locale},
                 )
-                await commands._send("Emulation.setLocaleOverride", {"locale": route.locale})
+                await commands._send(
+                    "Emulation.setLocaleOverride", {"locale": route.locale.replace("-", "_")}
+                )
+            await commands._send("Page.addScriptToEvaluateOnNewDocument", {"source": _SAME_TAB_JS})
             await page.resize(policy.preview_width, round(policy.preview_width * 0.7), 1)
             await page.navigate(start_url)
             yield page

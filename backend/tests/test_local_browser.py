@@ -15,7 +15,7 @@ async def test_local_browser_closes_after_navigation_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = uuid4()
-    call = AsyncMock(side_effect=[{"id": "window"}, {}])
+    call = AsyncMock(side_effect=[{"id": "window"}, {}, {}])
     monkeypatch.setattr(module.device_hub, "call", call)
     monkeypatch.setattr(module.LocalPage, "resize", AsyncMock())
     monkeypatch.setattr(module.LocalPage, "navigate", AsyncMock(side_effect=RuntimeError("gone")))
@@ -107,7 +107,7 @@ async def test_cleanup_failure_does_not_mask_the_browse_result(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     call = AsyncMock(
-        side_effect=[{"id": "window"}, module.device_hub.DeviceUnavailable(message="offline")]
+        side_effect=[{"id": "window"}, {}, module.device_hub.DeviceUnavailable(message="offline")]
     )
     monkeypatch.setattr(module.device_hub, "call", call)
     monkeypatch.setattr(module.LocalPage, "resize", AsyncMock())
@@ -136,7 +136,7 @@ async def test_local_browsing_applies_locale_and_refuses_incompatible_routes(
     from app.agents.capabilities.browser_use._route import BrowserRoute
 
     call = AsyncMock(
-        side_effect=[{"id": "window"}, {}, {"result": {"value": "Chrome"}}, {}, {}, {}]
+        side_effect=[{"id": "window"}, {}, {"result": {"value": "Chrome"}}, {}, {}, {}, {}]
     )
     monkeypatch.setattr(module.device_hub, "call", call)
     monkeypatch.setattr(module.LocalPage, "resize", AsyncMock())
@@ -159,6 +159,7 @@ async def test_local_browsing_applies_locale_and_refuses_incompatible_routes(
         "Runtime.evaluate",
         "Emulation.setUserAgentOverride",
         "Emulation.setLocaleOverride",
+        "Page.addScriptToEvaluateOnNewDocument",
     ]
     call.reset_mock()
     with pytest.raises(DomainRefused, match="without a proxy"):
@@ -179,3 +180,30 @@ async def test_local_browsing_applies_locale_and_refuses_incompatible_routes(
             route=BrowserRoute(locale="pl-PL"),
         ):
             pytest.fail("Invalid native user agent")
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        module.device_hub.DeviceCallFailed,
+        module.device_hub.DeviceUnavailable,
+        module.device_hub.DeviceCallTimedOut,
+    ],
+)
+async def test_native_failures_follow_the_shared_browser_failure_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    failure: type[
+        module.device_hub.DeviceCallFailed
+        | module.device_hub.DeviceUnavailable
+        | module.device_hub.DeviceCallTimedOut
+    ],
+) -> None:
+    from app.agents.capabilities.browser_use._endpoint import EndpointError
+
+    monkeypatch.setattr(
+        module.device_hub,
+        "call",
+        AsyncMock(side_effect=failure(message="Execution context was destroyed")),
+    )
+    with pytest.raises(EndpointError, match="Execution context was destroyed"):
+        await module._Commands(uuid4(), "window").evaluate(params={}, session_id="window")

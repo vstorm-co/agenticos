@@ -3,11 +3,14 @@
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Map, Value};
-use std::{collections::HashMap, path::PathBuf, process::Stdio};
+use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Arc};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
-use tokio::sync::Mutex;
-use tokio_tungstenite::tungstenite::Message;
+use tokio::{net::TcpStream, sync::Mutex};
+use tokio_tungstenite::{
+    tungstenite::{protocol::WebSocketConfig, Message},
+    MaybeTlsStream, WebSocketStream,
+};
 
 #[derive(Default)]
 pub struct Browsers(Mutex<Registry>);
@@ -16,10 +19,15 @@ struct Registry {
     generation: u64,
     windows: HashMap<String, Browser>,
 }
+type CdpSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+struct CdpConnection {
+    socket: CdpSocket,
+    next_id: u64,
+}
 struct Browser {
     child: tokio::process::Child,
     profile: PathBuf,
-    socket: String,
+    connection: Option<Arc<Mutex<CdpConnection>>>,
 }
 impl Drop for Browser {
     fn drop(&mut self) {
@@ -43,13 +51,12 @@ impl Browser {
         // Let Chromium close its renderer processes and flush the profile before
         // removing it. Killing the parent alone can leave child processes alive.
         let graceful = async {
-            if self.socket.is_empty() {
-                return;
-            }
-            if let Ok((mut socket, _)) = tokio_tungstenite::connect_async(&self.socket).await {
-                let _ = socket
+            if let Some(connection) = &self.connection {
+                let mut connection = connection.lock().await;
+                let _ = connection
+                    .socket
                     .send(Message::Text(
-                        serde_json::json!({"id": 1, "method": "Browser.close"})
+                        serde_json::json!({"id": 0, "method": "Browser.close"})
                             .to_string()
                             .into(),
                     ))
@@ -148,7 +155,7 @@ async fn start(app: &AppHandle) -> Result<(String, Browser), String> {
     let mut browser = Browser {
         child,
         profile,
-        socket: String::new(),
+        connection: None,
     };
     let result = async {
         let client = http().await?;
@@ -190,7 +197,17 @@ async fn start(app: &AppHandle) -> Result<(String, Browser), String> {
     .await;
     match result {
         Ok(socket) => {
-            browser.socket = socket;
+            let config = WebSocketConfig::default()
+                .max_message_size(Some(8 * 1024 * 1024))
+                .max_frame_size(Some(8 * 1024 * 1024));
+            let (socket, _) = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                tokio_tungstenite::connect_async_with_config(&socket, Some(config), false),
+            )
+            .await
+            .map_err(|_| "The local browser did not accept a connection.".to_owned())?
+            .map_err(|e| e.to_string())?;
+            browser.connection = Some(Arc::new(Mutex::new(CdpConnection { socket, next_id: 1 })));
             Ok((id, browser))
         }
         Err(error) => {
@@ -208,6 +225,7 @@ const METHODS: &[&str] = &[
     "Input.dispatchKeyEvent",
     "Input.insertText",
     "Page.navigate",
+    "Page.addScriptToEvaluateOnNewDocument",
     "Page.captureScreenshot",
     "Emulation.setDeviceMetricsOverride",
     "Emulation.setTimezoneOverride",
@@ -251,40 +269,58 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
     if !METHODS.contains(&method) {
         return Err("This browser operation is not allowed.".into());
     }
-    let socket = state
+    let connection = state
         .0
         .lock()
         .await
         .windows
         .get(id)
         .ok_or("This browse has ended.")?
-        .socket
-        .clone();
+        .connection
+        .clone()
+        .ok_or("The local browser has no connection.")?;
     let params = args.get("params").cloned().unwrap_or_else(|| serde_json::json!({}));
-    let (mut socket, _) = tokio_tungstenite::connect_async(&socket)
-        .await
-        .map_err(|e| e.to_string())?;
-    socket
-        .send(Message::Text(
-            serde_json::json!({"id":1,"method":method,"params":params})
-                .to_string()
-                .into(),
-        ))
-        .await
-        .map_err(|e| e.to_string())?;
+    command(&connection, method, params).await
+}
+
+async fn command(
+    connection: &Arc<Mutex<CdpConnection>>,
+    method: &str,
+    params: Value,
+) -> Result<Map<String, Value>, String> {
     tokio::time::timeout(std::time::Duration::from_secs(30), async {
-        while let Some(frame) = socket.next().await {
+        // One CDP session per browse preserves emulation settings and scripts.
+        // A cancelled request can leave a reply queued, so ids are never reused.
+        let mut connection = connection.lock().await;
+        let id = connection.next_id;
+        connection.next_id = id
+            .checked_add(1)
+            .ok_or("This browser session reached its command limit.")?;
+        connection
+            .socket
+            .send(Message::Text(
+                serde_json::json!({"id":id,"method":method,"params":params})
+                    .to_string()
+                    .into(),
+            ))
+            .await
+            .map_err(|e| e.to_string())?;
+        while let Some(frame) = connection.socket.next().await {
             let Message::Text(text) = frame.map_err(|e| e.to_string())? else {
                 continue;
             };
-            if text.len() > 8 * 1024 * 1024 {
-                return Err("The browser response exceeded 8 MiB.".into());
-            }
             let answer: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-            if answer.get("id").and_then(Value::as_u64) != Some(1) {
+            if answer.get("id").and_then(Value::as_u64) != Some(id) {
                 continue;
             }
-            if answer.get("error").is_some() {
+            if let Some(error) = answer.get("error") {
+                if error
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .is_some_and(|message| message.contains("Execution context was destroyed"))
+                {
+                    return Err("Execution context was destroyed".into());
+                }
                 return Err("The local browser refused this operation.".into());
             }
             return answer
@@ -318,6 +354,55 @@ pub async fn close_all(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn commands_keep_one_connection_and_ignore_late_replies() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            for (expected, value) in [(1, "one"), (2, "two")] {
+                let request = socket.next().await.unwrap().unwrap().into_text().unwrap();
+                let request: Value = serde_json::from_str(&request).unwrap();
+                assert_eq!(request["id"], expected);
+                if expected == 2 {
+                    socket
+                        .send(Message::Text(
+                            serde_json::json!({"id":1,"result":{"value":"late"}}).to_string().into(),
+                        ))
+                        .await
+                        .unwrap();
+                }
+                socket
+                    .send(Message::Text(
+                        serde_json::json!({"id":expected,"result":{"value":value}})
+                            .to_string()
+                            .into(),
+                    ))
+                    .await
+                    .unwrap();
+            }
+        });
+        let (socket, _) = tokio_tungstenite::connect_async(format!("ws://{address}"))
+            .await
+            .unwrap();
+        let connection = Arc::new(Mutex::new(CdpConnection { socket, next_id: 1 }));
+        let exchange = async {
+            assert_eq!(
+                command(&connection, "Runtime.evaluate", Value::Null).await.unwrap()["value"],
+                "one"
+            );
+            assert_eq!(
+                command(&connection, "Runtime.evaluate", Value::Null).await.unwrap()["value"],
+                "two"
+            );
+            server.await.unwrap();
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(3), exchange)
+            .await
+            .unwrap();
+    }
+
     #[test]
     fn local_browser_commands_cannot_extract_profile_secrets_or_start_a_process() {
         for method in [

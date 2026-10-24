@@ -162,20 +162,32 @@ fn capture() -> Result<Map<String, Value>, (String, &'static str)> {
         .or(monitors.first())
         .ok_or_else(|| ("This computer has no screen to capture.".to_owned(), "io"))?;
     let image = monitor.capture_image().map_err(failed)?;
-    let mut png = Vec::new();
-    image
-        .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
-        .map_err(|e| (format!("The screenshot could not be encoded: {e}"), "io"))?;
+    // Keep pointer coordinates native while bounding the transmitted picture.
+    let width = monitor.width().unwrap_or(image.width());
+    let height = monitor.height().unwrap_or(image.height());
+    let png = preview_bytes(image).map_err(|e| (e, "io"))?;
     let mut value = Map::new();
     value.insert(
         "data".into(),
         base64::engine::general_purpose::STANDARD.encode(png).into(),
     );
     // The space the pointer moves in: points on a Retina Mac, pixels elsewhere.
-    value.insert("width".into(), monitor.width().unwrap_or(image.width()).into());
-    value.insert("height".into(), monitor.height().unwrap_or(image.height()).into());
+    value.insert("width".into(), width.into());
+    value.insert("height".into(), height.into());
     value.insert("platform".into(), crate::device::PLATFORM.into());
     Ok(value)
+}
+
+/// Bound a Retina/4K capture before PNG/base64 encoding, below the hub's frame limit.
+fn preview_bytes(image: image::RgbaImage) -> Result<Vec<u8>, String> {
+    let width = image.width().min(1600);
+    let height = image.height().min(1000);
+    let image = image::DynamicImage::ImageRgba8(image).thumbnail(width, height);
+    let mut png = Vec::new();
+    image
+        .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+        .map_err(|e| format!("The screenshot could not be encoded: {e}"))?;
+    Ok(png)
 }
 
 /// One action as the server sends it - `_actions.py`'s models, already in native coordinates.
@@ -363,6 +375,16 @@ fn function_key(number: u8) -> Option<Key> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn screen_previews_bound_pixels_without_enlarging_small_displays() {
+        for (width, height, expected) in [(3200, 2000, (1600, 1000)), (800, 600, (800, 600))] {
+            let bytes = preview_bytes(image::RgbaImage::new(width, height)).unwrap();
+            let preview = image::load_from_memory(&bytes).unwrap();
+            assert_eq!((preview.width(), preview.height()), expected);
+            assert!(bytes.len() < 8 * 1024 * 1024);
+        }
+    }
 
     #[test]
     fn chords_are_read_as_the_model_writes_them() {
