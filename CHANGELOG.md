@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Heartbeat proactive model runs while they execute, meter each response,
+  and durably settle consumed tokens on failure or cancellation, including
+  repeated cancellation during terminal persistence.
+
 - Batch knowledge-source audience reads by resource type so the Builder does
   not make one grant query per private skill, context file or connection.
 
