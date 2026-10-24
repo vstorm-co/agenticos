@@ -333,6 +333,15 @@ jobs:
         # laptop, and it is for Codecov below rather than for the gate.
         run: make test COV_REPORT=xml
 
+      - name: Retain backend coverage diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Report coverage of template-inherited code
         # Informational. Holding code we did not design to the platform bar
         # would mean mock-heavy tests that buy a number rather than confidence.
@@ -422,6 +431,15 @@ jobs:
         # step: `test:run` measures nothing and 2909 green tests still owe 100%
         # lines, statements and functions.
         run: make test-frontend-cov
+
+      - name: Retain frontend coverage diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/coverage-final.json
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Build
         # `next build` type-checks the route tree and fails on a server
