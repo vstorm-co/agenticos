@@ -163,6 +163,37 @@ describe("a sidebar that leaves while refreshing", () => {
     }
   });
 
+  it("loads the transcript again after leaving during its first request", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-reopen");
+    const serveNormally = vi.mocked(apiClient.get).getMockImplementation();
+    let refuseFirst: (reason: unknown) => void = () => {};
+    let messagesRead = 0;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/conversations/c-reopen/messages") {
+        messagesRead += 1;
+        if (messagesRead === 1)
+          return new Promise((_, reject) => {
+            refuseFirst = reject;
+          });
+        return {
+          items: [{ id: "m-restored", role: "assistant", content: "Already answered" }],
+          total: 1,
+        };
+      }
+      return serveNormally?.(path, options);
+    });
+    const first = mount();
+    await waitFor(() => expect(messagesRead).toBe(1));
+    first.unmount();
+    mount();
+    await waitFor(() => expect(messagesRead).toBe(2));
+    await act(async () => refuseFirst(new DOMException("cancelled", "AbortError")));
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentMessages[0]?.id).toBe("m-restored"),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBe("c-reopen");
+  });
+
   it("does not open a linked thread after unmount during invalidation", async () => {
     window.history.replaceState({}, "", "/chat?id=c-late");
     let finish = () => {};

@@ -311,21 +311,23 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       await invalidateLists();
       if (!stillCurrent()) return;
       if (urlId && conversationApi.getState().currentConversationId !== urlId) {
-        setCurrentConversationId(urlId);
-        clearMessages();
-        setCurrentMessages([]);
+        const selectedBefore = conversationApi.getState().currentConversationId;
+        const stillSelected = () =>
+          conversationApi.getState().currentConversationId === selectedBefore;
         try {
           const msgs = await apiClient.get<MessagesResponse>(
             `/conversations/${encodeURIComponent(urlId)}/messages`,
             { signal },
           );
-          if (!stillCurrent()) return;
+          if (!stillCurrent() || !stillSelected()) return;
+          clearMessages();
+          setCurrentConversationId(urlId);
           setCurrentMessages(msgs.items, msgs.cost);
         } catch {
           // The failure belongs to whoever asked. A refusal answering after
           // somebody else has signed in says nothing about the conversation they
           // are looking at, and clearing the id would close it under them.
-          if (!stillCurrent()) return;
+          if (!stillCurrent() || !stillSelected()) return;
           // Not accessible (deleted, no permission) - clear the stale id
           setCurrentConversationId(null);
         }
