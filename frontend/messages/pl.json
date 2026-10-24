@@ -1182,7 +1182,10 @@
           "read_only": "Agenci czytają tu pliki; nic nie jest zapisywane i żadne polecenie się nie uruchamia.",
           "workspace_write": "Agenci zapisują w tym folderze; polecenia działają w piaskownicy i nie mogą zapisywać gdzie indziej.",
           "full_access": "Polecenia działają jako ty i każde najpierw pyta o zgodę."
-        }
+        },
+        "model": "Model dla tego czatu",
+        "agentModel": "Model skonfigurowany dla agenta",
+        "localBrowser": "Przeglądaj na tym komputerze (osobny profil)"
       }
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
@@ -1278,7 +1281,8 @@
       "showWithCount": "Pokaż pliki ({count})",
       "storedSuffix": "zapisano {size}",
       "title": "Pliki",
-      "beforeStart": "Pliki, które dołączysz, i pliki zapisane przez agenta pojawią się tutaj, gdy rozmowa się zacznie."
+      "beforeStart": "Pliki, które dołączysz, i pliki zapisane przez agenta pojawią się tutaj, gdy rozmowa się zacznie.",
+      "onThisComputer": "W {folder} na tym komputerze"
     },
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",
@@ -2932,7 +2936,9 @@
       "left": "{count, plural, =1 {Został 1 krok} few {Zostały # kroki} many {Zostało # kroków} other {Zostało # kroków}}",
       "ratio": "{done}/{total}",
       "start": "Zacznij",
-      "doneHeading": "Już zrobione"
+      "doneHeading": "Już zrobione",
+      "showAll": "Pokaż wszystkie kroki ({count})",
+      "showLess": "Pokaż mniej kroków"
     },
     "views": {
       "label": "Widok dashboardu",
@@ -3039,6 +3045,7 @@
     "pushOnHint": "To urządzenie otrzymuje powiadomienia push"
   },
   "errors": {
+    "localFolderRequired": "Najpierw wybierz lokalny folder.",
     "authorizationFailed": "Autoryzacja nie powiodła się",
     "avatarNotAvailable": "Awatar jest niedostępny",
     "backendUnavailable": "Serwer jest niedostępny",
@@ -8732,6 +8739,20 @@
         "unlink": "Odłącz",
         "linkFailed": "Nie udało się połączyć tego komputera.",
         "unlinkFailed": "Nie udało się odłączyć tego komputera."
+      },
+      "services": {
+        "title": "Lokalne modele i MCP",
+        "description": "Połącz usługi działające na tym komputerze. Aplikacja poprosi o zatwierdzenie każdego połączenia; wybierzesz je w czacie w opcji Pracuj na. Modele używają endpointu /v1 zgodnego z OpenAI, a MCP — Streamable HTTP.",
+        "kind": "Typ usługi",
+        "modelKind": "Lokalny model (Ollama, LM Studio)",
+        "mcpKind": "Lokalny serwer MCP (HTTP)",
+        "name": "Nazwa",
+        "endpoint": "Adres lokalny",
+        "model": "Identyfikator zainstalowanego modelu",
+        "remove": "Usuń",
+        "removeNamed": "Usuń {name}",
+        "add": "Połącz usługę",
+        "confirm": "Potwierdź w aplikacji…"
       }
     },
     "quickAsk": {

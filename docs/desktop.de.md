@@ -1,5 +1,5 @@
 ---
-source_sha: "c757cc38c0f5"
+source_sha: "bca91b2f1dda"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -250,8 +250,71 @@ seiner eigenen öffentlichen Adresse.
   jeder API-Host und Worker einen Computer erreicht, und `DeviceWorkspace`, der
   Sandbox-Workspace, den die App ausführt.
 
-`desktop-check` gehört nicht zu `make lint` oder `make check`: Die CI hat noch keine
-Rust-Toolchain. Führen Sie es aus, bevor Sie eine Änderung unter `desktop/` pushen.
+## Lokaler Browser, Modelle und MCP { #local-browser-models-and-mcp }
+
+Nach dem Koppeln der Desktop-App einen Ordner unter **Work on** freigeben. Dort
+lassen sich für diesen Lauf ein lokales Modell, lokale MCP-Dienste und ein lokaler
+Browser wählen. Erforderlich sind eine Sandbox-Bindung und die eigene gekoppelte
+Sitzung. Die Telefon-App ruft keine Desktop-Befehle auf.
+
+Dienste werden unter **Settings → Desktop app → Local services** hinzugefügt.
+Ein nativer Dialog bestätigt jede Freigabe. Modelle verwenden einen Ollama- oder
+OpenAI-kompatiblen HTTP-Endpunkt (etwa `http://127.0.0.1:11434/v1`) und eine
+installierte Modell-ID. MCP benötigt einen laufenden Streamable-HTTP-Server
+(etwa `http://127.0.0.1:8000/mcp`).
+Nur Loopback-Adressen sind erlaubt, ohne
+Weiterleitungen oder Zugangsdaten in der URL. Der Desktop hält die Adresse; die
+API übermittelt eine undurchsichtige Freigabe-ID. Anfragen und Antworten sind auf
+8 MiB begrenzt, die Dienstfrist beträgt zwei Minuten. MCP-Server müssen ohne Token
+antworten und HTTP-Antworten beenden; eigenständige SSE-Abonnements und das Starten
+von stdio-Prozessen werden nicht unterstützt. Entfernen einer Freigabe verweigert
+weitere Aufrufe. Lokale Inferenz hat keinen Cloud-Fallback; Funktionen mit separat
+konfigurierten Modellen behalten ihre Einstellungen.
+
+**Local browser** führt die vorhandenen `browser_use`-Werkzeuge in einem sichtbaren
+Chromium-Fenster auf dem gekoppelten Computer aus. Chrome, Chromium, Edge oder Brave
+muss installiert sein. Jeder Browse fragt nativ um Erlaubnis, nutzt ein temporäres
+Profil und schließt es am Ende oder bei Geräteunterbrechung. Persönliche Tabs und
+Passwörter werden nicht importiert. DOM-Beobachtungen und Vorschaubilder erreichen
+den Chat; gespeicherte Anmeldungen werden nicht auf den Server kopiert. Eine Bindung
+mit `connection: local` verweigert den Lauf ohne diese lokale Auswahl.
+
+## Installationspakete und Updates { #installers-and-updates }
+
+Der GitHub-Actions-Workflow **Apps** prüft native Crates auf macOS, Windows und
+Linux und baut Android-Debug-APKs sowie die iOS-Simulator-App. Vollständige native
+Prüfungen laufen in CI; `make desktop-check` bleibt für gezielte lokale Änderungen
+verfügbar. **App release** hängt Installer, signierte Update-Dateien, ein APK und
+einen Homebrew-Cask an ein bestehendes veröffentlichtes stabiles Release
+`v1.MINOR.PATCH`, dessen Commit auf `main` liegt. Es erstellt kein Plattform-Release.
+Der Cask ist eine herunterladbare Datei; ein Homebrew-Tap wird separat veröffentlicht.
+**Check for Updates…** benötigt einen Build mit öffentlichem Update-Schlüssel und
+prüft vor der Installation die Signatur.
+
+Vor einem Release die GitHub-Umgebung `apps-release` konfigurieren:
+
+- Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; Secrets `TAURI_SIGNING_PRIVATE_KEY`
+  und `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (dauerhaftes Update-Schlüsselpaar).
+- macOS: `APPLE_CERTIFICATE` (Base64-P12), `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (App-Passwort)
+  und `APPLE_TEAM_ID` für Developer-ID-Signatur und Notarisierung.
+- Optionales Windows-Authenticode: `WINDOWS_CERTIFICATE_BASE64` (PFX) und
+  `WINDOWS_CERTIFICATE_PASSWORD`. Ohne diese bleibt der Installer unsigniert.
+- Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Updates benötigen denselben Keystore.
+- TestFlight: Repository-Variable `AGENTICOS_TESTFLIGHT_ENABLED=true`; Secrets
+  `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROFILES_BASE64_JSON`
+  (JSON-Array mit Base64-Profilen für App, Widgets und Share-Erweiterung),
+  `APP_STORE_CONNECT_KEY_P8`, `APP_STORE_CONNECT_KEY_ID`,
+  `APP_STORE_CONNECT_ISSUER_ID`, `APPLE_TEAM_ID`. App-IDs, gemeinsame App Group
+  und App in App Store Connect zuerst anlegen. Push benötigt weiterhin die
+  vorhandenen APNs-Zugangsdaten der Bereitstellung.
+
+Store-Zugangsdaten verbleiben in CI; Jobs löschen temporäre Signaturdateien.
+TestFlight-Upload bleibt bis zur ausdrücklichen Aktivierung aus. Store-Freigabe,
+Provisioning und signierte Geräteauslieferung erfordern die Konten des Betreibers;
+ein unsignierter lokaler Build kann sie nicht bestätigen.
+
 
 ## Zusammenfassung { #recap }
 

@@ -40,6 +40,11 @@ const COMMANDS: &[&str] = &[
     "local_grants",
     "local_pick_folder",
     "local_revoke",
+    "local_files",
+    "local_file",
+    "local_services",
+    "local_save_service",
+    "local_remove_service",
 ];
 
 fn main() {

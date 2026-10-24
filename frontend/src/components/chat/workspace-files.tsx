@@ -7,7 +7,11 @@ import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 
 import { FileCard, FileViewer } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
+import { useLocalWorkspace } from "@/hooks/use-desktop";
+import { isDesktopShell } from "@/lib/desktop/shell";
+import { useShell } from "@/hooks/use-shell";
 import { useFilePreviewStore } from "@/stores";
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { getFileUrl } from "@/lib/file-api";
 import { cn, formatBytes } from "@/lib/utils";
 import { isRenderSafeImage } from "@/lib/file-kinds";
@@ -69,17 +73,27 @@ export function WorkspaceFiles({
   overlay = false,
 }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
-  const { workspace, error, refresh } = useConversationWorkspace(conversationId);
+  // A chat working on this computer keeps its files in the folder there, which
+  // only the desktop app can list (#2305); everywhere else it is the server's.
+  const shell = useShell();
+  const target = useWorkOnStore((state) => state.targetFor(conversationId));
+  const localRoot = isDesktopShell(shell) && target !== null ? target.folder : null;
+  const cloud = useConversationWorkspace(localRoot === null ? conversationId : null);
+  const local = useLocalWorkspace(
+    localRoot,
+    t("onThisComputer", { folder: localRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? "" }),
+  );
+  const { workspace, error, refresh } = localRoot === null ? cloud : local;
   const openAttachment = useFilePreviewStore((state) => state.open);
   const [open, setOpen] = useState(false);
   const [reading, setReading] = useState<ConversationFile | null>(null);
   // The chat addresses files through its conversation, not through the workspace's
   // id: that route authorises by fetching the conversation, so somebody this chat
   // was shared with reaches the same files.
-  const source = useMemo<FileSource | null>(
-    () => (conversationId === null ? null : { kind: "conversation", id: conversationId }),
-    [conversationId],
-  );
+  const source = useMemo<FileSource | null>(() => {
+    if (localRoot !== null) return { kind: "local", root: localRoot };
+    return conversationId === null ? null : { kind: "conversation", id: conversationId };
+  }, [conversationId, localRoot]);
 
   // Re-read when a turn ends rather than on a timer: the chat knows exactly when
   // the files could have changed, and a poll is wrong almost every time it fires.

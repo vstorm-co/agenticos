@@ -198,3 +198,37 @@ describe("the commands", () => {
     await expect(commands.setShortcut("quick_ask", "Alt+K")).rejects.toThrow("malformed: binding");
   });
 });
+
+describe("local files and service grants", () => {
+  it("decodes native file results and refuses malformed data", async () => {
+    invoke.mockResolvedValue([{ path: "a.txt", size: 2, is_dir: false, modified: null }]);
+    await expect(commands.listLocalFiles("/work")).resolves.toEqual([
+      { path: "a.txt", size: 2, is_dir: false, modified: null },
+    ]);
+    invoke.mockResolvedValue({});
+    await expect(commands.listLocalFiles("/work")).rejects.toThrow("malformed");
+    invoke.mockResolvedValue("aGk=");
+    await expect(commands.readLocalFile("/work", "a.txt")).resolves.toEqual(
+      new Uint8Array([104, 105]),
+    );
+    invoke.mockResolvedValue(null);
+    await expect(commands.readLocalFile("/work", "a.txt")).rejects.toThrow("malformed");
+  });
+  it("validates native services rather than trusting the IPC result", async () => {
+    const service = {
+      id: "mine",
+      name: "My model",
+      kind: "model" as const,
+      model: "installed",
+      endpoint: "http://127.0.0.1:11434/v1",
+    };
+    invoke.mockResolvedValue([service]);
+    await expect(commands.getLocalServices()).resolves.toEqual([service]);
+    await expect(commands.saveLocalService(service)).resolves.toEqual([service]);
+    await expect(commands.removeLocalService("mine")).resolves.toEqual([service]);
+    invoke.mockResolvedValue([{ ...service, kind: "unknown" }]);
+    await expect(commands.getLocalServices()).rejects.toThrow("malformed");
+    invoke.mockResolvedValue(null);
+    await expect(commands.getLocalServices()).rejects.toThrow("malformed");
+  });
+});

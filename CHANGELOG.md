@@ -21,6 +21,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Local services and browser in the desktop app.** Approve loopback model and
+  MCP services, choose them per run and browse in a visible temporary Chromium
+  profile on the paired computer. Native folder grants bound local file previews.
+- **Native distribution workflows.** Cross-platform app checks, signed desktop
+  updater assets, Android APK signing and optional TestFlight upload accompany
+  existing stable platform releases. Signing accounts are configured through CI.
+
 - **An agent can use a computer.** The `computer_use` capability gives an
   agent a whole desktop rather than a web page: `computer_screenshot` looks
   and `computer_act` clicks, types, scrolls and drags; an agent's owner can

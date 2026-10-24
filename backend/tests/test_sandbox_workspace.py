@@ -5230,3 +5230,78 @@ class TestTheSharedSandboxdClient:
         await sandbox_workspace.close_sandboxd_client()
         # Closing twice is a shutdown that found nothing to close.
         await sandbox_workspace.close_sandboxd_client()
+
+
+class TestLocalDeviceSelection:
+    @pytest.mark.parametrize("mode", ["read_only", "workspace_write", "full_access"])
+    async def test_only_the_callers_device_is_resolved(self, mode, monkeypatch, mock_db_session):
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        session = uuid4()
+        wait = AsyncMock(
+            return_value=device_hub.Device(
+                session_id=session, user_id=ctx.user_id, platform="macos"
+            )
+        )
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        service = SandboxWorkspaceService(mock_db_session)
+        result = await service.open(
+            _spec(),
+            ctx=ctx,
+            identity=_identity(),
+            local=LocalTarget(folder="/approved", mode=mode, device_id=session),
+        )
+        assert result is not None and result.local
+        assert result.row_id is None
+        assert result.workspace.backend.session_id == session
+        wait.assert_awaited_once_with(ctx.user_id, session, timeout=0)
+        assert "/approved" in result.briefing
+        await service.close(result)
+
+    @pytest.mark.parametrize("identity", ["anonymous", "key", "publisher"])
+    async def test_nonpersonal_runs_never_contact_a_computer(
+        self, identity, monkeypatch, mock_db_session
+    ):
+        from dataclasses import replace
+
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        ctx = (
+            replace(ctx, user_id=None)
+            if identity == "anonymous"
+            else replace(ctx, api_key_id=uuid4())
+            if identity == "key"
+            else replace(ctx, subject_is_publisher_fallback=True)
+        )
+        wait = AsyncMock()
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        with pytest.raises(BadRequestError, match="Only your own"):
+            await SandboxWorkspaceService(mock_db_session)._open_local(
+                ctx, LocalTarget(folder="/approved")
+            )
+        wait.assert_not_called()
+
+    @pytest.mark.parametrize("back", [True, False])
+    async def test_wait_state_is_cleared_on_reconnect_or_timeout(
+        self, back, monkeypatch, mock_db_session
+    ):
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        device = device_hub.Device(session_id=uuid4(), user_id=ctx.user_id, platform="macos")
+        wait = AsyncMock(side_effect=[None, device if back else None])
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        sink = AsyncMock()
+        service = SandboxWorkspaceService(mock_db_session)
+        if back:
+            result = await service._open_local(ctx, LocalTarget(folder="/approved"), on_wait=sink)
+            assert result.local
+        else:
+            with pytest.raises(BadRequestError, match="not connected"):
+                await service._open_local(ctx, LocalTarget(folder="/approved"), on_wait=sink)
+        assert [call.args for call in sink.await_args_list] == [(True,), (False,)]

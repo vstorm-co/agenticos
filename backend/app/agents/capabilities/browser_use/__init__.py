@@ -14,6 +14,7 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.browser_use._capability import WebBrowser
 from app.agents.capabilities.browser_use._elements import HARD_CANDIDATE_CAP
+from app.agents.capabilities.browser_use._local import page_factory as local_page_factory
 from app.agents.capabilities.browser_use._route import (
     Connection,
     address_problem,
@@ -178,6 +179,7 @@ class WebBrowserConfig(BaseModel):
                 "built_in": "Built in",
                 "proxy": "Through a proxy",
                 "hosted": "A hosted browser",
+                "local": "This computer (desktop app)",
             }
         },
     )
@@ -311,7 +313,7 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         UrlRefusedError: The URL is missing, malformed, not a CDP scheme, or names
             a host this deployment does not allow.
     """
-    if config.connection == "hosted":
+    if config.connection in ("hosted", "local"):
         # The hosted browser is the endpoint; `connection_problems` checks it.
         return
     if not config.cdp_url:
@@ -428,7 +430,9 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     credential = (
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
+    local_session = ctx.resources.get("local_browser_session")
     return WebBrowser(
+        page_factory=local_page_factory(local_session) if isinstance(local_session, UUID) else None,
         step_model=step_model if isinstance(step_model, Model) else None,
         route=route_for(
             connection=config.connection,
@@ -439,7 +443,7 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
             locale=config.locale,
             credential=credential,
         ),
-        cdp_url=config.cdp_url,
+        cdp_url="" if config.connection == "local" else config.cdp_url,
         allowed_domains=config.allowed_domains,
         max_steps=config.max_steps,
         candidate_cap=config.candidate_cap,

@@ -236,6 +236,7 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
 #[tauri::command]
 pub async fn device_unlink(app: AppHandle) -> Result<DeviceStatus, String> {
     stop(&app);
+    crate::local_browser::close_all(&app).await;
     if let Some(server) = settings::current(&app).server_url {
         if let Some(token) = stored_refresh(&server) {
             let client = http()?;
@@ -278,6 +279,7 @@ pub fn start(app: &AppHandle) {
     *app.state::<Device>().stop.lock().unwrap_or_else(|e| e.into_inner()) = Some(stopper.clone());
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        crate::local_browser::close_all(&app).await;
         let mut failures = 0;
         loop {
             let ended = tokio::select! {
@@ -338,7 +340,19 @@ async fn connection(app: &AppHandle, server: &Url) -> Ended {
         Err(e) => return Ended::Failed(e.to_string()),
     };
     set_connected(app, true);
-    serve(app, socket).await
+    let ended = serve(app, socket).await;
+    crate::local_browser::close_all(app).await;
+    ended
+}
+
+#[derive(Default)]
+struct RunningCalls(HashMap<String, tauri::async_runtime::JoinHandle<()>>);
+impl Drop for RunningCalls {
+    fn drop(&mut self) {
+        for (_, call) in self.0.drain() {
+            call.abort();
+        }
+    }
 }
 
 async fn serve<S>(app: &AppHandle, socket: tokio_tungstenite::WebSocketStream<S>) -> Ended
@@ -354,7 +368,7 @@ where
     if let Err(e) = send(&mut write, &hello).await {
         return Ended::Failed(e);
     }
-    let mut running: HashMap<String, tauri::async_runtime::JoinHandle<()>> = HashMap::new();
+    let mut running = RunningCalls::default();
     let mut ping = tokio::time::interval(std::time::Duration::from_secs(PING_SECONDS));
     loop {
         tokio::select! {
@@ -372,7 +386,7 @@ where
                 };
                 match serde_json::from_str::<ServerFrame>(&text) {
                     Ok(ServerFrame::Call { id, op, args }) => {
-                        running.retain(|_, task| !task.inner().is_finished());
+                        running.0.retain(|_, task| !task.inner().is_finished());
                         let answers = answers.clone();
                         let call_id = id.clone();
                         let app = app.clone();
@@ -381,10 +395,10 @@ where
                             let outcome = run(&app, &op, args).await;
                             let _ = answers.send(AppFrame::answer(call_id, outcome));
                         });
-                        running.insert(id, task);
+                        running.0.insert(id, task);
                     }
                     Ok(ServerFrame::Cancel { id }) => {
-                        if let Some(task) = running.remove(&id) {
+                        if let Some(task) = running.0.remove(&id) {
                             task.abort();
                         }
                     }
@@ -453,6 +467,16 @@ async fn run(
     op: &str,
     args: Map<String, Value>,
 ) -> Result<Map<String, Value>, (String, &'static str)> {
+    if op.starts_with("browser.") {
+        return crate::local_browser::run(app, op, &args)
+            .await
+            .map_err(|e| (e, "denied"));
+    }
+    if op.starts_with("service.") {
+        return crate::local_services::run(app, op, &args)
+            .await
+            .map_err(|e| (e, "denied"));
+    }
     if op.starts_with("screen.") {
         return crate::screen::run(app, op, &args).await;
     }

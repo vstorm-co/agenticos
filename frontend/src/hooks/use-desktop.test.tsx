@@ -86,6 +86,18 @@ afterEach(() => {
 });
 
 describe("useDesktopState", () => {
+  it("does not send desktop commands from the iPhone app", () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "ios",
+      version: "0.1.0",
+      window: "main",
+      vibrancy: false,
+    };
+    const { result } = renderHook(() => useDesktopState(), { wrapper });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(shell.getDesktopState).not.toHaveBeenCalled();
+  });
+
   it("reads the desktop app's state inside the app", async () => {
     const { result } = renderHook(() => useDesktopState(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(STATE));

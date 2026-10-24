@@ -227,8 +227,70 @@ and about its own public address.
   API host or worker reaches a computer, and `DeviceWorkspace`, the sandbox
   workspace carried out by the app.
 
-`desktop-check` is not part of `make lint` or `make check`: CI has no Rust toolchain
-yet. Run it before pushing a change under `desktop/`.
+## Local browser, models and MCP
+
+After pairing the desktop app, approve a folder under **Work on**. The same picker
+can use a local model, selected local MCP services, and a local browser for that
+run. These options require an agent with a sandbox binding and your own paired
+session. Phone apps do not invoke desktop commands.
+
+Add services under **Settings → Desktop app → Local services**. A native dialog
+confirms each grant. Models use an Ollama or OpenAI-compatible HTTP endpoint
+(for example `http://127.0.0.1:11434/v1`) and an installed model ID. MCP uses an
+already running Streamable HTTP server (for example `http://127.0.0.1:8000/mcp`).
+
+Only loopback endpoints are accepted; redirects and embedded credentials are
+refused. The desktop stores the address and the API sends an opaque grant ID.
+Requests and responses are limited to 8 MiB, with a two-minute service deadline.
+MCP servers must accept requests without a token and return finite HTTP responses;
+standalone SSE subscriptions and starting stdio processes are not supported.
+Remove a grant to refuse subsequent calls. Local inference has no cloud fallback;
+other capabilities configured with separate models retain their own settings.
+
+**Local browser** routes the existing `browser_use` tools to a visible Chromium
+window on the paired computer. Install Chrome, Chromium, Edge or Brave first.
+Each browse asks for native consent, uses a temporary profile and closes it when
+the browse ends or the device disconnects. Existing personal tabs and passwords
+are not imported. The chat receives DOM observations and live preview frames;
+saved sign-ins are not copied to the server. A capability configured with
+`connection: local` refuses to run without this local selection.
+
+## Installers and updates
+
+The **Apps** GitHub Actions workflow checks native crates on macOS, Windows and
+Linux and builds Android debug APKs and an iOS simulator app. Full native checks
+run in CI. Local `make desktop-check` remains available for a focused change.
+The **App release** workflow attaches installers, signed updater artifacts, an
+Android APK and a Homebrew cask to an existing published stable `v1.MINOR.PATCH`
+release whose commit is on `main`. It does not create a platform release. The cask
+is a downloadable asset; publishing a Homebrew tap is a separate operator step.
+The desktop menu's **Check for Updates…** requires a build with the updater public
+key and verifies the downloaded signature before installation.
+
+Configure the `apps-release` GitHub environment before running a release:
+
+- Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secrets `TAURI_SIGNING_PRIVATE_KEY`
+  and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (one persistent updater key pair).
+- macOS: `APPLE_CERTIFICATE` (base64 P12), `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific),
+  and `APPLE_TEAM_ID` for Developer ID signing and notarization.
+- Optional Windows Authenticode: `WINDOWS_CERTIFICATE_BASE64` (PFX) and
+  `WINDOWS_CERTIFICATE_PASSWORD`. Without them the installer is unsigned.
+- Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. Keep the same keystore for updates.
+- TestFlight: repository variable del repositorio `AGENTICOS_TESTFLIGHT_ENABLED=true`; secrets
+  `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROFILES_BASE64_JSON`
+  (JSON array of base64 profiles for the app, widgets and share extension),
+  `APP_STORE_CONNECT_KEY_P8`, `APP_STORE_CONNECT_KEY_ID`,
+  `APP_STORE_CONNECT_ISSUER_ID` and `APPLE_TEAM_ID`. Create the app identifiers,
+  shared App Group and App Store Connect app first. Existing APNs deployment
+  credentials are still required for push notifications.
+
+Store credentials stay in CI; release jobs delete temporary signing files.
+TestFlight upload remains disabled until explicitly enabled. Store approval,
+provisioning and signed-device delivery require the operator's accounts and
+cannot be verified by an unsigned local build.
+
 
 ## Recap
 

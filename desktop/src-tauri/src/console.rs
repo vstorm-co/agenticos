@@ -8,8 +8,9 @@
 //!
 //! What is granted is deliberately small: settings the person could change from
 //! the menu anyway, a notification, a badge, a window to open. Nothing here runs
-//! a command, reads a file or holds a credential, because whatever a page on the
-//! server can ask for, a script injected into that page can ask for too.
+//! arbitrary commands or holds a credential. File reads are bounded to folders
+//! the person granted through the native picker; adding a local service asks
+//! again in a native dialog. Injected scripts inherit these page permissions.
 
 use std::collections::HashSet;
 use std::sync::Mutex;
@@ -52,6 +53,11 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-local-grants",
             "allow-local-pick-folder",
             "allow-local-revoke",
+            "allow-local-files",
+            "allow-local-file",
+            "allow-local-services",
+            "allow-local-save-service",
+            "allow-local-remove-service",
             "allow-page-error",
             "core:event:allow-listen",
             "core:event:allow-unlisten",

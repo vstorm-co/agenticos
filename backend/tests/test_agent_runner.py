@@ -6071,3 +6071,77 @@ class TestAFailedRunOverTheApi:
 
         with pytest.raises(RuntimeError):
             await service.execute(_ctx(), uuid.uuid4(), "hi")
+
+
+class TestPerRunLocalServices:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("connected", [True, False])
+    async def test_native_services_use_only_the_resolved_workspace_session(self, connected):
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+        from app.services.device_hub.services import LocalService
+
+        ctx = _ctx()
+        session = uuid.uuid4()
+        target = LocalTarget(
+            folder="/approved", model_service="model", mcp_services=["files", "files"], browser=True
+        )
+        assert ctx.user_id is not None
+        workspace = (
+            OpenWorkspace(
+                workspace=Workspace(device_hub.DeviceWorkspace(session, ctx.user_id, target)),
+                kind="service",
+                scope="run",
+                scope_key="local",
+                row_id=None,
+                local=True,
+            )
+            if connected
+            else None
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Local", model_profile_id=uuid.uuid4())
+        run = MagicMock(id=uuid.uuid4())
+        resolved_model = MagicMock(label="Local model", provider="ollama", secret_id=None)
+        describe = AsyncMock(
+            side_effect=[
+                LocalService(id="model", name="Model", kind="model", model="installed"),
+                LocalService(id="files", name="Files", kind="mcp"),
+            ]
+        )
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="Cloud"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch.object(device_hub, "describe_service", describe),
+            patch.object(device_hub, "local_model_spec", return_value=resolved_model),
+            patch.object(device_hub, "local_mcp_toolset") as tools,
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            if not connected:
+                with pytest.raises(BadRequestError, match="connected computer"):
+                    await service.prepare(ctx, agent.id, local=target)
+                describe.assert_not_called()
+                build.assert_not_called()
+                return
+            await service.prepare(ctx, agent.id, local=target)
+        assert [call.args for call in describe.await_args_list] == [
+            (session, "model", "model"),
+            (session, "files", "mcp"),
+        ]
+        assert build.call_args.args[1] is resolved_model
+        assert build.call_args.kwargs["resources"]["local_browser_session"] == session
+        assert tools.return_value in build.call_args.kwargs["extra_toolsets"]
+        assert run.model_label == "Local model" and run.secret_id is None

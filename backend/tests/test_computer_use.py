@@ -1192,9 +1192,9 @@ class TestRegistration:
         gated = CapabilityBindingSpec(id="computer_use", tool_approval={"computer_act": "required"})
         assert held(gated) == {"computer_act"}
 
-    def test_the_sandbox_is_the_default_and_nothing_is_asked_of_the_vault(self):
+    def test_auto_is_the_default_and_nothing_is_asked_of_the_vault(self):
         definition = get("computer_use")
-        assert ComputerUseConfig().desktop == "sandbox"
+        assert ComputerUseConfig().desktop == "auto"
         assert not definition.needs_secret(ComputerUseConfig())
 
     @pytest.mark.security
@@ -1214,7 +1214,7 @@ class TestRegistration:
     def test_where_the_desktop_is_is_asked_first_and_only_a_daemon_has_a_url(self):
         properties = ComputerUseConfig.model_json_schema()["properties"]
         assert next(iter(properties)) == "desktop"
-        assert properties["desktop"]["enum"] == ["sandbox", "daemon"]
+        assert properties["desktop"]["enum"] == ["auto", "sandbox", "daemon", "local", "e2b"]
         assert properties["daemon_url"]["x-visible-when"] == {
             "field": "desktop",
             "equals": ["daemon"],
@@ -1239,10 +1239,10 @@ class TestRegistration:
             max_actions=50, max_actions_per_call=5, preview=False
         )
 
-    def test_an_empty_config_builds_a_desktop_in_the_sandbox(self):
+    def test_an_empty_config_builds_an_automatically_selected_desktop(self):
         capability = _build({})
         assert (capability.backend, capability.daemon_url, capability.daemon_token) == (
-            "sandbox",
+            "auto",
             "",
             "",
         )
@@ -1372,7 +1372,9 @@ class TestPublishingADesktopInTheSandbox:
     async def test_a_desktop_in_a_sandbox_the_agent_does_not_have_is_refused(
         self, sandbox: dict[str, Any] | None
     ):
-        bindings = [{"id": "computer_use"}] + ([sandbox] if sandbox else [])
+        bindings = [{"id": "computer_use", "config": {"desktop": "sandbox"}}] + (
+            [sandbox] if sandbox else []
+        )
         assert await self._problems(self._spec(*bindings)) == [
             "Computer use's desktop runs in the agent's sandbox, so it needs the Sandbox "
             "capability on a sandbox connection, on the 'desktop' runtime."
@@ -1383,7 +1385,8 @@ class TestPublishingADesktopInTheSandbox:
     ):
         self._connection(monkeypatch)
         spec = self._spec(
-            {"id": "computer_use"}, self._on(runtime="desktop", include_execute=False)
+            {"id": "computer_use", "config": {"desktop": "sandbox"}},
+            self._on(runtime="desktop", include_execute=False),
         )
         assert await self._problems(spec) == []
 
@@ -1392,7 +1395,12 @@ class TestPublishingADesktopInTheSandbox:
     ):
         """A spec naming no runtime gets the connection's, as a run does."""
         self._connection(monkeypatch, default_runtime="desktop")
-        assert await self._problems(self._spec({"id": "computer_use"}, self._on())) == []
+        assert (
+            await self._problems(
+                self._spec({"id": "computer_use", "config": {"desktop": "sandbox"}}, self._on())
+            )
+            == []
+        )
 
     async def test_the_organizations_own_sandbox_is_read_where_no_connection_is_named(
         self, monkeypatch: pytest.MonkeyPatch
@@ -1402,7 +1410,8 @@ class TestPublishingADesktopInTheSandbox:
             SandboxConnectionService, "ensure_local_connection", AsyncMock(return_value=local)
         )
         spec = self._spec(
-            {"id": "computer_use"}, {"id": "sandbox", "config": {"backend": "service"}}
+            {"id": "computer_use", "config": {"desktop": "sandbox"}},
+            {"id": "sandbox", "config": {"backend": "service"}},
         )
         assert await self._problems(spec) == []
 
@@ -1427,7 +1436,9 @@ class TestPublishingADesktopInTheSandbox:
         named: str,
     ):
         self._connection(monkeypatch, default_runtime=default_runtime)
-        spec = self._spec({"id": "computer_use"}, self._on(runtime=runtime))
+        spec = self._spec(
+            {"id": "computer_use", "config": {"desktop": "sandbox"}}, self._on(runtime=runtime)
+        )
 
         assert await self._problems(spec) == [
             "Computer use's desktop needs the sandbox's 'desktop' runtime, and this agent's "
@@ -1437,7 +1448,9 @@ class TestPublishingADesktopInTheSandbox:
     async def test_a_daytona_sandbox_is_refused(self, monkeypatch: pytest.MonkeyPatch):
         """It runs its own image whatever runtime the spec names."""
         self._connection(monkeypatch, kind="daytona")
-        spec = self._spec({"id": "computer_use"}, self._on(runtime="desktop"))
+        spec = self._spec(
+            {"id": "computer_use", "config": {"desktop": "sandbox"}}, self._on(runtime="desktop")
+        )
 
         assert await self._problems(spec) == [
             "Computer use's desktop needs the 'desktop' runtime, and the Daytona connection "
@@ -1450,7 +1463,9 @@ class TestPublishingADesktopInTheSandbox:
     ):
         """`_sandbox_problems` names it already; a second sentence adds nothing."""
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=None))
-        spec = self._spec({"id": "computer_use"}, self._on(runtime="desktop"))
+        spec = self._spec(
+            {"id": "computer_use", "config": {"desktop": "sandbox"}}, self._on(runtime="desktop")
+        )
 
         assert await self._problems(spec) == []
 

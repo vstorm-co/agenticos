@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useEffectEvent } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
+  getLocalServices,
+  saveLocalService,
+  removeLocalService,
+  type LocalService,
   DEVICE_STATUS_EVENT,
   getDesktopState,
   getDeviceStatus,
   getLocalState,
   linkDevice,
+  listLocalFiles,
   pickLocalFolder,
   revokeLocalFolder,
   type LocalMode,
@@ -28,7 +33,9 @@ import {
   type ShortcutAction,
   type WindowPreferences,
 } from "@/lib/desktop/commands";
-import { listenShell, reportShellFailure } from "@/lib/desktop/shell";
+import { getErrorMessage } from "@/lib/api-error";
+import type { ConversationFile, ConversationWorkspace } from "@/lib/conversation-workspace-api";
+import { isDesktopShell, listenShell, reportShellFailure } from "@/lib/desktop/shell";
 import { createPairingCode } from "@/lib/pairing-api";
 import { qk } from "@/lib/query-keys";
 import { useShell } from "@/hooks/use-shell";
@@ -39,7 +46,7 @@ export function useDesktopState() {
   return useQuery({
     queryKey: qk.desktop.state(),
     queryFn: getDesktopState,
-    enabled: shell !== null,
+    enabled: isDesktopShell(shell),
     // Not server data and not shared: nothing changes it but this person, and
     // every change below writes the answer back into the cache itself.
     staleTime: Infinity,
@@ -140,7 +147,7 @@ export function useDeviceStatus() {
     queryClient.setQueryData(qk.desktop.device(), parseDeviceStatus(payload)),
   );
   useEffect(() => {
-    if (shell === null) return;
+    if (!isDesktopShell(shell)) return;
     const unlisten = listenShell(DEVICE_STATUS_EVENT, (payload) => onStatus(payload));
     return () => {
       void unlisten.then((stop) => stop()).catch(() => undefined);
@@ -149,7 +156,7 @@ export function useDeviceStatus() {
   return useQuery({
     queryKey: qk.desktop.device(),
     queryFn: getDeviceStatus,
-    enabled: shell !== null,
+    enabled: isDesktopShell(shell),
     staleTime: Infinity,
   });
 }
@@ -186,7 +193,7 @@ export function useLocalFolders() {
   const state = useQuery({
     queryKey: qk.desktop.local(),
     queryFn: getLocalState,
-    enabled: shell !== null,
+    enabled: isDesktopShell(shell),
   });
   const pick = useMutation({
     mutationFn: (mode: LocalMode) => pickLocalFolder(mode),
@@ -202,4 +209,66 @@ export function useLocalFolders() {
     onError: (error) => reportShellFailure("revoking a folder", error),
   });
   return { state, pick, revoke };
+}
+
+/**
+ * The files in a folder on this computer, for a chat working there (#2305), in
+ * the shape the chat's file panel reads. The app lists only a folder the person
+ * granted; `null` turns it off.
+ */
+export function useLocalWorkspace(root: string | null, ownerLabel: string) {
+  const shell = useShell();
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  const enabled = isDesktopShell(shell) && root !== null;
+  const { data, error } = useQuery({
+    queryKey: qk.desktop.localFiles(root ?? "none"),
+    queryFn: () => {
+      if (root === null) throw new Error(tErrors("localFolderRequired"));
+      return listLocalFiles(root);
+    },
+    enabled,
+    retry: false,
+  });
+  const refresh = useCallback(async () => {
+    if (root === null) return;
+    await queryClient.invalidateQueries({ queryKey: qk.desktop.localFiles(root) });
+  }, [queryClient, root]);
+  const workspace = useMemo<ConversationWorkspace | null>(() => {
+    if (!enabled || data === undefined) return null;
+    const items = data.map((file): ConversationFile => ({
+      path: file.path,
+      size: file.size,
+      is_dir: file.is_dir,
+      modified_at: file.modified === null ? null : new Date(file.modified * 1000).toISOString(),
+      preview: null,
+      thumbnail: null,
+    }));
+    return {
+      scope: "local",
+      backend: "local",
+      owner_label: ownerLabel,
+      items,
+      total: items.length,
+      bytes_total: items.reduce((sum, file) => sum + (file.size ?? 0), 0),
+      bytes_limit: null,
+      unreadable_reason: null,
+    };
+  }, [enabled, data, ownerLabel]);
+  return { workspace, error: error ? getErrorMessage(error, tErrors) : null, refresh };
+}
+
+/** Native grants for loopback models and MCP; changes are confirmed by the app. */
+export function useLocalServices() {
+  const shell = useShell();
+  const client = useQueryClient();
+  const state = useQuery({
+    queryKey: qk.desktop.services(),
+    queryFn: getLocalServices,
+    enabled: isDesktopShell(shell),
+  });
+  const settle = (services: LocalService[]) => client.setQueryData(qk.desktop.services(), services);
+  const save = useMutation({ mutationFn: saveLocalService, onSuccess: settle });
+  const remove = useMutation({ mutationFn: removeLocalService, onSuccess: settle });
+  return { state, save, remove };
 }

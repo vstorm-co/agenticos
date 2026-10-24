@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalServiceSettings } from "./local-service-settings";
+
 import { Laptop, Link2, Unlink } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -20,35 +22,40 @@ export function DeviceSettings() {
   return (
     <DesktopOnly>
       {() => (
-        <SectionCard title={t("title")} description={t("description")}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-foreground flex items-center gap-2 text-sm">
-              <Laptop className="text-muted-foreground h-4 w-4" aria-hidden />
-              {!status?.linked
-                ? t("notLinked")
-                : status.connected
-                  ? t("connected")
-                  : t("reconnecting")}
-              {status?.linked && status.connected && <Badge variant="secondary">{t("live")}</Badge>}
-            </span>
-            {status?.linked ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={unlink.isPending}
-                onClick={() => unlink.mutate()}
-              >
-                <Unlink className="h-4 w-4" />
-                {t("unlink")}
-              </Button>
-            ) : (
-              <Button size="sm" disabled={link.isPending} onClick={() => link.mutate()}>
-                <Link2 className="h-4 w-4" />
-                {t("link")}
-              </Button>
-            )}
-          </div>
-        </SectionCard>
+        <>
+          <SectionCard title={t("title")} description={t("description")}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-foreground flex items-center gap-2 text-sm">
+                <Laptop className="text-muted-foreground h-4 w-4" aria-hidden />
+                {!status?.linked
+                  ? t("notLinked")
+                  : status.connected
+                    ? t("connected")
+                    : t("reconnecting")}
+                {status?.linked && status.connected && (
+                  <Badge variant="secondary">{t("live")}</Badge>
+                )}
+              </span>
+              {status?.linked ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={unlink.isPending}
+                  onClick={() => unlink.mutate()}
+                >
+                  <Unlink className="h-4 w-4" />
+                  {t("unlink")}
+                </Button>
+              ) : (
+                <Button size="sm" disabled={link.isPending} onClick={() => link.mutate()}>
+                  <Link2 className="h-4 w-4" />
+                  {t("link")}
+                </Button>
+              )}
+            </div>
+          </SectionCard>
+          <LocalServiceSettings />
+        </>
       )}
     </DesktopOnly>
   );

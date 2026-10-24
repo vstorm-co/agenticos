@@ -1,0 +1,71 @@
+name: Apps
+on:
+  pull_request:
+    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
+  push:
+    branches: [main]
+    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: apps-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - name: Linux native libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang
+      - name: Rust toolchain
+        run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt clippy
+      - name: Native contracts and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for crate in desktop/core desktop/src-tauri mobile/src-tauri; do
+            cargo fmt --manifest-path "$crate/Cargo.toml" --check
+            cargo clippy --locked --manifest-path "$crate/Cargo.toml" --all-targets -- -D warnings
+            cargo test --locked --manifest-path "$crate/Cargo.toml"
+          done
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Android toolchain
+        run: |
+          rustup target add aarch64-linux-android
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;37.0.0" "ndk;27.2.12479018"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+      - name: Build debug APK
+        working-directory: mobile
+        run: bun install --frozen-lockfile && bunx tauri android build --debug --target aarch64 --apk --ci
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-debug
+          path: mobile/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Simulator toolchain
+        run: rustup target add aarch64-apple-ios-sim
+      - name: Build iOS simulator with extensions
+        working-directory: mobile
+        run: bun install --frozen-lockfile && bunx tauri ios build --target aarch64-sim --no-sign --archive-only --ci

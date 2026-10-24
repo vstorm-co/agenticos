@@ -129,6 +129,117 @@ pub async fn local_pick_folder(app: AppHandle, mode: Mode) -> Result<Option<Gran
     Ok(Some(grant))
 }
 
+/// The most entries the chat's file panel is shown for one folder.
+const LISTED: usize = 500;
+
+/// Folders the panel does not walk into: build output and history, not work.
+const SKIPPED: [&str; 6] = [".git", "node_modules", "target", ".venv", "__pycache__", ".next"];
+
+/// One file or folder in a granted folder, as the chat's file panel lists it.
+#[derive(Serialize)]
+pub struct LocalFile {
+    path: String,
+    size: Option<u64>,
+    is_dir: bool,
+    /// Seconds since the epoch.
+    modified: Option<u64>,
+}
+
+fn granted_root(app: &AppHandle, root: &str) -> Result<PathBuf, String> {
+    settings::current(app)
+        .local_grants
+        .into_iter()
+        .find(|grant| grant.path == root)
+        .map(|grant| PathBuf::from(grant.path))
+        .ok_or_else(|| format!("{root} is not a folder you allowed agents to work in."))
+}
+
+/// What is in a granted folder, for the chat working there (#2305): paths
+/// relative to it, the newest first, at most `LISTED` of them.
+#[tauri::command]
+pub async fn local_files(app: AppHandle, root: String) -> Result<Vec<LocalFile>, String> {
+    let root = granted_root(&app, &root)?;
+    tauri::async_runtime::spawn_blocking(move || list_files(&root))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn list_files(root: &Path) -> Result<Vec<LocalFile>, String> {
+    let mut found = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    // Bound traversal as well as the response: a generated tree must not hold
+    // the blocking pool or let a symlink take the panel outside its grant.
+    'walk: while let Some(dir) = pending.pop() {
+        let entries = std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let kind = entry.file_type().map_err(|e| e.to_string())?;
+            if kind.is_symlink() || (!kind.is_dir() && !kind.is_file()) {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if kind.is_dir() && SKIPPED.contains(&name.as_str()) {
+                continue;
+            }
+            let path = inside(root, &entry.path().to_string_lossy()).map_err(|e| e.message)?;
+            let metadata = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+            let relative = path.strip_prefix(root).map_err(|e| e.to_string())?;
+            let modified = metadata.modified().ok();
+            found.push((
+                modified,
+                LocalFile {
+                    path: relative
+                        .components()
+                        .map(|part| part.as_os_str().to_string_lossy())
+                        .collect::<Vec<_>>()
+                        .join("/"),
+                    size: (!kind.is_dir()).then(|| metadata.len()),
+                    is_dir: kind.is_dir(),
+                    modified: modified
+                        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|since| since.as_secs()),
+                },
+            ));
+            if found.len() >= LISTED * 4 {
+                break 'walk;
+            }
+            if kind.is_dir() {
+                pending.push(path);
+            }
+        }
+    }
+    found.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(found.into_iter().take(LISTED).map(|(_, file)| file).collect())
+}
+
+/// Keep the native bridge below the device protocol's 16 MiB frame bound.
+const FILE_LIMIT: u64 = 10 * 1024 * 1024;
+
+async fn read_file(root: &Path, path: &str) -> Result<Vec<u8>, String> {
+    let file = inside(root, path).map_err(|refusal| refusal.message)?;
+    let file = tokio::fs::File::open(&file).await.map_err(|e| format!("{path}: {e}"))?;
+    if !file.metadata().await.map_err(|e| e.to_string())?.is_file() {
+        return Err("Only regular files can be opened.".into());
+    }
+    let mut data = Vec::new();
+    file.take(FILE_LIMIT + 1)
+        .read_to_end(&mut data)
+        .await
+        .map_err(|e| e.to_string())?;
+    if data.len() as u64 > FILE_LIMIT {
+        return Err("This file exceeds the 10 MiB local preview limit.".into());
+    }
+    Ok(data)
+}
+
+/// One file in a granted folder, base64, for the chat's file viewer.
+#[tauri::command]
+pub async fn local_file(app: AppHandle, root: String, path: String) -> Result<String, String> {
+    let root = granted_root(&app, &root)?;
+    let data = read_file(&root, &path).await?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(data))
+}
+
 #[tauri::command]
 pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> {
     let (settings, ()) = settings::update(&app, |settings| {
@@ -479,6 +590,51 @@ mod tests {
         assert!(inside(&root, &format!("{}/b.txt", root.display())).is_ok());
         assert!(inside(&root, "../../etc/passwd").is_err());
         assert!(inside(&root, "/etc/passwd").is_err());
+    }
+
+    fn folder() -> PathBuf {
+        let path = std::env::temp_dir().join(format!("agenticos-files-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&path).unwrap();
+        path.canonicalize().unwrap()
+    }
+
+    #[test]
+    fn the_panel_lists_work_and_skips_build_output() {
+        let root = folder();
+        std::fs::create_dir(root.join("node_modules")).unwrap();
+        std::fs::write(root.join("node_modules/ignored.txt"), "hidden").unwrap();
+        std::fs::write(root.join("note.txt"), "hello").unwrap();
+        let files = list_files(&root).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "note.txt");
+        assert_eq!(files[0].size, Some(5));
+        assert!(!files[0].is_dir);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_panel_does_not_walk_symlinks_or_cycles() {
+        let root = folder();
+        std::os::unix::fs::symlink(&root, root.join("cycle")).unwrap();
+        std::os::unix::fs::symlink("/etc", root.join("outside")).unwrap();
+        assert!(list_files(&root).unwrap().is_empty());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn local_reads_are_bounded_and_cannot_leave_the_grant() {
+        let root = folder();
+        std::fs::write(root.join("note.txt"), "hello").unwrap();
+        assert_eq!(read_file(&root, "note.txt").await.unwrap(), b"hello");
+        assert!(read_file(&root, "../outside").await.is_err());
+        assert!(read_file(&root, ".").await.is_err());
+        std::fs::File::create(root.join("huge"))
+            .unwrap()
+            .set_len(FILE_LIMIT + 1)
+            .unwrap();
+        assert!(read_file(&root, "huge").await.unwrap_err().contains("limit"));
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -1,5 +1,5 @@
 ---
-source_sha: "c757cc38c0f5"
+source_sha: "bca91b2f1dda"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -239,8 +239,73 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
   para que cualquier host de API o worker llegue a un ordenador, y
   `DeviceWorkspace`, el workspace de la sandbox que ejecuta la app.
 
-`desktop-check` no forma parte de `make lint` ni de `make check`: la CI aún no tiene
-toolchain de Rust. Ejecútalo antes de subir un cambio en `desktop/`.
+## Navegador, modelos y MCP locales { #local-browser-models-and-mcp }
+
+Después de emparejar la aplicación de escritorio, autoriza una carpeta en
+**Work on**. El mismo selector permite elegir un modelo local, servicios MCP y
+un navegador local para esa ejecución. Se requiere un agente con sandbox y tu
+propia sesión emparejada. La aplicación del teléfono no invoca comandos de escritorio.
+
+Añade servicios en **Settings → Desktop app → Local services**. Un diálogo nativo
+confirma cada permiso. Los modelos usan un endpoint HTTP de Ollama o compatible
+con OpenAI (por ejemplo `http://127.0.0.1:11434/v1`) y el ID de un modelo instalado.
+MCP requiere un servidor Streamable HTTP en ejecución
+(por ejemplo `http://127.0.0.1:8000/mcp`).
+
+
+Solo se aceptan direcciones loopback, sin
+redirecciones ni credenciales en la URL. El escritorio guarda la dirección; la API
+transmite un ID opaco del permiso. Las solicitudes y respuestas tienen un límite
+de 8 MiB y un plazo de dos minutos. MCP debe aceptar solicitudes sin token y
+terminar las respuestas HTTP; no se admiten suscripciones SSE independientes ni
+el inicio de procesos stdio. Eliminar un permiso bloquea llamadas posteriores.
+La inferencia local no recurre a la nube; las capacidades con modelos separados
+mantienen su configuración.
+
+**Local browser** ejecuta las herramientas existentes de `browser_use` en una
+ventana visible de Chromium del equipo emparejado. Instala Chrome, Chromium,
+Edge o Brave. Cada navegación pide consentimiento nativo, usa un perfil temporal
+y lo cierra al finalizar o desconectar el dispositivo. No importa pestañas ni
+contraseñas personales. El chat recibe observaciones DOM y fotogramas de vista
+previa; los inicios de sesión guardados no se copian al servidor. Una capacidad
+con `connection: local` rechaza la ejecución sin esta selección local.
+
+## Instaladores y actualizaciones { #installers-and-updates }
+
+El workflow **Apps** de GitHub Actions comprueba los crates nativos en macOS,
+Windows y Linux y construye APK de depuración Android y la aplicación del
+simulador iOS. Las comprobaciones completas se ejecutan en CI; `make desktop-check`
+sigue disponible para cambios locales concretos. **App release** adjunta
+instaladores, archivos de actualización firmados, un APK y un cask Homebrew a una
+versión estable ya publicada `v1.MINOR.PATCH` cuyo commit pertenece a `main`.
+No crea una versión de la plataforma. El cask es un archivo descargable; publicar
+un tap Homebrew es una operación separada. **Check for Updates…** requiere un
+build con la clave pública y verifica la firma antes de instalar.
+
+Configura el entorno GitHub `apps-release` antes de publicar:
+
+- Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secretos `TAURI_SIGNING_PRIVATE_KEY`
+  y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (pareja de claves persistente).
+- macOS: `APPLE_CERTIFICATE` (P12 en base64), `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (contraseña de aplicación)
+  y `APPLE_TEAM_ID` para firma Developer ID y notarización.
+- Authenticode Windows opcional: `WINDOWS_CERTIFICATE_BASE64` (PFX) y
+  `WINDOWS_CERTIFICATE_PASSWORD`. Sin ellos, el instalador queda sin firmar.
+- Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Conserva el keystore para actualizar.
+- TestFlight: repository variable del repositorio `AGENTICOS_TESTFLIGHT_ENABLED=true`; secretos
+  `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROFILES_BASE64_JSON`
+  (array JSON de perfiles base64 para aplicación, widgets y extensión de compartir),
+  `APP_STORE_CONNECT_KEY_P8`, `APP_STORE_CONNECT_KEY_ID`,
+  `APP_STORE_CONNECT_ISSUER_ID`, `APPLE_TEAM_ID`. Crea primero los identificadores,
+  el App Group compartido y la aplicación en App Store Connect. Push sigue
+  requiriendo las credenciales APNs existentes del despliegue.
+
+Las credenciales de tienda permanecen en CI; los jobs borran archivos temporales
+de firma. TestFlight está desactivado hasta habilitarlo explícitamente. La
+aprobación de tienda, provisioning y entrega firmada a dispositivos requieren
+cuentas del operador; no pueden verificarse con un build local sin firma.
+
 
 ## Resumen { #recap }
 

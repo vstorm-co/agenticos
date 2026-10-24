@@ -337,6 +337,9 @@ const isLocalMode = (value: unknown): value is LocalMode =>
 export interface LocalTarget {
   folder: string;
   mode: LocalMode;
+  browser?: boolean;
+  model_service?: string | null;
+  mcp_services?: string[];
 }
 
 /** A folder the person allowed their agents to work in, and the most they may do there. */
@@ -375,4 +378,82 @@ export async function pickLocalFolder(mode: LocalMode): Promise<LocalGrant | nul
 
 export async function revokeLocalFolder(path: string): Promise<LocalState> {
   return parseLocalState(await invokeShell("local_revoke", { path }));
+}
+
+/** A file or folder in a granted folder, as the app lists it for the chat's file panel. */
+export interface LocalFile {
+  path: string;
+  size: number | null;
+  is_dir: boolean;
+  /** Seconds since the epoch. */
+  modified: number | null;
+}
+
+const isNumberOrNull = (value: unknown): value is number | null =>
+  value === null || typeof value === "number";
+
+function parseLocalFile(value: unknown): LocalFile {
+  const fields = record(value, "a local file");
+  return {
+    path: field(fields, "path", isString),
+    size: field(fields, "size", isNumberOrNull),
+    is_dir: field(fields, "is_dir", isBoolean),
+    modified: field(fields, "modified", isNumberOrNull),
+  };
+}
+
+/** What is in a folder the person granted, newest first; refused for any other. */
+export async function listLocalFiles(root: string): Promise<LocalFile[]> {
+  const answer = await invokeShell("local_files", { root });
+  if (!Array.isArray(answer)) throw new ShellError("malformed", "a folder's files");
+  return answer.map(parseLocalFile);
+}
+
+/** One file in a granted folder, as bytes. */
+export async function readLocalFile(root: string, path: string): Promise<Uint8Array<ArrayBuffer>> {
+  const answer = await invokeShell("local_file", { root, path });
+  if (typeof answer !== "string") throw new ShellError("malformed", "a file");
+  return Uint8Array.from(atob(answer), (char) => char.charCodeAt(0));
+}
+
+export interface LocalService {
+  id: string;
+  name: string;
+  kind: "model" | "mcp";
+  endpoint: string;
+  model: string | null;
+}
+
+function parseLocalService(value: unknown): LocalService {
+  const fields = record(value, "a local service");
+  const kind = fields.kind;
+  if (kind !== "model" && kind !== "mcp") throw new ShellError("malformed", "a service kind");
+  return {
+    id: field(fields, "id", isString),
+    name: field(fields, "name", isString),
+    kind,
+    endpoint: field(fields, "endpoint", isString),
+    model: field(
+      fields,
+      "model",
+      (value): value is string | null => value === null || isString(value),
+    ),
+  };
+}
+
+function parseLocalServices(value: unknown): LocalService[] {
+  if (!Array.isArray(value)) throw new ShellError("malformed", "local services");
+  return value.map(parseLocalService);
+}
+
+export async function getLocalServices(): Promise<LocalService[]> {
+  return parseLocalServices(await invokeShell("local_services"));
+}
+
+export async function saveLocalService(service: LocalService): Promise<LocalService[]> {
+  return parseLocalServices(await invokeShell("local_save_service", { service }));
+}
+
+export async function removeLocalService(id: string): Promise<LocalService[]> {
+  return parseLocalServices(await invokeShell("local_remove_service", { id }));
 }

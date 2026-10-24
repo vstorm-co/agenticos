@@ -37,6 +37,8 @@ pub struct Settings {
     /// The folders the person allowed their agents to work in on this computer.
     #[serde(default)]
     pub local_grants: Vec<Grant>,
+    #[serde(default)]
+    pub local_services: Vec<crate::local_services::Service>,
 }
 
 /// A stack the app set up on this machine, or an organization's server.

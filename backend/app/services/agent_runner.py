@@ -3307,6 +3307,37 @@ class AgentRunnerService:
             on_wait=on_sandbox_wait,
             local=local,
         )
+        if local is not None and (
+            local.model_service is not None or local.mcp_services or local.browser
+        ):
+            # _open_local has authenticated the actual sender and resolved only
+            # their own paired session before any local service is contacted.
+            from app.services.device_hub import (
+                DeviceWorkspace,
+                describe_service,
+                local_mcp_toolset,
+                local_model_spec,
+            )
+
+            if workspace is None or not isinstance(workspace.workspace.backend, DeviceWorkspace):
+                raise BadRequestError(message="Local services require your own connected computer")
+            session_id = workspace.workspace.backend.session_id
+            if local.browser:
+                resources["local_browser_session"] = session_id
+            if local.model_service is not None:
+                if voice is not None:
+                    raise BadRequestError(
+                        message="Local models are available for text conversations"
+                    )
+                service = await describe_service(session_id, local.model_service, "model")
+                model_spec = local_model_spec(model_spec, session_id, service)
+                run.model_label = model_spec.label
+                run.provider = model_spec.provider
+                run.secret_id = None
+            for service_id in dict.fromkeys(local.mcp_services):
+                service = await describe_service(session_id, service_id, "mcp")
+                spec_toolsets.append(local_mcp_toolset(session_id, service))
+
         # What a call's realtime model is told: the briefings below describe a
         # workspace and skill files only its text twin can reach.
         spoken_spec = spec

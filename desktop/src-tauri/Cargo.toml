@@ -39,6 +39,7 @@ futures-util = { version = "0.3.34", default-features = false, features = ["sink
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 tokio = { version = "1.53.3", features = ["time", "sync", "macros", "rt", "process", "io-util", "fs"] }
 tauri-plugin-dialog = "2.7.3"
+tauri-plugin-updater = "2"
 xcap = "0.9.8"
 enigo = "0.6.1"
 image = { version = "0.25", default-features = false, features = ["png"] }

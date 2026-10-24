@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAC_MAIN } from "@/components/desktop/fixtures";
 import type { ShellInfo } from "@/lib/desktop/shell";
 
+import { useLiveCallStore } from "@/stores/live-call-store";
+
 import { MobileBridge } from "./mobile-bridge";
 
 const PHONE: ShellInfo = { platform: "ios", version: "0.1.0", window: "main", vibrancy: false };
@@ -17,6 +19,8 @@ const env = vi.hoisted(() => ({
   runs: [] as unknown[],
   agents: [] as unknown[],
   runsQuery: undefined as unknown,
+  spend: undefined as { month_to_date_usd: string } | undefined,
+  cap: null as string | null,
   decide: { mutate: vi.fn() },
   listeners: new Map<string, (payload: unknown) => void>(),
   push: vi.fn(),
@@ -44,6 +48,7 @@ const env = vi.hoisted(() => ({
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
 vi.mock("@/hooks/use-runs", () => ({
+  useSpend: () => ({ spend: env.spend }),
   useApprovals: () => ({
     approvals: env.approvals,
     total: env.approvals.length,
@@ -56,8 +61,12 @@ vi.mock("@/hooks/use-runs", () => ({
     return { runs: env.runs, total: env.runs.length, isLoading: env.loading, error: null };
   },
 }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useOrganizationList: () => ({ data: [{ id: "o1", monthly_budget_usd: env.cap }] }),
+}));
 vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents: env.agents }) }));
 vi.mock("@/stores", () => ({
+  useOrgStore: (pick: (state: { activeOrgId: string }) => unknown) => pick({ activeOrgId: "o1" }),
   useAuthStore: (pick: (state: unknown) => unknown) => pick({ user: { id: "u1" } }),
   useComposerIntentStore: (pick: (state: unknown) => unknown) =>
     pick({ request: env.request, share: env.share }),
@@ -102,6 +111,7 @@ const approval = (id: string, extra = {}) => ({
 const run = (id: string, extra = {}) => ({
   id,
   agent_id: "a",
+  status: "running",
   started_at: "2026-10-21T10:00:00Z",
   ...extra,
 });
@@ -115,7 +125,10 @@ beforeEach(() => {
     agents: [{ id: "a", name: "Support" }],
     loading: false,
     failed: null,
+    cap: null,
+    spend: undefined,
   });
+  useLiveCallStore.getState().set(null);
   env.listeners.clear();
   vi.clearAllMocks();
   env.take.mockImplementation(async () => null);
@@ -141,7 +154,11 @@ describe("MobileBridge", () => {
     env.approvals = [approval("ap1"), approval("ap2", { agent_name: null })];
     env.runs = [run("r1"), run("r2", { agent_id: "unknown", started_at: null })];
     mount();
-    expect(env.runsQuery).toMatchObject({ statuses: ["running"], userId: "u1", enabled: true });
+    expect(env.runsQuery).toMatchObject({
+      statuses: ["running", "awaiting_answer"],
+      userId: "u1",
+      enabled: true,
+    });
     expect(env.show.mock.calls.map(([activity]) => activity)).toEqual([
       {
         id: "approval:ap1",
@@ -180,7 +197,51 @@ describe("MobileBridge", () => {
     env.loading = false;
     env.runs = [run("r1"), run("r2")];
     view.again();
-    expect(env.updateWidget).toHaveBeenCalledWith({ approvals: 1, running: 2 });
+    expect(env.updateWidget).toHaveBeenCalledWith({ approvals: 1, running: 2, budget_left: null });
+  });
+
+  it("shows voice calls and questions without counting them as running jobs", () => {
+    useLiveCallStore.getState().set({
+      callId: "c1",
+      runId: "voice-run",
+      agentId: "a",
+      conversationId: "chat1",
+      startedAt: 1000,
+      asking: true,
+    });
+    env.runs = [
+      run("voice-run"),
+      run("q1", { status: "awaiting_answer", conversation_id: "chat2" }),
+    ];
+    mount();
+    expect(env.show.mock.calls.map(([activity]) => activity)).toEqual([
+      expect.objectContaining({
+        id: "call:c1",
+        kind: "call",
+        path: "/chat?id=chat1",
+        startedAt: 1000,
+      }),
+      expect.objectContaining({ id: "question:q1", kind: "question", path: "/chat?id=chat2" }),
+    ]);
+    expect(env.updateWidget).toHaveBeenCalledWith({ approvals: 0, running: 1, budget_left: null });
+  });
+
+  it("publishes remaining budget, with no budget disclosure when access is denied", () => {
+    env.cap = "100";
+    env.spend = { month_to_date_usd: "25" };
+    const view = mount();
+    expect(env.updateWidget).toHaveBeenLastCalledWith({
+      approvals: 0,
+      running: 0,
+      budget_left: 75,
+    });
+    env.can = false;
+    view.again();
+    expect(env.updateWidget).toHaveBeenLastCalledWith({
+      approvals: 0,
+      running: 0,
+      budget_left: null,
+    });
   });
 
   it("leaves the widget's last counts alone when a read fails", () => {

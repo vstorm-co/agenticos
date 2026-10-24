@@ -19,6 +19,8 @@ mod console;
 mod context;
 mod device;
 mod dropped;
+mod local_browser;
+mod local_services;
 mod local_stack;
 mod local_work;
 mod managed;
@@ -28,6 +30,7 @@ mod quick_ask;
 mod screen;
 mod settings;
 mod shortcuts;
+mod updater;
 
 use std::fs;
 use std::io::ErrorKind;
@@ -853,6 +856,7 @@ impl ShellMenu {
             .then(|| Submenu::with_items(app, "New Chat With", true, &agent_items))
             .transpose()?;
         let quit = PredefinedMenuItem::quit(app, Some("Quit AgenticOS"))?;
+        let check_updates = MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?;
         let [start, stop, update] = &self.local;
         let local = Submenu::with_items(app, "AgenticOS on This Computer", true, &[start, stop, update])?;
         let (first, second, third) = (separator()?, separator()?, separator()?);
@@ -869,6 +873,7 @@ impl ShellMenu {
             &second,
             &self.settings,
             &self.change_server,
+            &check_updates,
             &third,
             &quit,
         ]);
@@ -888,6 +893,7 @@ impl ShellMenu {
                 &PredefinedMenuItem::about(app, Some("About AgenticOS"), None)?,
                 &separator()?,
                 &self.settings,
+                &MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?,
                 &self.change_server,
                 &separator()?,
                 &PredefinedMenuItem::services(app, None)?,
@@ -1071,6 +1077,16 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
     app.on_menu_event(|app, event| {
         let id = event.id().as_ref();
         let outcome = match id {
+            "check-updates" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = updater::check(app.clone()).await {
+                        use tauri_plugin_dialog::DialogExt;
+                        app.dialog().message(error).title("Update failed").show(|_| {});
+                    }
+                });
+                Ok(())
+            }
             NEW_CHAT => open_in_console_at(app, "/chat"),
             OPEN_CONSOLE => bring_console(app),
             SETTINGS => open_in_console_at(app, "/settings/profile"),
@@ -1151,6 +1167,14 @@ pub fn run() {
                 eprintln!("{e}");
             }
         }))
+        .manage(local_browser::Browsers::default())
+        .plugin({
+            let builder = tauri_plugin_updater::Builder::new();
+            match option_env!("AGENTICOS_UPDATER_PUBLIC_KEY") {
+                Some(key) if !key.is_empty() => builder.pubkey(key).build(),
+                _ => builder.build(),
+            }
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -1207,7 +1231,12 @@ pub fn run() {
             device::device_unlink,
             local_work::local_grants,
             local_work::local_pick_folder,
-            local_work::local_revoke
+            local_work::local_revoke,
+            local_work::local_files,
+            local_work::local_file,
+            local_services::local_services,
+            local_services::local_save_service,
+            local_services::local_remove_service
         ])
         .manage(PendingSignIn::default())
         .manage(console::Granted::default())

@@ -112,9 +112,9 @@ names no author is in the evidence column below.
 | executing | 2.2.1 | MIT | https://github.com/alexmojaki/executing | License field |
 | fastapi | 0.143.2 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.13.1 | MIT | https://github.com/fastavro/fastavro | License field |
-| fastmcp | 4.1.0 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
-| fastmcp-slim | 4.1.0 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
-| filelock | 3.32.6 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
+| fastmcp | 4.1.2 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
+| fastmcp-slim | 4.1.2 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
+| filelock | 4.2.1 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.7.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
 | genai-prices | 0.1.13 | MIT | https://github.com/pydantic/genai-prices | License-Expression |

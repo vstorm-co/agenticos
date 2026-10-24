@@ -1182,7 +1182,10 @@
           "read_only": "Agenten lesen hier Dateien; nichts wird geschrieben und kein Befehl läuft.",
           "workspace_write": "Agenten schreiben in diesem Ordner; Befehle laufen in einer Sandbox und können nirgendwo anders schreiben.",
           "full_access": "Befehle laufen als Sie, und jeder fragt Sie vorher."
-        }
+        },
+        "model": "Modell für diesen Chat",
+        "agentModel": "Konfiguriertes Modell des Agenten",
+        "localBrowser": "Auf diesem Computer browsen (separates Profil)"
       }
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
@@ -1278,7 +1281,8 @@
       "showWithCount": "Die Dateien anzeigen ({count})",
       "storedSuffix": "{size} gespeichert",
       "title": "Dateien",
-      "beforeStart": "Dateien, die Sie anhängen, und Dateien, die der Agent schreibt, erscheinen hier, sobald das Gespräch beginnt."
+      "beforeStart": "Dateien, die Sie anhängen, und Dateien, die der Agent schreibt, erscheinen hier, sobald das Gespräch beginnt.",
+      "onThisComputer": "In {folder} auf diesem Computer"
     },
     "generateShareLink": "Freigabelink erzeugen",
     "helpful": "Hilfreich",
@@ -2932,7 +2936,9 @@
       "left": "{count, plural, =1 {Noch 1 Schritt} other {Noch # Schritte}}",
       "ratio": "{done}/{total}",
       "start": "Loslegen",
-      "doneHeading": "Schon erledigt"
+      "doneHeading": "Schon erledigt",
+      "showAll": "Alle Schritte anzeigen ({count})",
+      "showLess": "Weniger Schritte anzeigen"
     },
     "views": {
       "label": "Dashboard-Ansicht",
@@ -3039,6 +3045,7 @@
     "pushOnHint": "Dieses Gerät erhält Push-Benachrichtigungen"
   },
   "errors": {
+    "localFolderRequired": "Wähle zuerst einen lokalen Ordner aus.",
     "authorizationFailed": "Autorisierung fehlgeschlagen",
     "avatarNotAvailable": "Avatar nicht verfügbar",
     "backendUnavailable": "Backend-Dienst nicht verfügbar",
@@ -8711,6 +8718,20 @@
         "unlink": "Trennen",
         "linkFailed": "Dieser Computer konnte nicht verbunden werden.",
         "unlinkFailed": "Dieser Computer konnte nicht getrennt werden."
+      },
+      "services": {
+        "title": "Lokale Modelle und MCP",
+        "description": "Verbinde Dienste auf diesem Computer. Die App fragt für jede Verbindung nach deiner Zustimmung; wähle sie im Chat unter Arbeitsort. Modelle nutzen einen OpenAI-kompatiblen /v1-Endpunkt, MCP nutzt Streamable HTTP.",
+        "kind": "Diensttyp",
+        "modelKind": "Lokales Modell (Ollama, LM Studio)",
+        "mcpKind": "Lokaler MCP-Server (HTTP)",
+        "name": "Name",
+        "endpoint": "Loopback-Adresse",
+        "model": "ID des installierten Modells",
+        "remove": "Entfernen",
+        "removeNamed": "{name} entfernen",
+        "add": "Dienst verbinden",
+        "confirm": "In der App bestätigen…"
       }
     }
   },

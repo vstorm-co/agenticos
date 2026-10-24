@@ -21,6 +21,9 @@ from app.services.device_hub.exceptions import (
     DeviceCallTimedOut,
     DeviceUnavailable,
 )
+from app.services.device_hub.services import describe as describe_service
+from app.services.device_hub.services import mcp_toolset as local_mcp_toolset
+from app.services.device_hub.services import model_spec as local_model_spec
 from app.services.device_hub.workspace import DeviceWorkspace
 
 __all__ = [
@@ -37,6 +40,9 @@ __all__ = [
     "call",
     "configure",
     "connected",
+    "describe_service",
+    "local_mcp_toolset",
+    "local_model_spec",
     "serve",
     "wait_for",
 ]

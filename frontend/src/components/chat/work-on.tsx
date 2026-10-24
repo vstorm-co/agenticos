@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Cloud, FolderOpen, Laptop, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { useDeviceStatus, useLocalFolders } from "@/hooks/use-desktop";
+import { useDeviceStatus, useLocalFolders, useLocalServices } from "@/hooks/use-desktop";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { useShell } from "@/hooks/use-shell";
 import type { LocalMode } from "@/lib/desktop/commands";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function WorkOn() {
   const shell = useShell();
   const { data: device } = useDeviceStatus();
   const { state, pick, revoke } = useLocalFolders();
+  const services = useLocalServices().state.data ?? [];
   const conversationId = useConversationStore((store) => store.currentConversationId);
   const target = useWorkOnStore((store) => store.targetFor(conversationId));
   const setTarget = useWorkOnStore((store) => store.set);
@@ -43,7 +45,7 @@ export function WorkOn() {
     if (conversationId !== null) adopt(conversationId);
   }, [conversationId, adopt]);
 
-  if (shell === null) return null;
+  if (!isDesktopShell(shell)) return null;
   const linked = device?.linked === true;
   const grants = state.data?.grants ?? [];
   const modes = state.data?.modes ?? [];
@@ -138,6 +140,64 @@ export function WorkOn() {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {target !== null && (
+            <label className="flex min-h-10 items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={target.browser ?? false}
+                onChange={(event) =>
+                  setTarget(conversationId, { ...target, browser: event.target.checked })
+                }
+              />
+              {t("localBrowser")}
+            </label>
+          )}
+          {target !== null && services.length > 0 && (
+            <div className="space-y-2 py-2">
+              <label className="block text-xs">
+                {t("model")}
+                <select
+                  aria-label={t("model")}
+                  value={target.model_service ?? ""}
+                  className="border-input bg-background mt-1 h-10 w-full rounded-md border px-2"
+                  onChange={(event) =>
+                    setTarget(conversationId, {
+                      ...target,
+                      model_service: event.target.value || null,
+                    })
+                  }
+                >
+                  <option value="">{t("agentModel")}</option>
+                  {services
+                    .filter((service) => service.kind === "model")
+                    .map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name} · {service.model}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {services
+                .filter((service) => service.kind === "mcp")
+                .map((service) => (
+                  <label key={service.id} className="flex min-h-10 items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={(target.mcp_services ?? []).includes(service.id)}
+                      onChange={(event) =>
+                        setTarget(conversationId, {
+                          ...target,
+                          mcp_services: event.target.checked
+                            ? [...(target.mcp_services ?? []), service.id]
+                            : (target.mcp_services ?? []).filter((id) => id !== service.id),
+                        })
+                      }
+                    />
+                    {service.name}
+                  </label>
+                ))}
             </div>
           )}
           <div className="flex flex-wrap items-center gap-1 pt-1">
