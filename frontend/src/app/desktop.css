@@ -93,22 +93,21 @@
   cursor: default;
 }
 
-/* The title bar: on macOS the window's traffic lights sit inside the sidebar's
-   header, so the header leaves them room, and the rail widens just enough to
-   hold them when collapsed. The shell places the lights at (18, 22). */
-:root[data-shell="macos"][data-shell-window="main"] [data-titlebar] {
-  padding-inline-start: 5.25rem;
+/* Keep the native controls above the brand and navigation, with a draggable
+   surface of their own. The shell places the lights at (18, 22). */
+.macos-window-controls {
+  display: none;
 }
 
+:root[data-shell="macos"][data-shell-window="main"] .macos-window-controls {
+  display: block;
+  flex-shrink: 0;
+  block-size: 3rem;
+}
+
+/* The three native controls must still fit when navigation becomes a rail. */
 :root[data-shell="macos"][data-shell-window="main"] aside[data-collapsed] {
   width: 5.25rem;
-}
-
-:root[data-shell="macos"][data-shell-window="main"] aside[data-collapsed] [data-titlebar] {
-  height: auto;
-  min-height: 3.5rem;
-  padding-block: 2.75rem 0.5rem;
-  padding-inline: 0;
 }
 
 /* A strip along the top of the content the window is dragged by, as a
