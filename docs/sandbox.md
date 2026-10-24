@@ -587,3 +587,5 @@ its tombstones are forgotten, and how many goes in the audit log.
   and never a payload, and outlives the agent.
 - **Files are kept indefinitely** unless you set `SANDBOXD_WORKSPACE_TTL`. Disk use
   only grows.
+
+The `state` backend counts files and empty directories against its storage ceiling, including the final concurrent merge. If individually accepted snapshots cannot fit together, the shared document stays unchanged and the later snapshot is committed as a recovery copy in **Documents**. The run records a failure with the recovery workspace ID; a project mutation returns a conflict instead of success. Project copies require both view and use access. A source foreign key removes each copy when its source is deleted, including concurrent erasure. Lowering the setting below an existing document still allows that document to shrink.

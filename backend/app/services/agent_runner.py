@@ -294,6 +294,7 @@ from app.services.sandbox_workspace import (
     OpenWorkspace,
     SandboxWaitSink,
     SandboxWorkspaceService,
+    WorkspaceFlushFailure,
     project_sandbox,
 )
 from app.services.skill_proposal import SkillProposalService
@@ -4551,13 +4552,23 @@ class AgentRunnerService:
 
         # Before the run row is written, so a workspace flush that fails cannot
         # leave the run un-finished, and after the run has certainly stopped
-        # using it. `close` never raises; it logs.
+        # using it. `close` reports a typed failure without replacing accounting.
         # A parked run keeps its spills: the history it resumes from names them -
         # parked on an approval or on a question to the person alike.
-        await self.workspaces.close(
+        workspace_result = await self.workspaces.close(
             prepared.workspace,
             keep_spills=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
         )
+
+        if isinstance(workspace_result, WorkspaceFlushFailure):
+            error = "; ".join(part for part in (error, workspace_result.error.message) if part)
+            if status in (
+                RunStatus.COMPLETED,
+                RunStatus.AWAITING_APPROVAL,
+                RunStatus.AWAITING_ANSWER,
+            ):
+                status = RunStatus.FAILED
+                paused_state = None
 
         # The approval rows the run parked, written here rather than while it ran:
         # parking on the channel is deferred off the shared session so two gated
@@ -5816,6 +5827,9 @@ class AgentRunnerService:
                     paused_state=paused,
                     budget_scope=budget_scope,
                 )
+                if prepared.run.status == RunStatus.FAILED.value:
+                    status = RunStatus.FAILED
+                    paused = None
                 # So a run that failed, parked or was stopped still says what was
                 # asked and what it managed to do.
                 await self.transcript.record(

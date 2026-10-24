@@ -75,6 +75,11 @@ from tests.workspaces import document_workspace
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def no_project_recovery_copies(monkeypatch):
+    monkeypatch.setattr(workspace_repo, "project_recovery_candidates", AsyncMock(return_value=[]))
+
+
 def _ctx(organization_id: UUID | None = None) -> AuthContext:
     return AuthContext(
         user_id=uuid4(),
@@ -903,7 +908,7 @@ class TestOpeningAndClosing:
 
         assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
         # Held to the commit, so a second flush waits and merges onto this one.
-        assert mock_db_session.get.await_args.kwargs["with_for_update"] is True
+        assert mock_db_session.get.await_args.kwargs["with_for_update"] == {"key_share": True}
 
     async def test_a_turn_that_wrote_nothing_stores_nothing(self, monkeypatch, mock_db_session):
         """Storing it anyway rewrote the whole column, and its WAL, every message."""
