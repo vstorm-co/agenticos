@@ -6076,9 +6076,17 @@ class TestAFailedRunOverTheApi:
 
 class TestPerRunLocalServices:
     @pytest.mark.anyio
-    @pytest.mark.parametrize("connected, voice_call", [(True, False), (False, False), (True, True)])
+    @pytest.mark.parametrize(
+        "connected, voice_call, model_selected, browser_selected",
+        [
+            (True, False, True, True),
+            (False, False, True, True),
+            (True, True, True, True),
+            (True, False, False, False),
+        ],
+    )
     async def test_native_services_use_only_the_resolved_workspace_session(
-        self, connected: bool, voice_call: bool
+        self, connected: bool, voice_call: bool, model_selected: bool, browser_selected: bool
     ):
         from app.agents.voice import VoiceOptions
         from app.schemas.local_target import LocalTarget
@@ -6099,7 +6107,10 @@ class TestPerRunLocalServices:
         ctx = _ctx()
         session = uuid.uuid4()
         target = LocalTarget(
-            folder="/approved", model_service="model", mcp_services=["files", "files"], browser=True
+            folder="/approved",
+            model_service="model" if model_selected else None,
+            mcp_services=["files", "files"],
+            browser=browser_selected,
         )
         assert ctx.user_id is not None
         workspace = (
@@ -6121,7 +6132,11 @@ class TestPerRunLocalServices:
         resolved_model = MagicMock(label="Local model", provider="ollama", secret_id=None)
         describe = AsyncMock(
             side_effect=[
-                LocalService(id="model", name="Model", kind="model", model="installed"),
+                *(
+                    [LocalService(id="model", name="Model", kind="model", model="installed")]
+                    if model_selected
+                    else []
+                ),
                 LocalService(id="files", name="Files", kind="mcp"),
             ]
         )
@@ -6135,9 +6150,12 @@ class TestPerRunLocalServices:
                 service.models,
                 "resolve",
                 new=AsyncMock(
+                    return_value=resolved_model,
                     side_effect=AssertionError(
                         "Cloud credentials must not be opened for a local model"
                     )
+                    if model_selected
+                    else None,
                 ),
             ),
             patch.object(
@@ -6167,13 +6185,17 @@ class TestPerRunLocalServices:
                 return
             await service.prepare(ctx, agent.id, local=target)
         assert [call.args for call in describe.await_args_list] == [
-            (session, "model", "model"),
+            *([(session, "model", "model")] if model_selected else []),
             (session, "files", "mcp"),
         ]
         assert build.call_args.args[1] is resolved_model
-        assert build.call_args.kwargs["resources"]["local_browser_session"] == session
+        if browser_selected:
+            assert build.call_args.kwargs["resources"]["local_browser_session"] == session
+        else:
+            assert "local_browser_session" not in build.call_args.kwargs["resources"]
         assert tools.return_value in build.call_args.kwargs["extra_toolsets"]
-        assert run.model_label == "Local model" and run.secret_id is None
+        if model_selected:
+            assert run.model_label == "Local model" and run.secret_id is None
 
     @pytest.mark.anyio
     async def test_a_resumed_local_workspace_belongs_to_the_initiator(self):

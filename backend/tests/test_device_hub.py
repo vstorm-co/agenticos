@@ -211,3 +211,20 @@ async def test_each_operation_rechecks_the_session_before_reaching_the_computer(
         answer = json.loads(redis.raw.publish.call_args.args[1])
         assert answer["id"] == "request" and answer["ok"] is False
     read.assert_awaited_once()
+
+
+async def test_waiting_selects_the_requested_computer_and_stops_on_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user, selected = uuid4(), uuid4()
+    device = _hub.Device(user_id=user, session_id=selected, platform="macos")
+    other = _hub.Device(user_id=user, session_id=uuid4(), platform="linux")
+    connected = AsyncMock(side_effect=[[device], [other], [other, device]])
+    monkeypatch.setattr(_hub, "connected", connected)
+    monkeypatch.setattr(_hub, "WAIT_POLL_SECONDS", 0)
+    assert await _hub.wait_for(user, selected, timeout=1) is device
+    assert await _hub.wait_for(user, selected, timeout=1) is device
+    connected.return_value = []
+    connected.side_effect = None
+    assert await _hub.wait_for(user, selected, timeout=0) is None
+    assert await _hub.wait_for(user, selected, timeout=0.001) is None

@@ -1,5 +1,6 @@
 """Desktop take-over preserves the holder's identity and native coordinates."""
 
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -149,3 +150,46 @@ async def test_local_screen_failures_have_actionable_errors(
     monkeypatch.setattr(_backends, "call", AsyncMock(side_effect=error))
     with pytest.raises(ComputerError, match=message):
         await _backends.LocalComputer(uuid4()).capture()
+
+
+@pytest.mark.parametrize(
+    "backend,on_device,key",
+    [
+        ("local", False, ""),
+        ("auto", True, ""),
+        ("e2b", False, "tenant-key"),
+        ("auto", False, "tenant-key"),
+    ],
+)
+async def test_the_capability_selects_the_chosen_native_or_e2b_desktop(
+    monkeypatch: pytest.MonkeyPatch,
+    backend: Literal["local", "auto", "e2b"],
+    on_device: bool,
+    key: str,
+) -> None:
+    from uuid import uuid4
+
+    from pydantic_ai.workspaces import Workspace
+    from pydantic_ai_backends import StateBackend
+
+    from app.agents.capabilities.computer_use import ComputerUse, _capability
+    from app.schemas.local_target import LocalTarget
+    from app.services.device_hub import DeviceWorkspace
+
+    workspace = Workspace(
+        DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="/approved"))
+        if on_device
+        else StateBackend()
+    )
+    desktop = MagicMock()
+    native, hosted = MagicMock(return_value=desktop), AsyncMock(return_value=desktop)
+    monkeypatch.setattr(_capability, "open_local_desktop", native)
+    monkeypatch.setattr(_capability, "open_e2b_desktop", hosted)
+    result = await ComputerUse(backend=backend, daemon_token=key)._open(workspace)
+    assert result is desktop
+    if key:
+        hosted.assert_awaited_once_with(key, width=1280, height=800)
+        native.assert_not_called()
+    else:
+        native.assert_called_once_with(workspace)
+        hosted.assert_not_called()

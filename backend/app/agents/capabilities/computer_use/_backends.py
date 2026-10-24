@@ -321,6 +321,23 @@ def _error_text(response: httpx.Response) -> str:
 E2B_DESKTOP_TEMPLATE = "desktop"
 """E2B's own desktop template: Xvfb, XFCE, xdotool and scrot, what `SandboxComputer` drives."""
 
+E2B_CLEANUP_SECONDS = 10.0
+
+
+async def _release_e2b(provider: E2BWorkspace, workspace: Workspace) -> None:
+    ref = workspace.ref
+    if ref is None:
+        return
+    # Cleanup must survive cancellation without masking why opening or using
+    # the desktop failed, or holding the run open on an unavailable provider.
+    with anyio.move_on_after(E2B_CLEANUP_SECONDS, shield=True) as cleanup:
+        try:
+            await provider.destroy(ref)
+        except Exception:
+            logger.warning("e2b desktop not killed", exc_info=True)
+    if cleanup.cancel_called:
+        logger.warning("e2b desktop cleanup timed out")
+
 
 class E2BComputer:
     """An E2B desktop of the run's own, driven as the sandbox desktop is, and killed after."""
@@ -342,15 +359,7 @@ class E2BComputer:
 
     async def close(self) -> None:
         """Kill the sandbox: nothing else ends it before its lifetime runs out, on their bill."""
-        ref = self._workspace.ref
-        if ref is None:
-            return
-        try:
-            await self._provider.destroy(ref)
-        except Exception:
-            # Best effort, like a Daytona sandbox's release: E2B pauses it at the
-            # end of its lifetime anyway, and the run's answer must not hang on it.
-            logger.warning("e2b desktop not killed", exc_info=True)
+        await _release_e2b(self._provider, self._workspace)
 
 
 async def open_e2b_desktop(api_key: str, *, width: int, height: int) -> E2BComputer:
@@ -368,10 +377,8 @@ async def open_e2b_desktop(api_key: str, *, width: int, height: int) -> E2BCompu
     workspace = Workspace(provider.backend(None))
     try:
         desktop = await open_sandbox_desktop(workspace, width=width, height=height)
-    except ComputerError:
-        ref = workspace.ref
-        if ref is not None:
-            await provider.destroy(ref)
+    except BaseException:
+        await _release_e2b(provider, workspace)
         raise
     return E2BComputer(provider, workspace, desktop)
 

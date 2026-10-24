@@ -1481,3 +1481,54 @@ class TestPublishingADesktopInTheSandbox:
         self, binding: dict[str, Any]
     ):
         assert await self._problems(self._spec(binding)) == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failed_after_release", [False, True])
+async def test_live_takeover_discards_the_agents_old_coordinates(
+    monkeypatch: pytest.MonkeyPatch, failed_after_release: bool
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.agents.capabilities.computer_use import _toolset as module
+    from app.services.live_browse import BrowserCommand
+
+    desktop = _Desktop(size=(100, 80), native=(100, 80))
+    chat = _Frames()
+    ctx = _ctx(chat)
+    ctx.deps.organization_id = uuid4()
+    ctx.deps.user_id = str(uuid4())
+    owner = ctx.deps.user_id
+
+    async def give_back(_timeout: float) -> BrowserCommand:
+        desktop.blind = failed_after_release
+        return BrowserCommand(type="give_back", by_user_id=owner)
+
+    control = MagicMock(
+        poll=AsyncMock(return_value=BrowserCommand(type="take_over", by_user_id=owner)),
+        wait=AsyncMock(side_effect=give_back),
+    )
+    opened, published = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(module.live_browse, "available", lambda: True)
+    monkeypatch.setattr(module.live_browse, "open_view", opened)
+    monkeypatch.setattr(module.live_browse, "publish", published)
+    monkeypatch.setattr(module.live_browse, "LiveControl", lambda _run, _call: control)
+    toolset = _toolset(desktop, ToolPolicy(preview=not failed_after_release))
+    tools = {name: tool.function for name, tool in toolset.tools.items()}
+    async with toolset:
+        await tools["computer_screenshot"](ctx)
+        answer = await tools["computer_act"](ctx, [Click(x=10, y=10)])
+        if failed_after_release:
+            assert answer == "The desktop did not return a screenshot."
+        else:
+            assert module.TOLD in _said(answer)[0]
+    assert desktop.performed == []
+    assert desktop.closed == 1
+    metadata = opened.await_args.args[2]
+    assert metadata.organization_id == ctx.deps.organization_id
+    assert metadata.user_id == ctx.deps.user_id
+    assert metadata.personal is False
+    kinds = [call.args[2].kind for call in published.await_args_list]
+    assert "browser_held" in kinds and "browser_released" in kinds
+    assert kinds[-1] == "browser_finished"
+    assert bool(chat.events) is not failed_after_release

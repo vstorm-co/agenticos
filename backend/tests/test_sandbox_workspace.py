@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -5297,8 +5297,9 @@ class TestLocalDeviceSelection:
         wait.assert_not_called()
 
     @pytest.mark.parametrize("back", [True, False])
+    @pytest.mark.parametrize("notify", [True, False])
     async def test_wait_state_is_cleared_on_reconnect_or_timeout(
-        self, back, monkeypatch, mock_db_session
+        self, back, notify, monkeypatch, mock_db_session
     ):
         from app.schemas.local_target import LocalTarget
         from app.services import device_hub
@@ -5307,7 +5308,7 @@ class TestLocalDeviceSelection:
         device = device_hub.Device(session_id=uuid4(), user_id=ctx.user_id, platform="macos")
         wait = AsyncMock(side_effect=[None, device if back else None])
         monkeypatch.setattr(device_hub, "wait_for", wait)
-        sink = AsyncMock()
+        sink = AsyncMock() if notify else None
         service = SandboxWorkspaceService(mock_db_session)
         if back:
             result = await service._open_local(ctx, LocalTarget(folder="/approved"), on_wait=sink)
@@ -5315,4 +5316,17 @@ class TestLocalDeviceSelection:
         else:
             with pytest.raises(BadRequestError, match="not connected"):
                 await service._open_local(ctx, LocalTarget(folder="/approved"), on_wait=sink)
-        assert [call.args for call in sink.await_args_list] == [(True,), (False,)]
+        if sink is not None:
+            assert [call.args for call in sink.await_args_list] == [(True,), (False,)]
+
+
+@pytest.mark.parametrize("runtime", [None, "chosen-template"])
+def test_an_e2b_sandbox_connection_supplies_its_own_key_and_template(runtime: str | None) -> None:
+    with patch("app.services.sandbox_workspace.E2BWorkspace") as factory:
+        result = SandboxWorkspaceService._service_capability(
+            _resolved(kind="e2b", default_runtime="desktop", token="tenant-key"),
+            "scope",
+            runtime=runtime,
+        )
+    assert result is factory.return_value
+    factory.assert_called_once_with(api_key="tenant-key", template=runtime or "desktop")
