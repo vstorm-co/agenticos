@@ -22,6 +22,7 @@ result carries what each half actually removed.
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -377,7 +378,7 @@ class MemoryService:
                     target = _Mem0Target(
                         held_id,
                         UUID(str(binding["secret_id"])),
-                        _mem0_base_url({"capabilities": [binding]}),
+                        _mem0_base_url(binding),
                     )
                     bindings[target] = None
         return list(bindings)
@@ -410,11 +411,10 @@ def _capabilities(spec: dict[str, Any]) -> list[dict[str, Any]]:
     return [binding for binding in capabilities if isinstance(binding, dict)]
 
 
-def _mem0_base_url(spec: dict[str, Any]) -> str | None:
-    for binding in _capabilities(spec):
-        if binding.get("id") == MEMORY_MEM0_CAPABILITY_ID:
-            config = binding.get("config")
-            if isinstance(config, dict):
-                url = config.get("base_url")
-                return url if isinstance(url, str) else None
-    return None
+def _mem0_base_url(binding: Mapping[str, object]) -> str | None:
+    """The URL declared by an already selected mem0 binding, if it has one."""
+    config = binding.get("config")
+    if not isinstance(config, dict):
+        return None
+    url = config.get("base_url")
+    return url if isinstance(url, str) else None
