@@ -99,7 +99,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   });
   let train = 0,
     holdout = 0;
-  for (let n = 0; n < 40 && (train < 3 || holdout < 3); n++) {
+  for (let n = 0; n < 40 && (train < 3 || holdout < 5); n++) {
     const question = await write(api, "post", `/datasets/${id(dataset)}/cases`, headers, {
       input: `Return policy question ${n + 1}`,
       checks: [{ type: "equals", value: "PONG-IMPROVEMENT-AFTER" }],
@@ -108,7 +108,7 @@ test("test questions, review and improvement publish keep a guarded environment 
     else holdout++;
   }
   expect(train).toBeGreaterThanOrEqual(3);
-  expect(holdout).toBeGreaterThanOrEqual(3);
+  expect(holdout).toBeGreaterThanOrEqual(5);
   const initial = await write(api, "post", `/agents/${id(agent)}/eval-runs`, headers, {
     dataset_id: id(dataset),
     reruns: 0,
@@ -118,6 +118,20 @@ test("test questions, review and improvement publish keep a guarded environment 
       timeout: 90_000,
     })
     .toBe("completed");
+  await page.goto("/datasets");
+  await expect(page.getByText(String(dataset.name), { exact: true })).toBeVisible();
+  await capture(page, info, "datasets");
+  await page.goto(`/agents/${id(agent)}?tab=evals`);
+  await expect(page.getByText(String(dataset.name), { exact: false }).first()).toBeVisible();
+  await capture(page, info, "agent-evals");
+  const judge = await write(api, "post", "/agents/system", headers, {
+    kind: "judge",
+    name: `Policy grader ${stamp}`,
+    model_profile_id: id(model),
+  });
+  await page.goto(`/agents/${id(judge)}`);
+  await expect(page.getByRole("heading", { name: String(judge.name), exact: false })).toBeVisible();
+  await capture(page, info, "judge");
   await page.goto(`/datasets/${id(dataset)}`);
   await expect(
     page.getByRole("heading", { name: String(dataset.name), exact: true }),
@@ -126,6 +140,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   await capture(page, info, "dataset-cases");
   await page.getByRole("button", { name: /^Return policy question 1\b/ }).click();
   const editor = page.getByRole("dialog");
+  await editor.getByRole("button", { name: "Edit case", exact: true }).click();
   await expect(editor.getByLabel("Input", { exact: true })).toHaveValue("Return policy question 1");
   expect(
     await editor
@@ -134,6 +149,8 @@ test("test questions, review and improvement publish keep a guarded environment 
   ).toBeGreaterThanOrEqual(16);
   await capture(page, info, "case-editor");
   await editor.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("tab", { name: /Generated/ }).click();
+  await capture(page, info, "dataset-generated");
   await page.getByRole("tab", { name: "Grading", exact: true }).click();
   await capture(page, info, "dataset-grading");
   await page.getByRole("tab", { name: "Review", exact: true }).click();
@@ -164,9 +181,23 @@ test("test questions, review and improvement publish keep a guarded environment 
   expect(environment).toBeDefined();
   if (!environment) throw new Error("First publish did not create its environment");
   const originalVersion = environment.version_id;
+  const guardDataset = await write(api, "post", "/datasets", headers, {
+    name: `Production guard ${stamp}`,
+  });
+  await write(api, "put", `/datasets/${id(guardDataset)}/scoring`, headers, {
+    checks: { enabled: true, required: true },
+    trajectory: { enabled: false },
+    judge: { enabled: false },
+    reference: { enabled: false },
+  });
+  await write(api, "post", `/datasets/${id(guardDataset)}/cases`, headers, {
+    input: "Guarded production policy",
+    checks: [{ type: "equals", value: "A separate production policy still needs review" }],
+  });
   const suite = await write(api, "post", `/agents/${id(agent)}/eval-suites`, headers, {
     name: `Policy guard ${stamp}`,
-    dataset_id: id(dataset),
+    dataset_id: id(guardDataset),
+    threshold: { min_pass_rate: 1 },
     max_run_usd: "5",
     on_publish: false,
   });
@@ -214,6 +245,14 @@ test("test questions, review and improvement publish keep a guarded environment 
   const published = await read(api, `/agents/${id(agent)}/improvements/${sessionId}`, headers);
   expect(published.status).toBe("published");
   expect(published.published_version).toBe(2);
+  await expect
+    .poll(
+      async () =>
+        items(await read(api, `/agents/${id(agent)}/eval-suites/${id(suite)}/results`, headers))[0]
+          ?.status,
+      { timeout: 90_000 },
+    )
+    .toBe("failed");
   const after = items(await read(api, `/agents/${id(agent)}/environments`, headers)).find(
     (item) => id(item) === id(environment),
   );

@@ -221,9 +221,8 @@ async def test_discard_dismisses_only_this_sessions_pending_candidates_and_is_id
     service = ImprovementPipelineService(db)
     discarded = await service.discard(ctx, agent.id, ready.id, ImprovementDiscard(confirmed=True))
     assert discarded.status == "rejected"
-    assert (
-        await service.discard(ctx, agent.id, ready.id, ImprovementDiscard(confirmed=True))
-    ).status == "rejected"
+    repeated = await service.discard(ctx, agent.id, ready.id, ImprovementDiscard(confirmed=True))
+    assert repeated.status == "rejected"
     await db.refresh(own)
     await db.refresh(personal)
     assert own.status == "superseded" and personal.status == "open"
