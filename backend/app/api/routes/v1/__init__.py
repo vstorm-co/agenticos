@@ -20,6 +20,8 @@ from app.api.routes.v1 import conversations
 from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_mcp_connections
+from app.api.routes.v1 import me_suggestions
+from app.api.routes.v1 import me_watches
 from app.api.routes.v1 import org_mcp_connections
 from app.api.routes.v1 import local_services
 from app.api.routes.v1 import ml as ml_services
@@ -56,7 +58,9 @@ from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
 from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
+from app.api.routes.v1 import teams_webhook
 from app.api.routes.v1 import embed as embed_widget
+from app.api.routes.v1 import embed_generated_media
 from app.api.routes.v1 import members, organizations
 from app.api.routes.v1 import groups, directory_mappings, directory_auth
 from app.api.routes.v1.invitations import (
@@ -111,6 +115,7 @@ v1_router.include_router(agent_triggers.org_router, tags=["agents:triggers"])
 v1_router.include_router(trigger_webhooks.router, prefix="/webhooks", tags=["triggers:webhooks"])
 v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:embeds"])
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
+v1_router.include_router(embed_generated_media.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
@@ -188,6 +193,8 @@ v1_router.include_router(
 v1_router.include_router(
     me_mcp_connections.router, prefix="/me/mcp-connections", tags=["me:mcp-connections"]
 )
+v1_router.include_router(me_suggestions.router, prefix="/me/suggestions", tags=["me:suggestions"])
+v1_router.include_router(me_watches.router, prefix="/me/watches", tags=["me:watches"])
 
 v1_router.include_router(
     me_channel_link.router, prefix="/me/channel-link", tags=["me:channel-link"]
@@ -225,6 +232,7 @@ v1_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 v1_router.include_router(
     sharing.project_sharing_router, prefix="/projects", tags=["projects:sharing"]
 )
+v1_router.include_router(teams_webhook.router, prefix="/teams", tags=["teams"])
 
 v1_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
 v1_router.include_router(members.router, prefix="/orgs", tags=["members"])

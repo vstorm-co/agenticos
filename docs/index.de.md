@@ -1,5 +1,5 @@
 ---
-source_sha: "b04c9562a2e8"
+source_sha: "8bc421026fd4"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -230,7 +230,7 @@ eine Antwort.
 
 Veröffentlichen Sie ihn, und er läuft auf jeder Oberfläche gleich: im Chat der
 Konsole, auf einer gehosteten Seite, in einem eingebetteten Widget, über die
-HTTP-API, in Slack, Telegram, Mattermost.
+HTTP-API, in Slack, Teams, Telegram, Mattermost.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
@@ -254,7 +254,7 @@ Frage kam.
 | **[Wissen](file-processing.md)** | Retrieval über Ihre Dokumente mit drei PDF-Parsern, Ihrem eigenen Chunking, OCR und Bildbeschreibung — pro Collection, pro Upload überschreibbar. Google-Drive- und S3-Sync |
 | **[Skills](skills.md)** | Aufgeschriebenes Know-how, das der Agent nur lädt, wenn er es für relevant hält |
 | **[Governance](governance.md)** | Monatsbudgets, menschliche Approval, eine Audit-Spur, Alerts pro Agent |
-| **[Oberflächen](channels.md)** | Web-Chat, eine gehostete Seite ohne Login, ein einbettbares Widget, die HTTP-API, ein rohes WebSocket für Ihr eigenes Frontend, Slack, Telegram, Mattermost — ein Runner hinter allen |
+| **[Oberflächen](channels.md)** | Web-Chat, eine gehostete Seite ohne Login, ein einbettbares Widget, die HTTP-API, ein rohes WebSocket für Ihr eigenes Frontend, Slack, Teams, Telegram, Mattermost — ein Runner hinter allen |
 | **[Secrets](secrets.md)** | Pro Organisation versiegelt. Keine Antwort, keine Logzeile und kein Audit-Eintrag trägt je einen Schlüssel im Klartext |
 
 [Die vollständige Liste der Funktionen →](features.md)

@@ -188,9 +188,9 @@ matters in my inbox* the default cannot do — on these terms:
   prompt carries a mail or a webhook body nobody vetted, and a note written from
   it would be read by every later chat as the creator's own.
 - **Past conversations stay closed** either way.
-- **Somebody else's edit turns it off.** Changing the message, the environment or
-  the filter of a trigger you did not create switches it off, so nobody rewrites
-  what runs as you. An administrator acting as you through impersonation, or a
+- **Somebody else's edit turns it off.** Changing the message, the environment,
+  the filter or the Teams channel of a trigger you did not create switches it
+  off, so nobody rewrites what runs as you or sends its answer somewhere else. An administrator acting as you through impersonation, or a
   script holding your API key, cannot turn it on.
 - **So does a new version you did not publish yourself.** A publish, a
   promotion or a rollback by anybody else turns it off - and so does one made
@@ -219,7 +219,8 @@ It is stamped the `schedule` surface, so *how is this agent used* can tell an
 unattended run from a person's. Each fire is its own run in Activity, and its
 answers accumulate in one run-log conversation the trigger opens once — eagerly,
 the moment the trigger is created, so it is a clickable item before it has ever
-fired.
+fired. A trigger can also post each answer to a Teams channel or group chat its
+organization's bot is in ([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Two ways to fire
 
@@ -584,8 +585,10 @@ something needs it, and a dataset may get a judge of its own.
 
 A system agent is the platform's to run, not an agent people use. Agents lists
 them apart, in a folded **System agents** band under **Agents**, grouped by
-kind: **Judges**, each card saying which datasets it grades and the seeded one
-marked **Default judge**, then the **Gap drafter** and, last, the **Gap classifier**.
+kind: **Judges**, each card saying which datasets it grades, then the **Gap
+drafter** and, last, the **Gap classifier**. The seeded agent of each kind is
+marked as that kind's default - **Default judge**, **Default case generator**
+and so on.
 Agent pickers leave them out.
 
 Whoever holds `agents:edit` opens one to change its instructions, model and
@@ -595,6 +598,14 @@ and the datasets that picked it, grading or not - each opening on its latest
 grades there and the eval runs they came from - with how often people agreed
 with it on the results it graded and they decided, and nothing else. The
 drafter's and the classifier's hold the same without the datasets.
+
+**New agent** adds a system agent too: choose **System agent**, pick **Judge**
+and name it (`POST /agents/system`). It starts from the Eval judge's
+definition - its instructions, temperature and budget - on the organization's
+first model, is published when you may publish agents, and is listed under
+**Judges** for a dataset to pick on its Grading tab. The other kinds are listed
+with what each does but cannot be added: the platform always runs the
+organization's own, so another would never run. Open that one instead.
 
 Its runs are budget-checked and recorded like any other, and send no run
 notification. A system agent starts with a small monthly budget of its own, so

@@ -17,6 +17,7 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.repositories import agent_run_repo
 from app.services.run_reaper import RunReaperService
 
 pytestmark = pytest.mark.anyio
@@ -67,10 +68,12 @@ async def _run(
     status: str,
     age: timedelta,
     transitioned: timedelta | None = None,
+    beat: timedelta | None = None,
+    modality: str = "text",
 ) -> AgentRun:
-    """A run row `age` old; `transitioned` backdates its last UPDATE stamp.
+    """A run row `age` old; `transitioned` backdates its last UPDATE stamp, `beat` its heartbeat.
 
-    `updated_at` stays null when `transitioned` is not given, which is what a
+    `updated_at` and `heartbeat_at` stay null when not given, which is what a
     row that was opened and never touched again - the crash orphan - looks like.
     """
     now = datetime.now(UTC)
@@ -79,8 +82,10 @@ async def _run(
         organization_id=org.id,
         agent_id=agent.id,
         status=status,
+        modality=modality,
         started_at=now - age,
         updated_at=None if transitioned is None else now - transitioned,
+        heartbeat_at=None if beat is None else now - beat,
     )
     db.add(run)
     await db.flush()
@@ -88,14 +93,39 @@ async def _run(
 
 
 async def test_only_the_crash_orphan_is_reaped(engine: AsyncEngine, db: AsyncSession):
-    """One old `running` row falls; its fresh sibling, the parked run, the
-    settled one and the freshly resumed one stand - and the verdict is read from
+    """The never-touched orphan and the run that stopped beating fall; the long
+    run still beating, the fresh one, the parked run, the settled one, the
+    freshly resumed one and the voice call stand - and the verdict is read from
     a fresh session, because a reap the sweep's own transaction never committed
     reaped nothing."""
     org = await _org(db)
     agent = await _agent(db, org)
     orphan = await _run(db, org, agent, status=RunStatus.RUNNING.value, age=timedelta(hours=7))
-    alive = await _run(db, org, agent, status=RunStatus.RUNNING.value, age=timedelta(minutes=5))
+    # Its process died mid-turn, minutes ago: it beat, then stopped.
+    silent = await _run(
+        db,
+        org,
+        agent,
+        status=RunStatus.RUNNING.value,
+        age=timedelta(minutes=20),
+        beat=timedelta(minutes=5),
+    )
+    # A model that takes half an hour is still a live run, as long as it beats.
+    beating = await _run(
+        db,
+        org,
+        agent,
+        status=RunStatus.RUNNING.value,
+        age=timedelta(minutes=30),
+        beat=timedelta(seconds=10),
+    )
+    fresh_run = await _run(
+        db, org, agent, status=RunStatus.RUNNING.value, age=timedelta(seconds=30)
+    )
+    # The voice reaper's, which hangs up the call and closes the run with it.
+    call = await _run(
+        db, org, agent, status=RunStatus.RUNNING.value, age=timedelta(hours=7), modality="voice"
+    )
     parked = await _run(
         db, org, agent, status=RunStatus.AWAITING_APPROVAL.value, age=timedelta(hours=7)
     )
@@ -110,11 +140,11 @@ async def test_only_the_crash_orphan_is_reaped(engine: AsyncEngine, db: AsyncSes
         agent,
         status=RunStatus.RUNNING.value,
         age=timedelta(hours=7),
-        transitioned=timedelta(minutes=5),
+        transitioned=timedelta(seconds=30),
     )
     await db.commit()
 
-    assert await RunReaperService(db).reap_stale() == 1
+    assert len(await RunReaperService(db).reap_stale()) == 2
     await db.commit()
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -130,7 +160,42 @@ async def test_only_the_crash_orphan_is_reaped(engine: AsyncEngine, db: AsyncSes
     assert rows[orphan.id].status == RunStatus.FAILED.value
     assert rows[orphan.id].ended_at is not None
     assert "died before recording an outcome" in (rows[orphan.id].error or "")
-    assert rows[alive.id].status == RunStatus.RUNNING.value
+    assert rows[silent.id].status == RunStatus.FAILED.value
+    assert rows[beating.id].status == RunStatus.RUNNING.value
+    assert rows[fresh_run.id].status == RunStatus.RUNNING.value
+    assert rows[call.id].status == RunStatus.RUNNING.value
     assert rows[parked.id].status == RunStatus.AWAITING_APPROVAL.value
     assert rows[settled.id].status == RunStatus.COMPLETED.value
     assert rows[resumed.id].status == RunStatus.RUNNING.value
+
+
+async def test_a_beat_stamps_a_running_run_and_leaves_its_transition_alone(db: AsyncSession):
+    """`updated_at` is the run's last transition, which the sweep reads too: a
+    beat that moved it would make a resume's stamp indistinguishable from life.
+    A run that already ended is not stamped at all."""
+    org = await _org(db)
+    agent = await _agent(db, org)
+    running = await _run(
+        db,
+        org,
+        agent,
+        status=RunStatus.RUNNING.value,
+        age=timedelta(minutes=10),
+        transitioned=timedelta(minutes=10),
+    )
+    settled = await _run(
+        db, org, agent, status=RunStatus.COMPLETED.value, age=timedelta(minutes=10)
+    )
+    transition = running.updated_at
+    await db.commit()
+
+    at = datetime.now(UTC)
+    await agent_run_repo.beat_run(db, run_id=running.id, at=at)
+    await agent_run_repo.beat_run(db, run_id=settled.id, at=at)
+    await db.commit()
+    await db.refresh(running)
+    await db.refresh(settled)
+
+    assert running.heartbeat_at == at
+    assert running.updated_at == transition
+    assert settled.heartbeat_at is None

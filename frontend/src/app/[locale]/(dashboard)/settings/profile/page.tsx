@@ -9,6 +9,7 @@ import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { AvatarColorPicker, Button, FormField, Input } from "@/components/ui";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
+import { AgentContextSettings } from "@/components/settings/agent-context-settings";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { ForgetMe } from "@/components/memory/forget-me";
@@ -226,6 +227,8 @@ export default function ProfileSettingsPage() {
           </FormField>
         </div>
       </SectionCard>
+
+      <AgentContextSettings user={user} />
 
       <AppearanceSettings />
 

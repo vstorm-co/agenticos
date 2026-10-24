@@ -17,6 +17,7 @@ rename.
 | Test panel | The chat beside the Builder that answers as the draft or any version | `is_test` on its runs |
 | Instructions | What the agent is told before every conversation | `instructions` |
 | Variables | `{{name}}` in the instructions, filled in when a run starts | `variables` |
+| First messages | What an empty chat offers whoever opens the agent, one click each | `starters` |
 | Capability | Something an agent may do, switched on in the Builder | `capabilities[]` |
 | Skill | Know-how written once and read by any agent that needs it | `skill` |
 | Context file | Standing knowledge an agent always has, such as a glossary or a policy | `context` |
@@ -29,6 +30,7 @@ rename.
 | Suggestion | One proposed change to a draft, accepted, edited or dismissed on its own | `spec_proposal_hunk` |
 | Setting change | A suggestion to change one part of an agent's configuration, such as its model or a capability | `spec_field` hunk |
 | Context file change | A new body the assistant proposed for a context file, applied or discarded on the Context page | `context_proposal` |
+| AgenticOS | The general-purpose agent a new organization opens with in Chat, and what a new agent starts as | `general/agenticos` |
 
 ## Where it runs
 
@@ -92,6 +94,7 @@ in [Capabilities](capabilities.md).
 | Long conversations | `compaction` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
+| Follow-ups | `follow_ups` |
 | Guardrails | `guardrails` |
 | Image generation | `image_generation` |
 | Knowledge search | `knowledge` |
@@ -104,9 +107,11 @@ in [Capabilities](capabilities.md).
 | Skills | `skills` |
 | Subagents | `subagents` |
 | Instruction reminders | `system_reminders` |
+| Text to speech | `text_to_speech` |
 | Thinking | `thinking` |
 | Tool output limits | `tool_output_limits` |
 | Tool search | `tool_search` |
+| Video generation | `video_generation` |
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |

@@ -64,23 +64,27 @@ class LockScope(IntEnum):
     #: `resume_of` and token at once each passed the checks and each continued the
     #: call - one call's remaining time, spent several times over (Codex on #2204).
     VOICE_RESUME = 10
+    #: One organization's generated-media quota (#2310). Each call read what was
+    #: used before its paid generation and recorded its file only after it, so
+    #: every call admitted at once passed the same check and together ran past it.
+    GENERATED_MEDIA_PER_ORG = 11
     #: One case's place in its dataset's review queue: a send reads which score
     #: waits, then queues or replaces it, and two at once must not both read none.
-    REVIEW_PER_CASE = 11
+    REVIEW_PER_CASE = 12
     #: How many eval cases one organization runs at once: two workers counting
     #: together would otherwise both start one past the limit.
-    EVAL_CASES_PER_ORGANIZATION = 12
+    EVAL_CASES_PER_ORGANIZATION = 13
     #: One knowledge base's grouping pass: it reads the misses no topic holds
     #: and then places them, so two passes at once would put a question in two
     #: topics.
-    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 13
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 14
     #: One knowledge base's check of its answers: two at once would pay twice for
     #: the same answers. Session-scoped, since a check spans many runs.
-    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 14
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 15
     #: How many case revisions one organization's datasets store. Each edit
     #: locks its own dataset only, so two edits of two datasets would both read
     #: the count under the ceiling and together go past it.
-    DATASET_REVISIONS_PER_ORGANIZATION = 15
+    DATASET_REVISIONS_PER_ORGANIZATION = 16
 
 
 def _key(subject: UUID) -> int:

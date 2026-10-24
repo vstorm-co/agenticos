@@ -32,6 +32,26 @@ export type DictationEngine = "off" | "browser" | "server";
  */
 export type RecordingFormat = "webm" | "wav";
 
+export type ProactiveTiming = "fixed" | "before_work";
+
+/** What the proactivity settings send: the fields named change, the rest stay. */
+export interface ProactivityChanges {
+  proactive_enabled?: boolean;
+  proactive_model_profile_id?: string | null;
+  proactive_limit_usd?: number;
+  proactive_days?: number[];
+  proactive_hour?: number;
+  proactive_timing?: ProactiveTiming;
+  proactive_watches_enabled?: boolean;
+  proactive_watch_min_minutes?: number;
+}
+
+/** What the welcome-message settings send. */
+export interface WelcomeDmChanges {
+  welcome_dm_enabled?: boolean;
+  welcome_dm_text?: string | null;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -57,6 +77,27 @@ export interface Organization {
    * the API serializes the column ("100.000000").
    */
   monthly_budget_usd: string | null;
+  /** What background work may spend per person per month, as a decimal string; "0" is off. */
+  proactive_limit_usd?: string;
+  /** Whether the platform looks at each person's week on its own (#2301). Off by default. */
+  proactive_enabled?: boolean;
+  /** The model profile that look runs on; required to turn it on. */
+  proactive_model_profile_id?: string | null;
+  /** ISO weekdays it runs on, 1 = Monday, in each person's time zone. */
+  proactive_days?: number[];
+  /** The hour it runs at, in each person's time zone. */
+  proactive_hour?: number;
+  /** `before_work`: an hour before a person's working hours, else at `proactive_hour`. */
+  proactive_timing?: ProactiveTiming;
+  /** Whether people may have their own connections watched (#2301). Off by default. */
+  proactive_watches_enabled?: boolean;
+  /** The catalog servers a watch may read, by key; `null` for every one. */
+  /** The most often any watch here may run, in minutes. */
+  proactive_watch_min_minutes?: number;
+  /** Whether a new member gets a direct message from the chat-app bots. Off by default. */
+  welcome_dm_enabled?: boolean;
+  /** What that message says, or `null` for the built-in greeting. */
+  welcome_dm_text?: string | null;
   /**
    * Whether a chat session here may grant standing consent to gated tool calls -
    * `approve_all` in the composer's approval control. Off unless somebody who

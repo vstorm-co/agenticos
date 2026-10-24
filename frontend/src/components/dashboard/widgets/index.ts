@@ -47,7 +47,7 @@ import { DatasetsWidget } from "./datasets";
 import { ReviewQueueWidget } from "./review-queue";
 import { EvalRunsWidget } from "./eval-runs";
 import { EvalSuitesWidget } from "./eval-suites";
-import { SuggestionsWidget } from "./suggestions";
+import { AuthoringSuggestionsWidget } from "./authoring-suggestions";
 import { VoiceMinutesWidget } from "./voice-minutes";
 import { ProjectsWidget } from "./projects";
 import { RecentVisualsWidget } from "./recent-visuals";
@@ -55,6 +55,7 @@ import { SpendWidget } from "./spend";
 import { ActivityRhythmWidget } from "./activity-rhythm";
 import { ChannelsWidget } from "./channels";
 import { RoutinesWidget } from "./routines";
+import { SuggestionsWidget } from "./suggestions";
 import { KnowledgeWidget } from "./knowledge";
 import { SummaryWidget } from "./summary";
 import { SurfacesWidget } from "./surfaces";
@@ -67,6 +68,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "activity-rhythm": ActivityRhythmWidget,
   channels: ChannelsWidget,
   routines: RoutinesWidget,
+  "authoring-suggestions": AuthoringSuggestionsWidget,
   knowledge: KnowledgeWidget,
   platform: PlatformWidget,
   health: HealthWidget,

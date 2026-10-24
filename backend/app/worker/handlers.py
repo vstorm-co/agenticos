@@ -51,10 +51,12 @@ def production() -> Handlers:
         case_generation_tasks,
         eval_suite_tasks,
         eval_tasks,
+        generated_media_tasks,
         invitation_tasks,
         knowledge_gap_tasks,
         mcp_tasks,
         notification_tasks,
+        proactive_tasks,
         rag_tasks,
         report_tasks,
         run_tasks,
@@ -74,6 +76,11 @@ def production() -> Handlers:
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
             Handler(jobs.DRAFT_GAPS, knowledge_gap_tasks.draft_knowledge_gaps),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
+            Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
+            Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
+            Handler(jobs.BRIEF_PERSON, proactive_tasks.brief_person),
+            Handler(jobs.INSTALL_ROLE_PACK, proactive_tasks.install_role_pack),
+            Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
@@ -102,6 +109,12 @@ def production() -> Handlers:
             Handler(
                 jobs.GROUP_KNOWLEDGE_GAPS, _each_tick(knowledge_gap_tasks.group_knowledge_gaps)
             ),
+            Handler(
+                jobs.SWEEP_GENERATED_MEDIA,
+                _each_tick(generated_media_tasks.sweep_generated_media),
+            ),
+            Handler(jobs.PROACTIVE_SWEEP, proactive_tasks.proactive_sweep),
+            Handler(jobs.WATCH_SWEEP, proactive_tasks.watch_sweep),
             Handler(jobs.WEEKLY_USAGE_REPORT, report_tasks.weekly_usage_report),
             Handler(jobs.MONTHLY_USAGE_REPORT, report_tasks.monthly_usage_report),
         ]

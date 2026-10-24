@@ -147,10 +147,11 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "review-queue",
         "eval-runs",
         "eval-suites",
-        "suggestions",
+        "authoring-suggestions",
         "voice-minutes",
         "projects",
         "recent-visuals",
+        "suggestions",
     }
 )
 

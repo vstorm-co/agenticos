@@ -99,7 +99,7 @@ describe("the layouts", () => {
     );
 
     expect(placed).toContain("knowledge-gaps");
-    expect(placed.indexOf("knowledge-gaps")).toBe(placed.indexOf("suggestions") + 1);
+    expect(placed.indexOf("knowledge-gaps")).toBe(placed.indexOf("authoring-suggestions") + 1);
   });
 
   it("places no card twice", () => {

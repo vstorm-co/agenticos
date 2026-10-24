@@ -14,6 +14,8 @@ import {
 import { RAGSearchResults, parseRAGResults } from "./rag";
 import { WebSearchResults, parseWebSearch } from "./web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
+import { GeneratedSpeechResult, parseGeneratedSpeech } from "./generated-speech";
+import { GeneratedVideoResult, parseGeneratedVideo } from "./generated-video";
 import { ContextListResult, SkillListResult, parseContextList, parseSkillList } from "./catalogs";
 import { PlanToolResult } from "./plan";
 import type { ToolCall } from "@/types";
@@ -864,5 +866,135 @@ describe("what a planning call shows", () => {
 
     expect(screen.getByText(said)).toBeInTheDocument();
     expect(screen.queryByText("Running…")).toBeNull();
+  });
+});
+
+describe("the generated speech", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "generated_speech",
+    filename: "abc123_speech.mp3",
+    url: "/api/v1/generated/abc123_speech.mp3",
+    media_type: "audio/mpeg",
+    voice: "marin",
+    characters: 12,
+  });
+
+  it("addresses the clip through the same-origin proxy, not the backend URL", () => {
+    expect(parseGeneratedSpeech(PAYLOAD)).toEqual({
+      voice: "marin",
+      url: "/api/generated/abc123_speech.mp3",
+    });
+  });
+
+  it("has no URL when the clip was made but not stored", () => {
+    const parsed = parseGeneratedSpeech(
+      JSON.stringify({ kind: "generated_speech", filename: null }),
+    );
+
+    expect(parsed).toEqual({ voice: "", url: null });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseGeneratedSpeech("Not spoken: no key")).toBeNull();
+    expect(parseGeneratedSpeech(JSON.stringify({ kind: "generated_image" }))).toBeNull();
+    expect(parseGeneratedSpeech("null")).toBeNull();
+  });
+
+  it("plays the clip where an image would be shown, naming the voice", () => {
+    const { container } = render(<GeneratedSpeechResult data={parseGeneratedSpeech(PAYLOAD)!} />);
+
+    expect(container.querySelector("audio")).toHaveAttribute(
+      "src",
+      "/api/generated/abc123_speech.mp3",
+    );
+    expect(screen.getByText("Voice: marin")).toBeInTheDocument();
+  });
+
+  it("names no voice when none was recorded", () => {
+    const { container } = render(
+      <GeneratedSpeechResult data={{ voice: "", url: "/api/generated/x_speech.mp3" }} />,
+    );
+
+    expect(container.querySelector("figcaption")).toBeNull();
+  });
+
+  it("says the clip was not kept when there is nothing to play", () => {
+    render(<GeneratedSpeechResult data={{ voice: "marin", url: null }} />);
+
+    expect(screen.getByText("The speech was recorded but not saved.")).toBeInTheDocument();
+  });
+});
+
+describe("the generated video", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "generated_video",
+    filename: "abc123_video.mp4",
+    url: "/api/v1/generated/abc123_video.mp4",
+    media_type: "video/mp4",
+    prompt: "a red bicycle in the rain",
+    seconds: 5,
+  });
+
+  it("addresses the clip through the same-origin proxy, not the backend URL", () => {
+    expect(parseGeneratedVideo(PAYLOAD)).toEqual({
+      prompt: "a red bicycle in the rain",
+      url: "/api/generated/abc123_video.mp4",
+    });
+  });
+
+  it("addresses every kind through the page's link on a hosted page (#2309)", () => {
+    const hosted = { kind: "hosted", publicKey: "pk_abc" } as const;
+    const token = `1792689903.${"c".repeat(64)}`;
+    const signed = (kind: string, filename: string) =>
+      JSON.stringify({ kind, filename, token, prompt: "x", voice: "marin" });
+
+    expect(parseGeneratedVideo(signed("generated_video", "a_video.mp4"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_video.mp4?token=${token}`,
+    );
+    expect(parseGeneratedSpeech(signed("generated_speech", "a_speech.mp3"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_speech.mp3?token=${token}`,
+    );
+    expect(parseGeneratedImage(signed("generated_image", "a_image.png"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_image.png?token=${token}`,
+    );
+  });
+
+  it("has no URL when the clip was made but not stored", () => {
+    expect(
+      parseGeneratedVideo(JSON.stringify({ kind: "generated_video", filename: null })),
+    ).toEqual({
+      prompt: "",
+      url: null,
+    });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseGeneratedVideo("Not made: no key")).toBeNull();
+    expect(parseGeneratedVideo(JSON.stringify({ kind: "generated_image" }))).toBeNull();
+    expect(parseGeneratedVideo("null")).toBeNull();
+  });
+
+  it("plays the clip where an image would be shown, captioned by its prompt", () => {
+    const { container } = render(<GeneratedVideoResult data={parseGeneratedVideo(PAYLOAD)!} />);
+
+    expect(container.querySelector("video")).toHaveAttribute(
+      "src",
+      "/api/generated/abc123_video.mp4",
+    );
+    expect(screen.getByText("a red bicycle in the rain")).toBeInTheDocument();
+  });
+
+  it("has no caption when the prompt is empty", () => {
+    const { container } = render(
+      <GeneratedVideoResult data={{ prompt: "", url: "/api/generated/x_video.mp4" }} />,
+    );
+
+    expect(container.querySelector("figcaption")).toBeNull();
+  });
+
+  it("says the clip was not kept when there is nothing to play", () => {
+    render(<GeneratedVideoResult data={{ prompt: "x", url: null }} />);
+
+    expect(screen.getByText("The video was made but not saved.")).toBeInTheDocument();
   });
 });

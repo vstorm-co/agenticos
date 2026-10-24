@@ -1486,6 +1486,13 @@
   margin-top: 0.75rem;
 }
 
+/* The role row's question, under the languages (#2301). */
+.driver-popover.tour-popover .tour-role-label {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+}
+
 .driver-popover.tour-popover .tour-language button {
   border-radius: 9999px;
   border: 1px solid var(--color-border);
@@ -1952,6 +1959,11 @@ body .tour-spotlight {
   /* The chat's composer over the transcript: the panel's own colour, partly
      clear and blurred, so what scrolls behind it reads as depth rather than as
      text cut off at an opaque edge. Declared after .panel so it wins. */
+  /* The composer sits on the page, not over it: a card's shadow, not a menu's.
+     The panel's long drop read as a dark haze under the box. */
+  .panel.composer-box {
+    box-shadow: var(--shadow-card);
+  }
   .composer-glass {
     /* Clearer at the top, where the text is typed, and nearly solid by the row
        of controls, which have to read whatever has scrolled behind them. */

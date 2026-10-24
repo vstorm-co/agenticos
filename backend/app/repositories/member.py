@@ -1,17 +1,21 @@
 """OrganizationMember repository (PostgreSQL async)."""
 
-from typing import Literal, NamedTuple
+from datetime import datetime
+from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.organization import (
     MembershipSource,
     Organization,
     OrganizationMember,
     OrgRole,
+    ProactiveTiming,
 )
+from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
 from app.db.models.user import User
 
 
@@ -84,6 +88,90 @@ async def get_active(
         )
     )
     return result.scalar_one_or_none()
+
+
+class SweepCandidate(NamedTuple):
+    """A person the nightly look may reach, with what decides when it does (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+    time_zone: str | None
+    working_hours: dict[str, Any] | None
+    days: list[int]
+    hour: int
+    timing: ProactiveTiming
+
+
+async def sweep_candidates(db: AsyncSession, *, agent_slug: str) -> list[SweepCandidate]:
+    """Every active member of an organization that turned proactivity on, with a model
+    to run it on and a published starter agent, who has not opted out (#2301)."""
+    result = await db.execute(
+        select(
+            OrganizationMember.organization_id,
+            OrganizationMember.user_id,
+            User.time_zone,
+            User.working_hours,
+            Organization.proactive_days,
+            Organization.proactive_hour,
+            Organization.proactive_timing,
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .join(
+            Agent,
+            and_(
+                Agent.organization_id == OrganizationMember.organization_id,
+                Agent.slug == agent_slug,
+                Agent.current_version_id.is_not(None),
+            ),
+        )
+        .where(
+            User.is_active.is_(True),
+            User.proactive_opt_out.is_(False),
+            Organization.proactive_enabled.is_(True),
+            Organization.proactive_model_profile_id.is_not(None),
+        )
+    )
+    return [SweepCandidate(*row) for row in result.all()]
+
+
+async def briefing_candidates(db: AsyncSession) -> list[SweepCandidate]:
+    """Active members of organizations with watches on who have findings no briefing listed yet.
+
+    Only the ones a briefing would say something to: a finding that is still
+    open, was not sent at once, and is in no earlier briefing (#2301).
+    """
+    waiting = (
+        select(Suggestion.id)
+        .where(
+            Suggestion.organization_id == OrganizationMember.organization_id,
+            Suggestion.user_id == OrganizationMember.user_id,
+            Suggestion.kind == SuggestionKind.FINDING.value,
+            Suggestion.status == SuggestionStatus.OPEN.value,
+            Suggestion.urgent.is_(False),
+            Suggestion.briefed_at.is_(None),
+        )
+        .exists()
+    )
+    result = await db.execute(
+        select(
+            OrganizationMember.organization_id,
+            OrganizationMember.user_id,
+            User.time_zone,
+            User.working_hours,
+            Organization.proactive_days,
+            Organization.proactive_hour,
+            Organization.proactive_timing,
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .where(
+            User.is_active.is_(True),
+            Organization.proactive_watches_enabled.is_(True),
+            waiting,
+        )
+    )
+    return [SweepCandidate(*row) for row in result.all()]
 
 
 async def list_for_org(
@@ -403,6 +491,17 @@ async def list_for_user_by_source(
         )
     )
     return list(result.scalars().all())
+
+
+async def set_personal_starters(
+    db: AsyncSession, member: OrganizationMember, *, starters: list[str], at: datetime
+) -> OrganizationMember:
+    """Keep the first messages written for this person in this organization."""
+    member.personal_starters = starters
+    member.personal_starters_at = at
+    await db.flush()
+    await db.refresh(member)
+    return member
 
 
 async def update_role(

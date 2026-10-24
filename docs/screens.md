@@ -261,7 +261,7 @@ Connect any MCP server by URL and its tools become switches in the Builder. Conn
 
 ### Channels
 
-The chat platforms this organization answers on - Slack, Telegram, Mattermost. A bot serves every agent bound to it, and the binding is made on that agent's Availability tab.
+The chat platforms this organization answers on - Slack, Teams, Telegram, Mattermost. A bot serves every agent bound to it, and the binding is made on that agent's Availability tab.
 
 ![Channels](assets/screens/light/channels.webp#only-light)
 ![Channels](assets/screens/dark/channels.webp#only-dark)

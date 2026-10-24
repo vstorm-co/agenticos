@@ -1,5 +1,5 @@
 ---
-source_sha: "e7d1bbd43d1b"
+source_sha: "5ae1abf3d21e"
 ---
 
 # Begriffe { #concepts }
@@ -209,9 +209,10 @@ nicht kann — zu diesen Bedingungen:
   niemand geprüft hat, und eine daraus geschriebene Notiz würde jeder spätere Chat
   als die eigene des Erstellers lesen.
 - **Frühere Gespräche bleiben verschlossen**, so oder so.
-- **Die Änderung eines anderen schaltet es aus.** Wer die Nachricht, die Umgebung
-  oder den Filter eines Triggers ändert, den er nicht angelegt hat, schaltet es
-  aus, sodass niemand umschreibt, was als Sie läuft. Ein Administrator, der per
+- **Die Änderung eines anderen schaltet es aus.** Wer die Nachricht, die Umgebung,
+  den Filter oder den Teams-Kanal eines Triggers ändert, den er nicht angelegt
+  hat, schaltet es aus, sodass niemand umschreibt, was als Sie läuft, oder die
+  Antwort woandershin schickt. Ein Administrator, der per
   Impersonation als Sie handelt, oder ein Skript mit Ihrem API-Schlüssel kann es
   nicht einschalten.
 - **Ebenso eine neue Version, die du nicht selbst veröffentlicht hast.** Eine
@@ -245,7 +246,9 @@ genutzt* einen unbeaufsichtigten Run von dem einer Person unterscheiden kann.
 Jedes Auslösen ist ein eigener Run in **Aktivität** (Activity), und seine Antworten sammeln sich
 in einer Run-Log-Unterhaltung, die der Trigger einmal eröffnet — sofort, sobald
 der Trigger angelegt ist, sodass er ein anklickbarer Eintrag ist, bevor er je
-ausgelöst hat.
+ausgelöst hat. Ein Trigger kann außerdem jede Antwort in einem Teams-Channel oder
+Gruppenchat posten, in dem der Bot seiner Organisation ist
+([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Zwei Arten auszulösen { #two-ways-to-fire }
 

@@ -394,6 +394,27 @@ class SpendLedger:
             )
         )
 
+    def record_cost(self, model_name: str, cost_usd: Decimal | None) -> SpendEntry:
+        """Book a call priced by the unit rather than by the token.
+
+        Speech is sold per character and video per second (#2259, #2260), and
+        `genai-prices` lists neither, so the caller prices the call from its own
+        catalog and books the amount here. No tokens are recorded because none
+        were billed. `None` is a call the catalog could not price: it is booked at
+        zero and flags the run's total as a floor, as an unpriced model is.
+        """
+        if cost_usd is None:
+            logger.warning("No price for %s - run cost will be under-reported", model_name)
+        return self.book(
+            SpendEntry(
+                model_name=model_name,
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=cost_usd if cost_usd is not None else Decimal(0),
+                priced=cost_usd is not None,
+            )
+        )
+
 
 _booked_to: ContextVar[str | None] = ContextVar("spend_booked_to", default=None)
 """Which delegation the spend in this task belongs to, if it belongs to one.
@@ -535,7 +556,19 @@ def record_ambient_usage(
         ledger.record(model_name, usage, provider)
 
 
-async def can_afford_ambient_call() -> bool:
+def record_ambient_cost(model_name: str, cost_usd: Decimal | None) -> None:
+    """Book a unit-priced call to whichever ledger is active, if any is.
+
+    The counterpart of :func:`record_ambient_usage` for a call the caller priced
+    itself - see :meth:`SpendLedger.record_cost`. A no-op where nothing is
+    metering, for the same reason.
+    """
+    ledger = _active_ledger.get()
+    if ledger is not None:
+        ledger.record_cost(model_name, cost_usd)
+
+
+async def can_afford_ambient_call(cost_usd: Decimal = Decimal(0)) -> bool:
     """Whether an auxiliary model call may be made under the active guard.
 
     `True` when no guard is active - a preview, the CLI, an ingestion warmup -
@@ -544,11 +577,17 @@ async def can_afford_ambient_call() -> bool:
     so an ambient call is refused before it spends past a cap the way a real
     request would be (agenticos#1808). The caller degrades to its own model-free
     fallback rather than raising the run.
+
+    Args:
+        cost_usd: What the call is known to cost before it is made - a clip of
+            speech or video priced from its length. Zero, the default, is the
+            token-billed call nobody can price in advance, which is refused only
+            once a cap is already reached.
     """
     guard = _active_guard.get()
     if guard is None:
         return True
-    return await guard.can_afford_next_request()
+    return await guard.can_afford_next_request(cost_usd)
 
 
 def reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
@@ -776,8 +815,8 @@ class BudgetGuard(AbstractCapability[Any]):
             self.run_state.baselines[limit.key] = await limit.period_spend()
         return self.run_state.baselines[limit.key]
 
-    async def _first_exceeded(self) -> SpendLimit | None:
-        """The first ceiling the run has already reached, or `None` if it is clear.
+    async def _first_exceeded(self, cost_usd: Decimal = Decimal(0)) -> SpendLimit | None:
+        """The first ceiling the run has reached, or would pass by spending `cost_usd`.
 
         The non-raising core of the budget check: the under-lock baseline+total
         loop, so both the refusing form (:meth:`assert_within_budget`) and the
@@ -792,7 +831,7 @@ class BudgetGuard(AbstractCapability[Any]):
             run_total = self.ledger.total_usd
             for limit in self.limits:
                 spent = await self._baseline_for(limit) + run_total
-                if spent >= limit.limit_usd:
+                if spent >= limit.limit_usd or spent + cost_usd > limit.limit_usd:
                     return limit
         return None
 
@@ -816,16 +855,20 @@ class BudgetGuard(AbstractCapability[Any]):
                 subject=limit.subject_name,
             )
 
-    async def can_afford_next_request(self) -> bool:
+    async def can_afford_next_request(self, cost_usd: Decimal = Decimal(0)) -> bool:
         """Whether the run may issue another model request under every cap.
 
         The non-raising form of the check :meth:`wrap_model_request` makes before a
         request. An ambient call that constructs its own `Agent` - a system
         reminder, a compaction summary - asks this before it spends, because it
         does not pass through the wrapper that would otherwise refuse it
-        (agenticos#1808).
+        (agenticos#1808). `cost_usd` is the request's price where it is known in
+        advance, which refuses a call that would carry the run past a cap rather
+        than only one made after the cap is reached. Nothing is reserved by asking:
+        two calls priced at once can each fit and together pass the cap, which is
+        the overshoot :class:`RunSpendState` already accepts for concurrent work.
         """
-        return await self._first_exceeded() is None
+        return await self._first_exceeded(cost_usd) is None
 
     async def headroom(self) -> Decimal | None:
         """How much this run may still spend before the tightest cap binds, or `None` uncapped.

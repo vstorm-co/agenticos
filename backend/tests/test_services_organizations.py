@@ -18,10 +18,11 @@ from app.core.exceptions import (
 )
 from app.db.models.organization import Organization, OrgRole
 from app.schemas.deployment_settings import DeploymentLimits
-from app.schemas.organization import OrganizationCreate, OrganizationUpdate
+from app.schemas.organization import OrganizationCreate, OrganizationRead, OrganizationUpdate
 from app.schemas.user import UserCreate
 from app.services.deployment_settings import DeploymentSettingsService, NewAccountPlacement
-from app.services.organization import OrganizationService
+from app.services.organization import OrganizationService, _org_read
+from app.services.proactive import ProactiveService
 from app.services.user import UserService
 
 _SPEECH_KEY = uuid.uuid4()
@@ -47,11 +48,19 @@ def _org_row(*, name: str) -> Organization:
         is_personal=False,
         avatar_url=None,
         monthly_budget_usd=None,
+        proactive_limit_usd=Decimal("1"),
         # Set explicitly: a column default is applied on flush, and this row was
         # never flushed - so an unset boolean reaches the response schema as None
         # and fails it, which is the honest failure rather than one to coerce away.
         chat_may_waive_approvals=False,
         ai_assistance_enabled=True,
+        proactive_enabled=False,
+        proactive_days=[1, 2, 3, 4, 5],
+        proactive_hour=5,
+        proactive_timing="fixed",
+        proactive_watches_enabled=True,
+        proactive_watch_min_minutes=30,
+        welcome_dm_enabled=False,
         dictation_max_seconds=300,
         created_at=datetime(2026, 7, 31, tzinfo=UTC),
         updated_at=None,
@@ -443,6 +452,262 @@ class TestOrganizationService:
             )
 
         write.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("role", ["member", "builder", "operator", "viewer"])
+    async def test_the_proactivity_limit_needs_the_budgets_manage_permission(
+        self, service, mock_db, role
+    ):
+        """#2301: what background work may spend per person is a spending limit too."""
+        with (
+            patch.object(
+                service,
+                "get_for_user",
+                new=AsyncMock(return_value=(MagicMock(), MagicMock(role=role))),
+            ),
+            patch(
+                "app.services.organization.organization_repo.set_proactive_limit", new=AsyncMock()
+            ) as write,
+            pytest.raises(AuthorizationError),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(proactive_limit_usd=Decimal("2")),
+                requester_id=uuid.uuid4(),
+            )
+
+        write.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_owner_sets_the_proactivity_limit_and_zero_switches_it_off(
+        self, service, mock_db
+    ):
+        org = MagicMock()
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role="owner")))
+            ),
+            patch(
+                "app.services.organization.organization_repo.set_proactive_limit",
+                new=AsyncMock(return_value=org),
+            ) as write,
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(proactive_limit_usd=Decimal("0")),
+                requester_id=uuid.uuid4(),
+            )
+
+        assert write.await_args.kwargs == {"limit_usd": Decimal("0")}
+
+    def test_a_negative_proactivity_limit_is_refused(self):
+        with pytest.raises(ValidationError):
+            OrganizationUpdate(proactive_limit_usd=Decimal("-1"))
+
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            {"proactive_days": []},
+            {"proactive_days": [0]},
+            {"proactive_days": [8]},
+            {"proactive_hour": 24},
+            {"proactive_timing": "whenever"},
+            {"welcome_dm_text": "x" * 1001},
+        ],
+    )
+    def test_a_schedule_or_greeting_that_cannot_be_kept_is_refused(self, fields):
+        with pytest.raises(ValidationError):
+            OrganizationUpdate.model_validate(fields)
+
+    def test_the_days_are_kept_once_each_in_order(self):
+        assert OrganizationUpdate(proactive_days=[5, 1, 5]).proactive_days == [1, 5]
+
+    @staticmethod
+    def _stored(**overrides):
+        values = {
+            "id": uuid.uuid4(),
+            "proactive_enabled": False,
+            "proactive_model_profile_id": None,
+            "proactive_days": [1, 2, 3, 4, 5],
+            "proactive_hour": 5,
+            "proactive_timing": "fixed",
+            "welcome_dm_enabled": False,
+            "welcome_dm_text": None,
+            "proactive_watches_enabled": False,
+            "proactive_watch_min_minutes": 60,
+        }
+        values.update(overrides)
+        return MagicMock(**values)
+
+    async def _update(self, service, org, data, *, profile=None, role="owner"):
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role=role)))
+            ),
+            patch(
+                "app.services.organization.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.organization.organization_repo.set_proactivity",
+                new=AsyncMock(return_value=org),
+            ) as proactivity,
+            patch(
+                "app.services.organization.organization_repo.set_welcome_dm",
+                new=AsyncMock(return_value=org),
+            ) as welcome,
+            patch(
+                "app.services.organization.organization_repo.set_watch_policy",
+                new=AsyncMock(return_value=org),
+            ) as watch_policy,
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+        ):
+            await service.update(uuid.uuid4(), data, requester_id=uuid.uuid4())
+        self.watch_policy = watch_policy
+        return proactivity, welcome
+
+    @pytest.mark.anyio
+    async def test_watches_are_not_turned_on_without_a_model_either(self, service, mock_db):
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                service, self._stored(), OrganizationUpdate(proactive_watches_enabled=True)
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "proactive_model_profile_id"
+
+    @pytest.mark.anyio
+    async def test_watches_on_with_a_floor_and_the_look_untouched(self, service, mock_db):
+        org = self._stored(proactive_model_profile_id=uuid.uuid4())
+        proactivity, _ = await self._update(
+            service,
+            org,
+            OrganizationUpdate(proactive_watches_enabled=True, proactive_watch_min_minutes=30),
+        )
+
+        assert proactivity.await_args.kwargs["enabled"] is False
+        assert self.watch_policy.await_args.kwargs == {"enabled": True, "min_minutes": 30}
+
+    @pytest.mark.anyio
+    async def test_leaving_the_switch_out_keeps_it(self, service, mock_db):
+        org = self._stored(proactive_watches_enabled=True, proactive_model_profile_id=uuid.uuid4())
+        await self._update(service, org, OrganizationUpdate(proactive_watch_min_minutes=120))
+        assert self.watch_policy.await_args.kwargs == {"enabled": True, "min_minutes": 120}
+
+    @pytest.mark.anyio
+    async def test_proactivity_is_not_turned_on_without_a_model_to_run_it_on(
+        self, service, mock_db
+    ):
+        """Off by default and never on a model nobody chose: it spends money nobody
+        asked for in the moment."""
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(service, self._stored(), OrganizationUpdate(proactive_enabled=True))
+
+        assert refused.value.details["fields"][0]["field"] == "proactive_model_profile_id"
+
+    @pytest.mark.anyio
+    async def test_the_model_it_runs_on_is_not_cleared_while_it_is_on(self, service, mock_db):
+        org = self._stored(proactive_enabled=True, proactive_model_profile_id=uuid.uuid4())
+        with pytest.raises(BadRequestError):
+            await self._update(service, org, OrganizationUpdate(proactive_model_profile_id=None))
+
+    @pytest.mark.anyio
+    async def test_a_model_from_another_organization_is_refused(self, service, mock_db):
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                service,
+                self._stored(),
+                OrganizationUpdate(proactive_enabled=True, proactive_model_profile_id=uuid.uuid4()),
+                profile=None,
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "proactive_model_profile_id"
+
+    @pytest.mark.anyio
+    async def test_turned_on_with_its_model_and_its_schedule_and_the_rest_kept(
+        self, service, mock_db
+    ):
+        model = uuid.uuid4()
+        proactivity, welcome = await self._update(
+            service,
+            self._stored(),
+            OrganizationUpdate(
+                proactive_enabled=True,
+                proactive_model_profile_id=model,
+                proactive_timing="before_work",
+            ),
+            profile=MagicMock(),
+        )
+
+        assert proactivity.await_args.kwargs == {
+            "enabled": True,
+            "model_profile_id": model,
+            "days": [1, 2, 3, 4, 5],
+            "hour": 5,
+            "timing": "before_work",
+        }
+        welcome.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_new_hour_alone_keeps_it_as_it_was(self, service, mock_db):
+        model = uuid.uuid4()
+        org = self._stored(proactive_enabled=True, proactive_model_profile_id=model)
+        proactivity, _ = await self._update(
+            service, org, OrganizationUpdate(proactive_hour=7, proactive_days=[1])
+        )
+
+        assert proactivity.await_args.kwargs == {
+            "enabled": True,
+            "model_profile_id": model,
+            "days": [1],
+            "hour": 7,
+            "timing": "fixed",
+        }
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("role", ["member", "builder", "operator", "viewer"])
+    async def test_turning_proactivity_on_needs_the_budgets_manage_permission(
+        self, service, mock_db, role
+    ):
+        with pytest.raises(AuthorizationError):
+            await self._update(
+                service, self._stored(), OrganizationUpdate(proactive_enabled=True), role=role
+            )
+
+    @pytest.mark.anyio
+    async def test_the_greeting_is_switched_and_worded_and_a_blank_one_is_the_built_in(
+        self, service, mock_db
+    ):
+        _, welcome = await self._update(
+            service,
+            self._stored(),
+            OrganizationUpdate(welcome_dm_enabled=True, welcome_dm_text="  Hi from {bot}  "),
+        )
+        assert welcome.await_args.kwargs == {"enabled": True, "text": "Hi from {bot}"}
+
+        _, welcome = await self._update(
+            service,
+            self._stored(welcome_dm_enabled=True, welcome_dm_text="Old"),
+            OrganizationUpdate(welcome_dm_text="   "),
+        )
+        assert welcome.await_args.kwargs == {"enabled": True, "text": None}
+
+        _, welcome = await self._update(
+            service,
+            self._stored(welcome_dm_text="Kept"),
+            OrganizationUpdate(welcome_dm_enabled=False),
+        )
+        assert welcome.await_args.kwargs == {"enabled": False, "text": "Kept"}
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_the_greeting_needs_the_organization_settings_permission(self, service, mock_db):
+        with pytest.raises(AuthorizationError):
+            await self._update(
+                service, self._stored(), OrganizationUpdate(welcome_dm_enabled=True), role="member"
+            )
 
     @pytest.mark.anyio
     async def test_the_cap_and_the_metadata_are_separate_entitlements(
@@ -1133,6 +1398,9 @@ class TestWhereANewAccountStarts:
             joined = stack.enter_context(
                 patch("app.services.organization.member_repo.create", new=AsyncMock())
             )
+            self.welcomed = stack.enter_context(
+                patch.object(ProactiveService, "queue_welcome", new=AsyncMock())
+            )
             return stack, personal, joined
 
         return place
@@ -1147,6 +1415,19 @@ class TestWhereANewAccountStarts:
 
         personal.assert_awaited_once()
         joined.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_joining_the_default_organization_queues_a_welcome_in_the_chat_apps(
+        self, service, placed
+    ):
+        """#2301: queued with the membership, sent by the worker - never in this request."""
+        company = uuid.uuid4()
+        user = uuid.uuid4()
+        stack, _personal, _joined = placed(_placement(personal=False, default=company))
+        with stack:
+            await service.settle_new_account(user, "ada@acme.com")
+
+        self.welcomed.assert_awaited_once_with(company, user)
 
     @pytest.mark.anyio
     async def test_a_company_deployment_joins_the_default_organization_only(self, service, placed):
@@ -1302,3 +1583,18 @@ class TestWhereARequestNamingNoOrganizationLands:
         header must not quietly act in one of them."""
         with self._patches(memberships=[_org_row(name="A"), _org_row(name="B")]):
             assert await service.fallback_for(uuid.uuid4()) is None
+
+
+def test_every_setting_the_row_holds_reaches_the_response():
+    """The response is built field by field, so a column added to both the row and
+    the schema but not to the builder reads as its default forever - watches were
+    switched on in the database and off in every console (#2301)."""
+    row = _org_row(name="Acme")
+    read = _org_read(row, member_count=1, role="owner", is_default=False)
+    columns = set(Organization.__table__.columns.keys())
+    shared = [name for name in OrganizationRead.model_fields if name in columns]
+
+    assert shared
+    assert {name: getattr(read, name) for name in shared} == {
+        name: getattr(row, name) for name in shared
+    }

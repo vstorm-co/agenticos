@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.agent import Agent
 from app.db.models.agent_run import RunStatus
 from app.db.models.channel_bot import ChannelBot
-from app.db.models.channel_prompt import APPROVAL, QUESTION
+from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import agent_run_repo, channel_prompt_repo
@@ -148,4 +148,35 @@ async def test_an_approval_prompt_must_name_its_approval(db: AsyncSession) -> No
             platform_chat_id="C1",
             kind=APPROVAL,
             choices=["Approve", "Reject"],
+        )
+
+
+async def test_next_steps_keep_the_kind_of_chat_a_press_is_replayed_into(
+    db: AsyncSession,
+) -> None:
+    """A press does not say whether its chat is private or a group, so the row
+    must (#2301)."""
+    org, bot, run_id = await _estate(db)
+
+    kept = await channel_prompt_repo.create(
+        db,
+        organization_id=org.id,
+        bot_id=bot.id,
+        run_id=run_id,
+        platform_chat_id="C1",
+        kind=FOLLOW_UP,
+        choices=["Make it a table"],
+        chat_type="group",
+    )
+    assert kept.chat_type == "group"
+
+    with pytest.raises(IntegrityError):
+        await channel_prompt_repo.create(
+            db,
+            organization_id=org.id,
+            bot_id=bot.id,
+            run_id=run_id,
+            platform_chat_id="C1",
+            kind=FOLLOW_UP,
+            choices=["Make it a table"],
         )

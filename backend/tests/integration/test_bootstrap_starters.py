@@ -1,4 +1,4 @@
-"""What a bootstrapped organization opens with: the Architect and Claude Code like."""
+"""What a bootstrapped organization opens with: the Architect and AgenticOS."""
 
 import uuid
 from unittest.mock import AsyncMock
@@ -54,10 +54,10 @@ async def test_a_new_organization_gets_both_and_nothing_called_getting_started(
     await _resolve_starter_agents(db, ctx, None)
 
     agents = await _agents(db, ctx)
-    assert set(agents) == {"Architect", "Claude Code like"}
+    assert set(agents) == {"Architect", "AgenticOS"}
     # Visible to the organization, not to the person who ran bootstrap alone.
-    assert agents["Claude Code like"].visibility == Visibility.ORG
-    assert agents["Claude Code like"].current_version_id is None
+    assert agents["AgenticOS"].visibility == Visibility.ORG
+    assert agents["AgenticOS"].current_version_id is None
 
 
 async def test_a_second_run_finds_both_and_adds_neither(db: AsyncSession) -> None:
@@ -87,5 +87,5 @@ async def test_with_a_model_the_architect_publishes_and_the_starter_runs_on_it(
 
     agents = await _agents(db, ctx)
     assert agents["Architect"].current_version_id is not None
-    starter = agents["Claude Code like"]
+    starter = agents["AgenticOS"]
     assert starter.draft_spec["model_profile_id"] == str(profile.id)

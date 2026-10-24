@@ -7,6 +7,7 @@ it was parked on, with the spend it had already booked.
 """
 
 import asyncio
+import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -52,6 +53,7 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
+from app.agents.capabilities.follow_ups import FOLLOW_UPS_MODEL_RESOURCE
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WORKSPACE_SHARED_RESOURCE
@@ -59,6 +61,7 @@ from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.skills import SkillBody
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.deps import AgentDeps, WrittenNextSteps
 from app.agents.isolation import InterceptedCall, RecordedCall, RunIsolation, ToolRecording
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import (
@@ -98,11 +101,13 @@ from app.services.agent_runner import (
     _answer_only,
     _classify_output,
     _connect_on_use,
+    _RunRendering,
     _spend_already_booked,
     _start_turn_on_first_use,
     _with_account_notes,
     _with_personal_service_gaps,
     _with_test_secrets,
+    _written_next_steps,
     month_start,
     run_failure_summary,
 )
@@ -119,6 +124,20 @@ from app.services.sandbox_workspace import OpenWorkspace
 from app.services.skill_workspace import SKILLS_ROOT
 from app.services.transcript import RecordedToolCall
 from tests.workspaces import document_workspace
+
+
+@pytest.fixture(autouse=True)
+def _nobody_the_account_describes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No account behind these runs' facts; `test_prompt_variables` covers the person (#2301).
+
+    The mocked session would answer the lookup with a `MagicMock`, whose every
+    profile field is truthy and none of which is a value.
+    """
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.user_repo.get_by_id", AsyncMock(return_value=None)
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -1326,6 +1345,64 @@ class TestAPlanThatOutlivesTheTurn:
 
         store = build.call_args.kwargs["resources"][PLANNING_STORE_RESOURCE]
         assert [item.content for item in await store.get_items()] == ["Ship the fix"]
+
+    @pytest.mark.anyio
+    async def test_a_resume_keeps_the_files_the_run_generated_before_it_parked(self):
+        """A starting image for `generate_video` must be one the run itself made, and
+        a resume builds fresh deps: without the parked list, a clip approved after a
+        park could not start from the picture drawn before it."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        run = _parked_run(
+            conversation_id=uuid.uuid4(),
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "generated_files": ["a1b2_image.png"],
+            },
+        )
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+        stale = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "pending"}],
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=stale),
+            ),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            build.return_value.deps = AgentDeps()
+            await service.resume(ctx, run.id)
+
+        assert build.return_value.deps.generated_files == {"a1b2_image.png"}
 
 
 class TestRecordedConversationState:
@@ -2821,6 +2898,8 @@ class TestParking:
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
             "plan": [],
+            # And no generated files, which is a run whose tools stored none.
+            "generated_files": [],
             # What the request asked for, so the continuation is the same run rather
             # than a default-mode one wearing its id (#1326, #1343, #788).
             "admitted_as": {
@@ -2856,6 +2935,25 @@ class TestParking:
 
         stored = finish.call_args.kwargs["paused_state"]["plan"]
         assert [item["content"] for item in stored] == ["Write the fix"]
+
+    @pytest.mark.anyio
+    async def test_a_parked_run_snapshots_the_files_it_generated(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.deps = AgentDeps(generated_files={"b2_video.mp4", "a1_image.png"})
+        prepared.approvals.parked = {"approval-1": "call-1"}
+        result = MagicMock(output=DeferredToolRequests())
+        result.all_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "animate the logo")
+
+        stored = finish.call_args.kwargs["paused_state"]["generated_files"]
+        assert stored == ["a1_image.png", "b2_video.mp4"]
 
     @pytest.mark.anyio
     async def test_the_plan_the_turn_ended_on_is_written_to_its_conversation(self):
@@ -3384,7 +3482,7 @@ class TestResume:
         """Review on #2062: after an approval every request was told the
         approver's name, email and departments - a visitor's agent the admin's."""
         with patch.object(AgentRunnerService, "_variable_renderer", autospec=True) as renderer:
-            renderer.return_value = lambda spec: spec
+            renderer.return_value = _RunRendering(variables=lambda spec: spec, person=None)
             await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
 
         told_about = renderer.call_args.args[1]
@@ -5136,6 +5234,72 @@ class TestTheBrowsersStepModel:
         resources, _ = await self._built(AgentSpec(name="Researcher", capabilities=capabilities))
 
         assert BROWSER_STEP_MODEL_RESOURCE not in resources
+
+    @pytest.mark.anyio
+    async def test_a_named_model_writes_the_next_steps(self):
+        """A small model of its own writes the steps after the answer (#2301)."""
+        profile = uuid.uuid4()
+        spec = AgentSpec(
+            name="Helper",
+            capabilities=[{"id": "follow_ups", "config": {"model_profile_id": str(profile)}}],
+        )
+
+        resources, resolve = await self._built(spec)
+
+        assert FOLLOW_UPS_MODEL_RESOURCE in resources
+        assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
+
+    @pytest.mark.anyio
+    async def test_a_next_steps_model_that_no_longer_resolves_leaves_them_to_the_agent(self):
+        gone = uuid.uuid4()
+        spec = AgentSpec(
+            name="Helper",
+            capabilities=[{"id": "follow_ups", "config": {"model_profile_id": str(gone)}}],
+        )
+
+        def resolve(ctx, profile_id=None):
+            if profile_id == gone:
+                raise NotFoundError(message="Model profile not found")
+            return MagicMock(label="m", build=MagicMock())
+
+        built, _ = await self._built_call(spec, resolve=resolve)
+
+        assert FOLLOW_UPS_MODEL_RESOURCE not in built.kwargs["resources"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "capabilities",
+        [
+            [{"id": "follow_ups"}],
+            [
+                {
+                    "id": "follow_ups",
+                    "enabled": False,
+                    "config": {"model_profile_id": str(uuid.uuid4())},
+                }
+            ],
+        ],
+    )
+    async def test_without_one_the_agent_offers_the_next_steps_itself(self, capabilities):
+        resources, _ = await self._built(AgentSpec(name="Helper", capabilities=capabilities))
+
+        assert FOLLOW_UPS_MODEL_RESOURCE not in resources
+
+
+class TestNextStepsWrittenAfterTheAnswer:
+    """Recorded as the agent's own `suggest_next_steps` call would be (#2301)."""
+
+    def test_they_are_recorded_as_the_call_a_channel_reads(self):
+        deps = AgentDeps(next_steps=WrittenNextSteps(call_id="next_steps_1", steps=["Again"]))
+
+        (call,) = _written_next_steps(deps)
+
+        assert call.tool_name == "suggest_next_steps"
+        assert call.tool_call_id == "next_steps_1"
+        assert json.loads(call.result or "") == {"steps": ["Again"]}
+
+    def test_none_written_records_nothing(self):
+        assert _written_next_steps(AgentDeps()) == []
 
 
 class TestTheDownRatedMarker:

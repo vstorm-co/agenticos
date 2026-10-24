@@ -136,7 +136,8 @@ class TestACollectionAnotherOrganizationStillReferences:
         await _run(org, db, mocks)
 
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
-        mocks["dispatch"].assert_not_awaited()
+        _db, _paths, to_drop, _restamps = mocks["dispatch"].call_args.args
+        assert to_drop == []
 
 
 class TestWithNoVectorStoreWired:
@@ -197,13 +198,13 @@ class TestReStampingOrphanedPersonalBases:
         _paths, _to_drop, restamps = self._dispatched(mocks)
         assert sorted(r.collection for r in restamps) == ["private", "shared"]
 
-    async def test_no_dispatch_when_nothing_is_orphaned(self):
+    async def test_no_restamp_is_queued_when_nothing_is_orphaned(self):
         org, db, mocks = _purge(snapshot=[], authoritative=[])
-        dispatch = MagicMock(return_value=None)
-        with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
+        with _patched(mocks):
             await OrganizationService(db, vector_store=MagicMock()).purge(org)
 
-        dispatch.assert_not_called()
+        _paths, _to_drop, restamps = self._dispatched(mocks)
+        assert restamps == []
 
     async def test_without_a_vector_store_no_orphan_lookup_runs(self):
         """Ordinary organization work does not pay for a teardown it is not doing, so
@@ -243,3 +244,19 @@ class TestTakingTheLockWithoutWaiting:
         await try_hold_name(db, LockScope.COLLECTION_TEARDOWN, "handbook")
 
         assert "pg_try_advisory_xact_lock" in str(db.execute.await_args.args[0])
+
+
+class TestGeneratedMedia:
+    """The organization's generated media rows cascade with it, so the job queued
+    in the purge's transaction is the only record of the bytes left (#2310)."""
+
+    async def test_its_prefix_rides_the_queued_cleanup_rather_than_a_spawned_task(self):
+        org, db, mocks = _purge(snapshot=[], authoritative=[])
+        with _patched(mocks), patch("app.core.background.spawn_after_commit") as spawned:
+            await OrganizationService(db).purge(org)
+
+        assert mocks["dispatch"].call_args.kwargs["prefixes"] == [f"generated_{org.id}"]
+        assert mocks["dispatch"].call_args.kwargs["organization_id"] == org.id
+        assert [call.kwargs["name"] for call in spawned.call_args_list] == ["org_purge_media"]
+        for call in spawned.call_args_list:
+            call.args[1].close()

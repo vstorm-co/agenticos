@@ -79,6 +79,8 @@ def _export() -> PersonalDataExport:
         api_keys=[],
         oauth_grants=[],
         case_proposals=[],
+        suggestions=[],
+        watches=[],
     )
 
 

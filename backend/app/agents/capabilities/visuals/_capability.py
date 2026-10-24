@@ -26,12 +26,18 @@ def maps_line() -> str:
         return (
             "Maps in visuals: this deployment has no map tiles, so `AOMap.itinerary` draws "
             "the stops as an outline - pins and the line between them, without streets or "
-            "terrain. Say so if the person expects a map."
+            "terrain. When you draw a map, say so in your answer, in one sentence and not "
+            "inside the drawing: no map server is connected to this AgenticOS, so the map "
+            "is an outline, and an administrator of the deployment can turn real maps on "
+            "with the `VISUAL_MAP_TILES` setting (for example `openstreetmap`)."
         )
     return (
         f"Maps in visuals: `AOMap.itinerary` draws on {tiles.name} tiles. Coordinates you "
         "know from memory are approximate - say so, and never present the line between "
-        "stops as directions, a distance or a travel time you have not looked up."
+        "stops as directions, a distance or a travel time you have not looked up. If the "
+        "person says the map behind the pins is blank, the tile server is not answering "
+        "this deployment: tell them, and that an administrator can check it under "
+        "Admin → System."
     )
 
 

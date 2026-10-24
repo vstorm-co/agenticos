@@ -1,5 +1,6 @@
 """In-memory workspaces for tests: a stored document, worked in as a run works in one."""
 
+import httpx
 from pydantic_ai.workspaces import Workspace, WorkspaceError, WorkspaceRef, WrapperWorkspace
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_backends.workspaces import StateWorkspaceBackend
@@ -30,3 +31,19 @@ class ShellFailing(WrapperWorkspace):
 
     async def read_bytes(self, path: str) -> bytes:
         raise WorkspaceError(f"shell filesystem read failed for {path!r}")
+
+
+class SandboxUnreachable(WrapperWorkspace):
+    """A workspace whose sandbox service will not open a session.
+
+    The sandboxd client raises `httpx.HTTPStatusError` unmapped when `POST
+    /sessions` fails - a 502 while the service cannot reach its container runtime,
+    a 409 while a runtime builds - and it surfaces on the first call that needs a
+    session, which for a write is resolving the working directory.
+    """
+
+    async def write_bytes(self, path: str, data: bytes) -> None:
+        request = httpx.Request("POST", "http://sandboxd:8080/sessions")
+        raise httpx.HTTPStatusError(
+            "502 Bad Gateway", request=request, response=httpx.Response(502, request=request)
+        )

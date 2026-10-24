@@ -1,5 +1,5 @@
 ---
-source_sha: "d1ffc0743a58"
+source_sha: "fc38ba431992"
 ---
 
 # Funciones { #features }
@@ -92,7 +92,7 @@ capability que está desactivada, diga lo que diga en sus instrucciones.
 | **Responder a partir de lo que tu empresa sabe** — tus documentos, tus procedimientos escritos y lo que se haya adjuntado a esta conversación | Knowledge search · Skills · Context |
 | **Recordar, y consultarlo** — llevar notas de una conversación a otra, recuperar un dato por su significado, o encontrar lo que se dijo realmente en una conversación pasada y releerlo | Memory · Memory (mem0) · Past conversations |
 | **Ir a averiguarlo** — buscar en la web, leer una página como es debido, o conducir un navegador real por un sitio que exige clics | Web search · Read web pages · Web browser |
-| **Hacer el trabajo, no describirlo** — ejecutar Python sobre un archivo, mantener un workspace con una shell, dibujar un gráfico, generar una imagen | Calculations · Sandbox · Charts · Image generation |
+| **Hacer el trabajo, no describirlo** — ejecutar Python sobre un archivo, mantener un workspace con una shell, dibujar un gráfico, generar una imagen, leer un texto en voz alta o hacer un clip corto | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Afrontar trabajo demasiado grande para una sola respuesta** — delegar en especialistas, llevar una lista de tareas, pensar más antes de responder, sostener una conversación larga sin perder su principio | Delegation · Planning · Thinking · Long conversations |
 | **No salirse de la raya** — censurar o bloquear lo que no debe pasar, limitar lo que una tool puede devolver, saber qué día es hoy | Guardrails · Tool output limits · Date and time |
 

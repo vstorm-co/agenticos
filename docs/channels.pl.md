@@ -1,5 +1,5 @@
 ---
-source_sha: "192f01a91cab"
+source_sha: "513cb1cca129"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -378,19 +378,21 @@ tych różnic były decyzjami.
 Teraz mówi. Każde „nie” poniżej ma powód, a powód to albo „tutaj byłoby to złe”,
 albo „to jeszcze nie jest zbudowane” — nigdy milczenie.
 
-| | `/chat` (dashboard) | Surowy WebSocket | Publiczne API |
-|---|---|---|---|
-| Streaming | tak | tak, filtrowany tym, co pokazuje operator | **nie** — POST jest ścieżką bez streamingu; wariant SSE to osobne pytanie |
-| Załączniki | tak | tak (`file_ids`) **na hostowanej stronie** — endpoint wgrywania rozwiązuje klucz przez `find_page`, więc widżet ani surowy socket nie mają ścieżki, która wytworzyłaby id | tak (`file_ids`), i trafiają tam, gdzie wszędzie indziej |
-| Ciągłość rozmowy | tak | tak (`continuity_key`), na hostowanej stronie z anonimowym odwiedzającym | tak (`conversation_id`) |
-| `environment_id` | tak | **nie, celowo** — patrz niżej | tak |
-| Nadpisanie modelu | tak | **nie, celowo**: publiczna powierzchnia nie może pozwolić odwiedzającemu wybrać, co wydaje | **nie**: żądanie nie niesie `model_profile_id`. Która wersja się uruchomi, wciąż zależy od wywołującego przez `environment_id`, a środowisko może przypiąć wersję, która nigdy nie była domyślna |
-| `ask_user` | tak | **nie, jeszcze nie** — patrz niżej | **nie, słusznie**: nikt nie czeka na odpowiedź, trzymając otwarty request HTTP |
-| Powiadomienie o kompakcji | tak | tak | nie dotyczy — nic nie streamuje, żeby powiedzieć |
-| Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy |
-| Zatwierdzenia: parkują uruchomienie | tak | tak | tak |
-| Zatwierdzenia: droga do decyzji | tak (`/runs`) | jedno zdanie, celowo: obcemu trzymającemu link nie pokazuje się URL-a do czyjejś konsoli | tak — wynik niesie `parked`, nazywając to, co czeka, i zatwierdzenie, do którego wysłać decyzję |
-| Wzmianki `@` | tak (`mentions`) | **nie, jeszcze nie**: widget nie ma menu do wyboru, a wzmianka gościa wymagałaby tej samej kontroli w jego imieniu | **nie, jeszcze nie**: skrypt nazywa, czego użyć, w samej wiadomości |
+Ostatnia kolumna to Teams (#1985), reprezentujący stojące obok platformy czatu.
+
+| | `/chat` (dashboard) | Surowy WebSocket | Publiczne API | Teams |
+|---|---|---|---|---|
+| Streaming | tak | tak, filtrowany tym, co pokazuje operator | **nie** — POST jest ścieżką bez streamingu; wariant SSE to osobne pytanie | wiadomość przepisywana w miarę, jak przychodzi odpowiedź |
+| Załączniki | tak | tak (`file_ids`) **na hostowanej stronie** — endpoint wgrywania rozwiązuje klucz przez `find_page`, więc widżet ani surowy socket nie mają ścieżki, która wytworzyłaby id | tak (`file_ids`), i trafiają tam, gdzie wszędzie indziej | tak, z czatu osobistego; plik wraca przez kartę zgody Teams |
+| Ciągłość rozmowy | tak | tak (`continuity_key`), na hostowanej stronie z anonimowym odwiedzającym | tak (`conversation_id`) | czat albo wątek na kanale |
+| `environment_id` | tak | **nie, celowo** — patrz niżej | tak | **nie** — decyduje powiązanie, jak na każdej platformie czatu |
+| Nadpisanie modelu | tak | **nie, celowo**: publiczna powierzchnia nie może pozwolić odwiedzającemu wybrać, co wydaje | **nie**: żądanie nie niesie `model_profile_id`. Która wersja się uruchomi, wciąż zależy od wywołującego przez `environment_id`, a środowisko może przypiąć wersję, która nigdy nie była domyślna | **nie**, jak na każdej platformie czatu |
+| `ask_user` | tak | **nie, jeszcze nie** — patrz niżej | **nie, słusznie**: nikt nie czeka na odpowiedź, trzymając otwarty request HTTP | tak, jako karta Adaptive Card |
+| Powiadomienie o kompakcji | tak | tak | nie dotyczy — nic nie streamuje, żeby powiedzieć | nie — odpowiedź przychodzi, gdy jest gotowa |
+| Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy | nie dotyczy — nic nie streamuje, w czym by je rysować | **nie** — odpowiedź przychodzi, gdy jest gotowa, bez rysowania kroków |
+| Zatwierdzenia: parkują uruchomienie | tak | tak | tak | tak |
+| Zatwierdzenia: droga do decyzji | tak (`/runs`) | jedno zdanie, celowo: obcemu trzymającemu link nie pokazuje się URL-a do czyjejś konsoli | tak — wynik niesie `parked`, nazywając to, co czeka, i zatwierdzenie, do którego wysłać decyzję | tak — karta Adaptive Card, rozstrzygana jako członek, który ją nacisnął |
+| Wzmianki `@` | tak (`mentions`) | **nie, jeszcze nie**: widget nie ma menu do wyboru, a wzmianka gościa wymagałaby tej samej kontroli w jego imieniu | **nie, jeszcze nie**: skrypt nazywa, czego użyć, w samej wiadomości | **nie**, jak na każdej platformie czatu |
 
 ### `environment_id` na sockecie i dlaczego należy do publikującego { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -640,6 +642,26 @@ Jedna rzecz z konieczności czyta się inaczej: wywołanie, które przyszło z s
 MCP, nazywa się w dashboardzie *Linear · Create issue*, a tutaj nosi nazwę
 uczłowieczoną, bo mapowanie to lista połączeń organizacji, a jej odczytanie
 wymaga sesji.
+
+**Wygenerowany obraz, nagranie mowy lub wideo działa także na stronie** (#2309).
+Konsola czyta je przez `/api/v1/generated/{filename}`, co wymaga sesji, a
+odwiedzający jej nie ma. Dlatego socket, wysyłając wynik z wygenerowanym
+obrazem, mową lub wideo, który wskazuje plik zapisany przez narzędzia tego
+samego uruchomienia, dodaje do niego `token`, a strona czyta plik przez
+`/api/embed/<key>/generated/<file>?token=…`, który przesyła go strumieniowo i
+przepuszcza zakresy bajtów dla odtwarzacza.
+
+Token to HMAC, pod `SECRET_KEY` wdrożenia, klucza strony, tego jednego pliku i
+terminu ważności sześć godzin naprzód. Nie otwiera niczego innego: ani pliku z
+innej rozmowy, ani z innej organizacji, ani żadnej innej nazwy. Zły, wygasły lub
+brakujący token dostaje to samo 404 co brakujący plik. Jest dodawany, gdy ramka
+wychodzi, więc transkrypt go nie przechowuje, a karta jest wynikiem tego kroku —
+widać ją tylko tam, gdzie włączone jest *Co zwrócił każdy krok*. Integracja przez
+socket znajduje ten sam adres w polu `url` payloadu, jako ścieżkę API.
+
+Wynik wskazujący plik, którego to uruchomienie nie zapisało, nie dostaje tokena,
+niezależnie od nazwy narzędzia, które go zwróciło. Jeden link można pobrać 120 razy
+na minutę, co wystarcza na zakresy bajtów odtwarzacza; ponad to dostaje 429.
 
 **Widget i surowy socket nie niosą żadnych przełączników i dostają te domyślne
 wartości**, odczytywane z `PageConfig`, a nie powtarzane — druga kopia
@@ -1184,7 +1206,7 @@ w całości.
 
 ### Scope'y i eventy { #scopes-and-events }
 
-Trzynaście scope'ów tokena bota, każdy zasłużony wywołaniem, które wykonuje
+Czternaście scope'ów tokena bota, każdy zasłużony wywołaniem, które wykonuje
 adapter:
 
 | Scope | Co go potrzebuje |
@@ -1197,6 +1219,7 @@ adapter:
 | `channels:read`, `groups:read` | `conversations.info`, `.list` i `.members` — odpytania o kanał, które agent może wywołać |
 | `im:read`, `mpim:read` | `conversations.members` na wiadomości bezpośredniej. Łatwo go pominąć i cicho, gdy się to zrobi: sprawdzenie członkostwa zawodzi domyślnie na „nie", więc rozmowa, w której nikogo nie dało się potwierdzić, **znika z listy rozmów**, zamiast dawać błąd |
 | `users:read` | `users.info`, które zamienia id członków w ludzi |
+| `users:read.email` | `users.lookupByEmail`, które znajduje nowego członka, żeby go [powitać](#a-welcome-for-a-new-member). Aplikacja Slacka zainstalowana przed jego dodaniem działa dalej bez niego i nikogo nie wita, dopóki nie zostanie zainstalowana ponownie z nowego manifestu |
 
 Pięć eventów bota: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
@@ -1433,6 +1456,55 @@ Mattermost: *Integrations → Slash Commands → Add Slash Command*: słowo wyzw
 pokaże wtedy token; wklej go w pole **Slash command token** bota. Każde żądanie go
 niesie, a bot bez niego odrzuca wszystkie.
 
+## Microsoft Teams { #microsoft-teams }
+
+Bot Teams to zasób **Azure Bot**, utworzony jako **jednodzierżawowy** w twojej
+dzierżawie Entra — Microsoft przestał tworzyć wielodzierżawowe zasoby botów w lipcu
+2025 — i obsługiwany przez własny protokół Bot Connectora, a nie przez SDK (#1985).
+
+1. W portalu Azure utwórz **Azure Bot** typu *Single Tenant*. W *Configuration*
+   skopiuj **Microsoft App ID** i dzierżawę, a w *Certificates & secrets* rejestracji
+   aplikacji utwórz **sekret klienta**.
+2. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `teams`, z sekretem jako
+   tokenem oraz identyfikatorami aplikacji i dzierżawy obok.
+3. Wklej **punkt końcowy wiadomości** pokazany w ustawieniach bota do konfiguracji
+   Azure Bot i włącz w nim kanał **Microsoft Teams**.
+4. **Pobierz pakiet aplikacji** z ustawień bota — manifest i dwie ikony, zbudowane
+   dla tego bota — i prześlij go do katalogu aplikacji Teams w swojej dzierżawie.
+   Dodaj aplikację do czatu osobistego, czatu grupowego albo zespołu.
+
+**Każda aktywność jest weryfikowana, zanim zostanie odczytana.** Bot Connector
+podpisuje każdą tokenem JWT: podpis jest sprawdzany względem kluczy publikowanych
+przez wystawcę, wystawcą musi być Bot Framework albo twoja dzierżawa, odbiorcą musi
+być App ID tego bota, token nie może być przeterminowany, a usługa, którą wskazuje,
+musi być usługą tej aktywności. Żądanie, które nie przejdzie któregoś z tych
+sprawdzeń, kończy się 401. Bot jest jednodzierżawowy, więc aktywność z innej
+dzierżawy też jest odrzucana, a token bota trafia wyłącznie pod adres Bot Connectora.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Czat osobisty | Na każdą wiadomość. Czat to jedna rozmowa |
+| Czat grupowy | Gdy zostanie @wspomniany |
+| Kanał | Gdy zostanie @wspomniany, w wątku, w którym go zapytano — każdy wątek to osobna rozmowa |
+
+**Kto mówi**, to identyfikator obiektu Entra członka, taki sam w każdym czacie
+dzierżawy. Tam, gdzie to wdrożenie loguje ludzi przez Entra w tej samej dzierżawie,
+niepołączone konto Teams zostaje połączone z członkiem, który loguje się adresem
+podanym przez listę członków Teams, bez klikania w link; wszędzie indziej działa
+przepływ łączenia jak na każdej platformie, a `require_link` decyduje tak jak tam.
+
+**Zatwierdzenia i pytania to karty Adaptive Card.** Naciśnięcie jest rozstrzygane
+jako członek, który nacisnął, a karta zostaje zastąpiona tym, co wybrano. Plik
+wysłany przez agenta trafia do czatu osobistego przez kartę zgody Teams; w czacie
+grupowym albo na kanale odpowiedź go wymienia, bo Teams nie przyjmuje tam plików od
+bota. Wykres jest rysowany w wiadomości.
+
+**Trigger może publikować swoją odpowiedź w Teams.** Każda rozmowa, w której jest
+bot, jest zapamiętywana, a trigger może wskazać jeden z kanałów zespołu albo czatów
+grupowych organizacji: odpowiedź z każdego uruchomienia jest wtedy publikowana tam
+jako nowa wiadomość, pod nazwą triggera. Czat osobisty nigdy nie jest proponowany —
+należy do kogoś.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 Polling Telegrama, Socket Mode Slacka i strumień eventów Mattermosta chodzą pod
@@ -1463,7 +1535,7 @@ może się między nimi rozjechać.
 
 ## Akceptacje i pytania jako przyciski { #approvals-and-questions-as-buttons }
 
-Run uruchomiony w Slacku, Telegramie lub Mattermoście może zatrzymać się dla
+Run uruchomiony w Slacku, Teams, Telegramie lub Mattermoście może zatrzymać się dla
 człowieka: wywołanie narzędzia z bramką czeka na decyzję albo agent zadaje pytanie
 `ask_user`. Czat dostaje wybory tam, gdzie jest — wiadomość na każdą akceptację z
 **Approve** i **Reject**, wiadomość na każde pytanie z jego opcjami i **Skip**.
@@ -1514,6 +1586,31 @@ Telegramie i Mattermost. Gdy strona kogoś potrzebuje, logowania albo captchy, k
 zmienia się na *Needs you* i mówi po co, a gdy człowiek trzyma przeglądarkę, podaje,
 kto. Link otwiera konsolę, więc przejęcie wymaga konta w konsoli: osoby, w imieniu
 której działa run, albo kogoś, kto może edytować agenta.
+
+### Następne kroki jako przyciski { #next-steps-as-buttons }
+
+Odpowiedź agenta z [Następnymi krokami](reference/capabilities.md#follow-ups),
+która zaproponowała następne kroki, ma pod sobą wiadomość z przyciskami, po
+jednym na krok - *Zrób z tego tabelę*, *Rób to w każdy poniedziałek*. Naciśnięcie
+to naciskający mówiący ten krok: dostaje odpowiedź jak na swoją następną
+wiadomość w tym czacie, z tymi samymi wymogami co wpisana - powiązanie konta,
+polityka dostępu bota, limit częstotliwości - a naciśnięta wiadomość pokazuje
+potem krok zamiast przycisków.
+
+Każdą wiadomość naciska się raz; może to zrobić
+każdy w pokoju, a odpowiedź jest dla niego. Odpowiedź, która zatrzymała się na
+zatwierdzeniu albo pytaniu, oferuje zamiast tego je. Karty ustawień, które agent
+może zaproponować, są rysowane tylko w konsoli.
+
+## Powitanie nowego członka { #a-welcome-for-a-new-member }
+
+Gdy ktoś dołącza do organizacji - przez zaproszenie, dołączenie do domyślnej
+organizacji albo synchronizację katalogu - każdy aktywny bot organizacji w
+Slacku, Mattermost i Teams szuka go po adresie e-mail i, jeśli znajdzie, wysyła
+jedną wiadomość prywatną w języku jego konsoli: kim jest, że można go pytać od
+razu tam, i adres konsoli. To zadanie w tle próbowane raz; bot, który go nie
+znajdzie, albo platforma, która odmówi, nie kosztują nic więcej. Slack potrzebuje
+do wyszukania scope'u `users:read.email`; Teams znajduje go w spisie tenanta.
 
 ## Reakcje i oceny { #reactions-and-ratings }
 
@@ -2357,6 +2454,7 @@ i dlatego załącznik przychodzi jako uchwyt, a nie jako treść:
 | Slack | Prywatny URL na evencie, pobierany tokenem bota. Slack odpowiada **200 ze stroną logowania**, a nie 401, gdy token nie może odczytać pliku, więc sprawdzany jest typ treści — inaczej strona logowania zostałaby zapisana jako arkusz użytkownika |
 | Telegram | `getFile` rozwiązuje `file_id` na ścieżkę, która wygasa, a potem API plików. Zdjęcie przychodzi w kilku rozmiarach; zachowywany jest największy |
 | Mattermost | `/files/{id}` na własnym serwerze tego bota. Bot, którego serwer nie jest zapisany, mówi to wprost, zamiast zgadywać, do serwera której firmy wysłać token |
+| Teams | Plik w czacie osobistym ma URL pobierania, który Teams już autoryzował; obraz wklejony do wiadomości jest pobierany z Bot Connectora tokenem bota, który nie trafia nigdzie indziej |
 
 **Nagrania nie są jeszcze obsługiwane.** Telegram wkłada każdy rodzaj mediów we
 własne pole, więc notatka głosowa przychodzi zupełnie bez tekstu — i do tej zmiany
@@ -2487,7 +2585,8 @@ a których stopka kanałowa nie:
   `agent` jeden workspace jest współdzielony, a znalezienie pliku, którego nigdy
   się nie utworzyło, czyta się jak wyciek, dopóki coś na ekranie tego nie wyjaśni.
   Plik jest kafelkiem, a otwarcie go otwiera tę samą przeglądarkę, której używa
-  ekran Workspaces — obraz, PDF, markdown jako podgląd albo źródło i zawsze
+  ekran Workspaces — obraz, PDF, odtwarzacz audio i wideo, markdown jako podgląd
+  albo źródło i zawsze
   pobranie — czytając `…/workspace/file` dla tekstu i `…/workspace/raw` dla bajtów.
   Przez *rozmowę*, a nie przez id workspace'u, i to celowo: to właśnie trzyma te
   pliki osiągalnymi dla kogoś, komu czat udostępniono.
@@ -2522,12 +2621,12 @@ odpowiedzieć tylko zgadując.
 Zmieniają to cztery narzędzia i każde jest przyznawane **per powiązanie**, pod
 *Where this agent is available*:
 
-| Narzędzie | Odpowiada na | Slack | Telegram | Mattermost |
-|---|---|:-:|:-:|:-:|
-| `get_channel_info` | Nazwa, cel, temat, rozmiar | ✅ | ✅ | ✅ |
-| `list_channel_members` | Kto tu jest | ✅ | tylko administratorzy | ✅ |
-| `search_channels` | Jakie inne kanały istnieją | ✅ | — | ✅ |
-| `read_channel_history` | Co powiedziano ostatnio, **w wątku, w którym odpowiada** | ✅ | — | ✅ |
+| Narzędzie | Odpowiada na | Slack | Telegram | Mattermost | Teams |
+|---|---|:-:|:-:|:-:|:-:|
+| `get_channel_info` | Nazwa, cel, temat, rozmiar | ✅ | ✅ | ✅ | ✅ |
+| `list_channel_members` | Kto tu jest | ✅ | tylko administratorzy | ✅ | ✅ |
+| `search_channels` | Jakie inne kanały istnieją | ✅ | — | ✅ | — |
+| `read_channel_history` | Co powiedziano ostatnio, **w wątku, w którym odpowiada** | ✅ | — | ✅ | — |
 
 Per powiązanie, a nie per agent, bo organizacja może podpiąć jednego agenta do
 dwóch serwerów Mattermosta i trzech workspace'ów Slacka — a *„czy może czytać to,
@@ -2572,7 +2671,7 @@ injection z publicznym przyciskiem edycji.
 flowchart TD
     A{a site of your own?} -->|no| L{a link will do?}
     L -->|yes| H[a hosted page]
-    L -->|no| T[Slack, Telegram or Mattermost]
+    L -->|no| T[Slack, Teams, Telegram or Mattermost]
     A -->|yes| U{your own interface?}
     U -->|yes| WS[the raw WebSocket]
     U -->|no| P{visitors signed in to your product?}
@@ -2585,7 +2684,7 @@ flowchart TD
 - Wewnątrz twojego produktu, per użytkownik → **widget, tryb `jwt`**.
 - Całkowicie własny interfejs → **WebSocket**.
 - Brak własnej strony, a link wystarczy → **hostowana strona**.
-- Tam, gdzie zespół już rozmawia → **Slack, Telegram albo Mattermost**.
+- Tam, gdzie zespół już rozmawia → **Slack, Teams, Telegram albo Mattermost**.
 - Zupełnie inny system → REST API (`POST /api/v1/agents/{id}/run`).
 
 !!! success "Pierwsze cztery to jeden obiekt"
@@ -2598,8 +2697,8 @@ flowchart TD
 ## Podsumowanie { #recap }
 
 - **Jeden runner za każdą powierzchnią.** Czat webowy, hostowana strona, widget,
-  API, Slack, Telegram i Mattermost docierają do tego samego kodu, więc governance
-  nie jest czymś, co wywołujący może objechać.
+  API, Slack, Teams, Telegram i Mattermost docierają do tego samego kodu, więc
+  governance nie jest czymś, co wywołujący może objechać.
 - Bot odpowiada jako **jeden agent**, a wzmianka wykonuje się jako **nadawca** —
   nigdy jako bot.
 - Co obcemu wolno, wolno mu w pewnym tempie: powierzchnie publiczne niosą limity

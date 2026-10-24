@@ -15,7 +15,9 @@
 |---|---|---|
 | One agent's instructions | `AgentSpec.instructions`, edited in the Builder | Whoever may edit the agent |
 | An inline specialist's instructions | `InlineSpecialistSpec.instructions`, in the same spec | Same |
-| The starting text a new agent gets | `backend/app/agents/default_instructions.py` | A deploy — it is this deployment's idea of an assistant |
+| The starting text a new agent gets | The AgenticOS template, `backend/app/core/catalog/agent_templates/general/agenticos/AGENT.md` | A deploy — it is this deployment's idea of an assistant |
+| What the agent is told it can and cannot do | Assembled from its capabilities on every run, under **Your setup** | Nobody — switching a capability changes it |
+| What the agent is told about the person | Their language, time zone, role and work, from their account, after the instructions on every run | The person, in **Settings → Profile** |
 | A procedure many agents share | A [skill](../skills.md), a row in the database | A support lead, on a Tuesday afternoon, with no deploy |
 
 The last row is the one worth reaching for. Twenty procedures in one
@@ -24,8 +26,11 @@ almost nothing, because the model sees the names and loads only what it needs.
 
 ## What belongs in instructions
 
-Read `default_instructions.py` before writing your own — it is the worked example,
-and it explains its own choices. Two of them decide most of the quality:
+Read the AgenticOS template's instructions before writing your own — a new agent
+starts with them, so they are the worked example. They open with the agent's own
+`{{agent_name}}`, lead the person one step at a time, offer one next step after a
+task, and name no tool a capability does not bring. Two choices decide most of the
+quality:
 
 - **Write for the refusals.** The paragraphs that earn their place are the ones
   about not inventing facts, saying which source an answer came from, and stopping
@@ -74,9 +79,11 @@ run time. See [Permissions](../permissions.md).
 
 ## Iterating on it
 
-- **A draft cannot run.** An agent runs its published version, so trying a new
-  prompt means publishing one — which is cheap by design, and why a rollback is a
-  promote rather than a restore. Iterate on a `dev`
+- **A draft runs only as a test.** Everywhere it is available an agent answers
+  with its published version; the Builder's test panel - and `POST /agents/{id}/run`
+  with `"draft": true`, which the Architect's `test_agent_draft` calls - answer
+  as the unpublished draft, in a test run. Publishing is cheap by design, and a
+  rollback is a promote rather than a restore. Iterate on a `dev`
   [environment](../concepts.md#version) that follows every publish, and leave
   `production` waiting to be promoted onto.
 - **Test with real queries, not ideal ones.**

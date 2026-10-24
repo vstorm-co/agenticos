@@ -2,10 +2,10 @@
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sqlalchemy import Boolean, DateTime, Integer, SmallInteger, String, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -81,6 +81,24 @@ class User(Base, TimestampMixin):
     )
     notify_usage_reports: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
+    )
+    # The console language this person chose, from any device or through an
+    # agent asked to switch it. Null until they choose: the console then keeps
+    # whatever the browser's cookie or the URL says, as it always did.
+    locale: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # What every agent is told about the person (#2301): the zone "every Monday
+    # at 9" is read in, taken from their browser, and their role and work, which
+    # they write once rather than in every conversation.
+    time_zone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    job_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    about: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # When they work - `{"days": [1-7], "start": "HH:MM", "end": "HH:MM"}`, read by
+    # `WorkingHours`. Knowledge for the agent only: nothing is held back or moved
+    # outside these hours, an agent just plans around them.
+    working_hours: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # This person said no to the organization's nightly look at their week.
+    proactive_opt_out: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
     )
 
     sessions: Mapped[list[Session]] = relationship(

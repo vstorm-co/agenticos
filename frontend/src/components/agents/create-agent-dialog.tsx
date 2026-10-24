@@ -169,6 +169,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
       ...audiencePayload(audience),
       categories,
       tags,
+      from_starter: true,
     });
   }
 

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import RoutinesPage from "./page";
 
 let canCreate = true;
+let canWatch = true;
 
 vi.mock("@/hooks", () => ({
   useCanCreateTrigger: () => canCreate,
@@ -44,6 +45,24 @@ vi.mock("@/components/triggers/routine-ideas", () => ({
     </button>
   ),
 }));
+// The card and the dialog have their own suites; the page only places them.
+vi.mock("@/components/watches/watches-card", () => ({
+  useCanWatch: () => canWatch,
+  WatchesCard: ({ onNew }: { onNew: () => void }) => (
+    <button type="button" onClick={onNew}>
+      watches-card
+    </button>
+  ),
+}));
+vi.mock("@/components/watches/watch-dialog", () => ({
+  WatchDialog: ({ onOpenChange }: { onOpenChange: (open: boolean) => void }) => (
+    <div role="dialog" aria-label="watch-dialog">
+      <button type="button" onClick={() => onOpenChange(false)}>
+        close watch
+      </button>
+    </div>
+  ),
+}));
 vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
   NewEventTriggerDialog: ({ open }: { open: boolean }) =>
     open ? <div role="dialog" aria-label="event-dialog" /> : null,
@@ -51,6 +70,7 @@ vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
 
 beforeEach(() => {
   canCreate = true;
+  canWatch = true;
 });
 
 describe("RoutinesPage", () => {
@@ -108,5 +128,25 @@ describe("RoutinesPage", () => {
     expect(screen.queryByRole("button", { name: "New event trigger" })).toBeNull();
     // The list still shows - viewing is not gated on running.
     expect(screen.getByTestId("scheduled-tab")).toBeInTheDocument();
+    // A watch is the person's own, so it is offered all the same.
+    expect(screen.getByRole("button", { name: "New watch" })).toBeInTheDocument();
+  });
+
+  it("starts a watch from the header or the card, and offers none where it cannot run", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<RoutinesPage />);
+
+    await user.click(screen.getByRole("button", { name: "New watch" }));
+    expect(screen.getByRole("dialog", { name: "watch-dialog" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "close watch" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "watches-card" }));
+    expect(screen.getByRole("dialog", { name: "watch-dialog" })).toBeInTheDocument();
+    unmount();
+
+    canWatch = false;
+    canCreate = false;
+    render(<RoutinesPage />);
+    expect(screen.queryByRole("button", { name: "New watch" })).toBeNull();
   });
 });

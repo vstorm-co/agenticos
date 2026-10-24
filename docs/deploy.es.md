@@ -1,5 +1,5 @@
 ---
-source_sha: "ecc5b8b8c62c"
+source_sha: "23a69994dc8d"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -339,7 +339,7 @@ provider se añade en el producto, por organización, desde el vault.
     del host no puede ver.
 
 Después, una vez, a mano: inicia sesión, invita a alguien (lo que demuestra
-`SMTP_*`) y envía un mensaje a Claude Code like (lo que demuestra la clave
+`SMTP_*`) y envía un mensaje a AgenticOS (lo que demuestra la clave
 de provider y el WebSocket). Cada cosa recorre un camino que aquí no comprueba
 nada más.
 

@@ -269,8 +269,10 @@ Its no-overlap guard blocks on every non-terminal run in the trigger's conversat
 old invisibility could not offer.
 
 Meanwhile a worker that dies mid-run leaves a `running` row nothing in-process will
-ever finish. What bounds that row is the hourly stale-run sweep, which ends it
-`failed` past `STALE_RUN_REAPED_AFTER_HOURS`. The scheduled fire's own liveness
+ever finish. The process executing a run stamps it alive every
+`RUN_HEARTBEAT_SECONDS`, and what bounds a row that stopped beating is the
+per-minute stale-run sweep, which ends it `failed` past
+`STALE_RUN_REAPED_AFTER_SECONDS`. The scheduled fire's own liveness
 signal stays its renewed lease (`app/repositories/agent_trigger.py::claim_due`).
 
 [Governance](governance.md#a-run-whose-process-died) has what the sweep settles and

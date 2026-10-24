@@ -121,6 +121,16 @@ Refreshing does not start a new session — the refresh token rotates in place a
 the access token keeps naming the same one — so a long-lived connection is not cut
 off by a routine refresh.
 
+### Work that runs after the request { #work-that-runs-after-the-request }
+
+An organization key cannot start an [eval run](evals.md) or a request to the
+[authoring assistant](authoring.md): those routes are for people signed in, and
+a key is answered `403` on them. Work that runs later, in the background, is
+held to its starter's authority as it stands when the work starts - a role lost
+since stops it. Were a key ever let start such work, the same would hold for
+the key: its scopes as they stand then, and a key revoked, expired or deleted
+since stopping the work, with a reason on the run or the request.
+
 ## The organization header
 
 **An API key acts in its own organization**, and needs no header. Sending
@@ -152,6 +162,24 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 The response carries the run id, the output, the status, the tokens and the cost.
 `environment_id` in the body picks [which environment](environments.md) answers.
+`"draft": true` runs the unpublished draft instead, as the Builder's test panel
+does: a test run, for a key whose issuer may edit the agent, refused with the
+reason when the draft would not publish, and never with `Prefer: respond-async`.
+
+A key also reaches an agent's routines - `GET /api/v1/triggers` and
+`GET`, `POST`, `PATCH` and `DELETE` under `/api/v1/agents/{agent_id}/triggers`,
+plus `POST .../{trigger_id}/run` to fire one now - and the organization's models
+at `GET /api/v1/providers/model-profiles`. Three routes act on the issuer
+themselves: `GET /api/v1/me/mcp-connections` lists the services they connected
+with their own account, `PUT /api/v1/users/me/locale` sets the console's
+language for them on every device, and `PATCH /api/v1/users/me/agent-context`
+saves their role (`job_title`) and what they work on (`about`), which every
+agent is told. Each needs a key issued for `agents:run`.
+
+`POST /api/v1/agents` creates an agent from the spec in its body, and keeps an
+empty field empty. With `"from_starter": true` it fills what the spec leaves out -
+the instructions, skills, the platform's own tools and the budget - from the
+AgenticOS starter agent, as **New agent** in the console does.
 
 **A run continues a conversation.** A call without `conversation_id` opens a new
 conversation for the key's issuer and returns its id as `conversation_id`; send

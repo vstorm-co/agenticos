@@ -214,7 +214,7 @@ live stays readable, so *what did this agent look like in March* has an answer.
 ## Check it
 
 Publish it and it runs the same way in every surface: the console's chat, a
-hosted page, an embedded widget, the HTTP API, Slack, Telegram, Mattermost.
+hosted page, an embedded widget, the HTTP API, Slack, Teams, Telegram, Mattermost.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
@@ -238,7 +238,7 @@ came from.
 | **[Knowledge](file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description — per collection, overridable per upload. Google Drive and S3 sync |
 | **[Skills](skills.md)** | Written know-how the agent loads only when it decides it is relevant |
 | **[Governance](governance.md)** | Monthly budgets, human approval, an audit trail, per-agent alerts |
-| **[Surfaces](channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Telegram, Mattermost — one runner behind all of them |
+| **[Surfaces](channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Teams, Telegram, Mattermost — one runner behind all of them |
 | **[Secrets](secrets.md)** | Sealed per organization. No response, log line or audit entry ever carries a plaintext key |
 
 [The full list of features →](features.md)

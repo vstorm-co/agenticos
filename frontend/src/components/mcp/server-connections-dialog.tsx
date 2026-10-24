@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plug,
+  Radar,
   Plus,
   Unplug,
   User,
@@ -18,6 +19,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { AddToAgent } from "@/components/agents/add-to-agent";
+import { WatchDialog } from "@/components/watches/watch-dialog";
 import { UsedBy } from "@/components/agents/used-by";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { McpCallLog } from "./mcp-call-log";
@@ -37,6 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui";
+import { useOrganizations } from "@/hooks";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { connectionState, MCP_STATE_LABEL } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
@@ -86,6 +89,10 @@ export function ServerConnectionsDialog({
   const t = useTranslations("mcp");
   const [audienceOf, setAudienceOf] = useState<McpConnectionRecord | null>(null);
   const [callsOf, setCallsOf] = useState<McpConnectionRecord | null>(null);
+  // One of the reader's own accounts to watch (#2301), where the organization allows it.
+  const [watchOf, setWatchOf] = useState<McpConnectionRecord | null>(null);
+  const { activeOrg } = useOrganizations();
+  const watchable = activeOrg?.proactive_watches_enabled === true;
 
   return (
     <>
@@ -162,6 +169,7 @@ export function ServerConnectionsDialog({
                   onDisconnect={(connection) => onDisconnect("personal", connection)}
                   onOAuth={(connection) => onOAuth("personal", row, connection)}
                   onConnect={() => onConnect("personal", row)}
+                  onWatch={watchable ? setWatchOf : undefined}
                   // Only where there is a choice to make. One account is
                   // substituted whether or not it is marked, so a switch beside it
                   // would be a control that changes nothing (#1342).
@@ -173,6 +181,13 @@ export function ServerConnectionsDialog({
         </DialogContent>
       </Dialog>
       {callsOf !== null && <McpCallLog connection={callsOf} onClose={() => setCallsOf(null)} />}
+      {watchOf !== null && (
+        <WatchDialog
+          open
+          onOpenChange={(open) => !open && setWatchOf(null)}
+          connectionId={watchOf.id}
+        />
+      )}
       {/* Who sees and binds one of the organization's servers (#2072): the same
         panel as an agent's or a skill's, so a department narrows it the same way. */}
       <Dialog open={audienceOf !== null} onOpenChange={(open) => !open && setAudienceOf(null)}>
@@ -214,6 +229,7 @@ function Owners({
   onNominate,
   onAudience,
   onCalls,
+  onWatch,
   offerToAgents = false,
 }: {
   row: McpServerRow;
@@ -233,6 +249,8 @@ function Owners({
   onAudience?: (connection: McpConnectionRecord) => void;
   /** What agents asked it to do - the organization's servers only (#2072). */
   onCalls?: (connection: McpConnectionRecord) => void;
+  /** Have the platform watch it - the reader's own accounts only (#2301). */
+  onWatch?: (connection: McpConnectionRecord) => void;
   /** Offer "Add to an agent" on each usable account: the organization's, which agents bind. */
   offerToAgents?: boolean;
 }) {
@@ -281,6 +299,7 @@ function Owners({
               onOAuth={() => onOAuth(connection)}
               onAudience={onAudience ? () => onAudience(connection) : undefined}
               onCalls={onCalls ? () => onCalls(connection) : undefined}
+              onWatch={onWatch ? () => onWatch(connection) : undefined}
               offerToAgents={offerToAgents}
               onNominate={
                 onNominate && connection.catalog_key !== null
@@ -326,6 +345,7 @@ function Account({
   onNominate,
   onAudience,
   onCalls,
+  onWatch,
   offerToAgents = false,
 }: {
   row: McpServerRow;
@@ -344,6 +364,7 @@ function Account({
   onNominate?: (use: boolean) => void;
   onAudience?: () => void;
   onCalls?: () => void;
+  onWatch?: () => void;
   offerToAgents?: boolean;
 }) {
   const t = useTranslations("mcp");
@@ -424,9 +445,19 @@ function Account({
               {t("authorize")}
             </Button>
           ) : (
-            <Button size="sm" variant="outline" disabled={busy} onClick={onTools}>
-              {t("tools")}
-            </Button>
+            <>
+              {/* Beside Tools rather than in the menu: a watch is something to
+                  offer, and nobody looked for it behind the dots (#2301). */}
+              {onWatch && state === "connected" && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={onWatch}>
+                  <Radar className="h-3.5 w-3.5" aria-hidden />
+                  {t("watch")}
+                </Button>
+              )}
+              <Button size="sm" variant="outline" disabled={busy} onClick={onTools}>
+                {t("tools")}
+              </Button>
+            </>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

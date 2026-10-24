@@ -1,5 +1,5 @@
 ---
-source_sha: "8ffb5cc3835a"
+source_sha: "9f23de45205f"
 ---
 
 # Słownik { #glossary }
@@ -20,6 +20,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Test | Czat obok Buildera, który odpowiada jako wersja robocza albo dowolna wersja | `is_test` na jego runach |
 | Instrukcje | To, co agent słyszy przed każdą rozmową | `instructions` |
 | Zmienne | `{{name}}` w instrukcjach, uzupełniane na starcie runu | `variables` |
+| Pierwsze wiadomości | To, co pusty czat proponuje komuś, kto otwiera agenta, każda jednym kliknięciem | `starters` |
 | Capability | Coś, co agent może robić, włączane w Builderze | `capabilities[]` |
 | Skill | Wiedza praktyczna zapisana raz i czytana przez każdego agenta, który jej potrzebuje | `skill` |
 | Kontekst | Stała wiedza, którą agent zawsze ma, np. słownik albo polityka | `context` |
@@ -32,6 +33,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Sugestia | Jedna proponowana zmiana w drafcie, przyjmowana, edytowana albo odrzucana osobno | `spec_proposal_hunk` |
 | Zmiana ustawienia | Sugestia zmiany jednej części konfiguracji agenta, na przykład modelu albo capability | hunk `spec_field` |
 | Zmiana pliku kontekstowego | Nowa treść pliku kontekstowego zaproponowana przez asystenta, stosowana albo odrzucana na stronie Context | `context_proposal` |
+| AgenticOS | Agent ogólnego przeznaczenia, z którym nowa organizacja zaczyna w Chat, i to, od czego zaczyna nowy agent | `general/agenticos` |
 
 ## Gdzie to działa { #where-it-runs }
 
@@ -95,6 +97,7 @@ w [Capabilities](capabilities.md).
 | Długie rozmowy | `compaction` |
 | Kontekst | `context` |
 | Poprzednie rozmowy | `conversation_search` |
+| Następne kroki | `follow_ups` |
 | Zabezpieczenia | `guardrails` |
 | Generowanie obrazów | `image_generation` |
 | Wyszukiwanie wiedzy | `knowledge` |
@@ -107,9 +110,11 @@ w [Capabilities](capabilities.md).
 | Skille | `skills` |
 | Subagenci | `subagents` |
 | Przypomnienia instrukcji | `system_reminders` |
+| Zamiana tekstu na mowę | `text_to_speech` |
 | Myślenie | `thinking` |
 | Limity wyników narzędzi | `tool_output_limits` |
 | Wyszukiwanie narzędzi | `tool_search` |
+| Generowanie wideo | `video_generation` |
 | Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |

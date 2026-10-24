@@ -1,4 +1,4 @@
-<!-- source_sha: ab4f14389941 -->
+<!-- source_sha: 5a4d6fb78011 -->
 
 <div align="center">
 
@@ -319,11 +319,11 @@ Sicherheit ist geschichtet. Zugangsdaten liegen in einem Vault mit Envelope-Vers
 <img src="docs/assets/readme/capabilities.webp" alt="29 integrierte Capabilities in sechs Gruppen: Wissen und Gedächtnis, Web, Dateien, Code und Ausgabe, Arbeitsweise, Sicherheit und Limits, Chatkanäle." width="100%">
 
 <details>
-<summary>Alle 29 integrierten Capabilities als Text</summary>
+<summary>Alle 31 integrierten Capabilities als Text</summary>
 
 - **Wissen und Gedächtnis:** Wissenssuche mit Quellenangaben, Skills, Kontext, Memory, Memory über mem0, frühere Unterhaltungen.
 - **Web:** Websuche (standardmäßig DuckDuckGo; Tavily, Brave oder Exa mit Schlüssel), Webseiten lesen und ein Webbrowser, den der Agent steuert und den du übernehmen kannst.
-- **Dateien, Code und Ausgabe:** Berechnungen in Python, eine Sandbox mit Dateien und Shell, ein Coding Agent, der Arbeit an Claude Code oder Codex übergibt, Diagramme, Zeichnungen (Diagramme, Rechner, 3D-Szenen), Bilderzeugung (OpenAI oder Google), Apps.
+- **Dateien, Code und Ausgabe:** Berechnungen in Python, eine Sandbox mit Dateien und Shell, ein Coding Agent, der Arbeit an Claude Code oder Codex übergibt, Diagramme, Zeichnungen (Diagramme, Rechner, 3D-Szenen), Bilderzeugung (OpenAI oder Google), Sprache (OpenAI, ElevenLabs oder Google), Videoclips (Google, BytePlus, xAI oder Alibaba), Apps.
 - **Arbeitsweise:** Subagents, Planung, Denken, Arbeiten während Werkzeuge laufen, Werkzeugsuche, Datum und Uhrzeit, Erinnerungen an Anweisungen, Rückfragen an den Nutzer.
 - **Sicherheit und Limits:** Guardrails, die Secrets und personenbezogene Daten schwärzen, lange Unterhaltungen, Auslagerung von Medien, Limits für Werkzeugausgaben.
 - **Chatkanäle:** Suche nach Chatkanälen für Bots in Slack, Telegram und Mattermost.

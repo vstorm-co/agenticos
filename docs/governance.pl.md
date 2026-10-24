@@ -1,5 +1,5 @@
 ---
-source_sha: "673705e1369e"
+source_sha: "fa6c64c816ac"
 ---
 
 # Governance { #governance }
@@ -514,6 +514,53 @@ się sprawdzić przed każdym żądaniem tak, jak sprawdza się run tekstowy:
 Rozmowę, której proces umarł, zamyka przemiatanie rozmów głosowych z kosztem
 zapisanym przez jej ostatni heartbeat - inaczej niż run tekstowy, którego
 wydatki umierają razem z jego procesem.
+
+### Praca z własnej inicjatywy { #proactive-work }
+
+Platforma może zrobić trochę z własnej inicjatywy, ale nie robi nic takiego,
+dopóki organizacja tego nie włączy: karta **Proaktywność** na stronie jej
+członków (`budgets:manage`). Po włączeniu zadanie w tle przegląda ostatnie
+prośby każdej osoby w dni i o godzinie, które wybrała organizacja - w strefie
+czasowej każdej osoby albo godzinę przed godzinami pracy podanymi w jej profilu -
+i proponuje rutynę dla prośby, którą powtarza, profil albo pierwsze wiadomości,
+które oferuje jej pusty czat ([Konsola](console.md#chat)).
+
+Każde to jedno
+wywołanie modelu, na modelu wybranym przez organizację przy włączaniu (nie ma
+domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
+runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
+każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
+
+Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogranicza
+**limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany na tej
+samej karcie (`proactive_limit_usd`). Osoba, u której nic nowego się nie
+wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co czytać.
+
+**Obserwacje** kierują tę samą pracę na własne połączenia osoby. Włącza się je
+osobno na tej samej karcie (`proactive_watches_enabled`), działają na tym samym
+modelu i w tym samym limicie. Osoba zakłada obserwację przyciskiem **Nowa
+obserwacja** w **Rutynach**, gdzie karta Obserwacje pokazuje każdą z tym, kiedy
+ostatnio sprawdzała i ile jej znalezisk czeka, albo przyciskiem **Obserwuj**
+obok **Tools** konta na stronie serwerów MCP. Wybiera jedno ze swoich połączeń
+MCP - dowolny serwer, który podłączyła - i mówi, czego szukać - gotowa
+obserwacja dla tego serwera albo jej własne słowa - i jak często, nigdy
+częściej, niż pozwala organizacja (`proactive_watch_min_minutes`, domyślnie co
+godzinę).
+
+Każdy przegląd to jeden run z powierzchni **proactive**, który dostaje tylko
+narzędzia oznaczone przez serwer jako tylko do odczytu (`readOnlyHint`), więc
+obserwacja niczego na koncie nie zmienia. To, co znajdzie, należy tylko do tej
+osoby: sugestia rodzaju `finding`, z kluczem z identyfikatora samej rzeczy, więc
+każda jest zgłaszana raz, z linkiem, żeby ją otworzyć. Znalezisko z obserwacji
+ustawionej na pilne od razu, które model też uznał za pilne, idzie od razu jako
+powiadomienie; reszta czeka na jej poranny [briefing](console.md#the-inbox). W odróżnieniu od rutyny obserwacja milczy,
+gdy nie ma nic nowego.
+
+Na tej samej karcie jest **wiadomość powitalna**, domyślnie wyłączona i
+wymagająca `org:settings`: wiadomość prywatna dla nowej osoby od botów
+organizacji w Slacku, Teams i Mattermost, słowami organizacji, jeśli je napisała
+(`{organization}`, `{bot}` i `{url}` zostają uzupełnione), albo wbudowanym
+powitaniem w jej języku.
 
 ### Co pokazuje historia runów { #what-run-history-shows }
 
@@ -1283,9 +1330,13 @@ drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Akty
 zawsze i blokujący każdy harmonogram, dla którego triggera był podlinkowanym
 runem.
 
-Godzinne przemiatanie kończy wszystko, co dalej jest `running` po
-`STALE_RUN_REAPED_AFTER_HOURS` — domyślnie sześć godzin, zero to wyłącza — jako
-**`failed`**. Nikt nie zatrzymał tego runa, zrobiła to infrastruktura, a operator
+Gdy model pracuje, proces wykonujący run oznacza go jako żywy co
+`RUN_HEARTBEAT_SECONDS`. Przemiatanie co minutę kończy jako **`failed`** wszystko,
+co dalej jest `running` bez znaku życia przez `STALE_RUN_REAPED_AFTER_SECONDS` —
+domyślnie dwie minuty, zero to wyłącza — i mówi o tym otwartym konsolom, więc
+czat przestaje pokazywać "Working" nad turą, na którą nikt nie odpowiada, i
+proponuje zapytać ponownie. Run rozmowy głosowej zostaje dla reapera rozmów,
+który ją rozłącza. Nikt nie zatrzymał tego runa, zrobiła to infrastruktura, a operator
 filtrujący historię runów pod kątem problemów to dokładnie ten, kto powinien go
 zobaczyć.
 
@@ -1393,10 +1444,18 @@ SMTP — a drugi nigdy się o tym nie dowie.
 
 Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
 **Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
-zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
+zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie.
+
+Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
-błąd runa - run `eval`, jeden z wielu, które uruchamia eval, nie wysyła żadnego
-z nich - **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
+
+
+Run `eval` jest jednym z wielu raportowanych razem przez ewaluację; nie wysyła osobnego powiadomienia o zakończeniu ani błędzie.
+
+błąd runa - koniec rutyny nazwany jej imieniem i zaczynający się początkiem jej
+odpowiedzi, dla osoby, która ją ustawiła - prośbę o włączenie capability, dla
+właściciela agenta, propozycje, które [praca z własnej
+inicjatywy](#proactive-work) przygotowała dla osoby, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
 konektora oraz własne ogłoszenie administratora aplikacji -
 `POST /admin/announcements`, jeszcze bez strony w konsoli - adresowane do
 organizacji i, opcjonalnie, do roli, oraz ograniczone do jednego albo obu

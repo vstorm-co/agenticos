@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+import httpx
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
 from app.agents.steering import SteeringInbox
@@ -47,6 +48,7 @@ from app.services.channels.base import (
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
+from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.live_reply import (
     WORKING,
     AnswerSink,
@@ -60,6 +62,7 @@ from app.services.channels.mentions import (
     UnaddressedMessage,
     parse_mention,
 )
+from app.services.channels.next_steps import ChannelNextSteps
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
@@ -756,6 +759,11 @@ class ChannelMessageRouter:
                 platform=incoming.platform,
                 platform_chat_id=incoming.platform_chat_id,
                 run_id=answered.parked_run_id,
+            )
+        # What to do next, as buttons a press of which is the next message (#2301).
+        elif answered.next_steps and answered.run_id is not None:
+            await ChannelNextSteps(db).offer(
+                bot, incoming, run_id=answered.run_id, steps=answered.next_steps
             )
         return True
 
@@ -1485,7 +1493,7 @@ class ChannelMessageRouter:
         made after this returns, so the refusal can carry the link where it is safe
         to send. A second refusal here answered a plain sentence and no link.
         """
-        return await channel_identity_repo.get_or_create(
+        identity = await channel_identity_repo.get_or_create(
             db,
             platform=incoming.platform,
             platform_user_id=incoming.platform_user_id,
@@ -1493,6 +1501,36 @@ class ChannelMessageRouter:
             platform_display_name=incoming.platform_display_name,
             user_id=None,
         )
+        if identity.user_id is None:
+            await self._link_vouched(incoming, bot, db, identity)
+        return identity
+
+    async def _link_vouched(
+        self,
+        incoming: IncomingMessage,
+        bot: ChannelBot,
+        db: AsyncSession,
+        identity: ChannelIdentity,
+    ) -> None:
+        """Link an unlinked sender the platform's directory vouches for, where it can (#1985).
+
+        A platform that cannot say, or a lookup that fails, leaves the identity
+        unlinked - the link flow is still there, and a failed lookup must not
+        cost the person their answer.
+        """
+        try:
+            email = await get_adapter(incoming.platform).vouched_email(
+                unseal_bot_token(bot), incoming
+            )
+        except httpx.HTTPError, ChannelNotConfigured, ValueError:
+            logger.warning(
+                "channel_vouched_email_failed",
+                extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
+                exc_info=True,
+            )
+            return
+        if email is not None:
+            await ChannelLinkService(db).link_vouched(identity, email)
 
     async def _resolve_session(
         self,

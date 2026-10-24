@@ -277,6 +277,16 @@ class AgentTrigger(Base, TimestampMixin):
         nullable=True,
     )
 
+    # Where a fire's answer is also posted (#1985): a Teams conversation one of
+    # the organization's bots is in. Null posts nowhere - the run log is still
+    # the record. SET NULL, so removing the bot or the conversation stops the
+    # post and leaves the schedule running.
+    teams_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("teams_conversations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # How an event trigger was set up, when it came from a portal preset rather
     # than the raw source picker. All nullable: every schedule, and every
     # hand-wired event trigger, leaves them null and behaves exactly as before -

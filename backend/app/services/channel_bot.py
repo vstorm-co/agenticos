@@ -19,8 +19,14 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.teams_conversation import TeamsConversation
 from app.db.updates import cleared, writable
-from app.repositories import agent_exposure_repo, channel_bot_repo, channel_session_repo
+from app.repositories import (
+    agent_exposure_repo,
+    channel_bot_repo,
+    channel_session_repo,
+    teams_conversation_repo,
+)
 from app.schemas.channel_bot import (
     BotAgent,
     ChannelBotCreate,
@@ -36,6 +42,9 @@ from app.services.channels import (
 )
 from app.services.channels.slack_manifest import slack_manifest
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
+from app.services.channels.teams import ConversationRef
+from app.services.channels.teams_auth import TeamsCredentials
+from app.services.channels.teams_package import teams_app_package
 from app.services.speech_to_text import is_offered as stt_is_offered
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import TranscriptionService
@@ -55,12 +64,23 @@ def unseal_bot_token(bot: ChannelBot) -> str:
     the webhook router and the polling loop at startup - have the row and no
     service, and the row is what carries the organization the envelope is bound
     to.
+
+    A Teams bot's token is its client secret, and signing in needs the app and
+    tenant beside it; the three travel as one string, so every adapter call
+    still takes one token (#1985).
     """
-    return unseal(
+    token = unseal(
         bot.token_encrypted,
         scope=VaultScope.organization(bot.organization_id),
         key_version=bot.secret_key_version,
     )
+    if bot.platform == "teams":
+        return TeamsCredentials(
+            app_id=bot.teams_app_id or "",
+            tenant_id=bot.teams_tenant_id or "",
+            client_secret=token,
+        ).encode()
+    return token
 
 
 def unseal_webhook_secret(bot: ChannelBot) -> str | None:
@@ -251,6 +271,8 @@ class ChannelBotService:
                 data.command_token, key_version=sealed.key_version
             ),
             transcribe_voice_notes=data.transcribe_voice_notes,
+            teams_app_id=data.teams_app_id,
+            teams_tenant_id=data.teams_tenant_id,
             speech_to_text_provider=data.speech_to_text_provider,
             speech_to_text_model=data.speech_to_text_model,
             speech_to_text_secret_id=data.speech_to_text_secret_id,
@@ -472,6 +494,43 @@ class ChannelBotService:
         )
         return ChannelBotRead.model_validate(bot).model_copy(
             update={"inherited_speech_to_text": inherited}
+        )
+
+    async def teams_app_package(self, bot_id: UUID) -> bytes:
+        """The Teams app package for one bot, to upload to the tenant's app catalog.
+
+        Raises:
+            BadRequestError: If the bot is not a Teams bot.
+        """
+        bot = await self.get(bot_id)
+        if bot.platform != "teams" or not bot.teams_app_id:
+            raise BadRequestError(
+                message="Only a Teams bot has an app package", details={"bot_id": str(bot_id)}
+            )
+        return teams_app_package(bot)
+
+    async def record_teams_conversation(self, bot: ChannelBot, ref: ConversationRef) -> None:
+        """Remember where a Teams conversation lives, for answers and posts after this one."""
+        await teams_conversation_repo.record(
+            self.db,
+            organization_id=bot.organization_id,
+            bot_id=bot.id,
+            key=ref.key,
+            conversation_id=ref.conversation_id,
+            service_url=ref.service_url,
+            tenant_id=ref.tenant_id,
+            conversation_type=ref.conversation_type,
+            name=ref.name,
+        )
+
+    async def teams_conversations(self) -> list[TeamsConversation]:
+        """Where a trigger may post: the team channels this organization's Teams bots
+        are in. A group chat is private to its participants and a personal chat is
+        somebody's own, so neither is offered."""
+        return await teams_conversation_repo.list_shared(
+            self.db,
+            organization_id=self._org_id,
+            types=teams_conversation_repo.POSTABLE_TYPES,
         )
 
     async def slack_manifest(self, bot_id: UUID) -> dict[str, Any]:

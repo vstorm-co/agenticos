@@ -1,5 +1,5 @@
 ---
-source_sha: "f58feaeb60b1"
+source_sha: "5082dd13ffa3"
 ---
 
 # La consola { #the-console }
@@ -10,7 +10,9 @@ como es debido.
 
 Si buscas una pantalla concreta, el camino más rápido es el **"?"** de la
 cabecera de cada página — reproduce el recorrido guiado de esa página, y una
-página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
+página cuya cabecera no lleva "?" no tiene recorrido que reproducir. El chat no
+tiene cabecera: sus consejos están en los ajustes del chat, los deslizadores junto
+al micrófono.
 
 ## El dashboard { #the-dashboard }
 
@@ -52,11 +54,16 @@ clic bajo **Customize**:
 | **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
 | **Usage & cost** | Qué agents se usan, gasto, [minutos de voz](#voice-calls), cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
 
-Quien construye agents ve además **Get started** encima de las bandas hasta
-completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,
-añadir departamentos, invitar a alguien del equipo y - quien pueda - poner un agent
-en una app de chat. Cada paso se marca a partir de lo que existe, se haya hecho
-donde se haya hecho; cerrar la tarjeta la oculta en ese navegador.
+El dashboard se abre con **Get started** hasta completar cada paso: contarles a
+los agents sobre ti, empezar una conversación, conectar un servicio con tu
+propia cuenta, configurar una rutina y crear un agent - este último es una
+pregunta al Architect, que lo crea contigo.
+
+Quien construye agents tiene después los pasos de la organización: publicar un
+agent, darle una base de conocimiento, añadir departamentos, invitar a alguien
+del equipo y - quien pueda - poner un agent en una app de chat. Cada paso se
+marca a partir de lo que existe, se haya hecho donde se haya hecho, no de un
+clic en la tarjeta; cerrar la tarjeta la oculta en ese navegador.
 
 Tu propia vista muestra además **Discover AgenticOS**: una tarjeta por cada cosa
 fácil de pasar por alto - el servidor MCP propio de este despliegue para Claude
@@ -86,6 +93,27 @@ instantánea que querías conservar.
     Una disposición guardada puede reordenar y ocultar, pero no puede revelar. El
     filtrado por permisos corre después de resolver la disposición, venga esta de
     la de serie o de una que tú guardaste.
+
+## La bandeja { #the-inbox }
+
+La **bandeja** (Inbox), bajo Chat en la barra lateral, es lo que la plataforma
+te trajo por iniciativa propia: lo que tus
+[vigilancias](governance.md#proactive-work) encontraron en tus conexiones y lo
+que propuso la revisión nocturna. El número a su lado dice cuánto espera. Se lee
+como un buzón: una fila por elemento, lo urgente primero, de dónde vino y
+cuándo, y las respuestas en la fila.
+
+Filtra por su origen, o abre **Hecho** para ver lo que ya aceptaste o
+descartaste y recuperar algo descartado. **What they found** en la tarjeta de
+vigilancias de Rutinas la abre filtrada a las vigilancias. Filas más cortas
+encabezan tu dashboard como **Briefing**, y el chat vacío con el agente inicial
+muestra el primero como tarjeta, con un enlace al resto.
+
+Lo que una vigilancia encuentra y no hace falta avisar al momento espera a tu
+mañana: a la hora que mantiene la proactividad de la organización, una
+notificación y un mensaje directo de cada uno de sus bots de Slack, Teams y
+Mattermost que te conoce enumeran lo nuevo. Cada hallazgo entra en un solo
+briefing.
 
 ## La campana { #the-bell }
 
@@ -156,12 +184,17 @@ ejecutar agents (`agents:run`). Está vinculado al
 Pregúntale qué agents responden dudas de reembolsos, por qué falló el run de anoche
 o qué hay en una base de conocimiento.
 
-Pídele que esboce un agent o invite a un
-compañero, y primero te mostrará lo que apruebas: el borrador
-de un agent como el propio borrador - dónde se crea, su nombre, qué puede hacer y
-sus instrucciones - y todo lo demás como la llamada exacta. Actúa con
-tus permisos, así que encuentra y hace lo que tú podrías, y nada más. Su coste
-cuenta como el de cualquier agent.
+Dile qué debe hacer un agent y lo construye contigo, una pregunta cada vez, cada
+una con respuestas propuestas: elige las capabilities, la base de conocimiento y el
+modelo, dice por qué en una línea, esboza el agent, lo prueba con tus propias
+preguntas como borrador sin publicar, corrige lo que estaba mal y lo publica cuando
+lo apruebas. Una rutina la configura igual.
+
+Antes de que cambie nada, te muestra lo que apruebas: el borrador de un agent
+como el propio borrador - dónde se crea, su nombre, qué puede hacer y sus
+instrucciones - y todo lo demás como la llamada exacta. Actúa con tus permisos,
+así que encuentra y hace lo que tú podrías, y nada más. Su coste cuenta como el
+de cualquier agent.
 
 Un bocadillo sobre él habla de lo que te espera — aprobaciones, una organización
 sin ningún agent — o de la página en la que estás, y de vez en cuando ofrece un
@@ -187,8 +220,9 @@ navegador pregunta qué pestaña compartir y una imagen se adjunta a tu próximo
 mensaje.
 
 Planifica los trabajos largos como una lista que puedes seguir, guarda
-notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y puede
-deshacer un borrador de agent que creó por error — nada más. Además de las
+notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y solo
+borra un borrador de agent que creó por error y una rutina que le pidas quitar.
+Además de las
 aprobaciones y de una organización vacía, su bocadillo avisa cuando un run tuyo
 acaba de fallar y cuando un formulario lleva un minuto abierto sin terminar.
 
@@ -295,6 +329,55 @@ frente a lo que el agent ya tiene. En el panel de pruebas del Builder el menú l
 el borrador que estás probando. Mientras una conversación está vacía, el cuadro muestra uno
 tras otro ejemplos hechos con lo que el agent puede usar - su servidor, una
 capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en él.
+Encima, las tarjetas son los **primeros mensajes** propios del agent, definidos en
+el Builder bajo sus instrucciones; un agent sin ellos ofrece los cuatro del chat,
+entre ellos uno para preguntar qué puede hacer y otro para configurar una rutina.
+
+**Debajo de una respuesta.** Un agent con
+[Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta
+más reciente hasta tres pasos siguientes como botones, y un clic envía uno. Una
+línea dice qué anotó sobre ti, u olvidó, con **Manage** para
+[las notas mismas](reference/capabilities.md#memory-files) - pídele que olvide
+algo y lo hará. Cuando una petición necesita una capability que el agent no
+tiene, una tarjeta propone activarla o pedírselo a su propietario
+([cómo](reference/capabilities.md)).
+
+**Guardar una petición que funcionó.** Pasa el cursor por tu propio mensaje: el
+calendario lo convierte en una rutina - el mismo prompt, semanal por defecto, en
+el agent que respondió - y el robot le pide al Architect que cree un agent que lo
+haga. Pasa el cursor por la respuesta y el marcador le pide al Architect que haga
+un [skill](skills.md) de cómo se hizo, para que cualquier agent lo haga igual la
+próxima vez; recibe tu petición y la respuesta, y se ofrece a quien puede escribir
+skills.
+
+**Enlaces que señalan.** Un enlace de la consola que un agent escribe en su
+respuesta - «aquí está el botón que conecta tu Gmail» - abre esa página sin
+recargar la consola, y un `?highlight=` en él señala el control que nombra, como
+hacen los enlaces del Architect.
+
+**El agent AgenticOS te conoce.** Mientras tu cuenta no dice nada de tu rol ni de
+tu trabajo, un saludo empieza una entrevista corta: a qué te dedicas, qué llena tu
+semana, con qué herramientas trabajas - una pregunta cada vez, cada una con
+respuestas para elegir. Lo que dices se guarda en tu perfil, así que desde
+entonces lo sabe cada agent, y la entrevista termina con hasta tres tarjetas que
+configurar - una rutina, un servicio que conectar, un agent propio - cada una con
+un clic. Sáltate una pregunta, o pide algo real, y hará el trabajo en su lugar.
+
+**Lo que notó durante la noche.** Donde tu organización lo activó, una vez al
+día, temprano en tu mañana, la plataforma lee tus conversaciones recientes en una
+tarea en segundo plano: una
+petición que repites se convierte en una rutina propuesta, lo que un agent supo
+de tu rol en un perfil propuesto, y tu chat vacío de AgenticOS recibe primeros
+mensajes escritos para tu trabajo. Las propuestas esperan como tarjetas en ese
+chat vacío, en tu dashboard y en la campana, y **Ajustes → Asistente** las lista
+todas - ahí recuperas una descartada o te excluyes; acepta una y queda configurada, descártala y la misma
+propuesta no se vuelve a hacer. Nada se ejecuta cuando no pasó nada nuevo, y lo
+que esto puede gastar tiene un [límite por persona](governance.md#proactive-work).
+Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.
+
+**El horario laboral** en **Settings → Profile** dice a los agents cuándo
+trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera
+por él: es conocimiento para el agent, no un calendario.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina
@@ -493,8 +576,8 @@ Antes de ofrecer una llamada, la consola pregunta si este agent puede atenderla
 rechazado. La respuesta dice qué falta: ninguna voz configurada en el agent, el
 modelo ya no se ofrece, o no hay clave.
 
-El **botón de llamada** está en el compositor del chat, junto al micrófono, en
-cada agent. Cuando este agent no puede atender una llamada aparece tachado, y al
+El **botón de llamada** ocupa en el compositor del chat el lugar de Enviar
+mientras el cuadro está vacío - al escribir algo vuelve Enviar -, en cada agent. Cuando este agent no puede atender una llamada aparece tachado, y al
 pasar por encima, enfocarlo o pulsarlo dice por qué. Quien puede editar el agent
 recibe **Open in the Agent Builder**, que abre su tarjeta Voice en la pestaña de
 llamadas; a cualquier otra persona se le dice que pregunte a quien pueda.
@@ -571,7 +654,7 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
 | **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
-| **Channels** | Bots de Slack, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
+| **Channels** | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
 | **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
 | **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
@@ -589,10 +672,21 @@ momento, sin publicar una nueva versión.
 
 La consola habla inglés, polaco y alemán, en su totalidad salvo las páginas
 legales, que siguen en inglés. La primera tarjeta del recorrido ofrece los tres, y
-el menú de la cuenta cambia el idioma en cualquier momento; la elección se recuerda
-en el navegador. Las palabras del producto - agent, skill, run, budget, MCP y el
+el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
+en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
+inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la
+página cambia mientras responde, sin recargar. Todos los agents responden en él
+salvo que escribas en otro idioma.
+
+Las palabras del producto - agent, skill, run, budget, MCP y el
 resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
 los idiomas.
+
+La misma tarjeta pregunta a qué te dedicas, y **Settings → Profile** guarda el
+resto de lo que los agents saben de ti: tu rol, en qué trabajas y tu zona horaria.
+Cada agent los lee al empezar un run, así que nunca los repites en un chat; «cada
+lunes a las 9» son tus 9. La zona horaria se toma de tu navegador la primera vez
+que inicias sesión, hasta que eliges una.
 
 ## El siguiente paso { #the-next-step }
 

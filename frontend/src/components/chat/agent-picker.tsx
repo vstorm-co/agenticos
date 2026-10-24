@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Bot, Check, ChevronDown, Star } from "lucide-react";
 
@@ -70,6 +71,19 @@ export function AgentPicker() {
     const fallback = runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0];
     if (fallback) selectAgent(fallback.id);
   }, [isLoading, isFetching, selected, selectedAgentId, runnable, defaultAgentId, selectAgent]);
+
+  // `?agent=` - a handle or an id - is a link asking for one agent: a
+  // notification opening the starter agent's empty chat, where its suggestions
+  // wait (#2301). Once per link, and after the fallback above so it wins over it.
+  const wanted = useSearchParams().get("agent");
+  const handedOver = useRef<string | null>(null);
+  useEffect(() => {
+    if (!wanted || handedOver.current === wanted) return;
+    const named = runnable.find((agent) => agent.id === wanted || agent.slug === wanted);
+    if (!named) return;
+    handedOver.current = wanted;
+    selectAgent(named.id);
+  }, [wanted, runnable, selectAgent]);
 
   return (
     <Popover>

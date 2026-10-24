@@ -69,6 +69,7 @@ from app.services.agent_runner import (
 )
 from app.services.attachments import AttachmentRouter
 from app.services.mentions import MentionService, ResolvedMentions
+from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
@@ -605,10 +606,12 @@ class ChatAgentRunner:
         await self.db.commit()
         await change_feed.publish_run(prepared.run, "created")
         try:
-            async with prepared.iterate(
-                user_input,
-                message_history=message_history,
-            ) as agent_run:
+            # Stamped alive while the model works, as `AgentRunnerService._run`
+            # does: a restart under this turn ends it in minutes, not hours.
+            async with (
+                run_heartbeat(prepared.run.id),
+                prepared.iterate(user_input, message_history=message_history) as agent_run,
+            ):
                 await stream(agent_run)
 
             result = _outcome(agent_run)

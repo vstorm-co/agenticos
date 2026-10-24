@@ -98,6 +98,34 @@ _CASE_PROPOSAL_FIELDS = (
     "source_message_id",
     "created_at",
 )
+_SUGGESTION_FIELDS = (
+    "id",
+    "organization_id",
+    "kind",
+    "title",
+    "detail",
+    "payload",
+    "status",
+    "watch_id",
+    "urgent",
+    "created_at",
+    "decided_at",
+)
+
+_WATCH_FIELDS = (
+    "id",
+    "organization_id",
+    "connection_id",
+    "preset_key",
+    "title",
+    "instructions",
+    "exclusions",
+    "urgent",
+    "interval_minutes",
+    "is_active",
+    "last_run_at",
+    "created_at",
+)
 
 #: The account's own values, as an export hands them over.
 #:
@@ -122,6 +150,14 @@ _PROFILE_FIELDS = (
     "notify_budget_alerts",
     "notify_approval_requests",
     "notify_usage_reports",
+    # What every agent is told about them, and how the console speaks to them
+    # (#2301): their own words and choices, so theirs to take away.
+    "locale",
+    "time_zone",
+    "job_title",
+    "about",
+    "working_hours",
+    "proactive_opt_out",
 )
 
 
@@ -223,6 +259,12 @@ class PersonalDataService:
             case_proposals=personal_data_repo.as_rows(
                 await personal_data_repo.case_proposals_from(self.db, user_id),
                 _CASE_PROPOSAL_FIELDS,
+            ),
+            suggestions=personal_data_repo.as_rows(
+                await personal_data_repo.suggestions_for(self.db, user_id), _SUGGESTION_FIELDS
+            ),
+            watches=personal_data_repo.as_rows(
+                await personal_data_repo.watches_of(self.db, user_id), _WATCH_FIELDS
             ),
         )
 

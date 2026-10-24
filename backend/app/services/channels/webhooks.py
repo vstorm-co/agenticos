@@ -30,6 +30,7 @@ INBOUND_PATHS: dict[str, str] = {
     "telegram": "/api/v1/telegram/{bot_id}/webhook",
     "slack": "/api/v1/slack/{bot_id}/events",
     "mattermost": "/api/v1/mattermost/{bot_id}/webhook",
+    "teams": "/api/v1/teams/{bot_id}/messages",
 }
 
 

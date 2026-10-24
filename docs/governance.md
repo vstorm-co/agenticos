@@ -477,6 +477,52 @@ cannot be checked before each request the way a text run is:
 A call whose process died is closed by the voice sweep at the cost its last
 heartbeat recorded, unlike a text run, whose spend dies with its process.
 
+### Proactive work { #proactive-work }
+
+The platform can do a little on its own initiative, and does nothing of the kind
+until an organization turns it on: the **Proactivity** card on its members page
+(`budgets:manage`). Turned on, a background job looks at each person's recent
+requests on the days and at the hour the organization chose - in each person's
+time zone, or an hour before the working hours their profile states - and
+proposes a routine for a request they keep repeating, a profile, or the first
+messages their empty chat offers ([Console](console.md#chat)).
+
+Each is one model
+call, on the model the organization chose when it turned this on (there is no
+default: `proactive_model_profile_id` is required), recorded in run history as a
+run from the **proactive** surface and counted against the organization's budget
+like any other. A person can leave themselves out under **Settings → Assistant**.
+
+On top of that, each person's proactive runs in a calendar month are capped by
+the organization's **proactive limit** - $1 by default, set on the same card
+(`proactive_limit_usd`). A person nothing new happened to costs nothing: the job
+only calls the model when there is something to read.
+
+**Watches** point the same work at a person's own connections, switched on
+separately on the same card (`proactive_watches_enabled`), on the same model and
+inside the same limit. A person starts one with **New watch** under
+**Routines**, where a Watches card lists each with when it last looked and how
+many of its findings wait, or with **Watch** beside the account's **Tools** on
+the MCP servers page. They pick one of their own MCP connections - any server
+they connected - and say what to look for - a ready-made watch for that server
+or their own words - and how often, never more often than the organization
+allows (`proactive_watch_min_minutes`, an hour by default).
+
+Each look is one run from the **proactive** surface, offered only the tools the
+server marks read-only (`readOnlyHint`), so a watch never changes anything in the
+account. What it finds is the person's alone: a suggestion of kind `finding`,
+keyed on the item's own id so it is reported once, with a link to open it. A
+finding on a watch set to say urgent things at once, which the model also judged
+urgent, is sent straight away as a notification; the rest waits for their morning
+[briefing](console.md#the-inbox).
+Unlike a routine, a watch says nothing when nothing is new.
+
+The same card holds the **welcome message**, off by default and gated on
+`org:settings`: a new member's direct message from the organization's Slack,
+Teams and Mattermost bots, in the organization's own words when it wrote some
+(`{organization}`, `{bot}` and `{url}` are filled in) or the built-in greeting in
+their language.
+
 ### What run history shows
 
 **`GET /runs` lists top-level runs only, and its `total` counts those.** The same
@@ -1191,8 +1237,12 @@ worker killed mid-run — OOM, a deploy that does not drain — leaves a durable
 nothing left to finish it: in Activity for ever, and blocking any schedule whose
 trigger it was the linked run of.
 
-An hourly sweep ends anything still `running` past `STALE_RUN_REAPED_AFTER_HOURS` —
-six hours by default, zero switches it off — as **`failed`**. Nobody stopped this
+While its model works, the process executing a run stamps it alive every
+`RUN_HEARTBEAT_SECONDS`. A sweep every minute ends anything still `running` with no
+sign of life for `STALE_RUN_REAPED_AFTER_SECONDS` — two minutes by default, zero
+switches it off — as **`failed`**, and tells open consoles, so a chat stops saying
+"Working" over a turn nobody is answering and offers to ask again. A voice call's
+run is left to the voice reaper, which hangs the call up. Nobody stopped this
 run, the infrastructure did, and an operator filtering run history for problems is
 exactly who should see it.
 
@@ -1293,10 +1343,16 @@ the same write, which is why one can fail - a bounced address, a down SMTP relay
 
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
-email off, or the other way round. The same page also carries every other
-event the inbox delivers: a run finishing or failing unattended - an `eval` run,
-one of the many an eval starts, sends neither - a document's
-ingestion **failing**, a connector sync's own whole-attempt figure, and an app
+email off, or the other way round.
+
+An `eval` run is one of many reported together by the eval; it sends no individual completion or failure notification.
+
+The same page also carries every other
+event the inbox delivers: a run finishing or failing unattended - a routine's
+finish named after the routine and opening with the start of its answer, told to
+whoever set it up - an ask to switch a capability on, for the agent's owner,
+proposals the [proactive work](#proactive-work) made for a person, a
+document's ingestion **failing**, a connector sync's own whole-attempt figure, and an app
 admin's own broadcast - `POST /admin/announcements`, not yet a console page -
 addressed by organization and, optionally, role, and restricted to one or both
 channels.

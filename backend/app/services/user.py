@@ -54,6 +54,7 @@ from app.services import rate_limit
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
+from app.services.generated_media import GeneratedMediaService
 from app.services.organization import OrganizationService
 from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
@@ -685,6 +686,11 @@ class UserService:
         # were has not erased them, and nothing left can find them afterwards
         # (#1421).
         attachments = await personal_data_repo.attachment_paths_of(self.db, user_id)
+        # And what their agents generated in those conversations (#2310): the
+        # cascade would leave those rows with no conversation and the bytes
+        # readable by the organization. After `_release_owned_rows`, so a project
+        # chat the person started - kept for the team - keeps its media too.
+        await GeneratedMediaService(self.db).forget_user(user_id)
         await PersonalDataService(self.db).purge(user_id)
         await user_repo.delete(self.db, user_id)
         if attachments:

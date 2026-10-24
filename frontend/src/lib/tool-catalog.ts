@@ -37,6 +37,8 @@ export type StepKind =
   | "shell"
   | "chart"
   | "image"
+  | "audio"
+  | "video"
   | "knowledge"
   | "web"
   | "skill"
@@ -60,6 +62,8 @@ export type ToolRenderer =
   | "artifact"
   | "chart"
   | "generated-image"
+  | "generated-speech"
+  | "generated-video"
   | "web-search"
   | "rag"
   | "run-python"
@@ -138,6 +142,13 @@ export interface ToolEntry {
    * over the answer it came after. It is still a line somebody can open.
    */
   staysClosed?: boolean;
+  /**
+   * Never drawn as a step: what the call produced is drawn under the answer
+   * instead - next steps as buttons, a card to switch a capability on (#2301).
+   * As a step it would be a line saying the agent offered something the person
+   * is already looking at.
+   */
+  hidden?: boolean;
 }
 
 /**
@@ -297,6 +308,26 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensOnSight: true,
   },
 
+  // text_to_speech - the clip is the answer, so it opens wherever it lands, as an image does.
+  generate_speech: {
+    kind: "audio",
+    render: "generated-speech",
+    captionKey: "generatingSpeech",
+    displayNameKey: "generateSpeech",
+    opensWhenDone: true,
+    opensOnSight: true,
+  },
+
+  // video_generation - the clip is the answer, so it opens wherever it lands, as an image does.
+  generate_video: {
+    kind: "video",
+    render: "generated-video",
+    captionKey: "generatingVideo",
+    displayNameKey: "generateVideo",
+    opensWhenDone: true,
+    opensOnSight: true,
+  },
+
   // sandbox - the workspace toolset, whose steps name the file they are about
   ls: { kind: "list", render: "workspace", verbs: { now: "listing", done: "listed" } },
   read_file: { kind: "read", render: "workspace", verbs: { now: "reading", done: "read" } },
@@ -363,6 +394,22 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "knowledgeBaseSearch",
   },
 
+  // follow_ups - next steps, drawn as buttons under the answer (#2301).
+  suggest_next_steps: {
+    kind: "tool",
+    render: "generic",
+    captionKey: "suggestingNextSteps",
+    displayNameKey: "nextSteps",
+    hidden: true,
+  },
+  // ...and things to set up, drawn as cards under the answer (#2301).
+  propose_setup: {
+    kind: "tool",
+    render: "generic",
+    captionKey: "proposingSetup",
+    displayNameKey: "setupProposals",
+    hidden: true,
+  },
   // memory - the agent's own file store. An index and a note read back as text, so the
   // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   // All of it `staysClosed`: bookkeeping, not an answer.
@@ -583,6 +630,23 @@ export const FRAMEWORK_TOOLS: Record<string, ToolEntry> = {
 };
 
 /**
+ * Tools every agent's own setup adds, which no capability registers (#2301).
+ *
+ * `request_capability` is the card an agent shows for a capability it lacks,
+ * offered by the setup section every run carries rather than by a capability a
+ * spec binds - so, like `load_capability`, it stays out of the drift check.
+ */
+export const PLATFORM_TOOLS: Record<string, ToolEntry> = {
+  request_capability: {
+    kind: "tool",
+    render: "generic",
+    captionKey: "requestingCapability",
+    displayNameKey: "capabilityRequest",
+    hidden: true,
+  },
+};
+
+/**
  * Tools a voice call adds that no capability registers (#54).
  *
  * `hand_off` is how a call's realtime model hands a task to the agent's own text
@@ -631,7 +695,12 @@ export const LEGACY_TOOLS: Record<string, ToolEntry> = {
 /** What this side knows about `name`, or null for a tool it has never heard of. */
 export function toolEntry(name: string): ToolEntry | null {
   return (
-    TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? CALL_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null
+    TOOL_CATALOG[name] ??
+    FRAMEWORK_TOOLS[name] ??
+    PLATFORM_TOOLS[name] ??
+    CALL_TOOLS[name] ??
+    LEGACY_TOOLS[name] ??
+    null
   );
 }
 

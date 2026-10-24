@@ -8,7 +8,7 @@ live elsewhere and are deliberately unscoped.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import OrgChannelBotSvc, require
 from app.core.permissions import Perm
@@ -18,6 +18,8 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
     ChannelSessionList,
+    TeamsConversationList,
+    TeamsConversationRead,
 )
 
 router = APIRouter()
@@ -65,6 +67,42 @@ async def get_bot(
     if it inherited its transcription engine - which the listing leaves out.
     """
     return await service.read(bot_id)
+
+
+@router.get(
+    "/bots/{bot_id}/teams-app-package",
+    response_class=Response,
+    responses={200: {"content": {"application/zip": {}}}},
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def get_teams_app_package(bot_id: UUID, service: OrgChannelBotSvc) -> Any:
+    """The Teams app package for this bot, to upload to the tenant's app catalog (#1985).
+
+    A zip of the manifest naming the bot's Azure registration and the two icons
+    Teams requires.
+    """
+    package = await service.teams_app_package(bot_id)
+    return Response(
+        content=package,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="teams-app.zip"'},
+    )
+
+
+@router.get(
+    "/teams-conversations",
+    response_model=TeamsConversationList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_teams_conversations(service: OrgChannelBotSvc) -> Any:
+    """Where a trigger can post its answer: the Teams channels and group chats the
+    organization's bots are in (#1985)."""
+    return TeamsConversationList(
+        items=[
+            TeamsConversationRead.model_validate(row, from_attributes=True)
+            for row in await service.teams_conversations()
+        ]
+    )
 
 
 @router.get(

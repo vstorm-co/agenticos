@@ -302,6 +302,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # startup, and stopped after the yield below (#520).
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
+    from app.services.channels import teams as channel_teams
+    from app.services.channels.teams import TeamsAdapter
     from app.services.channels.telegram import TelegramAdapter
 
     # A previous lifespan in this process (a test, a reload) may have declined
@@ -321,6 +323,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
         await _start_channel_polling("mattermost")
     except (OSError, ValueError, RuntimeError) as _mm_exc:
         logger.error("Mattermost: failed to start the event stream: %s", _mm_exc)
+
+    # Teams posts to the bot's endpoint and holds no connection to open (#1985);
+    # the files it waits on consent for live in the Redis every worker shares.
+    channel_teams.configure(redis_client)
+    _teams_adapter = TeamsAdapter()
+    register_adapter(_teams_adapter)
 
     _slack_adapter = SlackAdapter()
     register_adapter(_slack_adapter)
@@ -374,7 +382,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     await stream_lease.leases().release()
     # Close each adapter's reused HTTP client now that no polling task or drained
     # background turn can still be mid-request on it (#952).
-    for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter):
+    for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter, _teams_adapter):
         await _adapter.aclose()
     # The shared outbound clients web search and the model-catalog listings reuse,
     # closed the same way now that nothing can still be mid-request on them (#1263).

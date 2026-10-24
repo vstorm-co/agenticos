@@ -8,14 +8,17 @@ import {
   KeyRound,
   ListChecks,
   ShieldAlert,
+  Lightbulb,
   Megaphone,
   PanelsTopLeft,
   PauseCircle,
   Plug,
   PlugZap,
+  Radar,
   Settings2,
   Share2,
   ShieldCheck,
+  Sparkles,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -54,6 +57,12 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   eval_suite_failed: { icon: ListChecks, tone: BAD },
   promotion_overridden: { icon: ShieldAlert, tone: BAD },
   shared_change_applied: { icon: GitPullRequest, tone: HELD },
+  // Somebody asked for a capability one of your agents lacks (#2301).
+  capability_requested: { icon: Sparkles, tone: HELD },
+  // What the night's look at your week proposes (#2301).
+  suggestion: { icon: Lightbulb, tone: NEUTRAL },
+  // Something a watch over your connections was asked to say at once (#2301).
+  finding: { icon: Radar, tone: HELD },
 };
 
 /** A kind this console has not met yet: a bell, rather than nothing. */

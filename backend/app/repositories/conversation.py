@@ -1024,6 +1024,32 @@ async def tool_call_in_conversation(
     return ToolCallArgs(*row) if row is not None else None
 
 
+async def person_requests_since(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime, limit: int
+) -> list[Message]:
+    """What one person asked agents here since `since`, newest first (#2301).
+
+    Their own messages: written by them in a shared chat, or unattributed in a
+    conversation that is theirs - a one-person chat records no author per turn.
+    """
+    result = await db.execute(
+        select(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.role == "user",
+            Message.created_at >= since,
+            or_(
+                Message.author_user_id == user_id,
+                and_(Message.author_user_id.is_(None), Conversation.user_id == user_id),
+            ),
+        )
+        .order_by(Message.created_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:
     """Get message by ID."""
     return await db.get(Message, message_id)

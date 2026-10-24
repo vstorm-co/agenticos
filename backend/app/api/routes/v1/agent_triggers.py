@@ -12,6 +12,11 @@ collection route with no single resource whose grants could widen the answer, so
 carries `require(agents:view)` as its coarse first door, exactly as `GET /agents`
 and the org-wide `GET /runs` do. The per-agent visibility filtering still happens in
 the service. `tests/api/test_platform_routes.py` enforces both halves.
+
+Listing, creating, firing, changing and removing a trigger are public API, each
+marked on its route, so a key - and the platform's own MCP server an agent asks
+"do this every Monday" through - reaches them (#2301). Portals, presets and
+signing secrets stay the console's.
 """
 
 from typing import Any
@@ -20,6 +25,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import AgentTriggerSvc, Auth, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.agent_trigger import (
     TriggerCreate,
@@ -108,7 +114,9 @@ async def list_portal_targets(
 
 
 @org_router.get(
-    "/triggers", response_model=TriggerList, dependencies=[Depends(require(Perm.AGENTS_VIEW))]
+    "/triggers",
+    response_model=TriggerList,
+    dependencies=[PUBLIC, Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_org_triggers(
     ctx: Auth,
@@ -121,7 +129,7 @@ async def list_org_triggers(
     return TriggerList(items=items, total=total)
 
 
-@router.get("/{agent_id}/triggers", response_model=TriggerList)
+@router.get("/{agent_id}/triggers", response_model=TriggerList, dependencies=[PUBLIC])
 async def list_triggers(agent_id: UUID, ctx: Auth, service: AgentTriggerSvc) -> Any:
     """Every schedule on this agent."""
     items = await service.list_for_agent(ctx, agent_id)
@@ -132,6 +140,7 @@ async def list_triggers(agent_id: UUID, ctx: Auth, service: AgentTriggerSvc) -> 
     "/{agent_id}/triggers",
     response_model=TriggerCreateRead,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[PUBLIC],
 )
 async def create_trigger(
     agent_id: UUID, data: TriggerCreate, ctx: Auth, service: AgentTriggerSvc
@@ -149,6 +158,7 @@ async def create_trigger(
     "/{agent_id}/triggers/{trigger_id}/run",
     response_model=TriggerRead,
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[PUBLIC],
 )
 async def run_trigger_now(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
@@ -186,7 +196,9 @@ async def rotate_trigger_secret(
     return await service.rotate_secret(ctx, agent_id, trigger_id)
 
 
-@router.patch("/{agent_id}/triggers/{trigger_id}", response_model=TriggerRead)
+@router.patch(
+    "/{agent_id}/triggers/{trigger_id}", response_model=TriggerRead, dependencies=[PUBLIC]
+)
 async def update_trigger(
     agent_id: UUID,
     trigger_id: UUID,
@@ -198,7 +210,11 @@ async def update_trigger(
     return await service.update(ctx, agent_id, trigger_id, data)
 
 
-@router.delete("/{agent_id}/triggers/{trigger_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{agent_id}/triggers/{trigger_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[PUBLIC],
+)
 async def delete_trigger(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
 ) -> Response:

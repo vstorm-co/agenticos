@@ -1,5 +1,5 @@
 ---
-source_sha: "c820451e5c9f"
+source_sha: "c6da76bc5fe8"
 ---
 
 # Aplicaciones { #artifacts }
@@ -137,6 +137,7 @@ contenido a otro origen:
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 como módulo ES, con `addons/controls/OrbitControls.js` al lado - asigne `three` y `three/addons/` con un import map |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, como `window.mermaid` |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, como `window.L` - dibuja sobre las [teselas de mapa](#visuals) del despliegue, cuando las tiene |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: chinchetas numeradas mostradas en orden y que caen una a una cuando se pide, un mapa 16:9 del ancho de la página, una línea entre ellas y tarjetas para las paradas - sobre teselas de mapa, o sin ellas como un contorno de las paradas. `lib/agenticos-map-1.js`, que deja caer las chinchetas al cargar y tiene una sola altura, se sigue sirviendo a las páginas que lo nombran |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: chinchetas numeradas que caen en orden, una línea entre ellas, pausa y repetición, y tarjetas para las paradas - sobre teselas de mapa, o sin ellas como un contorno de las paradas |
 
 Cada nombre lleva su versión y se guarda en caché un año. Una actualización añade
@@ -208,7 +209,9 @@ despliegue trae cada tesela de ese servidor y la sirve desde su propia ruta de
 teselas, `agenticos.map` dice dónde, y el kit de mapas dibuja sobre ella un
 itinerario con el crédito del servidor debajo. Sin él, la misma llamada dibuja un
 contorno de las paradas - chinchetas y la línea entre ellas, sin calles - y lo mismo
-hace un mapa cuyas teselas no cargan. La imagen de un mapa en una app de chat se
+hace un mapa cuyas teselas no cargan. El agent lo dice en su respuesta: que no hay
+un servidor de mapas conectado y que un administrador activa los mapas reales con
+este ajuste. La imagen de un mapa en una app de chat se
 dibuja terminada, con todas las chinchetas en su sitio.
 
 **Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es

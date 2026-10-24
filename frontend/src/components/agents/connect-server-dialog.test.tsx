@@ -263,6 +263,32 @@ describe("ConnectServerDialog", () => {
       openSpy.mockRestore();
     });
 
+    it("lands the other tab on the server's accounts and refetches here on return", async () => {
+      const tab = { location: { href: "" }, close: vi.fn() };
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+      // An earlier test's consent left its own one-shot listener waiting.
+      window.dispatchEvent(new Event("focus"));
+      invalidate.mockClear();
+
+      open(OAUTH_ENTRY);
+      await submit();
+
+      await waitFor(() => expect(tab.location.href).toBe("https://consent"));
+      expect(document.cookie).toContain(
+        `mcp_oauth_return=${encodeURIComponent("/mcp-servers?server=notion")}`,
+      );
+      expect(invalidate).not.toHaveBeenCalled();
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new Event("focus"));
+      // Once, on the first return: the listener goes with it.
+      expect(invalidate).toHaveBeenCalledTimes(1);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-connections"] });
+      invalidate.mockRestore();
+      openSpy.mockRestore();
+    });
+
     it("asks for a tab it can still write to, and severs the opener itself", async () => {
       // `window.open(..., "noopener")` returns null in a browser that
       // implements the feature, even though the tab was created - so the
@@ -632,5 +658,27 @@ describe("useSignInOwn", () => {
         "personal",
       ),
     );
+  });
+
+  it("names no page to come back to for a server outside the catalog, from another tab", async () => {
+    function NewTab({ connection }: { connection: McpConnectionRecord }) {
+      const signIn = useSignInOwn({});
+      return (
+        <button type="button" onClick={() => signIn(connection)}>
+          go
+        </button>
+      );
+    }
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+    const tab = { location: { href: "" }, close: vi.fn() };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    document.cookie = "mcp_oauth_return=; path=/; max-age=0";
+    const custom = { id: "p3", name: "crm", url: "https://crm.example/mcp", catalog_key: null };
+    render(<NewTab connection={custom as McpConnectionRecord} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "go" }));
+    await waitFor(() => expect(tab.location.href).toBe("https://consent.example"));
+    expect(document.cookie).not.toContain("mcp_oauth_return=");
+    openSpy.mockRestore();
   });
 });

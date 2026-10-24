@@ -155,6 +155,34 @@ class DraftGaps(Payload):
     improvement_run_id: UUID | None = None
 
 
+class ThinkForPerson(Payload):
+    """One person in one organization, for the platform's nightly look at their week (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+
+
+class LookThroughWatch(Payload):
+    """One person's watch over one of their connections, due for a look (#2301)."""
+
+    watch_id: UUID
+
+
+class InstallRolePack(Payload):
+    """The routines of a role pack, to create for the person who accepted it (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+    pack_id: str
+
+
+class WelcomeMember(Payload):
+    """Somebody who just joined, to greet in the chat apps the organization connected (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+
+
 class Restamp(Payload):
     collection: str
     organization_id: UUID
@@ -165,6 +193,19 @@ class CleanupExternalState(Payload):
     storage_paths: list[str]
     collections: list[str]
     restamps: list[Restamp]
+    # Defaulted, so a job queued by a release before it existed still parses; and
+    # left out of the dump when empty, so a worker from that release (whose payload
+    # forbids extra fields) still runs every cleanup that carries none. Only an
+    # organization purge carries prefixes, and only a current worker runs it.
+    prefixes: list[str] = Field(default_factory=list, exclude_if=lambda prefixes: not prefixes)
+    """Storage prefixes removed whole - an organization's generated media (#2310)."""
+    required_paths: list[str] = Field(
+        default_factory=list, exclude_if=lambda required_paths: not required_paths
+    )
+    """Files whose failed unlink fails the job, so it is retried - generated media
+    whose rows went with the delete that queued this (#2310). Defaulted and left
+    out of the dump when empty, as `prefixes` is. A previous-release worker
+    refuses a job that carries them; a current one runs it."""
 
 
 class SettleLater(Exception):
@@ -324,6 +365,57 @@ GENERATE_CASES = Task(
     priority=Priority.INTERACTIVE,
     cancellable=False,
 )
+# One attempt: it is a model call booked to the person's proactivity limit, and
+# the next night is the retry - nothing a person asked for waits on it.
+THINK_FOR_PERSON = Task(
+    kind="think-for-person",
+    payload_type=ThinkForPerson,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.BULK,
+)
+# One attempt, like the nightly look: a model call on the person's limit, and the
+# watch's next look is the retry.
+LOOK_THROUGH_WATCH = Task(
+    kind="look-through-watch",
+    payload_type=LookThroughWatch,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.BULK,
+)
+# One attempt, like the welcome: a direct message sent twice is worse than one
+# the next morning's briefing catches up on.
+BRIEF_PERSON = Task(
+    kind="brief-person",
+    payload_type=ThinkForPerson,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
+# Three: creating a routine is idempotent per pack (a routine already made from
+# the same template is not made twice), and the person clicked and is waiting.
+INSTALL_ROLE_PACK = Task(
+    kind="install-role-pack",
+    payload_type=InstallRolePack,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.INTERACTIVE,
+)
+# One: a greeting is best-effort, and a retry would greet the person a second
+# time on every platform that had already succeeded. A platform that fails is
+# logged and the others still try, inside the one attempt.
+WELCOME_MEMBER = Task(
+    kind="welcome-member",
+    payload_type=WelcomeMember,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
 CLEANUP_EXTERNAL_STATE = Task(
     kind="cleanup-external-state",
     payload_type=CleanupExternalState,
@@ -351,6 +443,9 @@ REAP_VOICE_CALLS = _sweep("reap-voice-calls")
 CHECK_EVAL_SUITES = _sweep("check-eval-suites")
 REAP_ABANDONED_EVALS = _sweep("reap-abandoned-evals")
 GROUP_KNOWLEDGE_GAPS = _sweep("group-knowledge-gaps")
+SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
+PROACTIVE_SWEEP = _sweep("proactive-sweep")
+WATCH_SWEEP = _sweep("watch-sweep")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
 # so an occurrence lost to a deploy or an outage was never sent. Each occurrence
@@ -371,6 +466,11 @@ TASKS: dict[str, TaskKind] = {
         CLASSIFY_GAPS,
         DRAFT_GAPS,
         GENERATE_CASES,
+        THINK_FOR_PERSON,
+        LOOK_THROUGH_WATCH,
+        BRIEF_PERSON,
+        INSTALL_ROLE_PACK,
+        WELCOME_MEMBER,
         CLEANUP_EXTERNAL_STATE,
         CHECK_AGENT_TRIGGERS,
         POLL_PORTAL_GRANTS,
@@ -390,6 +490,9 @@ TASKS: dict[str, TaskKind] = {
         CHECK_EVAL_SUITES,
         REAP_ABANDONED_EVALS,
         GROUP_KNOWLEDGE_GAPS,
+        SWEEP_GENERATED_MEDIA,
+        PROACTIVE_SWEEP,
+        WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
     )

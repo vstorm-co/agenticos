@@ -1,5 +1,5 @@
 ---
-source_sha: "673705e1369e"
+source_sha: "fa6c64c816ac"
 ---
 
 # Governance { #governance }
@@ -511,6 +511,57 @@ una llamada no se puede comprobar antes de cada petición como un run de texto:
 Una llamada cuyo proceso murió la cierra el barrido de voz con el coste que
 registró su último heartbeat, a diferencia de un run de texto, cuyo gasto muere
 con su proceso.
+
+### Trabajo por iniciativa propia { #proactive-work }
+
+La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
+hasta que una organización lo activa: la tarjeta **Proactividad** en su página de
+miembros (`budgets:manage`). Activada, una tarea en segundo plano lee las
+peticiones recientes de cada persona los días y a la hora que eligió la
+organización - en la zona horaria de cada persona, o una hora antes del horario
+laboral que indica su perfil - y propone una rutina para una petición que repite,
+un perfil o los primeros mensajes que ofrece su chat vacío
+([Consola](console.md#chat)).
+
+Cada uno es una llamada al modelo, con el modelo
+que la organización eligió al activarla (no hay uno por defecto:
+`proactive_model_profile_id` es obligatorio), registrada en el historial de runs
+como un run de la superficie **proactive** y contada contra el budget de la
+organización como cualquier otra. Una persona puede excluirse en **Ajustes →
+Asistente**.
+
+Además, los runs por iniciativa propia de cada persona en un mes natural los
+limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por
+defecto, que se fija en la misma tarjeta (`proactive_limit_usd`). Una persona a la
+que no le pasó nada nuevo no cuesta nada: la tarea solo llama al modelo cuando hay
+algo que leer.
+
+Las **vigilancias** apuntan el mismo trabajo a las conexiones propias de una
+persona. Se activan aparte en la misma tarjeta (`proactive_watches_enabled`),
+con el mismo modelo y dentro del mismo límite. Una persona crea una con **New
+watch** en **Rutinas**, donde una tarjeta de vigilancias muestra cada una con
+cuándo revisó por última vez y cuántos de sus hallazgos esperan, o con **Watch**
+junto a **Tools** de la cuenta en la página de servidores MCP.
+
+Elige una de sus propias conexiones MCP - cualquier servidor que haya conectado
+- y dice qué buscar - una vigilancia hecha para ese servidor o sus propias
+palabras - y cada cuánto, nunca más a menudo de lo que permite la organización
+(`proactive_watch_min_minutes`, cada hora por defecto).
+
+Cada revisión es un run de la superficie **proactive** al que solo se le ofrecen
+las herramientas que el servidor marca como de solo lectura (`readOnlyHint`), así
+que una vigilancia nunca cambia nada en la cuenta. Lo que encuentra es solo de la
+persona: una sugerencia de tipo `finding`, con la clave del id propio del
+elemento para que se avise una vez, con un enlace para abrirlo. Un hallazgo de
+una vigilancia configurada para avisar lo urgente al momento, que el modelo
+también juzgó urgente, se envía enseguida como notificación; el resto espera a su
+[briefing](console.md#the-inbox) de la mañana. A diferencia de una rutina, una vigilancia calla cuando no hay nada nuevo.
+
+La misma tarjeta tiene el **mensaje de bienvenida**, desactivado por defecto y
+sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y
+Mattermost de la organización a un miembro nuevo, con las palabras de la
+organización si las escribió (`{organization}`, `{bot}` y `{url}` se rellenan) o
+el saludo incorporado en su idioma.
 
 ### Qué muestra el historial de runs { #what-run-history-shows }
 
@@ -1266,8 +1317,13 @@ La fila de un run se confirma como `running` antes de llamar a su modelo
 que no drena — deja una fila duradera sin nada que la termine: en Activity para
 siempre, y bloqueando cualquier horario del que fuera el run enlazado de su trigger.
 
-Un barrido cada hora termina como **`failed`** todo lo que siga en `running` pasadas
-`STALE_RUN_REAPED_AFTER_HOURS` — seis horas por defecto, cero lo apaga. Nadie detuvo
+Mientras su modelo trabaja, el proceso que ejecuta un run lo marca como vivo cada
+`RUN_HEARTBEAT_SECONDS`. Un barrido cada minuto termina como **`failed`** todo lo
+que siga en `running` sin señal de vida durante `STALE_RUN_REAPED_AFTER_SECONDS` —
+dos minutos por defecto, cero lo apaga — y avisa a las consolas abiertas, así que
+un chat deja de mostrar "Working" sobre un turno que nadie responde y ofrece
+preguntar de nuevo. El run de una llamada de voz queda para el reaper de llamadas,
+que la cuelga. Nadie detuvo
 este run, lo hizo la infraestructura, y quien filtra el historial de runs buscando
 problemas es exactamente quien debería verlo.
 
@@ -1376,13 +1432,22 @@ Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
 las aprobaciones y apagar su correo, o al revés.
 
-La misma página lleva además cada uno de los demás eventos que entrega el
-buzón: un run que termina o falla desatendido (salvo un run `eval`, uno de los
-muchos que inicia una eval), la ingesta de un documento que **falla**, la cifra
-propia de un ciclo completo de sincronización de un conector, y el propio
+
+
+Un run `eval` es uno de los muchos que la evaluación comunica juntos; no envía una notificación individual de finalización o fallo.
+
+La misma página lleva además
+cada uno de los demás eventos que entrega el buzón: un run que termina o falla
+desatendido - el final de una rutina con su nombre y el comienzo de su
+respuesta, para quien la configuró -, la petición de activar una capability,
+para el propietario del agent, la ingesta de un documento que **falla**, la cifra propia de un
+ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
+
+Llegan también las propuestas que el [trabajo por iniciativa
+propia](#proactive-work) hizo para una persona.
 
 Un documento que se indexó limpiamente no escribe nada, y es deliberado. Antes
 escribía una fila cada uno, lo que en el caso corriente — una carpeta de

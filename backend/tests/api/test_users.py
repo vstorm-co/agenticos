@@ -11,11 +11,17 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.deps import get_current_user, get_deployment_settings_service, get_user_service
+from app.api.deps import (
+    get_auth_context,
+    get_current_user,
+    get_deployment_settings_service,
+    get_user_service,
+)
 from app.api.deps import get_db_session
 from app.api.deps import get_redis
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
+from app.core.permissions import AuthContext, Perm
 from app.main import app
 
 
@@ -86,6 +92,10 @@ async def auth_client(
     branding = MagicMock()
     branding.effective_app_name = AsyncMock(return_value="AgenticOS")
     app.dependency_overrides[get_deployment_settings_service] = lambda: branding
+    # A session, which `key_needs` admits: the key half is asserted on its own below.
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext(
+        user_id=mock_user.id, organization_id=uuid4(), role="member"
+    )
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -142,6 +152,122 @@ async def test_update_current_user(auth_client: AsyncClient, mock_user_service: 
     )
     assert response.status_code == 200
     mock_user_service.update_current.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_the_console_language_is_kept_on_the_account(
+    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
+):
+    """What an agent asked to "switch to English" changes, through the platform's
+    MCP server (#2301): the one preference, and nothing else on the account."""
+    response = await auth_client.put(
+        f"{settings.API_V1_STR}/users/me/locale", json={"locale": "en"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"locale": "en"}
+    user_id, update = mock_user_service.update.await_args.args
+    assert user_id == mock_user.id
+    assert update.model_dump(exclude_unset=True) == {"locale": "en"}
+
+
+@pytest.mark.anyio
+async def test_what_agents_are_told_is_saved_and_nothing_else(
+    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
+):
+    """AgenticOS's welcome interview saves a role through the platform's MCP server
+    (#2301): the two fields named, and only those - an unnamed one stays."""
+    mock_user_service.update = ServiceMock(
+        return_value=MagicMock(job_title="Head of sales", about="Nordic deals")
+    )
+
+    response = await auth_client.patch(
+        f"{settings.API_V1_STR}/users/me/agent-context", json={"job_title": "Head of sales"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"job_title": "Head of sales", "about": "Nordic deals"}
+    user_id, update = mock_user_service.update.await_args.args
+    assert user_id == mock_user.id
+    assert update.model_dump(exclude_unset=True) == {"job_title": "Head of sales"}
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("PUT", "/users/me/locale"),
+        ("PATCH", "/users/me/agent-context"),
+        ("GET", "/me/mcp-connections"),
+    ],
+)
+def test_a_key_reaches_the_person_s_own_routes_only_when_issued_for_runs(method, path):
+    """Codex on #2324: any key of a person read their connections and set their
+    language. Both routes take `key_needs(agents:run)` now - what the credential
+    a run is minted holds - which refuses a key issued for anything narrower."""
+    from app.api.public_api import is_public_route
+    from app.main import app
+
+    def calls(dependant):
+        found = {dependant.call}
+        for child in dependant.dependencies:
+            found |= calls(child)
+        return found
+
+    def routes(entries):
+        for entry in entries:
+            if hasattr(entry, "effective_route_contexts"):
+                for context in entry.effective_route_contexts():
+                    yield context.original_route, context.path_format
+            else:
+                yield entry, getattr(entry, "path_format", None)
+
+    full = f"{settings.API_V1_STR}{path}"
+    (route,) = [
+        route
+        for route, template in routes(app.routes)
+        if template == full and method in (getattr(route, "methods", None) or ())
+    ]
+    gates = [
+        call
+        for call in calls(route.dependant)
+        if getattr(call, "__qualname__", "").startswith("key_needs.")
+    ]
+
+    assert is_public_route(route)
+    assert [gate.__closure__[0].cell_contents for gate in gates] == [Perm.AGENTS_RUN]
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_key_needs_refuses_a_key_issued_for_less_and_admits_a_session():
+    from app.api.deps import key_needs
+    from app.core.exceptions import AuthorizationError
+    from app.core.permissions import AuthContext, OrgRoleName
+
+    def caller(scopes):
+        return AuthContext(
+            user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.MEMBER, key_scopes=scopes
+        )
+
+    gate = key_needs(Perm.AGENTS_RUN)
+
+    with pytest.raises(AuthorizationError, match="agents:run"):
+        await gate(caller(frozenset({Perm.AGENTS_VIEW})))
+    assert await gate(caller(frozenset({Perm.AGENTS_RUN}))) is None
+    assert await gate(caller(None)) is None
+
+
+@pytest.mark.anyio
+async def test_a_language_the_console_is_not_translated_into_is_refused(
+    auth_client: AsyncClient, mock_user_service: MagicMock
+):
+    response = await auth_client.put(
+        f"{settings.API_V1_STR}/users/me/locale", json={"locale": "es"}
+    )
+
+    assert response.status_code == 422
+    mock_user_service.update.assert_not_awaited()
 
 
 @pytest.mark.anyio

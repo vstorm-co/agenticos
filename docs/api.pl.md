@@ -1,5 +1,5 @@
 ---
-source_sha: "0d1ca0b45262"
+source_sha: "e129ce1f6800"
 ---
 
 # API HTTP { #the-http-api }
@@ -171,6 +171,25 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 Odpowiedź niesie identyfikator runa, wynik, status, tokeny i koszt.
 `environment_id` w ciele wybiera, [które środowisko](environments.md) odpowiada.
+`"draft": true` uruchamia zamiast tego nieopublikowany draft, jak panel testowy
+Buildera: run testowy, dla klucza, którego wystawca może edytować agenta,
+odrzucany z podaniem powodu, gdy draft by się nie opublikował, i nigdy z
+`Prefer: respond-async`.
+
+Klucz sięga też do rutyn agenta - `GET /api/v1/triggers` oraz `GET`, `POST`,
+`PATCH` i `DELETE` pod `/api/v1/agents/{agent_id}/triggers`, a także
+`POST .../{trigger_id}/run`, żeby uruchomić jedną od razu - i do modeli organizacji
+pod `GET /api/v1/providers/model-profiles`. Trzy ścieżki działają na samym
+wystawcy: `GET /api/v1/me/mcp-connections` wymienia usługi, które połączył własnym
+kontem, `PUT /api/v1/users/me/locale` ustawia mu język konsoli na każdym
+urządzeniu, a `PATCH /api/v1/users/me/agent-context` zapisuje jego rolę
+(`job_title`) i to, czym się zajmuje (`about`), co słyszy każdy agent. Każda
+wymaga klucza wydanego na `agents:run`.
+
+`POST /api/v1/agents` tworzy agenta ze speca w treści i zostawia puste pole
+puste. Z `"from_starter": true` uzupełnia to, czego spec nie podaje -
+instrukcje, skille, własne narzędzia platformy i budżet - z agenta startowego
+AgenticOS, tak jak robi to **New agent** w konsoli.
 
 **Run kontynuuje rozmowę.** Wywołanie bez `conversation_id` otwiera nową rozmowę
 dla wystawcy klucza i zwraca jej identyfikator jako `conversation_id`; wyślij go

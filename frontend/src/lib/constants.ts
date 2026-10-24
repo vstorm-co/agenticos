@@ -10,6 +10,7 @@ export const ROUTES = {
   FORGOT_PASSWORD: "/forgot-password",
   DASHBOARD: "/dashboard",
   CHAT: "/chat",
+  INBOX: "/inbox",
   PROFILE: "/profile",
   SETTINGS: "/settings",
   SETTINGS_PROFILE: "/settings/profile",

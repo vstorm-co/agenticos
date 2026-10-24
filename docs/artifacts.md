@@ -122,6 +122,7 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 as an ES module, with `addons/controls/OrbitControls.js` beside it - map `three` and `three/addons/` to them with an import map |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, as `window.mermaid` |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, as `window.L` - draws on the deployment's [map tiles](#visuals), when it has any |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: numbered pins shown in order and dropped one by one on request, a map 16:9 of the page's width, a line joining them, and cards for the stops - on map tiles, or as an outline of the stops without them. `lib/agenticos-map-1.js`, which drops the pins on load at one height, stays served for the pages that name it |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: numbered pins dropped in order, a line joining them, pause and replay, and cards for the stops - on map tiles, or as an outline of the stops without them |
 
 Every name carries its version and is cached for a year. The files answer
@@ -190,6 +191,8 @@ from that server and serves it from its own tile path, `agenticos.map` says
 where, and the map kit draws an itinerary on it with the server's credit
 underneath. Without it, the same call draws an outline of the stops - pins and
 the line between them, no streets - and so does a map whose tiles do not load.
+The agent says so in its answer: that no map server is connected, and that an
+administrator turns real maps on with this setting.
 A chat app's picture of a map is drawn finished, with every pin in place.
 
 **Choosing the form.** The `visual-design` skill tells the agent when a drawing

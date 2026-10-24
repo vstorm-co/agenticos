@@ -60,6 +60,15 @@ silent on a surface with no `subagent_events`.
 """
 
 
+@dataclass(frozen=True)
+class WrittenNextSteps:
+    """Next steps written after an answer by a model other than the agent's (#2301)."""
+
+    call_id: str
+    """The id they are recorded under, so the console and the transcript agree."""
+    steps: list[str]
+
+
 @dataclass
 class AgentDeps:
     """Everything a tool may need that the model must not control."""
@@ -130,6 +139,17 @@ class AgentDeps:
     # None everywhere else, and a drawing is then simply not checked.
     visual_reports: VisualReports | None = None
 
+    # The generated files this run's own tools stored, by leaf name - its
+    # provenance, recorded where the file is made rather than read back from
+    # text. The store is organization-wide and a run can be driven by somebody
+    # who is not a member, so a tool that reuses a generated file (a video
+    # starting from an image) reaches only these, never a leaf it was told.
+    generated_files: set[str] = field(default_factory=set)
+    # The next steps a model of the follow-ups capability's own wrote once the
+    # answer was in (#2301). The surfaces hand them on as the agent's own
+    # `suggest_next_steps` call would have been, under this id.
+    next_steps: WrittenNextSteps | None = None
+
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def clone_for_subagent(self, max_depth: int = 0) -> AgentDeps:
@@ -166,6 +186,10 @@ class AgentDeps:
         `browser_events` - so a specialist that browses is watched by the same
         person, in the same panel. A delegate whose browse is silent is the one
         run nobody can see, and it is the one most worth seeing.
+
+        `generated_files` - the same set, not a copy, so an image a specialist
+        drew can be animated by the parent: same run, same person, and the files
+        were made by this run's own tools.
 
         `delegated` is set, not inherited: whatever the parent is, this run is a
         delegate, and a drawing it makes is never shown in the conversation.
@@ -205,6 +229,7 @@ class AgentDeps:
             request_approval=self.request_approval,
             subagent_events=self.subagent_events,
             browser_events=self.browser_events,
+            generated_files=self.generated_files,
             delegated=True,
             metadata=dict(self.metadata),
         )

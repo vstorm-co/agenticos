@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import logging
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -256,6 +257,33 @@ class SlackAdapter(ChannelAdapter):
         """Rewrite a message already in the channel."""
         channel, _thread_ts = split_thread(msg.platform_chat_id)
         await self._web(bot_token).chat_update(channel=channel, ts=handle, text=msg.text)
+
+    async def welcome(
+        self,
+        bot_token: str,
+        email: str,
+        text: str,
+        *,
+        api_base_url: str | None,
+        places: Sequence[str] = (),
+    ) -> bool:
+        """Find the person by address and greet them in a direct message.
+
+        Needs `users:read.email`, which the manifest asks for; a workspace whose
+        app predates that answers `missing_scope`, read here as not found.
+        """
+        from slack_sdk.errors import SlackApiError
+
+        client = self._web(bot_token)
+        try:
+            found = await client.users_lookupByEmail(email=email)
+        except SlackApiError as exc:
+            if exc.response.get("error") in ("users_not_found", "missing_scope"):
+                return False
+            raise
+        opened = await client.conversations_open(users=found["user"]["id"])
+        await client.chat_postMessage(channel=opened["channel"]["id"], text=text)
+        return True
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Slack via the Web API."""

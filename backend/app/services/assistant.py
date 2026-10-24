@@ -181,6 +181,7 @@ class AssistantService:
                 if template.budget_usd is not None
                 else None
             ),
+            starters=list(template.starters),
         )
         agent = await self.registry.create(installer, spec, visibility=Visibility.ORG)
         return await self.registry.set_avatar(

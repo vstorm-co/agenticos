@@ -164,11 +164,25 @@ VISUAL_RUNTIME = """<script data-agenticos="visual">(function () {
   document.addEventListener("securitypolicyviolation", function (event) {
     fail("Blocked: " + (event.blockedURI || "inline") + " is not allowed (" + event.effectiveDirective + ")");
   });
+  // The height of what is drawn, not of the frame it is drawn in: the
+  // document's scrollHeight is never less than the frame's own height, so a
+  // drawing that was once tall - a map's tiles stacked for a moment before
+  // their stylesheet applied - stayed that tall, and was shrunk to fit with a
+  // band of nothing under it.
   function size() {
-    post({ type: "agenticos:visual-size", height: Math.ceil(document.documentElement.scrollHeight) });
+    var body = document.body;
+    var height = document.documentElement.scrollHeight;
+    if (body) {
+      var style = getComputedStyle(body);
+      height = body.scrollHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+    }
+    post({ type: "agenticos:visual-size", height: Math.ceil(height) });
   }
-  if (window.ResizeObserver) new ResizeObserver(size).observe(document.documentElement);
+  var watch = window.ResizeObserver ? new ResizeObserver(size) : null;
+  if (watch) watch.observe(document.documentElement);
   window.addEventListener("load", function () {
+    // The script runs in the head, before there is a body to watch.
+    if (watch && document.body) watch.observe(document.body);
     size();
     setTimeout(function () {
       // A drawing that ends up as an SVG - a Mermaid diagram above all - is sent

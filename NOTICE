@@ -53,10 +53,10 @@ Copied rather than installed because a published page has no network and loads
 them from the deployment itself. The README beside them carries every licence
 text in full.
 
-The map kit beside them (agenticos-map-1.js) adapts the pin-drop timing of
-createTripAnimator, and the visual-design skill borrows guidance, from Open
+The map kit beside them (agenticos-map-1.js and agenticos-map-2.js) adapts the
+pin-drop timing of createTripAnimator, and the visual-design skill borrows guidance, from Open
 Intelligent UI (https://github.com/CopilotKit/OpenIntelligentUI), MIT,
-Copyright (c) Atai Barkai. The notice is kept in the file's header.
+Copyright (c) Atai Barkai. The notice is kept in each file's header.
 
 --------------------------------------------------------------------------------
 
