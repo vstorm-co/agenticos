@@ -26,6 +26,7 @@ import hashlib
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from html import escape
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,6 +36,7 @@ from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpec
 from app.core.config import settings
 from app.db.models.notification import NotificationEventType
+from app.services.email.templates import render_email
 from app.services.notification_center import NotificationCenterService
 from app.services.notifications import ROUTINE_EXCERPT_CHARS, NotificationService
 
@@ -1576,7 +1578,8 @@ class TestEveryLinkNamesItsOrganization:
         assert call["render_context"]["approvals_url"] == f"{FRONTEND}{call['context_url']}"
 
     @pytest.mark.anyio
-    async def test_the_organization_report_names_the_organization_it_reports_on(self, written):
+    @pytest.mark.parametrize("period", ["weekly", "monthly"])
+    async def test_the_organization_report_opens_its_dashboard(self, written, period):
         organization_id = uuid.uuid4()
         rows = [(uuid.uuid4(), "gpt-5", Decimal("2.00"), 3)]
         with (
@@ -1586,12 +1589,20 @@ class TestEveryLinkNamesItsOrganization:
             patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
         ):
             await NotificationService(MagicMock()).usage_report(
-                organization_id, period="weekly", window_start=datetime.now(UTC)
+                organization_id, period=period, window_start=datetime(2026, 10, 24, tzinfo=UTC)
             )
 
         call = written.calls[0]
-        assert call["context_url"] == f"/agents?org={organization_id}"
+        first = "2026-10-17" if period == "weekly" else "2026-09-24"
+        assert call["context_url"] == (
+            f"/dashboard?view=org&period={first}..2026-10-23&org={organization_id}"
+        )
         assert call["render_context"]["dashboard_url"] == f"{FRONTEND}{call['context_url']}"
+
+        _, html, _ = render_email("usage_report", call["render_context"])
+        assert escape(call["render_context"]["dashboard_url"], quote=True) in html
+        assert "Open console" in html
+        assert "Open agents" not in html
 
     @pytest.mark.anyio
     async def test_the_agent_report_names_the_agents_organization(self, written):
@@ -1613,6 +1624,8 @@ class TestEveryLinkNamesItsOrganization:
         call = written.calls[0]
         assert call["context_url"] == f"/agents/{agent.id}?org={agent.organization_id}"
         assert call["render_context"]["dashboard_url"] == f"{FRONTEND}{call['context_url']}"
+        _, html, _ = render_email("usage_report", call["render_context"])
+        assert "Open console" in html
 
     def test_the_parameter_name_is_decided_in_one_place(self):
         """Four call sites inventing one is what the issue is about, one level up."""

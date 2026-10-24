@@ -156,7 +156,7 @@ class WatchLook:
             or stopped_by(organization, connection) is not None
         ):
             return 0
-        spec = await watched_connection_spec(self.db, connection)
+        spec = await watched_connection_spec(connection)
         if spec is None:
             logger.info("watch_connection_unauthorized", extra={"watch_id": str(watch.id)})
             return 0

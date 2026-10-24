@@ -7,14 +7,15 @@ cascade or a sum the ORM performs, which is exactly what a mocked session is
 happy to pretend it did.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, text, update
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.audit import record_audit
 from app.core.permissions import OrgRoleName
@@ -22,6 +23,8 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.background_job import BackgroundJob
+from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.memory import AgentMemoryFile
@@ -29,7 +32,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
-from app.repositories import project_repo
+from app.repositories import project_repo, retention_repo
 from app.schemas.retention import RetentionUpdate
 from app.services.retention import RetentionService
 from app.services.spend import organization_spend_since
@@ -397,7 +400,9 @@ class TestTheOtherClasses:
         # No knowledge base behind these rows, so no tag to scope by: the chunks
         # of a document tracked under none were never stamped with one (#1684).
         assert removed_vectors == [("kb_main", "vec-1", None)]
-        storage.delete.assert_awaited_with("uploads/report.pdf")
+        storage.delete.assert_not_awaited()
+        job = (await db.scalars(select(BackgroundJob))).one()
+        assert job.payload["required_paths"] == ["uploads/report.pdf"]
 
     @pytest.mark.security
     async def test_a_document_still_being_ingested_is_left_alone(self, db: AsyncSession):
@@ -477,3 +482,133 @@ class TestTheOtherClasses:
         await db.refresh(organization)
         assert organization.retention_days == {"conversations": 45}
         assert read.effective["conversations"] == 45
+
+
+async def _attach(db: AsyncSession, conversation: Conversation) -> str:
+    message = (
+        await db.scalars(select(Message).where(Message.conversation_id == conversation.id))
+    ).one()
+    path = f"chat/{conversation.id}/upload.pdf"
+    db.add(
+        ChatFile(
+            user_id=conversation.user_id,
+            message_id=message.id,
+            filename="upload.pdf",
+            mime_type="application/pdf",
+            size=1,
+            storage_path=path,
+            file_type="document",
+        )
+    )
+    await db.flush()
+    return path
+
+
+async def test_retention_skips_a_conversation_being_appended_to(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    organization, user = await _tenant(db)
+    busy = await _conversation(db, organization, user, age_days=120)
+    idle = await _conversation(db, organization, user, age_days=120)
+    busy_path, idle_path = await _attach(db, busy), await _attach(db, idle)
+    organization.retention_days = {"conversations": 30}
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as appending:
+        await appending.execute(
+            update(Conversation).where(Conversation.id == busy.id).values(updated_at=NOW)
+        )
+        results = await RetentionService(db).sweep(now=NOW)
+        await db.commit()
+        assert results[0].removed == {"conversations": 1}
+        assert list(await db.scalars(select(Conversation.id))) == [busy.id]
+        job = (await db.scalars(select(BackgroundJob))).one()
+        assert job.payload["required_paths"] == [idle_path]
+        assert busy_path not in job.payload["required_paths"]
+        await appending.commit()
+
+
+async def test_locked_retention_batch_blocks_an_append_until_rollback(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    organization, user = await _tenant(db)
+    conversation = await _conversation(db, organization, user, age_days=120)
+    path = await _attach(db, conversation)
+    await db.commit()
+    selected = await retention_repo.lock_expiring_conversations(
+        db, organization_id=organization.id, cutoff=NOW - timedelta(days=30), limit=1
+    )
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as appending:
+        started = asyncio.Event()
+
+        async def append() -> None:
+            started.set()
+            await appending.execute(
+                update(Conversation)
+                .where(Conversation.id == conversation.id)
+                .values(updated_at=NOW)
+            )
+
+        task = asyncio.create_task(append())
+        try:
+            await started.wait()
+            done, _ = await asyncio.wait({task}, timeout=0.05)
+            assert not done
+            paths = await retention_repo.stored_paths_for_expiring_conversations(
+                db, organization_id=organization.id, conversation_ids=selected
+            )
+            assert selected == [conversation.id] and paths == [path]
+            await db.rollback()
+            await asyncio.wait_for(task, timeout=5)
+            await appending.commit()
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.parametrize(
+    "status", [RunStatus.RUNNING, RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER]
+)
+async def test_retention_keeps_a_conversation_with_an_unfinished_run(
+    db: AsyncSession, status: RunStatus
+) -> None:
+    organization, user = await _tenant(db)
+    conversation = await _conversation(db, organization, user, age_days=120)
+    run = await _run(db, organization, user, age_days=120, cost="0")
+    run.conversation_id, run.status = conversation.id, status
+    await db.flush()
+    selected = await retention_repo.lock_expiring_conversations(
+        db, organization_id=organization.id, cutoff=NOW - timedelta(days=30), limit=10
+    )
+    assert selected == []
+
+
+@pytest.mark.parametrize("fail_conversations", [False, True])
+async def test_sql_failure_rolls_back_only_the_failed_class_and_its_cleanup_intent(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, fail_conversations: bool
+) -> None:
+    organization, user = await _tenant(db)
+    conversation = await _conversation(db, organization, user, age_days=120)
+    path = await _attach(db, conversation)
+    conversation_id = conversation.id
+    organization.retention_days = {"conversations": 30, "workspaces": 30}
+    await db.flush()
+
+    async def sql_error(*args: object, **kwargs: object) -> int:
+        await db.execute(text("SELECT 1 / 0"))
+        return 0
+
+    name = "delete_conversations" if fail_conversations else "delete_workspaces"
+    monkeypatch.setattr(retention_repo, name, sql_error)
+    results = await RetentionService(db).sweep(now=NOW)
+    await db.commit()
+    assert results[0].failed == ["conversations" if fail_conversations else "workspaces"]
+    remaining = list(await db.scalars(select(Conversation.id)))
+    jobs = list(await db.scalars(select(BackgroundJob)))
+    if fail_conversations:
+        assert remaining == [conversation_id] and jobs == []
+    else:
+        assert remaining == []
+        assert len(jobs) == 1 and jobs[0].payload["required_paths"] == [path]

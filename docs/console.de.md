@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "b18eb0c9849f"
 ---
 
 # Die Konsole { #the-console }
@@ -462,6 +462,14 @@ anmelden** öffnet dort einen Browser auf einer beliebigen Seite, nur für dich,
 Agent ihn braucht: anmelden, mit angehaktem Feld zurückgeben, und die Anmeldung wird
 genauso behalten. Dafür braucht das Deployment seinen Anmelde-Browser
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Einen wartenden Lauf stoppen.** Im Eingabefeld bleibt **Stop** verfügbar, während der
+Agent auf eine Antwort, eine Genehmigung oder eine Kontoverbindung wartet. Das gilt auch
+nach dem Neuladen einer ausstehenden Frage oder Genehmigung. Das Stoppen schließt
+ausstehende Aufrufe, ohne das Modell fortzusetzen, und erhält die bereits erfassten
+Kosten. Sie können eigene Läufe stoppen; Genehmigungsberechtigte können außerdem Läufe
+stoppen, die auf eine Genehmigung warten. Verhindert ein vorübergehender Fehler das
+Stoppen, bleibt die Karte für einen erneuten Versuch verfügbar.
 
 ### Diktieren { #dictation }
 

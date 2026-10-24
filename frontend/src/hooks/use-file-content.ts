@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
@@ -84,23 +84,13 @@ export function useFileBytes(access: FileAccess): UseFileBytesResult {
     retry: false,
   });
 
-  // A memo and a cleanup rather than state written from an effect: `createObjectURL`
-  // is synchronous, so there is nothing to wait for, and a `setState` in an effect is
-  // a second render for a value that was already available in the first.
-  const url = useMemo(() => (blob === null ? null : URL.createObjectURL(blob)), [blob]);
-  useEffect(
-    () => () => {
-      // A blob URL holds the bytes alive until it is revoked, and a PDF or a chart
-      // adds up over a session of clicking through files.
-      if (url !== null) URL.revokeObjectURL(url);
-    },
-    [url],
-  );
+  const resource = useMemo(() => blobUrlResource(blob), [blob]);
+  const url = useSyncExternalStore(resource.subscribe, resource.snapshot, () => null);
 
   return {
     url,
     mediaType: blob?.type ?? null,
-    isLoading,
+    isLoading: isLoading || (blob !== null && url === null),
     error: readFailure(error, tErrors, t("couldNotBeRead")),
   };
 }
@@ -156,4 +146,24 @@ export function useFileActions(access: FileAccess): UseFileActionsResult {
  */
 function readFailure(error: unknown, t: Translate, fallback: string): string | null {
   return error ? getErrorMessage(error, t, fallback) : null;
+}
+
+/** A commit-owned browser handle, exposed through React's external-store lifecycle. */
+function blobUrlResource(blob: Blob | null) {
+  let url: string | null = null;
+  return {
+    snapshot: () => url,
+    subscribe: (changed: () => void) => {
+      if (blob === null) return () => {};
+      // The committed subscription owns the browser resource, so discarded
+      // renders allocate nothing and Strict Mode can acquire a fresh handle.
+      const allocated = URL.createObjectURL(blob);
+      url = allocated;
+      changed();
+      return () => {
+        url = null;
+        URL.revokeObjectURL(allocated);
+      };
+    },
+  };
 }

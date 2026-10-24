@@ -50,7 +50,7 @@ export default function VaultPage() {
   // The backend gates writes on secrets:edit, not connections:manage - a
   // Member holds it at OWN scope, so the "Add key" button must not vanish
   // for them.
-  const canManage = can(Perm.secretsEdit);
+  const canCreate = can(Perm.secretsEdit);
 
   const [secretOpen, setSecretOpen] = useState(false);
   const [rotating, setRotating] = useState<Secret | null>(null);
@@ -85,7 +85,7 @@ export default function VaultPage() {
         title={t("vault2")}
         description={t(VAULT_DESCRIPTION)}
         actions={
-          canManage ? (
+          canCreate ? (
             <Button data-tour="vault-new" onClick={() => setSecretOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("addKey")}
@@ -112,7 +112,7 @@ export default function VaultPage() {
             title={t("noKeysYet")}
             description={t("addOneBecomesSelectable")}
             cta={
-              canManage
+              canCreate
                 ? {
                     label: (
                       <>
@@ -129,7 +129,6 @@ export default function VaultPage() {
           <SecretsTable
             secrets={secrets}
             purposes={purposes}
-            canManage={canManage}
             onShare={setSharing}
             onRotate={setRotating}
             onDelete={(secret) => removeSecret.mutate(secret.id)}
@@ -155,7 +154,11 @@ export default function VaultPage() {
             <DialogDescription>{t("whoCanBindKey")}</DialogDescription>
           </DialogHeader>
           {sharing && (
-            <SharingPanel resourceType="secret" resourceId={sharing.id} canManage={canManage} />
+            <SharingPanel
+              resourceType="secret"
+              resourceId={sharing.id}
+              canManage={sharing.can_edit === true}
+            />
           )}
         </DialogContent>
       </Dialog>

@@ -129,7 +129,6 @@ export function useVoiceSession(
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const { wsUrl } = usePublicConfig();
-  const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const pushToTalk = useVoiceCallStore((state) => state.pushToTalk);
 
   const socketRef = useRef<WebSocket | null>(null);
@@ -147,6 +146,7 @@ export function useVoiceSession(
   // asking for the microphone.
   const liveRef = useRef(false);
   const generationRef = useRef(0);
+  const ownerRef = useRef<{ organizationId: string | null; userId: string | null } | null>(null);
   const retriedRef = useRef(false);
   const mutedRef = useRef(false);
   const optionsRef = useRef(options);
@@ -156,7 +156,19 @@ export function useVoiceSession(
   // The retry calls `connect` from inside `connect`'s own close handler.
   const connectRef = useRef<((attempt: Attempt) => Promise<void>) | null>(null);
 
-  const current = (generation: number) => liveRef.current && generationRef.current === generation;
+  const owned = useCallback((generation: number) => {
+    const owner = ownerRef.current;
+    return (
+      generationRef.current === generation &&
+      (owner === null ||
+        (owner.organizationId === useOrgStore.getState().activeOrgId &&
+          owner.userId === (useAuthStore.getState().user?.id ?? null)))
+    );
+  }, []);
+  const current = useCallback(
+    (generation: number) => liveRef.current && owned(generation),
+    [owned],
+  );
 
   const send = useCallback((frame: VoiceClientFrame) => {
     const socket = socketRef.current;
@@ -206,6 +218,29 @@ export function useVoiceSession(
     releaseMedia();
   }, [cancelRetry, releaseMedia]);
 
+  // Store subscriptions invalidate ownership synchronously, including while a
+  // browser permission prompt or reconnect timer is pending. Public embeds own
+  // their visitor scope and do not follow the console's account or tenant.
+  useEffect(() => {
+    const invalidate = () => {
+      const owner = ownerRef.current;
+      if (owner === null || owned(generationRef.current)) return;
+      ++generationRef.current;
+      ownerRef.current = null;
+      liveRef.current = false;
+      resumableRef.current = null;
+      conversationRef.current = null;
+      closeAll();
+      dispatch({ type: "reset" });
+    };
+    const unsubscribeOrg = useOrgStore.subscribe(invalidate);
+    const unsubscribeAuth = useAuthStore.subscribe(invalidate);
+    return () => {
+      unsubscribeOrg();
+      unsubscribeAuth();
+    };
+  }, [closeAll, owned]);
+
   const giveUp = useCallback(() => {
     liveRef.current = false;
     dispatch({ type: "socket_lost", willRetry: false });
@@ -228,7 +263,10 @@ export function useVoiceSession(
     (attempt: Attempt, delay: number) => {
       const run = () => {
         cancelRetry();
-        (connectRef.current as (next: Attempt) => Promise<void>)(attempt).catch(giveUp);
+        if (!current(attempt.generation)) return;
+        (connectRef.current as (next: Attempt) => Promise<void>)(attempt).catch(() => {
+          if (current(attempt.generation)) giveUp();
+        });
       };
       const timer = window.setTimeout(run, delay);
       window.addEventListener("online", run);
@@ -237,7 +275,7 @@ export function useVoiceSession(
         window.removeEventListener("online", run);
       };
     },
-    [cancelRetry, giveUp],
+    [cancelRetry, current, giveUp],
   );
 
   /**
@@ -289,7 +327,10 @@ export function useVoiceSession(
         pcRef.current = peer;
         const mic = micRef.current as MediaStream;
         mic.getAudioTracks().forEach((track) => peer.addTrack(track, mic));
-        peer.ontrack = (event) => setRemoteStream(event.streams[0] ?? null);
+        peer.ontrack = (event) => {
+          if (owned(generation) && pcRef.current === peer)
+            setRemoteStream(event.streams[0] ?? null);
+        };
         const watch = () => {
           if (pcRef.current !== peer || !current(generation)) return;
           if (peer.connectionState === "failed" || peer.iceConnectionState === "failed") {
@@ -306,7 +347,7 @@ export function useVoiceSession(
       }
       const url =
         target.kind === "console"
-          ? consoleVoiceUrl(wsUrl, activeOrgId)
+          ? consoleVoiceUrl(wsUrl, ownerRef.current?.organizationId ?? null)
           : embedVoiceUrl(wsUrl, target.publicKey, target.visitorKey, target.token);
       const token = useAuthStore.getState().accessToken;
       const socket =
@@ -319,6 +360,10 @@ export function useVoiceSession(
       // Whether this connection was set up; a resume that never was is tried again.
       let ready = false;
       socket.onopen = () => {
+        if (!current(generation) || socketRef.current !== socket) {
+          socket.close();
+          return;
+        }
         const start: VoiceClientFrame = {
           type: "start",
           ...(sdp !== null ? { sdp_offer: sdp } : {}),
@@ -332,7 +377,7 @@ export function useVoiceSession(
         applyTrack(false);
       };
       socket.onmessage = (event: MessageEvent) => {
-        if (generationRef.current !== generation) return;
+        if (!owned(generation)) return;
         if (typeof event.data !== "string") {
           relayRef.current?.player.enqueue(event.data as ArrayBuffer);
           return;
@@ -404,8 +449,9 @@ export function useVoiceSession(
       };
     },
     [
-      activeOrgId,
       applyTrack,
+      current,
+      owned,
       cancelRetry,
       closeAll,
       closeMedia,
@@ -453,6 +499,13 @@ export function useVoiceSession(
       // gives up if another `start` has run since.
       end();
       const generation = ++generationRef.current;
+      ownerRef.current =
+        target.kind === "console"
+          ? {
+              organizationId: useOrgStore.getState().activeOrgId,
+              userId: useAuthStore.getState().user?.id ?? null,
+            }
+          : null;
       liveRef.current = true;
       retriedRef.current = false;
       mutedRef.current = false;
@@ -482,9 +535,11 @@ export function useVoiceSession(
       }
       micRef.current = mic;
       setLocalStream(mic);
-      await connect({ target, generation, resume: null }).catch(giveUp);
+      await connect({ target, generation, resume: null }).catch(() => {
+        if (current(generation)) giveUp();
+      });
     },
-    [connect, end, giveUp],
+    [connect, current, end, giveUp],
   );
 
   useEffect(() => {

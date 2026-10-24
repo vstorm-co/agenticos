@@ -615,6 +615,8 @@ that the description is honest — and a mirrored registry cannot make that prom
     because nobody looked; it is the length it is because a hand-checked list of
     things a company actually uses converges at about a hundred.
 
+Each scheduled check takes at most 64 enabled organization servers, oldest check first, and runs at most eight probes at once. Unusable credentials also advance the check time, without creating an outage. Larger deployments therefore cover all servers over successive checks.
+
 ### The registry is in the same list, and in the database
 
 So the mirror is shipped too, and **/mcp is one list of all of them** — the
@@ -1054,3 +1056,7 @@ console's language when asked - out of the box.
   deleting one deregisters what it registered.
 - An unreachable server is **skipped**, not raised — the turn answers without those
   tools.
+
+OAuth refresh owns a short, independent transaction: it locks and rechecks the account, rotates the credential and commits before returning a token. Cancellation waits for this unit to settle; a later run rollback cannot undo it. If persistence fails after the provider rotates, the request fails explicitly and the account may need authorization again. Mailbox polling holds a separate per-account advisory lock; each mailbox commits its cursor together with queued fires, and a malformed response rolls back only that mailbox’s work.
+
+Health admission uses its own indexed timestamp. Renewing OAuth credentials or polling a mailbox cannot postpone a server’s next health check. Existing servers enter the queue as never checked after the migration.

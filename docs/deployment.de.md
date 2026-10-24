@@ -1,5 +1,5 @@
 ---
-source_sha: "12eb1406746c"
+source_sha: "e579b46ddb5c"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -180,10 +180,10 @@ aufnehmen muss, wechselt also zu `invite_only` und lädt sie ein.
 Drei weitere Dinge daran sind leicht falsch zu machen und waren es:
 
 **Der erste Nutzer wird immer zugelassen.** Eine frische Installation hat keine
-Konten, ihr Administrator existiert also noch nicht; ein geschlossenes Deployment,
-das auch die Person abweist, die es öffnen würde, ist eines, das niemand betreten
-kann, ohne Konsole, um es zu reparieren. `register` befördert dieses erste Konto
-ohnehin zu `is_app_admin`, und die Policy beugt sich derselben Tatsache.
+Konten. Das erste bestätigte Konto wird zum Deployment-Administrator (`is_app_admin`),
+bei Registrierung mit Passwort ebenso wie über OAuth. Eine Transaktionssperre
+gewährt diese Ausnahme nur einer gleichzeitigen Registrierung. Weitere müssen die
+Policy erfüllen. Wird die erste zurückgerollt, kann eine andere das Startrecht erhalten.
 
 **`invite_only` existiert, weil das Schließen der Registrierung sonst Einladungen
 kaputtmachen würde.** `InvitationService.accept` verlangt einen bestehenden,

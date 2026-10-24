@@ -19,6 +19,115 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve database pool exhaustion as a retryable 503 during agent execution,
+  without masking it by reading a run expired by a failed transaction.
+
+- Enforce the state workspace cap after concurrent merges, preserve rejected snapshots as access-controlled recovery copies, cascade their deletion and report persistence failures to runs and project uploads.
+
+- Commit rotating OAuth credentials independently of agent preparation, drain cancellation through persistence, and serialize mailbox polls without holding credential row locks.
+
+- Bound scheduled MCP health checks to 64 oldest-first servers and eight simultaneous probes; advance unauthorized accounts so they cannot starve the queue; use a separate indexed health clock so OAuth renewal cannot postpone probes.
+
+- Serialize draft saves, publish/rollback version allocation and environment
+  changes per agent. Preserve edits waiting behind a publication, refresh
+  serving pointers after lock waits and allow new runs to start during
+  publication validation.
+
+- Use effective per-resource edit access for context, skill and vault controls.
+  Honor explicit edit grants and hide write actions on private resources
+  shared read-only, while keeping collection creation gated by its permission.
+
+- End console voice calls and pending microphone/setup/reconnect work on
+  tenant or account changes. Ignore stale media and transcript callbacks,
+  and keep late failures from ending a newer call. Public embeds retain
+  their separate visitor scope.
+
+- Show failed context-detail, retention-policy, environment and watch reads
+  with retry controls instead of endless loading or misleading empty states.
+
+- Serialize first-account bootstrap across password and OAuth signup so only
+  one account gets deployment-administrator authority. Grant that authority
+  to the first OAuth account and recheck the signup policy after contention.
+  Hash passwords before taking the bootstrap lock and send best-effort welcome
+  mail only after account creation commits.
+
+- Heartbeat proactive model runs while they execute, meter each response,
+  and durably settle consumed tokens on failure or cancellation, including
+  repeated cancellation during terminal persistence.
+
+- Batch knowledge-source audience reads by resource type so the Builder does
+  not make one grant query per private skill, context file or connection.
+
+- Prepare chat grouping, turn usage and request context in linear time per
+  stream update, and skip rendering unchanged message items between deltas.
+
+- Report truncated host workspace trees in the flat Documents listing.
+
+- Retain conversations with unfinished runs and purge one locked batch of
+  conversation rows and files. Commit durable file-cleanup jobs with retention
+  deletes, and isolate each retention class so a SQL failure cannot abort
+  the remaining classes or unlink files whose row deletion rolled back.
+
+- Erase mem0 memory using the SDK's supported user identifier. Include draft
+  and retained version destinations, clear all owners when clearing an agent,
+  and report unavailable credentials or incomplete erasure as failures.
+
+- Keep trigger histories in separate conversation-specific cache entries,
+  ignore stale admin-user search responses and own file-preview blob URLs
+  through committed subscriptions so Strict Mode cannot revoke a live preview.
+
+- Reap partially started worker pools on failure or cancellation. Keep job
+  deadlines and memory watchdogs active while writing to a child's stdin,
+  and stop a child that closes its pipes without exiting.
+
+- Run synchronous RAG embedding calls on the bounded I/O pool so retrieval
+  and ingestion leave the event loop responsive. Preserve the caller's spend
+  context and settle an in-flight response before propagating cancellation.
+
+- Keep voice-history summaries and image generation under the host agent's
+  tracing policy. Refuse new image requests after a run exhausts its budget,
+  meter image retries individually and price nested fallback requests using
+  the model that actually answered, including streamed responses.
+
+- Update FastMCP to 4.1.2, filelock to 4.2.1, virtualenv to 21.14.13 and
+  Pydantic AI harness to 0.59.0 to address the dependency audit advisories.
+  Pydantic AI and its graph package resolve to 2.59.0 for the harness and the
+  web-fetch security fix.
+  Update the frontend tooling lock to zod 4.6.6 and undici 8.12.2 for its
+  validation and HTTP decoding advisories.
+
+- **Session cookies no longer overwrite another app's login cookies on the same
+  hostname.** The console uses `agenticos_access_token` and
+  `agenticos_refresh_token` for sign-in, refresh and logout. **After upgrading,
+  sign in again once:** existing cookies with the generic names are ignored and
+  left untouched. HTTP API token fields are unchanged. Use separate hostnames
+  for unrelated apps to keep authentication cookies from reaching another app's
+  server; different ports and cookie names do not provide that isolation.
+
+- Sandbox launchers use Docker Desktop's VM socket group on macOS, retain the
+  socket group on Linux and respect explicit `DOCKER_GID` overrides (#2296).
+
+- Return to sign-in when refreshed session cookies are still refused, including
+  when another tab recently refreshed, instead of leaving agent pages loading (#2269).
+
+- Connect the worker wake-up listener with PostgreSQL TLS settings and cap its
+  reconnect delay without overflowing during a long database outage (#2453).
+
+- End live chat traces even when setup is cancelled before the model starts,
+  discard dead writers and show completed replayed answers from the transcript
+  without typing them out again when a conversation is reopened (#2454).
+
+- Organization usage reports open the organization Dashboard for the report
+  window and tenant; the shared email button accurately says Open console (#2455).
+
+- Keep Stop available while chat waits on a question, approval or account
+  connection, including reloaded parked runs. Cancelling a parked run closes
+  pending calls without continuing the model and preserves its recorded spend.
+
+- Treat OAuth grants with `expires_in=0` as already expired so they can be refreshed instead of reused indefinitely.
+
 ## [1.16.0] - 2026-10-23
 
 ### Added

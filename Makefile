@@ -27,13 +27,10 @@ COMPOSE_LOCAL := -f docker-compose.yml -f docker-compose.override.yml
 # so a host that will not have that removes `sandbox` from here.
 COMPOSE_DEV_PROFILES ?= --profile sandbox
 
-# The group that owns the Docker socket, which the sandbox service takes as a
-# supplementary group to reach it. Every compose file interpolates
-# `${DOCKER_GID:-0}` and nothing set it, so the service came up in group 0 - root
-# on the host, and not the socket's owner on any Linux distribution shipping a
-# `docker` group. Read from the socket, because the socket is what knows; empty
-# on a host without one, where the default is as good as anything (#1506).
-export DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null)
+# Docker Desktop proxies the socket through its VM as group 0; the Mac's
+# symlink/socket group is unrelated. Linux uses the socket's actual owner.
+# Keep an explicit environment or command-line override for custom daemons.
+export DOCKER_GID ?= $(shell if [ "$$(uname -s)" = Linux ]; then stat -Lc '%g' /var/run/docker.sock 2>/dev/null; else echo 0; fi)
 
 # The sandbox service refuses to start without a token, deliberately: it can run
 # commands on this host, so an empty default would be a shared secret of "".

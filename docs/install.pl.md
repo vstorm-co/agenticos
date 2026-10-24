@@ -1,5 +1,5 @@
 ---
-source_sha: "7a628dbf307e"
+source_sha: "3dfcb7859e41"
 ---
 
 # Instalacja { #install }
@@ -47,6 +47,18 @@ ma kroku, który on wykonuje, a którego ty nie możesz.
 
     Makefile i skrypty pomocnicze zakładają bash. **WSL2** albo **Git Bash**.
     Gdy już jesteś w jednym z nich, wszystko poniżej jest identyczne.
+
+!!! note "Ciasteczka logowania i współdzielone hosty"
+
+    Konsola używa ciasteczek `agenticos_access_token` i
+    `agenticos_refresh_token`, aby aplikacje z ogólnymi nazwami ciasteczek nie
+    nadpisywały ich przypadkowo. Po aktualizacji ze starych nazw zaloguj się
+    ponownie jeden raz.
+
+    Nadaj niezależnym aplikacjom osobne nazwy hostów. Ciasteczka są współdzielone
+    między portami tej samej nazwy hosta; nazwy właściwe dla aplikacji zapobiegają
+    przypadkowym kolizjom, ale nie blokują otrzymywania twoich tokenów przez inną
+    aplikację pod tą samą nazwą hosta.
 
 ## Uruchom z opublikowanych obrazów { #run-it-from-the-published-images }
 

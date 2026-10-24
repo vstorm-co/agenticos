@@ -69,26 +69,36 @@ class KnowledgeReachService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def _reach(self, ctx: AuthContext, resource: OwnedResource, kind: ResourceType) -> _Reach:
-        if resource.visibility == Visibility.ORG.value:
-            return _Reach(everyone=True, group_ids=frozenset(), user_ids=frozenset())
-        grants = await resource_grant_repo.list_for_resource(
+    async def _reaches(
+        self, ctx: AuthContext, resources: list[OwnedResource], kind: ResourceType
+    ) -> dict[UUID, _Reach]:
+        grants = await resource_grant_repo.list_for_resources(
             self.db,
             organization_id=ctx.organization_id,
             resource_type=kind.key,
-            resource_id=resource.id,
+            resource_ids=[row.id for row in resources if row.visibility != Visibility.ORG.value],
         )
-        return _Reach(
-            everyone=False,
-            group_ids=frozenset(g.subject_group_id for g in grants if g.subject_group_id),
-            user_ids=frozenset(g.subject_user_id for g in grants if g.subject_user_id),
-        )
+        groups: dict[UUID, set[UUID]] = {}
+        users: dict[UUID, set[UUID]] = {}
+        for grant in grants:
+            if grant.subject_group_id:
+                groups.setdefault(grant.resource_id, set()).add(grant.subject_group_id)
+            if grant.subject_user_id:
+                users.setdefault(grant.resource_id, set()).add(grant.subject_user_id)
+        return {
+            row.id: _Reach(
+                everyone=row.visibility == Visibility.ORG.value,
+                group_ids=frozenset(groups.get(row.id, ())),
+                user_ids=frozenset(users.get(row.id, ())),
+            )
+            for row in resources
+        }
 
     async def for_agent(self, ctx: AuthContext, agent_id: UUID) -> AgentKnowledgeReach:
         """The agent's own reach, and each source it binds that the caller may see."""
         agent = await AgentRegistryService(self.db).get(ctx, agent_id)
         spec = AgentSpec.model_validate(agent.draft_spec)
-        agent_reach = await self._reach(ctx, agent, AGENT)
+        agent_reach = (await self._reaches(ctx, [agent], AGENT))[agent.id]
 
         org = ctx.organization_id
         bound: list[tuple[KnowledgeSourceKind, ResourceType, dict[UUID, _NamedResource]]] = [
@@ -113,10 +123,9 @@ class KnowledgeReachService:
             visible = await accessible_ids(
                 self.db, ctx, rows.values(), resource_type.view, resource_type=resource_type
             )
-            for key, row in rows.items():
-                if key in visible:
-                    reach = await self._reach(ctx, row, resource_type)
-                    sources.append((kind, row, reach))
+            selected = [row for key, row in rows.items() if key in visible]
+            reaches = await self._reaches(ctx, list(selected), resource_type)
+            sources.extend((kind, row, reaches[row.id]) for row in selected)
 
         servers = await mcp_connection_repo.get_org_scoped_by_ids(
             self.db,
@@ -131,9 +140,13 @@ class KnowledgeReachService:
         reached = await accessible_ids(
             self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
         )
-        for row in servers.values():
-            if row.visibility == Visibility.ORG.value or row.id in reached:
-                sources.append(("mcp", row, await self._reach(ctx, row, MCP_CONNECTION)))
+        selected_servers = [
+            row
+            for row in servers.values()
+            if row.visibility == Visibility.ORG.value or row.id in reached
+        ]
+        reaches = await self._reaches(ctx, list(selected_servers), MCP_CONNECTION)
+        sources.extend(("mcp", row, reaches[row.id]) for row in selected_servers)
 
         every_group = set(agent_reach.group_ids)
         for *_, reach in sources:

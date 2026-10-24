@@ -17,6 +17,8 @@ type Environment = {
 
 const state = {
   environments: [] as Environment[],
+  error: null as Error | null,
+  refetch: vi.fn(),
   isLoading: false,
   create: { mutateAsync: vi.fn(), isPending: false },
   promote: { mutate: vi.fn(), isPending: false },
@@ -57,6 +59,8 @@ function environment(
 beforeEach(() => {
   state.environments = [environment("production", 3, true), environment("staging", 2)];
   state.isLoading = false;
+  state.error = null;
+  state.refetch.mockReset();
   state.create = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
   state.promote = { mutate: vi.fn(), isPending: false };
   state.setReleaseMode = { mutate: vi.fn(), isPending: false };
@@ -397,4 +401,13 @@ describe("the environments panel", () => {
 
     expect(screen.getByRole("button", { name: "Remove staging" })).toBeDisabled();
   });
+});
+
+it("shows a failed environment read and retries instead of hiding the panel", async () => {
+  state.environments = [];
+  state.error = new Error("unavailable");
+  render(<EnvironmentsPanel agentId="a1" canManage />);
+  expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.refetch).toHaveBeenCalledOnce();
 });

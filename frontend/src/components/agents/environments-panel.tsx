@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ErrorState } from "@/components/states";
 import { useAgentEnvironments, useAllAgentVersions } from "@/hooks";
 import { VERSION_HISTORY_LIMIT } from "@/lib/agent-spec";
 import type { AgentEnvironment, AgentVersion } from "@/types/agents";
@@ -96,12 +97,24 @@ function VersionPin({
 export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
-  const { environments, isLoading, create, promote, setReleaseMode, rename, remove } =
-    useAgentEnvironments(agentId);
+  const {
+    environments,
+    isLoading,
+    error,
+    refetch,
+    create,
+    promote,
+    setReleaseMode,
+    rename,
+    remove,
+  } = useAgentEnvironments(agentId);
   const { versions } = useAllAgentVersions(agentId);
   const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
 
+  if (error) {
+    return <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />;
+  }
   if (isLoading || environments.length === 0) {
     // An unpublished agent has no environments and nothing to manage; the
     // first publish mints `production` and the panel appears with it.

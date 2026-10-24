@@ -425,3 +425,21 @@ async def test_a_rescued_death_counts_in_its_organizations_scope(repos: MagicMoc
     await _worker(sessions)._rescue()
 
     assert repos.record_death.await_args.args[1:] == ("ingest-document", organization)
+
+
+async def test_executor_whose_start_fails_is_still_closed(repos: MagicMock) -> None:
+    sessions, _ = _sessions()
+    executor = MagicMock(
+        start=AsyncMock(side_effect=RuntimeError("partial startup")), close=AsyncMock()
+    )
+    worker = Worker(
+        settings=WorkerSettings(worker_id="test-worker", hostname="test"),
+        sessions=sessions,
+        tasks={},
+        executors={Pool.INGEST: executor},
+        on_pause=AsyncMock(),
+        on_ended=AsyncMock(),
+    )
+    with pytest.raises(RuntimeError, match="partial startup"):
+        await worker.run(asyncio.Event())
+    executor.close.assert_awaited_once()

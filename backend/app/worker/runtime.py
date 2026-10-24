@@ -113,8 +113,8 @@ class Worker:
         started: list[Executor] = []
         try:
             for executor in self.executors.values():
-                await executor.start()
                 started.append(executor)
+                await executor.start()
             async with asyncio.TaskGroup() as group:
                 upkeep = [
                     group.create_task(

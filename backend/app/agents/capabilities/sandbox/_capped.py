@@ -5,8 +5,9 @@ question of how big a dictionary may get belongs to whoever is keeping it. Here
 that is a JSONB column, and an agent that writes a hundred megabytes of CSV into
 one turns a chat into a row nobody can load.
 
-The cap is applied on the way in rather than at the flush, and this is the whole
-reason the subclass exists. Refusing at flush time would accept every write,
+The cap is applied on the way in so individual writes can be refused immediately.
+The service checks it again when merging concurrent snapshots and preserves a
+rejected snapshot in a recovery workspace. Refusing at flush time would accept every write,
 report success to the model, and then silently drop the run's work in a
 `finally` block - the agent would spend its remaining turns reasoning about a
 file that was never kept. Refusing at the call site gives the model an error it
@@ -114,6 +115,15 @@ class CappedStateBackend(StateBackend):
             f"{self._max_bytes}-byte limit. Shorten or overwrite something first, or "
             "keep large intermediate results out of the workspace.",
         )
+
+    def make_dir(self, path: str) -> None:
+        """Count empty directories against the same ceiling as files."""
+        before = set(self.directories)
+        super().make_dir(path)
+        if self.stored_size() > self._max_bytes:
+            self.directories.clear()
+            self.directories.update(before)
+            raise OSError(errno.ENOSPC, "The workspace is full; shorten the directory path first.")
 
     def __repr__(self) -> str:
         return f"<CappedStateBackend(files={len(self.files)}, max={self._max_bytes})>"

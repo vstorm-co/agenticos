@@ -7,6 +7,7 @@ import { Inbox, Pencil, Radar, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button, ListCard, ListCardEmpty, Switch } from "@/components/ui";
 import { useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatches } from "@/hooks/use-watches";
@@ -36,11 +37,12 @@ export function useCanWatch(): boolean {
  */
 export function WatchesCard({ onNew }: { onNew: () => void }) {
   const t = useTranslations("watches");
+  const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const { activeOrg } = useOrganizations();
   const { connections } = useMcpConnections();
-  const { watches, isLoading, update, remove } = useWatches();
+  const { watches, isLoading, error, refetch, update, remove } = useWatches();
   // A connection whose sign-in lapsed is still "on", and a look through it reads
   // nothing - so the row says so rather than looking as if it were working.
   const lapsed = new Set(connections.filter((each) => !each.authorized).map((each) => each.id));
@@ -59,7 +61,7 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
   return (
     <ListCard
       title={t("title")}
-      counted={isLoading ? null : t("count", { count: watches.length })}
+      counted={isLoading || error ? null : t("count", { count: watches.length })}
       contentClassName="p-0"
       headerTour="routines-watches"
       controls={
@@ -73,7 +75,11 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
         )
       }
     >
-      {watches.length > 0 ? (
+      {error ? (
+        <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
+      ) : isLoading ? (
+        <LoadingState variant="skeleton-panel" rows={2} />
+      ) : watches.length > 0 ? (
         <ul className="divide-border divide-y">
           {watches.map((watch) => (
             <WatchRow

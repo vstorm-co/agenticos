@@ -6,6 +6,8 @@ import { toast } from "sonner";
 
 import { useConversations, type ConversationQuery } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
+import * as invalidation from "@/lib/coalesced-invalidation";
+import { qk } from "@/lib/query-keys";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -23,6 +25,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryDefaults(qk.organizations.list(), { staleTime: Infinity });
+  client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -210,6 +214,8 @@ describe("the conversation list", () => {
     // One key for two lists is the search box answering with the previous
     // search's rows, which is what putting the parameters in the key prevents.
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryDefaults(qk.organizations.list(), { staleTime: Infinity });
+    client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
     const shared = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
@@ -381,6 +387,117 @@ describe("the conversation list", () => {
 });
 
 describe("the conversation named in the address bar", () => {
+  it("does nothing for a refresh already cancelled", async () => {
+    const result = await hook();
+    const controller = new AbortController();
+    controller.abort();
+    vi.mocked(apiClient.get).mockClear();
+    await result.current.fetchConversations(controller.signal);
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it.each(["account", "organization"])(
+    "does not open a link after the %s changes during invalidation",
+    async (changed) => {
+      window.history.replaceState({}, "", "/chat?id=c-9");
+      const result = await hook();
+      let finish = () => {};
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
+      try {
+        const fetching = result.current.fetchConversations();
+        if (changed === "account")
+          useAuthStore.setState({
+            user: {
+              id: "next-account",
+              email: "next@example.com",
+              is_active: true,
+              created_at: "2026-10-24T00:00:00Z",
+            },
+          });
+        else await act(async () => useOrgStore.getState().setActiveOrgId("next-org"));
+        await act(async () => {
+          finish();
+          await fetching;
+        });
+        expect(useConversationStore.getState().currentConversationId).toBeNull();
+      } finally {
+        invalidate.mockRestore();
+      }
+    },
+  );
+
+  it.each(["answer", "refusal"])("ignores a message %s after cancellation", async (outcome) => {
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    const result = await hook();
+    let answer: (value: unknown) => void = () => {};
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("/messages"))
+        return new Promise((resolve, reject) => {
+          answer = resolve;
+          refuse = reject;
+        });
+      return { items: [], total: 0 };
+    });
+    const controller = new AbortController();
+    const fetching = result.current.fetchConversations(controller.signal);
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages", {
+        signal: controller.signal,
+      }),
+    );
+    controller.abort();
+    useConversationStore.getState().setCurrentConversationId("c-current");
+    await act(async () => {
+      if (outcome === "answer") answer({ items: [{ id: "m-late" }], cost: null });
+      else refuse(new DOMException("cancelled", "AbortError"));
+      await fetching;
+    });
+    expect(useConversationStore.getState().currentConversationId).toBe("c-current");
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+  });
+
+  it.each(["new chat", "A to C to A"])(
+    "does not reopen a delayed deep link after choosing %s",
+    async (choice) => {
+      window.history.replaceState({}, "", "/chat?id=c-9");
+      if (choice !== "new chat") useConversationStore.getState().setCurrentConversationId("c-1");
+      const result = await hook();
+      let finish!: (value: unknown) => void;
+      const pending = new Promise((resolve) => {
+        finish = resolve;
+      });
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path === "/conversations/c-9/messages") return pending;
+        return { items: [], total: 0, cost: null };
+      });
+      const fetching = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages", {
+          signal: undefined,
+        }),
+      );
+      await act(async () => {
+        if (choice === "new chat") await result.current.startNewChat();
+        else {
+          await result.current.selectConversation("c-2");
+          await result.current.selectConversation("c-1");
+        }
+      });
+      await act(async () => {
+        finish({ items: [{ id: "late" }], cost: null });
+        await fetching;
+      });
+      expect(useConversationStore.getState().currentConversationId).toBe(
+        choice === "new chat" ? null : "c-1",
+      );
+      expect(useConversationStore.getState().currentMessages).toEqual([]);
+    },
+  );
+
   it("opens the one the link points at, and its messages", async () => {
     // A shared link has to win over whatever the store remembered.
     window.history.replaceState({}, "", "/chat?id=c-9");
@@ -390,7 +507,9 @@ describe("the conversation named in the address bar", () => {
       await result.current.fetchConversations();
     });
 
-    expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages");
+    expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages", {
+      signal: undefined,
+    });
     expect(useConversationStore.getState().currentConversationId).toBe("c-9");
     expect(useConversationStore.getState().currentMessages).toHaveLength(1);
   });
@@ -399,6 +518,11 @@ describe("the conversation named in the address bar", () => {
     // A deleted conversation, or one belonging to somebody else.
     window.history.replaceState({}, "", "/chat?id=c-gone");
     const result = await hook();
+    await act(async () => result.current.selectConversation("c-old"));
+    window.history.replaceState({}, "", "/chat?id=c-gone");
+    useConversationStore.setState({
+      currentCost: { input_tokens: 1, output_tokens: 2, cost_usd: "4.00", cost_is_partial: false },
+    });
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
       if (path.includes("/messages")) throw new Error("404");
       return { items: [], total: 0 };
@@ -409,6 +533,8 @@ describe("the conversation named in the address bar", () => {
     });
 
     expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+    expect(useConversationStore.getState().currentCost).toBeNull();
   });
 
   it("drops a linked thread that arrives after somebody else has signed in", async () => {
@@ -427,7 +553,9 @@ describe("the conversation named in the address bar", () => {
     await act(async () => {
       fetching = result.current.fetchConversations();
       await waitFor(() =>
-        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages"),
+        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages", {
+          signal: undefined,
+        }),
       );
     });
 
@@ -456,7 +584,9 @@ describe("the conversation named in the address bar", () => {
     await act(async () => {
       fetching = result.current.fetchConversations();
       await waitFor(() =>
-        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages"),
+        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages", {
+          signal: undefined,
+        }),
       );
     });
 

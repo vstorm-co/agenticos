@@ -1,5 +1,5 @@
 ---
-source_sha: "f7e7980c4123"
+source_sha: "86a6f70a9b26"
 ---
 
 # Bezpieczeństwo { #security }
@@ -28,7 +28,7 @@ danych.
 
 | Granica | Co ją przekracza | Zaufana po drugiej stronie? |
 |---|---|---|
-| Przeglądarka → BFF (route handlery Next.js) | Ciasteczko sesji, nagłówek organizacji, dane z formularza | Nie — ale BFF nie weryfikuje ciasteczka: czyta `httpOnly` `access_token` i przekazuje go jako nagłówek bearer (`frontend/src/lib/platform-proxy.ts`). To granica przekazywania poświadczenia; weryfikacja jest zadaniem API |
+| Przeglądarka → BFF (route handlery Next.js) | Ciasteczko sesji, nagłówek organizacji, dane z formularza | Nie — ale BFF nie weryfikuje ciasteczka: czyta `httpOnly` `agenticos_access_token` i przekazuje go jako nagłówek bearer (`frontend/src/lib/platform-proxy.ts`). To granica przekazywania poświadczenia; weryfikacja jest zadaniem API |
 | BFF → API (FastAPI) | JWT związany z sesją w bazie, nagłówek `X-Organization-Id` | Nie — token jest weryfikowany przy każdym żądaniu, sesja sprawdzana pod kątem unieważnienia, a organizacja rozstrzygana z tokena |
 | API → PostgreSQL / Redis | Zapytania i odczyty z cache, po TLS, gdy jest skonfigurowany | Tak — magazyn należy do operatora; co chroni w spoczynku, jest pod „Co jest gdzie szyfrowane” |
 | API / worker → providerzy modeli, kanały, serwery MCP, dostawcy wyszukiwania, Logfire | Prompty, wywołania narzędzi, zapytania, odpowiedzi, trace'y | Nie — to strony trzecie; co do nich trafia, jest decyzją per agent, z wyjątkiem tracingu na poziomie całego wdrożenia (poniżej) |

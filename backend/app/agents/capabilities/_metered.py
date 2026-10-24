@@ -54,7 +54,7 @@ class MeteredModel(WrapperModel):
         """
         await assert_ambient_budget()
         response = await self.wrapped.request(messages, model_settings, model_request_parameters)
-        record_ambient_usage(self.model_name or "unknown", response.usage)
+        record_ambient_usage(response.model_name or self.model_name or "unknown", response.usage)
         return response
 
     @asynccontextmanager
@@ -78,4 +78,4 @@ class MeteredModel(WrapperModel):
             messages, model_settings, model_request_parameters, run_context
         ) as stream:
             yield stream
-        record_ambient_usage(self.model_name or "unknown", stream.usage)
+        record_ambient_usage(stream.model_name or self.model_name or "unknown", stream.usage)

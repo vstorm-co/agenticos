@@ -35,7 +35,7 @@ def _service(attached):
 async def _persist(service, message, file_ids):
     with (
         patch("app.services.agent.get_db_context", _db_context),
-        patch("app.services.agent.get_conversation_service", return_value=service),
+        patch("app.services.agent.ConversationService", return_value=service),
     ):
         return await persist_user_turn(
             MagicMock(id=uuid.uuid4()),
