@@ -195,7 +195,7 @@ class ProactiveThinker:
             try:
                 while not settlement.done():
                     try:
-                        await asyncio.shield(settlement)
+                        await asyncio.wait({settlement})
                     except asyncio.CancelledError:
                         cancelled = True
                 settlement.result()

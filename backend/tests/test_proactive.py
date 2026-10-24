@@ -948,7 +948,10 @@ def test_suggestion_kinds_match_what_the_look_proposes():
     }
 
 
-async def test_cancellation_settles_a_paid_response_even_if_shutdown_cancels_twice() -> None:
+@pytest.mark.parametrize("settlement_fails", [False, True])
+async def test_cancellation_settles_a_paid_response_even_if_shutdown_cancels_twice(
+    settlement_fails: bool,
+) -> None:
     from pydantic_ai.toolsets import FunctionToolset
 
     entered, settling, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
@@ -961,6 +964,8 @@ async def test_cancellation_settles_a_paid_response_even_if_shutdown_cancels_twi
     async def finish(*args: object, **kwargs: object) -> None:
         settling.set()
         await release.wait()
+        if settlement_fails:
+            raise OSError("database unavailable")
 
     get_slug, limits, version, profiles, create, stored = TestThinking._patches(TestModel())
     session = _session()
@@ -997,7 +1002,7 @@ async def test_cancellation_settles_a_paid_response_even_if_shutdown_cancels_twi
     assert recorded["status"] == RunStatus.CANCELLED.value
     assert recorded["input_tokens"] > 0 and recorded["output_tokens"] > 0
     assert recorded["cost_is_partial"] is True
-    assert session.commit.await_count == 2
+    assert session.commit.await_count == (1 if settlement_fails else 2)
     assert not any(t.get_name() == f"run-heartbeat:{run_id}" for t in asyncio.all_tasks())
 
 

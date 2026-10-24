@@ -109,3 +109,39 @@ async def test_cancellation_waits_for_started_embedding_accounting() -> None:
         released.set()
         if not task.done():
             await task
+
+
+@pytest.mark.parametrize("operation", ["settled", "create", "delete"])
+async def test_a_failed_thread_after_cancellation_is_owned_and_drained(operation: str) -> None:
+    from app.core.blocking import create_cancel_safe, delete_cancel_safe
+
+    loop = asyncio.get_running_loop()
+    entered, release = asyncio.Event(), threading.Event()
+    undone = []
+
+    def work() -> None:
+        loop.call_soon_threadsafe(entered.set)
+        if not release.wait(3):
+            raise TimeoutError("test did not release the worker")
+        raise OSError("I/O failed after cancellation")
+
+    if operation == "create":
+        call = create_cancel_safe(work, lambda: undone.append(True))
+    elif operation == "delete":
+        call = delete_cancel_safe(work)
+    else:
+        call = run_blocking_settled(work)
+    task = asyncio.create_task(call)
+    try:
+        async with asyncio.timeout(3):
+            await entered.wait()
+            task.cancel()
+            await asyncio.sleep(0)
+            task.cancel()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+    finally:
+        release.set()
+        await asyncio.gather(task, return_exceptions=True)
+    assert undone == ([True] if operation == "create" else [])

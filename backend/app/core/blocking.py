@@ -134,7 +134,8 @@ async def create_cancel_safe(
     """
     future = asyncio.wrap_future(await _submit(create, *args))
     try:
-        await asyncio.shield(future)
+        await asyncio.wait({future})
+        future.result()
     except asyncio.CancelledError:
         # Awaiting a shielded coroutine once is not enough: a second
         # cancellation - a cancelled request whose loop then begins shutting
@@ -147,7 +148,7 @@ async def create_cancel_safe(
         cleanup = asyncio.ensure_future(_discard(future, undo))
         while not cleanup.done():
             with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.shield(cleanup)
+                await asyncio.wait({cleanup})
         raise
 
 
@@ -193,7 +194,8 @@ async def run_blocking_settled[T](fn: Callable[..., T], *args: object) -> T:
     """
     future = asyncio.wrap_future(await _submit(fn, *args))
     try:
-        return await asyncio.shield(future)
+        await asyncio.wait({future})
+        return future.result()
     except asyncio.CancelledError:
         # A second cancellation - a cancelled request whose loop then begins
         # shutting down - would raise straight out and detach the drain, unwinding
@@ -202,7 +204,7 @@ async def run_blocking_settled[T](fn: Callable[..., T], *args: object) -> T:
         drain = asyncio.ensure_future(_drain(future))
         while not drain.done():
             with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.shield(drain)
+                await asyncio.wait({drain})
         raise
 
 
