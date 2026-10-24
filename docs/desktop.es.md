@@ -1,5 +1,5 @@
 ---
-source_sha: "bca91b2f1dda"
+source_sha: "428e12dc6511"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -293,7 +293,7 @@ Configura el entorno GitHub `apps-release` antes de publicar:
   `WINDOWS_CERTIFICATE_PASSWORD`. Sin ellos, el instalador queda sin firmar.
 - Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
   `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Conserva el keystore para actualizar.
-- TestFlight: repository variable del repositorio `AGENTICOS_TESTFLIGHT_ENABLED=true`; secretos
+- TestFlight: variable del repositorio `AGENTICOS_TESTFLIGHT_ENABLED=true`; secretos
   `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROFILES_BASE64_JSON`
   (array JSON de perfiles base64 para aplicación, widgets y extensión de compartir),
   `APP_STORE_CONNECT_KEY_P8`, `APP_STORE_CONNECT_KEY_ID`,

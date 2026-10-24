@@ -1,14 +1,35 @@
 """Data access for Web Push subscriptions (PostgreSQL async)."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models.apns_device import ApnsDevice
 from app.db.models.push_subscription import PushSubscription
+from app.db.models.session import Session
+
+
+def _deliverable() -> ColumnElement[bool]:
+    """Linked devices stop receiving push when their sign-in ends.
+
+    Existing subscriptions without a recorded session retain their standing
+    permission; new registrations are linked by the authenticated route.
+    """
+    return or_(
+        PushSubscription.session_id.is_(None),
+        select(Session.id)
+        .where(
+            Session.id == PushSubscription.session_id,
+            Session.user_id == PushSubscription.user_id,
+            Session.is_active.is_(True),
+            Session.expires_at > datetime.now(UTC),
+        )
+        .exists(),
+    )
 
 
 async def upsert(
@@ -61,7 +82,7 @@ async def delete_by_id(db: AsyncSession, subscription_id: uuid.UUID) -> None:
 async def list_for_user(db: AsyncSession, user_id: uuid.UUID) -> list[PushSubscription]:
     result = await db.execute(
         select(PushSubscription)
-        .where(PushSubscription.user_id == user_id)
+        .where(PushSubscription.user_id == user_id, _deliverable())
         .order_by(PushSubscription.created_at)
     )
     return list(result.scalars().all())
@@ -72,7 +93,9 @@ async def subscribed(db: AsyncSession, user_ids: list[uuid.UUID]) -> set[uuid.UU
     if not user_ids:
         return set()
     result = await db.execute(
-        select(PushSubscription.user_id).where(PushSubscription.user_id.in_(user_ids)).distinct()
+        select(PushSubscription.user_id)
+        .where(PushSubscription.user_id.in_(user_ids), _deliverable())
+        .distinct()
     )
     return set(result.scalars().all())
 

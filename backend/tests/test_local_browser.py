@@ -76,3 +76,106 @@ async def test_local_commands_never_send_a_debugging_address(
         ).capture_sign_in()
         is None
     )
+
+
+async def test_local_stream_delivers_frames_and_cancels_its_polling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import anyio
+
+    ready = anyio.Event()
+    screenshot = AsyncMock(side_effect=[None, "jpeg"])
+    monkeypatch.setattr(module.LocalPage, "screenshot", screenshot)
+    frames: list[str] = []
+
+    async def deliver(frame: str) -> None:
+        frames.append(frame)
+        ready.set()
+
+    page = module.LocalPage(
+        module._Commands(uuid4(), "window"),
+        "window",
+        PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1200),
+    )
+    async with page.stream(deliver):
+        with anyio.fail_after(3):
+            await ready.wait()
+    assert frames == ["jpeg"]
+
+
+async def test_cleanup_failure_does_not_mask_the_browse_result(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    call = AsyncMock(
+        side_effect=[{"id": "window"}, module.device_hub.DeviceUnavailable(message="offline")]
+    )
+    monkeypatch.setattr(module.device_hub, "call", call)
+    monkeypatch.setattr(module.LocalPage, "resize", AsyncMock())
+    monkeypatch.setattr(module.LocalPage, "navigate", AsyncMock())
+    async with module.page_factory(uuid4())(
+        cdp_url="",
+        start_url="https://example.com",
+        policy=PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1200),
+    ) as page:
+        assert isinstance(page, module.LocalPage)
+    assert "Could not close a local browser" in caplog.text
+    call.side_effect = None
+    call.return_value = {"id": None}
+    with pytest.raises(RuntimeError, match="did not open"):
+        async with module.page_factory(uuid4())(
+            cdp_url="",
+            start_url="https://example.com",
+            policy=PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1200),
+        ):
+            pytest.fail("Invalid native answer")
+
+
+async def test_local_browsing_applies_locale_and_refuses_incompatible_routes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.capabilities.browser_use._route import BrowserRoute
+
+    call = AsyncMock(
+        side_effect=[{"id": "window"}, {}, {"result": {"value": "Chrome"}}, {}, {}, {}]
+    )
+    monkeypatch.setattr(module.device_hub, "call", call)
+    monkeypatch.setattr(module.LocalPage, "resize", AsyncMock())
+    monkeypatch.setattr(module.LocalPage, "navigate", AsyncMock())
+    factory = module.page_factory(uuid4())
+    policy = PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1200)
+    async with factory(
+        cdp_url="",
+        start_url="https://example.com",
+        policy=policy,
+        route=BrowserRoute(timezone="Europe/Warsaw", locale="pl-PL"),
+    ):
+        pass
+    assert [
+        entry.args[2]["method"]
+        for entry in call.await_args_list
+        if entry.args[1] == "browser.command"
+    ] == [
+        "Emulation.setTimezoneOverride",
+        "Runtime.evaluate",
+        "Emulation.setUserAgentOverride",
+        "Emulation.setLocaleOverride",
+    ]
+    call.reset_mock()
+    with pytest.raises(DomainRefused, match="without a proxy"):
+        async with factory(
+            cdp_url="",
+            start_url="https://example.com",
+            policy=policy,
+            route=BrowserRoute(proxy_server="http://proxy:8080"),
+        ):
+            pytest.fail("Incompatible route")
+    call.assert_not_called()
+    call.side_effect = [{"id": "window"}, {"result": {"value": None}}, {}]
+    with pytest.raises(RuntimeError, match="user agent"):
+        async with factory(
+            cdp_url="",
+            start_url="https://example.com",
+            policy=policy,
+            route=BrowserRoute(locale="pl-PL"),
+        ):
+            pytest.fail("Invalid native user agent")

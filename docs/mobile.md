@@ -35,6 +35,8 @@ receive push. Revoking one there signs that app out at once.
 Each event's notifications - email, push - are chosen per event under Settings →
 Notifications. A notification opens its page through the app's lock.
 
+Push registered by a sign-in stops when that session is revoked or expires. A linked token is delivered to only when its session belongs to the same user. Older subscriptions with no recorded session retain their standing permission; remove and register them again to bind them to the current device.
+
 ## Outside the app
 
 **Live activities** - the lock screen and the Dynamic Island on iOS, an ongoing

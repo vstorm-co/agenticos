@@ -132,7 +132,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/android.keystore"
           python3 scripts/prepare_app_release.py "$TAG"
           rustup target add aarch64-linux-android
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;37.0.0" "ndk;27.2.12479018"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
       - name: Build signed APK

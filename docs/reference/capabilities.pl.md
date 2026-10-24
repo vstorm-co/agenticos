@@ -1,5 +1,5 @@
 ---
-source_sha: "75f91f5aa939"
+source_sha: "cef26e88561b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -759,12 +759,14 @@ przeglądania.
 | `preview` | `true` | wysyłaj widok przeglądarki do czatu w trakcie przeglądania |
 | `preview_width` | 1024 | 320–1920; szerokość widoku, a więc i klatek |
 | `step_model_profile_id` | puste | profil modelu, o który `browse_web` pyta w każdym kroku zamiast modelu agenta - tańszy model obniża koszt długiego browse, a przyspiesza go tylko tam, gdzie jego dostawca odpowiada szybko (Claude Haiku przez OpenRouter był na krok tak samo wolny jak Sonnet); puste to model agenta, a własne narzędzia przeglądarki agenta zawsze go używają |
-| `connection` | `built_in` | `built_in`, `proxy` albo `hosted`: jak przeglądarka wychodzi do sieci |
+| `connection` | `built_in` | `built_in`, `proxy`, `hosted` albo `local`: jak przeglądarka wychodzi do sieci |
 | `proxy_url` | puste | przy `proxy`: `http://`, `https://` albo `socks5://` z hostem i portem; sekret bindingu, jeśli jest, to jego `username:password` |
 | `hosted_url` | puste | przy `hosted`: adres CDP usługi, `wss://`; sekret bindingu to jej klucz i jest wymagany |
 | `hosted_key_param` | `apiKey` | jak hostowana przeglądarka nazywa swój klucz w zapytaniu adresu |
 | `timezone` | puste | strefa IANA, którą podaje przeglądarka - ustaw ją na region proxy |
 | `locale` | puste | tag języka, np. `pl-PL`, wysyłany jako `Accept-Language` i `navigator.language` |
+
+Dla `local` wybierz lokalne przeglądanie w **Pracuj na** w sparowanej [aplikacji desktopowej](../desktop.pl.md#local-browser-models-and-mcp). Endpoint CDP serwera nie jest potrzebny. Tymczasowy, widoczny profil Chromium korzysta z sieci komputera, również usług LAN po natywnej zgodzie; lista domen stron nadal obowiązuje. Bindingi proxy i hosted są odrzucane zamiast ignorowane. Nadpisanie strefy czasowej i języka jest obsługiwane. Poniższa konfiguracja przeglądarki wdrożenia dotyczy pozostałych trybów.
 
 **Przeglądarkę uruchamiasz ty, a operator mówi którą.** W obrazie API nie ma Chromium:
 `cdp_url` wskazuje usługę przeglądarki, którą operator uruchamia i izoluje. Pliki

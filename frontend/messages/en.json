@@ -1185,6 +1185,7 @@
         },
         "model": "Model for this chat",
         "agentModel": "Agent’s configured model",
+        "mcpLimit": "Choose up to 8 local MCP services per chat.",
         "localBrowser": "Browse on this computer (separate profile)"
       }
     },
@@ -8960,6 +8961,7 @@
         "description": "Connect services running on this computer. The app asks you to approve each connection; choose them under Work on in a chat. Models use an OpenAI-compatible /v1 endpoint; MCP uses Streamable HTTP.",
         "kind": "Service type",
         "modelKind": "Local model (Ollama, LM Studio)",
+        "failed": "Could not update local services. Check the address and confirm access in the desktop dialog, then try again.",
         "mcpKind": "Local MCP server (HTTP)",
         "name": "Name",
         "endpoint": "Loopback address",

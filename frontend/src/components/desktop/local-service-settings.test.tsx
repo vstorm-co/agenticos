@@ -53,6 +53,8 @@ it("sends the installed model and waits for native confirmation", async () => {
   const user = userEvent.setup();
   mount();
   await user.type(screen.getByLabelText("Name"), "My model");
+  await user.clear(screen.getByLabelText("Loopback address"));
+  await user.type(screen.getByLabelText("Loopback address"), "http://127.0.0.1:11435/v1");
   await user.type(screen.getByLabelText("Installed model ID"), "installed-model");
   await user.click(screen.getByRole("button", { name: "Connect service" }));
   await waitFor(() =>
@@ -61,7 +63,7 @@ it("sends the installed model and waits for native confirmation", async () => {
         name: "My model",
         kind: "model",
         model: "installed-model",
-        endpoint: "http://127.0.0.1:11434/v1",
+        endpoint: "http://127.0.0.1:11435/v1",
       }),
     }),
   );
@@ -76,7 +78,7 @@ it("uses HTTP MCP without asking for a model and reports a native refusal inline
   await user.type(screen.getByLabelText("Name"), "Files");
   invoke.mockRejectedValueOnce(new Error("Connection cancelled."));
   await user.click(screen.getByRole("button", { name: "Connect service" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Connection cancelled.");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not update local services.");
   expect(screen.getByLabelText("Name")).toHaveValue("Files");
 });
 it("does not call native desktop commands from a phone", async () => {

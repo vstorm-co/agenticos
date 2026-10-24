@@ -26,8 +26,12 @@ function folderName(path: string): string {
  * choice is remembered per conversation, and a new chat starts in the cloud.
  */
 export function WorkOn() {
-  const t = useTranslations("chat.controls.workOn");
   const shell = useShell();
+  return isDesktopShell(shell) ? <ComputerWorkOn /> : null;
+}
+
+function ComputerWorkOn() {
+  const t = useTranslations("chat.controls.workOn");
   const { data: device } = useDeviceStatus();
   const { state, pick, revoke } = useLocalFolders();
   const services = useLocalServices().state.data ?? [];
@@ -45,7 +49,6 @@ export function WorkOn() {
     if (conversationId !== null) adopt(conversationId);
   }, [conversationId, adopt]);
 
-  if (!isDesktopShell(shell)) return null;
   const linked = device?.linked === true;
   const grants = state.data?.grants ?? [];
   const modes = state.data?.modes ?? [];
@@ -114,7 +117,11 @@ export function WorkOn() {
                       role="radio"
                       aria-checked={active}
                       onClick={() =>
-                        setTarget(conversationId, { folder: grant.path, mode: grant.mode })
+                        setTarget(conversationId, {
+                          ...target,
+                          folder: grant.path,
+                          mode: grant.mode,
+                        })
                       }
                       className="min-w-0 flex-1 text-left"
                       title={grant.path}
@@ -179,6 +186,9 @@ export function WorkOn() {
                     ))}
                 </select>
               </label>
+              {(target.mcp_services?.length ?? 0) >= 8 && (
+                <p className="text-muted-foreground text-xs">{t("mcpLimit")}</p>
+              )}
               {services
                 .filter((service) => service.kind === "mcp")
                 .map((service) => (
@@ -186,6 +196,10 @@ export function WorkOn() {
                     <input
                       type="checkbox"
                       checked={(target.mcp_services ?? []).includes(service.id)}
+                      disabled={
+                        (target.mcp_services?.length ?? 0) >= 8 &&
+                        !(target.mcp_services ?? []).includes(service.id)
+                      }
                       onChange={(event) =>
                         setTarget(conversationId, {
                           ...target,
@@ -224,7 +238,12 @@ export function WorkOn() {
               onClick={() =>
                 pick.mutate(newMode, {
                   onSuccess: (grant) => {
-                    if (grant) setTarget(conversationId, { folder: grant.path, mode: grant.mode });
+                    if (grant)
+                      setTarget(conversationId, {
+                        ...target,
+                        folder: grant.path,
+                        mode: grant.mode,
+                      });
                   },
                 })
               }

@@ -1185,6 +1185,7 @@
         },
         "model": "Modell für diesen Chat",
         "agentModel": "Konfiguriertes Modell des Agenten",
+        "mcpLimit": "Wähle bis zu 8 lokale MCP-Dienste pro Chat.",
         "localBrowser": "Auf diesem Computer browsen (separates Profil)"
       }
     },
@@ -8724,6 +8725,7 @@
         "description": "Verbinde Dienste auf diesem Computer. Die App fragt für jede Verbindung nach deiner Zustimmung; wähle sie im Chat unter Arbeitsort. Modelle nutzen einen OpenAI-kompatiblen /v1-Endpunkt, MCP nutzt Streamable HTTP.",
         "kind": "Diensttyp",
         "modelKind": "Lokales Modell (Ollama, LM Studio)",
+        "failed": "Lokale Dienste konnten nicht geändert werden. Prüfe die Adresse, bestätige den Zugriff im Desktop-Dialog und versuche es erneut.",
         "mcpKind": "Lokaler MCP-Server (HTTP)",
         "name": "Name",
         "endpoint": "Loopback-Adresse",

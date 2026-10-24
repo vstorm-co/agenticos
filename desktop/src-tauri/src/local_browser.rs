@@ -10,7 +10,12 @@ use tokio::sync::Mutex;
 use tokio_tungstenite::tungstenite::Message;
 
 #[derive(Default)]
-pub struct Browsers(Mutex<HashMap<String, Browser>>);
+pub struct Browsers(Mutex<Registry>);
+#[derive(Default)]
+struct Registry {
+    generation: u64,
+    windows: HashMap<String, Browser>,
+}
 struct Browser {
     child: tokio::process::Child,
     profile: PathBuf,
@@ -30,6 +35,37 @@ impl Drop for Browser {
             }
             eprintln!("Could not remove a temporary local browser profile after stopping Chromium.");
         });
+    }
+}
+
+impl Browser {
+    async fn close(&mut self) -> Result<(), String> {
+        // Let Chromium close its renderer processes and flush the profile before
+        // removing it. Killing the parent alone can leave child processes alive.
+        let graceful = async {
+            if self.socket.is_empty() {
+                return;
+            }
+            if let Ok((mut socket, _)) = tokio_tungstenite::connect_async(&self.socket).await {
+                let _ = socket
+                    .send(Message::Text(
+                        serde_json::json!({"id": 1, "method": "Browser.close"})
+                            .to_string()
+                            .into(),
+                    ))
+                    .await;
+            }
+        };
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), graceful).await;
+        if !matches!(
+            tokio::time::timeout(std::time::Duration::from_secs(3), self.child.wait()).await,
+            Ok(Ok(_))
+        ) {
+            self.child.kill().await.map_err(|e| e.to_string())?;
+        }
+        tokio::fs::remove_dir_all(&self.profile)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -158,8 +194,9 @@ async fn start(app: &AppHandle) -> Result<(String, Browser), String> {
             Ok((id, browser))
         }
         Err(error) => {
-            let _ = browser.child.kill().await;
-            let _ = tokio::fs::remove_dir_all(&browser.profile).await;
+            if let Err(cleanup) = browser.close().await {
+                eprintln!("Could not clean up a browser that failed to start: {cleanup}");
+            }
             Err(error)
         }
     }
@@ -173,12 +210,23 @@ const METHODS: &[&str] = &[
     "Page.navigate",
     "Page.captureScreenshot",
     "Emulation.setDeviceMetricsOverride",
+    "Emulation.setTimezoneOverride",
+    "Emulation.setUserAgentOverride",
+    "Emulation.setLocaleOverride",
 ];
 
 pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result<Map<String, Value>, String> {
     if op == "browser.open" {
-        let (id, browser) = start(app).await?;
-        app.state::<Browsers>().0.lock().await.insert(id.clone(), browser);
+        let state = app.state::<Browsers>();
+        let generation = state.0.lock().await.generation;
+        let (id, mut browser) = start(app).await?;
+        let mut registry = state.0.lock().await;
+        if registry.generation != generation {
+            drop(registry);
+            browser.close().await?;
+            return Err("The device disconnected while opening the browser.".into());
+        }
+        registry.windows.insert(id.clone(), browser);
         return Ok(serde_json::from_value(serde_json::json!({"id":id})).map_err(|e| e.to_string())?);
     }
     let id = args
@@ -187,12 +235,9 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
         .ok_or("Name this browse's window.")?;
     let state = app.state::<Browsers>();
     if op == "browser.close" {
-        let browser = state.0.lock().await.remove(id);
+        let browser = state.0.lock().await.windows.remove(id);
         if let Some(mut browser) = browser {
-            let _ = browser.child.kill().await;
-            tokio::fs::remove_dir_all(&browser.profile)
-                .await
-                .map_err(|e| e.to_string())?;
+            browser.close().await?;
         }
         return Ok(Map::new());
     }
@@ -210,6 +255,7 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
         .0
         .lock()
         .await
+        .windows
         .get(id)
         .ok_or("This browse has ended.")?
         .socket
@@ -255,10 +301,15 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
 
 pub async fn close_all(app: &AppHandle) {
     let state = app.state::<Browsers>();
-    let browsers = std::mem::take(&mut *state.0.lock().await);
+    let browsers = {
+        let mut registry = state.0.lock().await;
+        // An open in progress belongs to the connection being closed, even if
+        // its native consent dialog answers after this registry was drained.
+        registry.generation = registry.generation.wrapping_add(1);
+        std::mem::take(&mut registry.windows)
+    };
     for (_, mut browser) in browsers {
-        let _ = browser.child.kill().await;
-        if let Err(error) = tokio::fs::remove_dir_all(&browser.profile).await {
+        if let Err(error) = browser.close().await {
             eprintln!("Could not remove a local browser profile: {error}");
         }
     }

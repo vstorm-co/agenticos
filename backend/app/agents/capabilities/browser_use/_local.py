@@ -121,12 +121,34 @@ def page_factory(session_id: UUID) -> PageFactory:
     ) -> AsyncGenerator[LocalPage]:
         if not domain_allowed(start_url, policy.allowed_domains):
             raise DomainRefused("This URL is outside the agent's allowed domains.")
+        if route is not None and (route.proxy_server or route.remote_url is not None):
+            raise DomainRefused(
+                "Local browsing needs the local or built-in connection, without a proxy or hosted browser."
+            )
         answer = await device_hub.call(session_id, "browser.open", {}, timeout=120)
         browse_id = answer.get("id")
         if not isinstance(browse_id, str) or not browse_id:
             raise RuntimeError("The computer did not open a browser window.")
-        page = LocalPage(_Commands(session_id, browse_id), browse_id, policy)
+        commands = _Commands(session_id, browse_id)
+        page = LocalPage(commands, browse_id, policy)
         try:
+            if route is not None and route.timezone:
+                await commands._send(
+                    "Emulation.setTimezoneOverride", {"timezoneId": route.timezone}
+                )
+            if route is not None and route.locale:
+                result = await commands._send(
+                    "Runtime.evaluate", {"expression": "navigator.userAgent", "returnByValue": True}
+                )
+                remote = result.get("result")
+                agent = remote.get("value") if isinstance(remote, dict) else None
+                if not isinstance(agent, str) or not agent:
+                    raise RuntimeError("The local browser did not describe its user agent.")
+                await commands._send(
+                    "Emulation.setUserAgentOverride",
+                    {"userAgent": agent, "acceptLanguage": route.locale},
+                )
+                await commands._send("Emulation.setLocaleOverride", {"locale": route.locale})
             await page.resize(policy.preview_width, round(policy.preview_width * 0.7), 1)
             await page.navigate(start_url)
             yield page

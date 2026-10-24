@@ -217,6 +217,11 @@ const FILE_LIMIT: u64 = 10 * 1024 * 1024;
 
 async fn read_file(root: &Path, path: &str) -> Result<Vec<u8>, String> {
     let file = inside(root, path).map_err(|refusal| refusal.message)?;
+    // Opening a named pipe can wait for a writer before File::metadata is ever
+    // reached. Refuse special files first, then verify the opened file too.
+    if !tokio::fs::metadata(&file).await.map_err(|e| e.to_string())?.is_file() {
+        return Err("Only regular files can be opened.".into());
+    }
     let file = tokio::fs::File::open(&file).await.map_err(|e| format!("{path}: {e}"))?;
     if !file.metadata().await.map_err(|e| e.to_string())?.is_file() {
         return Err("Only regular files can be opened.".into());

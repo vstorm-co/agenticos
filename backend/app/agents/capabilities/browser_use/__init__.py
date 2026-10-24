@@ -172,7 +172,8 @@ class WebBrowserConfig(BaseModel):
             "Built in uses the deployment's browser and its address. A proxy sends "
             "the browses through an address of your own - a residential or regional "
             "one sites block less. A hosted browser runs them in a browser service "
-            "you pay for, reached over CDP."
+            "you pay for, reached over CDP. This computer requires a paired desktop "
+            "and local browsing selected for this chat."
         ),
         json_schema_extra={
             "x-enum-labels": {

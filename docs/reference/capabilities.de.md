@@ -1,5 +1,5 @@
 ---
-source_sha: "75f91f5aa939"
+source_sha: "cef26e88561b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -805,12 +805,14 @@ bestehen.
 | `preview` | `true` | sendet die Ansicht in den Chat, während das Browsen läuft |
 | `preview_width` | 1024 | 320–1920; die Breite der Ansicht und damit der Vorschaubilder |
 | `step_model_profile_id` | leer | ein Modellprofil, das `browse_web` bei jedem Schritt statt des Modells des Agents fragt - ein günstigeres Modell macht einen langen Browse günstiger und nur dort schneller, wo sein Anbieter schnell antwortet (Claude Haiku über OpenRouter brauchte pro Schritt so lange wie Sonnet); leer heißt das Modell des Agents, das seine eigenen Browser-Tools immer nutzen |
-| `connection` | `built_in` | `built_in`, `proxy` oder `hosted`: wie der Browser ins Netz geht |
+| `connection` | `built_in` | `built_in`, `proxy`, `hosted` oder `local`: wie der Browser ins Netz geht |
 | `proxy_url` | leer | bei `proxy`: `http://`, `https://` oder `socks5://` mit Host und Port; das Secret des Bindings, falls vorhanden, ist sein `username:password` |
 | `hosted_url` | leer | bei `hosted`: die `wss://`-CDP-Adresse des Dienstes; das Secret des Bindings ist sein Schlüssel und Pflicht |
 | `hosted_key_param` | `apiKey` | wie der gehostete Browser seinen Schlüssel in der Query der Adresse nennt |
 | `timezone` | leer | eine IANA-Zeitzone, die der Browser meldet - passend zur Region des Proxys |
 | `locale` | leer | ein Sprach-Tag wie `pl-PL`, gesendet als `Accept-Language` und `navigator.language` |
+
+Für `local` lokales Browsen unter **Work on** in der gekoppelten [Desktop-App](../desktop.de.md#local-browser-models-and-mcp) wählen. Kein serverseitiger CDP-Endpunkt ist erforderlich. Ein temporäres sichtbares Chromium-Profil nutzt das Netzwerk des Computers einschließlich LAN-Diensten nach nativer Zustimmung; die Seiten-Domainliste gilt weiterhin. Proxy- und Hosted-Bindings werden abgelehnt statt ignoriert. Zeitzone und Sprache lassen sich überschreiben. Die folgende Einrichtung des Deployment-Browsers gilt für die anderen Modi.
 
 **Den Browser betreiben Sie, und der Betreiber sagt welchen.** Im API-Image ist kein
 Chromium: `cdp_url` zeigt auf einen Browser-Dienst, den ein Betreiber betreibt und

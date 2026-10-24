@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5072874712"
+source_sha: "2cdd1d63b902"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -39,6 +39,8 @@ nich dostają push. Unieważnienie jednej z nich od razu wylogowuje tę aplikacj
 
 Powiadomienia każdego zdarzenia - e-mail, push - wybiera się osobno w Ustawienia →
 Powiadomienia. Powiadomienie otwiera swoją stronę przez blokadę aplikacji.
+
+Push zarejestrowany przez sesję przestaje być wysyłany po jej odwołaniu lub wygaśnięciu. Powiązany token działa tylko wtedy, gdy sesja należy do tego samego użytkownika. Starsze subskrypcje bez zapisanej sesji zachowują dotychczasową zgodę; usuń je i zarejestruj ponownie, aby przypisać je do bieżącego urządzenia.
 
 ## Poza aplikacją { #outside-the-app }
 

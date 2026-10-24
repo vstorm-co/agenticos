@@ -6075,12 +6075,26 @@ class TestAFailedRunOverTheApi:
 
 class TestPerRunLocalServices:
     @pytest.mark.anyio
-    @pytest.mark.parametrize("connected", [True, False])
-    async def test_native_services_use_only_the_resolved_workspace_session(self, connected):
+    @pytest.mark.parametrize("connected, voice_call", [(True, False), (False, False), (True, True)])
+    async def test_native_services_use_only_the_resolved_workspace_session(
+        self, connected: bool, voice_call: bool
+    ):
+        from app.agents.voice import VoiceOptions
         from app.schemas.local_target import LocalTarget
         from app.services import device_hub
+        from app.services.agent_runner import VoiceRun
         from app.services.device_hub.services import LocalService
 
+        voice = (
+            VoiceRun(
+                options=VoiceOptions(on_deferred=AsyncMock()),
+                model_label="Realtime",
+                provider="openai",
+                secret_id=uuid.uuid4(),
+            )
+            if voice_call
+            else None
+        )
         ctx = _ctx()
         session = uuid.uuid4()
         target = LocalTarget(
@@ -6130,9 +6144,12 @@ class TestPerRunLocalServices:
             patch.object(device_hub, "local_mcp_toolset") as tools,
             patch("app.services.agent_runner.build_agent") as build,
         ):
-            if not connected:
-                with pytest.raises(BadRequestError, match="connected computer"):
-                    await service.prepare(ctx, agent.id, local=target)
+            if not connected or voice_call:
+                with pytest.raises(
+                    BadRequestError,
+                    match="text conversations" if voice_call else "connected computer",
+                ):
+                    await service.prepare(ctx, agent.id, local=target, voice=voice)
                 describe.assert_not_called()
                 build.assert_not_called()
                 return

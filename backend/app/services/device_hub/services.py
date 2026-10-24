@@ -17,6 +17,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.toolsets import AbstractToolset
 
+from app.agents.mcp import FittedNames
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import NoSecret
@@ -29,7 +30,7 @@ TIMEOUT_SECONDS = 125.0
 class LocalService(BaseModel):
     """A service's public identity, as approved and described by the desktop."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", hide_input_in_errors=True)
     id: str = Field(pattern=r"^[a-zA-Z0-9_]{1,48}$")
     name: str = Field(min_length=1, max_length=120)
     kind: Literal["model", "mcp"]
@@ -37,6 +38,8 @@ class LocalService(BaseModel):
 
 
 class _Reply(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     status: int = Field(ge=100, le=599)
     headers: dict[str, str]
     body: str = Field(max_length=MAX_BYTES * 2)
@@ -162,10 +165,12 @@ def mcp_toolset(session_id: UUID, service: LocalService) -> AbstractToolset[obje
     client = httpx2.AsyncClient(
         transport=_McpTransport(session_id, service.id), timeout=TIMEOUT_SECONDS
     )
-    return MCPToolset(
-        "http://device.invalid/mcp",
-        http_client=client,
-        id=f"local:{service.id}",
-        init_timeout=TIMEOUT_SECONDS,
-        tool_error_behavior="failed",
-    ).prefixed(f"local_{service.id}")
+    return FittedNames(
+        MCPToolset(
+            "http://device.invalid/mcp",
+            http_client=client,
+            id=f"local:{service.id}",
+            init_timeout=TIMEOUT_SECONDS,
+            tool_error_behavior="failed",
+        ).prefixed(f"local_{service.id}")
+    )

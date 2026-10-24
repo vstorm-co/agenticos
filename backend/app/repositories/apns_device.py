@@ -1,13 +1,34 @@
 """Data access for iPhones' APNs device tokens (PostgreSQL async)."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models.apns_device import ApnsDevice
+from app.db.models.session import Session
+
+
+def _deliverable() -> ColumnElement[bool]:
+    """Linked devices stop receiving push when their sign-in ends.
+
+    Existing subscriptions without a recorded session retain their standing
+    permission; new registrations are linked by the authenticated route.
+    """
+    return or_(
+        ApnsDevice.session_id.is_(None),
+        select(Session.id)
+        .where(
+            Session.id == ApnsDevice.session_id,
+            Session.user_id == ApnsDevice.user_id,
+            Session.is_active.is_(True),
+            Session.expires_at > datetime.now(UTC),
+        )
+        .exists(),
+    )
 
 
 async def upsert(
@@ -42,7 +63,9 @@ async def delete_by_id(db: AsyncSession, device_id: uuid.UUID) -> None:
 
 async def list_for_user(db: AsyncSession, user_id: uuid.UUID) -> list[ApnsDevice]:
     result = await db.execute(
-        select(ApnsDevice).where(ApnsDevice.user_id == user_id).order_by(ApnsDevice.created_at)
+        select(ApnsDevice)
+        .where(ApnsDevice.user_id == user_id, _deliverable())
+        .order_by(ApnsDevice.created_at)
     )
     return list(result.scalars().all())
 
@@ -52,7 +75,9 @@ async def subscribed(db: AsyncSession, user_ids: list[uuid.UUID]) -> set[uuid.UU
     if not user_ids:
         return set()
     result = await db.execute(
-        select(ApnsDevice.user_id).where(ApnsDevice.user_id.in_(user_ids)).distinct()
+        select(ApnsDevice.user_id)
+        .where(ApnsDevice.user_id.in_(user_ids), _deliverable())
+        .distinct()
     )
     return set(result.scalars().all())
 

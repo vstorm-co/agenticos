@@ -239,7 +239,11 @@ mod tests {
             json!({"type": "hello", "version": "0.3.0", "capabilities": {"sandbox_modes": ["read_only"], "screen": false}})
         );
         assert_eq!(
-            serde_json::to_value(AppFrame::answer("a".into(), Err(("No such file".into(), "not_found")))).unwrap(),
+            serde_json::to_value(AppFrame::answer(
+                "a".into(),
+                Err(("No such file".into(), "not_found"))
+            ))
+            .unwrap(),
             json!({"type": "result", "id": "a", "ok": false, "value": {}, "error": "No such file", "kind": "not_found"})
         );
         assert_eq!(

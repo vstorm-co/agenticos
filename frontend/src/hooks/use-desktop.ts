@@ -268,7 +268,12 @@ export function useLocalServices() {
     enabled: isDesktopShell(shell),
   });
   const settle = (services: LocalService[]) => client.setQueryData(qk.desktop.services(), services);
-  const save = useMutation({ mutationFn: saveLocalService, onSuccess: settle });
-  const remove = useMutation({ mutationFn: removeLocalService, onSuccess: settle });
+  const failed = (error: Error) => reportShellFailure("changing local services", error);
+  const save = useMutation({ mutationFn: saveLocalService, onSuccess: settle, onError: failed });
+  const remove = useMutation({
+    mutationFn: removeLocalService,
+    onSuccess: settle,
+    onError: failed,
+  });
   return { state, save, remove };
 }

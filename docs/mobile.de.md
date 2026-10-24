@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5072874712"
+source_sha: "2cdd1d63b902"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -40,6 +40,8 @@ erhalten. Wer dort eine widerruft, meldet diese App sofort ab.
 Die Benachrichtigungen jedes Ereignisses - E-Mail, Push - werden je Ereignis unter
 Einstellungen → Benachrichtigungen gewählt. Eine Benachrichtigung öffnet ihre Seite
 durch die Sperre der App.
+
+Push einer Anmeldung endet, sobald diese Sitzung widerrufen wird oder abläuft. Ein verknüpftes Token wird nur verwendet, wenn seine Sitzung demselben Benutzer gehört. Ältere Abonnements ohne gespeicherte Sitzung behalten ihre bestehende Erlaubnis; entferne und registriere sie erneut, um sie dem aktuellen Gerät zuzuordnen.
 
 ## Außerhalb der App { #outside-the-app }
 

@@ -1185,6 +1185,7 @@
         },
         "model": "Model dla tego czatu",
         "agentModel": "Model skonfigurowany dla agenta",
+        "mcpLimit": "Wybierz maksymalnie 8 lokalnych usług MCP dla czatu.",
         "localBrowser": "Przeglądaj na tym komputerze (osobny profil)"
       }
     },
@@ -8745,6 +8746,7 @@
         "description": "Połącz usługi działające na tym komputerze. Aplikacja poprosi o zatwierdzenie każdego połączenia; wybierzesz je w czacie w opcji Pracuj na. Modele używają endpointu /v1 zgodnego z OpenAI, a MCP — Streamable HTTP.",
         "kind": "Typ usługi",
         "modelKind": "Lokalny model (Ollama, LM Studio)",
+        "failed": "Nie udało się zmienić lokalnych usług. Sprawdź adres, potwierdź dostęp w oknie aplikacji desktopowej i spróbuj ponownie.",
         "mcpKind": "Lokalny serwer MCP (HTTP)",
         "name": "Nazwa",
         "endpoint": "Adres lokalny",

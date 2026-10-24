@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5072874712"
+source_sha: "2cdd1d63b902"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -40,6 +40,8 @@ cuáles reciben push. Revocar una allí cierra la sesión de esa app al instante
 
 Las notificaciones de cada evento - correo, push - se eligen por evento en Ajustes
 → Notificaciones. Una notificación abre su página a través del bloqueo de la app.
+
+El push registrado por un inicio de sesión se detiene cuando la sesión se revoca o caduca. Un token vinculado solo recibe mensajes si su sesión pertenece al mismo usuario. Las suscripciones antiguas sin sesión registrada conservan su permiso; elimínalas y regístralas de nuevo para vincularlas al dispositivo actual.
 
 ## Fuera de la app { #outside-the-app }
 

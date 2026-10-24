@@ -33,7 +33,7 @@ fn checked(mut service: Service) -> Result<Service, String> {
     {
         return Err("Use up to 48 letters, digits or underscores for the service ID.".into());
     }
-    if service.name.trim().is_empty() || service.name.len() > 120 {
+    if service.name.trim().is_empty() || service.name.chars().count() > 120 {
         return Err("Give this service a name (up to 120 characters).".into());
     }
     let mut url = tauri::Url::parse(&service.endpoint).map_err(|_| "Enter a loopback HTTP address.")?;
@@ -57,7 +57,7 @@ fn checked(mut service: Service) -> Result<Service, String> {
             if service
                 .model
                 .as_ref()
-                .is_none_or(|m| m.trim().is_empty() || m.len() > 200) =>
+                .is_none_or(|m| m.trim().is_empty() || m.chars().count() > 200) =>
         {
             return Err("Name the model installed in this service.".into())
         }

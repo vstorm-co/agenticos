@@ -252,6 +252,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Push subscriptions linked to a device session stop receiving deliveries when
+  that session is revoked, expired or belongs to a different account.
+
 - **Changing a sandbox's runtime opens a new workspace.** A container's image
   is chosen when it is created, and the workspace's key did not include the
   runtime, so an agent moved to another runtime kept attaching to its old

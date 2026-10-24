@@ -11,6 +11,7 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_ai.toolsets import PrefixedToolset
 
+from app.agents.mcp import FittedNames
 from app.core.exceptions import BadRequestError
 from app.services.device_hub import services
 from app.services.device_hub.services import LocalService
@@ -138,6 +139,7 @@ async def test_a_real_agent_uses_the_local_model_without_a_cloud_fallback(
 
 def test_mcp_tools_are_namespaced_per_grant() -> None:
     toolset = services.mcp_toolset(uuid4(), LocalService(id="files", name="Files", kind="mcp"))
-    assert isinstance(toolset, PrefixedToolset)
-    assert toolset.prefix == "local_files"
-    assert toolset.wrapped.id == "local:files"
+    assert isinstance(toolset, FittedNames)
+    assert isinstance(toolset.wrapped, PrefixedToolset)
+    assert toolset.wrapped.prefix == "local_files"
+    assert toolset.wrapped.wrapped.id == "local:files"

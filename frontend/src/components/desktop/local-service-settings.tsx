@@ -113,7 +113,7 @@ export function LocalServiceSettings() {
         )}
         {error && (
           <p role="alert" className="text-destructive text-sm">
-            {error.message}
+            {t("failed")}
           </p>
         )}
         <Button type="submit" disabled={save.isPending}>

@@ -1,5 +1,5 @@
 ---
-source_sha: "bca91b2f1dda"
+source_sha: "428e12dc6511"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }

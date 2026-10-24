@@ -278,7 +278,7 @@ Configure the `apps-release` GitHub environment before running a release:
   `WINDOWS_CERTIFICATE_PASSWORD`. Without them the installer is unsigned.
 - Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
   `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. Keep the same keystore for updates.
-- TestFlight: repository variable del repositorio `AGENTICOS_TESTFLIGHT_ENABLED=true`; secrets
+- TestFlight: repository variable `AGENTICOS_TESTFLIGHT_ENABLED=true`; secrets
   `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROFILES_BASE64_JSON`
   (JSON array of base64 profiles for the app, widgets and share extension),
   `APP_STORE_CONNECT_KEY_P8`, `APP_STORE_CONNECT_KEY_ID`,

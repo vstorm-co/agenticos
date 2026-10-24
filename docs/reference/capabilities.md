@@ -716,12 +716,14 @@ it lasts an hour after the browse last did anything.
 | `preview` | `true` | send the viewport to the chat while the browse runs |
 | `preview_width` | 1024 | 320–1920; the viewport width, and so the width of the frames |
 | `step_model_profile_id` | empty | a model profile `browse_web` asks for each step instead of the agent's - a cheaper model makes a long browse cheaper, and quicker only where its provider answers quickly (Claude Haiku through OpenRouter took as long per step as Sonnet); empty uses the agent's model, and the agent's own browser tools always do |
-| `connection` | `built_in` | `built_in`, `proxy` or `hosted`: how the browser reaches the web |
+| `connection` | `built_in` | `built_in`, `proxy`, `hosted` or `local`: how the browser reaches the web |
 | `proxy_url` | empty | under `proxy`: `http://`, `https://` or `socks5://` with host and port; the binding's secret, when there is one, is its `username:password` |
 | `hosted_url` | empty | under `hosted`: the service's `wss://` CDP address; the binding's secret is its key and is required |
 | `hosted_key_param` | `apiKey` | what the hosted browser calls its key in the address's query |
 | `timezone` | empty | an IANA time zone the browser reports - set it to the proxy's region |
 | `locale` | empty | a language tag such as `pl-PL`, sent as `Accept-Language` and `navigator.language` |
+
+For `local`, select local browsing under **Work on** in the paired [desktop app](../desktop.md#local-browser-models-and-mcp). No server CDP endpoint is required. It uses a temporary visible Chromium profile and the computer's network, including LAN services after native consent; the page-domain allowlist still applies. Proxy and hosted bindings are refused instead of silently ignored. Time zone and locale overrides are supported. The deployment-browser setup below applies to the other connection modes.
 
 **The browser is one you run, and the operator says which.** There is no Chromium in
 the API image: `cdp_url` points at a browser service an operator runs and isolates.

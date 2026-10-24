@@ -317,3 +317,37 @@ class TestAnIphoneIsPushedTo:
             db, member, org, NotificationEventType.SECURITY_EVENT, use_savepoint=True
         )
         assert "push" in await _channels(db, notification.id)
+
+
+@pytest.mark.parametrize("state", ["active", "revoked", "expired", "wrong-owner"])
+async def test_linked_push_stops_with_its_own_session(db, state: str) -> None:
+    from datetime import timedelta
+
+    from app.repositories import session_repo
+
+    user = await _user(db)
+    owner = await _user(db) if state == "wrong-owner" else user
+    session = await session_repo.create(
+        db,
+        user_id=owner.id,
+        refresh_token_hash=uuid.uuid4().hex,
+        expires_at=datetime.now(UTC) + timedelta(days=-1 if state == "expired" else 1),
+    )
+    if state == "revoked":
+        session.is_active = False
+        await db.flush()
+    await push_repo.upsert(
+        db,
+        user_id=user.id,
+        endpoint=ENDPOINT + uuid.uuid4().hex,
+        p256dh="key",
+        auth="auth",
+        user_agent=None,
+        session_id=session.id,
+    )
+    await device_repo.upsert(db, user_id=user.id, token=uuid.uuid4().hex * 2, session_id=session.id)
+    expected = {user.id} if state == "active" else set()
+    assert await push_repo.subscribed(db, [user.id]) == expected
+    assert await device_repo.subscribed(db, [user.id]) == expected
+    assert bool(await push_repo.list_for_user(db, user.id)) is (state == "active")
+    assert bool(await device_repo.list_for_user(db, user.id)) is (state == "active")

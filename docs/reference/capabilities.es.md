@@ -1,5 +1,5 @@
 ---
-source_sha: "75f91f5aa939"
+source_sha: "cef26e88561b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -772,12 +772,14 @@ de la navegación.
 | `preview` | `true` | envía la vista del navegador al chat mientras navega |
 | `preview_width` | 1024 | 320–1920; el ancho de la vista y, por tanto, de los fotogramas |
 | `step_model_profile_id` | vacío | un perfil de modelo al que `browse_web` pregunta en cada paso en lugar del modelo del agent - un modelo más barato abarata un browse largo, y solo lo acelera donde su proveedor responde rápido (Claude Haiku por OpenRouter tardó por paso lo mismo que Sonnet); vacío usa el modelo del agent, que sus propias herramientas de navegador usan siempre |
-| `connection` | `built_in` | `built_in`, `proxy` o `hosted`: cómo sale el navegador a la red |
+| `connection` | `built_in` | `built_in`, `proxy`, `hosted` o `local`: cómo sale el navegador a la red |
 | `proxy_url` | vacío | con `proxy`: `http://`, `https://` o `socks5://` con host y puerto; el secreto del binding, si lo hay, es su `username:password` |
 | `hosted_url` | vacío | con `hosted`: la dirección CDP `wss://` del servicio; el secreto del binding es su clave y es obligatorio |
 | `hosted_key_param` | `apiKey` | cómo llama el navegador alojado a su clave en la query de la dirección |
 | `timezone` | vacío | una zona horaria IANA que declara el navegador - ajústala a la región del proxy |
 | `locale` | vacío | una etiqueta de idioma como `pl-PL`, enviada como `Accept-Language` y `navigator.language` |
+
+Para `local`, selecciona navegación local en **Work on** de la [aplicación de escritorio](../desktop.es.md#local-browser-models-and-mcp) emparejada. No requiere un endpoint CDP del servidor. Un perfil temporal visible de Chromium utiliza la red del equipo, incluidos servicios LAN tras consentimiento nativo; sigue aplicándose la lista de dominios de página. Los bindings proxy y hosted se rechazan en lugar de ignorarse. Se admiten ajustes de zona horaria e idioma. La configuración siguiente del navegador del despliegue corresponde a los otros modos.
 
 **El navegador lo opera usted, y el operador dice cuál.** No hay Chromium en la imagen
 de la API: `cdp_url` apunta a un servicio de navegador que un operador ejecuta y aísla.
