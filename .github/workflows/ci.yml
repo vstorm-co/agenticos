@@ -336,7 +336,8 @@ jobs:
       - name: Report coverage of template-inherited code
         # Informational. Holding code we did not design to the platform bar
         # would mean mock-heavy tests that buy a number rather than confidence.
-        if: always()
+        # Keep failures informative without starting a second suite on cancellation.
+        if: ${{ !cancelled() }}
         run: make coverage-all
 
       - name: Upload coverage to Codecov
