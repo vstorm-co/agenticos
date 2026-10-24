@@ -354,6 +354,8 @@ export function ChatContainer({
     notifyTyping,
     isConnected,
     isProcessing,
+    isStopping,
+    canStopParked,
     compacting,
     compactionImpossible,
     sandboxPreparing,
@@ -728,6 +730,8 @@ export function ChatContainer({
       pendingConnection={pendingConnection}
       onConnectionResponse={sendConnectionResponse}
       onStop={stopGeneration}
+      isStopping={isStopping}
+      canStopParked={canStopParked}
       voice={voice}
       onStartCall={startCall}
       emptyState={emptyState}
@@ -843,6 +847,8 @@ interface ChatUIProps {
   pendingConnection?: ConnectionRequest | null;
   onConnectionResponse?: (connected: boolean) => void;
   onStop?: () => void;
+  isStopping?: boolean;
+  canStopParked?: boolean;
   /** The voice call this page holds (#54): its bar stands in for the composer while it is on. */
   voice: VoiceSession;
   /** Start a call to the selected agent, in this conversation. */
@@ -900,6 +906,8 @@ function ChatUI({
   pendingConnection,
   onConnectionResponse,
   onStop,
+  isStopping = false,
+  canStopParked = false,
   voice,
   onStartCall,
   emptyState,
@@ -1334,7 +1342,7 @@ function ChatUI({
                 actionRequests={pendingApproval.actionRequests}
                 reviewConfigs={pendingApproval.reviewConfigs}
                 onDecisions={onResumeDecisions}
-                disabled={!isConnected}
+                disabled={!isConnected || isStopping}
               />
             </div>
           )}
@@ -1342,7 +1350,7 @@ function ChatUI({
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ConnectAccountPrompt
                 request={pendingConnection}
-                disabled={!isConnected}
+                disabled={!isConnected || isStopping}
                 onRespond={onConnectionResponse}
               />
             </div>
@@ -1351,7 +1359,7 @@ function ChatUI({
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <QuestionPrompt
                 questions={pendingQuestions}
-                disabled={!isConnected}
+                disabled={!isConnected || isStopping}
                 onComplete={onAnswerQuestions}
               />
             </div>
@@ -1501,6 +1509,7 @@ function ChatUI({
                           mentionsFromDraft={testingDraft}
                           hints={messages.length === 0}
                           disabled={
+                            isStopping ||
                             !isConnected ||
                             isArchived ||
                             onCall ||
@@ -1509,12 +1518,14 @@ function ChatUI({
                           }
                           isProcessing={isProcessing}
                           canStop={
+                            canStopParked ||
                             isProcessing ||
                             !!pendingApproval ||
                             !!pendingQuestions?.length ||
                             !!pendingConnection
                           }
                           onStop={onStop}
+                          stopDisabled={isStopping}
                           slashContext={slashContext}
                           commands={slashCommands}
                           attachmentSlot={attachmentSlot}

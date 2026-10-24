@@ -1,5 +1,5 @@
 ---
-source_sha: "912065ca372b"
+source_sha: "b18eb0c9849f"
 ---
 
 # Die Konsole { #the-console }
@@ -468,8 +468,8 @@ Agent auf eine Antwort, eine Genehmigung oder eine Kontoverbindung wartet. Das g
 nach dem Neuladen einer ausstehenden Frage oder Genehmigung. Das Stoppen schließt
 ausstehende Aufrufe, ohne das Modell fortzusetzen, und erhält die bereits erfassten
 Kosten. Sie können eigene Läufe stoppen; Genehmigungsberechtigte können außerdem Läufe
-stoppen, die auf eine Genehmigung warten. Schlägt das Stoppen fehl, bleibt die Karte für
-einen erneuten Versuch verfügbar.
+stoppen, die auf eine Genehmigung warten. Verhindert ein vorübergehender Fehler das
+Stoppen, bleibt die Karte für einen erneuten Versuch verfügbar.
 
 ### Diktieren { #dictation }
 

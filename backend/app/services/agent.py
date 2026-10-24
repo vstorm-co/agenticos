@@ -24,10 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.models.agent_run import RunStatus
 from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
+from app.repositories import agent_run_repo, member_repo
 from app.repositories import conversation as conversation_repo
-from app.repositories import member_repo
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationUpdate,
@@ -428,6 +429,14 @@ async def persist_assistant_turn(
     """
     try:
         async with get_db_context() as db:
+            stopped = False
+            if run_id is not None and parked_tool_call_ids:
+                # Hold the same lock as Stop until these call rows commit. If
+                # Stop won, persist their settled outcome instead of stale cards.
+                run = await agent_run_repo.claim_parked_run(
+                    db, run_id, organization_id=organization_id
+                )
+                stopped = run is not None and run.status == RunStatus.CANCELLED.value
             conv_service = get_conversation_service(db)
             spent = (
                 conversation_repo.Attributed()
@@ -497,14 +506,17 @@ async def persist_assistant_turn(
                             args=normalize_tool_args(tc.get("args")),
                             started_at=datetime.now(UTC),
                         ),
-                        parked=tc["tool_call_id"] in parked_tool_call_ids,
+                        parked=tc["tool_call_id"] in parked_tool_call_ids and not stopped,
                         mcp_connection_id=(mcp_origins or {}).get(tc["tool_name"]),
                     )
-                    if tc.get("result"):
+                    result = tc.get("result")
+                    if stopped and tc["tool_call_id"] in parked_tool_call_ids:
+                        result = "Not performed: the run was stopped."
+                    if result:
                         await conv_service.complete_tool_call(
                             tc_obj.id,
                             ToolCallComplete(
-                                result=tc["result"],
+                                result=result,
                                 completed_at=datetime.now(UTC),
                                 success=True,
                             ),

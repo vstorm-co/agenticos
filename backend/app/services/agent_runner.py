@@ -5270,6 +5270,23 @@ class AgentRunnerService:
                 details={"run_id": str(run.id), "status": run.status},
             ) from exc
 
+    async def can_stop_parked(self, ctx: AuthContext, run_id: UUID) -> bool:
+        """Whether this session may stop a parked run, without exposing its data."""
+        if ctx.api_key_id is not None:
+            return False
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        return (
+            run is not None
+            and run.status in (RunStatus.AWAITING_ANSWER.value, RunStatus.AWAITING_APPROVAL.value)
+            and (
+                run.user_id == ctx.user_id
+                or (
+                    run.status == RunStatus.AWAITING_APPROVAL.value
+                    and ctx.has(Perm.APPROVALS_DECIDE)
+                )
+            )
+        )
+
     async def cancel_parked(self, ctx: AuthContext, run_id: UUID) -> None:
         """Stop a parked run without executing its continuation or losing its spend.
 
@@ -5309,14 +5326,21 @@ class AgentRunnerService:
             if run.paused_state is not None
             else None
         )
+        at = datetime.now(UTC)
+        frames = [] if state is None else list(state.delegations)
+        for frame in frames:
+            frames.extend(frame.delegations)
         calls = [] if state is None else [*state.questions, *state.tool_call_ids.values()]
+        calls.extend(frame.tool_call_id for frame in frames)
+        await self._cancel_delegations(run, frames, at=at)
+        if state is not None and state.plan and run.conversation_id is not None:
+            await ConversationService(self.db).keep_plan(run.conversation_id, put_down(state.plan))
         await self.transcript.record(
             run,
             prompt=None,
             answer="",
             settled=dict.fromkeys(calls, "Not performed: the run was stopped."),
         )
-        at = datetime.now(UTC)
         await agent_run_repo.expire_pending_approvals(self.db, run_id=run.id, decided_at=at)
         await agent_run_repo.finish_run(
             self.db,
@@ -5339,6 +5363,58 @@ class AgentRunnerService:
             target_id=str(run.id),
             details={"previous_status": previous_status},
         )
+
+    async def _cancel_delegations(
+        self, run: AgentRun, frames: Sequence[DelegationFrame], *, at: datetime
+    ) -> None:
+        """Attribute the spend already incurred by suspended published delegates.
+
+        Inline specialists bill to their published ancestor. Deleted delegates
+        retain their cost on the parent, as in the ordinary terminal write.
+        No model is built: provider attribution was not kept in a parked frame.
+        """
+        named = {frame.agent_id for frame in frames if frame.agent_id is not None}
+        if not named:
+            return
+        present = await agent_repo.existing_ids_locked(
+            self.db, named, organization_id=run.organization_id
+        )
+        for frame in frames:
+            if (
+                frame.agent_id is None
+                or frame.agent_id not in present
+                or frame.agent_version_id is None
+            ):
+                continue
+            legacy = "billed_cost_usd" not in frame.model_fields_set
+            await agent_run_repo.record_delegated_run(
+                self.db,
+                run_id=uuid4(),
+                organization_id=run.organization_id,
+                agent_id=frame.agent_id,
+                agent_version_id=frame.agent_version_id,
+                parent_run_id=run.id,
+                subagent_task_id=frame.task_id,
+                user_id=run.user_id,
+                initiated_by_publisher_fallback=run.initiated_by_publisher_fallback,
+                channel_identity_id=run.channel_identity_id,
+                conversation_id=run.conversation_id,
+                exposure_id=run.exposure_id,
+                surface=run.surface,
+                model_label=None,
+                provider=None,
+                secret_id=None,
+                status=RunStatus.CANCELLED.value,
+                input_tokens=frame.input_tokens if legacy else frame.billed_input_tokens,
+                output_tokens=frame.output_tokens if legacy else frame.billed_output_tokens,
+                cache_read_tokens=frame.billed_cache_read_tokens,
+                cache_write_tokens=frame.billed_cache_write_tokens,
+                cost_usd=frame.cost_usd if legacy else frame.billed_cost_usd,
+                cost_is_partial=frame.cost_is_partial if legacy else frame.billed_cost_is_partial,
+                started_at=frame.started_at or at,
+                ended_at=at,
+                error="Stopped by user",
+            )
 
     async def answer(
         self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[Any]]
