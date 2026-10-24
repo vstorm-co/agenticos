@@ -1158,6 +1158,9 @@ class ScoringService:
             from app.services.eval_suite import EvalSuiteService
 
             await EvalSuiteService(self.db).recompute_after_review(ctx, affected, undo=not decided)
+            from app.services.improvement_pipeline import ImprovementPipelineService
+
+            await ImprovementPipelineService(self.db).recompute_after_review(ctx, affected)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

@@ -324,3 +324,22 @@ async def measured_hunks(
             ImprovementIteration.batch_id == batch_id,
         )
     )
+
+
+async def runs_for_checks(
+    db: AsyncSession, *, organization_id: UUID, check_ids: list[UUID]
+) -> list[UUID]:
+    """Sessions whose measured rounds depend on a reviewed comparison."""
+    if not check_ids:
+        return []
+    rows = await db.scalars(
+        select(ImprovementIteration.run_id)
+        .where(
+            ImprovementIteration.organization_id == organization_id,
+            ImprovementIteration.eval_run_ids.overlap(check_ids),
+            ImprovementIteration.verdict.is_not(None),
+        )
+        .distinct()
+        .order_by(ImprovementIteration.run_id)
+    )
+    return list(rows.all())

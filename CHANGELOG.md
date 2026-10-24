@@ -51,6 +51,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Human review and undo refresh the improvement wizard’s current verdict, without new paid work, publication or replacing the selected round with an archived check.
+
 - **Dataset access no longer exposes private source conversations.** Case reads,
   historical versions and exports mask inaccessible conversation text. Review
   answers and evidence require run-reading access, hidden text cannot be

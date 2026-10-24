@@ -322,7 +322,13 @@ function Session({
       <div className="flex flex-wrap items-center gap-3 border-t pt-4">
         {session.status === "ready" && (
           <Button
-            variant={Number(chosen?.verdict_detail?.broken ?? 0) > 0 ? "outline" : "default"}
+            variant={
+              chosen?.verdict !== "inconclusive" &&
+              chosen?.verdict_detail?.broken != null &&
+              Number(chosen.verdict_detail.broken) === 0
+                ? "default"
+                : "outline"
+            }
             disabled={selectionDirty || missingBatch}
             onClick={() => setSelected("accept")}
           >

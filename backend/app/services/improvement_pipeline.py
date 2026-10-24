@@ -63,6 +63,7 @@ from app.repositories import (
 )
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
 from app.schemas.eval_run import (
+    EvalComparisonRead,
     EvalRunRead,
     EvalRunRequest,
     KnowledgeCheckRecord,
@@ -1579,11 +1580,8 @@ class ImprovementPipelineService:
         )
         await self._audit(run, "child_started")
 
-    async def _judge(
-        self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun, iteration: ImprovementIteration
-    ) -> None:
-        child = await self.evals.get(ctx, iteration.eval_run_ids[-1])
-        comparison = await self.evals.compare(ctx, child.id)
+    @staticmethod
+    def _check_result(child: EvalRunRead, comparison: EvalComparisonRead) -> rules.CheckResult:
         mine, theirs = comparison.candidate_summary, comparison.baseline_summary
         suite = child.suite_check
         outcome = (
@@ -1595,7 +1593,7 @@ class ImprovementPipelineService:
                 else rules.SuiteOutcome.INCONCLUSIVE
             )
         )
-        result = rules.CheckResult(
+        return rules.CheckResult(
             comparable=comparison.baseline is not None and comparison.verdict != "invalid",
             incomplete=mine.incomplete + (theirs.incomplete if theirs else 0),
             ungraded=mine.ungraded + (theirs.ungraded if theirs else 0),
@@ -1606,6 +1604,92 @@ class ImprovementPipelineService:
             baseline_pass_rate=None if theirs is None else theirs.pass_rate,
             suite=outcome,
         )
+
+    @staticmethod
+    def _result_detail(result: rules.CheckResult) -> dict[str, int | float | str | None]:
+        return {
+            "reason": None,
+            "broken": result.regressions_confirmed,
+            "fixed": result.fixed_confirmed,
+            "ungraded": result.ungraded,
+            "incomplete": result.incomplete,
+            "crashed": result.crashed,
+            "candidate_pass_rate": result.candidate_pass_rate,
+            "baseline_pass_rate": result.baseline_pass_rate,
+        }
+
+    async def recompute_after_review(self, ctx: AuthContext, check_ids: list[UUID]) -> None:
+        """Refresh measured verdicts in the review transaction without new work or publication.
+
+        Preserve the person's selected round. Archived checks and attribution
+        cannot replace its current measurement. Read as the original requester,
+        never grant the reviewer additional access to an agent's answers.
+        """
+        for run_id in await improvement_repo.runs_for_checks(
+            self.db, organization_id=ctx.organization_id, check_ids=check_ids
+        ):
+            run = await improvement_repo.get_run(
+                self.db, run_id, organization_id=ctx.organization_id, lock=True
+            )
+            if run is None:
+                continue
+            rounds = await improvement_repo.list_iterations(
+                self.db, organization_id=ctx.organization_id, run_id=run.id
+            )
+            for iteration in rounds:
+                if (
+                    not iteration.verdict
+                    or not iteration.eval_run_ids
+                    or iteration.eval_run_ids[-1] not in check_ids
+                ):
+                    continue
+                result: rules.CheckResult | None = None
+                try:
+                    reader = await job_context(
+                        self.db,
+                        organization_id=ctx.organization_id,
+                        user_id=run.created_by_user_id,
+                        api_key_id=run.created_by_api_key_id,
+                    )
+                    if reader is not None:
+                        child = await self.evals.get(reader, iteration.eval_run_ids[-1])
+                        comparison = await self.evals.compare(reader, child.id)
+                        result = self._check_result(child, comparison)
+                except AuthenticationError, AuthorizationError, NotFoundError:
+                    result = None
+                if result is None:
+                    verdict = ImprovementVerdict.INCONCLUSIVE
+                    detail: dict[str, int | float | str | None] = {
+                        "fixed": None,
+                        "broken": None,
+                        "candidate_pass_rate": None,
+                        "baseline_pass_rate": None,
+                        "reason": "review_access_unavailable",
+                    }
+                    if run.status == Status.READY:
+                        await self._move(
+                            run,
+                            rules.Transition(Status.STOPPED, Stage.JUDGING, StopReason.PERMISSION),
+                        )
+                else:
+                    verdict = rules.judge(result)
+                    detail = self._result_detail(result)
+                await improvement_repo.update_iteration(
+                    self.db,
+                    iteration=iteration,
+                    values={
+                        "verdict": verdict.value,
+                        "verdict_detail": {**(iteration.verdict_detail or {}), **detail},
+                    },
+                )
+                await self._audit(run, "review_recomputed", actor_user_id=ctx.subject_id)
+
+    async def _judge(
+        self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun, iteration: ImprovementIteration
+    ) -> None:
+        child = await self.evals.get(ctx, iteration.eval_run_ids[-1])
+        comparison = await self.evals.compare(ctx, child.id)
+        result = self._check_result(child, comparison)
         verdict = rules.judge(result)
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=run.organization_id, run_id=run.id
@@ -1621,13 +1705,7 @@ class ImprovementPipelineService:
                 "verdict": verdict.value,
                 "verdict_detail": {
                     **(iteration.verdict_detail or {}),
-                    "broken": result.regressions_confirmed,
-                    "fixed": result.fixed_confirmed,
-                    "ungraded": result.ungraded,
-                    "incomplete": result.incomplete,
-                    "crashed": result.crashed,
-                    "candidate_pass_rate": result.candidate_pass_rate,
-                    "baseline_pass_rate": result.baseline_pass_rate,
+                    **self._result_detail(result),
                 },
                 "cost_usd": max(Decimal(0), spent - previous_cost),
                 "ended_at": datetime.now(UTC),

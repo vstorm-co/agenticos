@@ -1,5 +1,5 @@
 ---
-source_sha: "ab84245144a9"
+source_sha: "47187230b1ef"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -340,6 +340,8 @@ Przełącznikiem **Uwzględnij w teście** na ekranie zmian wybierz część sug
 Szacunek sesji obejmuje klasyfikację złych odpowiedzi z rozmów względem edytowalnych baz wiedzy agenta, grupowanie braków i rezerwację do trzech proponowanych fragmentów na bazę. Worker zachowuje aktualne zakresy klucza API autora i przed rozpoczęciem ponownie sprawdza pełny koszt kroku. Klasyfikacja, grupowanie i szkice korzystają wyłącznie z przypiętych, niewymazanych rozmów; błędy treningowe pozostają materiałem agenta, a tekst kontrolny nie trafia do tych pomocników.
 
 Błąd klasyfikatora jest widoczny, a rozmowy źródłowe pozostają dostępne. Sesja wymagająca tylko wiedzy kończy się szkicami do przejrzenia, bez pustej wersji agenta. Sprawdzenie szkicu nadal wymaga własnej wyceny i potwierdzenia; dodanie treści pozostaje osobną decyzją człowieka.
+
+Ręczna ocena i jej cofnięcie przeliczają aktualnie zmierzoną rundę w tej samej transakcji co wynik testu i automatycznego sprawdzenia. Wybrana runda i koszt pozostają bez zmian. Starsze pomiary oraz sprawdzenia pojedynczych sugestii nie zastępują aktualnego wspólnego werdyktu. Review nie uruchamia nowego modelu, publikacji ani przeniesienia środowiska. Jeżeli autor sesji nie może już odczytać porównania, runda staje się nierozstrzygnięta zamiast zachować zielony wynik. Zdarzenia datasetu odświeżają widoki testów, automatycznych sprawdzeń, sesji i środowisk.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

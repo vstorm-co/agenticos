@@ -52,7 +52,14 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   eval_suite: () => [qk.evalSuites.all(), qk.evalRuns.all()],
   eval_run: () => [qk.evalRuns.all(), qk.datasets.all(), qk.improvements.all()],
   // A dataset's cases, versions, grading, scores and drafts all live under it.
-  dataset: () => [qk.datasets.all(), qk.sharing.all()],
+  dataset: () => [
+    qk.datasets.all(),
+    qk.evalRuns.all(),
+    qk.evalSuites.all(),
+    qk.improvements.all(),
+    qk.environments.all(),
+    qk.sharing.all(),
+  ],
   // A topic dismissed or drafted, or a grouping pass that placed new questions.
   knowledge_gap: () => [qk.knowledgeGaps.all(), qk.improvements.all()],
 };

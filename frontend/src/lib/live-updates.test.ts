@@ -58,7 +58,14 @@ describe("staleQueries", () => {
       qk.mcpConnections.all(),
       qk.sharing.all(),
     ]);
-    expect(staleQueries(change("dataset"))).toEqual([qk.datasets.all(), qk.sharing.all()]);
+    expect(staleQueries(change("dataset"))).toEqual([
+      qk.datasets.all(),
+      qk.evalRuns.all(),
+      qk.evalSuites.all(),
+      qk.improvements.all(),
+      qk.environments.all(),
+      qk.sharing.all(),
+    ]);
   });
 
   it("refreshes what the Architect may raise with runs and with agents", () => {
