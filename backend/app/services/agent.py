@@ -21,7 +21,6 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus
@@ -253,7 +252,7 @@ async def persist_user_turn(
     conversation: Conversation | None = None
     try:
         async with get_db_context() as db:
-            conv_service = get_conversation_service(db)
+            conv_service = ConversationService(db)
 
             if requested_conversation_id:
                 current_conversation_id = requested_conversation_id
@@ -437,7 +436,7 @@ async def persist_assistant_turn(
                     db, run_id, organization_id=organization_id
                 )
                 stopped = run is not None and run.status == RunStatus.CANCELLED.value
-            conv_service = get_conversation_service(db)
+            conv_service = ConversationService(db)
             spent = (
                 conversation_repo.Attributed()
                 if run_id is None

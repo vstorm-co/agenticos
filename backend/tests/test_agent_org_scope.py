@@ -230,7 +230,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             prompt = await persist_user_turn(
                 _user(),
@@ -253,7 +253,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
             patch(
                 "app.services.agent.member_repo.get",
                 new=AsyncMock(return_value=MagicMock(role="member")),
@@ -293,7 +293,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
             patch("app.services.agent.member_repo.get", new=AsyncMock(return_value=membership)),
             pytest.raises(refusal),
         ):
@@ -327,7 +327,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             prompt = await persist_user_turn(
                 _user(),
@@ -358,7 +358,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             await persist_user_turn(
                 owner,
@@ -389,7 +389,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             prompt = await persist_user_turn(
                 owner,
@@ -413,7 +413,7 @@ class TestPersistUserTurnOrgScope:
         service.model_text.return_value = "hello"
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             prompt = await persist_user_turn(
                 _user(),
@@ -437,7 +437,7 @@ class TestPersistUserTurnOrgScope:
         service.model_text.return_value = "Anna: hello"
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             prompt = await persist_user_turn(
                 _user(),
@@ -474,7 +474,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             await persist_user_turn(
                 _user(),
@@ -501,7 +501,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
             pytest.raises(AuthorizationError),
         ):
             await persist_user_turn(
@@ -522,7 +522,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
             pytest.raises(BadRequestError),
         ):
             await persist_user_turn(
@@ -550,7 +550,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             prompt = await persist_user_turn(
                 _user(),
@@ -571,7 +571,7 @@ class TestPersistUserTurnOrgScope:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
             pytest.raises(TypeError),
         ):
             await persist_user_turn(
@@ -603,7 +603,7 @@ class TestPersistUserTurnFileLinks:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             prompt = await persist_user_turn(
                 user,
@@ -631,7 +631,7 @@ class TestPersistUserTurnFileLinks:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
             pytest.raises(NotFoundError),
         ):
             await persist_user_turn(
@@ -652,7 +652,7 @@ class TestPersistUserTurnFileLinks:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             prompt = await persist_user_turn(
                 _user(),
@@ -691,7 +691,7 @@ class TestPersistAssistantTurnRecordsWhatItCost:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             await persist_assistant_turn(
                 str(uuid.uuid4()),
@@ -717,7 +717,7 @@ class TestPersistAssistantTurnRecordsWhatItCost:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             await persist_assistant_turn(
                 str(uuid.uuid4()),
@@ -744,7 +744,7 @@ class TestPersistAssistantTurnRecordsWhatItCost:
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
-            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.ConversationService", return_value=service),
         ):
             await persist_assistant_turn(
                 str(uuid.uuid4()), "answered", None, [], organization_id=uuid.uuid4()
@@ -770,7 +770,7 @@ async def test_a_late_parked_transcript_observes_a_stop_before_writing_calls(sta
     run_id, organization_id = uuid.uuid4(), uuid.uuid4()
     with (
         patch("app.services.agent.get_db_context", _fake_db_context),
-        patch("app.services.agent.get_conversation_service", return_value=service),
+        patch("app.services.agent.ConversationService", return_value=service),
         patch(
             "app.services.agent.conversation_repo.attributed_to_run",
             AsyncMock(return_value=Attributed()),
