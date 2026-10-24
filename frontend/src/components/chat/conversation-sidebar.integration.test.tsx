@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
+import * as invalidation from "@/lib/coalesced-invalidation";
 import {
   useAgentSelectionStore,
   useChatBandsStore,
@@ -132,6 +133,32 @@ describe("the list the URL asks for", () => {
     mount();
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("sort_by=updated_at"));
+  });
+});
+
+describe("a sidebar that leaves while refreshing", () => {
+  it("does not open a linked thread after unmount during invalidation", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-late");
+    let finish = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
+    try {
+      const { unmount } = mount();
+      await waitFor(() => expect(invalidate).toHaveBeenCalled());
+      unmount();
+      await act(async () => {
+        finish();
+        await pending;
+      });
+      expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain(
+        "/conversations/c-late/messages",
+      );
+      expect(useConversationStore.getState().currentConversationId).toBeNull();
+    } finally {
+      invalidate.mockRestore();
+    }
   });
 });
 

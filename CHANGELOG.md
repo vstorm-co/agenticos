@@ -107,6 +107,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Cancel a sidebar refresh when it leaves, so a delayed invalidation cannot
+  reopen a conversation or write its messages after navigation (#2426).
+
 - **A generated image is no longer lost when the sandbox will not open.** An
   agent with the sandbox capability also copies what it generates into its
   workspace. When the sandbox service refused to open a session, that copy
