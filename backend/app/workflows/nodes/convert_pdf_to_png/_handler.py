@@ -97,10 +97,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             )
     stem = (stored.filename or "document").rsplit(".", 1)[0]
     images: list[RenderedPage] = []
-    for page in config.pages:
-        png, width, height = await asyncio.to_thread(
-            _documents.pdf_page_png, stored.data, page_number=page, dpi=config.dpi
-        )
-        image = await files.save(png, content_type="image/png", filename=f"{stem}-{page}.png")
-        images.append(RenderedPage(page=page, file=image, width=width, height=height))
+    async with files.saved_batch() as batch:
+        for page in config.pages:
+            png, width, height = await asyncio.to_thread(
+                _documents.pdf_page_png, stored.data, page_number=page, dpi=config.dpi
+            )
+            image = await batch.save(png, content_type="image/png", filename=f"{stem}-{page}.png")
+            images.append(RenderedPage(page=page, file=image, width=width, height=height))
     return Completed[ConvertPdfToPngOutput](output=ConvertPdfToPngOutput(images=tuple(images)))

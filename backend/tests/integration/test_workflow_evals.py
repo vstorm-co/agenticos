@@ -322,3 +322,53 @@ class TestTrying:
 )
 def test_an_answer_is_judged_by_the_path_and_the_kind(kind, field, value, output, verdict):
     assert judge(EvalExpectation(kind=kind, field=field, value=value), output) == verdict
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("value", ["x" * 300_000, "bad\x00", "bad\ud800", float("nan")])
+def test_an_eval_case_refuses_input_that_a_run_cannot_store(value):
+    with pytest.raises(ValidationError):
+        EvalCaseCreate(
+            name="invalid", run_input={"input": value}, expectation=EvalExpectation(value="ok")
+        )
+
+
+@pytest.mark.security
+def test_eval_input_budget_measures_compact_utf8_at_its_exact_boundary(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", 16)
+    assert EvalCaseCreate(
+        name="fits", run_input={"x": "😀😀"}, expectation=EvalExpectation(value="ok")
+    ).run_input == {"x": "😀😀"}
+    with pytest.raises(ValidationError):
+        EvalCaseCreate(
+            name="large", run_input={"x": "😀😀a"}, expectation=EvalExpectation(value="ok")
+        )
+
+
+def test_an_older_oversized_eval_remains_readable_for_removal():
+    from app.schemas.workflow_eval import EvalCaseRead
+
+    stored = EvalCaseRead(
+        id=uuid.uuid4(),
+        node_instance_id=uuid.uuid4(),
+        name="older",
+        run_input={"text": "x" * 300_000},
+        expectation=EvalExpectation(value="ok"),
+    )
+    assert len(stored.run_input["text"]) == 300_000
+
+
+@pytest.mark.parametrize("field", ["name", "expectation", "outputs"])
+def test_new_eval_cases_reject_unstorable_text_outside_the_run_input(field):
+    payload = {"name": "case", "expectation": {"value": "ok"}}
+    payload[field] = (
+        {"value": "bad\x00"}
+        if field == "expectation"
+        else {str(ASK): {"text": "bad\x00"}}
+        if field == "outputs"
+        else "bad\x00"
+    )
+    with pytest.raises(ValidationError):
+        EvalCaseCreate.model_validate(payload)

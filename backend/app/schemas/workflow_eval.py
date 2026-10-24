@@ -2,14 +2,15 @@
 
 import json
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Self
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.core.config import settings
 from app.schemas.base import BaseSchema
-from app.workflows.graph.model import pinned_output_fits
+from app.workflows.contracts.payload import json_byte_size
+from app.workflows.graph.model import jsonb_value_fits, pinned_output_fits
 
 ExpectationKind = Literal["contains", "not_contains", "equals"]
 
@@ -36,7 +37,7 @@ class EvalExpectation(BaseSchema):
     value: str = Field(min_length=1, max_length=2000)
 
 
-class EvalCaseCreate(BaseSchema):
+class _EvalCaseFields(BaseSchema):
     """A case: an input the step should handle, and what its answer should say."""
 
     name: str = Field(min_length=1, max_length=120)
@@ -62,7 +63,23 @@ class EvalCaseCreate(BaseSchema):
         return value
 
 
-class EvalCaseRead(EvalCaseCreate):
+class EvalCaseCreate(_EvalCaseFields):
+    """New cases must fit run admission; old stored cases remain readable for removal."""
+
+    @field_validator("run_input")
+    @classmethod
+    def _run_input_fits(cls, value: dict[str, Any]) -> dict[str, Any]:
+        jsonb_value_fits(value)
+        json_byte_size(value, limit=settings.WORKFLOW_RUN_MAX_INPUT_BYTES)
+        return value
+
+    @model_validator(mode="after")
+    def _stored_fields_fit(self) -> Self:
+        jsonb_value_fits(self)
+        return self
+
+
+class EvalCaseRead(_EvalCaseFields):
     id: UUID
     node_instance_id: UUID
     created_at: datetime | None = None

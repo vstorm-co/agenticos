@@ -1,5 +1,5 @@
 ---
-source_sha: "036b06965e44"
+source_sha: "07482418ac7a"
 ---
 
 # Workflows { #workflows }
@@ -949,6 +949,10 @@ acción externa puede haberse completado; compruébala antes de repetir el nodo.
 Los resultados en línea comparten `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (10 MiB por defecto): resultado del intento, salida y respuesta webhook juntos. El exceso da `NODE_OUTPUT_TOO_LARGE`, conserva costes y no se reintenta automáticamente. Split out comprueba el número expandido (máximo 10 000) antes de copiar y estima conservadoramente los bytes de campos repetidos. El exceso da `SPLIT_OUTPUT_TOO_LARGE`. Para datos mayores, usa referencias a archivos.
 
 Una comprobación previa de los campos del modelo rechaza valores grandes repetidos antes de que la serialización copie el resultado completo.
+
+Los sockets de workflow conservan la identidad y los permisos de la clave de organización en cada frame y consulta del flujo. Una clave de lectura no inicia ejecuciones; las claves no acceden a ejecuciones privadas ni escriben en chats personales. Los workers conservan sus límites; la revocación cierra el flujo en la siguiente consulta.
+
+Las galerías de skills y contexto del agente integrado cargan todas las páginas de metadatos y permiten reintentar errores. Las nuevas entradas de evaluación cumplen los límites JSONB y de bytes de admisión; los casos antiguos demasiado grandes siguen legibles para eliminarlos. Los lotes fallidos de PDF o sandbox eliminan sus archivos anteriores, conservando los existentes. Los scripts fallidos mantienen su registro diagnóstico.
 
 ## Resumen { #recap }
 

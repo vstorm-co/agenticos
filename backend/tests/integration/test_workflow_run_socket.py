@@ -18,14 +18,16 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import AuthenticationError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun
+from app.schemas.api_key import ApiKeyCreate, ApiKeyCreated
 from app.services import rate_limit, workflow_run_socket
+from app.services.api_key import ApiKeyService
 from app.services.workflow_execution import WorkflowExecutionService, events
 from app.services.workflow_run_socket import WorkflowRunSocket
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -128,8 +130,8 @@ async def _tenant(factory) -> tuple[User, Organization, Workflow]:
     return owner, org, workflow
 
 
-def _session(socket: _Socket, org: Organization) -> WorkflowRunSocket:
-    return WorkflowRunSocket(socket, organization_id=org.id, auth_token="token")  # type: ignore[arg-type]
+def _session(socket: _Socket, org: Organization, *, auth_token: str = "token") -> WorkflowRunSocket:
+    return WorkflowRunSocket(socket, organization_id=org.id, auth_token=auth_token)  # type: ignore[arg-type]
 
 
 def _signed_in(user: User):
@@ -492,3 +494,115 @@ async def test_app_admin_viewer_can_start_and_attach_like_the_http_api(factory):
         await _until(second, "run")
         await attached.stop()
     assert first.of("error") == [] and second.of("error") == []
+
+
+async def _key(
+    factory: async_sessionmaker[AsyncSession], owner: User, org: Organization, *scopes: Perm
+) -> ApiKeyCreated:
+    async with factory() as db:
+        created = await ApiKeyService(db).create(
+            AuthContext(user_id=owner.id, organization_id=org.id, role="owner"),
+            ApiKeyCreate(name="workflow socket", scopes=list(scopes)),
+        )
+        await db.commit()
+    return created
+
+
+@pytest.mark.security
+async def test_a_read_only_key_cannot_start_with_its_owners_authority(factory):
+    owner, org, workflow = await _tenant(factory)
+    key = await _key(factory, owner, org, Perm.WORKFLOWS_VIEW)
+    socket = _Socket()
+    session = _session(socket, org, auth_token=key.key)
+    await session.handle_frame({"type": "start", "workflow_id": str(workflow.id)})
+    try:
+        assert socket.of("error") and not socket.of("run")
+        async with factory() as db:
+            assert (await db.scalars(select(WorkflowRun))).all() == []
+    finally:
+        await session.stop()
+
+
+@pytest.mark.security
+async def test_an_execution_key_keeps_its_ceiling_on_the_worker_and_every_poll(factory):
+    owner, org, workflow = await _tenant(factory)
+    key = await _key(factory, owner, org, Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_RUN)
+    socket = _Socket()
+    session = _session(socket, org, auth_token=key.key)
+    try:
+        ctx = await session._context()
+        assert ctx is not None and ctx.api_key_id == key.id
+        assert ctx.key_scopes == frozenset({Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_RUN})
+        await session.handle_frame({"type": "start", "workflow_id": str(workflow.id)})
+        await _until(socket, "run")
+        async with factory() as db:
+            run = (await db.scalars(select(WorkflowRun))).one()
+            assert run.execution_api_key_id == key.id and run.public_origin
+            assert run.key_scopes == ["workflows:run", "workflows:view"]
+            await ApiKeyService(db).revoke(
+                AuthContext(user_id=owner.id, organization_id=org.id, role="owner"), key.id
+            )
+            await db.commit()
+        async with asyncio.timeout(5):
+            await session._stream
+        assert socket.closed == 4001
+    finally:
+        await session.stop()
+
+
+@pytest.mark.security
+async def test_a_key_cannot_attach_to_its_issuers_private_run(factory):
+    owner, org, workflow = await _tenant(factory)
+    async with factory() as db:
+        run = await WorkflowExecutionService(db).start(
+            AuthContext(user_id=owner.id, organization_id=org.id, role="owner"), workflow.id
+        )
+        await db.commit()
+    key = await _key(factory, owner, org, Perm.WORKFLOWS_VIEW)
+    socket = _Socket()
+    session = _session(socket, org, auth_token=key.key)
+    try:
+        await session.handle_frame({"type": "attach", "run_id": str(run.id)})
+        await _until(socket, "error")
+        assert socket.of("error")[0]["code"] == "WORKFLOW_RUN_NOT_FOUND"
+        assert socket.of("run") == socket.of("event") == []
+    finally:
+        await session.stop()
+
+
+@pytest.mark.security
+async def test_a_key_cannot_switch_the_sockets_organization(factory):
+    owner, org, _workflow = await _tenant(factory)
+    _other, second_org, second_workflow = await _tenant(factory)
+    key = await _key(factory, owner, org, Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_RUN)
+    socket = _Socket()
+    session = _session(socket, second_org, auth_token=key.key)
+    await session.handle_frame({"type": "start", "workflow_id": str(second_workflow.id)})
+    assert socket.closed == 4001 and socket.sent == []
+
+
+@pytest.mark.security
+async def test_a_key_cannot_write_into_its_issuers_personal_chat(factory):
+    owner, org, workflow = await _tenant(factory)
+    await _starts_from_chat(factory, workflow)
+    async with factory() as db:
+        conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=owner.id)
+        db.add(conversation)
+        await db.commit()
+    key = await _key(factory, owner, org, Perm.WORKFLOWS_VIEW, Perm.WORKFLOWS_RUN)
+    socket = _Socket()
+    session = _session(socket, org, auth_token=key.key)
+    try:
+        await session.handle_frame(
+            {
+                "type": "start",
+                "workflow_id": str(workflow.id),
+                "conversation_id": str(conversation.id),
+                "message": "private",
+            }
+        )
+        assert socket.of("error")[0]["code"] == "NOT_FOUND"
+        async with factory() as db:
+            assert (await db.scalars(select(Message))).all() == []
+    finally:
+        await session.stop()

@@ -1,5 +1,5 @@
 ---
-source_sha: "036b06965e44"
+source_sha: "07482418ac7a"
 ---
 
 # Workflows { #workflows }
@@ -926,6 +926,10 @@ operacja mogła już się zakończyć; sprawdź ją przed ręcznym powtórzeniem
 Wyniki węzła mają wspólny limit `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (domyślnie 10 MiB): wynik próby, wyjście runa i odpowiedź webhooka łącznie. Przekroczenie daje `NODE_OUTPUT_TOO_LARGE`, zachowuje koszty i nie uruchamia automatycznego retry. Split out sprawdza liczbę po rozwinięciu (maks. 10 000) przed kopiowaniem oraz konserwatywnie szacuje rozmiar powielonych pól. Przekroczenie daje `SPLIT_OUTPUT_TOO_LARGE`. Większe dane przekazuj przez referencje plików.
 
 Kontrola płytkiej projekcji pól modelu odrzuca też powielone duże wartości przed skopiowaniem całego wyniku przez serializację.
+
+Socket workflow zachowuje tożsamość klucza organizacji i jego zakresy przy każdej klatce oraz odczycie strumienia. Klucz tylko do podglądu nie uruchamia runów; klucze nie śledzą prywatnych przebiegów człowieka ani nie piszą w osobistych czatach. Run zachowuje ograniczenia klucza dla workera, a cofnięcie klucza zamyka strumień przy następnym odczycie.
+
+Galerie skills i kontekstu agenta w kroku pobierają wszystkie strony metadanych i pozwalają ponowić nieudany odczyt. Nowe wejścia evali mają limity JSONB i bajtów jak uruchomienie; starsze zbyt duże przypadki pozostają czytelne do usunięcia. Nieudany pakiet plików PDF lub sandboxa usuwa wcześniejsze zapisy tego pakietu, zachowując istniejące pliki. Skrypt zgłaszający błąd nadal zachowuje log diagnostyczny.
 
 ## Podsumowanie { #recap }
 

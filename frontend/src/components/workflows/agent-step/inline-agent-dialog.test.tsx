@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 
@@ -15,6 +15,17 @@ type Resources = {
 
 const seen = vi.hoisted(() => ({ catalog: [] as string[], agentId: undefined as unknown }));
 
+const resourcesState = vi.hoisted(() => ({
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+beforeEach(() => {
+  resourcesState.isLoading = false;
+  resourcesState.error = null;
+  resourcesState.refetch.mockReset();
+});
+
 vi.mock("@/hooks", () => ({
   useCapabilityCatalog: () => ({
     capabilities: [{ id: "clock" }, { id: "subagents" }, { id: "knowledge" }, { id: "workflows" }],
@@ -23,7 +34,15 @@ vi.mock("@/hooks", () => ({
   useSkills: () => ({ skills: [], total: 0 }),
   useKnowledgeBases: () => ({ kbs: [] }),
 }));
-vi.mock("@/hooks/use-context", () => ({ useContextFiles: () => ({ files: [], total: 0 }) }));
+vi.mock("@/hooks/use-inline-agent-resources", () => ({
+  useInlineAgentResources: () => ({
+    skills: [],
+    skillTotal: 0,
+    contextFiles: [],
+    contextTotal: 0,
+    ...resourcesState,
+  }),
+}));
 vi.mock("@/components/agents/model-profile-picker", () => ({
   ModelProfilePicker: ({ onChange }: { onChange: (id: string | null) => void }) => (
     <button type="button" onClick={() => onChange("m1")}>
@@ -178,4 +197,20 @@ describe("InlineAgentDialog", () => {
 
     expect(screen.queryByLabelText("Name")).toBeNull();
   });
+});
+
+it("shows a recoverable catalog error instead of an incomplete picker", async () => {
+  resourcesState.error = new Error("offline");
+  renderDialog();
+  await userEvent.click(screen.getByRole("tab", { name: "Capabilities and knowledge" }));
+  expect(screen.queryByRole("button", { name: "toggle-clock" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(resourcesState.refetch).toHaveBeenCalled();
+});
+
+it("keeps loading catalogs out of the empty gallery state", async () => {
+  resourcesState.isLoading = true;
+  renderDialog();
+  await userEvent.click(screen.getByRole("tab", { name: "Capabilities and knowledge" }));
+  expect(screen.queryByRole("button", { name: "toggle-clock" })).toBeNull();
 });

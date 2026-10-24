@@ -897,6 +897,10 @@ Inline node outcomes share `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (10 MiB by default),
 
 A shallow model-field preflight also refuses repeated large values before serialization copies the whole result.
 
+Workflow sockets preserve organization API-key identity and scope ceilings on every frame and stream poll. A view-only key cannot start runs, and keys cannot attach to a member’s private runs or write into personal chats. Key-started runs retain the key ceiling for workers; revocation closes the stream at its next poll.
+
+Inline-agent skill and context galleries load every metadata page and offer Retry on failure. New eval inputs share run admission’s JSONB and byte bounds; older oversized cases remain readable for removal. Failed PDF or sandbox file batches remove files saved earlier in the batch, preserving existing files. A script that reports an error still retains its diagnostic log.
+
 ## Recap
 
 - A workflow is a **draft you edit and a published, immutable version that

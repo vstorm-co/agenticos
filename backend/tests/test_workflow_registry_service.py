@@ -872,12 +872,14 @@ class TestRestoreVersion:
 
 
 @pytest.mark.parametrize("value", ["name\x00.txt", "name\ud800.txt", float("nan")])
-@pytest.mark.parametrize("field", ["config", "pinned_output"])
+@pytest.mark.parametrize("field", ["config", "pinned_output", "label", "notes"])
 async def test_draft_storage_rejects_jsonb_incompatible_config_without_writing(value, field):
     ctx = _ctx(OrgRoleName.OWNER.value)
     workflow = _workflow(ctx)
     payload = _empty_graph().model_dump(mode="json")
-    payload["nodes"][0][field] = {"filename": value}
+    payload["nodes"][0][field] = (
+        {"filename": value} if field in {"config", "pinned_output"} else value
+    )
     with (
         patch(
             f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)

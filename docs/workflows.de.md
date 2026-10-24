@@ -1,5 +1,5 @@
 ---
-source_sha: "036b06965e44"
+source_sha: "07482418ac7a"
 ---
 
 # Workflows { #workflows }
@@ -1007,6 +1007,10 @@ prüfen.
 Inline-Ergebnisse teilen `WORKFLOW_NODE_MAX_OUTPUT_BYTES` (standardmäßig 10 MiB): Versuchsergebnis, Run-Ausgabe und Webhook-Antwort zusammen. Größere Ergebnisse scheitern mit `NODE_OUTPUT_TOO_LARGE`; Kosten bleiben erhalten, automatische Wiederholung entfällt. Split out prüft die expandierte Anzahl (höchstens 10.000) vor dem Kopieren und schätzt wiederholte Felder konservativ in Bytes. Eine Überschreitung ergibt `SPLIT_OUTPUT_TOO_LARGE`. Für größere Daten Dateiverweise verwenden.
 
 Eine flache Vorprüfung der Modellfelder lehnt wiederholte große Werte ab, bevor die Serialisierung das gesamte Ergebnis kopiert.
+
+Workflow-Sockets erhalten Identität und Berechtigungsgrenzen des Organisationsschlüssels bei jedem Frame und Stream-Abruf. Ein Leseschlüssel startet keine Runs; Schlüssel verfolgen keine privaten Runs eines Mitglieds und schreiben nicht in persönliche Chats. Worker behalten die Schlüsselgrenzen; ein Widerruf schließt den Stream beim nächsten Abruf.
+
+Skill- und Kontextgalerien eingebetteter Agenten laden alle Metadatenseiten und bieten bei Fehlern einen neuen Versuch. Neue Eval-Eingaben erfüllen die JSONB- und Bytegrenzen der Run-Zulassung; ältere übergroße Fälle bleiben zum Entfernen lesbar. Fehlgeschlagene PDF- oder Sandbox-Dateibatches entfernen frühere Schreibvorgänge desselben Batches, bestehende Dateien bleiben erhalten. Fehlgeschlagene Skripte behalten ihr Diagnoseprotokoll.
 
 ## Zusammenfassung { #recap }
 

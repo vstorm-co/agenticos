@@ -282,6 +282,7 @@ export default defineConfig({
         // test and its evals - and the step picker, each held to the gate as a unit.
         "src/components/workflows/node-editor/**/*.{ts,tsx}",
         "src/components/workflows/picker/**/*.{ts,tsx}",
+        "src/hooks/use-inline-agent-resources.ts",
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",

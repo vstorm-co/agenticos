@@ -17,7 +17,8 @@ import codecs
 import io
 import json
 import zipfile
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncGenerator, AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
@@ -216,6 +217,42 @@ async def save(data: bytes, *, content_type: str, filename: str | None) -> FileR
         await delete_files_best_effort([storage_path])
         raise
     return FileRef(file_id=file_id, content_type=content_type, byte_size=len(data))
+
+
+class SavedFileBatch:
+    """New files whose references are published only when the whole step succeeds."""
+
+    def __init__(self) -> None:
+        self._created: list[FileRef] = []
+
+    async def save(self, data: bytes, *, content_type: str, filename: str | None) -> FileRef:
+        ref = await save(data, content_type=content_type, filename=filename)
+        self._created.append(ref)
+        return ref
+
+    async def discard(self) -> None:
+        current = context.current()
+        async with get_worker_db_context() as db:
+            await hold_subject(db, LockScope.WORKFLOW_FILE_BYTES, current.organization_id)
+            paths = await workflow_file_repo.delete_saved_batch(
+                db,
+                organization_id=current.organization_id,
+                workflow_run_id=current.workflow_run_id,
+                producing_node_run_id=current.node_run_id,
+                file_ids=[ref.file_id for ref in self._created],
+            )
+        await delete_files_best_effort(paths)
+
+
+@asynccontextmanager
+async def saved_batch() -> AsyncGenerator[SavedFileBatch]:
+    """Compensate earlier writes if a later file, render or collection fails."""
+    batch = SavedFileBatch()
+    try:
+        yield batch
+    except BaseException:
+        await batch.discard()
+        raise
 
 
 async def _enforce_quota(db: AsyncSession, size: int) -> None:

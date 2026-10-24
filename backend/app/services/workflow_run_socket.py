@@ -45,7 +45,7 @@ from app.repositories import member_repo
 from app.schemas.workflow_run import WorkflowRunRead
 from app.services import rate_limit
 from app.services.workflow_execution import WorkflowExecutionService, events
-from app.services.ws_auth import authenticate_socket_token
+from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +139,8 @@ class WorkflowRunSocket:
             # The chat's door: the reply destination is the member's own
             # conversation, checked here and frozen on the run - never a field
             # a caller could point at someone else's thread.
+            if ctx.api_key_id is not None:
+                raise NotFoundError(message="Conversation not found")
             conversation = await conversation_repo.get_conversation_by_id(db, frame.conversation_id)
             if (
                 conversation is None
@@ -201,7 +203,7 @@ class WorkflowRunSocket:
                 await asyncio.sleep(POLL_SECONDS)
 
     async def _context(self) -> AuthContext | None:
-        """The member's authority now, or None if the session or membership has gone.
+        """The credential's authority now, preserving key scopes and organization.
 
         `allow_expired=True` for the reason `AgentSession._reauthorize` gives: the
         socket outlives its access token by design, so an aged-out token is not
@@ -209,6 +211,11 @@ class WorkflowRunSocket:
         """
         async with get_db_context() as db:
             try:
+                caller = await authenticate_socket_key(db, self._auth_token)
+                if caller is not None:
+                    if caller.context.organization_id != self.organization_id:
+                        return None
+                    return caller.context
                 user = await authenticate_socket_token(db, self._auth_token, allow_expired=True)
             except AuthenticationError:
                 return None

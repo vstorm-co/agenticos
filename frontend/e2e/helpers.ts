@@ -423,14 +423,15 @@ export function unsaved(page: Page): Locator {
  * There is no Save button - the draft stores itself 1.2s after the last edit -
  * and that is a trap for a spec rather than for a person: anything that reloads
  * the page before the timer fires reloads the draft the edit replaced, and the
- * assertion that follows describes the wrong state. The badge going quiet is the
- * only signal the product gives that the two agree, so it is what this waits on.
+ * assertion that follows describes the wrong state. The badge going quiet is not
+ * enough while it has been replaced by “Saving…”. Wait until both
+ * are absent, so a reload cannot discard an edit queued behind an earlier save.
  */
 export async function saveDraft(page: Page): Promise<void> {
   await expect(
-    unsaved(page),
-    "the Builder still says the draft is unsaved, so nothing below is reading what the API stored",
-  ).toBeHidden();
+    unsaved(page).or(page.getByText(/^saving(?:…|\.\.\.)?$/i)),
+    "the Builder is still dirty or saving; wait until its latest edit is stored",
+  ).toHaveCount(0);
 }
 
 /**

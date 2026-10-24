@@ -179,3 +179,13 @@ The broader audit also records follow-up opportunities: bounded bulk deletion wi
 rate-limit recovery, a reservation ledger for concurrent detached calls, and a
 clear deletion policy for imported files. Those are proposals, not additional
 acceptance promises hidden in the optional #1800 tracker.
+
+
+The final review also verifies organization-key socket ceilings and revocation,
+compensation of partial PDF/sandbox file batches, complete skill/context metadata
+for inline-agent galleries, and bounded new eval inputs. Existing oversized eval
+cases remain readable for removal. Diagnostic logs from scripts that report an
+error remain part of the existing file-inspection contract. See
+`test_workflow_run_socket.py`, `test_workflow_file_nodes.py`,
+`test_workflow_python_nodes.py`, `test_workflow_evals.py`, and
+`use-inline-agent-resources.test.tsx`.

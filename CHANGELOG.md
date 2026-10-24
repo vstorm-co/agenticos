@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Load complete skill/context choices for inline workflow agents, reject unusable
+  eval inputs and clean up partial PDF/sandbox file batches after failure.
+
+- Preserve organization-key scopes on workflow sockets, including worker admission
+  and stream reauthorization; refuse keys accessing private runs or personal chats.
+
 - Bound inline workflow outcomes to a configurable 10 MiB total and refuse Split out
   expansion above 10,000 items or projected bytes before copying repeated fields.
   Oversized terminal outcomes preserve fees and never automatically replay effects.

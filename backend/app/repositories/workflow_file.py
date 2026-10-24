@@ -1,8 +1,9 @@
 """Workflow files and whether a run may read one (#1791)."""
 
+from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.workflow_file import WorkflowFile
@@ -111,3 +112,27 @@ async def storage_paths_for_workflow(
         )
     )
     return list(result.scalars().all())
+
+
+async def delete_saved_batch(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    workflow_run_id: UUID,
+    producing_node_run_id: UUID | None,
+    file_ids: Sequence[UUID],
+) -> list[str]:
+    """Delete only this step's freshly saved batch, returning paths for object cleanup."""
+    if not file_ids:
+        return []
+    result = await db.scalars(
+        delete(WorkflowFile)
+        .where(
+            WorkflowFile.id.in_(file_ids),
+            WorkflowFile.organization_id == organization_id,
+            WorkflowFile.workflow_run_id == workflow_run_id,
+            WorkflowFile.producing_node_run_id == producing_node_run_id,
+        )
+        .returning(WorkflowFile.storage_path)
+    )
+    return list(result.all())

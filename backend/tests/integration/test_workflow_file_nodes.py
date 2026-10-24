@@ -969,3 +969,32 @@ async def test_explicit_file_names_with_nul_are_normalized_before_storage(engine
     async with seeded.factory() as db:
         saved = await db.get(WorkflowFile, ref.file_id)
         assert saved is not None and saved.filename == "name.txt"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("limit", [3, 7])
+async def test_failed_pdf_batch_removes_earlier_pages_and_frees_quota(
+    engine, storage, tmp_path, monkeypatch, limit
+):
+    from app.workflows.nodes.convert_pdf_to_png import _handler as render
+
+    monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_FILE_BYTES", limit)
+    monkeypatch.setattr(
+        render._documents, "pdf_page_png", lambda *_args, **_kwargs: (b"page", 1, 1)
+    )
+    run, seeded = await _run_on(
+        engine,
+        storage,
+        _one_step("convert.pdf_to_png", {"pages": [1, 2]}),
+        _pdf("first", "second"),
+        content_type="application/pdf",
+    )
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert (await _error(seeded))["code"] == "FILE_QUOTA_EXCEEDED"
+    async with seeded.factory() as db:
+        assert (
+            await db.scalars(select(WorkflowFile).where(WorkflowFile.workflow_run_id == run.id))
+        ).all() == []
+        originals = (await db.scalars(select(WorkflowFile))).all()
+        assert len(originals) == 1 and originals[0].content_type == "application/pdf"
+    assert list((tmp_path / "workflow-files" / str(seeded.org.id) / str(run.id)).glob("*")) == []

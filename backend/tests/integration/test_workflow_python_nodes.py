@@ -663,3 +663,28 @@ async def _import(seeded: SeededRun, ref: FileRef) -> None:
             )
         )
         await db.commit()
+
+
+@pytest.mark.security
+async def test_a_sandbox_output_quota_failure_removes_the_log_and_earlier_outputs(
+    engine, host, monkeypatch
+):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_FILE_BYTES", 10)
+    seeded = await seed_run(engine, _chain(_sandbox_step()))
+    await drive(seeded)
+    (session,) = host.values()
+    session.finish(
+        {"ok": True, "result": 1},
+        log=b"log",
+        outputs={"first.txt": b"first", "second.txt": b"last"},
+    )
+    await _due_now(seeded)
+    ended = await drive(seeded)
+    assert ended.status == WorkflowRunStatus.FAILED.value
+    assert ended.error is not None and ended.error["code"] == "FILE_QUOTA_EXCEEDED"
+    async with seeded.factory() as db:
+        assert (
+            await db.scalars(select(WorkflowFile).where(WorkflowFile.workflow_run_id == ended.id))
+        ).all() == []

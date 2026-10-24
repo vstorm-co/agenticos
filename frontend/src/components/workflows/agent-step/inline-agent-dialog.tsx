@@ -22,8 +22,9 @@ import {
   TabsTrigger,
   Textarea,
 } from "@/components/ui";
-import { useCapabilityCatalog, useKnowledgeBases, useModelProviders, useSkills } from "@/hooks";
-import { useContextFiles } from "@/hooks/use-context";
+import { useCapabilityCatalog, useKnowledgeBases, useModelProviders } from "@/hooks";
+import { useInlineAgentResources } from "@/hooks/use-inline-agent-resources";
+import { ErrorState, LoadingState } from "@/components/states";
 import { withCapability, withContextFiles, withSkills } from "@/lib/agent-spec";
 import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -90,8 +91,8 @@ function InlineAgentForm({
 
   const { capabilities } = useCapabilityCatalog();
   const { profiles, profilesStatus } = useModelProviders();
-  const { skills, total: skillTotal } = useSkills({ limit: 100 });
-  const { files: contextFiles, total: contextTotal } = useContextFiles({ limit: 100 });
+  const { skills, skillTotal, contextFiles, contextTotal, isLoading, error, refetch } =
+    useInlineAgentResources();
   const { kbs: collections } = useKnowledgeBases();
   // Delegating and starting workflows are what a step's agent is not given: a
   // step is already a place in a graph of steps, and the graph - a workflow.run
@@ -138,50 +139,63 @@ function InlineAgentForm({
             </div>
           </TabsContent>
           <TabsContent value="tools" className="mt-0">
-            <CapabilityWorkbench
-              // No notes to clear from here: the step's agent is created by its first run.
-              agentId={null}
-              catalog={grantable}
-              selected={spec.capabilities}
-              onToggle={(id) =>
-                update({
-                  capabilities: withCapability(
-                    spec.capabilities,
-                    id,
-                    !spec.capabilities.some((binding) => binding.id === id),
-                  ),
-                })
-              }
-              onChange={(updated: CapabilityBindingSpec) =>
-                update({
-                  capabilities: spec.capabilities.map((binding) =>
-                    binding.id === updated.id ? updated : binding,
-                  ),
-                })
-              }
-              subagents={[]}
-              onSubagentsChange={() => undefined}
-              // Delegation is not offered to a step's agent, so neither are remote delegates.
-              externalAgents={[]}
-              onExternalAgentsChange={() => undefined}
-              resources={{
-                contextFiles,
-                contextTotal,
-                contextIds: spec.context_ids,
-                onContextToggle: (id: string) =>
-                  update(withContextFiles(spec, toggled(spec.context_ids, id))),
-                collections,
-                collectionIds: spec.collection_ids,
-                onCollectionToggle: (id: string) =>
-                  update({ collection_ids: toggled(spec.collection_ids, id) }),
-                skills,
-                skillTotal,
-                skillIds: spec.skill_ids,
-                onSkillToggle: (id: string) =>
-                  update(withSkills(spec, toggled(spec.skill_ids, id))),
-              }}
-              modelProfileId={spec.model_profile_id ?? null}
-            />
+            {error ? (
+              <ErrorState
+                cta={{
+                  label: tc("retry"),
+                  onClick: () => {
+                    void refetch();
+                  },
+                }}
+              />
+            ) : isLoading ? (
+              <LoadingState variant="skeleton-cards" />
+            ) : (
+              <CapabilityWorkbench
+                // No notes to clear from here: the step's agent is created by its first run.
+                agentId={null}
+                catalog={grantable}
+                selected={spec.capabilities}
+                onToggle={(id) =>
+                  update({
+                    capabilities: withCapability(
+                      spec.capabilities,
+                      id,
+                      !spec.capabilities.some((binding) => binding.id === id),
+                    ),
+                  })
+                }
+                onChange={(updated: CapabilityBindingSpec) =>
+                  update({
+                    capabilities: spec.capabilities.map((binding) =>
+                      binding.id === updated.id ? updated : binding,
+                    ),
+                  })
+                }
+                subagents={[]}
+                onSubagentsChange={() => undefined}
+                // Delegation is not offered to a step's agent, so neither are remote delegates.
+                externalAgents={[]}
+                onExternalAgentsChange={() => undefined}
+                resources={{
+                  contextFiles,
+                  contextTotal,
+                  contextIds: spec.context_ids,
+                  onContextToggle: (id: string) =>
+                    update(withContextFiles(spec, toggled(spec.context_ids, id))),
+                  collections,
+                  collectionIds: spec.collection_ids,
+                  onCollectionToggle: (id: string) =>
+                    update({ collection_ids: toggled(spec.collection_ids, id) }),
+                  skills,
+                  skillTotal,
+                  skillIds: spec.skill_ids,
+                  onSkillToggle: (id: string) =>
+                    update(withSkills(spec, toggled(spec.skill_ids, id))),
+                }}
+                modelProfileId={spec.model_profile_id ?? null}
+              />
+            )}
           </TabsContent>
           <TabsContent value="mcp" className="mt-0">
             <McpBindingsEditor spec={spec} onChange={update} />

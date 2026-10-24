@@ -397,14 +397,10 @@ async def run_job(
                 "SANDBOX_UNREACHABLE", "The sandbox host could not be reached", retryable=True
             )
 
-        # Collection checks the aggregate as it streams, before any file is stored.
-        log_file = await files.save(log, content_type="text/plain", filename="log.txt")
-        outputs = [
-            await files.save(data, content_type=files.sniff(data), filename=name)
-            for name, data in produced
-        ]
-        await sandbox.purge()
         if not answer.get("ok"):
+            # Failed scripts retain their diagnostic log, but publish no output files.
+            await files.save(log, content_type="text/plain", filename="log.txt")
+            await sandbox.purge()
             if answer.get("not_json"):
                 return files.failed(
                     f"{language.code_prefix}_OUTPUT_NOT_JSON",
@@ -413,6 +409,14 @@ async def run_job(
             return files.failed(
                 f"{language.code_prefix}_ERROR", f"The script failed: {answer.get('error')}"
             )
+        async with files.saved_batch() as batch:
+            # Collection checks the aggregate as it streams, before any file is stored.
+            log_file = await batch.save(log, content_type="text/plain", filename="log.txt")
+            outputs = [
+                await batch.save(data, content_type=files.sniff(data), filename=name)
+                for name, data in produced
+            ]
+            await sandbox.purge()
         return JobResult(
             result=answer.get("result"),
             stdout_tail=log.decode("utf-8", errors="replace")[-LOG_TAIL_CHARS:],
