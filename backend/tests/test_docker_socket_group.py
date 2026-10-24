@@ -17,13 +17,21 @@ def test_launchers_use_the_container_socket_group(
 ) -> None:
     for name, body in {
         "uname": f"echo {platform}",
-        "stat": "echo 998" if platform == "Linux" else "echo 1",
+        "stat": (
+            'case " $* " in *" -L"*|*" --dereference"*) echo 998 ;; *) echo 1 ;; esac'
+            if platform == "Linux"
+            else "echo 1"
+        ),
     }.items():
         command = tmp_path / name
         command.write_text(f"#!/bin/sh\n{body}\n")
         command.chmod(0o755)
-    env = dict(os.environ, PATH=f"{tmp_path}:{os.environ['PATH']}")
-    env.pop("DOCKER_GID", None)
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"DOCKER_GID", "MAKEFLAGS", "MAKELEVEL", "MAKEOVERRIDES", "MFLAGS"}
+    }
+    env["PATH"] = f"{tmp_path}:{os.environ['PATH']}"
     if override is not None:
         env["DOCKER_GID"] = override
     source = (ROOT / entrypoint).read_text()
