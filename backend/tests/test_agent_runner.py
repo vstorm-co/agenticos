@@ -6074,6 +6074,7 @@ class TestAFailedRunOverTheApi:
 
 
 @pytest.mark.anyio
+@pytest.mark.security
 class TestCancelParkedRun:
     @pytest.mark.parametrize("status", [RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL])
     async def test_it_stops_a_parked_run_without_a_model_call_and_preserves_its_spend(self, status):
@@ -6199,3 +6200,143 @@ class TestCancelParkedRun:
                 with pytest.raises(AuthorizationError):
                     await service.cancel_parked(ctx, run.id)
                 finish.assert_not_awaited()
+
+    @pytest.mark.parametrize("conversation", [False, True])
+    async def test_stopping_records_parked_delegate_spend_and_puts_the_plan_down(
+        self, conversation
+    ):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        delegate, nested, deleted, version = (uuid.uuid4() for _ in range(4))
+        state = {
+            "messages": [],
+            "tool_call_ids": {},
+            "plan": [{"description": "Research", "status": "in_progress"}],
+            "delegations": [
+                {
+                    "tool_call_id": "task-1",
+                    "task_id": "outer",
+                    "subagent": "researcher",
+                    "agent_id": str(delegate),
+                    "agent_version_id": str(version),
+                    "cost_usd": "2",
+                    "billed_cost_usd": "3",
+                    "billed_input_tokens": 20,
+                    "billed_output_tokens": 10,
+                    "billed_cache_read_tokens": 4,
+                    "billed_cache_write_tokens": 5,
+                    "billed_cost_is_partial": True,
+                    "started_at": "2026-10-24T01:00:00Z",
+                    "delegations": [
+                        {
+                            "tool_call_id": "inline",
+                            "task_id": "inline",
+                            "subagent": "inline",
+                            "delegations": [
+                                {
+                                    "tool_call_id": "nested",
+                                    "task_id": "nested",
+                                    "subagent": "nested",
+                                    "agent_id": str(nested),
+                                    "agent_version_id": str(version),
+                                    "cost_usd": "1",
+                                    "input_tokens": 7,
+                                    "output_tokens": 8,
+                                    "cost_is_partial": False,
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "tool_call_id": "deleted",
+                    "task_id": "deleted",
+                    "subagent": "gone",
+                    "agent_id": str(deleted),
+                    "agent_version_id": str(version),
+                },
+                {
+                    "tool_call_id": "unpublished",
+                    "task_id": "unpublished",
+                    "subagent": "draft",
+                    "agent_id": str(delegate),
+                },
+            ],
+        }
+        run = _parked_run(
+            user_id=ctx.user_id,
+            organization_id=ctx.organization_id,
+            conversation_id=uuid.uuid4() if conversation else None,
+            paused_state=state,
+        )
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.existing_ids_locked",
+                AsyncMock(return_value={delegate, nested}),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.record_delegated_run", AsyncMock()
+            ) as recorded,
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()),
+            patch("app.services.agent_runner.record_audit", AsyncMock()),
+            patch.object(service.transcript, "record", AsyncMock()) as transcript,
+            patch("app.services.agent_runner.ConversationService.keep_plan", AsyncMock()) as plan,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        rows = {call.kwargs["subagent_task_id"]: call.kwargs for call in recorded.await_args_list}
+        assert set(rows) == {"outer", "nested"}
+        assert rows["outer"]["cost_usd"] == Decimal("3")
+        assert rows["outer"]["input_tokens"] == 20
+        assert rows["outer"]["cache_read_tokens"] == 4
+        assert rows["outer"]["cache_write_tokens"] == 5
+        assert rows["outer"]["cost_is_partial"] is True
+        assert rows["nested"]["cost_usd"] == Decimal("1")
+        assert rows["nested"]["input_tokens"] == 7
+        assert rows["nested"]["output_tokens"] == 8
+        assert all(row["status"] == RunStatus.CANCELLED.value for row in rows.values())
+        assert "task-1" in transcript.await_args.kwargs["settled"]
+        if conversation:
+            plan.assert_awaited_once_with(
+                run.conversation_id, [{"description": "Research", "status": "pending"}]
+            )
+        else:
+            plan.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "role,own,status,allowed",
+        [
+            ("member", True, "awaiting_approval", True),
+            ("member", True, "awaiting_answer", True),
+            ("member", True, "completed", False),
+            ("member", False, "awaiting_approval", False),
+            ("admin", False, "awaiting_approval", True),
+            ("admin", False, "awaiting_answer", False),
+        ],
+    )
+    async def test_stopping_authority_is_separate_from_deciding_approvals(
+        self, role, own, status, allowed
+    ):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=role)
+        run = _parked_run(user_id=ctx.user_id if own else uuid.uuid4(), status=status)
+        with patch(
+            "app.services.agent_runner.agent_run_repo.get_run", AsyncMock(return_value=run)
+        ) as read:
+            assert await AgentRunnerService(_db()).can_stop_parked(ctx, run.id) is allowed
+        assert read.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    async def test_stopping_authority_reveals_no_foreign_run_and_refuses_keys(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+        service = AgentRunnerService(_db())
+        with patch(
+            "app.services.agent_runner.agent_run_repo.get_run", AsyncMock(return_value=None)
+        ):
+            assert await service.can_stop_parked(ctx, uuid.uuid4()) is False
+        assert (
+            await service.can_stop_parked(replace(ctx, api_key_id=uuid.uuid4()), uuid.uuid4())
+            is False
+        )

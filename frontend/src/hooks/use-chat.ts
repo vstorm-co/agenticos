@@ -9,7 +9,7 @@ import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
 import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
@@ -247,6 +247,20 @@ export function useChat(options: UseChatOptions = {}) {
   // is three chances for them to disagree.
   const activeConversationId = currentConversationIdFromStore || conversationId || null;
 
+  const [cancellableParked, setCancellableParked] = useState<{
+    runId: string;
+    messageId: string;
+  } | null>(null);
+  const stopLookedUp = useRef(new Set<string>());
+  const [stopLookupRevision, setStopLookupRevision] = useState(0);
+  const [isStopping, setIsStopping] = useState(false);
+  const stoppingRef = useRef<object | null>(null);
+  useEffect(
+    () => () => {
+      stoppingRef.current = null;
+    },
+    [],
+  );
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   // Runs this hook has already put an approval panel up for, live or restored.
   // What keeps the restore effect below from re-opening a panel somebody is in
@@ -1372,6 +1386,10 @@ export function useChat(options: UseChatOptions = {}) {
   useLayoutEffect(() => {
     if (queueBelongsTo.current === tenantId) return;
     queueBelongsTo.current = tenantId;
+    stoppingRef.current = null;
+    setIsStopping(false);
+    setCancellableParked(null);
+    stopLookedUp.current = new Set();
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
@@ -1431,6 +1449,10 @@ export function useChat(options: UseChatOptions = {}) {
     // away the panels of the turn still streaming, and a first turn that parks on an
     // approval is exactly that turn.
     if (previous === activeConversationId || previous === null) return;
+    stoppingRef.current = null;
+    setIsStopping(false);
+    setCancellableParked(null);
+    stopLookedUp.current = new Set();
     setDelegations([]);
     setBrowses([]);
     setSteers([]);
@@ -1727,8 +1749,58 @@ export function useChat(options: UseChatOptions = {}) {
     })();
   }, [messages, pendingQuestions, isProcessing, activeConversationId, offerParkedQuestion]);
 
+  // Owning a parked run permits stopping it even when deciding approvals does
+  // not. Look up that authority independently of the permission-gated panel.
+  useEffect(() => {
+    if (canDecide || isProcessing || pendingApproval !== null || cancellableParked !== null) return;
+    const message = [...messages]
+      .reverse()
+      .find(
+        (entry) =>
+          entry.runId !== undefined &&
+          !stopLookedUp.current.has(entry.runId) &&
+          (entry.toolCalls ?? []).some((call) => call.status === "awaiting_approval"),
+      );
+    if (message?.runId === undefined) return;
+    const runId = message.runId;
+    const conversation = activeConversationId;
+    const tenant = queueBelongsTo.current;
+    const account = useAuthStore.getState().user?.id;
+    stopLookedUp.current.add(runId);
+    void (async () => {
+      try {
+        const allowed = await apiClient.get<boolean>(`/runs/${runId}/can-stop`);
+        if (
+          allowed === true &&
+          panelsBelongTo.current === conversation &&
+          queueBelongsTo.current === tenant &&
+          useAuthStore.getState().user?.id === account
+        ) {
+          setCancellableParked({ runId, messageId: message.id });
+        } else if (
+          panelsBelongTo.current === conversation &&
+          queueBelongsTo.current === tenant &&
+          useAuthStore.getState().user?.id === account
+        ) {
+          setStopLookupRevision((current) => current + 1);
+        }
+      } catch {
+        stopLookedUp.current.delete(runId);
+      }
+    })();
+  }, [
+    messages,
+    canDecide,
+    isProcessing,
+    pendingApproval,
+    cancellableParked,
+    activeConversationId,
+    stopLookupRevision,
+  ]);
+
   const sendResumeDecisions = useCallback(
     async (decisions: Decision[]) => {
+      if (stoppingRef.current !== null) return;
       // Read from state and listed in the deps below. A ref would avoid
       // rebuilding this callback, but it cannot be written during render - and
       // rebuilding it is harmless: it is only ever passed down as a prop.
@@ -1874,6 +1946,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const sendAskUserResponses = useCallback(
     (answers: AskUserAnswer[]) => {
+      if (stoppingRef.current !== null) return;
       if (parkedQuestion !== null) {
         void answerParkedQuestion(parkedQuestion, answers);
         return;
@@ -1888,6 +1961,7 @@ export function useChat(options: UseChatOptions = {}) {
   /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */
   const sendConnectionResponse = useCallback(
     (connected: boolean) => {
+      if (stoppingRef.current !== null) return;
       if (!isConnected) return;
       setPendingConnection(null);
       awaitingConnectionRef.current = false;
@@ -1925,6 +1999,7 @@ export function useChat(options: UseChatOptions = {}) {
   }, [updateMessage, abandonOpenCalls, setCurrentMessageId]);
 
   const stopGeneration = useCallback(() => {
+    if (stoppingRef.current !== null) return;
     // A turn this tab only follows is not this socket's to stop: stop following.
     if (followingRef.current !== null) {
       followingRef.current = null;
@@ -1932,25 +2007,39 @@ export function useChat(options: UseChatOptions = {}) {
       endTurnLocally();
       return;
     }
-    const parked = parkedQuestion ?? pendingApproval;
+    const parked = parkedQuestion ?? pendingApproval ?? cancellableParked;
     if (parked) {
       const conversation = activeConversationId;
       const tenant = queueBelongsTo.current;
       const account = useAuthStore.getState().user?.id;
+      const ticket = {};
+      stoppingRef.current = ticket;
+      setIsStopping(true);
+      const stillHere = () =>
+        stoppingRef.current === ticket &&
+        panelsBelongTo.current === conversation &&
+        queueBelongsTo.current === tenant &&
+        useAuthStore.getState().user?.id === account;
+      const dismiss = () => {
+        setCancellableParked((current) => (current?.runId === parked.runId ? null : current));
+        if (parkedQuestion?.runId === parked.runId) {
+          setParkedQuestion(null);
+          setPendingQuestions(null);
+        }
+        setPendingApproval((current) => (current?.runId === parked.runId ? null : current));
+      };
       void (async () => {
         try {
           await apiClient.post(`/runs/${parked.runId}/cancel`);
-          if (
-            panelsBelongTo.current !== conversation ||
-            queueBelongsTo.current !== tenant ||
-            useAuthStore.getState().user?.id !== account
-          )
-            return;
+          if (!stillHere()) return;
           for (const message of chatApi.getState().messages) {
             if (message.runId !== parked.runId) continue;
             for (const call of message.toolCalls ?? []) {
               if (call.status === "awaiting_answer" || call.status === "awaiting_approval") {
-                updateToolCallPart(message.id, call.id, { status: "unfinished" });
+                updateToolCallPart(message.id, call.id, {
+                  status: "completed",
+                  result: "Not performed: the run was stopped.",
+                });
               }
             }
             updateMessage(message.id, (current) => ({
@@ -1959,14 +2048,23 @@ export function useChat(options: UseChatOptions = {}) {
               isStreaming: false,
             }));
           }
-          endTurnLocally();
+          dismiss();
         } catch (error) {
+          if (!stillHere()) return;
           if (
-            panelsBelongTo.current === conversation &&
-            queueBelongsTo.current === tenant &&
-            useAuthStore.getState().user?.id === account
+            error instanceof ApiError &&
+            error.status === 400 &&
+            error.details?.run_id === parked.runId &&
+            typeof error.details.status === "string"
           ) {
-            toast.error(getErrorMessage(error, tErrors));
+            dismiss();
+            onTurnInterrupted?.();
+          }
+          toast.error(getErrorMessage(error, tErrors));
+        } finally {
+          if (stoppingRef.current === ticket) {
+            stoppingRef.current = null;
+            setIsStopping(false);
           }
         }
       })();
@@ -1978,12 +2076,14 @@ export function useChat(options: UseChatOptions = {}) {
     sendMessage,
     endTurnLocally,
     parkedQuestion,
+    cancellableParked,
     pendingApproval,
     activeConversationId,
     chatApi,
     updateToolCallPart,
     updateMessage,
     tErrors,
+    onTurnInterrupted,
   ]);
 
   const acknowledgeDetachedTurn = useCallback(() => {
@@ -2216,6 +2316,8 @@ export function useChat(options: UseChatOptions = {}) {
     notifyTyping,
     isConnected,
     isProcessing,
+    isStopping,
+    canStopParked: cancellableParked !== null,
     compacting,
     compactionImpossible,
     /** Whether the run's sandbox is still being opened - see `SandboxPreparingNotice`. */

@@ -14,7 +14,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext
 from app.main import app
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize("status", [204, 400, 403, 404])
@@ -41,10 +41,28 @@ async def test_the_service_decides_whether_the_session_can_stop_the_run(status: 
         app.dependency_overrides.clear()
 
 
-def test_the_console_operation_is_not_exposed_to_organization_keys() -> None:
+@pytest.mark.parametrize("path", ["cancel", "can-stop"])
+def test_the_console_operation_is_not_exposed_to_organization_keys(path: str) -> None:
     route = next(
         route
         for route in router.routes
-        if isinstance(route, APIRoute) and route.path.endswith("/runs/{run_id}/cancel")
+        if isinstance(route, APIRoute) and route.path.endswith("/runs/{run_id}/" + path)
     )
     assert not is_public_route(route)
+
+
+@pytest.mark.parametrize("allowed", [False, True])
+async def test_the_owner_can_discover_stop_without_decision_permissions(allowed: bool) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
+    run = uuid4()
+    service = MagicMock(can_stop_parked=AsyncMock(return_value=allowed))
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    app.dependency_overrides[deps.get_agent_runner_service] = lambda: service
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v1/runs/{run}/can-stop")
+        assert response.status_code == 200
+        assert response.json() is allowed
+        service.can_stop_parked.assert_awaited_once_with(ctx, run)
+    finally:
+        app.dependency_overrides.clear()

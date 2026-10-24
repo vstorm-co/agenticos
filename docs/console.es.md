@@ -1,5 +1,5 @@
 ---
-source_sha: "912065ca372b"
+source_sha: "b18eb0c9849f"
 ---
 
 # La consola { #the-console }
@@ -442,7 +442,8 @@ agente espera una respuesta, una aprobación o la conexión de una cuenta. Tambi
 funciona al recargar una pregunta o aprobación pendiente. Detenerla cierra las llamadas
 pendientes sin reanudar el modelo y conserva el coste registrado. Puedes detener tus
 propias ejecuciones; quienes pueden aprobar también pueden detener una ejecución
-pendiente de aprobación. Si falla, la tarjeta sigue disponible para volver a intentarlo.
+pendiente de aprobación. Si un error temporal impide detenerla, la tarjeta sigue
+disponible para volver a intentarlo.
 
 ### Dictado { #dictation }
 

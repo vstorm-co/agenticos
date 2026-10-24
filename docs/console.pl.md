@@ -1,5 +1,5 @@
 ---
-source_sha: "912065ca372b"
+source_sha: "b18eb0c9849f"
 ---
 
 # Konsola { #the-console }
@@ -429,8 +429,8 @@ agent czeka na odpowiedź, zatwierdzenie lub połączenie konta. Działa równie
 odświeżeniu strony z oczekującym pytaniem lub zatwierdzeniem. Zatrzymanie zamyka
 oczekujące wywołania bez wznawiania modelu i zachowuje zapisany koszt. Możesz zatrzymać
 własne uruchomienie; osoby uprawnione do zatwierdzania mogą też zatrzymać uruchomienie
-oczekujące na zatwierdzenie. Jeśli zatrzymanie się nie powiedzie, karta pozostaje
-dostępna do ponownej próby.
+oczekujące na zatwierdzenie. Jeśli tymczasowy błąd uniemożliwi zatrzymanie, karta
+pozostaje dostępna do ponownej próby.
 
 ### Dyktowanie { #dictation }
 

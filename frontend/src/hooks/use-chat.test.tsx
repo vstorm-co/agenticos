@@ -1674,7 +1674,7 @@ describe("useChat - approvals and questions", () => {
     });
   });
 
-  it("asks nothing without approvals:decide", async () => {
+  it("checks only stopping authority without approvals:decide", async () => {
     // The endpoint is gated on the permission deciding takes, so a caller
     // without it would 403 on every reopened conversation. The stored step
     // still says the run is waiting; there is just no decision to offer.
@@ -1684,8 +1684,56 @@ describe("useChat - approvals and questions", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     await act(async () => {});
 
-    expect(get).not.toHaveBeenCalled();
+    expect(get.mock.calls).toEqual([["/runs/r-1/can-stop"]]);
     expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("lets the owner stop a restored approval without deciding it", async () => {
+    get.mockResolvedValue(true);
+    post.mockResolvedValue(null);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    expect(result.current.pendingApproval).toBeNull();
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.canStopParked).toBe(false));
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+  });
+
+  it("finds the owner's earlier parked run behind another person's approval", async () => {
+    get.mockImplementation(async (url: string) => url === "/runs/r-1/can-stop");
+    post.mockResolvedValue(null);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    useChatStore.getState().addMessage({ ...parkedTurn(), id: "other", runId: "other-run" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/runs/r-1/cancel"));
+  });
+
+  it("does not offer another person's parked run to a member", async () => {
+    get.mockResolvedValue(false);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+    expect(result.current.canStopParked).toBe(false);
+  });
+
+  it("can retry a failed authority lookup after a transcript update", async () => {
+    get.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(true);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+    act(() =>
+      useChatStore
+        .getState()
+        .updateMessage("m-1", (message) => ({ ...message, content: "updated" })),
+    );
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
   });
 
   it("asks about a run once, not on every store update", async () => {
@@ -3257,6 +3305,43 @@ describe("useChat - a question its person came back to", () => {
     expect(useChatStore.getState().messages[0]?.wasStopped).not.toBe(true);
   });
 
+  it("does not toast a failed stop after its chat unmounts", async () => {
+    get.mockResolvedValue(ASKED);
+    let refuse!: (error: Error) => void;
+    post.mockReturnValue(
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result, unmount } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    unmount();
+    await act(async () => refuse(new Error("offline")));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("ignores a cancellation error after leaving its conversation", async () => {
+    get.mockResolvedValue(ASKED);
+    let refuse!: (error: Error) => void;
+    post.mockReturnValue(
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    await act(async () => refuse(new Error("offline")));
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(result.current.isStopping).toBe(false);
+  });
+
   it("does not clear another conversation after a delayed stop", async () => {
     get.mockResolvedValue(ASKED);
     let finish!: () => void;
@@ -3276,6 +3361,81 @@ describe("useChat - a question its person came back to", () => {
     expect(connection).not.toBeNull();
     await act(async () => finish());
     expect(result.current.pendingConnection).toEqual(connection);
+  });
+
+  it("blocks competing responses and repeated Stop while cancellation is pending", async () => {
+    get.mockResolvedValue(ASKED);
+    let finish!: () => void;
+    post.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    expect(result.current.isStopping).toBe(true);
+    await act(async () => {
+      result.current.stopGeneration();
+      result.current.sendAskUserResponses([]);
+      await result.current.sendResumeDecisions([]);
+      result.current.sendConnectionResponse(true);
+    });
+    expect(post.mock.calls).toEqual([["/runs/r-1/cancel"]]);
+    expect(sent.mock.calls.map(([value]) => value.type)).toEqual(["attach"]);
+    await act(async () => finish());
+    expect(result.current.isStopping).toBe(false);
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]).toMatchObject({
+      status: "completed",
+      result: "Not performed: the run was stopped.",
+    });
+  });
+
+  it("keeps another run's approval after stopping the restored question", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue(null);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    useChatStore.getState().addMessage({
+      ...askedTurn(),
+      id: "other-message",
+      runId: "other-run",
+      toolCalls: [{ id: "approve-other", name: "execute", args: {}, status: "awaiting_approval" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    receive("tool_approval_required", {
+      run_id: "other-run",
+      action_requests: [],
+      review_configs: [],
+    });
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(result.current.pendingApproval?.runId).toBe("other-run");
+  });
+
+  it("dismisses a stale question and refetches when another tab already resumed it", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(
+      new ApiError(400, "Already running", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Already running",
+          details: { run_id: "r-1", status: "running" },
+        },
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const refetch = vi.fn();
+    const { result } = renderHook(() => useChat({ onTurnInterrupted: refetch }), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(refetch).toHaveBeenCalledOnce();
+    expect(useChatStore.getState().messages[0]?.wasStopped).not.toBe(true);
   });
 
   it("answers over HTTP, closes the step and draws the continuation", async () => {

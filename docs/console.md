@@ -412,8 +412,8 @@ is kept the same way. It needs the deployment's sign-in browser
 for your answer, an approval or an account connection. It also works after you reload a
 parked question or approval. Stopping a parked run closes its pending calls without
 asking the model to continue and preserves the cost already recorded. You can stop your
-own run; approval deciders can also stop a run awaiting approval. If stopping fails, the
-card stays available so you can try again.
+own run; approval deciders can also stop a run awaiting approval. If a temporary error
+prevents stopping, the card stays available for retry.
 
 ### Dictation
 

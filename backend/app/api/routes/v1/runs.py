@@ -445,6 +445,12 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     return await run_result(service, ctx, await service.resume(ctx, run_id))
 
 
+@router.get("/runs/{run_id}/can-stop", response_model=bool, openapi_extra=INTERNAL)
+async def can_stop_parked_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+    """Whether the session can stop this parked run, even without approval permissions."""
+    return await service.can_stop_parked(ctx, run_id)
+
+
 @router.post("/runs/{run_id}/cancel", status_code=204, response_model=None, openapi_extra=INTERNAL)
 async def cancel_parked_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     """Stop a run waiting for a question or approval, without resuming it.
