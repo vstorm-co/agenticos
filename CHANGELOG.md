@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Prepare chat grouping, turn usage and request context in linear time per
+  stream update, and skip rendering unchanged message items between deltas.
+
 - Report truncated host workspace trees in the flat Documents listing.
 
 - Retain conversations with unfinished runs and purge one locked batch of
