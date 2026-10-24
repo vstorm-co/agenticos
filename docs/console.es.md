@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "aa1083e29065"
 ---
 
 # La consola { #the-console }
@@ -108,9 +108,18 @@ notificación y un mensaje directo de cada uno de sus bots de Slack, Teams y
 Mattermost que te conoce enumeran lo nuevo. Cada hallazgo entra en un solo
 briefing.
 
+La búsqueda está encima de los destinos de navegación, con su atajo de teclado
+visible en el ordenador. Las notificaciones y el menú de cuenta permanecen debajo
+de la lista desplazable. En dispositivos táctiles, los botones, campos, pestañas
+y opciones de menú compartidos tienen áreas de toque mayores. Los diálogos usan
+la altura visible sobre el teclado en pantalla; los paneles laterales mantienen
+el foco dentro y lo devuelven al control que los abrió al cerrarse. En la búsqueda
+de una lista, Escape borra primero la consulta y la siguiente pulsación cierra el
+diálogo.
+
 ## La campana { #the-bell }
 
-Junto al buscador, en la barra lateral: un contador en marcha de lo que aún no
+Al pie de la barra lateral: un contador en marcha de lo que aún no
 has leído, y un clic abre la lista misma. A diferencia del widget de arriba,
 abrirla trae la página completa que estás mirando, no una vista previa de
 cinco tarjetas — **Load more** sigue paginando hacia atrás por la organización

@@ -6639,7 +6639,8 @@
     "goToQuestion": "Zu Frage {step}",
     "skipped": "Übersprungen",
     "sendAnswers": "Antworten senden",
-    "backToOptions": "Zurück zu den Optionen"
+    "backToOptions": "Zurück zu den Optionen",
+    "clearSearch": "Suche zurücksetzen"
   },
   "vault": {
     "access": "Zugriff",

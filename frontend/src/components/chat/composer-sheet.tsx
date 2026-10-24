@@ -163,7 +163,7 @@ export function ComposerSheet({
               type="button"
               onClick={() => setSheetOpen(false)}
               aria-label={t("closeSheet")}
-              className="bg-card absolute top-3 left-4 inline-flex size-10 items-center justify-center rounded-full shadow-sm"
+              className="bg-card absolute top-3 left-4 inline-flex size-11 items-center justify-center rounded-full shadow-sm"
             >
               <X className="size-5" aria-hidden />
             </button>

@@ -66,10 +66,10 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "relative flex items-center rounded-lg text-sm font-medium transition-colors",
+        "touch:min-h-11 relative flex items-center rounded-xl text-sm font-medium transition-colors",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
-        collapsed ? "h-8 w-9 justify-center" : "h-8 gap-2.5 px-2.5",
+        collapsed ? "h-9 w-9 justify-center" : "h-9 gap-2.5 px-2.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
@@ -216,7 +216,7 @@ function NavGroupBlock({
             onClick={() => toggleGroup(key)}
             disabled={holdsActive}
             aria-expanded={open}
-            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground flex h-6 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium tracking-wide uppercase transition-colors disabled:cursor-default"
+            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground touch:min-h-11 flex h-7 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium transition-colors disabled:cursor-default"
           >
             <span className="flex-1">{t(group.labelKey)}</span>
             <ChevronRight
@@ -225,7 +225,7 @@ function NavGroupBlock({
             />
           </button>
         ) : (
-          <div className="text-muted-foreground flex h-6 items-center px-2.5 text-xs font-medium tracking-wide uppercase">
+          <div className="text-muted-foreground flex h-7 items-center px-2.5 text-xs font-medium">
             {t(group.labelKey)}
           </div>
         ))}

@@ -6760,7 +6760,8 @@
     "goToQuestion": "Go to question {step}",
     "skipped": "Skipped",
     "sendAnswers": "Send answers",
-    "backToOptions": "Back to the options"
+    "backToOptions": "Back to the options",
+    "clearSearch": "Clear search"
   },
   "vault": {
     "access": "Access",

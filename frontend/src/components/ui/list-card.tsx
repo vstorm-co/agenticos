@@ -185,7 +185,7 @@ export function ListCardEmpty({
   cta?: { label: ReactNode; onClick: () => void };
 }) {
   return (
-    <div className="px-6 py-16 text-center">
+    <div className="px-4 py-10 text-center sm:px-6 sm:py-16">
       <SectionGlyph icon={Icon} className="mx-auto" />
       <p className="text-foreground mt-4 text-sm font-medium">{title}</p>
       {description && (

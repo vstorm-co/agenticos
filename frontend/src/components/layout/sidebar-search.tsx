@@ -40,7 +40,7 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
         onClick={open}
         aria-label={t("search")}
         title={t("search")}
-        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-1"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-1"
       >
         <Search className="h-[1.1rem] w-[1.1rem] shrink-0" aria-hidden />
         {/* In the corner, as a count sits on an icon: the button keeps the bell's
@@ -63,10 +63,15 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
     <button
       type="button"
       onClick={open}
-      className="text-muted-foreground hover:bg-accent/60 hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-1"
+      className="text-muted-foreground bg-background/60 hover:bg-card hover:text-foreground focus-visible:ring-ring touch:min-h-11 border-foreground/10 flex min-h-9 w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-2"
     >
       <Search className="h-4 w-4 shrink-0" aria-hidden />
       <span className="flex-1 text-left">{t("search")}</span>
+      {mounted && (
+        <kbd aria-hidden className="touch:hidden text-muted-foreground text-[11px]">
+          {mac ? "⌘K" : t("searchShortcut")}
+        </kbd>
+      )}
     </button>
   );
 }

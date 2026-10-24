@@ -47,7 +47,10 @@ export function PageHeader({
               return (
                 <li key={`${c.label}-${i}`} className="flex items-center gap-1.5">
                   {c.href && !last ? (
-                    <Link href={c.href} className="hover:text-foreground transition-colors">
+                    <Link
+                      href={c.href}
+                      className="hover:text-foreground touch:min-h-11 focus-visible:outline-ring inline-flex items-center rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
                       {c.label}
                     </Link>
                   ) : (
@@ -58,7 +61,7 @@ export function PageHeader({
                       {c.label}
                     </span>
                   )}
-                  {!last && <ChevronRight className="h-3 w-3 opacity-50" />}
+                  {!last && <ChevronRight className="h-3 w-3 shrink-0 opacity-50" aria-hidden />}
                 </li>
               );
             })}
@@ -110,7 +113,7 @@ export function PageHeader({
         </div>
         {/* Wrapped on a phone: scrolled sideways, the Builder's last actions
             sat past the screen's edge with nothing saying they were there. */}
-        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2 md:justify-end">
+        <div className="flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto md:justify-end">
           {actions}
           <span className="hidden md:inline-flex">
             <RestartTourButton />

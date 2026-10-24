@@ -9,7 +9,7 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("bg-card text-card-foreground shadow-card rounded-2xl border", className)}
+      className={cn("bg-card text-card-foreground min-w-0 rounded-2xl border", className)}
       {...props}
     />
   ),
@@ -81,9 +81,10 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
             type="button"
             onClick={() => setOpen((shown) => !shown)}
             className={cn(
-              "text-foreground/70 hover:text-foreground shrink-0 text-xs underline-offset-2 hover:underline",
+              "text-foreground/70 hover:text-foreground touch:min-h-11 focus-visible:outline-ring shrink-0 rounded-md text-xs underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2",
               open && "mt-0.5",
             )}
+            aria-expanded={open}
           >
             {open ? t("showLess") : t("showMore")}
           </button>

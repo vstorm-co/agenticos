@@ -67,7 +67,7 @@ export function PageTabs({
       <nav
         ref={strip}
         className={cn(
-          "-mb-px flex [scrollbar-width:none] gap-0.5 overflow-x-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+          "relative -mb-px flex min-w-0 [scrollbar-width:none] gap-0.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
           SCROLL_FADE,
         )}
       >
@@ -79,13 +79,13 @@ export function PageTabs({
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-offset-[-2px]",
+                "focus-visible:outline-ring inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
                 active
                   ? "border-foreground text-foreground"
                   : "text-muted-foreground hover:text-foreground border-transparent",
               )}
             >
-              {tab.icon && <tab.icon className="h-4 w-4" />}
+              {tab.icon && <tab.icon className="h-4 w-4" aria-hidden />}
               {t(tab.labelKey)}
             </Link>
           );

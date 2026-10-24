@@ -179,11 +179,11 @@ export function DataTable<T>({
     >
       <div
         className={cn(
-          "scrollbar-thin overflow-x-auto",
+          "scrollbar-thin overflow-x-auto overscroll-x-contain",
           fillHeight && "min-h-0 flex-1 overflow-y-auto",
         )}
       >
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full border-collapse text-sm" aria-busy={loading || undefined}>
           {/* No column headings over no rows: an empty table read as a grid
               with a hole in it, the empty state boxed again inside it. */}
           <thead className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}>
@@ -201,7 +201,7 @@ export function DataTable<T>({
                     className={cn(
                       // One line: a two-word heading wrapped to two rows made every
                       // header taller than the rows under it.
-                      "text-muted-foreground px-4 py-2.5 font-mono text-xs font-medium tracking-wider whitespace-nowrap uppercase",
+                      "text-muted-foreground px-3 py-3 text-xs font-medium whitespace-nowrap sm:px-4",
                       alignClass[col.align ?? "left"],
                       col.hideBelow && hideBelowClass[col.hideBelow],
                       col.className,
@@ -247,13 +247,27 @@ export function DataTable<T>({
                 <tr
                   key={getRowKey(row, i)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={
+                    onRowClick
+                      ? (event) => {
+                          // A control inside the row keeps its own keyboard action.
+                          if (event.target !== event.currentTarget) return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onRowClick(row);
+                          }
+                        }
+                      : undefined
+                  }
                   // `aria-selected` as well as the tint, because "which row is
                   // open" is an answer a screen reader needs too, and a colour
                   // is not one.
                   aria-selected={isRowActive ? isRowActive(row) : undefined}
                   className={cn(
                     "border-border/60 border-b transition-colors last:border-0",
-                    onRowClick && "hover:bg-accent cursor-pointer",
+                    onRowClick &&
+                      "hover:bg-accent focus-visible:bg-accent focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2",
                     // A tint alone reads as hover - they were the same colour,
                     // and a reader who has moved the mouse cannot tell which row
                     // the panel beside them is showing. The rule down the left
@@ -266,7 +280,8 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className={cn(
-                        "text-foreground px-4 py-3",
+                        "text-foreground px-3 py-3 sm:px-4",
+                        col.align === "right" && "tabular-nums",
                         alignClass[col.align ?? "left"],
                         col.hideBelow && hideBelowClass[col.hideBelow],
                         col.className,

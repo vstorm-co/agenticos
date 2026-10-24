@@ -12,14 +12,16 @@ interface SectionCardProps {
 export function SectionCard({ title, description, action, children }: SectionCardProps) {
   return (
     <section className="border-border bg-card rounded-xl border">
-      <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
+      <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-4 py-4 sm:px-5">
         <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-sm font-semibold">{title}</h2>
-          {description && <p className="text-muted-foreground mt-1 text-xs">{description}</p>}
+          {description && (
+            <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</p>
+          )}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      {children && <div className="px-5 py-5">{children}</div>}
+      {children && <div className="px-4 py-5 sm:px-5">{children}</div>}
     </section>
   );
 }
@@ -46,7 +48,7 @@ export function SettingsSection({
   return (
     <section
       className={cn(
-        "bg-card rounded-2xl border p-5 sm:p-6",
+        "bg-card rounded-2xl border p-4 sm:p-6",
         danger ? "border-destructive/30 bg-destructive/[0.03]" : "border-foreground/10",
         className,
       )}
@@ -64,7 +66,7 @@ export function SettingsSection({
             {title}
           </h2>
           {description && (
-            <p className="text-foreground/65 mt-1 text-sm leading-relaxed">{description}</p>
+            <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</p>
           )}
         </div>
         {action && <div className="shrink-0">{action}</div>}

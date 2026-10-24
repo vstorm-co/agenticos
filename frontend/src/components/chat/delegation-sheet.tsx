@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { Sheet, SheetClose, SheetContent } from "@/components/ui";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui";
 import type { DelegateRef } from "@/lib/delegations";
 import { delegationStep } from "@/lib/tool-steps";
 import { cn } from "@/lib/utils";
@@ -87,9 +87,9 @@ export function DelegationSheet({
         <div className="flex items-center gap-3 px-5 pt-5">
           <Face who={item.delegate} className="h-10 w-10" />
           <div className="min-w-0">
-            <h2 className="text-foreground truncate text-base font-semibold">
+            <SheetTitle className="text-foreground truncate text-base font-semibold">
               {item.delegate.name}
-            </h2>
+            </SheetTitle>
             <p className="text-muted-foreground text-xs">
               {t(STATUS_KEY[item.status])}
               {item.steps && item.steps.length > 0 && (

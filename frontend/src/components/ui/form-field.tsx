@@ -41,13 +41,14 @@ export function FormField({
 }: FormFieldProps) {
   const descId = `${htmlFor}-desc`;
   const errId = `${htmlFor}-err`;
-  const describedBy = [error ? errId : null, description ? descId : null].filter(Boolean).join(" ");
+  const describedBy = [error ? errId : description ? descId : null].filter(Boolean).join(" ");
 
   const control = React.isValidElement<InjectableProps>(children)
     ? React.cloneElement(children, {
         id: children.props.id ?? htmlFor,
         "aria-invalid": error ? true : children.props["aria-invalid"],
-        "aria-describedby": describedBy || children.props["aria-describedby"] || undefined,
+        "aria-describedby":
+          [children.props["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined,
       })
     : children;
 
@@ -65,12 +66,12 @@ export function FormField({
       )}
       {control}
       {description && !error && (
-        <p id={descId} className="text-muted-foreground text-xs leading-relaxed">
+        <p id={descId} className="text-muted-foreground text-[13px] leading-relaxed">
           {description}
         </p>
       )}
       {error && (
-        <p id={errId} className="text-destructive text-xs leading-relaxed">
+        <p id={errId} role="alert" className="text-destructive text-[13px] leading-relaxed">
           {error}
         </p>
       )}

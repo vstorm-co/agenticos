@@ -21,7 +21,7 @@ export function PhoneFilters({ active, children }: { active: number; children: R
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
-        className="border-border bg-background inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm sm:hidden"
+        className="border-border bg-background inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-xl border px-3.5 text-sm sm:hidden"
       >
         <SlidersHorizontal className="size-4" aria-hidden />
         {t("filters")}

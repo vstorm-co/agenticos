@@ -6531,7 +6531,8 @@
     "goToQuestion": "Przejdź do pytania {step}",
     "skipped": "Pominięte",
     "sendAnswers": "Wyślij odpowiedzi",
-    "backToOptions": "Wróć do opcji"
+    "backToOptions": "Wróć do opcji",
+    "clearSearch": "Wyczyść wyszukiwanie"
   },
   "vault": {
     "access": "Dostęp",

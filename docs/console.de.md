@@ -1,5 +1,5 @@
 ---
-source_sha: "42b85883e8d7"
+source_sha: "aa1083e29065"
 ---
 
 # Die Konsole { #the-console }
@@ -109,9 +109,17 @@ eine Benachrichtigung und eine Direktnachricht von jedem ihrer Slack-, Teams-
 und Mattermost-Bots, der Sie kennt, was neu ist. Jeder Fund steht nur in einem
 Briefing.
 
+Die Suche steht oberhalb der Navigationsziele; am Computer ist ihr Tastenkürzel
+sichtbar. Benachrichtigungen und Kontomenü bleiben unterhalb der scrollbaren Liste.
+Auf Touchgeräten haben gemeinsame Schaltflächen, Felder, Tabs und Menüeinträge
+größere Berührungsflächen. Dialoge nutzen die sichtbare Höhe oberhalb der
+Bildschirmtastatur. Seitenpanels halten den Tastaturfokus im Panel und geben ihn
+beim Schließen an den Auslöser zurück. Im Suchfeld einer Liste löscht Escape
+zuerst die Suche; ein weiterer Druck schließt den Dialog.
+
 ## Die Glocke { #the-bell }
 
-Neben der Suche, in der Seitenleiste: eine laufende Zählung dessen, was Sie
+Am unteren Ende der Seitenleiste: eine laufende Zählung dessen, was Sie
 noch nicht gelesen haben, und ein Klick öffnet die Liste selbst. Anders als
 das Widget oben holt das Öffnen die Seite, auf der Sie gerade stehen, keine
 Fünf-Karten-Vorschau - **Load more** blättert immer weiter zurück durch die
