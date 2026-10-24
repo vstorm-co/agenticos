@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Run synchronous RAG embedding calls on the bounded I/O pool so retrieval
+  and ingestion leave the event loop responsive. Preserve the caller's spend
+  context and settle an in-flight response before propagating cancellation.
+
 - Keep voice-history summaries and image generation under the host agent's
   tracing policy. Refuse new image requests after a run exhausts its budget,
   meter image retries individually and price nested fallback requests using
