@@ -52,6 +52,7 @@ function ComputerWorkOn() {
   const linked = device?.linked === true;
   const grants = state.data?.grants ?? [];
   const modes = state.data?.modes ?? [];
+  const selectedMode = modes.includes(newMode) ? newMode : (modes[0] ?? "read_only");
 
   const chooseCloud = () => {
     setChoosingFor(undefined);
@@ -222,12 +223,12 @@ function ComputerWorkOn() {
               <button
                 key={mode}
                 type="button"
-                aria-pressed={newMode === mode}
+                aria-pressed={selectedMode === mode}
                 onClick={() => setNewMode(mode)}
                 title={t(`modeHint.${mode}`)}
                 className={cn(
                   "rounded-lg px-2 py-1 text-xs transition-colors",
-                  newMode === mode
+                  selectedMode === mode
                     ? "bg-foreground/[0.06] text-foreground"
                     : "text-muted-foreground hover:bg-foreground/[0.04]",
                 )}
@@ -237,9 +238,9 @@ function ComputerWorkOn() {
             ))}
             <button
               type="button"
-              disabled={pick.isPending}
+              disabled={pick.isPending || modes.length === 0}
               onClick={() =>
-                pick.mutate(newMode, {
+                pick.mutate(selectedMode, {
                   onSuccess: (grant) => {
                     if (grant)
                       setTarget(conversationId, {

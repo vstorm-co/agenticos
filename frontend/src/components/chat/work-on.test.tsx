@@ -5,6 +5,9 @@ import { useConversationStore } from "@/stores";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { WorkOn } from "./work-on";
 
+const pick = vi.hoisted(() => vi.fn());
+const modeState = vi.hoisted(() => ({ ready: true }));
+
 vi.mock("@/hooks/use-shell", () => ({
   useShell: () => ({ platform: "macos", window: "main", version: "0.2.0", vibrancy: false }),
 }));
@@ -17,10 +20,10 @@ vi.mock("@/hooks/use-desktop", () => ({
           { path: "/first", mode: "read_only" },
           { path: "/second", mode: "read_only" },
         ],
-        modes: ["read_only"],
+        modes: modeState.ready ? ["read_only", "full_access"] : [],
       },
     },
-    pick: { mutate: vi.fn(), isPending: false },
+    pick: { mutate: pick, isPending: false },
     revoke: { mutate: vi.fn() },
   }),
   useLocalServices: () => ({
@@ -33,6 +36,8 @@ vi.mock("@/hooks/use-desktop", () => ({
   }),
 }));
 beforeEach(() => {
+  pick.mockClear();
+  modeState.ready = true;
   useConversationStore.setState({ currentConversationId: "chat" });
   useWorkOnStore.setState({
     byConversation: {
@@ -71,4 +76,23 @@ it("applies local service choices to this conversation only", async () => {
     browser: false,
   });
   expect(useWorkOnStore.getState().targetFor("other")).toBeNull();
+});
+
+it("selects an offered mode when this computer cannot sandbox shell commands", async () => {
+  render(<WorkOn />);
+  expect(screen.getByRole("button", { name: "Read only" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("button", { name: /Choose a folder/ }));
+  expect(pick).toHaveBeenCalledWith("read_only", expect.any(Object));
+  await userEvent.click(screen.getByRole("button", { name: "Full access" }));
+  await userEvent.click(screen.getByRole("button", { name: /Choose a folder/ }));
+  expect(pick).toHaveBeenLastCalledWith("full_access", expect.any(Object));
+});
+
+it("waits for native access modes before granting another folder", async () => {
+  modeState.ready = false;
+  render(<WorkOn />);
+  const choose = screen.getByRole("button", { name: /Choose a folder/ });
+  expect(choose).toBeDisabled();
+  await userEvent.click(choose);
+  expect(pick).not.toHaveBeenCalled();
 });

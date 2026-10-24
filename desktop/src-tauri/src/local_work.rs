@@ -87,6 +87,13 @@ fn which(program: &str) -> Option<PathBuf> {
     })
 }
 
+fn validate_mode(mode: Mode) -> Result<(), String> {
+    if mode == Mode::WorkspaceWrite && !modes().contains(&"workspace_write") {
+        return Err("This computer cannot sandbox commands. Choose read only or full access.".into());
+    }
+    Ok(())
+}
+
 /// The granted folders, and the modes this computer can offer for a new one.
 #[derive(Serialize)]
 pub struct LocalState {
@@ -105,6 +112,7 @@ pub fn local_grants(app: AppHandle) -> LocalState {
 /// Pick a folder in the native picker and allow agents to work there, up to `mode`.
 #[tauri::command]
 pub async fn local_pick_folder(app: AppHandle, mode: Mode) -> Result<Option<Grant>, String> {
+    validate_mode(mode)?;
     let (picked, answer) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
@@ -640,6 +648,16 @@ mod tests {
             .unwrap();
         assert!(read_file(&root, "huge").await.unwrap_err().contains("limit"));
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn grants_require_a_mode_this_computer_can_enforce() {
+        assert!(validate_mode(Mode::ReadOnly).is_ok());
+        assert!(validate_mode(Mode::FullAccess).is_ok());
+        #[cfg(target_os = "windows")]
+        assert!(validate_mode(Mode::WorkspaceWrite).is_err());
+        #[cfg(target_os = "macos")]
+        assert!(validate_mode(Mode::WorkspaceWrite).is_ok());
     }
 
     #[test]
