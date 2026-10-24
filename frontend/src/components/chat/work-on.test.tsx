@@ -1,12 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useConversationStore } from "@/stores";
 import { useWorkOnStore } from "@/stores/work-on-store";
-import type { DeviceStatus } from "@/lib/desktop/commands";
+import type { DeviceStatus, LocalGrant, LocalMode } from "@/lib/desktop/commands";
 import { WorkOn } from "./work-on";
 
-const pick = vi.hoisted(() => vi.fn());
+const pick = vi.hoisted(() =>
+  vi.fn<(mode: LocalMode, options: { onSuccess: (grant: LocalGrant | null) => void }) => void>(),
+);
 const modeState = vi.hoisted(() => ({ ready: true }));
 const deviceState = vi.hoisted(() => ({
   linked: true,
@@ -105,9 +107,12 @@ it("selects an offered mode when this computer cannot sandbox shell commands", a
   await userEvent.click(screen.getByRole("button", { name: /Choose a folder/ }));
   expect(pick).toHaveBeenCalledWith("read_only", expect.any(Object));
   await userEvent.selectOptions(access, "full_access");
-  expect(access).toHaveAccessibleDescription("Commands run as you, and each one asks you first.");
-  await userEvent.click(screen.getByRole("button", { name: /Choose a folder/ }));
   expect(pick).toHaveBeenLastCalledWith("full_access", expect.any(Object));
+  expect(useWorkOnStore.getState().targetFor("chat")?.mode).toBe("read_only");
+  act(() => pick.mock.calls.at(-1)?.[1].onSuccess({ path: "/first", mode: "full_access" }));
+  expect(access).toHaveValue("full_access");
+  expect(access).toHaveAccessibleDescription("Commands run as you, and each one asks you first.");
+  expect(useWorkOnStore.getState().targetFor("chat")?.mode).toBe("full_access");
 });
 
 it("waits for native access modes before granting another folder", async () => {
@@ -132,13 +137,15 @@ it("links from This computer and offers folders only after native confirmation",
   deviceState.linked = true;
   link.mock.calls[0]?.[1].onSuccess({ linked: true, connected: false });
   view.rerender(<WorkOn />);
+  expect(pick).toHaveBeenCalledWith("read_only", expect.any(Object));
+  expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
+  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
+  act(() => pick.mock.calls.at(-1)?.[1].onSuccess({ path: "/first", mode: "read_only" }));
   expect(screen.getByRole("radio", { name: "This computer" })).toHaveAttribute(
     "aria-checked",
     "true",
   );
   expect(screen.getByRole("button", { name: /Choose a folder/ })).toBeEnabled();
-  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
-  expect(pick).not.toHaveBeenCalled();
 });
 
 it("keeps Cloud selected when linking is refused or fails", async () => {
@@ -178,7 +185,13 @@ it("selects an already linked computer without pairing again", async () => {
   useWorkOnStore.getState().set("chat", null);
   render(<WorkOn />);
   await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
-  expect(screen.getByRole("button", { name: /Choose a folder/ })).toBeEnabled();
+  expect(pick).toHaveBeenCalledWith("read_only", expect.any(Object));
+  expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
+  act(() => pick.mock.calls.at(-1)?.[1].onSuccess({ path: "/first", mode: "read_only" }));
+  expect(screen.getByRole("radio", { name: "This computer" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
   expect(link).not.toHaveBeenCalled();
 });
 
@@ -193,4 +206,36 @@ it("does not switch another conversation to the computer when pairing finishes",
   view.rerender(<WorkOn />);
   expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
   expect(useWorkOnStore.getState().targetFor("other")).toBeNull();
+});
+
+it("keeps the approved folder and mode when the settings popover remounts", () => {
+  useWorkOnStore.getState().set("chat", { folder: "/first", mode: "full_access" });
+  const view = render(<WorkOn />);
+  view.unmount();
+  render(<WorkOn />);
+  expect(screen.getByRole("radio", { name: "This computer" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  expect(screen.getByRole("combobox", { name: "Folder access" })).toHaveValue("full_access");
+});
+
+it("keeps the actual grant when a requested access change is cancelled", async () => {
+  render(<WorkOn />);
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: "Folder access" }),
+    "full_access",
+  );
+  act(() => pick.mock.calls.at(-1)?.[1].onSuccess(null));
+  expect(screen.getByRole("combobox", { name: "Folder access" })).toHaveValue("read_only");
+  expect(useWorkOnStore.getState().targetFor("chat")?.mode).toBe("read_only");
+});
+
+it("does not show a local selection if the folder picker is cancelled", async () => {
+  useWorkOnStore.getState().set("chat", null);
+  render(<WorkOn />);
+  await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
+  act(() => pick.mock.calls.at(-1)?.[1].onSuccess(null));
+  expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
+  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
 });

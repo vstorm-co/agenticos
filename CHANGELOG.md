@@ -270,6 +270,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Honor the chat's local workspace selection.** Choosing This computer opens
+  the native folder picker immediately. The access selector reflects the approved
+  mode, and local settings follow a new conversation even with its settings closed.
+
 - **Keep the desktop running when switching servers.** Blobby and Quick ask now
   navigate their existing windows to the selected server instead of destroying
   and immediately recreating native windows.

@@ -1,5 +1,5 @@
 ---
-source_sha: "35d0c378988e"
+source_sha: "196d7df536d6"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -136,6 +136,12 @@ kluczy. Trzyma jedno wychodzące połączenie WebSocket do device huba serwera
 **Wybierz to dla czatu.** W aplikacji desktopowej ustawienia czatu oferują
 **Pracuj na (Work on): Chmura / Ten komputer**. Wybranie tego komputera prosi o
 folder w natywnym oknie wyboru i o to, jak daleko agent może w nim sięgać:
+
+Ten komputer zostaje wybrany dopiero po zatwierdzeniu folderu. Lista dostępu
+pokazuje zatwierdzony tryb tego folderu; jego zmiana ponownie otwiera natywne okno
+wyboru folderu, aby potwierdzić nowe uprawnienia. Anulowanie zachowuje poprzedni
+wybór. Folder i tryb pozostają wybrane po zamknięciu ustawień oraz po nadaniu
+nowemu czatowi identyfikatora.
 
 | Tryb | Co agent może | Jak jest tego pilnowane |
 |---|---|---|

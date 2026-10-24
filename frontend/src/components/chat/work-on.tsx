@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId } from "react";
 import { ChevronDown, Cloud, FolderOpen, Laptop, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -46,35 +46,40 @@ function ComputerWorkOn() {
   const conversationId = useConversationStore((store) => store.currentConversationId);
   const target = useWorkOnStore((store) => store.targetFor(conversationId));
   const setTarget = useWorkOnStore((store) => store.set);
-  const adopt = useWorkOnStore((store) => store.adopt);
-  // "This computer" chosen before a folder is: held for this conversation only.
-  const [choosingFor, setChoosingFor] = useState<string | null | undefined>(undefined);
-  const onComputer = target !== null || choosingFor === conversationId;
-  const [newMode, setNewMode] = useState<LocalMode>("workspace_write");
-
-  // A new chat's choice files itself under the id the server gives it.
-  useEffect(() => {
-    if (conversationId !== null) adopt(conversationId);
-  }, [conversationId, adopt]);
+  const onComputer = target !== null;
 
   const linked = device?.linked === true;
   const grants = state.data?.grants ?? [];
   const modes = state.data?.modes ?? [];
-  const selectedMode = modes.includes(newMode) ? newMode : (modes[0] ?? "read_only");
+  const selectedMode =
+    target?.mode ?? (modes.includes("workspace_write") ? "workspace_write" : "read_only");
+
+  const chooseFolder = (mode: LocalMode) => {
+    pick.mutate(mode, {
+      onSuccess: (grant) => {
+        if (grant)
+          setTarget(conversationId, {
+            ...target,
+            folder: grant.path,
+            mode: grant.mode,
+          });
+      },
+    });
+  };
 
   const chooseCloud = () => {
-    setChoosingFor(undefined);
     setTarget(conversationId, null);
   };
 
   const chooseComputer = () => {
+    if (onComputer) return;
     if (linked) {
-      setChoosingFor(conversationId);
+      chooseFolder(selectedMode);
       return;
     }
     link.mutate(undefined, {
       onSuccess: (status) => {
-        if (status.linked) setChoosingFor(conversationId);
+        if (status.linked) chooseFolder(selectedMode);
       },
     });
   };
@@ -103,7 +108,11 @@ function ComputerWorkOn() {
             type="button"
             role="radio"
             aria-checked={active}
-            disabled={link.isPending || (key === "computer" && device === undefined)}
+            disabled={
+              link.isPending ||
+              pick.isPending ||
+              (key === "computer" && (device === undefined || modes.length === 0))
+            }
             aria-busy={key === "computer" && link.isPending}
             onClick={onClick}
             className={cn(
@@ -252,7 +261,7 @@ function ComputerWorkOn() {
                   disabled={modes.length === 0 || pick.isPending}
                   onChange={(event) => {
                     const mode = modes.find((mode) => mode === event.target.value);
-                    if (mode) setNewMode(mode);
+                    if (mode && mode !== target?.mode) chooseFolder(mode);
                   }}
                   className="border-foreground/12 bg-background text-foreground focus-visible:ring-ring h-9 w-full appearance-none rounded-lg border pr-8 pl-3 text-xs focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                   aria-describedby={modeHintId}
@@ -277,18 +286,7 @@ function ComputerWorkOn() {
               variant="outline"
               size="sm"
               disabled={pick.isPending || modes.length === 0}
-              onClick={() =>
-                pick.mutate(selectedMode, {
-                  onSuccess: (grant) => {
-                    if (grant)
-                      setTarget(conversationId, {
-                        ...target,
-                        folder: grant.path,
-                        mode: grant.mode,
-                      });
-                  },
-                })
-              }
+              onClick={() => chooseFolder(selectedMode)}
               className="w-full justify-center"
             >
               <FolderOpen aria-hidden />

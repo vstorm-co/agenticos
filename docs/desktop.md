@@ -130,6 +130,11 @@ on the computer. **Unlink** ends that session.
 Cloud / This computer**. Choosing this computer asks for a folder in the native
 picker and how far the agent may go in it:
 
+This computer becomes selected only after you approve a folder. The access
+selector shows that folder's approved mode; changing it opens the native folder
+picker again to confirm the new permission. Cancelling keeps the previous choice.
+The folder and mode stay selected when settings close and when a new chat gets its ID.
+
 | Mode | What the agent may do | How it is held to it |
 |---|---|---|
 | Read only | Read files; nothing is written and no command runs | The app refuses writes and commands |

@@ -598,6 +598,9 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "conversation_created": {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
+          // The settings popover may be closed: filing a draft's local target
+          // belongs to the chat lifecycle, before another turn can be sent.
+          useWorkOnStore.getState().adopt(conversation_id);
           setCurrentConversationId(conversation_id);
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);

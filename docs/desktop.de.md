@@ -1,5 +1,5 @@
 ---
-source_sha: "35d0c378988e"
+source_sha: "196d7df536d6"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -145,6 +145,12 @@ Sie hält eine ausgehende WebSocket-Verbindung zum Device-Hub des Servers
 **Arbeiten auf (Work on): Cloud / Diesem Computer**. Die Wahl dieses Computers
 fragt im nativen Auswahldialog nach einem Ordner und danach, wie weit der Agent
 darin gehen darf:
+
+Dieser Computer wird erst nach der Freigabe eines Ordners ausgewählt. Die
+Zugriffsauswahl zeigt den genehmigten Modus dieses Ordners; eine Änderung öffnet
+die native Ordnerauswahl erneut, um die neue Berechtigung zu bestätigen.
+Abbrechen behält die bisherige Auswahl bei. Ordner und Modus bleiben ausgewählt,
+wenn die Einstellungen geschlossen werden und ein neuer Chat seine ID erhält.
 
 | Modus | Was der Agent darf | Wie das durchgesetzt wird |
 |---|---|---|

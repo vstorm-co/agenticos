@@ -3990,3 +3990,28 @@ it("sends the chosen folder, browser, model and MCP grants with a new turn", () 
     useWorkOnStore.setState({ byConversation: {}, draft: null });
   }
 });
+
+it("files the local target when the conversation is created with settings closed", () => {
+  const target = { folder: "/approved", mode: "full_access" as const };
+  useWorkOnStore.getState().set(null, target);
+  try {
+    const initialProps: { conversationId?: string } = {};
+    const { result, rerender } = renderHook(
+      ({ conversationId }: { conversationId?: string }) => useChat({ conversationId }),
+      { wrapper, initialProps },
+    );
+    act(() => result.current.sendMessage("read local files"));
+    expect(lastFrame().local).toEqual(target);
+    receive("conversation_created", { conversation_id: "created-local" });
+    expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
+    expect(useWorkOnStore.getState().targetFor("created-local")).toEqual(target);
+    receive("complete", {});
+    rerender({ conversationId: "created-local" });
+    sent.mockClear();
+    act(() => result.current.sendMessage("and now?"));
+    expect(lastFrame().conversation_id).toBe("created-local");
+    expect(lastFrame().local).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
+});

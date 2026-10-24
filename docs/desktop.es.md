@@ -1,5 +1,5 @@
 ---
-source_sha: "35d0c378988e"
+source_sha: "196d7df536d6"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -138,6 +138,12 @@ nada escucha en el ordenador. **Desvincular** termina esa sesión.
 **Elígelo por chat.** En la app de escritorio los ajustes del chat ofrecen
 **Trabajar en (Work on): Nube / Este ordenador**. Elegir este ordenador pide una
 carpeta en el selector nativo y hasta dónde puede llegar el agent en ella:
+
+Este ordenador solo queda seleccionado después de aprobar una carpeta. El
+selector de acceso muestra el modo aprobado para esa carpeta; cambiarlo vuelve
+a abrir el selector nativo de carpetas para confirmar el nuevo permiso. Cancelar
+conserva la elección anterior. La carpeta y el modo se mantienen al cerrar los
+ajustes y cuando un chat nuevo recibe su ID.
 
 | Modo | Qué puede hacer el agent | Cómo se le sujeta |
 |---|---|---|
