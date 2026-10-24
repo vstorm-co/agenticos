@@ -13,6 +13,7 @@ export type Verdict = { passed: boolean | null; note: string | null };
 interface ScoreDecisionProps {
   /** The decision on record, if somebody made one. */
   decided: boolean | null;
+  caseTags?: string[];
   note: string | null;
   onVerdict?: (verdict: Verdict) => void;
   /** Shown while the score is not in the queue and may be sent there. */
@@ -25,6 +26,7 @@ interface ScoreDecisionProps {
 /** A person's review decision on a score, with the note that says why. */
 export function ScoreDecision({
   decided,
+  caseTags = [],
   note,
   onVerdict,
   onReview,
@@ -76,6 +78,18 @@ export function ScoreDecision({
           >
             {t("noteForCase")}
           </Button>
+          {caseTags.map((tag) => (
+            <Button
+              key={tag}
+              variant="link"
+              size="sm"
+              className="h-auto px-1"
+              disabled={busy}
+              onClick={() => onNoteToCriterion({ tags: [tag] })}
+            >
+              {t("noteForTag", { tag })}
+            </Button>
+          ))}
           <Button
             variant="link"
             size="sm"

@@ -100,7 +100,11 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const noteToCriterion = async (score: CaseScore, target: NoteTarget) => {
     try {
       await toCriterion.mutateAsync({ score, target });
-      toast.success(t(target === "case" ? "noteAddedToCase" : "noteAddedToRubric"));
+      toast.success(
+        typeof target === "object"
+          ? t("noteAddedToTags", { tags: target.tags.join(", ") })
+          : t(target === "case" ? "noteAddedToCase" : "noteAddedToRubric"),
+      );
     } catch (failure) {
       toast.error(getErrorMessage(failure, tErrors));
     }

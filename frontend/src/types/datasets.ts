@@ -89,6 +89,13 @@ export interface DatasetStats {
   by_source: Record<CaseSource, number>;
   /** The most used tags, most used first. */
   top_tags: { tag: string; cases: number }[];
+  tag_groups?: {
+    tags: string[];
+    cases: number;
+    checks: boolean;
+    tool_calls: boolean;
+    reference: boolean;
+  }[];
 }
 
 export type RunNeed = "runs:view" | "datasets:run";

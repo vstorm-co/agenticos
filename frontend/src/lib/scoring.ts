@@ -132,7 +132,24 @@ export function ungradedCases(
   defaultChecks: number,
 ): number {
   const { checks, trajectory, judge, reference } = scoring;
-  if (judge.enabled && judge.criteria.length > 0) return 0;
+  if (stats.tag_groups && stats.tag_groups.length > 0) {
+    return stats.tag_groups
+      .filter(
+        (group) =>
+          !(
+            judge.enabled &&
+            judge.criteria.some(
+              (criterion) =>
+                !criterion.tags?.length || criterion.tags.some((tag) => group.tags.includes(tag)),
+            )
+          ) &&
+          !(checks.enabled && (group.checks || defaultChecks > 0)) &&
+          !(trajectory.enabled && group.tool_calls) &&
+          !(reference.enabled && group.reference),
+      )
+      .reduce((sum, group) => sum + group.cases, 0);
+  }
+  if (judge.enabled && judge.criteria.some((criterion) => !criterion.tags?.length)) return 0;
   return stats.expectation_mix
     .filter(
       (mix) =>

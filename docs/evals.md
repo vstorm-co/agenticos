@@ -318,6 +318,8 @@ keeps the runs that tested another draft since the latest version was published 
 a check only once one of its suggestions was accepted: the test the draft has
 moved away from. A check measured against the draft itself counts in neither.
 
+A judge criterion can apply to every case or only cases carrying any of its selected tags. In **Grading**, choose the tags and check the coverage count; a case with several matching tags is counted once. Unmatched criteria are omitted entirely, so they cannot fail or leave that case undecided. Review notes can become criteria for a selected case tag. Changing a scope changes the scoring fingerprint; guarded suites adopt it only after an authorized pin move.
+
 ## Comparing with a baseline { #comparing-with-a-baseline }
 
 A comparison matches the two sides case by case on the case's stable id, and

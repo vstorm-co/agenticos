@@ -227,6 +227,13 @@ describe("useNoteToCriterion", () => {
       required: true,
     });
   });
+  it("keeps a Review note restricted to the chosen tag when saving the rubric", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({});
+    const { result } = renderHook(() => useNoteToCriterion(dataset), { wrapper });
+    await result.current.mutateAsync({ score, target: { tags: ["refund"] } });
+    const sent = vi.mocked(apiClient.put).mock.calls.at(-1)?.[1] as DatasetScoring;
+    expect(sent.judge.criteria.at(-1)?.tags).toEqual(["refund"]);
+  });
 });
 
 describe("useJudgeTemplate", () => {

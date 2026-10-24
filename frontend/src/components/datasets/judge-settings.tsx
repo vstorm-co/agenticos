@@ -12,6 +12,8 @@ import { ScorerRow } from "./scorer-row";
 
 interface JudgeSettingsProps {
   judge: DatasetScoring["judge"];
+  tagGroups?: { tags: string[]; cases: number }[];
+  totalCases?: number;
   /** The judge as saved, against which a change of judge is noticed. */
   stored: DatasetScoring["judge"];
   reference: DatasetScoring["reference"];
@@ -47,6 +49,8 @@ export function JudgeSettings({
   referenceCoverage,
   counterExampleCoverage,
   focusRubric,
+  tagGroups,
+  totalCases,
 }: JudgeSettingsProps) {
   const t = useTranslations("datasets.scoring");
   const [switching, setSwitching] = useState<string | null | undefined>(undefined);
@@ -115,6 +119,8 @@ export function JudgeSettings({
         </p>
         <RubricEditor
           criteria={judge.criteria}
+          tagGroups={tagGroups}
+          totalCases={totalCases}
           onChange={(criteria) => onJudge({ ...judge, criteria })}
           disabled={disabled}
           focusKey={focusRubric}

@@ -177,6 +177,18 @@ class TrajectoryScorer(BaseSchema):
 
 
 class RubricCriterion(BaseSchema):
+    """A named criterion, optionally restricted to cases with at least one matching tag."""
+
+    tags: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("tags")
+    @classmethod
+    def _tags(cls, tags: list[str]) -> list[str]:
+        cleaned = list(dict.fromkeys(tag.strip() for tag in tags if tag.strip()))
+        if any(len(tag) > 64 or "," in tag for tag in cleaned):
+            raise ValueError("A criterion tag is at most 64 characters and cannot contain a comma")
+        return sorted(cleaned)
+
     name: str = Field(min_length=1, max_length=80)
     description: str = Field(min_length=1, max_length=MAX_CRITERION)
     required: bool = True

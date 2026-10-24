@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Judge criteria can be scoped to case tags.** Unmatched criteria are omitted,
+  the rubric editor shows coverage without double counting, and Review notes
+  can target a case tag. Existing unscoped criteria and their hashes remain
+  unchanged (#2377).
+
 - **Promotion guards pin their judge publication.** A new judge publication cannot
   relax a guard; changing it requires an audited pin move. Guard runs and
   rescoring use the held version, and old unpinned passes do not open the gate

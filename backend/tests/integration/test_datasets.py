@@ -1859,3 +1859,19 @@ async def test_whether_the_caller_may_run_a_dataset_is_read_per_dataset(db) -> N
     assert (await service.read(member, usable.id)).run_needs == ["runs:view"]
     owned = await service.read(owner, readable.id)
     assert (owned.can_run, owned.run_needs) == (True, [])
+
+
+async def test_rubric_coverage_groups_count_a_case_once_when_it_has_several_tags(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="tag coverage"))
+    for tags in (["refund", "billing"], ["refund"], ["delivery"]):
+        await service.add_case(
+            ctx,
+            dataset.id,
+            DatasetCaseCreate(input=str(tags), reference_answer="30 days", tags=tags),
+        )
+    read = await service.read(ctx, dataset.id)
+    assert sum(g.cases for g in read.stats.tag_groups) == 3
+    assert sum(g.cases for g in read.stats.tag_groups if set(g.tags) & {"refund", "billing"}) == 2
+    assert all(g.reference for g in read.stats.tag_groups)

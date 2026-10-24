@@ -1011,3 +1011,58 @@ class TestGrades:
             ("skipped", "ai_assistance_off", "Off"),
             ("skipped", "ai_assistance_off", "Off"),
         ]
+
+
+class TestScopedJudgeCriteria:
+    def test_only_matching_and_unscoped_criteria_reach_the_judge(self) -> None:
+        scoring = DatasetScoring.model_validate(
+            {
+                "judge": {
+                    "enabled": True,
+                    "criteria": [
+                        {
+                            "name": "Refund policy",
+                            "description": "Refund rules",
+                            "tags": ["refund"],
+                        },
+                        {"name": "Tone", "description": "Polite"},
+                    ],
+                }
+            }
+        )
+        case = _case(tags=["delivery"])
+        criteria = judge_criteria(case, scoring, [])
+        assert [c.name for c in criteria] == ["Tone"]
+        prompt = judge_prompt(case, _answer(), criteria, scale_max=5)
+        assert "Refund rules" not in prompt
+        assert "Polite" in prompt
+        assert [
+            c.name for c in judge_criteria(_case(tags=["refund", "delivery"]), scoring, [])
+        ] == ["Refund policy", "Tone"]
+
+    def test_a_scope_change_changes_the_hash_but_an_empty_scope_preserves_legacy_hashes(
+        self,
+    ) -> None:
+        import hashlib
+        import json
+
+        from app.services.eval_run import scoring_hash
+
+        scoring = DatasetScoring.model_validate(
+            {
+                "judge": {
+                    "enabled": True,
+                    "criteria": [
+                        {"name": "Policy", "description": "Rules"},
+                    ],
+                }
+            }
+        )
+        legacy = scoring.model_dump(mode="json")
+        del legacy["judge"]["criteria"][0]["tags"]
+        original = hashlib.sha256(
+            json.dumps(legacy, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        assert scoring_hash(scoring) == original
+        scoring.judge.criteria[0].tags = ["refund"]
+        assert scoring_hash(scoring) != original

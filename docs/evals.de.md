@@ -1,5 +1,5 @@
 ---
-source_sha: "e83afbcdaab6"
+source_sha: "030a32879fab"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -365,6 +365,8 @@ angenommen sind -, und genau das liest der Veröffentlichungsdialog.
 Version einen anderen Entwurf getestet haben - eine Prüfung erst, wenn einer ihrer
 Vorschläge angenommen wurde: den Test, von dem sich der Entwurf entfernt hat. Eine
 Prüfung, die am Entwurf selbst gemessen wurde, zählt in keinem von beiden.
+
+Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens einem ausgewählten Tag gelten. Wählen Sie unter **Grading** die Tags und prüfen Sie die Anzahl; ein Fall mit mehreren passenden Tags zählt einmal. Nicht passende Kriterien werden vollständig ausgelassen und können den Fall weder scheitern noch unentschieden lassen. Review-Notizen können Kriterien für einen ausgewählten Fall-Tag werden. Eine Bereichsänderung ändert den Bewertungsfingerabdruck; Wächter übernehmen sie erst nach einem autorisierten Verschieben der Anheftung.
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
 

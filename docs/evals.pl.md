@@ -1,5 +1,5 @@
 ---
-source_sha: "e83afbcdaab6"
+source_sha: "030a32879fab"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -349,6 +349,8 @@ publikacji. `?draft=earlier` zostawia runy, które testowały inną wersję robo
 od opublikowania najnowszej wersji - sprawdzenie dopiero wtedy, gdy przyjęto
 którąś z jego sugestii: test, od którego wersja robocza już odeszła. Sprawdzenie
 mierzone względem samej wersji roboczej nie liczy się w żadnym z nich.
+
+Kryterium sędziego może dotyczyć wszystkich przypadków albo tylko przypadków z dowolnym wybranym tagiem. W **Grading** wybierz tagi i sprawdź liczbę objętych przypadków; przypadek z kilkoma pasującymi tagami liczy się raz. Niepasujące kryteria są całkowicie pomijane, więc nie mogą oblać przypadku ani pozostawić go nierozstrzygniętym. Notatka Review może stać się kryterium dla wybranego tagu przypadku. Zmiana zakresu zmienia odcisk oceniania; strażnicy przyjmują ją dopiero po uprawnionym przesunięciu przypięcia.
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 

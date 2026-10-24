@@ -7826,7 +7826,12 @@
       "rule": "Regel: {rule}",
       "judgeSaid": "Der Bewerter antwortete: „{said}“",
       "unverifiedGrade": "Nicht belegt: Kein Zitat aus der Antwort stützt diese Bewertung.",
-      "agentDraft": "{name} · Entwurf"
+      "agentDraft": "{name} · Entwurf",
+      "criterionScope": "Gilt für",
+      "criterionEveryCase": "Jeden Fall",
+      "criterionCoverage": "Gilt für {count} von {total} Fällen",
+      "noteForTag": "für Fälle mit Tag {tag}",
+      "noteAddedToTags": "Die Notiz ist jetzt ein Bewerterkriterium für Fälle mit den Tags {tags}."
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

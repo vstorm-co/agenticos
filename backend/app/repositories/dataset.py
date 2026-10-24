@@ -23,6 +23,7 @@ from app.schemas.dataset import (
     DatasetSort,
     DatasetStats,
     DatasetTagCount,
+    DatasetTagGroup,
     ExpectationMix,
 )
 
@@ -379,7 +380,7 @@ async def case_stats(
 ) -> dict[UUID, DatasetStats]:
     """What the newest version of each dataset tests against, counted.
 
-    Two queries for any number of datasets - the counts, and the most used tags -
+    Three queries for any number of datasets - counts, common tags and complete tag groups -
     so a listing page costs the same whichever size it is. A dataset with no
     version yet is absent; the caller's default is all zeros.
     """
@@ -466,6 +467,17 @@ async def case_stats(
     )
     for dataset_id, name, cases in tags.all():
         stats[dataset_id].top_tags.append(DatasetTagCount(tag=name, cases=cases))
+    groups = await db.execute(
+        select(
+            held.c.dataset_id, held.c.tags, has_checks, has_calls, compared, func.count()
+        ).group_by(held.c.dataset_id, held.c.tags, has_checks, has_calls, compared)
+    )
+    for dataset_id, group_tags, checks, calls, reference, cases in groups.all():
+        stats[dataset_id].tag_groups.append(
+            DatasetTagGroup(
+                tags=group_tags, checks=checks, tool_calls=calls, reference=reference, cases=cases
+            )
+        )
     return stats
 
 

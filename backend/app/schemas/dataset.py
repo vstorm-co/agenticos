@@ -266,6 +266,12 @@ class ExpectationMix(BaseSchema):
     cases: int
 
 
+class DatasetTagGroup(ExpectationMix):
+    """Cases counted once per complete tag set, so overlapping criterion scopes do not double count."""
+
+    tags: list[str]
+
+
 class DatasetStats(BaseSchema):
     """What the newest version's cases test against, counted.
 
@@ -286,6 +292,10 @@ class DatasetStats(BaseSchema):
     )
     by_source: dict[CaseSourceLiteral, int] = Field(
         default_factory=lambda: dict.fromkeys(get_args(CaseSourceLiteral), 0)
+    )
+    tag_groups: list[DatasetTagGroup] = Field(
+        default_factory=list,
+        description="Case counts by complete tag set, for rubric scope coverage",
     )
     top_tags: list[DatasetTagCount] = Field(
         default_factory=list, description="The most used tags, most used first"

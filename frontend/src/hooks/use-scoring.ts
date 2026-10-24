@@ -256,7 +256,7 @@ export function useJudgeAgreement(judgeId: string) {
 }
 
 /** Where a reviewer's note becomes a judge criterion: this case alone, or every case. */
-export type NoteTarget = "case" | "dataset";
+export type NoteTarget = "case" | "dataset" | { tags: string[] };
 
 /**
  * Make a reviewer's note on a score a criterion the judge grades from now on.
@@ -288,7 +288,15 @@ export function useNoteToCriterion(dataset: Dataset) {
         judge: {
           ...judge,
           enabled: true,
-          criteria: [...judge.criteria, { name, description: criterion, required: true }],
+          criteria: [
+            ...judge.criteria,
+            {
+              name,
+              description: criterion,
+              required: true,
+              ...(typeof target === "object" ? { tags: target.tags } : {}),
+            },
+          ],
         },
       });
     },

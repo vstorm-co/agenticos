@@ -7943,7 +7943,12 @@
       "rule": "Rule: {rule}",
       "judgeSaid": "The judge answered: “{said}”",
       "unverifiedGrade": "Unverified: nothing quoted from the answer backs this grade.",
-      "agentDraft": "{name} · Draft"
+      "agentDraft": "{name} · Draft",
+      "criterionScope": "Applies to",
+      "criterionEveryCase": "Every case",
+      "criterionCoverage": "Applies to {count} of {total} cases",
+      "noteForTag": "for cases tagged {tag}",
+      "noteAddedToTags": "The note is now a judge criterion for cases tagged {tags}."
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

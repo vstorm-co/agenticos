@@ -233,6 +233,7 @@ def _case_view(case: DatasetCase) -> CaseView:
         order_mode=case.order_mode,
         checks=case.checks,
         note=case.note,
+        tags=case.tags,
     )
 
 

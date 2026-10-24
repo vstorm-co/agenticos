@@ -143,7 +143,12 @@ _CENT = Decimal("0.000001")
 
 def scoring_hash(scoring: DatasetScoring) -> str:
     """A fingerprint of the scoring a run used: equal only when every setting is."""
-    canonical = json.dumps(scoring.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    content = scoring.model_dump(mode="json")
+    # An absent scope and an empty one both mean every case; preserve stored hashes.
+    for criterion in content["judge"]["criteria"]:
+        if not criterion["tags"]:
+            del criterion["tags"]
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
@@ -236,7 +241,14 @@ def decidable(case: DatasetCase, scoring: DatasetScoring, *, ai_enabled: bool) -
         return True
     judged = (
         (reference.enabled and reference.required and bool(case.reference_answer))
-        or (judge.enabled and any(criterion.required for criterion in judge.criteria))
+        or (
+            judge.enabled
+            and any(
+                criterion.required
+                and (not criterion.tags or set(criterion.tags).intersection(case.tags))
+                for criterion in judge.criteria
+            )
+        )
         # A counter-example is always a required criterion of whichever judges it.
         or (bool(case.counter_example) and (judge.enabled or reference.enabled))
     )

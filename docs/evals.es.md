@@ -1,5 +1,5 @@
 ---
-source_sha: "e83afbcdaab6"
+source_sha: "030a32879fab"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -338,6 +338,8 @@ el diálogo de publicación. `?draft=earlier` conserva los runs que probaron otr
 borrador desde que se publicó la última versión - una comprobación solo cuando se
 aceptó alguna de sus sugerencias: la prueba de la que el borrador se ha alejado.
 Una comprobación medida contra el propio borrador no cuenta en ninguno de los dos.
+
+Un criterio del juez puede aplicarse a todos los casos o solo a casos con alguna de las etiquetas elegidas. En **Grading**, elija las etiquetas y revise la cobertura; un caso con varias etiquetas coincidentes cuenta una vez. Los criterios que no coinciden se omiten por completo, sin suspender el caso ni dejarlo indeciso. Las notas de Review pueden convertirse en criterios para una etiqueta del caso. Cambiar el ámbito cambia la huella de evaluación; las suites guardianas lo adoptan solo al mover la fijación con autorización.
 
 ## Comparar con un baseline { #comparing-with-a-baseline }
 

@@ -6,9 +6,12 @@ import { useTranslations } from "next-intl";
 
 import { Button, IconButton, Input, Switch, Textarea } from "@/components/ui";
 import type { RubricCriterion } from "@/types/scoring";
+import { CriterionScope } from "./criterion-scope";
 
 interface RubricEditorProps {
   criteria: RubricCriterion[];
+  tagGroups?: { tags: string[]; cases: number }[];
+  totalCases?: number;
   onChange: (criteria: RubricCriterion[]) => void;
   disabled?: boolean;
   /** Changed to put the cursor in the first criterion's description, selected. */
@@ -21,6 +24,8 @@ export function RubricEditor({
   onChange,
   disabled = false,
   focusKey = 0,
+  tagGroups = [],
+  totalCases = 0,
 }: RubricEditorProps) {
   const t = useTranslations("datasets.scoring");
   const first = useRef<HTMLTextAreaElement>(null);
@@ -62,6 +67,13 @@ export function RubricEditor({
               <Trash2 className="h-4 w-4" aria-hidden />
             </IconButton>
           </div>
+          <CriterionScope
+            tags={criterion.tags ?? []}
+            groups={tagGroups}
+            total={totalCases}
+            disabled={disabled}
+            onChange={(tags) => change(index, { tags })}
+          />
           <Textarea
             ref={index === 0 ? first : undefined}
             value={criterion.description}

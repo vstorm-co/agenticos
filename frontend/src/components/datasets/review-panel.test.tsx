@@ -441,3 +441,24 @@ describe("ReviewPanel", () => {
     expect(screen.queryByRole("button", { name: "for this case" })).toBeNull();
   });
 });
+
+it("turns a reviewed note into a criterion limited to the case's tag", async () => {
+  const decided = caseScore({
+    human_passed: false,
+    human_note: "Must cite the policy",
+    case_tags: ["refund"],
+  });
+  state.answer = { scores: [decided], total: 1 };
+  state.toCriterion.mockResolvedValue(undefined);
+  render(<ReviewPanel dataset={dataset()} />);
+  await userEvent.click(screen.getByRole("button", { name: "for cases tagged refund" }));
+  await waitFor(() =>
+    expect(state.toCriterion).toHaveBeenCalledWith({
+      score: decided,
+      target: { tags: ["refund"] },
+    }),
+  );
+  expect(toast.success).toHaveBeenCalledWith(
+    "The note is now a judge criterion for cases tagged refund.",
+  );
+});

@@ -211,3 +211,28 @@ async def test_an_eval_runs_score_its_judge_never_ran_on_is_graded_again(monkeyp
     await service._judge_unchanged(_ctx(), score)
 
     service.judge.require_runnable.assert_awaited_once()
+
+
+async def test_no_judge_is_called_when_no_scoped_criterion_applies() -> None:
+    from dataclasses import replace
+
+    service = ScoringService(AsyncMock())
+    service.judge = MagicMock(run=AsyncMock())
+    config = DatasetScoring.model_validate(
+        {
+            "checks": {"enabled": False},
+            "trajectory": {"enabled": False},
+            "judge": {
+                "enabled": True,
+                "criteria": [{"name": "Refund", "description": "Refund rules", "tags": ["refund"]}],
+            },
+        }
+    )
+    evaluation = await service.evaluate(
+        _ctx(),
+        replace(CASE, tags=["delivery"]),
+        ScoredAnswer(text="Delivery is free.", calls=()),
+        config,
+    )
+    assert evaluation.results == []
+    service.judge.run.assert_not_awaited()

@@ -657,3 +657,31 @@ describe("GradingPanel", () => {
     expect(screen.queryByRole("button", { name: "Create a judge for this dataset" })).toBeNull();
   });
 });
+
+it("scopes a criterion to matching tags and counts overlapping cases only once", async () => {
+  const base = dataset(JUDGED);
+  panel(JUDGED, {
+    case_count: 3,
+    stats: {
+      ...base.stats,
+      tag_groups: [
+        {
+          tags: ["refund", "billing"],
+          cases: 1,
+          checks: false,
+          tool_calls: false,
+          reference: true,
+        },
+        { tags: ["refund"], cases: 1, checks: false, tool_calls: false, reference: true },
+        { tags: ["delivery"], cases: 1, checks: false, tool_calls: false, reference: true },
+      ],
+    },
+  });
+  expect(screen.getByText("Applies to 3 of 3 cases")).toBeVisible();
+  await userEvent.click(screen.getByRole("checkbox", { name: "refund" }));
+  expect(screen.getByText("Applies to 2 of 3 cases")).toBeVisible();
+  await userEvent.click(screen.getByRole("checkbox", { name: "billing" }));
+  expect(screen.getByText("Applies to 2 of 3 cases")).toBeVisible();
+  await userEvent.click(saveAll());
+  await waitFor(() => expect(saved().judge.criteria[0]?.tags).toEqual(["refund", "billing"]));
+});

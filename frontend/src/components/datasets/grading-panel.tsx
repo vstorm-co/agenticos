@@ -186,6 +186,8 @@ export function GradingPanel({
         tour="datasets-grading-judge"
       >
         <JudgeSettings
+          tagGroups={dataset.stats.tag_groups}
+          totalCases={dataset.case_count}
           referenceCoverage={of(dataset.stats.with_reference)}
           counterExampleCoverage={of(dataset.stats.with_counter_example)}
           judge={draft.judge}

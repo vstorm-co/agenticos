@@ -14,6 +14,8 @@ export type ReviewSelect = "none" | "failed" | "all";
 export type ScoreOutcome = "failed" | "not_graded" | "passed";
 
 export interface RubricCriterion {
+  /** Empty or absent applies to every case; otherwise any matching tag applies. */
+  tags?: string[];
   name: string;
   description: string;
   required: boolean;

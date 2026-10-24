@@ -245,6 +245,7 @@ export function ScoreCard({
       {(onVerdict || sendable || (decided && score.human_note)) && (
         <ScoreDecision
           decided={score.human_passed}
+          caseTags={score.case_tags}
           note={score.human_note}
           onVerdict={onVerdict}
           onReview={sendable ? onReview : undefined}

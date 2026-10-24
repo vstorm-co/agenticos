@@ -7716,7 +7716,12 @@
       "rule": "Reguła: {rule}",
       "judgeSaid": "Sędzia odpowiedział: „{said}”",
       "unverifiedGrade": "Niezweryfikowane: żaden cytat z odpowiedzi nie popiera tej oceny.",
-      "agentDraft": "{name} · wersja robocza"
+      "agentDraft": "{name} · wersja robocza",
+      "criterionScope": "Dotyczy",
+      "criterionEveryCase": "Każdego przypadku",
+      "criterionCoverage": "Dotyczy {count} z {total} przypadków",
+      "noteForTag": "dla przypadków z tagiem {tag}",
+      "noteAddedToTags": "Notatka jest teraz kryterium sędziego dla przypadków z tagami {tags}."
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",

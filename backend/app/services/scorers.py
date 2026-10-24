@@ -97,6 +97,7 @@ class CaseView:
     order_mode: str
     checks: Sequence[Mapping[str, Any]]
     note: str | None = None
+    tags: Sequence[str] = ()
 
 
 class _NoValue(Exception):
@@ -490,6 +491,7 @@ def judge_criteria(
         )
         for index, criterion in enumerate(scoring.judge.criteria, start=1)
         if scoring.judge.enabled
+        and (not criterion.tags or set(criterion.tags).intersection(case.tags))
     ]
     if scoring.reference.enabled and case.reference_answer:
         criteria.append(
