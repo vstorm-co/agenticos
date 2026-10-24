@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep trigger histories in separate conversation-specific cache entries,
+  ignore stale admin-user search responses and own file-preview blob URLs
+  through committed subscriptions so Strict Mode cannot revoke a live preview.
+
 - Reap partially started worker pools on failure or cancellation. Keep job
   deadlines and memory watchdogs active while writing to a child's stdin,
   and stop a child that closes its pipes without exiting.

@@ -243,6 +243,7 @@ export const qk = {
         opts.modality ?? "any-modality",
         opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
+        opts.conversationId ?? "any-conversation",
         opts.agentVersionId ?? "any-version",
         opts.isTest ?? "tests-included",
         opts.skip ?? 0,
