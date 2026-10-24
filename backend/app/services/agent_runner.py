@@ -3141,7 +3141,9 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": list(collections),
             KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
-            "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
+            "skills": await self.skills.resolve_for_agent(
+                ctx, spec.skill_ids, projected=skill_bodies
+            ),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
             SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
             CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),

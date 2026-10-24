@@ -35,6 +35,7 @@ def _run(
     decided = SimpleNamespace(incomplete=0, ungraded=0, crashed=0)
     return SimpleNamespace(
         status=status,
+        proposal_check=None,
         arms=[
             SimpleNamespace(id=uuid.uuid4(), role=ArmRole.BASELINE, summary=decided),
             SimpleNamespace(

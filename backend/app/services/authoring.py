@@ -26,7 +26,7 @@ taken from the conversations the hunks were derived from.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
@@ -83,6 +83,7 @@ from app.schemas.authoring import (
     AuthoringStart,
     AuthoringWaiting,
     BatchRead,
+    CreatedSkillBinding,
     DecisionRead,
     EvidenceItemRead,
     FileWaiting,
@@ -98,6 +99,7 @@ from app.schemas.eval_run import (
 )
 from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.scoring import DatasetScoring
+from app.schemas.skill import SkillCreate
 from app.services import authoring_fields, authoring_hunks
 from app.services.access import AGENT, CONTEXT, SKILL, OwnedResource, ResourceType, accessible_ids
 from app.services.agent_registry import AgentRegistryService
@@ -685,10 +687,20 @@ class AuthoringService:
         waiting = [hunk for hunk in hunks if hunk.status == HunkStatus.PENDING.value]
         combination = authoring_hunks.projection(spec, waiting)[0]
         gates = {
-            hunk.id: await self._model_gate(ctx, batch, combination)
+            hunk.id: await self._model_gate(
+                ctx, batch, combination, skills=authoring_hunks.projected_skills(waiting)
+            )
             for hunk in waiting
             if _changes_model(hunk)
         }
+        if not ctx.has(Perm.SKILLS_EDIT):
+            gates.update(
+                {
+                    hunk.id: "create_skill_permission"
+                    for hunk in waiting
+                    if hunk.kind == HunkKind.CREATE_SKILL
+                }
+            )
         return BatchRead(
             id=batch.id,
             agent_id=batch.agent_id,
@@ -704,7 +716,12 @@ class AuthoringService:
         )
 
     async def _model_gate(
-        self, ctx: AuthContext, batch: SpecProposalBatch, combination: AgentSpec
+        self,
+        ctx: AuthContext,
+        batch: SpecProposalBatch,
+        combination: AgentSpec,
+        *,
+        skills: Mapping[UUID, SkillBody] | None = None,
     ) -> str | None:
         """Why a change of model may not be accepted yet, or `None` when it may.
 
@@ -717,7 +734,7 @@ class AuthoringService:
         `regression` when it broke cases, `crashed` when the agent crashed.
         """
         evals = EvalRunService(self.db)
-        wanted = spec_hash(combination)
+        wanted = spec_hash(combination, skills)
         ran_model = False
         for run_id in reversed(batch.check_eval_run_ids):
             try:
@@ -843,7 +860,40 @@ class AuthoringService:
         batch = await self._open_batch_of(ctx, agent, hunk.batch_id)
         spec = AgentSpec.model_validate(agent.draft_spec)
         written: AgentSpec | None = None
-        if decision.action == "accept" and hunk.kind == HunkKind.SPEC_FIELD.value:
+        if decision.action == "accept" and hunk.kind == HunkKind.CREATE_SKILL.value:
+            if not ctx.has(Perm.SKILLS_EDIT):
+                raise AuthorizationError(message="Creating this skill requires skills:edit")
+            if decision.text is not None or decision.value is not None:
+                raise BadRequestError(
+                    message="Review a new skill as proposed; edit it after creation"
+                )
+            if hunk.status != HunkStatus.PENDING:
+                raise ConcurrentChangeError(message="This suggestion has already been decided")
+            data = SkillCreate.model_validate(hunk.new_value)
+            if hunk.accepted_value is not None:
+                created = CreatedSkillBinding.model_validate(hunk.accepted_value)
+                skill = await self.skills.get(ctx, created.skill_id, perm=Perm.SKILLS_EDIT)
+                if (skill.name, skill.description, skill.content) != (
+                    data.name,
+                    data.description,
+                    data.content,
+                ):
+                    raise ConcurrentChangeError(
+                        message="The created skill was edited; bind it from the skill library"
+                    )
+            else:
+                skill = await self.skills.create(
+                    ctx, name=data.name, description=data.description, content=data.content
+                )
+            written = spec.model_copy(update={"skill_ids": [*spec.skill_ids, skill.id]})
+            moved = await self._move(
+                ctx,
+                hunk,
+                HunkStatus.PENDING,
+                HunkStatus.ACCEPTED,
+                {"accepted_value": {"skill_id": str(skill.id)}},
+            )
+        elif decision.action == "accept" and hunk.kind == HunkKind.SPEC_FIELD.value:
             written, values = await self._accepted_field(ctx, spec, batch, hunk, decision)
             moved = await self._move(ctx, hunk, HunkStatus.PENDING, HunkStatus.ACCEPTED, values)
         elif decision.action == "accept":
@@ -865,7 +915,13 @@ class AuthoringService:
                 hunk,
                 HunkStatus.ACCEPTED,
                 HunkStatus.PENDING,
-                {"accepted_text": None, "accepted_override": None, "accepted_value": None},
+                {
+                    "accepted_text": None,
+                    "accepted_override": None,
+                    "accepted_value": hunk.accepted_value
+                    if hunk.kind == HunkKind.CREATE_SKILL
+                    else None,
+                },
             )
         if written is not None:
             agent = await self.registry.save_draft(ctx, agent.id, written)
@@ -969,13 +1025,17 @@ class AuthoringService:
                 if other.status == HunkStatus.PENDING.value and other.id != hunk.id
             ]
             combination = authoring_hunks.projection(written, others)[0]
-            reason = await self._model_gate(ctx, batch, combination)
+            reason = await self._model_gate(
+                ctx, batch, combination, skills=authoring_hunks.projected_skills(others)
+            )
             if reason is not None:
                 raise BadRequestError(message=_GATE_MESSAGES[reason], details={"reason": reason})
         return written, {"accepted_value": value}
 
     def _undone(self, spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec:
-        if hunk.kind == HunkKind.SPEC_FIELD.value:
+        if hunk.kind == HunkKind.CREATE_SKILL.value:
+            undone = authoring_hunks.undo_created_skill(spec, hunk)
+        elif hunk.kind == HunkKind.SPEC_FIELD.value:
             undone = authoring_hunks.undo_field(spec, hunk)
         elif hunk.kind == HunkKind.TOOL_OVERRIDE.value:
             undone = authoring_hunks.undo_tool(spec, hunk)
@@ -1169,6 +1229,12 @@ class AuthoringService:
             ),
         )
 
+    async def projected_skills(self, ctx: AuthContext, batch_id: UUID) -> dict[UUID, SkillBody]:
+        hunks = await authoring_repo.list_hunks(
+            self.db, organization_id=ctx.organization_id, batch_id=batch_id
+        )
+        return authoring_hunks.projected_skills(hunks)
+
     async def estimate_check(
         self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
     ) -> EvalRunEstimate:
@@ -1183,6 +1249,7 @@ class AuthoringService:
             judge_pinned=checked.judge_pinned,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
+            candidate_skills=await self.projected_skills(ctx, batch.id),
             exclude_conversations=batch.evidence_conversation_ids,
             baseline_spec=checked.baseline_spec,
             proposal_check=checked.proposal,
@@ -1429,6 +1496,7 @@ class AuthoringService:
             judge_pinned=checked.judge_pinned,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
+            candidate_skills=await self.projected_skills(ctx, batch.id),
             exclude_conversations=batch.evidence_conversation_ids,
             suite=checked.suite,
             baseline_spec=checked.baseline_spec,

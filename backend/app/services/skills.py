@@ -7,7 +7,7 @@ read is the skills *capability*.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
@@ -16,6 +16,7 @@ from pydantic import StringConstraints, TypeAdapter
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import SkillBody
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -311,7 +312,13 @@ class SkillService:
         """Every distinct category in this organization, for the listing's filter."""
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
 
-    async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
+    async def resolve_for_agent(
+        self,
+        ctx: AuthContext,
+        skill_ids: list[UUID],
+        *,
+        projected: Mapping[UUID, SkillBody] | None = None,
+    ) -> list[Skill]:
         """The enabled skills an agent is bound to.
 
         Scoped to the run's organization and **not** to the runner's own access,
@@ -337,10 +344,35 @@ class SkillService:
         """
         if not skill_ids:
             return []
-        found = await skill_repo.get_many(self.db, skill_ids, organization_id=ctx.organization_id)
+        virtual = {
+            key: body
+            for key, body in (projected or {}).items()
+            if body.name is not None and key in skill_ids
+        }
+        found = await skill_repo.get_many(
+            self.db,
+            [key for key in skill_ids if key not in virtual],
+            organization_id=ctx.organization_id,
+        )
         resolved = []
         for skill_id in skill_ids:
-            skill = found.get(skill_id)
+            body = virtual.get(skill_id)
+            skill = (
+                Skill(
+                    id=skill_id,
+                    organization_id=ctx.organization_id,
+                    name=body.name,
+                    description=body.description,
+                    content=body.content,
+                    resources=[],
+                    enabled=True,
+                    version=1,
+                    visibility=Visibility.PRIVATE.value,
+                    owner_user_id=ctx.user_id,
+                )
+                if body is not None
+                else found.get(skill_id)
+            )
             if skill is None or not skill.enabled:
                 logger.warning(
                     "Agent references skill %s which is disabled, deleted, or not org %s's",

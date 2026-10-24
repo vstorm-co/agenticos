@@ -84,10 +84,11 @@ export type Rejection =
   | "dismissed_before"
   | "unsupported"
   | "edit_not_in_diff"
-  | "superseded";
+  | "superseded"
+  | "insufficient_evidence";
 
 export interface RejectedChange {
-  kind: "instructions" | "tool_override" | "spec_field" | "finding";
+  kind: "instructions" | "tool_override" | "spec_field" | "create_skill" | "finding";
   reason: Rejection;
   /**
    * The change as proposed: passages, a tool's new text, a field's path and value,
@@ -150,7 +151,7 @@ export interface FieldEffect {
 
 export interface Hunk {
   id: string;
-  kind: "instructions" | "tool_override" | "spec_field";
+  kind: "instructions" | "tool_override" | "spec_field" | "create_skill";
   origin: AuthoringKind;
   status: HunkStatus;
   old_text: string;
@@ -174,7 +175,14 @@ export interface Hunk {
   /** Names of the models, collections, context files and servers it refers to. */
   names: Record<string, string>;
   /** Why Accept is refused for now: `check_first`, `check_outdated`, `inconclusive`, `regression` or `crashed`. */
-  blocked: "check_first" | "check_outdated" | "inconclusive" | "regression" | "crashed" | null;
+  blocked:
+    | "check_first"
+    | "check_outdated"
+    | "inconclusive"
+    | "regression"
+    | "crashed"
+    | "create_skill_permission"
+    | null;
   expected_effect: string;
   rationale: string;
   evidence: EvidenceItem[];

@@ -414,7 +414,11 @@ class ImprovementPipelineService:
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), hunks
         )
-        if skipped or spec_hash(projected) != selected.candidate_spec_hash:
+        if (
+            skipped
+            or spec_hash(projected, authoring_hunks.projected_skills(hunks))
+            != selected.candidate_spec_hash
+        ):
             raise ConcurrentChangeError(
                 message="The selected changes differ from the checked candidate; check them again"
             )
@@ -971,8 +975,12 @@ class ImprovementPipelineService:
             projected, kept = await self._candidate(
                 inputs.agent, run, iteration, filter_policy=True
             )
+            assert iteration.batch_id is not None
+            candidate_hash = spec_hash(
+                projected, await self.authoring.projected_skills(ctx, iteration.batch_id)
+            )
             await improvement_repo.update_iteration(
-                self.db, iteration=iteration, values={"candidate_spec_hash": spec_hash(projected)}
+                self.db, iteration=iteration, values={"candidate_spec_hash": candidate_hash}
             )
             previous = await improvement_repo.list_iterations(
                 self.db, organization_id=run.organization_id, run_id=run.id
@@ -980,7 +988,7 @@ class ImprovementPipelineService:
             repeated = any(
                 item.number < iteration.number
                 and item.eval_run_ids
-                and item.candidate_spec_hash == spec_hash(projected)
+                and item.candidate_spec_hash == candidate_hash
                 for item in previous
             )
             await self._move(
@@ -1136,6 +1144,7 @@ class ImprovementPipelineService:
             run.agent_id,
             request,
             candidate_spec=projected,
+            candidate_skills=await self.authoring.projected_skills(ctx, batch.id),
             baseline_spec=baseline,
             scoring=scoring,
             exclude_conversations=batch.evidence_conversation_ids,
@@ -1156,6 +1165,7 @@ class ImprovementPipelineService:
             run.agent_id,
             request,
             candidate_spec=projected,
+            candidate_skills=await self.authoring.projected_skills(ctx, batch.id),
             baseline_spec=baseline,
             scoring=scoring,
             exclude_conversations=batch.evidence_conversation_ids,
@@ -1394,6 +1404,7 @@ class ImprovementPipelineService:
                 run.agent_id,
                 self._eval_request(inputs, run),
                 candidate_spec=candidate,
+                candidate_skills=authoring_hunks.projected_skills([hunk]),
                 baseline_spec=baseline,
                 scoring=DatasetScoring.model_validate(run.pinned_scoring),
                 judge_version_id=run.judge_version_id,
@@ -1470,11 +1481,16 @@ class ImprovementPipelineService:
         )
         ids: dict[str, str] = {}
         for hunk_id, candidate, _ in changes:
+            hunk = await authoring_repo.get_hunk(
+                self.db, hunk_id, organization_id=run.organization_id
+            )
+            assert hunk is not None
             child = await self.evals.start(
                 ctx,
                 run.agent_id,
                 self._eval_request(inputs, run),
                 candidate_spec=candidate,
+                candidate_skills=authoring_hunks.projected_skills([hunk]),
                 baseline_spec=AgentSpec.model_validate(inputs.agent.draft_spec),
                 scoring=DatasetScoring.model_validate(run.pinned_scoring),
                 exclude_conversations=batch.evidence_conversation_ids,

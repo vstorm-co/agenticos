@@ -57,6 +57,7 @@ class Rejection(StrEnum):
     """A finding that an edit is supported, left with no evidence that could be checked."""
     EDIT_NOT_IN_DIFF = "edit_not_in_diff"
     """The line a finding names is not part of the edit; the finding is shown without it."""
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
     SUPERSEDED = "superseded"
     """A request started later had already replaced the suggestions."""
 
@@ -146,6 +147,26 @@ class FieldChange(BaseModel):
     evidence: list[EvidenceQuote] = Field(default_factory=list)
 
 
+class CreatedSkillBinding(BaseSchema):
+    """The resource created by Accept, retained across Undo to avoid duplicates."""
+
+    skill_id: UUID
+
+
+class NewSkillChange(BaseModel):
+    """A reusable procedure supported by at least three distinct evidence answers.
+
+    This carries written know-how only. It never grants capabilities or tools;
+    those require their own policy-checked configuration proposals.
+    """
+
+    name: str = Field(min_length=1, max_length=64)
+    description: str = Field(min_length=1, max_length=500)
+    content: str = Field(min_length=1, max_length=20_000)
+    rationale: str
+    evidence: list[EvidenceQuote] = Field(default_factory=list)
+
+
 class ImprovementProposal(BaseModel):
     """What the improver proposes for one agent."""
 
@@ -159,6 +180,7 @@ class ImprovementProposal(BaseModel):
     instructions: list[InstructionChange] = Field(default_factory=list)
     tools: list[ToolChange] = Field(default_factory=list)
     fields: list[FieldChange] = Field(default_factory=list)
+    new_skills: list[NewSkillChange] = Field(default_factory=list, max_length=4)
 
 
 class SkillImprovement(BaseModel):

@@ -10152,7 +10152,8 @@
         "instructions": "Instrukcje",
         "tool_override": "Narzędzie",
         "spec_field": "Ustawienie",
-        "finding": "Ustalenie"
+        "finding": "Ustalenie",
+        "create_skill": "Nowy skill"
       },
       "reason": {
         "unanchored": "Fragmentu, który zmienia, nie ma w instrukcjach",
@@ -10171,7 +10172,8 @@
         "dismissed_before": "Ktoś już ją wcześniej odrzucił",
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",
         "edit_not_in_diff": "Linii, którą wskazuje, nie ma w edycji",
-        "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie"
+        "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie",
+        "insufficient_evidence": "Nowy skill wymaga zweryfikowanych cytatów z co najmniej trzech różnych odpowiedzi."
       },
       "about": "Dotyczy: {line}"
     },
@@ -10206,6 +10208,11 @@
       "more": "{count, plural, one {Jeszcze # pytanie w pełnym sprawdzeniu} few {Jeszcze # pytania w pełnym sprawdzeniu} many {Jeszcze # pytań w pełnym sprawdzeniu} other {Jeszcze # pytania w pełnym sprawdzeniu}}",
       "allAnswers": "Otwórz pełne sprawdzenie",
       "problems": "{count, plural, one {# błędna odpowiedź w materiale źródłowym} few {# błędne odpowiedzi w materiale źródłowym} many {# błędnych odpowiedzi w materiale źródłowym} other {# błędnej odpowiedzi w materiale źródłowym}}"
+    },
+    "newSkill": {
+      "title": "Warto utworzyć skill",
+      "binding": "Akceptacja tworzy skill i przypina go do draftu. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Nic nie jest publikowane.",
+      "permission": "Możesz przejrzeć i sprawdzić tę propozycję. Utworzenie skilla wymaga uprawnienia skills:edit."
     }
   },
   "promotionGate": {

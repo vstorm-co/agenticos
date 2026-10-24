@@ -10252,7 +10252,8 @@
         "instructions": "Anweisungen",
         "tool_override": "Tool",
         "spec_field": "Einstellung",
-        "finding": "Befund"
+        "finding": "Befund",
+        "create_skill": "Neuer Skill"
       },
       "reason": {
         "unanchored": "Die Stelle, die sie ändert, steht nicht in den Anweisungen",
@@ -10271,7 +10272,8 @@
         "dismissed_before": "Jemand hat sie schon verworfen",
         "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",
         "edit_not_in_diff": "Die Zeile, die er nennt, gehört nicht zur Änderung",
-        "superseded": "Eine später gestartete Anfrage hatte die Vorschläge schon ersetzt"
+        "superseded": "Eine später gestartete Anfrage hatte die Vorschläge schon ersetzt",
+        "insufficient_evidence": "Ein neuer Skill benötigt geprüfte Textstellen aus mindestens drei verschiedenen Antworten."
       },
       "about": "Betrifft: {line}"
     },
@@ -10306,6 +10308,11 @@
       "more": "{count, plural, one {# weitere Frage in der vollständigen Prüfung} other {# weitere Fragen in der vollständigen Prüfung}}",
       "allAnswers": "Vollständige Prüfung öffnen",
       "problems": "{count, plural, one {# problematische Antwort in den Quellbelegen gefunden} other {# problematische Antworten in den Quellbelegen gefunden}}"
+    },
+    "newSkill": {
+      "title": "Ein Skill wäre sinnvoll",
+      "binding": "Annehmen erstellt diesen Skill und bindet ihn an den Draft. Er enthält Anweisungen und gewährt keine Tools. Nichts wird veröffentlicht.",
+      "permission": "Sie können diesen Vorschlag prüfen und testen. Das Erstellen erfordert skills:edit."
     }
   },
   "promotionGate": {

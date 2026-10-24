@@ -388,3 +388,11 @@ failing the run. The agent is less capable, not broken.
   nothing is re-checked at run time.
 - The **gallery** is seventy ready-made skills by industry, installed on request —
   unlike the bundled three, which arrive on their own.
+
+### Proposing a new skill { #proposing-a-new-skill }
+
+The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.
+
+**Accept** creates the private skill and binds it to the agent's draft in the same transaction. It requires `skills:edit` as well as edit access to the agent. Without creation permission the proposal remains readable and testable, but Accept explains why it is disabled. **Dismiss** creates nothing. **Undo** removes the binding and keeps the independent skill; accepting again reuses it only while its name and body still match. Skills contain written know-how and grant no tools. Additional tool access needs separate policy-checked proposals, with writing tools requiring approval.
+
+The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.

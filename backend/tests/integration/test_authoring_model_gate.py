@@ -5,11 +5,15 @@ Check with evals measures. Dismissing another suggestion or editing the draft
 makes the last check one of something else, so it no longer counts.
 """
 
+from decimal import Decimal
+
 import pytest
 
 from app.core.exceptions import BadRequestError
 from app.schemas.authoring import HunkDecision, ProposalCheck
+from app.schemas.dataset import DatasetCaseCreate, DatasetUpdate
 from app.services.authoring import AuthoringService
+from app.services.dataset import DatasetService
 from tests.integration.test_authoring import (
     COMMENT,
     _environment,  # noqa: F401 - the autouse fixture that scripts the improver's model
@@ -42,6 +46,18 @@ async def _model_and_window(db):
     )
     await _improve(db, ctx, agent, model)
     dataset = await _shop_dataset(db, ctx)
+    # A model gate needs the same minimum independent holdout as any proposal.
+    datasets = DatasetService(db)
+    await datasets.update(ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal(1)))
+    for index in range(5):
+        await datasets.add_case(
+            ctx,
+            dataset.id,
+            DatasetCaseCreate(
+                input=f"What is the return window for order {index}?",
+                checks=[{"type": "contains", "value": "30 days"}],
+            ),
+        )
     service = AuthoringService(db)
     batch = (await service.for_agent(ctx, agent.id)).batch
     assert batch is not None

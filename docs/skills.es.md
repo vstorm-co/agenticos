@@ -1,5 +1,5 @@
 ---
-source_sha: "9432053d80da"
+source_sha: "f6ac7e75e837"
 ---
 
 # Skills { #skills }
@@ -410,3 +410,11 @@ lugar de hacer fallar el run. El agent es menos capaz, no está roto.
   no se vuelve a comprobar nada en tiempo de ejecución.
 - La **galería** son setenta skills listos para usar por sector, instalados a
   petición — a diferencia de los tres incluidos, que llegan solos.
+
+### Proponer un skill nuevo { #proposing-a-new-skill }
+
+El asistente puede proponer **Worth creating a skill** cuando un procedimiento reutilizable aparece en al menos tres respuestas distintas de las evidencias. Cada cita debe figurar en la respuesta misma; los comentarios no demuestran por sí solos un procedimiento repetido. La tarjeta muestra nombre, descripción, contenido completo, motivo y citas verificadas. Una evaluación vincula un skill temporal solo al candidato: no crea ningún registro ni versión publicada.
+
+**Accept** crea el skill privado y lo vincula al borrador del agente en la misma transacción. Requiere `skills:edit` y acceso de edición al agente. Sin permiso de creación se puede leer y comprobar la propuesta, pero Accept queda deshabilitado y explica el motivo. **Dismiss** no crea nada. **Undo** elimina el vínculo y conserva el skill independiente; una nueva aceptación lo reutiliza solo si conserva su nombre y contenido. Los skills contienen instrucciones y no conceden herramientas. El acceso adicional necesita propuestas independientes verificadas por la política; las herramientas de escritura requieren aprobación.
+
+La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.

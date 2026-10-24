@@ -100,6 +100,7 @@ class HunkKind(StrEnum):
     INSTRUCTIONS = "instructions"
     TOOL_OVERRIDE = "tool_override"
     SPEC_FIELD = "spec_field"
+    CREATE_SKILL = "create_skill"
 
 
 class FieldOp(StrEnum):
@@ -362,7 +363,7 @@ class SpecProposalHunk(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('instructions', 'tool_override', 'spec_field')",
+            "kind IN ('instructions', 'tool_override', 'spec_field', 'create_skill')",
             name="ck_spec_proposal_hunk_kind",
         ),
         CheckConstraint(

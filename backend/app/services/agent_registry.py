@@ -114,6 +114,7 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
+from app.schemas.skill import SkillCreate
 from app.services import (
     agent_templates,
     authoring_fields,
@@ -3346,7 +3347,30 @@ class AgentRegistryService:
         if environment_id is not None:
             await self._environment_of(ctx, agent, environment_id)
         if isinstance(candidate, UnpublishedCandidate):
-            await self.validate_spec(ctx, candidate.spec, agent_id=agent.id)
+            virtual = {
+                key: body
+                for key, body in candidate.skill_bodies.items()
+                if body.name is not None and key in candidate.spec.skill_ids
+            }
+            for body in virtual.values():
+                SkillCreate.model_validate(
+                    {"name": body.name, "description": body.description, "content": body.content}
+                )
+            validation = candidate.spec.model_copy(
+                update={
+                    "skill_ids": [key for key in candidate.spec.skill_ids if key not in virtual]
+                }
+            )
+            await self.validate_spec(ctx, validation, agent_id=agent.id)
+            if virtual:
+                stored = await skill_repo.get_many(
+                    self.db, validation.skill_ids, organization_id=ctx.organization_id
+                )
+                names = [skill.name for skill in stored.values()] + [
+                    body.name for body in virtual.values()
+                ]
+                if len(names) != len(set(names)):
+                    raise BadRequestError(message="Projected skills must have distinct names")
             return agent, candidate.spec, None
         version = await agent_repo.get_version(
             self.db, candidate.version_id, organization_id=ctx.organization_id

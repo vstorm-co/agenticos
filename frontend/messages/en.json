@@ -10369,7 +10369,8 @@
         "instructions": "Instructions",
         "tool_override": "Tool",
         "spec_field": "Setting",
-        "finding": "Finding"
+        "finding": "Finding",
+        "create_skill": "New skill"
       },
       "reason": {
         "unanchored": "The passage it changes is not in the instructions",
@@ -10388,7 +10389,8 @@
         "dismissed_before": "Somebody dismissed it before",
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
         "edit_not_in_diff": "The line it names is not part of the edit",
-        "superseded": "A request started later had already replaced the suggestions"
+        "superseded": "A request started later had already replaced the suggestions",
+        "insufficient_evidence": "A new skill needs verified passages from at least three distinct answers."
       },
       "about": "About: {line}"
     },
@@ -10423,6 +10425,11 @@
       "more": "{count, plural, one {# more question in the full check} other {# more questions in the full check}}",
       "allAnswers": "Open the full check",
       "problems": "{count, plural, one {# problem answer found in the source evidence} other {# problem answers found in the source evidence}}"
+    },
+    "newSkill": {
+      "title": "Worth creating a skill",
+      "binding": "Accept creates this skill and binds it to the draft. It contains written know-how and grants no tools. Nothing is published.",
+      "permission": "You can review and test this proposal. Creating the skill requires skills:edit."
     }
   },
   "promotionGate": {

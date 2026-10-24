@@ -51,6 +51,8 @@ class SkillBody:
 
     description: str
     content: str
+    name: str | None = None
+    """A name marks a new skill projected for this run only, with no stored row."""
 
 
 def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkill:

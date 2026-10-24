@@ -316,3 +316,11 @@ After completion, `/{run_id}/rounds/{number}/select` makes a measured round the 
 Open **Improve** in the agent header or on the dashboard to start a session at `/agents/<agent>/improve/<session>`. The page can be closed and reopened while work continues. Choose test questions, review the complete estimate and confirm a spending limit before starting. Without questions, estimate and confirm writing a test set first; the baseline action tests today's answers. Advanced helper choices remain collapsed.
 
 A failed proposal or eval can be retried explicitly with `/{run_id}/retry`; repeated clicks do not create another child. Automatic job retries never repeat a paid call. Human decisions update the session to accepted, published or rejected. The confirmed `/{run_id}/finish` action accepts the selected checked changes and optionally publishes in the same transaction. It can offer a publish-triggered suite with zero allowed regressions. Normal permissions and publish validation still apply, and guarded environments wait for their checks. Changes edited since measurement must be checked again.
+
+### Proposing a new skill { #proposing-a-new-skill }
+
+The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.
+
+**Accept** creates the private skill and binds it to the agent's draft in the same transaction. It requires `skills:edit` as well as edit access to the agent. Without creation permission the proposal remains readable and testable, but Accept explains why it is disabled. **Dismiss** creates nothing. **Undo** removes the binding and keeps the independent skill; accepting again reuses it only while its name and body still match. Skills contain written know-how and grant no tools. Additional tool access needs separate policy-checked proposals, with writing tools requiring approval.
+
+The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.

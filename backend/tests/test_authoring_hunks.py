@@ -370,3 +370,43 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
         "edit_file": "required",
     }
     assert hunks.apply_field(spec, hunk, stored) == projected
+
+
+def test_identical_skill_proposals_keep_a_stable_candidate_identity_without_tool_grants():
+    from uuid import uuid4
+
+    from app.services.eval_run import spec_hash
+
+    data = {
+        "name": "return-procedure",
+        "description": "Returns",
+        "content": "Check the order and return window.",
+    }
+    first = _hunk(id=uuid4(), kind="create_skill", new_value=data)
+    repeated = _hunk(id=uuid4(), kind="create_skill", new_value=data)
+    before = _spec()
+    projected, skipped = hunks.projection(before, [first])
+    again, again_skipped = hunks.projection(before, [repeated])
+    assert skipped == again_skipped == []
+    assert projected.skill_ids == again.skill_ids
+    assert projected.capabilities == before.capabilities
+    assert spec_hash(projected, hunks.projected_skills([first])) == spec_hash(
+        again, hunks.projected_skills([repeated])
+    )
+    assert hunks.apply(projected, repeated) is None
+    assert (
+        hunks.projected_skills([_hunk(kind="create_skill", status="dismissed", new_value=data)])
+        == {}
+    )
+
+
+def test_undo_created_skill_requires_the_recorded_binding_to_still_exist():
+    from uuid import uuid4
+
+    key = uuid4()
+    accepted = _hunk(kind="create_skill", status="accepted", accepted_value={"skill_id": str(key)})
+    bound = _spec().model_copy(update={"skill_ids": [key]})
+    assert hunks.applies(bound, accepted)
+    assert hunks.undo_created_skill(bound, accepted).skill_ids == []
+    assert not hunks.applies(_spec(), accepted)
+    assert hunks.undo_created_skill(bound, _hunk(kind="create_skill", accepted_value=None)) is None

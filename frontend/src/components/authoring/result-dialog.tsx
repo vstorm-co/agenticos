@@ -20,6 +20,7 @@ import { expectedEffect } from "@/lib/authoring-text";
 import { ROUTES } from "@/lib/constants";
 import type { AuthoringRequest, Hunk, SuggestionBatch } from "@/types/authoring";
 import { EvidenceList } from "./evidence-list";
+import { NewSkillPreview } from "./new-skill-preview";
 import { FieldDiff } from "./field-change";
 import { RejectedChanges } from "./rejected-changes";
 
@@ -127,12 +128,15 @@ export function AuthoringResultDialog({
 export function ChangePreview({ hunk, quotes = true }: { hunk: Hunk; quotes?: boolean }) {
   const t = useTranslations("authoring.result");
   const ts = useTranslations("authoring.suggestion");
+  const tSkill = useTranslations("authoring.newSkill");
   const kind =
-    hunk.kind === "instructions"
-      ? ts("instructions")
-      : hunk.kind === "tool_override"
-        ? ts("tool", { tool: hunk.tool_id ?? "" })
-        : t("configuration");
+    hunk.kind === "create_skill"
+      ? tSkill("title")
+      : hunk.kind === "instructions"
+        ? ts("instructions")
+        : hunk.kind === "tool_override"
+          ? ts("tool", { tool: hunk.tool_id ?? "" })
+          : t("configuration");
   const before =
     hunk.kind === "tool_override"
       ? [hunk.base_name ?? hunk.tool_id, hunk.base_description].filter(Boolean).join("\n")
@@ -152,7 +156,9 @@ export function ChangePreview({ hunk, quotes = true }: { hunk: Hunk; quotes?: bo
         <Badge variant="secondary">{kind}</Badge>
         {!hunk.applies && <Badge variant="warning">{ts("stale")}</Badge>}
       </div>
-      {hunk.kind === "spec_field" ? (
+      {hunk.kind === "create_skill" ? (
+        <NewSkillPreview hunk={hunk} />
+      ) : hunk.kind === "spec_field" ? (
         <FieldDiff hunk={hunk} editing={null} />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">

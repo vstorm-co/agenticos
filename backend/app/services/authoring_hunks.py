@@ -30,11 +30,14 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from app.agents.capabilities import ToolOverride
+from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
 from app.db.models.authoring import HunkKind, HunkStatus, SpecProposalHunk
 from app.schemas.authoring import InstructionChange, Rejection
+from app.schemas.skill import SkillCreate
 from app.services import authoring_fields
 
 CONTEXT_CHARS = 60
@@ -295,6 +298,11 @@ def apply(spec: AgentSpec, hunk: SpecProposalHunk, *, text: str | None = None) -
 
     `text` replaces an instructions hunk's proposed text - the person's edit of it.
     """
+    if hunk.kind == HunkKind.CREATE_SKILL.value:
+        key = skill_projection_id(hunk)
+        if key in spec.skill_ids:
+            return None
+        return spec.model_copy(update={"skill_ids": [*spec.skill_ids, key]})
     if hunk.kind == HunkKind.SPEC_FIELD.value:
         return apply_field(spec, hunk, hunk.new_value)
     if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
@@ -304,9 +312,42 @@ def apply(spec: AgentSpec, hunk: SpecProposalHunk, *, text: str | None = None) -
     return None if instructions is None else spec.model_copy(update={"instructions": instructions})
 
 
+def skill_projection_id(hunk: SpecProposalHunk) -> UUID:
+    """Stable across repeated identical proposals, so loop detection remains meaningful."""
+    data = SkillCreate.model_validate(hunk.new_value)
+    return uuid5(
+        NAMESPACE_URL, f"agenticos:proposed-skill:{data.name}:{data.description}:{data.content}"
+    )
+
+
+def projected_skills(hunks: Sequence[SpecProposalHunk]) -> dict[UUID, SkillBody]:
+    """Bodies of pending new skills, keyed by their proposal identity, without a write."""
+    bodies: dict[UUID, SkillBody] = {}
+    for hunk in hunks:
+        if hunk.kind == HunkKind.CREATE_SKILL and hunk.status == HunkStatus.PENDING:
+            skill = SkillCreate.model_validate(hunk.new_value)
+            bodies[skill_projection_id(hunk)] = SkillBody(
+                name=skill.name, description=skill.description, content=skill.content
+            )
+    return bodies
+
+
+def undo_created_skill(spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec | None:
+    """Unbind the skill Accept created; keep the independent resource for its owner."""
+    value = hunk.accepted_value
+    if not isinstance(value, dict) or not isinstance(value.get("skill_id"), str):
+        return None
+    skill_id = UUID(value["skill_id"])
+    if skill_id not in spec.skill_ids:
+        return None
+    return spec.model_copy(update={"skill_ids": [key for key in spec.skill_ids if key != skill_id]})
+
+
 def applies(spec: AgentSpec, hunk: SpecProposalHunk) -> bool:
     """Whether a pending hunk still applies, or an accepted one can still be undone."""
     if hunk.status == HunkStatus.ACCEPTED.value:
+        if hunk.kind == HunkKind.CREATE_SKILL.value:
+            return undo_created_skill(spec, hunk) is not None
         if hunk.kind == HunkKind.SPEC_FIELD.value:
             return undo_field(spec, hunk) is not None
         if hunk.kind == HunkKind.TOOL_OVERRIDE.value:

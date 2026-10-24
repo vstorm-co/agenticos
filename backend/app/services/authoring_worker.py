@@ -70,6 +70,7 @@ from app.schemas.authoring import (
     FieldChange,
     ImprovementProposal,
     InstructionChange,
+    NewSkillChange,
     Rejection,
     RunFindings,
     SkillImprovement,
@@ -77,6 +78,7 @@ from app.schemas.authoring import (
     VerifyFinding,
     VerifyReport,
 )
+from app.schemas.skill import SkillCreate, skill_name_refusal
 from app.services import authoring_hunks
 from app.services.access import AGENT, CONTEXT, SKILL, resolve_access
 from app.services.api_key import job_context
@@ -199,6 +201,10 @@ def _improve_prompt(
         f"# Its current instructions\n<instructions>\n{spec.instructions}\n</instructions>\n\n"
         f"# Its tools (capability_id / tool_id: name - description)\n{tools or '(none)'}\n\n"
         f"{configuration}\n\n"
+        "Propose a new skill only for a reusable procedure repeated in at least three "
+        "distinct answers. Cite exact passages from those answers. Skills contain written "
+        "instructions only: they cannot grant tools or widen access. Propose any required "
+        "capability changes separately, with writing tools requiring approval.\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
     )
 
@@ -496,13 +502,17 @@ class AuthoringRun:
             *self._instruction_hunks(spec, pack, proposal.instructions, HunkOrigin.IMPROVE),
             *self._tool_hunks(spec, pack, proposal.tools, HunkOrigin.IMPROVE),
             *await self._field_hunks(agent.id, spec, pack, proposal.fields, HunkOrigin.IMPROVE),
+            *self._new_skill_hunks(pack, proposal.new_skills),
         ]
         recorded = await self._supersede_with(agent.id, pack, proposal.expected_effect, hunks)
         await self._finish(
             {
                 "summary": proposal.summary,
                 "expected_effect": proposal.expected_effect,
-                "proposed": len(proposal.instructions) + len(proposal.tools) + len(proposal.fields),
+                "proposed": len(proposal.instructions)
+                + len(proposal.tools)
+                + len(proposal.fields)
+                + len(proposal.new_skills),
                 "recorded": recorded,
                 **self._rejections(),
             }
@@ -688,6 +698,48 @@ class AuthoringRun:
                 "Nothing to learn from yet: no run in this window was rated or failed. "
                 "Widen the window, or come back once people have rated some answers."
             )
+
+    def _new_skill_hunks(
+        self, pack: EvidencePack, changes: Sequence[NewSkillChange]
+    ) -> list[dict[str, object]]:
+        hunks: list[dict[str, object]] = []
+        for change in changes:
+            kept, dropped = pack.verify(change.evidence)
+            answers = {run.run_id: run.answer for run in pack.runs}
+            cited = {
+                item["run_id"]
+                for item in kept
+                if authoring_hunks.mentions(answers[UUID(item["run_id"])], item["quote"])
+            }
+            refusal = (
+                Rejection.INSUFFICIENT_EVIDENCE
+                if len(cited) < 3
+                else (Rejection.INVALID_CONFIG if skill_name_refusal(change.name) else None)
+            )
+            if refusal is not None:
+                self._reject(
+                    HunkKind.CREATE_SKILL,
+                    refusal,
+                    {"name": change.name, "rationale": change.rationale},
+                )
+                continue
+            skill = SkillCreate(
+                name=change.name, description=change.description, content=change.content
+            )
+            hunks.append(
+                {
+                    "kind": HunkKind.CREATE_SKILL.value,
+                    "origin": HunkOrigin.IMPROVE.value,
+                    "new_name": skill.name,
+                    "new_description": skill.description,
+                    "new_text": skill.content,
+                    "new_value": skill.model_dump(mode="json"),
+                    "rationale": change.rationale,
+                    "evidence": kept,
+                    "evidence_dropped": dropped,
+                }
+            )
+        return hunks
 
     def _instruction_hunks(
         self,

@@ -7,6 +7,7 @@ import { Badge, Button, Card, CardContent, Textarea } from "@/components/ui";
 import type { Hunk, HunkDecision } from "@/types/authoring";
 import { EvidenceList } from "./evidence-list";
 import { FieldDiff, editable, fieldLabel, parsed } from "./field-change";
+import { NewSkillPreview } from "./new-skill-preview";
 import { TextDiff } from "./text-diff";
 
 /**
@@ -31,10 +32,12 @@ export function SuggestionCard({
   const t = useTranslations("authoring.suggestion");
   const tField = useTranslations("authoring.field");
   const [editing, setEditing] = useState<string | null>(null);
+  const tSkill = useTranslations("authoring.newSkill");
+  const newSkill = hunk.kind === "create_skill";
   const tool = hunk.kind === "tool_override";
   const field = hunk.kind === "spec_field";
   const pending = hunk.status === "pending";
-  const editableAs = field ? editable(hunk.path) : "text";
+  const editableAs = newSkill ? null : field ? editable(hunk.path) : "text";
   const proposed = field ? String(hunk.new_value ?? "") : hunk.new_text;
   const accepting = (): HunkDecision =>
     editing === null
@@ -48,11 +51,13 @@ export function SuggestionCard({
       <CardContent className="space-y-3 pt-4">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">
-            {field
-              ? fieldLabel(hunk, tField)
-              : tool
-                ? t("tool", { tool: hunk.tool_id ?? "" })
-                : t("instructions")}
+            {newSkill
+              ? tSkill("title")
+              : field
+                ? fieldLabel(hunk, tField)
+                : tool
+                  ? t("tool", { tool: hunk.tool_id ?? "" })
+                  : t("instructions")}
           </Badge>
           {hunk.origin === "verify" && <Badge variant="outline">{t("fromVerify")}</Badge>}
           {hunk.status !== "pending" && (
@@ -62,7 +67,9 @@ export function SuggestionCard({
             <Badge variant="warning">{t("stale")}</Badge>
           )}
         </div>
-        {field ? (
+        {newSkill ? (
+          <NewSkillPreview hunk={hunk} />
+        ) : field ? (
           <FieldDiff hunk={hunk} editing={editing} onEdit={setEditing} />
         ) : tool ? (
           <div className="space-y-2">

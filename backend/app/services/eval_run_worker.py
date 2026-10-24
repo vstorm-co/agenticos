@@ -123,7 +123,11 @@ type Sessions = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 def _candidate(arm: EvalRunArm) -> Candidate:
     bodies = {
-        UUID(skill_id): SkillBody(description=body["description"], content=body["content"])
+        UUID(skill_id): SkillBody(
+            description=body["description"],
+            content=body["content"],
+            name=TypeAdapter(str | None).validate_python(body.get("name")),
+        )
         for skill_id, body in (arm.skill_bodies or {}).items()
     }
     contexts = {

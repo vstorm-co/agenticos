@@ -28,6 +28,7 @@ from app.schemas.authoring import (
     Finding,
     ImprovementProposal,
     InstructionChange,
+    NewSkillChange,
     RunFindings,
     SkillImprovement,
     ToolChange,
@@ -39,7 +40,15 @@ from app.services import authoring_fields
 pytestmark = pytest.mark.security
 
 ANSWERS = {
-    ImprovementProposal: {"summary", "expected_effect", "instructions", "tools", "fields"},
+    ImprovementProposal: {
+        "summary",
+        "expected_effect",
+        "instructions",
+        "tools",
+        "fields",
+        "new_skills",
+    },
+    NewSkillChange: {"name", "description", "content", "rationale", "evidence"},
     VerifyReport: {"findings", "instructions", "tools", "fields"},
     FieldChange: {"path", "op", "value", "rationale", "expected_effect", "evidence"},
     InstructionChange: {"old_text", "new_text", "after", "rationale", "evidence"},
@@ -102,13 +111,21 @@ SPEC_FIELDS = {
 
 
 def test_a_hunk_changes_instructions_a_tool_or_one_allowed_field_only():
-    assert {kind.value for kind in HunkKind} == {"instructions", "tool_override", "spec_field"}
+    assert {kind.value for kind in HunkKind} == {
+        "instructions",
+        "tool_override",
+        "spec_field",
+        "create_skill",
+    }
     (check,) = [
         constraint
         for constraint in SpecProposalHunk.__table__.constraints
         if constraint.name == "spec_proposal_hunks_ck_spec_proposal_hunk_kind_check"
     ]
-    assert str(check.sqltext) == "kind IN ('instructions', 'tool_override', 'spec_field')"
+    assert (
+        str(check.sqltext)
+        == "kind IN ('instructions', 'tool_override', 'spec_field', 'create_skill')"
+    )
     assert set(ToolOverride.model_fields) == {"name", "description"}
     assert {op.value for op in FieldOp} == {"set", "add", "remove"}
 

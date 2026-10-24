@@ -1,5 +1,5 @@
 ---
-source_sha: "f40c0d7b0a8d"
+source_sha: "0e9485534ad3"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -338,3 +338,11 @@ Tras finalizar, `/{run_id}/rounds/{number}/select` convierte una ronda medida en
 Abra **Improve** en la cabecera del agente o en el dashboard para iniciar una sesión en `/agents/<agent>/improve/<session>`. Puede cerrar la página y volver mientras continúa el trabajo. Elija preguntas, revise la estimación completa y confirme un límite de gasto antes de empezar. Si no hay preguntas, estime y confirme primero su preparación; la acción de referencia comprueba las respuestas actuales. Las opciones avanzadas de agentes auxiliares permanecen plegadas.
 
 Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}/retry`; varios clics no crean otro trabajo. Los reintentos automáticos nunca repiten llamadas pagadas. Las decisiones humanas actualizan la sesión a aceptada, publicada o descartada. La acción confirmada `/{run_id}/finish` acepta los cambios comprobados y opcionalmente los publica en una transacción. Puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales; los entornos protegidos esperan sus comprobaciones. Las propuestas editadas después de la medición deben comprobarse de nuevo.
+
+### Proponer un skill nuevo { #proposing-a-new-skill }
+
+El asistente puede proponer **Worth creating a skill** cuando un procedimiento reutilizable aparece en al menos tres respuestas distintas de las evidencias. Cada cita debe figurar en la respuesta misma; los comentarios no demuestran por sí solos un procedimiento repetido. La tarjeta muestra nombre, descripción, contenido completo, motivo y citas verificadas. Una evaluación vincula un skill temporal solo al candidato: no crea ningún registro ni versión publicada.
+
+**Accept** crea el skill privado y lo vincula al borrador del agente en la misma transacción. Requiere `skills:edit` y acceso de edición al agente. Sin permiso de creación se puede leer y comprobar la propuesta, pero Accept queda deshabilitado y explica el motivo. **Dismiss** no crea nada. **Undo** elimina el vínculo y conserva el skill independiente; una nueva aceptación lo reutiliza solo si conserva su nombre y contenido. Los skills contienen instrucciones y no conceden herramientas. El acceso adicional necesita propuestas independientes verificadas por la política; las herramientas de escritura requieren aprobación.
+
+La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.

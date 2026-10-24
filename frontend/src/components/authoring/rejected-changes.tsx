@@ -56,11 +56,13 @@ function Proposed({ item }: { item: RejectedChange }) {
     );
   }
   const subject =
-    item.kind === "tool_override"
-      ? `${change.capability_id} / ${change.tool_id}`
-      : item.kind === "spec_field"
-        ? `${change.op} ${change.path}`
-        : change.old_text || (change.after ? t("after", { passage: change.after }) : t("atEnd"));
+    item.kind === "create_skill"
+      ? change.name
+      : item.kind === "tool_override"
+        ? `${change.capability_id} / ${change.tool_id}`
+        : item.kind === "spec_field"
+          ? `${change.op} ${change.path}`
+          : change.old_text || (change.after ? t("after", { passage: change.after }) : t("atEnd"));
   const proposed =
     item.kind === "tool_override"
       ? [change.name, change.description].filter(Boolean).join(" - ")

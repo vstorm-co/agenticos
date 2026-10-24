@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Propose reusable skills from three verified evidence answers, test them as
+  temporary candidate resources, and create and bind them only after an
+  authorized human accepts.
+
 - Open resumable improvement sessions, compare rounds, confirm per-change
   attribution costs, retry failed steps explicitly, and accept or publish checked
   changes in one human-confirmed transaction.

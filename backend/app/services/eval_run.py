@@ -38,7 +38,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -177,7 +177,13 @@ def _bodies_json(
     bodies: Mapping[UUID, SkillBody] | Mapping[UUID, ContextBody],
 ) -> dict[str, dict[str, str | None]]:
     return {
-        str(key): {"description": body.description, "content": body.content}
+        str(key): {
+            "description": body.description,
+            "content": body.content,
+            **(
+                {"name": body.name} if isinstance(body, SkillBody) and body.name is not None else {}
+            ),
+        }
         for key, body in bodies.items()
     }
 
@@ -503,6 +509,7 @@ class EvalRunService:
                     ctx,
                     agent,
                     role=ArmRole.CANDIDATE,
+                    projected_skills=candidate_skills,
                     source=source,
                     version=version,
                     spec=spec,
@@ -732,7 +739,11 @@ class EvalRunService:
             model_label=arm.model_label,
             cached=(arm, run),
             skill_bodies={
-                UUID(key): SkillBody(description=body["description"], content=body["content"])
+                UUID(key): SkillBody(
+                    description=body["description"],
+                    content=body["content"],
+                    name=TypeAdapter(str | None).validate_python(body.get("name")),
+                )
                 for key, body in (arm.skill_bodies or {}).items()
             },
             context_bodies={
@@ -867,6 +878,7 @@ class EvalRunService:
         spec: AgentSpec,
         model_profile_id: UUID | None,
         environment_id: UUID | None,
+        projected_skills: Mapping[UUID, SkillBody] | None = None,
     ) -> ArmPlan:
         """One arm, checked now rather than at its first case.
 
@@ -876,7 +888,9 @@ class EvalRunService:
         written, not after it has been estimated and consented to.
         """
         candidate = (
-            PublishedCandidate(version.id) if version is not None else UnpublishedCandidate(spec)
+            PublishedCandidate(version.id)
+            if version is not None
+            else UnpublishedCandidate(spec, skill_bodies=projected_skills or {})
         )
         try:
             await self.registry.get_candidate_spec(
@@ -1141,6 +1155,32 @@ class EvalRunService:
                 return Decimal(priced).quantize(_CENT), False
         return settings.EVAL_FALLBACK_CASE_COST_USD, False
 
+    async def _projected_input_cost(self, ctx: AuthContext, arm: ArmPlan) -> Decimal:
+        """Reserve the proposed bodies in addition to the historical case price.
+
+        A new skill may be opened during the check, so estimate its whole body.
+        Unpriced models use the same fallback rate as an ordinary eval case.
+        """
+        chars = sum(
+            len(body.content) + len(body.description or "")
+            for body in [*arm.skill_bodies.values(), *arm.context_bodies.values()]
+        )
+        if not chars:
+            return Decimal(0)
+        tokens = (chars + 3) // 4
+        if arm.model_profile_id is not None:
+            model = await self.models.resolve(ctx, profile_id=arm.model_profile_id)
+            priced = price_request(
+                RunUsage(input_tokens=tokens, output_tokens=0), model.model, model.provider
+            )
+            if priced is not None:
+                return Decimal(priced).quantize(_CENT)
+        return (
+            settings.EVAL_FALLBACK_CASE_COST_USD
+            * Decimal(tokens)
+            / settings.EVAL_FALLBACK_INPUT_TOKENS
+        ).quantize(_CENT)
+
     async def _estimate(self, ctx: AuthContext, plan: RunPlan) -> EvalRunEstimate:
         cases = len(plan.cases)
         arms: list[ArmEstimate] = []
@@ -1150,6 +1190,7 @@ class EvalRunService:
             per_case, known = await self._per_case(
                 ctx, plan.agent.id, arm.model_label, arm.model_profile_id
             )
+            per_case += await self._projected_input_cost(ctx, arm)
             # A reused arm's first answers are free, but a case that flips is
             # asked of it again in this run.
             rerun_per_case += per_case
