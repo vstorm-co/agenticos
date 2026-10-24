@@ -76,9 +76,16 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
-def no_project_recovery_copies(monkeypatch, mock_db_session):
-    mock_db_session.begin_nested = MagicMock(return_value=MagicMock())
+def no_project_recovery_copies(monkeypatch):
     monkeypatch.setattr(workspace_repo, "project_recovery_candidates", AsyncMock(return_value=[]))
+
+
+@pytest.fixture
+def mock_db_session() -> AsyncMock:
+    session = AsyncMock()
+    session.info = {}
+    session.begin_nested = MagicMock(return_value=MagicMock())
+    return session
 
 
 def _ctx(organization_id: UUID | None = None) -> AuthContext:
