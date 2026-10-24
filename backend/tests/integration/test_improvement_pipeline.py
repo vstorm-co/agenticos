@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
@@ -16,6 +16,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.db.models.authoring import AuthoringRequest
+from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.db.models.organization import OrganizationMember
@@ -149,6 +150,22 @@ async def _ready_proposal(db):
 
 async def test_ready_proposal_survives_repeated_transitions_without_changing_the_agent(db):
     await _ready_proposal(db)
+
+
+async def test_failed_paid_attempt_does_not_spend_the_confirming_measurement(db):
+    ctx, _, read = await _ready_proposal(db)
+    ids = read.iterations[0].eval_run_ids
+    assert (
+        await improvement_repo.completed_checks(db, ids, organization_id=ctx.organization_id) == 1
+    )
+    assert await improvement_repo.completed_checks(db, ids, organization_id=uuid4()) == 0
+    child = await db.get(EvalRun, ids[0])
+    child.status = "failed"
+    await db.flush()
+    assert (
+        await improvement_repo.completed_checks(db, ids, organization_id=ctx.organization_id) == 0
+    )
+    assert await improvement_repo.completed_checks(db, [], organization_id=ctx.organization_id) == 0
 
 
 async def test_confirmed_finish_accepts_and_publishes_through_normal_path(db):

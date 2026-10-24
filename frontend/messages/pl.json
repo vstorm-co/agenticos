@@ -10571,6 +10571,9 @@
     "answerCost": "Koszt odpowiedzi: {before} przed → {after} po.",
     "noChangedQuestions": "Nie ma zmienionych odpowiedzi do pokazania. Otwórz pełne sprawdzenie, aby zobaczyć pozostałe odpowiedzi.",
     "previousStep": "Poprzedni krok",
-    "nextStep": "Następny krok"
+    "nextStep": "Następny krok",
+    "measurementDetails": "Pokaż szczegóły pomiaru",
+    "attributionUnavailable": "To sprawdzenie nie dało użytecznego wyniku. Otwórz je, aby zobaczyć przyczynę.",
+    "blockedChanges": "Niektórych wybranych zmian nie można zaakceptować z Twoimi uprawnieniami. Sprawdź je w kroku Zmiany."
   }
 }

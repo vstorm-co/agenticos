@@ -10671,6 +10671,9 @@
     "answerCost": "Kosten pro Antwort: {before} vorher → {after} nachher.",
     "noChangedQuestions": "Keine veränderten Antworten anzuzeigen. Öffnen Sie die vollständige Prüfung für unveränderte oder unbewertete Antworten.",
     "previousStep": "Vorheriger Schritt",
-    "nextStep": "Nächster Schritt"
+    "nextStep": "Nächster Schritt",
+    "measurementDetails": "Messdetails anzeigen",
+    "attributionUnavailable": "Diese Prüfung hat kein verwertbares Ergebnis geliefert. Öffne sie, um den Grund zu sehen.",
+    "blockedChanges": "Einige ausgewählte Änderungen können mit deinen aktuellen Berechtigungen nicht übernommen werden. Prüfe sie unter Änderungen."
   }
 }

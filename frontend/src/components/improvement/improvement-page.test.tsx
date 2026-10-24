@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Improvement } from "@/types/improvement";
 import { ImprovementPage } from "./improvement-page";
+import { hunk } from "@/test-utils/authoring";
+import type { Hunk } from "@/types/authoring";
 const actions = vi.hoisted(() => ({
   cancel: { mutateAsync: vi.fn(), isPending: false },
   retry: { mutateAsync: vi.fn(), isPending: false },
@@ -16,6 +18,7 @@ const state = vi.hoisted(() => ({
   runs: true,
   publish: true,
   session: null as Improvement | null,
+  hunks: [] as Hunk[],
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgent: () => ({
@@ -23,7 +26,9 @@ vi.mock("@/hooks/use-agents", () => ({
   }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => state.runs }) }));
-vi.mock("@/hooks/use-authoring", () => ({ useAgentAuthoring: () => ({ authoring: null }) }));
+vi.mock("@/hooks/use-authoring", () => ({
+  useAgentAuthoring: () => ({ authoring: { batch: { id: "b1", hunks: state.hunks } } }),
+}));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovement: () => ({
     ...actions,
@@ -43,6 +48,7 @@ beforeEach(() => {
   state.edit = true;
   state.runs = true;
   state.publish = true;
+  state.hunks = [];
   state.session = {
     id: "s1",
     agent_id: "a1",
@@ -84,6 +90,18 @@ beforeEach(() => {
       },
     ],
   };
+});
+it("blocks finishing when a selected new skill requires missing access", async () => {
+  state.hunks = [hunk({ kind: "create_skill", blocked: "create_skill_permission" })];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(
+    screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(/current access/);
+  expect(screen.getByRole("button", { name: "Accept and publish" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Keep as draft" })).toBeDisabled();
+  expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
 });
 it("reopens the result and requires confirmation before publishing", async () => {
   render(<ImprovementPage agentId="a1" sessionId="s1" />);

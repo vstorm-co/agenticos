@@ -156,7 +156,14 @@ function MeasuredResult({
     <div className="space-y-4">
       {run.review && <ReviewReevaluationNote review={run.review} />}
       {run.proposal_check?.measurement && (
-        <ImprovementMeasurement measurement={run.proposal_check.measurement} />
+        <details className="rounded-lg border p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            {t("measurementDetails")}
+          </summary>
+          <div className="mt-3">
+            <ImprovementMeasurement measurement={run.proposal_check.measurement} />
+          </div>
+        </details>
       )}
       {comparisonError && <p role="alert">{getErrorMessage(comparisonError, tErrors)}</p>}
       {comparison && (
@@ -212,7 +219,7 @@ function MeasuredResult({
 }
 function AttributionResult({ runId, agentId }: { runId: string; agentId: string }) {
   const { run, error } = useEvalRun(runId);
-  const { comparison } = useEvalComparison(runId, {
+  const { comparison, error: comparisonError } = useEvalComparison(runId, {
     live: run?.status === "running" || run?.status === "queued",
   });
   const t = useTranslations("improvement");
@@ -220,7 +227,9 @@ function AttributionResult({ runId, agentId }: { runId: string; agentId: string 
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   return (
     <div className="space-y-2 text-sm">
-      {run?.status !== "completed" ? (
+      {comparisonError || (run && !["queued", "running", "completed"].includes(run.status)) ? (
+        <p role="alert">{t("attributionUnavailable")}</p>
+      ) : run?.status !== "completed" ? (
         <p>{t("working")}</p>
       ) : (
         comparison?.cases

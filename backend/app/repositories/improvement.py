@@ -215,6 +215,25 @@ async def update_iteration(
     return iteration
 
 
+async def completed_checks(
+    db: AsyncSession, eval_run_ids: list[UUID], *, organization_id: UUID
+) -> int:
+    """Count measurements, excluding explicit retries of failed paid children."""
+    from app.db.models.eval_run import EvalRun, EvalRunStatus
+
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(EvalRun)
+            .where(
+                EvalRun.id.in_(eval_run_ids),
+                EvalRun.organization_id == organization_id,
+                EvalRun.status == EvalRunStatus.COMPLETED.value,
+            )
+        )
+    ) or 0
+
+
 async def timeline(
     db: AsyncSession, run_id: UUID, *, organization_id: UUID
 ) -> list[AppAdminAuditLog]:

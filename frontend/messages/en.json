@@ -10788,6 +10788,9 @@
     "answerCost": "Cost per answer: {before} before → {after} after.",
     "noChangedQuestions": "No changed questions to show. Open the full check for unchanged or ungraded answers.",
     "previousStep": "Previous step",
-    "nextStep": "Next step"
+    "nextStep": "Next step",
+    "measurementDetails": "Show measurement details",
+    "attributionUnavailable": "This check did not produce a usable result. Open it to see why.",
+    "blockedChanges": "Some selected changes cannot be accepted with your current access. Review them in Changes."
   }
 }

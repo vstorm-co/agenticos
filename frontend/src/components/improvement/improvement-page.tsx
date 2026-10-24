@@ -101,6 +101,9 @@ function Session({
   const active = ["queued", "running"].includes(session.status);
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
   const selectedBatch = authoring?.batch?.id === chosen?.batch_id ? authoring?.batch : null;
+  const blockedChanges = selectedBatch?.hunks.some(
+    (hunk) => hunk.status === "pending" && hunk.blocked !== null,
+  );
   return (
     <div className="space-y-6">
       <div data-tour="improvement-steps">
@@ -206,6 +209,11 @@ function Session({
           <p className="text-sm">{t("acceptBody")}</p>
           {session.status === "ready" && (
             <>
+              {blockedChanges && (
+                <p role="alert" className="text-warning text-sm">
+                  {t("blockedChanges")}
+                </p>
+              )}
               <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -225,7 +233,7 @@ function Session({
               <div className="flex flex-wrap gap-3">
                 <Button
                   variant="outline"
-                  disabled={!confirm || actions.finish.isPending}
+                  disabled={!confirm || blockedChanges || actions.finish.isPending}
                   onClick={() =>
                     void act(async () => {
                       await actions.finish.mutateAsync({
@@ -240,7 +248,7 @@ function Session({
                 </Button>
                 {canPublish && (
                   <Button
-                    disabled={!confirm || actions.finish.isPending}
+                    disabled={!confirm || blockedChanges || actions.finish.isPending}
                     onClick={() =>
                       void act(async () => {
                         await actions.finish.mutateAsync({

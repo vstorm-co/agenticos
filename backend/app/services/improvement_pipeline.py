@@ -1254,7 +1254,13 @@ class ImprovementPipelineService:
         await self._audit(run, "verdict")
         transition = rules.after_judging(
             verdict,
-            reruns_used=len(iteration.eval_run_ids) - 1,
+            reruns_used=max(
+                0,
+                await improvement_repo.completed_checks(
+                    self.db, iteration.eval_run_ids, organization_id=run.organization_id
+                )
+                - 1,
+            ),
             spent=await improvement_repo.spent(
                 self.db, run.id, organization_id=run.organization_id
             ),

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useEvalCases, useEvalComparison } from "@/hooks/use-eval-runs";
+import { useEvalCases, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 
 /** Changed held-out questions, with answers and the grading that explains the change. */
@@ -75,12 +75,15 @@ export function ChangedAnswers({
 }
 function ChangeCause({ caseId, runId, number }: { caseId: string; runId: string; number: number }) {
   const t = useTranslations("improvement");
-  const { comparison, error } = useEvalComparison(runId, { live: true });
+  const { run, error: runError } = useEvalRun(runId);
+  const { comparison, error } = useEvalComparison(runId, {
+    live: run?.status === "queued" || run?.status === "running",
+  });
   const item = comparison?.cases.find((c) => c.case_id === caseId);
   return (
     <p className="text-muted-foreground">
       {t(
-        error
+        error || runError || (run && !["queued", "running", "completed"].includes(run.status))
           ? "attributionFailed"
           : !comparison
             ? "attributionWorking"
