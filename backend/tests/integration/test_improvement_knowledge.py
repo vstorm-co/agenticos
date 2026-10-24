@@ -67,16 +67,19 @@ async def _world(db, *, knowledge_search=False):
     )
     await db.flush()
     service = ImprovementPipelineService(db)
-    started = await service.start(
-        ctx,
-        agent.id,
-        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
-    )
-    with patch(
-        "tests.integration.test_improvement_pipeline._started",
-        new=AsyncMock(return_value=(ctx, agent, dataset, started)),
+    with patch.object(
+        ImprovementPipelineService, "_knowledge_sources", new=AsyncMock(return_value=([], [], []))
     ):
-        _, _, ready = await _ready_proposal(db)
+        started = await service.start(
+            ctx,
+            agent.id,
+            ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
+        )
+        with patch(
+            "tests.integration.test_improvement_pipeline._started",
+            new=AsyncMock(return_value=(ctx, agent, dataset, started)),
+        ):
+            _, _, ready = await _ready_proposal(db)
     target = KnowledgeCheckTarget(
         topic_id=topic_id, round=1, case_ids=[case.case_id for case in cases]
     )

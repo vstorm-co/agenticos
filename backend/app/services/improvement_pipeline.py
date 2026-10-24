@@ -33,7 +33,7 @@ from app.core.exceptions import (
     NotFoundError,
     PaymentRequiredError,
 )
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import AuthoringStatus, BatchStatus, HunkKind, HunkStatus
 from app.db.models.improvement import (
@@ -57,6 +57,9 @@ from app.repositories import (
     knowledge_base_repo,
     knowledge_gap_repo,
     organization_repo,
+)
+from app.repositories import (
+    background_job as background_job_repo,
 )
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
 from app.schemas.eval_run import (
@@ -95,7 +98,7 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import MAX_EVIDENCE_RUNS
 from app.services.background_jobs import enqueue
-from app.services.collection_access import readable_kb
+from app.services.collection_access import readable_kb, writable_kb
 from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
@@ -103,7 +106,14 @@ from app.services.eval_suite import EvalSuiteService
 from app.services.improvement_data import input_hash
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
-from app.worker.jobs import ADVANCE_IMPROVEMENT, AdvanceImprovement
+from app.worker.jobs import (
+    ADVANCE_IMPROVEMENT,
+    CLASSIFY_GAPS,
+    DRAFT_GAPS,
+    AdvanceImprovement,
+    ClassifyGaps,
+    DraftGaps,
+)
 
 
 @dataclass(frozen=True)
@@ -227,8 +237,189 @@ class ImprovementPipelineService:
             None if version is None else version.id,
         )
 
+    async def knowledge_sources(
+        self, ctx: AuthContext, run: ImprovementRun
+    ) -> tuple[list[UUID], list[UUID], list[UUID]]:
+        """Writable bound bases and bad chat answers from the frozen, unerased evidence only."""
+        await self.ensure_current(ctx, run.id)
+        agent = await self.registry.get(ctx, run.agent_id, perm=Perm.AGENTS_EDIT)
+        return await self._knowledge_sources(ctx, agent, run_id=run.id, dataset_id=run.dataset_id)
+
+    async def _knowledge_sources(
+        self,
+        ctx: AuthContext,
+        agent: Agent,
+        *,
+        run_id: UUID | None = None,
+        dataset_id: UUID,
+        window_days: int = 30,
+    ) -> tuple[list[UUID], list[UUID], list[UUID]]:
+        if ctx.scope_for(Perm.RUNS_VIEW) < Scope.ALL:
+            return [], [], []
+        pack = (
+            await self.authoring.evidence.for_improvement(ctx, run_id)
+            if run_id
+            else await self.authoring.evidence.for_agent(
+                ctx, agent.id, window_days=window_days, dataset_id=dataset_id
+            )
+        )
+        pack = await self.authoring.evidence.forget_erased(pack)
+        run_ids = [
+            item.run_id
+            for item in pack.runs
+            if item.evidence_kind == "chat" and (item.rating < 0 or item.status != "completed")
+        ]
+        if not run_ids:
+            return [], [], []
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        bases = await knowledge_base_repo.get_by_ids(self.db, spec.collection_ids)
+        ids = [
+            kb.id
+            for kb in bases.values()
+            if kb.organization_id == ctx.organization_id and await writable_kb(self.db, ctx, kb)
+        ]
+        messages = await knowledge_gap_repo.answers_for_runs(
+            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+        return ids, list(messages.values()), run_ids
+
+    async def _knowledge_branches(
+        self, ctx: AuthContext, run: ImprovementRun
+    ) -> tuple[int, int, list[UUID]]:
+        ids, messages, source_runs = await self.knowledge_sources(ctx, run)
+        causes = await KnowledgeGapService(self.db).causes(ctx, ids, messages)
+        pack = await self.authoring.evidence.for_improvement(ctx, run.id)
+        training = sum(item.evidence_kind == "train_eval" for item in pack.runs)
+        agent = (
+            training
+            + len(source_runs)
+            - len(messages)
+            + sum(c.branch in {"agent", "unknown"} for c in causes.values())
+        )
+        missing = sum(c.branch == "missing_knowledge" for c in causes.values())
+        excluded = [
+            c.message_id
+            for c in causes.values()
+            if c.branch in {"missing_knowledge", "not_a_problem"}
+        ]
+        return agent, missing, excluded
+
+    async def _knowledge_exclusions(self, ctx: AuthContext, run: ImprovementRun) -> list[UUID]:
+        first = await improvement_repo.get_iteration(
+            self.db, organization_id=run.organization_id, run_id=run.id, number=1
+        )
+        job = (
+            await background_job_repo.get(self.db, first.classify_job_id)
+            if first and first.classify_job_id
+            else None
+        )
+        if job is None or job.status != "succeeded":
+            return []
+        _, _, excluded = await self._knowledge_branches(ctx, run)
+        return excluded
+
+    async def _knowledge_step(
+        self, ctx: AuthContext, run: ImprovementRun, iteration: ImprovementIteration
+    ) -> None:
+        ids, messages, sources = await self.knowledge_sources(ctx, run)
+        classify = run.stage == Stage.CLASSIFYING
+        job_id = iteration.classify_job_id if classify else iteration.draft_job_id
+        if job_id is None:
+            stage = "classify" if classify else "draft"
+            price = await KnowledgeGapService(self.db).improvement_estimate(
+                ctx,
+                ids,
+                messages,
+                stage=stage,
+                source_run_ids=sources,
+            )
+            spent = await improvement_repo.spent(
+                self.db, run.id, organization_id=run.organization_id
+            )
+            if not rules.affordable(spent=spent, step_estimate=price, budget=run.budget_usd):
+                await self._move(
+                    run, rules.Transition(Status.STOPPED, Stage(run.stage), StopReason.BUDGET)
+                )
+                return
+            assert ctx.user_id is not None, "job_context resolved a key issuer or active member"
+            if classify:
+                child = await enqueue(
+                    self.db,
+                    CLASSIFY_GAPS,
+                    ClassifyGaps(
+                        organization_id=run.organization_id,
+                        knowledge_base_ids=ids,
+                        message_ids=messages,
+                        user_id=ctx.user_id,
+                        improvement_run_id=run.id,
+                    ),
+                    organization_id=run.organization_id,
+                    concurrency_key=f"improvement-knowledge:{run.id}",
+                    dedupe_key=f"{run.id}:{stage}",
+                )
+            else:
+                child = await enqueue(
+                    self.db,
+                    DRAFT_GAPS,
+                    DraftGaps(
+                        organization_id=run.organization_id,
+                        knowledge_base_ids=ids,
+                        message_ids=messages,
+                        user_id=ctx.user_id,
+                        improvement_run_id=run.id,
+                    ),
+                    organization_id=run.organization_id,
+                    concurrency_key=f"improvement-knowledge:{run.id}",
+                    dedupe_key=f"{run.id}:{stage}",
+                )
+            assert child is not None, "a fresh step has no queued child"
+            await improvement_repo.update_iteration(
+                self.db,
+                iteration=iteration,
+                values={"classify_job_id" if classify else "draft_job_id": child},
+            )
+            await self._audit(run, "child_started")
+            return
+        job = await background_job_repo.get(self.db, job_id)
+        if job is not None and job.organization_id != run.organization_id:
+            raise NotFoundError(message="Knowledge step not found")
+        agent, missing, _ = await self._knowledge_branches(ctx, run)
+        status = job.status if job else None
+        transition = (
+            rules.after_classifying(status, agent_answers=agent, missing_knowledge=missing)
+            if classify
+            else rules.after_drafting(status, agent_answers=agent)
+        )
+        if transition is None and rules.stalled(
+            Stage(run.stage),
+            waiting=status == "queued",
+            last_progress=max(
+                value
+                for value in (job.started_at if job else None, run.stage_started_at, run.created_at)
+                if value is not None
+            ),
+            now=datetime.now(UTC),
+        ):
+            await self._stop_children(run)
+            await self._move(run, rules.stall(Stage(run.stage)))
+            return
+        if transition is not None:
+            if not classify and status != "succeeded":
+                await self._audit(run, "drafting_failed")
+            if classify and status != "succeeded":
+                await self._audit(run, "classification_failed")
+                # The conversations remain available to the improver; a failed
+                # classifier is never presented as a successful grouping.
+                transition = rules.Transition(Status.RUNNING, Stage.PROPOSING)
+            await self._move(run, transition)
+
     async def _estimate(
-        self, ctx: AuthContext, inputs: Inputs, target: ImprovementTarget
+        self,
+        ctx: AuthContext,
+        inputs: Inputs,
+        target: ImprovementTarget,
+        *,
+        include_knowledge: bool = True,
     ) -> ImprovementEstimate:
         proposal = await self.authoring.estimate_agent(
             ctx,
@@ -252,18 +443,33 @@ class ImprovementPipelineService:
         full_eval = check.total_usd + check.rerun_ceiling_usd
         # Each round may need one repeat of an inconclusive comparison.
         per_round = proposal.estimate_usd + full_eval * (1 + rules.INCONCLUSIVE_RERUNS)
+        ids, messages, sources = await self._knowledge_sources(
+            ctx,
+            inputs.agent,
+            dataset_id=inputs.request.dataset_id,
+            window_days=target.window_days,
+        )
+        knowledge = (
+            await KnowledgeGapService(self.db).improvement_estimate(
+                ctx, ids, messages, source_run_ids=sources
+            )
+            if include_knowledge
+            else Decimal(0)
+        )
+        total = per_round * target.max_iterations + knowledge
         org_left = await self.evals._org_left(ctx)
         return ImprovementEstimate(
             proposal_usd=proposal.estimate_usd,
+            knowledge_usd=knowledge,
             eval_usd=full_eval,
             per_round_usd=per_round,
-            total_usd=per_round * target.max_iterations,
+            total_usd=total,
             max_iterations=target.max_iterations,
             cases=check.cases,
             evidence_runs=proposal.runs,
             affordable=proposal.affordable
             and check.affordable
-            and (org_left is None or per_round * target.max_iterations <= org_left),
+            and (org_left is None or total <= org_left),
             reason=proposal.reason,
         )
 
@@ -664,6 +870,9 @@ class ImprovementPipelineService:
             self.db, organization_id=run.organization_id, run_id=run.id
         )
         for iteration in iterations:
+            for job_id in (iteration.classify_job_id, iteration.draft_job_id):
+                if job_id is not None:
+                    await background_job_repo.cancel_queued(self.db, job_id)
             if iteration.authoring_request_id is not None:
                 request = await authoring_repo.get_request(
                     self.db, iteration.authoring_request_id, organization_id=run.organization_id
@@ -1030,16 +1239,19 @@ class ImprovementPipelineService:
                         else "No rated chat runs or training failures are available yet",
                     },
                 )
-            # Knowledge classification is a separate branch; no paid classification
-            # is necessary for a session proposing agent changes only.
             if transition.status.active:
-                transition = rules.Transition(Status.RUNNING, Stage.PROPOSING)
+                ids, messages, _ = await self.knowledge_sources(ctx, run)
+                if not ids or not messages:
+                    transition = rules.Transition(Status.RUNNING, Stage.PROPOSING)
             await self._move(run, transition)
+        elif run.stage in {Stage.CLASSIFYING, Stage.DRAFTING}:
+            await self._knowledge_step(ctx, run, iteration)
         elif run.stage == Stage.PROPOSING:
             if iteration.batch_id is not None and iteration.authoring_request_id is None:
                 await self._move(run, rules.Transition(Status.RUNNING, Stage.FILTERING))
                 return
             if iteration.authoring_request_id is None:
+                excluded = await self._knowledge_exclusions(ctx, run)
                 estimate = await self.authoring.estimate_agent(
                     ctx,
                     run.agent_id,
@@ -1047,6 +1259,7 @@ class ImprovementPipelineService:
                         window_days=run.window_days, improver_agent_id=run.improver_agent_id
                     ),
                     improvement_run_id=run.id,
+                    excluded_message_ids=excluded,
                 )
                 spent = await improvement_repo.spent(
                     self.db, run.id, organization_id=run.organization_id
@@ -1065,6 +1278,7 @@ class ImprovementPipelineService:
                         window_days=run.window_days, improver_agent_id=run.improver_agent_id
                     ),
                     improvement_run_id=run.id,
+                    excluded_message_ids=excluded,
                 )
                 await improvement_repo.update_iteration(
                     self.db, iteration=iteration, values={"authoring_request_id": request.id}
@@ -1467,7 +1681,7 @@ class ImprovementPipelineService:
                     improver_agent_id=run.improver_agent_id,
                     max_iterations=1,
                 )
-                estimate = await self._estimate(ctx, inputs, target)
+                estimate = await self._estimate(ctx, inputs, target, include_knowledge=False)
                 if not estimate.affordable or not rules.affordable(
                     spent=spent, step_estimate=estimate.total_usd, budget=run.budget_usd
                 ):
@@ -1531,7 +1745,9 @@ class ImprovementPipelineService:
     async def _knowledge_plan(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: KnowledgeCheckTarget
     ) -> KnowledgePlan | KnowledgeCheckEstimate:
-        run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, data.round)
+        run, iteration, inputs = await self._finished_round(
+            ctx, agent_id, run_id, data.round, allow_knowledge_only=True
+        )
         gaps = KnowledgeGapService(self.db)
         topic = await gaps._topic(ctx, data.topic_id, edit=True)
         if (await gaps._row(ctx, topic)).status != "open":
@@ -1539,17 +1755,19 @@ class ImprovementPipelineService:
         kb = await gaps._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
         if not topic.draft_content:
             raise BadRequestError(message="This topic has no draft to check")
-        base, _ = await self._candidate(inputs.agent, run, iteration)
+        base = AgentSpec.model_validate(inputs.agent.draft_spec)
+        skills: dict[UUID, SkillBody] = {}
+        if iteration.batch_id is not None:
+            base, _ = await self._candidate(inputs.agent, run, iteration)
+            skills = await self.authoring.projected_skills(
+                ctx, iteration.batch_id, hunk_ids=iteration.included_hunk_ids
+            )
+            if spec_hash(base, skills) != iteration.candidate_spec_hash:
+                raise ConcurrentChangeError(
+                    message="The selected changes no longer match the measured round"
+                )
         if topic.knowledge_base_id not in base.collection_ids:
             raise BadRequestError(message="The selected round does not search this knowledge base")
-        assert iteration.batch_id is not None
-        skills = await self.authoring.projected_skills(
-            ctx, iteration.batch_id, hunk_ids=iteration.included_hunk_ids
-        )
-        if spec_hash(base, skills) != iteration.candidate_spec_hash:
-            raise ConcurrentChangeError(
-                message="The selected changes no longer match the measured round"
-            )
         evidence = await knowledge_gap_repo.topic_evidence(
             self.db, topic.id, organization_id=ctx.organization_id
         )
@@ -1974,7 +2192,13 @@ class ImprovementPipelineService:
         return await self._read(ctx, run)
 
     async def _finished_round(
-        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, number: int
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        run_id: UUID,
+        number: int,
+        *,
+        allow_knowledge_only: bool = False,
     ) -> tuple[ImprovementRun, ImprovementIteration, Inputs]:
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
@@ -1985,7 +2209,14 @@ class ImprovementPipelineService:
         iteration = await improvement_repo.get_iteration(
             self.db, organization_id=run.organization_id, run_id=run.id, number=number
         )
-        if iteration is None or iteration.batch_id is None or iteration.verdict is None:
+        knowledge_only = (
+            allow_knowledge_only
+            and run.status == Status.STOPPED
+            and run.stop_reason == StopReason.KNOWLEDGE_ONLY
+        )
+        if iteration is None or (
+            not knowledge_only and (iteration.batch_id is None or iteration.verdict is None)
+        ):
             raise NotFoundError(message="A measured round is not available")
         inputs = await self._inputs(
             ctx,

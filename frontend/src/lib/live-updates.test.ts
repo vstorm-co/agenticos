@@ -34,7 +34,10 @@ describe("staleQueries", () => {
       qk.datasets.all(),
       qk.improvements.all(),
     ]);
-    expect(staleQueries(change("knowledge_gap"))).toEqual([qk.knowledgeGaps.all()]);
+    expect(staleQueries(change("knowledge_gap"))).toEqual([
+      qk.knowledgeGaps.all(),
+      qk.improvements.all(),
+    ]);
   });
 
   it("refreshes the sharing panels with every row somebody can share", () => {

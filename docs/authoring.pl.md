@@ -1,5 +1,5 @@
 ---
-source_sha: "bdf1062a20ed"
+source_sha: "ab84245144a9"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -336,6 +336,10 @@ Otwórz **Popraw** w nagłówku agenta lub na dashboardzie, aby rozpocząć sesj
 Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/retry`; powtórne kliknięcia nie tworzą kolejnego zadania. Automatyczne ponowienia zadań nie powtarzają płatnych wywołań. Decyzje człowieka zmieniają stan sesji na zaakceptowaną, opublikowaną lub odrzuconą. Potwierdzona akcja `/{run_id}/finish` akceptuje sprawdzone zmiany i opcjonalnie publikuje je w jednej transakcji. Może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji; chronione środowiska czekają na sprawdzenia. Propozycje zmienione po pomiarze wymagają ponownego sprawdzenia.
 
 Przełącznikiem **Uwzględnij w teście** na ekranie zmian wybierz część sugestii. Przed wydaniem środków wyceń i potwierdź nowe sprawdzenie; zmiana wyboru albo treści sugestii unieważnia wycenę. Wybrane zmiany są mierzone względem tej samej bazy i przypiętych pytań. Wcześniejsze sprawdzenia pozostają w historii rundy. Wykluczone lub później dodane sugestie pozostają nierozstrzygnięte, a przyjąć można tylko zmierzony wybór. Takie sprawdzenie nie zamawia automatycznie kolejnej propozycji. Wyniki pojedynczych zmian przypisują tylko różnice potwierdzone powtórzeniem odpowiedzi; nieprawidłowe lub niedokończone sprawdzenie nie przypisuje skutków.
+
+Szacunek sesji obejmuje klasyfikację złych odpowiedzi z rozmów względem edytowalnych baz wiedzy agenta, grupowanie braków i rezerwację do trzech proponowanych fragmentów na bazę. Worker zachowuje aktualne zakresy klucza API autora i przed rozpoczęciem ponownie sprawdza pełny koszt kroku. Klasyfikacja, grupowanie i szkice korzystają wyłącznie z przypiętych, niewymazanych rozmów; błędy treningowe pozostają materiałem agenta, a tekst kontrolny nie trafia do tych pomocników.
+
+Błąd klasyfikatora jest widoczny, a rozmowy źródłowe pozostają dostępne. Sesja wymagająca tylko wiedzy kończy się szkicami do przejrzenia, bez pustej wersji agenta. Sprawdzenie szkicu nadal wymaga własnej wyceny i potwierdzenia; dodanie treści pozostaje osobną decyzją człowieka.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

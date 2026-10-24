@@ -181,6 +181,11 @@ export function StartSession({ agentId }: { agentId: string }) {
             <p className="text-muted-foreground text-sm">
               {t("evidence", { count: quote.evidence_runs })}
             </p>
+            {Number(quote.knowledge_usd ?? 0) > 0 && (
+              <p className="text-muted-foreground text-sm">
+                {t("knowledgeEstimate", { cost: usd(quote.knowledge_usd ?? "0", locale) })}
+              </p>
+            )}
             {quote.reason && <p role="status">{tr(`reason.${quote.reason}`)}</p>}
             <Label htmlFor="improvement-budget">{t("budget")}</Label>
             <Input

@@ -21,6 +21,7 @@ export interface ImprovementTarget {
 }
 export interface ImprovementEstimate {
   proposal_usd: string;
+  knowledge_usd?: string;
   eval_usd: string;
   per_round_usd: string;
   total_usd: string;

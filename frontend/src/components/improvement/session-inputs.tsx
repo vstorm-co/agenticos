@@ -70,6 +70,11 @@ export function Understand({ session }: { session: Improvement }) {
       <p className="text-muted-foreground text-sm">
         {t("evidenceSample", { count: items.length, limit: sources.evidence.sample_limit })}
       </p>
+      {session.timeline.some((event) => event.action === "improvement.classification_failed") && (
+        <p role="status" className="rounded-lg border p-3 text-sm">
+          {t("classificationFailed")}
+        </p>
+      )}
       {items.length === 0 && <p className="text-sm">{t("noLearningExamples")}</p>}
       {items.some((item) => item.branch === "unknown") && (
         <p className="rounded-lg border p-3 text-sm">{t("unknownCauses")}</p>

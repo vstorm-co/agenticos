@@ -28,16 +28,21 @@ import json
 import logging
 import re
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 import numpy as np
 import numpy.typing as npt
+from pydantic_ai.usage import RunUsage
 from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.knowledge._log import MAX_QUERY_CHARS
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
@@ -115,6 +120,7 @@ from app.services.dataset import DatasetService
 from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
 from app.services.improvement_data import input_hash
 from app.services.ml import pii
+from app.services.model_profile import ModelProfileService
 from app.services.rag.vectorstore import BaseVectorStore, embedder_for
 from app.services.rag_document import RAGDocumentService
 from app.services.system_agent_runner import SystemAgentRunner
@@ -941,7 +947,13 @@ class KnowledgeGapService:
         return _flags(text, sources=sources, known=known)
 
     async def draft(
-        self, ctx: AuthContext, topic_id: UUID, *, automatic: bool = False
+        self,
+        ctx: AuthContext,
+        topic_id: UUID,
+        *,
+        automatic: bool = False,
+        improvement_run_id: UUID | None = None,
+        source_run_ids: Sequence[UUID] | None = None,
     ) -> KnowledgeGapTopicDetail:
         """Ask the drafting agent for the passage a topic's questions need, and keep it.
 
@@ -996,6 +1008,7 @@ class KnowledgeGapService:
             threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
             limit=DRAFT_QUESTIONS,
             knowledge_tools=await self._knowledge_tools(ctx, topic),
+            source_run_ids=source_run_ids,
         )
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
@@ -1003,6 +1016,11 @@ class KnowledgeGapService:
         askers = await personal_data_repo.askers_of(
             self.db, {row.search.run_id for row in material}
         )
+        if automatic and source_run_ids is not None and len(askers) < MIN_AUTOMATIC_ASKERS:
+            raise BadRequestError(
+                message="Too few independent source askers for an automatic draft",
+                details={"askers": len(askers)},
+            )
         documents = await knowledge_gap_repo.documents_named(
             self.db,
             kb.id,
@@ -1019,7 +1037,12 @@ class KnowledgeGapService:
             agent_id=kb.gap_drafter_agent_id,
             prompt=_drafting_prompt(kb.name, material, documents, context_files),
             output_type=KnowledgeGapDraft,
+            improvement_run_id=improvement_run_id,
         )
+        if improvement_run_id is not None:
+            from app.services.improvement_pipeline import ImprovementPipelineService
+
+            await ImprovementPipelineService(self.db).ensure_current(ctx, improvement_run_id)
         if askers - await personal_data_repo.present_among(self.db, askers):
             raise BadRequestError(
                 message=(
@@ -1541,12 +1564,111 @@ class KnowledgeGapService:
             return None
         return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
 
+    async def improvement_estimate(
+        self,
+        ctx: AuthContext,
+        knowledge_base_ids: Sequence[UUID],
+        message_ids: list[UUID],
+        *,
+        stage: Literal["classify", "draft", "all"] = "all",
+        source_run_ids: Sequence[UUID] = (),
+    ) -> Decimal:
+        """Reserve bounded source classification, up to three drafts, and grouping embeddings.
+
+        These are estimates, not a mid-call spending cap. Every paid step is
+        quoted afresh before it starts. Unknown prices refuse automatic work.
+        """
+        if not message_ids:
+            return Decimal(0)
+        total = Decimal(0)
+        for kb_id in knowledge_base_ids:
+            kb = await self._knowledge_base(ctx, kb_id, edit=True)
+            if stage in {"classify", "all"}:
+                candidates = await knowledge_gap_repo.classification_candidates(
+                    self.db,
+                    kb.id,
+                    organization_id=ctx.organization_id,
+                    threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+                    since=datetime.now(UTC) - CLASSIFY_WINDOW,
+                    limit=CLASSIFY_BATCH,
+                    message_ids=message_ids,
+                )
+                if candidates:
+                    prompt = _classification_prompt(
+                        kb.name, candidates, await self._agent_sources(ctx, candidates)
+                    )
+                    total += await self._helper_estimate(
+                        ctx,
+                        key=KNOWLEDGE_GAP_CLASSIFIER.key,
+                        agent_id=kb.gap_classifier_agent_id,
+                        chars=len(prompt),
+                    )
+            if stage in {"draft", "all"}:
+                # Reserve the maximum bounded material before topics exist.
+                chars = DRAFT_QUESTIONS * 6000 + DRAFT_CONTEXT_FILES * DRAFT_CONTEXT_CHARS + 4000
+                total += DRAFTS_PER_ROUND * await self._helper_estimate(
+                    ctx,
+                    key=KNOWLEDGE_GAP_DRAFTER.key,
+                    agent_id=kb.gap_drafter_agent_id,
+                    chars=chars,
+                )
+                resolved = await embeddings_for_collection(kb.collection_name, ctx.organization_id)
+                if resolved is None or resolved.key_source.is_degraded:
+                    raise BadRequestError(
+                        message="Knowledge grouping needs this collection's embedding configuration"
+                    )
+                waiting = await knowledge_gap_repo.ungrouped_misses(
+                    self.db,
+                    kb.id,
+                    organization_id=ctx.organization_id,
+                    threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+                    limit=GROUPING_BATCH,
+                    source_run_ids=source_run_ids,
+                )
+                tokens = (
+                    sum(len(row.query.encode("utf-8")) for row in waiting)
+                    + len(message_ids) * MAX_QUERY_CHARS
+                )
+                embedding = price_request(
+                    RunUsage(input_tokens=tokens),
+                    resolved.model,
+                    resolved.provider,
+                )
+                if embedding is None:
+                    raise BadRequestError(message="Knowledge grouping has no known embedding price")
+                total += embedding
+        return total.quantize(Decimal("0.000001"))
+
+    async def _helper_estimate(
+        self, ctx: AuthContext, *, key: str, agent_id: UUID | None, chars: int
+    ) -> Decimal:
+        agent = await SystemAgentRunner(self.db).require_runnable(ctx, key=key, agent_id=agent_id)
+        version = (
+            await agent_repo.get_version(
+                self.db, agent.current_version_id, organization_id=ctx.organization_id
+            )
+            if agent.current_version_id
+            else None
+        )
+        assert version is not None, "require_runnable checked the published version"
+        spec = AgentSpec.model_validate(version.spec)
+        model = await ModelProfileService(self.db).resolve(ctx, profile_id=spec.model_profile_id)
+        priced = price_request(
+            RunUsage(input_tokens=(chars + len(spec.instructions)) // 3 + 2000, output_tokens=6000),
+            model.model,
+            model.provider,
+        )
+        if priced is None:
+            raise BadRequestError(message="The knowledge helper has no known model price")
+        return priced
+
     async def classify_batch(
         self,
         ctx: AuthContext,
         knowledge_base_id: UUID,
         *,
         message_ids: list[UUID] | None = None,
+        improvement_run_id: UUID | None = None,
     ) -> tuple[int, int]:
         """Read the next :data:`CLASSIFY_BATCH` answers in one run, and record its verdicts.
 
@@ -1593,7 +1715,12 @@ class KnowledgeGapService:
                 kb.name, candidates, await self._agent_sources(ctx, candidates)
             ),
             output_type=KnowledgeGapClassification,
+            improvement_run_id=improvement_run_id,
         )
+        if improvement_run_id is not None:
+            from app.services.improvement_pipeline import ImprovementPipelineService
+
+            await ImprovementPipelineService(self.db).ensure_current(ctx, improvement_run_id)
         verdicts = _verdicts(candidates, result.output.answers)
         # Taken in one order, after the model call, and held to the commit: an
         # erasure of an asker takes the same lock, so it either removed their
@@ -1757,7 +1884,13 @@ class KnowledgeGapService:
         """Remove the topics left with no searches, across the deployment."""
         return await knowledge_gap_repo.delete_empty_topics(self.db)
 
-    async def group_pending(self, *, organization_id: UUID, knowledge_base_id: UUID) -> int:
+    async def group_pending(
+        self,
+        *,
+        organization_id: UUID,
+        knowledge_base_id: UUID,
+        source_run_ids: Sequence[UUID] | None = None,
+    ) -> int:
         """Group up to :data:`GROUPING_BATCH` of a knowledge base's ungrouped misses.
 
         A knowledge base with no misses waiting costs a query and no embedding
@@ -1778,6 +1911,7 @@ class KnowledgeGapService:
             organization_id=organization_id,
             threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
             limit=GROUPING_BATCH,
+            source_run_ids=source_run_ids,
         )
         if not misses:
             return 0

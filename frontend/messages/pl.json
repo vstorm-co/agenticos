@@ -10475,7 +10475,6 @@
     "baselineUnavailable": "Pomiar bazowy nie zakończył się pomyślnie. Otwórz pełny test, aby poznać przyczynę; to nie jest zmierzony wynik.",
     "trainQuestion": "Pytanie treningowe",
     "holdoutQuestion": "Pytanie odłożone",
-
     "sourceSignals": "Źródła do nauki",
     "signalWindow": "Oceny i nieudane uruchomienia z ostatnich 30 dni. Liczba błędów treningowych dotyczy wybranej próbki przykładów.",
     "ratedSignals": "Odpowiedzi ocenione negatywnie",
@@ -10654,6 +10653,9 @@
     "knowledgeEmbeddingUnavailable": "Nie można zmierzyć wyszukiwania: usługa embeddingów tej bazy wiedzy jest niedostępna. Nadal możesz sprawdzić szkic jako tymczasowy kontekst.",
     "knowledgeEmbeddingPriceUnavailable": "Nie można zmierzyć wyszukiwania: model embeddingów nie ma znanej ceny, więc nie można podać pełnego kosztu. Nadal możesz sprawdzić szkic jako tymczasowy kontekst.",
     "knowledgeNotRetrieved": "Brak potwierdzonej poprawy dzięki szkicowi: wyszukiwanie nie zwróciło go przy każdej nowo naprawionej odpowiedzi. Pełne sprawdzenie zachowuje rzeczywiste odpowiedzi i oceny.",
-    "knowledgeSearchDisabled": "W tej sprawdzonej propozycji wyszukiwanie wiedzy jest wyłączone. Sprawdź szkic jako tymczasowy kontekst albo włącz wyszukiwanie i rozpocznij nową sesję."
+    "knowledgeSearchDisabled": "W tej sprawdzonej propozycji wyszukiwanie wiedzy jest wyłączone. Sprawdź szkic jako tymczasowy kontekst albo włącz wyszukiwanie i rozpocznij nową sesję.",
+    "knowledgeEstimate": "W tym {cost} na klasyfikację odpowiedzi źródłowych, grupowanie braków wiedzy i do trzech szkiców na bazę wiedzy (szacunek).",
+    "classificationFailed": "Nie udało się dokończyć grupowania opinii. Rozmowy źródłowe pozostają dostępne; nieznane przyczyny są przekazywane do propozycji zmian agenta.",
+    "draftingFailed": "Nie udało się dokończyć przygotowania szkiców wiedzy. Gotowe szkice pozostają do przejrzenia; nic nie zostało dodane automatycznie."
   }
 }

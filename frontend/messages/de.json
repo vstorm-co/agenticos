@@ -10575,7 +10575,6 @@
     "baselineUnavailable": "Die Ausgangsmessung wurde nicht erfolgreich abgeschlossen. Öffnen Sie den vollständigen Test für die Ursache; dies ist kein gemessenes Ergebnis.",
     "trainQuestion": "Trainingsfrage",
     "holdoutQuestion": "Zurückgehaltene Frage",
-
     "sourceSignals": "Quellen zum Lernen",
     "signalWindow": "Bewertungen und fehlgeschlagene Ausführungen der letzten 30 Tage. Trainingsfehler zählen nur die ausgewählte Stichprobe.",
     "ratedSignals": "Negativ bewertete Antworten",
@@ -10754,6 +10753,9 @@
     "knowledgeEmbeddingUnavailable": "Die Suche ist nicht messbar: Der Embedding-Dienst dieser Wissensbasis ist nicht verfügbar. Du kannst weiterhin mit temporärem Kontext prüfen.",
     "knowledgeEmbeddingPriceUnavailable": "Die Suche ist nicht messbar: Für das Embedding-Modell ist kein Preis bekannt, daher lässt sich keine vollständige Kostenschätzung erstellen. Du kannst weiterhin mit temporärem Kontext prüfen.",
     "knowledgeNotRetrieved": "Keine nachgewiesene Verbesserung durch den Entwurf: Die Suche hat ihn nicht für jede neu korrigierte Antwort zurückgegeben. Die vollständige Prüfung behält die tatsächlichen Antworten und Bewertungen.",
-    "knowledgeSearchDisabled": "Die Wissenssuche ist für diesen gemessenen Kandidaten deaktiviert. Prüfe mit temporärem Kontext oder aktiviere die Suche und starte eine neue Sitzung."
+    "knowledgeSearchDisabled": "Die Wissenssuche ist für diesen gemessenen Kandidaten deaktiviert. Prüfe mit temporärem Kontext oder aktiviere die Suche und starte eine neue Sitzung.",
+    "knowledgeEstimate": "Enthält {cost} für die Einordnung der Quellantworten, Gruppierung fehlenden Wissens und bis zu drei Entwürfe je Wissensbasis (Schätzung).",
+    "classificationFailed": "Die Rückmeldungen konnten nicht vollständig gruppiert werden. Die Quellgespräche bleiben verfügbar; unbekannte Ursachen werden bei den Agentenänderungen berücksichtigt.",
+    "draftingFailed": "Die Wissensentwürfe konnten nicht vollständig vorbereitet werden. Fertige Entwürfe bleiben zur Prüfung verfügbar; nichts wurde automatisch hinzugefügt."
   }
 }

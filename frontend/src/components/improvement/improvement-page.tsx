@@ -219,7 +219,9 @@ function Session({
           )}
         </section>
       )}
-      {(step === "changes" || step === "result") && <KnowledgeDrafts session={session} />}
+      {(step === "changes" || step === "result" || step === "accept") && (
+        <KnowledgeDrafts session={session} />
+      )}
       {step === "accept" && (
         <section className="space-y-4 rounded-xl border p-6" data-tour="improvement-accept">
           <h2 className="font-medium">{t("steps.accept")}</h2>

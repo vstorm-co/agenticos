@@ -10692,7 +10692,6 @@
     "baselineUnavailable": "The baseline did not finish successfully. Open the full check to see why; this is not a measured result.",
     "trainQuestion": "Training question",
     "holdoutQuestion": "Held-out question",
-
     "sourceSignals": "Sources to learn from",
     "signalWindow": "Ratings and failed runs from the last 30 days. Training counts show the selected evidence sample.",
     "ratedSignals": "Answers rated down",
@@ -10871,6 +10870,9 @@
     "knowledgeEmbeddingUnavailable": "Retrieval cannot be measured: this knowledge base’s embedding service is unavailable. You can still test with temporary context.",
     "knowledgeEmbeddingPriceUnavailable": "Retrieval cannot be measured: the embedding model has no known price, so a complete cost cannot be quoted. You can still test with temporary context.",
     "knowledgeNotRetrieved": "No demonstrated improvement from the draft: search did not return it for every newly fixed answer. The full check keeps the actual answers and grades.",
-    "knowledgeSearchDisabled": "This measured candidate has knowledge search disabled. Test with temporary context, or enable search and start a new session."
+    "knowledgeSearchDisabled": "This measured candidate has knowledge search disabled. Test with temporary context, or enable search and start a new session.",
+    "knowledgeEstimate": "Includes {cost} for sorting the source answers, grouping missing knowledge and up to three drafts per knowledge base (estimate).",
+    "classificationFailed": "We couldn’t finish grouping the feedback. The source conversations remain available; unknown causes are left for the agent changes.",
+    "draftingFailed": "We couldn’t finish preparing the knowledge drafts. Any completed drafts remain available to review; nothing was added automatically."
   }
 }

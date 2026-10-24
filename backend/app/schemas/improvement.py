@@ -39,6 +39,7 @@ class ImprovementStart(ImprovementTarget):
 
 class ImprovementEstimate(BaseSchema):
     proposal_usd: Decimal
+    knowledge_usd: Decimal = Decimal(0)
     eval_usd: Decimal
     per_round_usd: Decimal
     total_usd: Decimal

@@ -10,12 +10,24 @@ model, so it runs only when a person asks for it, as them.
 """
 
 import logging
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
-from app.core.exceptions import BadRequestError, NotFoundError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.permissions import AuthContext
 from app.db.locks import LockScope, try_hold_subject_on_connection
+from app.db.models.improvement import ImprovementStage, ImprovementStatus, StopReason
 from app.db.session import get_worker_connection, get_worker_db_context
+from app.repositories import improvement_repo, ingestion_spend_repo
 from app.services import change_feed
+from app.services import improvement_states as rules
+from app.services.api_key import job_context
+from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.knowledge_gaps import (
     CLASSIFY_BATCH,
     CLASSIFY_PER_REQUEST,
@@ -86,6 +98,8 @@ async def classify_knowledge_gaps(job: ClassifyGaps) -> int:
     Returns:
         How many misses were recorded.
     """
+    if job.improvement_run_id is not None:
+        return await _classify_session(job)
     await change_feed.connect_in_worker()
     misses = 0
     for kb_id in job.knowledge_base_ids:
@@ -155,6 +169,8 @@ async def draft_knowledge_gaps(job: DraftGaps) -> int:
     Returns:
         How many topics were drafted.
     """
+    if job.improvement_run_id is not None:
+        return await _draft_session(job)
     async with get_worker_db_context() as db:
         ctx = await KnowledgeGapService(db).acting_as(
             organization_id=job.organization_id, user_id=job.user_id
@@ -185,4 +201,169 @@ async def draft_knowledge_gaps(job: DraftGaps) -> int:
                 raise
             continue
         drafted += 1
+    return drafted
+
+
+@dataclass(frozen=True)
+class _SessionSources:
+    ctx: AuthContext
+    knowledge_base_ids: list[UUID]
+    message_ids: list[UUID]
+    run_ids: list[UUID]
+
+
+async def _session_sources(
+    db: AsyncSession, job: ClassifyGaps | DraftGaps, stage: ImprovementStage
+) -> _SessionSources:
+    assert job.improvement_run_id is not None
+    run = await improvement_repo.get_run(
+        db, job.improvement_run_id, organization_id=job.organization_id
+    )
+    if run is None or run.stage != stage:
+        raise BadRequestError(message="The improvement knowledge step is no longer current")
+    ctx = await job_context(
+        db,
+        organization_id=job.organization_id,
+        user_id=run.created_by_user_id,
+        api_key_id=run.created_by_api_key_id,
+    )
+    if ctx is None:
+        raise AuthorizationError(message="The improvement requester is no longer a member")
+    ids, messages, runs = await ImprovementPipelineService(db).knowledge_sources(ctx, run)
+    # Payloads name a snapshot, never additional authority or new evidence.
+    return _SessionSources(
+        ctx,
+        [kb_id for kb_id in ids if kb_id in job.knowledge_base_ids],
+        [message_id for message_id in messages if message_id in (job.message_ids or [])],
+        runs,
+    )
+
+
+async def _session_affords(
+    db: AsyncSession,
+    job: ClassifyGaps | DraftGaps,
+    source: _SessionSources,
+    stage: Literal["classify", "draft"],
+) -> bool:
+    assert job.improvement_run_id is not None
+    run = await improvement_repo.get_run(
+        db, job.improvement_run_id, organization_id=job.organization_id
+    )
+    assert run is not None, "the source check resolved its parent"
+    price = await KnowledgeGapService(db).improvement_estimate(
+        source.ctx,
+        source.knowledge_base_ids,
+        source.message_ids,
+        stage=stage,
+        source_run_ids=source.run_ids,
+    )
+    spent = await improvement_repo.spent(db, run.id, organization_id=job.organization_id)
+    pipeline = ImprovementPipelineService(db)
+    org_left = await pipeline.evals._org_left(source.ctx)
+    if not rules.affordable(spent=spent, step_estimate=price, budget=run.budget_usd) or (
+        org_left is not None and price > org_left
+    ):
+        await pipeline._move(
+            run,
+            rules.Transition(
+                ImprovementStatus.STOPPED, ImprovementStage(run.stage), StopReason.BUDGET
+            ),
+        )
+        return False
+    return True
+
+
+async def _classify_session(job: ClassifyGaps) -> int:
+    await change_feed.connect_in_worker()
+    async with get_worker_db_context() as db:
+        source = await _session_sources(db, job, ImprovementStage.CLASSIFYING)
+        if not await _session_affords(db, job, source, "classify"):
+            return 0
+    misses = 0
+    for kb_id in source.knowledge_base_ids:
+        for _ in range(CLASSIFY_PER_REQUEST // CLASSIFY_BATCH):
+            async with get_worker_db_context() as db:
+                current = await _session_sources(db, job, ImprovementStage.CLASSIFYING)
+                if kb_id not in current.knowledge_base_ids or not current.message_ids:
+                    break
+                read, found = await KnowledgeGapService(db).classify_batch(
+                    current.ctx,
+                    kb_id,
+                    message_ids=current.message_ids,
+                    improvement_run_id=job.improvement_run_id,
+                )
+            misses += found
+            if read < CLASSIFY_BATCH:
+                break
+    await change_feed.publish_knowledge_gaps_grouped(job.organization_id)
+    return misses
+
+
+async def _record_session_embeddings(ledger: SpendLedger, job: DraftGaps) -> None:
+    # The system runner owns model ledgers. This outer ledger contains grouping
+    # embeddings only, including calls made before a later failure.
+    if not ledger.entries:
+        return
+    async with get_worker_db_context() as db:
+        for model in dict.fromkeys(entry.model_name for entry in ledger.entries):
+            entries = [entry for entry in ledger.entries if entry.model_name == model]
+            await ingestion_spend_repo.record(
+                db,
+                organization_id=job.organization_id,
+                rag_document_id=None,
+                improvement_run_id=job.improvement_run_id,
+                model=model,
+                input_tokens=sum(entry.input_tokens for entry in entries),
+                output_tokens=sum(entry.output_tokens for entry in entries),
+                cost_usd=sum((entry.cost_usd for entry in entries), Decimal(0)),
+                cost_is_partial=any(not entry.priced for entry in entries),
+            )
+
+
+async def _draft_session(job: DraftGaps) -> int:
+    await change_feed.connect_in_worker()
+    async with get_worker_db_context() as db:
+        source = await _session_sources(db, job, ImprovementStage.DRAFTING)
+        if not await _session_affords(db, job, source, "draft"):
+            return 0
+    ledger = SpendLedger(organization_id=job.organization_id)
+    drafted = 0
+    try:
+        with metered_by(ledger):
+            for kb_id in source.knowledge_base_ids:
+                async with get_worker_db_context() as db:
+                    current = await _session_sources(db, job, ImprovementStage.DRAFTING)
+                    if kb_id not in current.knowledge_base_ids:
+                        continue
+                    await KnowledgeGapService(db).group_pending(
+                        organization_id=job.organization_id,
+                        knowledge_base_id=kb_id,
+                        source_run_ids=current.run_ids,
+                    )
+            async with get_worker_db_context() as db:
+                current = await _session_sources(db, job, ImprovementStage.DRAFTING)
+                topics = await KnowledgeGapService(db).topics_to_draft(
+                    current.ctx, current.knowledge_base_ids, current.message_ids
+                )
+            for topic_id in topics[:DRAFTS_PER_ROUND]:
+                try:
+                    async with get_worker_db_context() as db:
+                        current = await _session_sources(db, job, ImprovementStage.DRAFTING)
+                        await KnowledgeGapService(db).draft(
+                            current.ctx,
+                            topic_id,
+                            automatic=True,
+                            improvement_run_id=job.improvement_run_id,
+                            source_run_ids=current.run_ids,
+                        )
+                except NotFoundError:
+                    continue
+                except BadRequestError as refused:
+                    if not {"askers", "draft_author"} & set(refused.details or {}):
+                        raise
+                    continue
+                drafted += 1
+    finally:
+        await _record_session_embeddings(ledger, job)
+    await change_feed.publish_knowledge_gaps_grouped(job.organization_id)
     return drafted

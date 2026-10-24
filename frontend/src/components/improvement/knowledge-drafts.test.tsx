@@ -11,6 +11,14 @@ const state = vi.hoisted(() => ({
   runStatus: "completed",
   invalidated: false,
   retrievalInvalid: false,
+  topicError: null as Error | null,
+  listError: null as Error | null,
+  runError: null as Error | null,
+  comparisonError: null as Error | null,
+  verdict: "better",
+  supported: false,
+  noRun: false,
+  total: 8,
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovement: () => ({
@@ -21,10 +29,18 @@ vi.mock("@/hooks/use-improvements", () => ({
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({
+    error: state.listError,
     topics: state.topics ? [{ id: "t1", has_draft: true, can_edit: true, label: "Returns" }] : [],
   }),
   useKnowledgeGap: () => ({
-    topic: { draft: { title: "Return policy", content: "Returns take 30 days.", sources: [] } },
+    error: state.topicError,
+    topic: {
+      draft: {
+        title: "Return policy",
+        content: "Returns take 30 days.",
+        sources: state.supported ? [{ kind: "document" }] : [],
+      },
+    },
   }),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
@@ -45,19 +61,23 @@ vi.mock("@/hooks/use-datasets", () => ({
       })),
       { case_id: "q8", input: "Learning example", improvement_partition: "train" },
     ],
-    total: 8,
+    total: state.total,
   }),
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRun: () => ({
-    run: {
-      status: state.runStatus,
-      proposal_check: { knowledge: { supported: false, invalidated: state.invalidated } },
-    },
+    error: state.runError,
+    run: state.noRun
+      ? null
+      : {
+          status: state.runStatus,
+          proposal_check: { knowledge: { supported: false, invalidated: state.invalidated } },
+        },
   }),
   useEvalComparison: () => ({
+    error: state.comparisonError,
     comparison: {
-      verdict: state.retrievalInvalid ? "invalid" : "better",
+      verdict: state.retrievalInvalid ? "invalid" : state.verdict,
       invalid_reason_code: state.retrievalInvalid ? "knowledge_not_retrieved" : null,
       fixed_confirmed: 2,
       regressions_confirmed: 0,
@@ -128,6 +148,10 @@ beforeEach(() => {
   state.runStatus = "completed";
   state.invalidated = false;
   state.retrievalInvalid = false;
+  state.topicError = state.listError = state.runError = state.comparisonError = null;
+  state.verdict = "better";
+  state.supported = state.noRun = false;
+  state.total = 8;
   state.estimate.mockResolvedValue(QUOTE);
   state.check.mockResolvedValue({ id: "k1" });
 });
@@ -257,4 +281,121 @@ it("does not call a high pass count an improvement when search failed to return 
   expect(screen.getByText(/No demonstrated improvement from the draft/)).toBeInTheDocument();
   expect(screen.queryByText("Better: fixes 2, breaks nothing")).not.toBeInTheDocument();
   expect(state.refetch).toHaveBeenCalled();
+});
+
+it("can review and check knowledge-only sessions without an agent proposal", async () => {
+  render(
+    <KnowledgeDrafts
+      session={{
+        ...SESSION,
+        status: "stopped",
+        stage: "drafting",
+        stop_reason: "knowledge_only",
+        best_iteration_id: null,
+        iterations: SESSION.iterations.map((item) => ({ ...item, batch_id: null, verdict: null })),
+      }}
+    />,
+  );
+  await choose();
+  expect(
+    screen.getByRole("button", { name: "Review the draft and decide whether to add it" }),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Estimate checking the draft" }));
+  await screen.findByText(/5 independent questions/);
+  expect(state.estimate).toHaveBeenCalledWith(
+    expect.objectContaining({ round: 1, topic_id: "t1" }),
+  );
+});
+
+it("keeps completed drafts available when the drafting job failed partway", () => {
+  render(
+    <KnowledgeDrafts
+      session={{
+        ...SESSION,
+        timeline: [
+          {
+            action: "improvement.drafting_failed",
+            at: SESSION.created_at,
+            stage: "drafting",
+            status: "running",
+            reason: null,
+          },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByText(/couldn’t finish preparing the knowledge drafts/)).toBeInTheDocument();
+  expect(screen.getByRole("combobox")).toBeInTheDocument();
+});
+
+it("pages through the pinned questions without starting a check", async () => {
+  state.total = 40;
+  render(<KnowledgeDrafts session={SESSION} />);
+  await choose();
+  const back = screen.getByRole("button", { name: "Previous questions" });
+  const next = screen.getByRole("button", { name: "Next questions" });
+  expect(back).toBeDisabled();
+  await userEvent.click(next);
+  expect(back).toBeEnabled();
+  expect(next).toBeDisabled();
+  await userEvent.click(back);
+  expect(back).toBeDisabled();
+  expect(state.check).not.toHaveBeenCalled();
+});
+it("reports a draft read failure and keeps the check from being fabricated", async () => {
+  state.topicError = new Error("Draft unavailable");
+  render(<KnowledgeDrafts session={SESSION} />);
+  await choose();
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+});
+it("shows list and completed-check read failures", () => {
+  state.listError = new Error("Topics unavailable");
+  state.runError = new Error("Check unavailable");
+  render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
+  expect(screen.getAllByRole("alert")).toHaveLength(2);
+});
+it.each(["queued", "running"])("shows %s checks as background work", (status) => {
+  state.runStatus = status;
+  render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
+  expect(screen.getByRole("status")).toBeInTheDocument();
+  expect(screen.queryByText("Better: fixes 2, breaks nothing")).not.toBeInTheDocument();
+});
+it("waits for a not-yet-loaded check without inventing its outcome", () => {
+  state.noRun = true;
+  render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
+  expect(screen.getByRole("status")).toBeInTheDocument();
+});
+it.each(["worse", "invalid", "unchanged"])(
+  "renders a %s completed knowledge comparison",
+  (verdict) => {
+    state.verdict = verdict;
+    render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
+    expect(screen.queryByText("Better: fixes 2, breaks nothing")).not.toBeInTheDocument();
+  },
+);
+it.each(["embedding_unavailable", "embedding_price_unavailable", "knowledge_search_disabled"])(
+  "explains %s before any paid draft check",
+  async (reason) => {
+    state.estimate.mockResolvedValue({ ...QUOTE, can_measure: false, affordable: false, reason });
+    render(<KnowledgeDrafts session={SESSION} />);
+    await choose();
+    await userEvent.click(screen.getByRole("button", { name: "Estimate checking the draft" }));
+    expect(
+      await screen.findByRole("button", { name: "Confirm and check the draft" }),
+    ).toBeDisabled();
+    expect(state.check).not.toHaveBeenCalled();
+  },
+);
+it("shows verified documentary support without the unsupported warning", async () => {
+  state.supported = true;
+  render(<KnowledgeDrafts session={SESSION} />);
+  await choose();
+  expect(screen.queryByText(/Unsupported — verify the facts/)).not.toBeInTheDocument();
+});
+
+it("does not show a result when its comparison could not be read", () => {
+  state.comparisonError = new Error("Comparison unavailable");
+  render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(screen.queryByText("Better: fixes 2, breaks nothing")).not.toBeInTheDocument();
 });

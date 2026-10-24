@@ -39,7 +39,11 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
     quote: KnowledgeCheckEstimate;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const round = session.iterations.find((item) => item.id === session.best_iteration_id);
+  const round =
+    session.iterations.find((item) => item.id === session.best_iteration_id) ??
+    (session.stop_reason === "knowledge_only"
+      ? session.iterations.find((item) => item.number === session.iteration)
+      : undefined);
   const target: KnowledgeCheckTarget = {
     topic_id: topicId,
     mode,
@@ -61,6 +65,11 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
     <section className="space-y-4 rounded-xl border p-4 sm:p-6">
       <h3 className="font-medium">{t("knowledgeTitle")}</h3>
       <p className="text-muted-foreground text-sm">{t("knowledgeSeparate")}</p>
+      {session.timeline.some((event) => event.action === "improvement.drafting_failed") && (
+        <p role="status" className="text-sm">
+          {t("draftingFailed")}
+        </p>
+      )}
       <div role="group" aria-label={t("knowledgeMode")} className="flex flex-wrap gap-2">
         {(["context", "retrieval"] as const).map((value) => (
           <Button

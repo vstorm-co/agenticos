@@ -79,8 +79,10 @@ async def get_run(
     Every transition locks the session first, so two workers advancing the same
     session serialize and the second sees the child the first one started.
     """
-    statement = select(ImprovementRun).where(
-        ImprovementRun.id == run_id, ImprovementRun.organization_id == organization_id
+    statement = (
+        select(ImprovementRun)
+        .where(ImprovementRun.id == run_id, ImprovementRun.organization_id == organization_id)
+        .execution_options(populate_existing=True)
     )
     if lock:
         statement = statement.with_for_update()
@@ -281,7 +283,15 @@ async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Dec
             ImprovementRun.id == run_id, ImprovementRun.organization_id == organization_id
         )
     )
-    return value + (archived or Decimal(0))
+    from app.db.models.ingestion_spend import IngestionSpend
+
+    embeddings = await db.scalar(
+        select(func.coalesce(func.sum(IngestionSpend.cost_usd), 0)).where(
+            IngestionSpend.organization_id == organization_id,
+            IngestionSpend.improvement_run_id == run_id,
+        )
+    )
+    return value + (archived or Decimal(0)) + (embeddings or Decimal(0))
 
 
 async def has_active_check(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> bool:

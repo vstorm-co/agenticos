@@ -1,5 +1,5 @@
 ---
-source_sha: "bdf1062a20ed"
+source_sha: "ab84245144a9"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -342,6 +342,10 @@ Abra **Improve** en la cabecera del agente o en el dashboard para iniciar una se
 Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}/retry`; varios clics no crean otro trabajo. Los reintentos automáticos nunca repiten llamadas pagadas. Las decisiones humanas actualizan la sesión a aceptada, publicada o descartada. La acción confirmada `/{run_id}/finish` acepta los cambios comprobados y opcionalmente los publica en una transacción. Puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales; los entornos protegidos esperan sus comprobaciones. Las propuestas editadas después de la medición deben comprobarse de nuevo.
 
 En la pantalla Cambios, seleccione un subconjunto con **Incluir en la prueba**. Calcule y confirme la nueva prueba antes de gastar; cambiar la selección o una propuesta invalida la estimación. Los cambios seleccionados se miden con la misma base y las preguntas fijadas. Las pruebas anteriores permanecen en el historial de la ronda. Las propuestas excluidas o añadidas después quedan pendientes; solo se puede aceptar la selección medida. Esta prueba no solicita automáticamente otra propuesta. Los resultados individuales atribuyen únicamente diferencias confirmadas al repetir las respuestas; una prueba inválida o incompleta no atribuye efectos.
+
+La estimación incluye clasificar respuestas de chat incorrectas con las bases de conocimiento editables del agente, agrupar sus carencias y reservar hasta tres pasajes propuestos por base. El worker conserva los permisos actuales de la clave API del solicitante y comprueba de nuevo la estimación completa del paso antes de iniciarlo. Solo los chats fuente fijados y no borrados llegan a clasificación, agrupación o redacción; los fallos de entrenamiento siguen como evidencia del agente, sin textos de control para estos asistentes.
+
+Un fallo del clasificador se muestra y conserva las conversaciones fuente. Una sesión solo de conocimiento termina con borradores para revisar, sin una versión vacía. Probar un borrador exige su propia estimación y confirmación; añadir contenido sigue siendo una decisión humana.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 

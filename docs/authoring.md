@@ -321,6 +321,10 @@ A failed proposal or eval can be retried explicitly with `/{run_id}/retry`; repe
 
 Use **Include in the test** on the Changes screen to choose a subset. Estimate and confirm the new check before it spends anything; changing a choice or a suggestion invalidates the quote. The selected changes are measured against the same base and pinned questions. Earlier checks stay in the round history. Excluded or later suggestions remain undecided, and only the measured selection can be accepted. A selected recheck does not automatically request another proposal. Individual-change results attribute only differences confirmed by repeat answers; invalid or unfinished checks provide no attribution.
 
+The session estimate includes sorting bad chat answers against writable knowledge bases bound to the agent, grouping their misses and reserving up to three proposed passages per base. The worker retains the requester’s current API-key scopes and checks the complete step estimate again before starting. Only frozen, unerased source chats reach classification, grouping or drafting; training failures remain agent evidence, and held-out text never reaches these helpers.
+
+A failed classifier is shown explicitly and leaves the source conversations available. A session needing only knowledge stops with drafts to review, without creating an empty agent version. Checking a draft still requires its own estimate and confirmation; adding content remains a separate human decision.
+
 ### Proposing a new skill { #proposing-a-new-skill }
 
 The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.

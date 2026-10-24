@@ -205,11 +205,17 @@ async def ungrouped_misses(
     organization_id: UUID,
     threshold: float,
     limit: int,
+    source_run_ids: Sequence[UUID] | None = None,
 ) -> list[KnowledgeSearch]:
     """The oldest misses in a knowledge base that no topic of it has taken yet."""
     result = await db.execute(
         select(KnowledgeSearch)
         .where(
+            *(
+                [KnowledgeSearch.run_id.in_(list(source_run_ids))]
+                if source_run_ids is not None
+                else []
+            ),
             KnowledgeSearch.organization_id == organization_id,
             is_miss(threshold),
             _ungrouped_in(knowledge_base_id),
@@ -522,6 +528,7 @@ async def list_questions(
     threshold: float,
     agent_id: UUID | None,
     limit: int | None,
+    source_run_ids: Sequence[UUID] | None = None,
 ) -> list[QuestionRow]:
     """A topic's searches, newest first, each with what the person asked and the answer.
 
@@ -555,6 +562,11 @@ async def list_questions(
         .join(KnowledgeGapMember, KnowledgeGapMember.search_id == KnowledgeSearch.id)
         .where(
             KnowledgeGapMember.topic_id == topic_id,
+            *(
+                [KnowledgeSearch.run_id.in_(list(source_run_ids))]
+                if source_run_ids is not None
+                else []
+            ),
             *_members(organization_id=organization_id, threshold=threshold, agent_id=agent_id),
         )
         .order_by(KnowledgeSearch.created_at.desc(), KnowledgeSearch.id)
@@ -619,6 +631,7 @@ async def drafting_material(
     organization_id: UUID,
     threshold: float,
     limit: int,
+    source_run_ids: Sequence[UUID] | None = None,
     knowledge_tools: Mapping[UUID | None, frozenset[str]],
 ) -> list[DraftingRow]:
     """A topic's newest questions with the answer each got and what its search returned.
@@ -635,6 +648,7 @@ async def drafting_material(
         threshold=threshold,
         agent_id=None,
         limit=limit,
+        source_run_ids=source_run_ids,
     )
     answers = await _answers(db, rows)
     found = await _found(

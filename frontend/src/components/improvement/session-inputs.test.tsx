@@ -328,3 +328,24 @@ it("waits for source counts instead of printing a missing response as zero", () 
   expect(screen.getByRole("status")).toBeInTheDocument();
   expect(screen.queryByText("0")).not.toBeInTheDocument();
 });
+
+it("explains a failed classifier while keeping source conversations visible", () => {
+  render(
+    <Understand
+      session={{
+        ...SESSION,
+        timeline: [
+          {
+            action: "improvement.classification_failed",
+            at: SESSION.created_at,
+            stage: "classifying",
+            status: "running",
+            reason: null,
+          },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByText(/couldn’t finish grouping the feedback/)).toBeInTheDocument();
+  expect(screen.getByText("Refund?")).toBeInTheDocument();
+});

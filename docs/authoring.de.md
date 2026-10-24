@@ -1,5 +1,5 @@
 ---
-source_sha: "bdf1062a20ed"
+source_sha: "ab84245144a9"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -352,6 +352,10 @@ Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum
 Ein fehlgeschlagener Vorschlags- oder Eval-Schritt lässt sich ausdrücklich mit `/{run_id}/retry` wiederholen; mehrfache Klicks erzeugen kein weiteres Kind. Automatische Job-Wiederholungen wiederholen keinen bezahlten Aufruf. Menschliche Entscheidungen setzen den Sitzungsstatus auf angenommen, veröffentlicht oder verworfen. Die bestätigte Aktion `/{run_id}/finish` übernimmt die geprüften Änderungen und veröffentlicht sie optional in derselben Transaktion. Sie kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiterhin; geschützte Umgebungen warten auf ihre Prüfungen. Nach der Messung bearbeitete Vorschläge müssen erneut geprüft werden.
 
 Wählen Sie auf dem Bildschirm Änderungen mit **Im Test berücksichtigen** eine Teilmenge aus. Lassen Sie die neue Prüfung schätzen und bestätigen Sie sie vor der Ausgabe; eine geänderte Auswahl oder ein bearbeiteter Vorschlag macht die Schätzung ungültig. Die ausgewählten Änderungen werden mit derselben Basis und den festgelegten Fragen gemessen. Frühere Prüfungen bleiben im Rundenverlauf. Ausgeschlossene oder später ergänzte Vorschläge bleiben unentschieden; nur die gemessene Auswahl kann angenommen werden. Diese Prüfung fordert nicht automatisch einen weiteren Vorschlag an. Einzelprüfungen ordnen nur Unterschiede zu, die durch wiederholte Antworten bestätigt wurden; ungültige oder unvollständige Prüfungen liefern keine Zuordnung.
+
+Die Sitzungsschätzung umfasst die Einordnung schlechter Chatantworten anhand bearbeitbarer Wissensbasen des Agenten, die Gruppierung der Lücken und bis zu drei vorgeschlagene Passagen je Basis. Der Worker behält die aktuellen API-Schlüsselbereiche des Anfragenden bei und prüft vor dem Start erneut die vollständige Schrittschätzung. Nur festgelegte, nicht gelöschte Quellchats erreichen Klassifizierung, Gruppierung oder Entwurf; Trainingsfehler bleiben Agentenbelege, Kontrolltexte erreichen diese Helfer nie.
+
+Ein Klassifizierungsfehler wird angezeigt; Quellgespräche bleiben verfügbar. Eine reine Wissenssitzung endet mit prüfbaren Entwürfen, ohne leere Agentenversion. Eine Entwurfsprüfung erfordert weiterhin eine eigene Schätzung und Bestätigung; das Hinzufügen bleibt eine gesonderte menschliche Entscheidung.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 
