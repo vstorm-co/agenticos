@@ -9,6 +9,7 @@ const COMMANDS: &[&str] = &[
     "connect",
     "page_error",
     "show_console",
+    "change_server",
     "open_chat",
     "desktop_state",
     "set_appearance",

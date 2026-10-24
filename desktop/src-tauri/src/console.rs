@@ -37,6 +37,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
         WINDOW,
         &[
             "allow-desktop-state",
+            "allow-change-server",
             "allow-set-appearance",
             "allow-set-blobby",
             "allow-set-shortcut",
@@ -298,7 +299,7 @@ pub fn blobby_menu(app: AppHandle, window: WebviewWindow) -> Result<(), String> 
 mod tests {
     use tauri::Url;
 
-    use super::{origin_pattern, GRANTS};
+    use super::{origin_pattern, GRANTS, WINDOW};
 
     #[test]
     fn a_grant_covers_the_servers_origin_and_nothing_wider() {
@@ -332,6 +333,13 @@ mod tests {
                     assert!(!permission.contains(refused), "{window} is granted {permission}");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn only_the_main_console_may_open_the_server_picker() {
+        for (window, permissions) in GRANTS {
+            assert_eq!(permissions.contains(&"allow-change-server"), *window == WINDOW);
         }
     }
 }

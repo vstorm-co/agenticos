@@ -8588,6 +8588,10 @@
     }
   },
   "desktop": {
+    "server": {
+      "change": "Zmień serwer…",
+      "changeFailed": "Nie udało się otworzyć wyboru serwera."
+    },
     "changeFailed": "Aplikacja desktopowa nie przyjęła tej zmiany.",
     "blobby": {
       "label": "Blobby. Przeciągnij, żeby przenieść, kliknij, żeby pomachał, kliknij dwukrotnie, żeby otworzyć konsolę, prawy przycisk otwiera menu.",

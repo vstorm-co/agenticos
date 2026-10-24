@@ -8803,6 +8803,10 @@
     }
   },
   "desktop": {
+    "server": {
+      "change": "Change server…",
+      "changeFailed": "The server picker could not be opened."
+    },
     "changeFailed": "The desktop app did not take that change.",
     "blobby": {
       "label": "Blobby. Drag to move, click to wave, double-click to open the console, right-click for its menu.",

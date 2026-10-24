@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Switch servers from the console sidebar.** Change server opens the native
+  connection form directly, including when the sidebar is collapsed.
 - **Link a desktop from the chat.** Choosing This computer under Work on now
   offers native pairing and folder selection without a detour through Settings.
 - **A more comfortable console on desktop and phone.** Search is labelled above

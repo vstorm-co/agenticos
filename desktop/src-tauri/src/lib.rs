@@ -547,6 +547,18 @@ fn show_console(app: AppHandle) -> Result<(), String> {
     bring_console(&app)
 }
 
+/// Open the shell's local server picker, which validates the address and managed policy.
+#[tauri::command]
+fn change_server(app: AppHandle) -> Result<(), String> {
+    match app.get_webview_window(WINDOW) {
+        Some(console) => console
+            .navigate(connect_page())
+            .map_err(|e| e.to_string())
+            .and_then(|()| raise(&console)),
+        None => bring_console(&app),
+    }
+}
+
 /// Put the console on a fresh chat, opening it if it was closed.
 ///
 /// `/chat` with no conversation id is how the console starts a new one, so this
@@ -1118,11 +1130,8 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 control_local(app, control);
                 Ok(())
             }
-            CHANGE_SERVER | RELOAD | BACK | FORWARD => match app.get_webview_window(WINDOW) {
-                Some(console) if id == CHANGE_SERVER => console
-                    .navigate(connect_page())
-                    .map_err(|e| e.to_string())
-                    .and_then(|()| raise(&console)),
+            CHANGE_SERVER => change_server(app.clone()),
+            RELOAD | BACK | FORWARD => match app.get_webview_window(WINDOW) {
                 Some(console) => {
                     let script = match id {
                         BACK => "history.back()",
@@ -1201,6 +1210,7 @@ pub fn run() {
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
+            change_server,
             server_url,
             startup_notice,
             connect,

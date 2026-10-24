@@ -1,5 +1,5 @@
 ---
-source_sha: "459003712c58"
+source_sha: "35d0c378988e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -68,6 +68,11 @@ Linux. Eine Datei, die sich nicht mehr lesen lässt, wird als `server.json.inval
 beiseitegelegt und eine neue geschrieben. Der Server wird unter
 **Einstellungen…** (`⌘,`), im Tray-Menü oder per Start mit `--server <address>`
 geändert.
+
+**Server wechseln…** ist auch eine feste Schaltfläche über Ihrem Konto in der
+Seitenleiste der Konsole. Sie öffnet direkt das Verbindungsformular; die
+eingeklappte Seitenleiste zeigt das Serversymbol. Sie können die Adresse ohne
+blobby ändern.
 
 ## Eine Anwendung, kein Tab { #an-application-not-a-tab }
 

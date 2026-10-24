@@ -1,5 +1,5 @@
 ---
-source_sha: "459003712c58"
+source_sha: "35d0c378988e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -66,6 +66,10 @@ Linuksie. Plik, który przestał się parsować, jest odkładany jako
 `server.json.invalid`, a zapisywany jest nowy. Serwer zmienia się w
 **Ustawieniach…** (`⌘,`), z menu w zasobniku albo uruchamiając z
 `--server <address>`.
+
+**Zmień serwer…** jest też stałym przyciskiem nad kontem w pasku bocznym konsoli.
+Otwiera bezpośrednio formularz połączenia; zwinięty pasek pokazuje jego ikonę
+serwera. Możesz zmienić adres bez używania blobby.
 
 ## Aplikacja, nie karta { #an-application-not-a-tab }
 

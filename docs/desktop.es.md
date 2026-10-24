@@ -1,5 +1,5 @@
 ---
-source_sha: "459003712c58"
+source_sha: "35d0c378988e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -66,6 +66,11 @@ Los ajustes están en `server.json`, en el directorio de configuración de la ap
 Linux. Un archivo que ya no se puede leer se aparta como `server.json.invalid` y
 se escribe uno nuevo. El servidor se cambia en **Ajustes…** (`⌘,`), desde el menú
 de la bandeja o arrancando con `--server <address>`.
+
+**Cambiar servidor…** también es un botón fijo sobre tu cuenta en la barra
+lateral de la consola. Abre directamente el formulario de conexión; la barra
+lateral contraída muestra su icono de servidor. Puedes cambiar la dirección sin
+usar blobby.
 
 ## Una aplicación, no una pestaña { #an-application-not-a-tab }
 

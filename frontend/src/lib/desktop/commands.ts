@@ -267,6 +267,11 @@ export async function showConsole(): Promise<void> {
   await invokeShell("show_console");
 }
 
+/** Open the shell's own server picker; only its local form may choose an address. */
+export async function changeServer(): Promise<void> {
+  await invokeShell("change_server");
+}
+
 export async function saveBlobbyPosition(x: number, y: number): Promise<void> {
   await invokeShell("save_blobby_position", { x, y });
 }

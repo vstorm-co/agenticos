@@ -8700,6 +8700,10 @@
     }
   },
   "desktop": {
+    "server": {
+      "change": "Server wechseln…",
+      "changeFailed": "Die Serverauswahl konnte nicht geöffnet werden."
+    },
     "blobby": {
       "dropHere": "Lass es hier fallen, dann starte ich damit einen Chat."
     },
