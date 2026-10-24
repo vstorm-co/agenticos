@@ -433,7 +433,7 @@ async def _refresh_under_lock(connection: McpConnection) -> str | None:
     try:
         await asyncio.wait({task})
         return task.result()
-    except asyncio.CancelledError as cancellation:
+    except asyncio.CancelledError:
         while not task.done():
             try:
                 await asyncio.wait({task})
@@ -444,7 +444,7 @@ async def _refresh_under_lock(connection: McpConnection) -> str | None:
                 "mcp_refresh_settlement_failed",
                 extra={"error_type": type(task.exception()).__name__},
             )
-        raise cancellation
+        raise
 
 
 async def _refresh_transaction(connection: McpConnection) -> str | None:
