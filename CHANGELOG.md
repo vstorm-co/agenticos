@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep voice-history summaries and image generation under the host agent's
+  tracing policy. Refuse new image requests after a run exhausts its budget,
+  meter image retries individually and price nested fallback requests using
+  the model that actually answered, including streamed responses.
+
 - Update FastMCP to 4.1.2, filelock to 4.2.1, virtualenv to 21.14.13 and
   Pydantic AI harness to 0.59.0 to address the dependency audit advisories.
   Pydantic AI and its graph package resolve to 2.59.0 for the harness and the
