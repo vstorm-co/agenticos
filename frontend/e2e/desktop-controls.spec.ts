@@ -1,8 +1,25 @@
 import type { Locator, Page } from "@playwright/test";
-import { z } from "zod";
 
 import { expect, test } from "./fixtures";
 import { OWNER_EMAIL, OWNER_PASSWORD } from "./helpers";
+
+/** Validate only the listing fields this pointer regression actually uses. */
+function listingItems(value: unknown): Record<string, unknown>[] {
+  if (!value || typeof value !== "object" || !("items" in value) || !Array.isArray(value.items)) {
+    throw new Error("Expected a paginated listing");
+  }
+  return value.items.map((item: unknown) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error("Expected a listing item");
+    }
+    return Object.fromEntries(Object.entries(item));
+  });
+}
+
+function listingText(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Expected a string listing field");
+  return value;
+}
 
 /** Wait for finite entrance animations, leaving live activity indicators alone. */
 async function settleEntrances(page: Page) {
@@ -92,10 +109,9 @@ test.describe("desktop pointer controls", () => {
     await page.goto("/agents");
     const response = await listing;
     expect(response.ok()).toBe(true);
-    const data = z
-      .object({ items: z.array(z.object({ name: z.string() })).min(1) })
-      .parse(await response.json());
-    await expect(page.locator("main")).toContainText(data.items[0]!.name);
+    const items = listingItems(await response.json());
+    expect(items.length).toBeGreaterThan(0);
+    await expect(page.locator("main")).toContainText(listingText(items[0]?.name));
     await expectReachableButtons(page);
     await clickCenter(page, page.getByRole("button", { name: "New agent", exact: true }));
     const dialog = page.getByRole("dialog");
@@ -150,13 +166,10 @@ test.describe("desktop pointer controls", () => {
     await page.goto("/runs");
     const response = await listing;
     expect(response.ok()).toBe(true);
-    const data = z
-      .object({ items: z.array(z.object({ id: z.string() })) })
-      .parse(await response.json());
-    const first = data.items[0];
+    const first = listingItems(await response.json())[0];
     test.skip(!first, "This deployment has no recorded runs yet");
     if (!first) return;
-    await page.goto(`/runs?run=${encodeURIComponent(first.id)}`);
+    await page.goto(`/runs?run=${encodeURIComponent(listingText(first.id))}`);
     const panel = page.getByRole("complementary", { name: "Run detail", exact: true });
     await expect(panel).toBeVisible();
     await expectReachableButtons(page);
@@ -176,24 +189,17 @@ test.describe("desktop pointer controls", () => {
     await page.goto("/apps");
     const response = await listing;
     expect(response.ok()).toBe(true);
-    const data = z
-      .object({
-        items: z.array(
-          z.object({
-            id: z.string(),
-            title: z.string(),
-            current_version: z.object({ id: z.string() }).nullable(),
-          }),
-        ),
-      })
-      .parse(await response.json());
-    const app = data.items.find((item) => item.current_version !== null);
+    const app = listingItems(await response.json()).find(
+      (item) => item.current_version !== null && typeof item.current_version === "object",
+    );
     test.skip(!app, "This deployment has no published apps yet");
     if (!app) return;
     for (const width of [1440, 900]) {
       await page.setViewportSize({ width, height: 800 });
-      await page.goto(`/apps/${encodeURIComponent(app.id)}`);
-      await expect(page.getByRole("heading", { name: app.title, exact: true })).toBeVisible();
+      await page.goto(`/apps/${encodeURIComponent(listingText(app.id))}`);
+      await expect(
+        page.getByRole("heading", { name: listingText(app.title), exact: true }),
+      ).toBeVisible();
       await expect(page.locator("iframe")).toBeVisible();
       const back = page.getByRole("link", { name: "Back to apps", exact: true });
       await expect(back).toBeVisible();
