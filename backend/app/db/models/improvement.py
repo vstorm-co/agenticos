@@ -84,6 +84,12 @@ class ImprovementStage(StrEnum):
     """The step a session is on, or was on when it stopped."""
 
     ANALYZING = "analyzing"
+    CLASSIFYING = "classifying"
+    """Sorting the bad answers into the agent's faults, missing knowledge and non-problems."""
+
+    DRAFTING = "drafting"
+    """Drafting the content the knowledge base is missing, for a person to add."""
+
     PROPOSING = "proposing"
     FILTERING = "filtering"
     EVALUATING = "evaluating"
@@ -110,6 +116,12 @@ class StopReason(StrEnum):
 
     SUPERSEDED = "superseded"
     """A newer candidate or a person's own Improve replaced this one."""
+
+    KNOWLEDGE_ONLY = "knowledge_only"
+    """Every bad answer was missing knowledge: the drafts wait in its Knowledge gaps."""
+
+    DRAFT = "draft"
+    """Drafting the missing knowledge failed, and nothing was left for the agent."""
 
 
 class ImprovementVerdict(StrEnum):
@@ -296,6 +308,17 @@ class ImprovementIteration(Base):
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     verdict_detail: Mapped[VerdictDetail | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
+    )
+    # SET NULL: a job retention removed reads as one that ended long ago.
+    classify_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("background_jobs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    draft_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("background_jobs.id", ondelete="SET NULL"),
+        nullable=True,
     )
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     started_at: Mapped[datetime] = mapped_column(

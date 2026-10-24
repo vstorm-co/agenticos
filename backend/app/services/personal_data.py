@@ -313,6 +313,7 @@ class PersonalDataService:
         )
         dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
         searches = await personal_data_repo.purge_knowledge_searches_of(self.db, user_id)
+        gap_reasons = await personal_data_repo.clear_gap_reasons_of(self.db, user_id)
         scored_answers = await personal_data_repo.purge_scored_answers_of(self.db, user_id)
         case_proposals = await personal_data_repo.delete_case_proposals_of(self.db, user_id)
         if (
@@ -321,6 +322,7 @@ class PersonalDataService:
             or workspaces
             or dataset_cases
             or searches
+            or gap_reasons
             or scored_answers
             or case_proposals
         ):
@@ -333,6 +335,7 @@ class PersonalDataService:
                     "workspaces": workspaces,
                     "dataset_cases": dataset_cases,
                     "knowledge_searches": searches,
+                    "knowledge_gap_reasons": gap_reasons,
                     "scored_answers": scored_answers,
                     "case_proposals": case_proposals,
                 },

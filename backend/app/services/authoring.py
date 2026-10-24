@@ -26,6 +26,7 @@ taken from the conversations the hunks were derived from.
 """
 
 import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
@@ -244,9 +245,18 @@ class AuthoringService:
         return AgentSpec.model_validate(version.spec)
 
     async def estimate_agent(
-        self, ctx: AuthContext, agent_id: UUID, body: AuthoringStart
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        body: AuthoringStart,
+        *,
+        excluded_message_ids: Sequence[UUID] = (),
     ) -> AuthoringEstimate:
-        """What an Improve or Verify on this agent would read and cost."""
+        """What an Improve or Verify on this agent would read and cost.
+
+        `excluded_message_ids` is an improvement session's, never a person's:
+        the answers it found missing knowledge, which the improver does not read.
+        """
         self._require_runs_view(ctx)
         agent = await self._editable(ctx, agent_id)
         improver = await self._improver(ctx)
@@ -258,7 +268,12 @@ class AuthoringService:
                 agent.draft_spec
             ):
                 return await self._estimate(ctx, improver, EvidencePack(), "no_draft_change")
-        pack = await self.evidence.for_agent(ctx, agent.id, window_days=body.window_days)
+        pack = await self.evidence.for_agent(
+            ctx,
+            agent.id,
+            window_days=body.window_days,
+            excluded_message_ids=excluded_message_ids,
+        )
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
     async def estimate_skill(
@@ -351,9 +366,16 @@ class AuthoringService:
         return organization.monthly_budget_usd - spent
 
     async def start_agent(
-        self, ctx: AuthContext, agent_id: UUID, body: AuthoringStart
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        body: AuthoringStart,
+        *,
+        excluded_message_ids: Sequence[UUID] = (),
     ) -> AuthoringRequestRead:
         """Queue an Improve or Verify on an agent, after the same checks its estimate makes.
+
+        `excluded_message_ids` is kept on the request, as :meth:`estimate_agent` reads it.
 
         Raises:
             BadRequestError: Nothing to read (`no_evidence`), or nothing to verify
@@ -361,7 +383,9 @@ class AuthoringService:
             PaymentRequiredError: The estimate is more than the improver or the
                 organization has left this month. Nothing is written.
         """
-        estimate = await self.estimate_agent(ctx, agent_id, body)
+        estimate = await self.estimate_agent(
+            ctx, agent_id, body, excluded_message_ids=excluded_message_ids
+        )
         return await self._start(
             ctx,
             estimate,
@@ -369,6 +393,7 @@ class AuthoringService:
             target=AuthoringTarget.AGENT,
             agent_id=agent_id,
             skill_id=None,
+            excluded_message_ids=excluded_message_ids,
         )
 
     async def start_skill(
@@ -410,6 +435,7 @@ class AuthoringService:
         agent_id: UUID | None,
         skill_id: UUID | None,
         context_id: UUID | None = None,
+        excluded_message_ids: Sequence[UUID] = (),
     ) -> AuthoringRequestRead:
         if estimate.reason == "no_draft_change":
             raise BadRequestError(
@@ -443,6 +469,7 @@ class AuthoringService:
             created_by_user_id=ctx.user_id,
             estimate_usd=estimate.estimate_usd,
             window_days=body.window_days,
+            excluded_message_ids=excluded_message_ids,
         )
         await record_audit(
             self.db,

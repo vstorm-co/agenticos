@@ -1,5 +1,5 @@
 ---
-source_sha: "cf402ff0accf"
+source_sha: "63279972bd20"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -61,24 +61,27 @@ Antworten warten, mit einem Link zum Schalter für alle, die ihn ändern dürfen
 
 Das Modell ist der **Knowledge gap classifier**, ein
 [System-Agent](concepts.md#system-agents), den jede Organisation hat. Er liest
-jede Antwort mit ihrer Frage und den Kommentaren aller, die sie negativ bewertet
-haben, und entscheidet eines von vier Dingen:
+jede Antwort mit ihrer Frage, den Kommentaren aller, die sie negativ bewertet
+haben, und den Anweisungen und [Kontextdateien](context.md) der Agent-Version,
+die sie gegeben hat - denen, die die Person lesen darf, die die Prüfung
+angefordert hat -, und entscheidet eines von vier Dingen, mit einem Satz zur
+Begründung:
 
 | Urteil | Wann |
 |---|---|
 | Der Agent wusste es nicht | Die Antwort sagt, in beliebigen Worten und Sprachen, dass der Agent es nicht wusste oder die Information nicht fand. Eine berechtigte Frage, die der Agent abgelehnt hat, weil er nichts dazu hatte, gehört hierher, nicht zu den Ablehnungen |
 | Informationen fehlten | Ein Kommentar zu einer negativen Bewertung sagt, dass Informationen fehlten, veraltet oder unvollständig waren |
 | Zu Recht abgelehnt | Die Frage verlangte, was die Regeln oder der Zweck des Agents nicht erlauben - seine Anweisungen zu ignorieren, eine Ausnahme zu gewähren oder bei etwas zu helfen, wofür er nicht da ist - und der Agent hat abgelehnt. Keine Lücke, und die Fehltreffer unter den Suchen dieses Runs zählen ebenfalls nicht mehr als Lücken - in dieser Wissensdatenbank und in einer anderen, die eine verfehlte Suche mit abdeckte, denn eine Ablehnung betrifft die Anfrage, nicht eine Wissensdatenbank |
-| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung von etwas, das die Regeln erlauben, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
+| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung von etwas, das die Regeln erlauben, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt - ebenso eine Antwort, deren Agent in seinen Anweisungen oder Kontextdateien stehen hat, was sie brauchte. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
 
 Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
 Themen der Wissensbasis und wie eine fehlgeschlagene Suche gruppiert. Im Thema
 steht, welcher der beiden Fälle es ist, statt einer Suche.
 
 Eine Antwort wird gelesen, wenn ihr Run aus den letzten 30 Tagen abgeschlossen
-ist und die Wissensbasis durchsucht und etwas gefunden hat oder mit einem
-Kommentar negativ bewertet wurde und auf einer Agent-Version läuft, die an die
-Wissensbasis gebunden ist. Ein Run, dessen Suche schon ein Fehltreffer war,
+ist und entweder die Wissensbasis durchsucht hat oder auf einer an sie
+gebundenen Agent-Version lief, bewertet oder nicht: Eine Antwort, in der der
+Agent es nicht wusste, bewertet oft niemand. Ein Run, dessen Suche schon ein Fehltreffer war,
 wird ebenfalls gelesen, damit eine berechtigte Ablehnung seinen Fehltreffer aus
 den Lücken nimmt; sonst zählt er weiterhin einmal, als dieser Fehltreffer. Runs über die HTTP-API behalten keine
 Antwort, und Eval-Runs, deren Fragen wiederholt oder erzeugt sind, werden nie
@@ -97,8 +100,23 @@ sehen. Jede gelesene Antwort wird gemerkt, egal mit welchem Urteil, also wird
 für keine zweimal bezahlt. Eine als „keine Lücke“ gelesene Antwort wird erst
 nach einer neuen negativen Bewertung mit Kommentar erneut gelesen. Eine Prüfung
 hält bei einem Run an, der ohne Antwort endet, etwa einem, den ein
-aufgebrauchtes Budget verweigert, und behält, was sie gelesen hat. Für eine
-Wissensbasis läuft immer nur eine Prüfung.
+aufgebrauchtes Budget verweigert, und behält, was sie gelesen hat.
+
+Für eine Wissensbasis läuft immer nur eine Prüfung, als Hintergrund-Job unter
+Admin → Background jobs: Ein Worker, der darunter stehen bleibt, hinterlässt den
+Job dort beendet, nie spurlos verloren, und was die Prüfung gelesen hat, bleibt
+gelesen.
+
+Eine Verbesserungssitzung - im Hintergrund ausgeführtes
+[Verbessern](authoring.md) - liest die schlechten Antworten, die sie gefunden
+hat, auf dieselbe Weise, nur diese Antworten und unabhängig von ihrem Alter, und
+ordnet jede nach ihren Urteilen ein: fehlendes Wissen, wo einer Wissensbasis
+Inhalt fehlte, nichts zu beheben, wo der Agent zu Recht abgelehnt hat, und sonst
+ein Fehler des Agents. Die Antworten mit fehlendem Wissen fallen aus dem heraus,
+was der Authoring-Assistent liest, und die Sitzung entwirft stattdessen ihre
+Themen - nur ein Thema, nach dem mindestens zwei verschiedene Personen gefragt
+haben, höchstens drei pro Runde. Die Runs eines Evals werden nie gelesen, also
+auch kein zurückgehaltener Fall.
 
 ## Themen { #topics }
 
@@ -305,8 +323,16 @@ gelöscht wird: Jemand hat geprüft und bestätigt, was es sagt.
 Eine aus einer Antwort gelesene Frage wird wie eine Suche aufbewahrt: Sie hält
 die Frage der Person und geht mit ihrem Run und ihrer Conversation. Das Prüfen
 von Antworten schickt Fragen, Antworten und Kommentare zu negativen Bewertungen
-an den Modellanbieter des Klassifizierers. Von jeder gelesenen Antwort bleiben
-nur ihr Urteil und der Run des Klassifizierers, kein Text.
+an den Modellanbieter des Klassifizierers.
+
+Von jeder gelesenen Antwort bleiben
+ihr Urteil, der Run des Klassifizierers und seine Begründung in einem Satz, die
+mit der Antwort geht und gelöscht wird, wenn die fragende Person gelöscht wird.
+Die Begründung sieht nur, wer den antwortenden Agent ansehen darf. Sie kann die
+Anweisungen des Agents oder eine seiner Kontextdateien nennen - beim Namen, nie
+mit ihrem Inhalt - auch jemandem, der diese Datei nicht lesen darf. Eine Antwort,
+deren Run nicht mehr da ist, sagt nicht mehr, wer gefragt hat, also bleibt ihre
+Begründung, bis die Conversation der Antwort gelöscht wird.
 
 ## Was Lücken noch nicht erkennen { #limits }
 

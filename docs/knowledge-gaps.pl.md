@@ -1,5 +1,5 @@
 ---
-source_sha: "cf402ff0accf"
+source_sha: "63279972bd20"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -57,24 +57,26 @@ jeszcze nieprzeczytane. Gdy przełącznik jest wyłączony, zakładka mówi, ile
 odpowiedzi czeka, z linkiem do przełącznika dla tego, kto może go zmienić.
 
 Model to **Knowledge gap classifier**, [agent systemowy](concepts.md#system-agents),
-którego ma każda organizacja. Czyta każdą odpowiedź razem z pytaniem i
-komentarzami osób, które oceniły ją łapką w dół, i wybiera jedną z czterech
-możliwości:
+którego ma każda organizacja. Czyta każdą odpowiedź razem z pytaniem,
+komentarzami osób, które oceniły ją łapką w dół, oraz instrukcjami i
+[plikami kontekstowymi](context.md) wersji agenta, która jej udzieliła - tymi,
+które może czytać osoba, która poprosiła o sprawdzenie - i wybiera jedną z
+czterech możliwości, uzasadniając wybór jednym zdaniem:
 
 | Werdykt | Kiedy |
 |---|---|
 | Agent nie wiedział | Odpowiedź mówi, dowolnymi słowami i w dowolnym języku, że agent nie wie albo nie znalazł informacji. Uzasadnione pytanie, którego agent nie podjął, bo nie miał na ten temat nic, należy tutaj, a nie do odmów |
 | Brakowało informacji | Komentarz do oceny łapką w dół mówi, że informacji brakowało, była nieaktualna albo niepełna |
 | Słuszna odmowa | Pytanie dotyczyło czegoś, na co nie pozwalają reguły albo przeznaczenie agenta - zignorowania jego instrukcji, przyznania wyjątku albo pomocy w czymś, do czego agent nie służy - i agent odmówił. To nie jest luka, a chybione wyszukiwania tego runa też przestają liczyć się jako luki - w tej bazie wiedzy i w innej, którą chybione wyszukiwanie też objęło, bo odmowa dotyczy prośby, a nie jednej bazy wiedzy |
-| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa czegoś, na co reguły pozwalają, komentarz o tonie, długości albo błędzie. Odpowiedź, która źle zastosowała politykę albo regułę, nie jest luką: reguła była, a to błąd do poprawienia. Komentarz, że informacja jest nieaktualna, jest luką |
+| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa czegoś, na co reguły pozwalają, komentarz o tonie, długości albo błędzie. Odpowiedź, która źle zastosowała politykę albo regułę, nie jest luką: reguła była, a to błąd do poprawienia - tak samo jak odpowiedź, której agent ma w instrukcjach albo plikach kontekstowych to, czego potrzebowała. Komentarz, że informacja jest nieaktualna, jest luką |
 
 Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematach
 bazy wiedzy, grupowanym tak jak chybione wyszukiwanie. W temacie mówi, który
 to z dwóch przypadków, zamiast podawać wyszukiwanie.
 
-Odpowiedź jest czytana, gdy jej run z ostatnich 30 dni zakończył się i przeszukał
-bazę wiedzy i coś znalazł albo został oceniony łapką w dół z komentarzem i działa
-na wersji agenta powiązanej z bazą wiedzy. Run, którego wyszukiwanie już było
+Odpowiedź jest czytana, gdy jej run z ostatnich 30 dni zakończył się i albo
+przeszukał bazę wiedzy, albo działał na wersji agenta z nią powiązanej, oceniony
+czy nie: odpowiedzi, w której agent nie wiedział, często nikt nie ocenia. Run, którego wyszukiwanie już było
 chybione, też jest czytany, żeby słuszna odmowa usunęła jego chybienie z luk; w
 przeciwnym razie nadal liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują
 odpowiedzi, a runy ewaluacji, których pytania są odtwarzane albo generowane, nie
@@ -93,8 +95,22 @@ przeczytana odpowiedź jest zapamiętywana, niezależnie od werdyktu, więc za �
 nie płaci się dwa razy. Odpowiedź z werdyktem „brak luki” jest czytana ponownie
 dopiero po nowej ocenie łapką w dół z komentarzem. Sprawdzenie zatrzymuje się na
 runie, który kończy się bez odpowiedzi, na przykład odrzuconym przez
-wyczerpany budżet, i zachowuje to, co przeczytało. Jedna baza wiedzy ma naraz
-tylko jedno sprawdzenie.
+wyczerpany budżet, i zachowuje to, co przeczytało.
+
+Jedna baza wiedzy ma naraz tylko jedno sprawdzenie, uruchamiane jako zadanie w
+tle w Admin → Background jobs: gdy worker przestanie działać w jego trakcie,
+zadanie kończy się w tym miejscu, zamiast zniknąć bez śladu, a to, co
+sprawdzenie przeczytało, pozostaje przeczytane.
+
+Sesja ulepszania - [Ulepsz](authoring.md) uruchomione w tle - czyta w ten sam
+sposób złe odpowiedzi, które znalazła, tylko te odpowiedzi i niezależnie od ich
+wieku, i przypisuje każdą do grupy według jej werdyktów: brakująca wiedza, gdy w
+bazie wiedzy brakowało treści, nic do poprawienia, gdy agent słusznie odmówił,
+a w pozostałych przypadkach błąd agenta. Odpowiedzi z brakującą wiedzą wypadają
+z tego, co czyta asystent tworzenia, a sesja zamiast tego pisze szkice ich
+tematów - tylko tematu, o który pytały co najmniej dwie różne osoby, i najwyżej
+trzech na rundę. Runy ewaluacji nie są nigdy czytane, więc żaden przypadek
+zachowany do sprawdzenia też nie.
 
 ## Tematy { #topics }
 
@@ -284,8 +300,16 @@ osoba, której pytanie go ukształtowało: ktoś sprawdził i potwierdził jego 
 Pytanie odczytane z odpowiedzi jest przechowywane tak samo jak wyszukiwanie:
 zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Sprawdzanie
 odpowiedzi wysyła pytania, odpowiedzi i komentarze do ocen łapką w dół do
-dostawcy modelu klasyfikatora. Z każdej przeczytanej odpowiedzi zapamiętywany
-jest tylko werdykt i run klasyfikatora, bez tekstu.
+dostawcy modelu klasyfikatora.
+
+Z każdej przeczytanej odpowiedzi zapamiętywany
+jest werdykt, run klasyfikatora i jego jednozdaniowe uzasadnienie, które znika
+razem z odpowiedzią i jest czyszczone, gdy osoba pytająca zostanie usunięta.
+Uzasadnienie widzi tylko ktoś, kto może oglądać agenta, który odpowiedział.
+Może ono wymienić instrukcje agenta albo jeden z jego plików kontekstowych - z
+nazwy, nigdy z treści - także komuś, kto nie może czytać tego pliku. Odpowiedź,
+której run już nie istnieje, nie mówi, kto pytał, więc jej uzasadnienie zostaje,
+dopóki nie zniknie rozmowa odpowiedzi.
 
 ## Czego luki jeszcze nie wykrywają { #limits }
 

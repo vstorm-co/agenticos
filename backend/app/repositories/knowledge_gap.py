@@ -346,6 +346,7 @@ async def list_topics(
     skip: int,
     limit: int,
     topic_id: UUID | None = None,
+    topic_ids: Sequence[UUID] | None = None,
 ) -> tuple[list[TopicRow], int]:
     """Topics of these knowledge bases, the most asked first, with how many there are."""
     question_count = func.count(KnowledgeSearch.id)
@@ -380,6 +381,8 @@ async def list_topics(
         grouped = grouped.where(_status() == status)
     if topic_id is not None:
         grouped = grouped.where(KnowledgeGapTopic.id == topic_id)
+    if topic_ids is not None:
+        grouped = grouped.where(KnowledgeGapTopic.id.in_(list(topic_ids)))
     total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
     result = await db.execute(
         grouped.order_by(question_count.desc(), last_asked_at.desc(), KnowledgeGapTopic.id)
@@ -820,6 +823,8 @@ class CandidateRow(NamedTuple):
     message_id: UUID
     run_id: UUID
     agent_id: UUID
+    agent_version_id: UUID | None
+    """The version that answered, whose instructions and context files the model reads."""
     conversation_id: UUID
     asker_id: UUID | None
     """Who started the run, whose question a miss read from it keeps."""
@@ -843,20 +848,28 @@ def _down_rated_with_comment(message_id: SQLColumnExpression[UUID]) -> ColumnEle
 
 
 def _candidates(
-    knowledge_base_id: UUID, *, organization_id: UUID, since: datetime
+    knowledge_base_id: UUID,
+    *,
+    organization_id: UUID,
+    since: datetime,
+    message_ids: Sequence[UUID] | None = None,
 ) -> tuple[Any, Any]:
     """The runs and their last answers that are candidates for one knowledge base.
 
     An answer is a candidate when its run is a person's - never an eval's,
-    whose questions were replayed or generated, nor a builder's test of a
-    draft, nor a delegate's - finished, still has its starter and a kept
-    conversation, and either
-    searched the knowledge base without missing or was rated down with a
-    comment by an agent version that binds it. A run that already missed on the
-    base is a candidate too, so that a rightful refusal of a request outside the
-    agent's rules takes its misses out of the gaps. An answer is read once for
-    each knowledge base, and again only if it read as `none` there and a newer
-    thumbs-down with a comment has arrived since.
+    whose questions were replayed or generated and whose held-out cases a model
+    must never read, nor a builder's test of a draft, nor a delegate's -
+    finished, still has its starter and a kept conversation, and either searched
+    the knowledge base or ran on an agent version that binds it, rated or not:
+    an answer saying the agent did not know is often rated by nobody. A run that
+    already missed on the base is a candidate too, so that a rightful refusal of
+    a request outside the agent's rules takes its misses out of the gaps. An
+    answer is read once for each knowledge base, and again only if it read as
+    `none` there and a newer thumbs-down with a comment has arrived since.
+
+    `message_ids` names the answers instead, any of a run's and of any age, as
+    an improvement session reads the answers it found bad; those already read
+    for the knowledge base are left out, and the same people's runs only.
     """
     answer = aliased(Message)
     searched = exists().where(
@@ -868,7 +881,6 @@ def _candidates(
         AgentVersion.id == AgentRun.agent_version_id,
         AgentVersion.spec["collection_ids"].contains([str(knowledge_base_id)]),
     )
-    rated = exists().where(_down_rated_with_comment(answer.id))
     read = exists().where(
         KnowledgeGapClassification.message_id == answer.id,
         KnowledgeGapClassification.knowledge_base_id == knowledge_base_id,
@@ -883,7 +895,7 @@ def _candidates(
             > KnowledgeGapClassification.classified_at,
         ),
     )
-    conditions = (
+    eligible = (
         AgentRun.organization_id == organization_id,
         AgentRun.surface != RunSurface.EVAL.value,
         AgentRun.status == RunStatus.COMPLETED.value,
@@ -891,12 +903,21 @@ def _candidates(
         AgentRun.parent_run_id.is_(None),
         AgentRun.user_id.is_not(None),
         AgentRun.conversation_id.is_not(None),
+    )
+    if message_ids is not None:
+        return answer, (
+            *eligible,
+            answer.id.in_(list(message_ids)),
+            answer.role == "assistant",
+            ~read,
+        )
+    return answer, (
+        *eligible,
         AgentRun.started_at >= since,
         answer.id == _answer_of(AgentRun.id),
-        or_(searched, and_(rated, binds)),
+        or_(searched, binds),
         or_(~read, reread),
     )
-    return answer, conditions
 
 
 async def classification_candidates(
@@ -907,10 +928,14 @@ async def classification_candidates(
     threshold: float,
     since: datetime,
     limit: int,
+    message_ids: Sequence[UUID] | None = None,
 ) -> list[CandidateRow]:
-    """The newest answers in one knowledge base's runs that a model has still to read."""
+    """The newest answers in one knowledge base's runs that a model has still to read.
+
+    Or, with `message_ids`, those of them not read yet for the knowledge base.
+    """
     answer, conditions = _candidates(
-        knowledge_base_id, organization_id=organization_id, since=since
+        knowledge_base_id, organization_id=organization_id, since=since, message_ids=message_ids
     )
     question = (
         select(Message.content)
@@ -928,6 +953,7 @@ async def classification_candidates(
             AgentRun.user_id,
             question,
             answer.content,
+            AgentRun.agent_version_id,
         )
         .select_from(AgentRun)
         .join(answer, answer.run_id == AgentRun.id)
@@ -972,6 +998,7 @@ async def classification_candidates(
             message_id=row[0],
             run_id=row[1],
             agent_id=row[2],
+            agent_version_id=row[7],
             conversation_id=row[3],
             asker_id=row[4],
             question=row[5],
@@ -1011,6 +1038,8 @@ class Verdict(NamedTuple):
     """`ANSWER` or `RATING` for a miss to record, None for none - as for a run already missed."""
     query: str
     """What a miss is grouped by: the person's question, bounded as a search's query is."""
+    reason: str | None = None
+    """The model's one sentence on why."""
 
 
 async def still_asked(
@@ -1064,6 +1093,7 @@ async def record_classifications(
                 "knowledge_base_id": knowledge_base_id,
                 "organization_id": organization_id,
                 "signal": verdict.verdict,
+                "reason": verdict.reason,
                 "run_id": run_id,
             }
             for verdict in verdicts
@@ -1077,6 +1107,7 @@ async def record_classifications(
             ],
             set_={
                 "signal": statement.excluded.signal,
+                "reason": statement.excluded.reason,
                 "run_id": statement.excluded.run_id,
                 "classified_at": func.now(),
             },
@@ -1129,3 +1160,67 @@ async def record_classifications(
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns a `CursorResult`, which does (see `resource_grant`).
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def classifications_of(
+    db: AsyncSession,
+    message_ids: Sequence[UUID],
+    knowledge_base_ids: Sequence[UUID],
+    *,
+    organization_id: UUID,
+) -> dict[UUID, tuple[UUID | None, list[tuple[str, str | None]]]]:
+    """Each answer's agent, and its verdicts in these knowledge bases with the model's reasons.
+
+    Oldest verdict first, so which reason speaks for agreeing knowledge bases
+    does not change between reads.
+    """
+    result = await db.execute(
+        select(
+            KnowledgeGapClassification.message_id,
+            AgentRun.agent_id,
+            KnowledgeGapClassification.signal,
+            KnowledgeGapClassification.reason,
+        )
+        .join(Message, Message.id == KnowledgeGapClassification.message_id)
+        .outerjoin(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            KnowledgeGapClassification.organization_id == organization_id,
+            KnowledgeGapClassification.message_id.in_(list(message_ids)),
+            KnowledgeGapClassification.knowledge_base_id.in_(list(knowledge_base_ids)),
+        )
+        .order_by(
+            KnowledgeGapClassification.classified_at, KnowledgeGapClassification.knowledge_base_id
+        )
+    )
+    found: dict[UUID, tuple[UUID | None, list[tuple[str, str | None]]]] = {}
+    for message_id, agent_id, signal, reason in result.all():
+        found.setdefault(message_id, (agent_id, []))[1].append((signal, reason))
+    return found
+
+
+async def topics_of_answers(
+    db: AsyncSession,
+    knowledge_base_ids: Sequence[UUID],
+    message_ids: Sequence[UUID],
+    *,
+    organization_id: UUID,
+) -> list[UUID]:
+    """The topics of these knowledge bases holding a miss of these answers' runs.
+
+    A miss read from an answer names it; a search that missed names the run.
+    """
+    runs = select(Message.run_id).where(Message.id.in_(list(message_ids)))
+    result = await db.execute(
+        select(distinct(KnowledgeGapMember.topic_id))
+        .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+        .join(KnowledgeGapTopic, KnowledgeGapTopic.id == KnowledgeGapMember.topic_id)
+        .where(
+            KnowledgeSearch.organization_id == organization_id,
+            KnowledgeGapTopic.knowledge_base_id.in_(list(knowledge_base_ids)),
+            or_(
+                KnowledgeSearch.message_id.in_(list(message_ids)),
+                KnowledgeSearch.run_id.in_(runs),
+            ),
+        )
+    )
+    return list(result.scalars().all())

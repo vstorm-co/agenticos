@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, case, func, or_, select, update
+from sqlalchemy import and_, case, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -37,6 +37,7 @@ async def create_request(
     created_by_user_id: UUID | None,
     estimate_usd: Decimal,
     window_days: int,
+    excluded_message_ids: Sequence[UUID] = (),
 ) -> AuthoringRequest:
     request = AuthoringRequest(
         organization_id=organization_id,
@@ -49,6 +50,7 @@ async def create_request(
         status=AuthoringStatus.QUEUED.value,
         estimate_usd=estimate_usd,
         window_days=window_days,
+        excluded_message_ids=list(excluded_message_ids),
         evidence={},
     )
     db.add(request)
@@ -424,6 +426,7 @@ async def evidence_runs(
     agent_id: UUID | None = None,
     agent_ids: Sequence[UUID] | None = None,
     skill_name: str | None = None,
+    excluded_message_ids: Sequence[UUID] = (),
     since: datetime,
     limit: int,
 ) -> list[EvidenceRun]:
@@ -434,6 +437,7 @@ async def evidence_runs(
     that succeeded are not evidence of anything. `agent_id` narrows the runs to
     one agent's, `agent_ids` to several agents' - those binding a context file -
     and `skill_name` to those whose model opened that skill.
+    `excluded_message_ids` leaves out the runs that gave those answers.
 
     A skill reaches a run as a deferred capability the model loads with
     `load_capability`, a framework tool no binding can rename, so the call's
@@ -480,6 +484,13 @@ async def evidence_runs(
         statement = statement.where(AgentRun.agent_id == agent_id)
     if agent_ids is not None:
         statement = statement.where(AgentRun.agent_id.in_(list(agent_ids)))
+    if excluded_message_ids:
+        # NOT EXISTS, not NOT IN: a transcript whose run retention removed has no
+        # run id, and one NULL in a NOT IN leaves no run at all.
+        answered = exists().where(
+            Message.run_id == AgentRun.id, Message.id.in_(list(excluded_message_ids))
+        )
+        statement = statement.where(~answered)
     if skill_name is not None:
         loaded = (
             select(ToolCall.id)

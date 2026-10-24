@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class Pool(enum.StrEnum):
@@ -121,6 +121,31 @@ class RunAuthoring(Payload):
 
     request_id: UUID
     organization_id: UUID
+
+
+class ClassifyGaps(Payload):
+    """Answers read for the knowledge gaps of these knowledge bases, as the person who asked.
+
+    Without `message_ids`, a knowledge base's newest unread answers, as its
+    Knowledge gaps tab asks; with them, those answers alone, as an improvement
+    session sorts the answers it found bad.
+    """
+
+    organization_id: UUID
+    knowledge_base_ids: list[UUID] = Field(max_length=50)
+    user_id: UUID
+    message_ids: list[UUID] | None = Field(default=None, max_length=500)
+    improvement_run_id: UUID | None = None
+
+
+class DraftGaps(Payload):
+    """The missing knowledge of these answers drafted, as the person a session acts for."""
+
+    organization_id: UUID
+    knowledge_base_ids: list[UUID] = Field(max_length=50)
+    user_id: UUID
+    message_ids: list[UUID] = Field(max_length=500)
+    improvement_run_id: UUID | None = None
 
 
 class Restamp(Payload):
@@ -254,6 +279,24 @@ RUN_AUTHORING = Task(
     timeout=timedelta(hours=1),
     priority=Priority.INTERACTIVE,
 )
+# One attempt each: every classifying and drafting call is billed, and what one
+# recorded stays recorded, so a session reads the job's end and the verdicts it left.
+CLASSIFY_GAPS = Task(
+    kind="classify-gaps",
+    payload_type=ClassifyGaps,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+)
+DRAFT_GAPS = Task(
+    kind="draft-gaps",
+    payload_type=DraftGaps,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=15),
+    priority=Priority.INTERACTIVE,
+)
 CLEANUP_EXTERNAL_STATE = Task(
     kind="cleanup-external-state",
     payload_type=CleanupExternalState,
@@ -298,6 +341,8 @@ TASKS: dict[str, TaskKind] = {
         RUN_AGENT,
         RUN_EVAL,
         RUN_AUTHORING,
+        CLASSIFY_GAPS,
+        DRAFT_GAPS,
         CLEANUP_EXTERNAL_STATE,
         CHECK_AGENT_TRIGGERS,
         POLL_PORTAL_GRANTS,

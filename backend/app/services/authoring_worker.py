@@ -424,7 +424,10 @@ class AuthoringRun:
             raise Stopped("The agent is gone.")
         spec = AgentSpec.model_validate(agent.draft_spec)
         pack = await self.evidence.for_agent(
-            self.ctx, agent.id, window_days=self.request.window_days
+            self.ctx,
+            agent.id,
+            window_days=self.request.window_days,
+            excluded_message_ids=self.request.excluded_message_ids,
         )
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
@@ -462,7 +465,10 @@ class AuthoringRun:
         published = AgentSpec.model_validate(version.spec)
         draft = AgentSpec.model_validate(agent.draft_spec)
         pack = await self.evidence.for_agent(
-            self.ctx, agent.id, window_days=self.request.window_days
+            self.ctx,
+            agent.id,
+            window_days=self.request.window_days,
+            excluded_message_ids=self.request.excluded_message_ids,
         )
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')

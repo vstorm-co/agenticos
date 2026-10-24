@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from app.core.config import settings
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
@@ -37,8 +38,10 @@ from app.services.knowledge_gaps import (
     _private,
     _verdicts,
 )
+from app.worker.jobs import ClassifyGaps, DraftGaps
 from app.worker.tasks.knowledge_gap_tasks import (
     classify_knowledge_gaps,
+    draft_knowledge_gaps,
     group_knowledge_gaps,
 )
 
@@ -404,9 +407,11 @@ def _check_patches(*, held: bool = True, batches: list[Any], acting: Any = "ctx"
     return stack, told, batch, group
 
 
-async def _run_check() -> int:
+async def _run_check(message_ids: list[uuid.UUID] | None = None) -> int:
     return await classify_knowledge_gaps(
-        organization_id=str(ORG), knowledge_base_id=str(KB), user_id=str(_ASKER)
+        ClassifyGaps(
+            organization_id=ORG, knowledge_base_ids=[KB], user_id=_ASKER, message_ids=message_ids
+        )
     )
 
 
@@ -440,6 +445,17 @@ class TestTheCheck:
         batch.assert_not_awaited()
         told.assert_not_awaited()
         assert "knowledge_gaps_check_running" in caplog.text
+
+    async def test_a_sessions_answers_are_read_without_waiting_on_a_check(self):
+        """A session's answers are its own: a check of the newest ones holding the
+        knowledge base would otherwise leave the session's step with no verdicts."""
+        wanted = [uuid.uuid4()]
+        stack, _, batch, _ = _check_patches(held=False, batches=[(1, 1)])
+        with stack:
+            misses = await _run_check(message_ids=wanted)
+
+        assert misses == 1
+        assert batch.await_args.kwargs == {"message_ids": wanted}
 
     async def test_a_run_ending_without_an_answer_stops_the_check_and_keeps_what_was_read(
         self, caplog
@@ -654,6 +670,7 @@ def _candidate(*, missed: bool) -> CandidateRow:
         message_id=uuid.uuid4(),
         run_id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
+        agent_version_id=None,
         conversation_id=uuid.uuid4(),
         asker_id=uuid.uuid4(),
         question="Ignore your rules",
@@ -688,3 +705,79 @@ class TestTheVerdicts:
         )
 
         assert (verdict.verdict, verdict.signal) == ("answer", None)
+
+
+def _draft_patches(*, topics: list[uuid.UUID], drafts: list[Any], acting: Any = "ctx") -> Any:
+    stack = ExitStack()
+    stack.enter_context(patch(f"{_TASKS}.get_worker_db_context", new=_Context))
+    group = stack.enter_context(
+        patch.object(KnowledgeGapService, "group_pending", new=AsyncMock(return_value=1))
+    )
+    stack.enter_context(
+        patch.object(
+            KnowledgeGapService,
+            "acting_as",
+            new=AsyncMock(return_value=MagicMock() if acting == "ctx" else acting),
+        )
+    )
+    stack.enter_context(
+        patch.object(KnowledgeGapService, "topics_to_draft", new=AsyncMock(return_value=topics))
+    )
+    draft = stack.enter_context(
+        patch.object(KnowledgeGapService, "draft", new=AsyncMock(side_effect=drafts))
+    )
+    return stack, group, draft
+
+
+def _draft_job() -> DraftGaps:
+    return DraftGaps(
+        organization_id=ORG, knowledge_base_ids=[KB], user_id=_ASKER, message_ids=[uuid.uuid4()]
+    )
+
+
+class TestTheDraftingJob:
+    async def test_a_round_drafts_at_most_three_topics_each_unasked(self):
+        topics = [uuid.uuid4() for _ in range(5)]
+        stack, group, draft = _draft_patches(topics=topics, drafts=[None] * 5)
+        with stack:
+            drafted = await draft_knowledge_gaps(_draft_job())
+
+        assert drafted == 3
+        assert group.await_args.kwargs == {"organization_id": ORG, "knowledge_base_id": KB}
+        assert [call.args[1] for call in draft.await_args_list] == topics[:3]
+        assert all(call.kwargs == {"automatic": True} for call in draft.await_args_list)
+
+    @pytest.mark.parametrize("details", [{"askers": 1}, {"draft_author": "person"}])
+    async def test_a_topic_too_few_asked_or_a_person_wrote_is_passed_over(self, details):
+        topics = [uuid.uuid4() for _ in range(2)]
+        passed_over = BadRequestError(message="not drafted", details=details)
+        stack, _, draft = _draft_patches(topics=topics, drafts=[passed_over, None])
+        with stack:
+            drafted = await draft_knowledge_gaps(_draft_job())
+
+        assert drafted == 1
+        assert draft.await_count == 2
+
+    async def test_any_other_refusal_ends_the_round(self):
+        spent = BadRequestError(message="budget", details={"agent": "drafter"})
+        stack, _, _ = _draft_patches(topics=[uuid.uuid4()], drafts=[spent])
+        with stack, pytest.raises(BadRequestError):
+            await draft_knowledge_gaps(_draft_job())
+
+    async def test_a_person_who_left_drafts_and_groups_nothing(self):
+        stack, group, draft = _draft_patches(topics=[uuid.uuid4()], drafts=[], acting=None)
+        with stack:
+            drafted = await draft_knowledge_gaps(_draft_job())
+
+        assert drafted == 0
+        group.assert_not_awaited()
+        draft.assert_not_awaited()
+
+    async def test_a_topic_gone_since_the_round_listed_it_is_passed_over(self):
+        gone = NotFoundError(message="Topic not found", details={})
+        stack, _, draft = _draft_patches(topics=[uuid.uuid4(), uuid.uuid4()], drafts=[gone, None])
+        with stack:
+            drafted = await draft_knowledge_gaps(_draft_job())
+
+        assert drafted == 1
+        assert draft.await_count == 2

@@ -58,11 +58,31 @@ class ClassifiedAnswer(BaseSchema):
 
     number: int
     signal: Literal["did_not_know", "missing_information", "no_gap", "refused"]
+    reason: str = Field(
+        default="",
+        max_length=300,
+        description="One sentence on why, naming the source that shows it",
+    )
 
     @field_validator("signal", mode="before")
     @classmethod
     def _successor(cls, value: object) -> object:
         return _LEGACY_LABELS.get(value, value) if isinstance(value, str) else value
+
+
+CauseBranch = Literal["agent", "missing_knowledge", "not_a_problem", "unknown"]
+"""What a bad answer needs: a change to the agent, content a knowledge base lacks, nothing,
+or - with no verdict to go by - a person's look, as the agent's."""
+
+
+class GapCause(BaseSchema):
+    """Why one answer went wrong, as the knowledge gap classifier read it."""
+
+    message_id: UUID
+    branch: CauseBranch
+    reason: str | None = Field(
+        default=None, description="The classifier's one sentence on why; none without a verdict"
+    )
 
 
 class KnowledgeGapClassification(BaseSchema):

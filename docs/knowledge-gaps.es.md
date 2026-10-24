@@ -1,5 +1,5 @@
 ---
-source_sha: "cf402ff0accf"
+source_sha: "63279972bd20"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -62,24 +62,26 @@ cambiarlo.
 
 El modelo es el **Knowledge gap classifier**, un
 [agent del sistema](concepts.md#system-agents) que tiene cada organización. Lee
-cada respuesta con su pregunta y los comentarios de quien la valoró
-negativamente, y decide una de cuatro cosas:
+cada respuesta con su pregunta, los comentarios de quien la valoró
+negativamente y las instrucciones y los [archivos de contexto](context.md) de la
+versión del agent que la dio - los que puede leer la persona que pidió la
+revisión -, y decide una de cuatro cosas, con una frase sobre el porqué:
 
 | Veredicto | Cuándo |
 |---|---|
 | El agent no lo sabía | La respuesta dice, con cualquier palabra o idioma, que el agent no lo sabía o no encontró la información. Una pregunta legítima que el agent rechazó porque no tenía nada sobre ella entra aquí, no entre los rechazos |
 | Faltaba información | Un comentario de una valoración negativa dice que faltaba información, estaba desactualizada o incompleta |
 | Rechazo justificado | La pregunta pedía lo que las reglas o el propósito del agent no permiten - ignorar sus instrucciones, conceder una excepción o ayudar con algo para lo que no está - y el agent se negó. No es una laguna, y las búsquedas fallidas del run también dejan de contar como lagunas - en esa base de conocimiento y en otra que una búsqueda fallida también cubría, porque un rechazo trata de la petición, no de una base de conocimiento |
-| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de algo que las reglas permiten, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir. Un comentario de que la información estaba desactualizada sí es una laguna |
+| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de algo que las reglas permiten, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir - y también lo es una cuyo agent tiene en sus instrucciones o archivos de contexto lo que necesitaba. Un comentario de que la información estaba desactualizada sí es una laguna |
 
 Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
 pregunta en los temas de la base de conocimiento, agrupada como una búsqueda
 fallida. En el tema dice cuál de los dos es, en lugar de nombrar una búsqueda.
 
 Una respuesta se lee cuando su run, de los últimos 30 días, terminó y buscó en
-la base de conocimiento y encontró algo, o fue valorado negativamente con un
-comentario y funciona con una versión del agent vinculada a la base de
-conocimiento. Un run cuya búsqueda ya falló también se lee, para que un rechazo
+la base de conocimiento o funcionó con una versión del agent vinculada a ella,
+valorado o no: una respuesta en la que el agent no lo sabía a menudo no la
+valora nadie. Un run cuya búsqueda ya falló también se lee, para que un rechazo
 justificado saque su fallo de las lagunas; si no, sigue contando una vez, como
 ese fallo.
 
@@ -99,8 +101,22 @@ de llamar al modelo, y aparece en Actividad bajo la persona que lo pidió: elige
 Cada respuesta leída se recuerda, sea cual sea el veredicto, así que ninguna se paga dos veces. Una leída
 como sin laguna se vuelve a leer solo tras una nueva valoración negativa con
 comentario. Una revisión se detiene en un run que termina sin respuesta, como
-uno que deniega un presupuesto agotado, y conserva lo que leyó. Cada base de
-conocimiento tiene una sola revisión a la vez.
+uno que deniega un presupuesto agotado, y conserva lo que leyó.
+
+Cada base de conocimiento tiene una sola revisión a la vez, como un job en
+segundo plano en Admin → Background jobs: un worker que se detiene durante ella
+deja el job terminado ahí, nunca perdido sin rastro, y lo que la revisión leyó
+queda leído.
+
+Una sesión de mejora - [Mejorar](authoring.md) en segundo plano - lee igual las
+malas respuestas que encontró, solo esas y sea cual sea su antigüedad, y
+clasifica cada una según sus veredictos: falta conocimiento si a una base de
+conocimiento le faltaba contenido, nada que corregir si el agent se negó con
+razón, y fallo del agent en los demás casos. Las que les falta conocimiento
+salen de lo que lee el asistente de autoría, y la sesión redacta en su lugar sus
+temas - solo uno sobre el que preguntaron al menos dos personas distintas, tres
+como máximo por ronda. Los runs de un eval nunca se leen, así que tampoco ningún
+caso reservado.
 
 ## Temas { #topics }
 
@@ -305,8 +321,16 @@ que dice.
 Una pregunta leída de una respuesta se guarda igual que una búsqueda: contiene
 la pregunta de la persona y se va con su run y su conversación. Revisar
 respuestas envía preguntas, respuestas y comentarios de valoraciones negativas
-al proveedor del modelo del clasificador. De cada respuesta leída solo se
-recuerda su veredicto y el run del clasificador, sin texto.
+al proveedor del modelo del clasificador.
+
+De cada respuesta leída se recuerda
+su veredicto, el run del clasificador y su motivo en una frase, que se va con la
+respuesta y se borra cuando se borra a la persona que preguntó. El motivo solo lo
+ve quien puede ver el agent que respondió. Puede nombrar las instrucciones del
+agent o uno de sus archivos de contexto - por su nombre, nunca por lo que dicen -
+incluso a quien no puede leer ese archivo. Una respuesta cuyo run ya no existe no
+dice quién preguntó, así que su motivo se queda hasta que se va la conversación de
+la respuesta.
 
 ## Lo que las lagunas aún no detectan { #limits }
 

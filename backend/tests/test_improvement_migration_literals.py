@@ -1,4 +1,4 @@
-"""The 0180 migration spells out the values the improvement models derive from their enums.
+"""The latest improvement migration spells out the values the models derive from their enums.
 
 `alembic check` compares neither CHECK constraints nor partial index predicates, so a
 status added to an enum without a migration would only fail on a real database - or,
@@ -24,7 +24,7 @@ from app.db.models.improvement import (
     StopReason,
 )
 
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0180_improvement_sessions.py"
+_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0186_knowledge_gap_causes.py"
 
 
 def _migration() -> ModuleType:
