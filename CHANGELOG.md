@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Report truncated host workspace trees in the flat Documents listing.
+
 - Retain conversations with unfinished runs and purge one locked batch of
   conversation rows and files. Commit durable file-cleanup jobs with retention
   deletes, and isolate each retention class so a SQL failure cannot abort

@@ -1496,7 +1496,7 @@ class SandboxWorkspaceService:
             files=files,
             workspaces_read=len(readable),
             unreadable=len(opened) - len(readable),
-            truncated=len(overviews) > limit,
+            truncated=len(overviews) > limit or any(contents.truncated for contents in listed),
         )
 
     async def _entries_of(

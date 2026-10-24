@@ -1625,6 +1625,27 @@ class TestOneFlatListOfFiles:
         ]
         assert listing.truncated is False
 
+    @pytest.mark.parametrize("truncated", [False, True])
+    async def test_host_tree_truncation_is_reported_in_the_flat_listing(
+        self, monkeypatch, mock_db_session, truncated: bool
+    ) -> None:
+        from app.repositories import agent as agent_repo
+
+        monkeypatch.setattr(
+            workspace_repo, "list_for_reader", AsyncMock(return_value=[_row(files={})])
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        monkeypatch.setattr(
+            service,
+            "_entries_of",
+            AsyncMock(return_value=[WorkspaceContents(entries=[], truncated=truncated)]),
+        )
+        listing = await service.flat_files(_ctx())
+        assert listing.truncated is truncated
+        assert listing.workspaces_read == 1
+
     async def test_directories_are_not_files(self, monkeypatch, mock_db_session):
         from app.repositories import agent as agent_repo
 
