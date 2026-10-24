@@ -552,6 +552,7 @@ pub fn run() {
         .plugin(pin::init())
         .plugin(push::init())
         .plugin(share::init())
+        .plugin(share::attach())
         .plugin(widget::init());
     // The camera scanner is a phone's; the same app on a laptop types the address.
     #[cfg(mobile)]

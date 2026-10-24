@@ -63,6 +63,18 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             )?));
             #[cfg(target_os = "ios")]
             app.manage(Native(api.register_ios_plugin(init_plugin_share_target)?));
+            #[cfg(not(mobile))]
+            let _ = (app, api);
+            Ok(())
+        })
+        .build()
+}
+
+/// Each native class needs its own plugin id. Registering two classes through
+/// one PluginApi replaces the first class in the native command dispatcher.
+pub fn attach<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("attach")
+        .setup(|app, api| {
             #[cfg(target_os = "android")]
             app.manage(Attach(
                 api.register_android_plugin("co.vstorm.agenticos", "AttachPlugin")?,
@@ -140,6 +152,16 @@ pub fn ask<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::{Shared, Source};
+    use tauri::plugin::Plugin;
+
+    #[test]
+    fn sharing_and_picking_use_distinct_native_dispatchers() {
+        let sharing = super::init::<tauri::Wry>();
+        let picking = super::attach::<tauri::Wry>();
+        assert_eq!(sharing.name(), "share-target");
+        assert_eq!(picking.name(), "attach");
+        assert_ne!(sharing.name(), picking.name());
+    }
 
     #[test]
     fn nothing_shared_reads_as_empty_and_a_share_in_the_shape_kotlin_sends() {

@@ -279,6 +279,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Native sharing on phones.** The share inbox and attachment picker now use
+  separate native dispatchers, so opening the picker cannot replace the command
+  that receives content shared from another app.
+
 - **Phone controls and keyboard layout.** Chat, agent cards, dashboard controls,
   settings, avatar colors and sort chips have larger touch targets. Copy and tip
   actions remain visible without hover. Sign-in fits system insets and the
