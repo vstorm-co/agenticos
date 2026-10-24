@@ -341,10 +341,9 @@ describe("StartEvalDialog", () => {
     expect(screen.getByRole("combobox", { name: "Agent" })).toHaveTextContent("Refund desk");
   });
 
-  it("opens on what the caller asked to test", () => {
-    agentState.liveSpec = DRAFT;
-    open({ target: "compare" });
-    expect(screen.getByRole("radio", { name: /The draft against v7/ })).toBeChecked();
+  it("opens on an available target the caller asked to test", () => {
+    open({ target: "version" });
+    expect(screen.getByRole("radio", { name: /v7 alone/ })).toBeChecked();
   });
 
   it("runs what was priced, says what grades it, and opens the run", async () => {
