@@ -32,6 +32,7 @@ import { BrandLink } from "@/components/layout/brand-link";
 import { stripLocale } from "@/lib/active-route";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
+import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { cn, isAppAdmin } from "@/lib/utils";
 import { useAuthStore, useSidebarStore } from "@/stores";
@@ -65,7 +66,7 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "flex items-center rounded-lg text-sm font-medium transition-colors",
+        "relative flex items-center rounded-lg text-sm font-medium transition-colors",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
         collapsed ? "h-8 w-9 justify-center" : "h-8 gap-2.5 px-2.5",
@@ -79,7 +80,29 @@ function NavLink({
     >
       <NavIcon icon={item.icon} />
       {collapsed ? null : <span className="truncate">{label}</span>}
+      {item.count === "inbox" && <InboxCount collapsed={collapsed} />}
     </Link>
+  );
+}
+
+/** How many open items wait in the inbox: a number in the column, a dot on the rail. */
+function InboxCount({ collapsed }: { collapsed: boolean }) {
+  const t = useTranslations("nav");
+  const { suggestions } = useSuggestions();
+  if (suggestions.length === 0) return null;
+  const label = t("inboxCount", { count: suggestions.length });
+  return collapsed ? (
+    <span
+      className="bg-foreground absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
+      aria-label={label}
+    />
+  ) : (
+    <span
+      className="bg-foreground text-background ml-auto rounded-full px-1.5 text-[11px] leading-4 font-semibold tabular-nums"
+      aria-label={label}
+    >
+      {suggestions.length}
+    </span>
   );
 }
 

@@ -206,3 +206,58 @@ describe("ConflictBanner", () => {
     );
   });
 });
+
+it.each(["resolved", "refused"] as const)(
+  "a %s reload cannot replace the workflow opened while it was pending",
+  async (outcome) => {
+    let resolve!: (value: WorkflowDetail) => void;
+    let reject!: (error: unknown) => void;
+    vi.mocked(getWorkflow).mockReturnValue(
+      new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      }),
+    );
+    renderBanner();
+    act(() => useWorkflowEditorStore.getState().setConflict(9));
+    await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+
+    act(() => {
+      const store = useWorkflowEditorStore.getState();
+      store.load({ workflowId: "w2", expectedRevision: 20 });
+      store.seedGraph(LOCAL_GRAPH);
+      store.markDirty();
+      store.setConflict(21);
+    });
+    await act(async () => {
+      if (outcome === "resolved") resolve(serverDetail());
+      else reject(new Error("Stale failure"));
+    });
+
+    const store = useWorkflowEditorStore.getState();
+    expect(store.workflowId).toBe("w2");
+    expect(store.getGraph()).toBe(LOCAL_GRAPH);
+    expect(store.expectedRevision).toBe(20);
+    expect(store.isDirty).toBe(true);
+    expect(store.conflict?.currentRevision).toBe(21);
+    expect(screen.queryByText("Stale failure")).not.toBeInTheDocument();
+  },
+);
+
+it("a refused reload keeps local changes and offers another try with its error visible", async () => {
+  vi.mocked(getWorkflow).mockRejectedValueOnce(new Error("Connection lost"));
+  renderBanner();
+  act(() => useWorkflowEditorStore.getState().setConflict(9));
+  await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+
+  expect(await screen.findByText("Connection lost")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Reload" })).toBeEnabled();
+  expect(useWorkflowEditorStore.getState().getGraph()).toBe(LOCAL_GRAPH);
+  expect(useWorkflowEditorStore.getState().isDirty).toBe(true);
+  expect(useWorkflowEditorStore.getState().conflict?.currentRevision).toBe(9);
+
+  vi.mocked(getWorkflow).mockResolvedValue(serverDetail());
+  await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+  await waitFor(() => expect(useWorkflowEditorStore.getState().conflict).toBeNull());
+  expect(screen.queryByText("Connection lost")).not.toBeInTheDocument();
+});

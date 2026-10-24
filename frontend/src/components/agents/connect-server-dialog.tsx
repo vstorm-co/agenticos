@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plug, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -14,6 +15,7 @@ import type {
   Scope,
 } from "@/components/mcp/mcp-server-list-types";
 import { getErrorMessage } from "@/lib/api-error";
+import { qk } from "@/lib/query-keys";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import { mcpOAuthClient, rememberMcpOAuthReturn, secretWithoutClientId } from "@/lib/mcp-oauth";
 import { freePrefix, rowForEntry, slugForPrefix } from "@/lib/mcp-servers";
@@ -275,6 +277,7 @@ interface ConsentOptions {
 function useConsent(scope: Scope, { returnTo, keepThisTab }: ConsentOptions) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
   return async (input: Parameters<typeof startMcpOAuth>[0]): Promise<boolean> => {
     const tab = returnTo === undefined ? window.open("", "_blank") : null;
     if (tab === null && keepThisTab) {
@@ -284,8 +287,19 @@ function useConsent(scope: Scope, { returnTo, keepThisTab }: ConsentOptions) {
     if (tab) tab.opener = null;
     try {
       const { authorization_url } = await startMcpOAuth(input, scope);
-      if (returnTo !== undefined) rememberMcpOAuthReturn(returnTo);
+      // The other tab lands on this server's accounts, where the new one shows.
+      const back =
+        returnTo ?? (input.catalog_key ? `/mcp-servers?server=${input.catalog_key}` : undefined);
+      if (back !== undefined) rememberMcpOAuthReturn(back);
       if (tab) {
+        // Back in this tab, the connection made in the other is fetched: focus
+        // refetches nothing by default here, so "it appears here once it is
+        // authorised" stayed untrue until a reload.
+        const refresh = () => {
+          window.removeEventListener("focus", refresh);
+          void queryClient.invalidateQueries({ queryKey: qk.mcpConnections.all() });
+        };
+        window.addEventListener("focus", refresh);
         tab.location.href = authorization_url;
       } else {
         // Either this is the return-here flow, or the tab was blocked anyway -

@@ -1,5 +1,5 @@
 ---
-source_sha: "c927ecc9f2cd"
+source_sha: "e035b57c5e83"
 ---
 
 # Governance { #governance }
@@ -542,6 +542,56 @@ Text-Run geschieht:
 Einen Anruf, dessen Prozess gestorben ist, schließt der Voice-Sweep zu den
 Kosten, die sein letzter Heartbeat festgehalten hat — anders als einen Text-Run,
 dessen Ausgaben mit seinem Prozess sterben.
+
+### Arbeit aus eigener Initiative { #proactive-work }
+
+Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
+bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer
+Mitgliederseite (`budgets:manage`). Eingeschaltet liest ein Hintergrundjob die
+letzten Anfragen jeder Person an den Tagen und zu der Stunde, die die
+Organisation gewählt hat - in der Zeitzone jeder Person oder eine Stunde vor der
+Arbeitszeit, die ihr Profil angibt - und schlägt eine Routine für eine Anfrage
+vor, die sie immer wiederholt, ein Profil oder die ersten Nachrichten, die ihr
+leerer Chat anbietet ([Konsole](console.md#chat)).
+
+Jeder ist ein Modellaufruf,
+auf dem Modell, das die Organisation beim Einschalten gewählt hat (es gibt keinen
+Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
+der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
+Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
+Assistent** ausnehmen.
+
+Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
+Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,
+auf derselben Karte eingestellt (`proactive_limit_usd`). Eine Person, bei der
+nichts Neues passiert ist, kostet nichts: Der Job ruft das Modell nur, wenn es
+etwas zu lesen gibt.
+
+**Beobachtungen** richten dieselbe Arbeit auf die eigenen Verbindungen einer
+Person. Sie werden auf derselben Karte getrennt eingeschaltet
+(`proactive_watches_enabled`), laufen auf demselben Modell und im selben Limit.
+Eine Person legt eine mit **Neue Beobachtung** unter **Routinen** an, wo eine
+Karte Beobachtungen jede mit ihrer letzten Prüfung und der Zahl ihrer wartenden
+Funde zeigt, oder mit **Beobachten** neben **Tools** des Kontos auf der Seite
+der MCP-Server. Sie wählt eine ihrer eigenen MCP-Verbindungen - jeden Server,
+den sie verbunden hat - und sagt, wonach gesucht wird - eine fertige Beobachtung
+für diesen Server oder ihre eigenen Worte - und wie oft, nie häufiger, als die
+Organisation erlaubt (`proactive_watch_min_minutes`, standardmäßig stündlich).
+
+Jeder Blick ist ein Run der Oberfläche **proactive**, dem nur die Tools angeboten
+werden, die der Server als nur lesend markiert (`readOnlyHint`), sodass eine
+Beobachtung im Konto nie etwas ändert. Was sie findet, gehört nur der Person:
+ein Vorschlag der Art `finding`, nach der eigenen ID des Elements verschlüsselt,
+sodass er einmal gemeldet wird, mit einem Link zum Öffnen. Ein Fund einer
+Beobachtung, die Dringendes sofort melden soll, und den auch das Modell für
+dringend hält, geht sofort als Benachrichtigung hinaus; der Rest wartet auf ihr
+Morgen-[Briefing](console.md#the-inbox). Anders als eine Routine schweigt eine Beobachtung, wenn nichts neu ist.
+
+Auf derselben Karte liegt die **Willkommensnachricht**, standardmäßig aus und
+an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
+Mattermost-Bots der Organisation an ein neues Mitglied, in den eigenen Worten der
+Organisation, wenn sie welche geschrieben hat (`{organization}`, `{bot}` und
+`{url}` werden ausgefüllt), sonst die eingebaute Begrüßung in seiner Sprache.
 
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 
@@ -1369,9 +1419,13 @@ ein Deploy, der nicht drainiert —, eine dauerhafte Zeile hinterlässt, die nic
 mehr zu Ende bringt: für immer in Activity, und sie blockiert jeden Zeitplan, für
 dessen Trigger sie der verknüpfte Run war.
 
-Ein stündlicher Sweep beendet alles, was jenseits von
-`STALE_RUN_REAPED_AFTER_HOURS` noch `running` ist — sechs Stunden voreingestellt,
-null schaltet es ab — als **`failed`**. Niemand hat diesen Run gestoppt, die
+Während sein Modell arbeitet, stempelt der Prozess, der einen Run ausführt, ihn
+alle `RUN_HEARTBEAT_SECONDS` als lebendig. Ein minütlicher Sweep beendet alles,
+was `STALE_RUN_REAPED_AFTER_SECONDS` lang ohne Lebenszeichen noch `running` ist —
+zwei Minuten voreingestellt, null schaltet es ab — als **`failed`** und sagt es
+den offenen Konsolen, sodass ein Chat nicht mehr "Working" über einem Zug zeigt,
+den niemand beantwortet, und anbietet, erneut zu fragen. Den Run eines
+Sprachanrufs überlässt er dem Reaper der Anrufe, der den Anruf auflegt. Niemand hat diesen Run gestoppt, die
 Infrastruktur hat es getan, und ein Betreiber, der die Run-Historie nach
 Problemen filtert, ist genau der, der das sehen sollte.
 
@@ -1542,11 +1596,17 @@ ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
 
 Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
-Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
-trägt auch jedes andere Ereignis, das das Postfach zustellt (darunter eine
-Anfrage zum Teilen einer Seite und der Besitzerwechsel einer Seite, jeweils mit
-Nennung der Seite und der Person, nie ihrer Daten): einen Run, der
-unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
+Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt.
+
+Anfragen zum Teilen einer Seite und Besitzerwechsel nennen die Seite und die Person, nie ihre Daten.
+
+Dieselbe Seite
+trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
+unbeaufsichtigt fertig wird oder scheitert - das Ende einer Routine nach ihr
+benannt und mit dem Anfang ihrer Antwort, für die Person, die sie eingerichtet
+hat -, die Bitte, eine Capability einzuschalten, für den Besitzer des Agents, Vorschläge,
+die die [Arbeit aus eigener Initiative](#proactive-work) für eine Person gemacht
+hat, die Ingestion eines Dokuments, die
 **scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
 Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
 Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und

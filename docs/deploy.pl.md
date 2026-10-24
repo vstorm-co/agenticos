@@ -1,5 +1,5 @@
 ---
-source_sha: "56fb4b6d52e6"
+source_sha: "45deb395f4bf"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -382,7 +382,7 @@ jest w produkcie, per organizacja, z vaulta.
     albo certyfikat — trzy rzeczy, których health check wewnątrz hosta nie widzi.
 
 Potem, raz, ręcznie: zaloguj się, zaproś kogoś (co dowodzi, że działa `SMTP_*`) i
-wyślij wiadomość do Claude Code like (co dowodzi klucza providera i
+wyślij wiadomość do AgenticOS (co dowodzi klucza providera i
 WebSocketa). Każda z tych czynności ćwiczy ścieżkę, której nic innego tutaj nie
 sprawdza.
 

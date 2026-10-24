@@ -362,6 +362,8 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
     Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/text-to-speech-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/video-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/realtime-models", Perm.AGENTS_VIEW),
     # The organization's call minutes by agent, for the dashboard figure and the
     # Voice card: what the organization spent time on, read like its runs.
@@ -1869,6 +1871,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # it is what says how to. Only an agent its organization chose to serve
         # has one; every other id is a 404.
         ("GET", f"{V1}/a2a/{{agent_id}}/.well-known/agent-card.json"),
+        # Teams (#1985): every activity carries a Bot Connector JWT, verified
+        # against the issuer's published keys, this bot's app id as audience and
+        # the activity's own service before anything in the body is used.
+        ("POST", f"{V1}/teams/{{bot_id}}/messages"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A
@@ -1920,6 +1926,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{V1}/embed/{{public_key}}/logo"),
         # A widget's agent picture, on the same terms as a page's logo (#2006).
         ("GET", f"{V1}/embed/{{public_key}}/avatar"),
+        # A file an agent generated for a hosted page's visitor, who has no
+        # session (#2309). An `<img>` or `<video>` cannot send a header, so the
+        # credential is a short-lived link signed for that one file on that one
+        # page, minted only for a file the visitor's own run stored, and counted
+        # per link by its rate bucket.
+        ("GET", f"{V1}/embed/{{public_key}}/generated/{{filename}}"),
         # The one open route on this surface that *writes*, and the only one whose
         # exemption is about more than a read. It exists because a page whose
         # operator ticked "a visitor may attach a file" has to accept bytes from

@@ -47,10 +47,12 @@ outside the budgets like a dictation, so it is limited per person
 (`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) and cached for a week per voice and
 language.
 
-**Every agent offers the button.** In `/chat` the call button sits beside the
-microphone for every agent. For one with no voice, or a key that can no longer
+**Every agent offers the button.** In `/chat` the call button stands in Send's
+place while the box is empty, and Send comes back once something is typed. For one with no voice, or a key that can no longer
 hold a call, it is crossed out, and its reason links whoever may edit the agent
-to the Calls tab of its Voice card.
+to the Calls tab of its Voice card. The Architect's window and the Builder's
+test panel offer it the same way; in the test panel the call runs the published
+version, not the draft being tested, and the button says so.
 
 **The embed.** A widget or a hosted page offers calls only when its own "Voice
 calls" switch is on. Saving the switch on is refused while the agent has no
@@ -141,12 +143,12 @@ model instead.
 
 | By voice | Capabilities |
 |---|---|
-| As-is | clock (the time in the instructions is fixed when the call connects), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation |
+| As-is | clock (the time in the instructions is fixed when the call connects), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation, text to speech |
 | On screen | ask the user: in `/chat` the question card appears in the call view, read aloud as well, and the caller taps an answer or says it; a widget's or hosted page's call is not offered it |
 | Adapted | skills: loaded as instructions on demand, without the tools a text run uses to read them |
 | Dropped | tool search: the MCP tools it would have deferred are passed to the call directly |
 | Mapped | thinking: becomes the realtime model's own reasoning setting, where the model has one |
-| Handed off | sandbox, browser use, subagents, the coding agent, work while tools run: done by the agent's text model, see [Handing work off](#handing-work-off) |
+| Handed off | sandbox, browser use, subagents, the coding agent, video generation, work while tools run: done by the agent's text model, see [Handing work off](#handing-work-off) |
 
 The Builder's Voice card lists the capabilities this agent hands off in calls.
 

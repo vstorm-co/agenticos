@@ -1,5 +1,5 @@
 ---
-source_sha: "e5e1133cdecc"
+source_sha: "728555c3f960"
 title: "Zaplanuj cotygodniowy raport"
 description: "Daj agentowi samowystarczalne zadanie raportowe, uruchom je na żądanie, opublikuj wynik jako aplikację i ustaw cotygodniowy harmonogram."
 ---
@@ -44,7 +44,7 @@ Report totals by category in a fictional demo currency and draw a bar chart.
 Label the report synthetic and name any row you could not use.
 ```
 
-Jako rytm wybierz **At a set time**, potem **Days of the week**, zaznacz **Mon** i ustaw **Time (UTC)** na 09:00. Odpowiadające temu wyrażenie cron to `0 9 * * 1`. Scheduler działa w UTC, więc przelicz swój czas lokalny. Zapisz, a potem sprawdź czas następnego odpalenia, który pokazuje harmonogram.
+Jako rytm wybierz **Weekly** w **How often**, zaznacz **Mon** i ustaw **Time (UTC)** na 09:00. Odpowiadające temu wyrażenie cron to `0 9 * * 1`. Scheduler działa w UTC, więc przelicz swój czas lokalny. Zapisz, a potem sprawdź czas następnego odpalenia, który pokazuje harmonogram.
 
 Harmonogram wykonuje się jako członek organizacji, który go utworzył, z jego dostępem, a jego runy obciążają budżet agenta jak każde inne. Dlaczego tak jest, wyjaśniają [Koncepcje](../concepts.md#trigger).
 

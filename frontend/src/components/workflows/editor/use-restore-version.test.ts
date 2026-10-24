@@ -101,10 +101,12 @@ function conflict(currentRevision: number): ApiError {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
     resolve = res;
+    reject = rej;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function seedLoaded(revision: number) {
@@ -250,3 +252,38 @@ describe("useRestoreVersion", () => {
     expect(restore).not.toHaveBeenCalled();
   });
 });
+
+it.each(["resolved", "refused"] as const)(
+  "a %s restore cannot change the editor opened after it started",
+  async (outcome) => {
+    seedLoaded(2);
+    act(() => useWorkflowEditorStore.getState().markDirty());
+    const gate = deferred<WorkflowDetail>();
+    const restore = vi.fn().mockReturnValue(gate.promise);
+    const { result } = renderHook(() => useRestoreVersion(restore));
+    let pending!: Promise<boolean>;
+    act(() => {
+      pending = result.current(VERSION);
+    });
+    act(() => {
+      const store = useWorkflowEditorStore.getState();
+      store.load({ workflowId: "another", expectedRevision: 10 });
+      store.seedGraph(DRAFT);
+    });
+    let landed = true;
+    await act(async () => {
+      if (outcome === "resolved") gate.resolve(detail(3));
+      else gate.reject(conflict(3));
+      landed = await pending;
+    });
+    expect(landed).toBe(false);
+    const store = useWorkflowEditorStore.getState();
+    expect(store.workflowId).toBe("another");
+    expect(store.graph).toEqual(DRAFT);
+    expect(store.expectedRevision).toBe(10);
+    expect(store.isDirty).toBe(false);
+    expect(store.conflict).toBeNull();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  },
+);

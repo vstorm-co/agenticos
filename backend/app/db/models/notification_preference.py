@@ -48,7 +48,8 @@ class NotificationChannelPreference(Base, TimestampMixin):
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
             "'background_task_paused', 'workflow_notification', "
-            "'artifact_owner_changed', 'artifact_share_requested')",
+            "'artifact_owner_changed', 'artifact_share_requested', "
+            "'capability_requested', 'suggestion', 'finding')",
             name="ck_notification_preferences_event_type",
         ),
         CheckConstraint(

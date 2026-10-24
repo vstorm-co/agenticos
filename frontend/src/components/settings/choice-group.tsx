@@ -1,12 +1,15 @@
 "use client";
 
 import { useRef, type KeyboardEvent } from "react";
+import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 export interface Choice<T extends string> {
   value: T;
   label: string;
+  /** Drawn before the label, for a group a person scans by shape as much as by word. */
+  icon?: LucideIcon;
 }
 
 interface ChoiceGroupProps<T extends string> {
@@ -74,12 +77,13 @@ export function ChoiceGroup<T extends string>({
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "focus-visible:ring-ring rounded-md px-3 py-1 text-sm transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60",
+              "focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60",
               checked
                 ? "bg-accent text-foreground font-medium"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
+            {option.icon && <option.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />}
             {option.label}
           </button>
         );

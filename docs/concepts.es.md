@@ -1,5 +1,5 @@
 ---
-source_sha: "b1c2a3e35524"
+source_sha: "58c831c0926b"
 ---
 
 # Conceptos { #concepts }
@@ -206,9 +206,9 @@ condiciones:
   evento lleva un correo o el cuerpo de un webhook que nadie revisó, y una nota
   escrita a partir de él la leería cada chat posterior como propia del creador.
 - **Las conversaciones anteriores siguen cerradas** en ambos casos.
-- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno o el
-  filtro de un trigger que no creaste lo desactiva, así que nadie reescribe lo que
-  se ejecuta como tú. Un administrador que actúa como tú mediante suplantación, o
+- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno, el
+  filtro o el canal de Teams de un trigger que no creaste lo desactiva, así que
+  nadie reescribe lo que se ejecuta como tú ni envía su respuesta a otro sitio. Un administrador que actúa como tú mediante suplantación, o
   un script con tu clave de API, no puede activarlo.
 - **También una versión nueva que no publicaste tú.** Una publicación, una
   promoción o una reversión de cualquier otra persona lo desactiva, y también una
@@ -239,7 +239,9 @@ distinguir un run desatendido del de una persona. Cada disparo es su propio run
 en Activity, y sus respuestas se acumulan en una única conversación de registro
 que el trigger abre una vez — de forma anticipada, en el momento en que se crea
 el trigger, así que es un elemento en el que puedes pulsar antes de que se haya
-disparado nunca.
+disparado nunca. Un trigger también puede publicar cada respuesta en un canal o
+chat de grupo de Teams en el que esté el bot de su organización
+([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Dos formas de disparar { #two-ways-to-fire }
 

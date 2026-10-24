@@ -77,6 +77,9 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.channel_prompt import ChannelPrompt
 from app.db.models.external_agent import ExternalAgent
 from app.db.models.project import Project
+from app.db.models.suggestion import Suggestion
+from app.db.models.watch import Watch
+from app.db.models.teams_conversation import TeamsConversation
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
     OAuthAuthorizationRequest,
@@ -91,6 +94,7 @@ from app.db.models.artifact import (
     ArtifactVersion,
 )
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
+from app.db.models.generated_media import GeneratedMedia, GeneratedMediaReservation
 from app.db.models.visual import Visual
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import (
@@ -135,6 +139,9 @@ __all__ = [
     "OrganizationAssistant",
     "ChannelPrompt",
     "ExternalAgent",
+    "Suggestion",
+    "Watch",
+    "TeamsConversation",
     "OAuthAuthorizationCode",
     "OAuthAuthorizationRequest",
     "OAuthClient",
@@ -269,5 +276,7 @@ __all__ = [
     "VirtualTableTrigger",
     "VirtualTableTriggerRevision",
     "VoiceCall",
+    "GeneratedMedia",
+    "GeneratedMediaReservation",
     "VoiceEndReason",
 ]

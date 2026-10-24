@@ -87,6 +87,9 @@ import * as users from "./users/[userId]/route";
 import * as workflowApprovals from "./workflow-approvals/[[...path]]/route";
 import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
+import * as userLocale from "./users/me/locale/route";
+import * as mySuggestions from "./me/suggestions/[[...path]]/route";
+import * as myWatches from "./me/watches/[[...path]]/route";
 import * as voice from "./voice/[[...path]]/route";
 
 /**
@@ -177,11 +180,14 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["workflow-approvals", workflowApprovals],
   ["workflow-runs", workflowRuns],
   ["workflows", workflows],
+  ["users/me/locale", userLocale],
   ["voice", voice],
   ["me/permissions", permissions],
   ["me/dashboard-layout", dashboardLayout],
   ["me/dashboard-layout/presets", dashboardPresets],
   ["me/dashboard-layout/presets/[presetId]", dashboardPreset],
+  ["me/suggestions", mySuggestions],
+  ["me/watches", myWatches],
 ];
 
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;

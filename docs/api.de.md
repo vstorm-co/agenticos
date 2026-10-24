@@ -1,5 +1,5 @@
 ---
-source_sha: "c05ce60195ae"
+source_sha: "656b5d0b956d"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -176,6 +176,28 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 Ein Agent mit einem [Antwortformat](concepts.md#spec) antwortet mit einem
 Objekt: Es steht in `structured`, bereits gegen das `output_schema` des Agents
 geprüft, und `output` zeigt dasselbe Objekt als JSON-Block.
+Die Antwort trägt die Id des Runs, die Ausgabe, den Status, die Tokens und die
+Kosten. `environment_id` im Body wählt, [welche Umgebung](environments.md)
+antwortet. `"draft": true` führt stattdessen den unveröffentlichten Entwurf aus, wie
+das Test-Panel des Builders: ein Test-Run, für einen Key, dessen Aussteller den
+Agent bearbeiten darf, mit Begründung abgelehnt, wenn der Entwurf nicht
+veröffentlicht werden könnte, und nie mit `Prefer: respond-async`.
+
+Ein Key erreicht auch die Routinen eines Agents - `GET /api/v1/triggers` sowie
+`GET`, `POST`, `PATCH` und `DELETE` unter `/api/v1/agents/{agent_id}/triggers`,
+dazu `POST .../{trigger_id}/run`, um eine sofort auszulösen - und die Modelle der
+Organisation unter `GET /api/v1/providers/model-profiles`. Drei Routen wirken auf
+den Aussteller selbst: `GET /api/v1/me/mcp-connections` listet die Dienste, die er
+mit dem eigenen Konto verbunden hat, `PUT /api/v1/users/me/locale` setzt ihm die
+Sprache der Konsole auf jedem Gerät, und `PATCH /api/v1/users/me/agent-context`
+speichert seine Rolle (`job_title`) und woran er arbeitet (`about`), was jeder
+Agent erfährt. Jede braucht einen Schlüssel, der für `agents:run` ausgestellt
+wurde.
+
+`POST /api/v1/agents` legt einen Agent aus dem Spec im Body an und lässt ein
+leeres Feld leer. Mit `"from_starter": true` füllt es, was der Spec auslässt -
+die Instruktionen, Skills, die eigenen Tools der Plattform und das Budget - aus
+dem AgenticOS-Starter-Agent, wie es **New agent** in der Konsole tut.
 
 **Ein Run setzt eine Unterhaltung fort.** Ein Aufruf ohne `conversation_id`
 öffnet eine neue Unterhaltung für den Aussteller des Schlüssels und gibt ihre Id

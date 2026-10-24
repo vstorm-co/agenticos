@@ -1,5 +1,5 @@
 ---
-source_sha: "db92180d71f2"
+source_sha: "4990236b568c"
 ---
 
 # Die Konsole { #the-console }
@@ -10,7 +10,9 @@ und welche Seite ihn ausführlich erklärt.
 
 Wenn Sie einen einzelnen Screen suchen, ist der schnellste Weg das **"?"** in
 der Kopfzeile einer Seite — es spielt den Rundgang dieser Seite ab, und eine
-Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen.
+Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen. Der Chat
+hat keine Kopfzeile: Seine Tipps stehen in den Chat-Einstellungen, den Reglern
+neben dem Mikrofon.
 
 ## Das Dashboard { #the-dashboard }
 
@@ -44,12 +46,15 @@ Mitglieder, Sandboxes - wartet im Katalog, einen Klick entfernt unter **Customiz
 | **Needs attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell) |
 | **Usage & cost** | Welche Agents genutzt werden, Ausgaben, [Anrufminuten](#voice-calls), wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
 
-Wer Agents baut, sieht über den Bändern außerdem **Erste Schritte**, bis jeder
-Schritt erledigt ist: einen Agent anlegen, ihn veröffentlichen, ihm eine
-Wissensbasis geben, Abteilungen hinzufügen, jemanden aus dem Team einladen und -
-wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach dem
-abgehakt, was existiert, wo auch immer er erledigt wurde; wer die Karte schließt,
-blendet sie in diesem Browser aus.
+Das Dashboard öffnet mit **Erste Schritte**, bis jeder Schritt erledigt ist:
+Agents etwas über sich erzählen, ein Gespräch beginnen, einen Dienst mit dem
+eigenen Konto verbinden, eine Routine einrichten und einen Agent bauen -
+Letzteres ist eine Frage an den Architect, der ihn mit Ihnen baut. Wer Agents
+baut, hat danach die Schritte der Organisation: einen Agent veröffentlichen, ihm
+eine Wissensbasis geben, Abteilungen hinzufügen, jemanden aus dem Team einladen
+und - wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach dem
+abgehakt, was existiert, wo auch immer er erledigt wurde, nicht nach einem Klick
+auf die Karte; wer die Karte schließt, blendet sie in diesem Browser aus.
 
 Ihre eigene Ansicht zeigt außerdem **AgenticOS entdecken**: je eine Kachel für das,
 was leicht übersehen wird - den eigenen MCP-Server dieses Deployments für Claude
@@ -81,6 +86,28 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     nichts sichtbar machen. Die Berechtigungsprüfung läuft, nachdem das Layout
     aufgelöst wurde, ganz gleich ob es aus der Voreinstellung oder aus Ihrer
     eigenen gespeicherten Anordnung stammt.
+
+## Der Posteingang { #the-inbox }
+
+Der **Posteingang**, unter dem Chat in der Seitenleiste, ist, was die Plattform
+Ihnen aus eigener Initiative gebracht hat: was Ihre
+[Beobachtungen](governance.md#proactive-work) in Ihren Verbindungen gefunden und
+was der nächtliche Blick vorgeschlagen hat. Die Zahl daneben sagt, wie viel
+wartet. Er liest sich wie ein Postfach: eine Zeile je Eintrag, Dringendes
+zuerst, woher und wann, und die Antworten in der Zeile.
+
+Filtern Sie nach Herkunft, oder öffnen Sie **Erledigt** für das, was Sie schon
+angenommen oder abgelehnt haben, und holen Sie Abgelehntes zurück. **Was sie
+gefunden haben** auf der Karte Beobachtungen unter Routinen öffnet ihn auf
+Beobachtungen eingegrenzt. Kürzere Zeilen stehen oben auf Ihrem Dashboard als
+**Briefing**, und der leere Chat mit dem Start-Agent zeigt den ersten davon als
+Karte, mit einem Link zum Rest.
+
+Was eine Beobachtung findet und nicht sofort gemeldet werden muss, wartet auf
+Ihren Morgen: zu der Stunde, die die Proaktivität der Organisation hält, nennen
+eine Benachrichtigung und eine Direktnachricht von jedem ihrer Slack-, Teams-
+und Mattermost-Bots, der Sie kennt, was neu ist. Jeder Fund steht nur in einem
+Briefing.
 
 ## Die Glocke { #the-bell }
 
@@ -161,11 +188,18 @@ ausführen dürfen (`agents:run`). Er ist an
 Fragen Sie ihn, welche Agents Erstattungsfragen beantworten, warum der Run von
 letzter Nacht fehlschlug oder was in einer Wissensbasis steht.
 
-Lassen Sie ihn einen
-Agent entwerfen oder jemanden einladen, und er zeigt Ihnen zuerst, was Sie freigeben: einen
-Agent-Entwurf als den Entwurf selbst - wo er angelegt wird, sein Name, was er tun
-darf und seine Anweisungen - und alles andere als den genauen Aufruf. Er handelt mit Ihren Berechtigungen, findet und tut also, was
-Sie könnten, und nicht mehr. Seine Kosten zählen wie die jedes Agents.
+Sagen Sie ihm, was ein Agent tun soll, und er baut ihn mit Ihnen, eine Frage nach
+der anderen, jede mit vorgeschlagenen Antworten: Er wählt die Capabilities, die
+Wissensbasis und das Modell, sagt in einem Satz, warum, entwirft den Agent,
+probiert ihn als unveröffentlichten Entwurf an Ihren eigenen Fragen aus, korrigiert,
+was falsch war, und veröffentlicht ihn, wenn Sie zustimmen. Eine Routine richtet er
+genauso ein.
+
+Bevor sich etwas ändert, zeigt er Ihnen, was Sie freigeben: einen Agent-Entwurf
+als den Entwurf selbst - wo er angelegt wird, sein Name, was er tun darf und
+seine Anweisungen - und alles andere als den genauen Aufruf. Er handelt mit
+Ihren Berechtigungen, findet und tut also, was Sie könnten, und nicht mehr.
+Seine Kosten zählen wie die jedes Agents.
 
 Eine Sprechblase über ihm spricht an, was auf Sie wartet — Freigaben, eine
 Organisation ohne Agents — oder die Seite, auf der Sie sind, und bietet ab und zu
@@ -194,8 +228,8 @@ an Ihrer nächsten Nachricht.
 
 Längere Aufgaben plant er als Checkliste, die Sie
 verfolgen können, er merkt sich Notizen über Sie zwischen Unterhaltungen, sagt
-Ihnen, was Ihre Agents kosten, und kann einen versehentlich angelegten
-Agent-Entwurf rückgängig machen — sonst nichts. Neben Freigaben und einer leeren
+Ihnen, was Ihre Agents kosten, und löscht nur einen versehentlich angelegten
+Agent-Entwurf und eine Routine, deren Entfernen Sie verlangen. Neben Freigaben und einer leeren
 Organisation meldet sich seine Sprechblase, wenn ein Run von Ihnen gerade
 fehlgeschlagen ist und wenn ein Formular seit einer Minute unfertig offen ist.
 
@@ -296,7 +330,60 @@ Server prüft jede erneut als Sie, gegen das, was der Agent bereits hat. Im
 Testpanel des Builders liest das Menü den Entwurf, den Sie testen. Solange ein Gespräch leer ist, zeigt das Feld nacheinander
 Beispiele aus dem, was der Agent nutzen kann - seinem Server, einer Capability,
 einem Delegierten, einem Skill - und `/`; sie verschwinden, sobald Sie
-hineinklicken.
+hineinklicken. Darüber sind die Karten die eigenen **ersten Nachrichten** des
+Agents, im Builder unter seinen Instruktionen gesetzt; ein Agent ohne sie bietet
+die vier des Chats an, darunter eine, die fragt, was er kann, und eine, die eine
+Routine einrichtet.
+
+**Unter einer Antwort.** Ein Agent mit
+[Nächsten Schritten](reference/capabilities.md#follow-ups) bietet unter seiner
+neuesten Antwort bis zu drei nächste Schritte als Schaltflächen an, und ein Klick
+sendet einen. Eine Zeile sagt, was er sich über Sie notiert oder vergessen hat,
+mit **Verwalten (Manage)** zu [den Notizen selbst](reference/capabilities.md#memory-files)
+- bitten Sie ihn, etwas zu vergessen, und er tut es. Braucht eine Anfrage eine
+Capability, die dem Agent fehlt, bietet eine Karte an, sie einzuschalten oder den
+Besitzer des Agents darum zu bitten ([wie](reference/capabilities.md)).
+
+**Eine Anfrage behalten, die funktioniert hat.** Fahren Sie über Ihre eigene
+Nachricht: Der Kalender macht daraus eine Routine - derselbe Prompt, standardmäßig
+wöchentlich, auf dem Agent, der geantwortet hat -, und der Roboter bittet den
+Architect, einen Agent zu bauen, der das erledigt. Fahren Sie über die Antwort,
+und das Lesezeichen bittet den Architect, einen [Skill](skills.md) daraus zu
+machen, wie es erledigt wurde, damit jeder Agent es beim nächsten Mal genauso
+macht; er bekommt Ihre Anfrage und die Antwort, und angeboten wird es, wer Skills
+schreiben darf.
+
+**Links, die zeigen.** Ein Konsolenlink, den ein Agent in seine Antwort schreibt -
+„hier ist der Button, der Ihr Gmail verbindet“ - öffnet diese Seite, ohne die
+Konsole neu zu laden, und ein `?highlight=` darin zeigt auf das Bedienelement, das
+er nennt, wie die Links des Architect.
+
+**Der AgenticOS-Agent lernt Sie kennen.** Solange Ihr Konto nichts über Ihre
+Rolle oder Ihre Arbeit sagt, beginnt eine Begrüßung ein kurzes Gespräch: was Sie
+tun, was Ihre Woche füllt, mit welchen Werkzeugen Sie arbeiten - eine Frage nach
+der anderen, jede mit Antworten zur Auswahl. Was Sie sagen, wird in Ihrem Profil
+gespeichert, sodass es von da an jeder Agent weiß, und das Gespräch endet mit bis
+zu drei Karten zum Einrichten - einer Routine, einem Dienst zum Verbinden, einem
+eigenen Agent - jede mit einem Klick. Überspringen Sie eine Frage oder bitten Sie
+um etwas Echtes, und er erledigt stattdessen die Arbeit.
+
+**Was über Nacht auffiel.** Wo Ihre Organisation es eingeschaltet hat, liest die
+Plattform einmal am Tag, früh an Ihrem Morgen, in einem Hintergrundjob Ihre
+letzten Unterhaltungen: Eine Anfrage, die
+Sie immer wiederholen, wird eine vorgeschlagene Routine, was ein Agent über Ihre
+Rolle erfahren hat, ein vorgeschlagenes Profil, und Ihr leerer AgenticOS-Chat
+bekommt erste Nachrichten, die für Ihre Arbeit geschrieben sind. Vorschläge
+warten als Karten in diesem leeren Chat, auf Ihrem Dashboard und in der Glocke,
+und **Einstellungen → Assistent** listet sie alle - dort holen Sie einen
+verworfenen zurück oder nehmen sich aus; nehmen Sie einen an,
+wird er eingerichtet, verwerfen Sie ihn, wird derselbe Vorschlag nie wieder
+gemacht. Nichts läuft, wenn nichts Neues passiert ist, und was das kosten darf,
+ist [pro Person begrenzt](governance.md#proactive-work). Ein Chat-Link mit
+`?agent=<slug>` öffnet den Chat auf diesem Agent.
+
+**Arbeitszeiten** unter **Settings → Profile** sagen Agents, wann Sie arbeiten,
+sodass eine Routine, die sie vorschlagen, in Ihren Tag fällt. Nichts wartet auf
+sie: Sie sind Wissen für den Agent, kein Zeitplan.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
@@ -511,7 +598,8 @@ annehmen kann (`GET /agents/{id}/voice`), damit niemand das Mikrofon freigibt,
 nur um abgelehnt zu werden. Die Antwort nennt, was fehlt: keine Stimme am Agent
 eingerichtet, das Modell nicht mehr angeboten, oder kein Schlüssel.
 
-Die **Anruftaste** steht im Eingabefeld des Chats neben dem Mikrofon, bei jedem
+Die **Anruftaste** steht im Eingabefeld des Chats an der Stelle von Senden,
+solange das Feld leer ist - ist etwas getippt, kommt Senden zurück -, bei jedem
 Agent. Kann dieser Agent keinen Anruf annehmen, ist sie durchgestrichen, und
 Hovern, Fokussieren oder Drücken sagt, warum. Wer den Agent bearbeiten darf,
 bekommt **Im Agent Builder öffnen**, was seine Karte Stimme (Voice) auf dem
@@ -594,7 +682,7 @@ verlassen haben.
 | **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy | [Die Sandbox](sandbox.md) |
 | **MCP servers** | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit | [MCP](mcp.md) |
-| **Channels** | Slack-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
+| **Channels** | Slack-, Teams-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
 | **Remote agents** | Agents anderer Anbieter, über ihre A2A Agent Card registriert, an die Agents delegieren | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |
 | **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |
@@ -612,9 +700,18 @@ ohne dass eine neue Version veröffentlicht wird.
 
 Die Konsole spricht Englisch, Polnisch und Deutsch, vollständig bis auf die
 rechtlichen Seiten, die Englisch bleiben. Die erste Karte des Rundgangs bietet die
-drei an, und das Kontomenü wechselt die Sprache jederzeit; die Wahl wird im Browser
-gespeichert. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
+drei an, und das Kontomenü wechselt die Sprache jederzeit; die Wahl wird in Ihrem
+Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
+in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
+die Seite wechselt, während er antwortet, ohne Neuladen. Jeder Agent antwortet in
+ihr, außer Sie schreiben in einer anderen Sprache. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
 unter [Übersetzen](howto/translate.md) - bleiben in jeder Sprache Englisch.
+
+Dieselbe Karte fragt, was Sie tun, und **Einstellungen → Profil (Settings →
+Profile)** hält den Rest dessen, was Agents über Sie wissen: Ihre Rolle, woran Sie
+arbeiten und Ihre Zeitzone. Jeder Agent liest sie zu Beginn eines Runs, sodass Sie
+sie in keinem Chat wiederholen; „jeden Montag um 9“ ist Ihre 9. Die Zeitzone wird
+bei der ersten Anmeldung aus Ihrem Browser übernommen, bis Sie eine wählen.
 
 ## Der nächste Schritt { #the-next-step }
 

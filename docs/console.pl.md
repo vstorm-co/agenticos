@@ -1,5 +1,5 @@
 ---
-source_sha: "db92180d71f2"
+source_sha: "4990236b568c"
 ---
 
 # Konsola { #the-console }
@@ -10,7 +10,8 @@ wyjaśnia go porządnie.
 
 Jeśli szukasz jednego ekranu, najszybszą drogą jest **"?"** w nagłówku strony —
 odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?",
-nie ma przewodnika do odtworzenia.
+nie ma przewodnika do odtworzenia. Czat nie ma nagłówka: jego wskazówki są w
+ustawieniach czatu, pod suwakami obok mikrofonu.
 
 ## Dashboard { #the-dashboard }
 
@@ -44,11 +45,14 @@ sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 | **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage & cost** | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
 
-Kto buduje agentów, widzi też nad pasmami kartę **Get started**, dopóki nie
-wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę
-wiedzy, dodać działy, zaprosić kogoś z zespołu i - jeśli może - wstawić agenta do
-komunikatora. Każdy krok jest odhaczany na podstawie tego, co istnieje, gdziekolwiek
-go zrobiono; zamknięcie karty ukrywa ją w tej przeglądarce.
+Dashboard otwiera się kartą **Get started**, dopóki nie zrobisz wszystkich jej
+kroków: opowiedzieć agentom o sobie, zacząć rozmowę, podłączyć usługę własnym
+kontem, ustawić rutynę i zbudować agenta - to ostatnie jest pytaniem do
+Architekta, który buduje go razem z tobą. Kto buduje agentów, ma po nich kroki
+organizacji: opublikować agenta, dać mu bazę wiedzy, dodać działy, zaprosić kogoś
+z zespołu i - jeśli może - wstawić agenta do komunikatora. Każdy krok jest
+odhaczany na podstawie tego, co istnieje, gdziekolwiek go zrobiono, a nie z
+kliknięcia na karcie; zamknięcie karty ukrywa ją w tej przeglądarce.
 
 Twój własny widok pokazuje też **Odkryj AgenticOS**: po jednym kafelku na to, co
 łatwo przeoczyć - własny serwer MCP tego wdrożenia dla Claude Code, Codex albo
@@ -77,6 +81,25 @@ migawkę, którą chciałeś zachować.
     Zapisany układ może zmieniać kolejność i ukrywać, ale nie może odsłaniać.
     Filtrowanie po uprawnieniach dzieje się po rozwiązaniu układu — niezależnie
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
+
+## Inbox { #the-inbox }
+
+**Inbox**, pod Czatem w pasku bocznym, to to, co platforma przyniosła ci z
+własnej inicjatywy: co twoje [obserwacje](governance.md#proactive-work) znalazły
+na twoich połączeniach i co zaproponował nocny przegląd. Liczba obok mówi, ile
+czeka. Czyta się go jak skrzynkę pocztową: jeden wiersz na rzecz, pilne
+pierwsze, skąd i kiedy przyszła, a odpowiedzi w wierszu. Filtruj po źródle albo
+otwórz **Załatwione**, żeby zobaczyć, co już przyjąłeś lub odrzuciłeś, i
+przywrócić odrzucone. **Co znalazły** na karcie Obserwacje w Rutynach otwiera go
+zawężonego do obserwacji. Krótsze wiersze otwierają twój dashboard jako
+**Briefing**, a pusty czat z agentem startowym pokazuje pierwszą z nich jako
+kartę, z linkiem do reszty.
+
+To, co obserwacja znajdzie, a co nie musi trafić do ciebie od razu, czeka na
+twój poranek: o godzinie, którą trzyma proaktywność organizacji, jedno
+powiadomienie i jedna wiadomość prywatna od każdego jej bota w Slacku, Teams i
+Mattermost, który cię zna, wymieniają to, co nowe. Każde znalezisko trafia tylko
+do jednego briefingu.
 
 ## Dzwonek { #the-bell }
 
@@ -150,12 +173,17 @@ którzy mogą uruchamiać agentów (`agents:run`). Jest powiązany z
 którzy agenci odpowiadają na pytania o zwroty, dlaczego nocny run się nie udał
 albo co jest w bazie wiedzy.
 
-Poproś o szkic agenta albo zaproszenie
-współpracownika, a najpierw pokaże ci, co
-zatwierdzasz: szkic agenta jako sam szkic - gdzie powstanie, jego nazwę, co może
-robić i jego instrukcje - a wszystko inne jako dokładne wywołanie. Działa
-z twoimi uprawnieniami, więc znajduje i robi to, co ty mógłbyś, i nic więcej. Jego
-koszty liczą się jak każdego agenta.
+Powiedz mu, co agent ma robić, a zbuduje go z tobą, jedno pytanie naraz, każde z
+proponowanymi odpowiedziami: dobiera capabilities, bazę wiedzy i model, w jednym
+zdaniu mówi dlaczego, tworzy szkic agenta, sprawdza go na twoich własnych pytaniach
+jako nieopublikowany draft, poprawia to, co było źle, i publikuje go, gdy to
+zatwierdzisz. Tak samo ustawia rutynę.
+
+Zanim cokolwiek się zmieni, pokazuje ci, co zatwierdzasz: szkic agenta jako sam
+szkic - gdzie powstanie, jego nazwę, co może robić i jego instrukcje - a
+wszystko inne jako dokładne wywołanie. Działa z twoimi uprawnieniami, więc
+znajduje i robi to, co ty mógłbyś, i nic więcej. Jego koszty liczą się jak
+każdego agenta.
 
 Dymek nad nim mówi o tym, co na ciebie czeka — akceptacje, organizacja bez
 żadnego agenta — albo o stronie, na której jesteś, a czasem podsuwa wskazówkę.
@@ -181,7 +209,8 @@ wiadomości.
 
 Dłuższe zadania planuje jako listę kroków, którą widać na bieżąco,
 zapamiętuje notatki o tobie między rozmowami, powie, ile kosztują twoi agenci, i
-może cofnąć draft agenta, który utworzył przez pomyłkę — nic poza tym. Oprócz
+usuwa tylko draft agenta, który utworzył przez pomyłkę, oraz rutynę, o której
+usunięcie poprosisz. Oprócz
 akceptacji i pustej organizacji dymek odzywa się, gdy twój run właśnie się nie
 udał, i gdy formularz jest otwarty, niedokończony, od minuty.
 
@@ -271,7 +300,56 @@ pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigd
 poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
 tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic. Dopóki rozmowa jest pusta, pole pokazuje po kolei
 przykłady zbudowane z tego, czego agent może użyć - jego serwera, capability,
-delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz.
+delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz. Nad nim karty
+to własne **pierwsze wiadomości** agenta, ustawiane w Builderze pod jego
+instrukcjami; agent bez nich proponuje cztery własne wiadomości czatu, w tym jedną
+z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
+
+**Pod odpowiedzią.** Agent z [Następnymi krokami](reference/capabilities.md#follow-ups)
+proponuje pod najnowszą odpowiedzią do trzech następnych kroków jako przyciski, a
+kliknięcie wysyła jeden z nich. Linijka mówi, co zanotował o tobie albo co
+zapomniał, z **Zarządzaj (Manage)** prowadzącym do
+[samych notatek](reference/capabilities.md#memory-files) - poproś, żeby coś
+zapomniał, a zapomni. Gdy prośba wymaga capability, której agent nie ma, karta
+proponuje ją włączyć albo poprosić o to właściciela agenta
+([jak](reference/capabilities.md)).
+
+**Zachowanie prośby, która zadziałała.** Najedź na własną wiadomość: kalendarz
+zamienia ją w rutynę - ten sam prompt, domyślnie co tydzień, na agencie, który
+odpowiedział - a robot prosi Architekta, żeby zbudował agenta, który to robi.
+Najedź na odpowiedź, a zakładka prosi Architekta, żeby zrobił
+[skill](skills.md) z tego, jak to zostało zrobione, i każdy agent zrobił to
+następnym razem tak samo; dostaje twoją prośbę i odpowiedź, a przycisk widzi ten,
+kto może pisać skille.
+
+**Linki, które wskazują.** Link do konsoli, który agent napisze w odpowiedzi -
+„tu jest przycisk, który podłącza twój Gmail” - otwiera tę stronę bez
+przeładowania konsoli, a `?highlight=` w nim wskazuje kontrolkę, którą nazywa,
+tak jak linki Architekta.
+
+**Agent AgenticOS poznaje cię.** Dopóki twoje konto nic nie mówi o twojej roli
+ani pracy, powitanie zaczyna krótką rozmowę: czym się zajmujesz, co wypełnia ci
+tydzień, w jakich narzędziach pracujesz - po jednym pytaniu, każde z odpowiedziami
+do wybrania. To, co powiesz, trafia do twojego profilu, więc od tej pory wie to
+każdy agent, a rozmowa kończy się maksymalnie trzema kartami do ustawienia -
+rutyną, usługą do podłączenia, własnym agentem - każda na jedno kliknięcie.
+Pomiń pytanie albo poproś o coś konkretnego, a zamiast tego zrobi robotę.
+
+**Co zauważyła w nocy.** Tam, gdzie organizacja to włączyła, raz dziennie,
+wcześnie rano twojego czasu, platforma przegląda w zadaniu w tle twoje ostatnie
+rozmowy: prośba, którą powtarzasz,
+staje się propozycją rutyny, to, czego agent dowiedział się o twojej roli -
+propozycją profilu, a twój pusty czat z AgenticOS dostaje pierwsze wiadomości
+napisane pod twoją pracę. Propozycje czekają jako karty w tym pustym czacie, na
+twoim dashboardzie i w dzwonku, a **Ustawienia → Asystent** pokazują wszystkie -
+tam przywrócisz odrzuconą albo wyłączysz to dla siebie; przyjmij jedną, a zostanie ustawiona, odrzuć, a ta sama propozycja nie
+wróci. Nic się nie uruchamia, gdy nic nowego się nie wydarzyło, a to, ile może to
+kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
+`?agent=<slug>` otwiera czat na tym agencie.
+
+**Godziny pracy** w **Settings → Profile** mówią agentom, kiedy pracujesz, więc
+rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wiedza
+dla agenta, nie harmonogram.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
@@ -468,7 +546,8 @@ Zanim zaproponuje rozmowę, konsola pyta, czy ten agent może ją odebrać
 to, by zostać odrzuconym. Odpowiedź mówi, czego brakuje: głosu ustawionego w
 agencie, modelu, który nadal jest oferowany, albo klucza.
 
-**Przycisk rozmowy** stoi w kompozytorze czatu, obok mikrofonu, przy każdym
+**Przycisk rozmowy** stoi w kompozytorze czatu w miejscu „Wyślij”, dopóki pole
+jest puste - po wpisaniu czegoś wraca „Wyślij” - przy każdym
 agencie. Gdy ten agent nie może odebrać rozmowy, przycisk jest przekreślony, a
 najechanie, fokus albo naciśnięcie mówi dlaczego. Ktoś, kto może edytować
 agenta, dostaje **Otwórz w Agent Builderze**, co otwiera jego kartę Głos (Voice)
@@ -543,7 +622,7 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
 | **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
-| **Channels** | Boty Slacka, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
+| **Channels** | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
 | **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
 | **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
@@ -561,9 +640,19 @@ avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 
 Konsola mówi po angielsku, polsku i niemiecku, w całości poza stronami
 prawnymi, które zostają po angielsku. Pierwsza karta przewodnika proponuje te trzy
-języki, a menu konta zmienia język w każdej chwili; wybór jest zapamiętywany w
-przeglądarce. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
+języki, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na twoim
+koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
+logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
+się, gdy odpowie, bez przeładowania. Każdy agent odpowiada w nim, chyba że
+napiszesz w innym języku. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
 [tłumaczenia](howto/translate.md) - zostają angielskie w każdym języku.
+
+Ta sama karta pyta, czym się zajmujesz, a **Ustawienia → Profil (Settings →
+Profile)** trzymają resztę tego, co agenci o tobie wiedzą: twoją rolę, nad czym
+pracujesz i twoją strefę czasową. Każdy agent czyta je na początku runu, więc
+nigdy nie powtarzasz ich w czacie; „w każdy poniedziałek o 9” to twoja 9. Strefa
+czasowa jest brana z przeglądarki przy pierwszym logowaniu, dopóki nie wybierzesz
+własnej.
 
 ## Następny krok { #the-next-step }
 

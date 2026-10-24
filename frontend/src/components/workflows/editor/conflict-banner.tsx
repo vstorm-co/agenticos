@@ -6,6 +6,7 @@ import { AlertTriangle } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type { WorkflowGraph } from "@/lib/workflows/types";
 import { getWorkflow } from "@/lib/workflows/workflows-api";
@@ -38,13 +39,13 @@ const EMPTY_GRAPH: WorkflowGraph = {
 export function ConflictBanner({ workflowId }: { workflowId: string }) {
   const t = useTranslations("workflows");
   const queryClient = useQueryClient();
+  const tErrors = useTranslations("errors");
   const conflict = useWorkflowEditorStore((state) => state.conflict);
   const setExpectedRevision = useWorkflowEditorStore((state) => state.setExpectedRevision);
   const clearConflict = useWorkflowEditorStore((state) => state.clearConflict);
-  const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
-  const markSaved = useWorkflowEditorStore((state) => state.markSaved);
 
   const [reloading, setReloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const overwrite = useCallback(
     (currentRevision: number) => {
@@ -55,7 +56,9 @@ export function ConflictBanner({ workflowId }: { workflowId: string }) {
   );
 
   const reload = useCallback(async () => {
+    const token = useWorkflowEditorStore.getState().beginSave();
     setReloading(true);
+    setError(null);
     try {
       // `staleTime: 0` forces a network read: without it the global 5-minute
       // stale window makes `fetchQuery` return the client's own cached draft —
@@ -66,12 +69,17 @@ export function ConflictBanner({ workflowId }: { workflowId: string }) {
         queryFn: () => getWorkflow(workflowId),
         staleTime: 0,
       });
-      seedGraph(detail.draft_graph ?? EMPTY_GRAPH);
-      markSaved(detail.draft_revision);
+      const current = useWorkflowEditorStore.getState();
+      if (!current.isSaveCurrent(token)) return;
+      current.replaceDraft(detail.draft_graph ?? EMPTY_GRAPH, detail.draft_revision);
+    } catch (error) {
+      if (useWorkflowEditorStore.getState().isSaveCurrent(token)) {
+        setError(getErrorMessage(error, tErrors));
+      }
     } finally {
       setReloading(false);
     }
-  }, [queryClient, workflowId, seedGraph, markSaved]);
+  }, [queryClient, workflowId, tErrors]);
 
   if (conflict === null) return null;
 
@@ -86,6 +94,7 @@ export function ConflictBanner({ workflowId }: { workflowId: string }) {
         <div>
           <p className="text-foreground text-sm font-medium">{t("conflictTitle")}</p>
           <p className="text-muted-foreground text-sm">{t("conflictBody")}</p>
+          {error !== null && <p className="text-destructive mt-1 text-sm">{error}</p>}
         </div>
       </div>
       <div className="flex shrink-0 gap-2">

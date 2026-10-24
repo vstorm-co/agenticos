@@ -586,6 +586,15 @@ class TestDocuments:
         skip = runtime.index('classList.contains("leaflet-tile")) return;')
         assert skip < runtime.index('fail("Could not load "')
 
+    def test_a_drawing_reports_the_height_of_what_it_drew_not_of_its_frame(self) -> None:
+        # The document's scrollHeight never drops below the frame's own height,
+        # so a map whose tiles were stacked for a moment before Leaflet's styles
+        # applied stayed that tall, shrunk to fit over a band of nothing (#2301).
+        runtime = visuals.VISUAL_RUNTIME
+        size = runtime[runtime.index("function size()") : runtime.index('"agenticos:visual-size"')]
+        assert "body.scrollHeight" in size
+        assert "watch.observe(document.body)" in runtime
+
     async def test_the_frame_carries_the_templates_and_is_read_once(self, monkeypatch) -> None:
         monkeypatch.setattr(visuals, "_frame", None)
         first = await visuals.frame_document()

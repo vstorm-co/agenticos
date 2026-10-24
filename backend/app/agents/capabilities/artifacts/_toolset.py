@@ -358,10 +358,11 @@ def build_artifacts_toolset(
         `lib/three-0.186.0/three.core.js` beside it and
         `lib/three-0.186.0/addons/controls/OrbitControls.js` under `three/addons/`);
         a map through `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js`
-        and `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, on the
-        deployment's map tiles or as an outline without them).
-        `lib/agenticos-2.css`, `lib/agenticos-2.js` and `lib/agenticos-1.css` stay served
-        for pages published against them; build new pages on version 3. Follow the page
+        and `lib/agenticos-map-2.js` (`AOMap.itinerary`: numbered pins in order, on the
+        deployment's map tiles or as an outline without them - its own layout, so no
+        border or `min-height` around its element and no second list of its stops);
+        `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
+        against them; build new pages on version 3. Follow the page
         contract in your instructions: doctype and viewport, `main.ao-page`, the header,
         only the kit's classes, tables with `<thead>`. Keep to the product's look: graphite,
         no accent colour, green and red only for better and worse, icons rather than

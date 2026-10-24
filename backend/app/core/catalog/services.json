@@ -53,6 +53,24 @@
     "description": "Store an agent's remembered facts in a mem0 service (cloud or self-hosted)."
   },
   {
+    "id": "elevenlabs",
+    "label": "ElevenLabs",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://elevenlabs.io/app/settings/api-keys",
+    "description": "Speech generated from text, in the voices on your ElevenLabs account.",
+    "icon": "elevenlabs"
+  },
+  {
+    "id": "byteplus",
+    "label": "BytePlus ModelArk",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey",
+    "description": "ByteDance's Seedance video models, through BytePlus ModelArk.",
+    "icon": "byteplus"
+  },
+  {
     "id": "sandboxd",
     "label": "Sandbox service",
     "category": "other",

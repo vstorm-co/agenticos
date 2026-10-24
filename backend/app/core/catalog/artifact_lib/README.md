@@ -25,6 +25,8 @@ that is not listed there is not served.
 | `agenticos-3.css` | Version 2's classes, forgiving of a header or table built loosely, plus loading, notes, lists, a toolbar and the header's icon and actions | 3 | Apache-2.0 (this repository) | written here |
 | `agenticos-3.js` | Version 2's `window.AO`, plus icons drawn as a script adds them, `AO.onData` and `AO.records` | 3 | Apache-2.0 (this repository) | written here |
 | `agenticos-map-1.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
+| `agenticos-map-2.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 2 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
+| `agenticos-map-1.js` | Version 1, kept for the pages that name it; it drops the pins on load and keeps one height. `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 
 The libraries are copied byte for byte from the registry tarballs, whose
 `sha512` integrity was checked against the npm registry when they were added
@@ -238,7 +240,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Open Intelligent UI
 
-`agenticos-map-1.js` adapts the pin-drop timing of `createTripAnimator`, and the
+`agenticos-map-1.js` and `agenticos-map-2.js` adapt the pin-drop timing of
+`createTripAnimator`, and the
 `visual-design` skill borrows guidance from the playbook and skills, of Open
 Intelligent UI (https://github.com/CopilotKit/OpenIntelligentUI, at
 `8391a94c1c3939c679e40ddd7bfc08a9ef690e70`). The notice is kept in the file's

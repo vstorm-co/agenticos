@@ -67,22 +67,26 @@ class LockScope(IntEnum):
     #: tables, and "is this name free" followed by an insert is two statements:
     #: without this two creates of one name both pass the check and the second
     #: dies on the unique index with a 500 instead of a 409 (#1782).
-    VIRTUAL_TABLE_NAMES_PER_ORG = 11
+    VIRTUAL_TABLE_NAMES_PER_ORG = 12
     #: The record count of one table. A quota reads "how many records" and then
     #: inserts, which two creates can do at once and both pass at limit - 1, so
     #: creates into one table take turns for the length of the check (#1823).
-    VIRTUAL_TABLE_RECORD_COUNT = 12
+    VIRTUAL_TABLE_RECORD_COUNT = 13
     #: The agent one workflow step configures in place. Its first run creates it and
     #: a changed spec publishes a version, each read-then-write: two runs of the step
     #: at once would otherwise create it twice or publish the same spec twice.
-    WORKFLOW_STEP_AGENT = 13
+    WORKFLOW_STEP_AGENT = 14
     #: The stored file bytes of one organization. A quota sums what is stored and
     #: then inserts, which two steps can do at once and both pass at the ceiling.
-    WORKFLOW_FILE_BYTES = 14
+    WORKFLOW_FILE_BYTES = 15
     #: The runs of one workflow chain, from its root run. A table trigger counts the
     #: chain's runs and then admits one; two passes over events of one chain read the
     #: same count and both admit past the limit, so the count is taken under this.
-    WORKFLOW_RUN_CHAIN = 15
+    WORKFLOW_RUN_CHAIN = 16
+    #: One organization's generated-media quota (#2310). Each call read what was
+    #: used before its paid generation and recorded its file only after it, so
+    #: every call admitted at once passed the same check and together ran past it.
+    GENERATED_MEDIA_PER_ORG = 11
 
 
 def _key(subject: UUID) -> int:

@@ -40,6 +40,10 @@ vi.mock("@/stores", () => ({
     pick({ currentConversationId: "c1" }),
 }));
 
+/** The page's query string - `?agent=` hands over one agent (#2301). */
+let search = "";
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(search) }));
+
 let loading = false;
 /** A refetch in flight over data already on screen - the stale-while-revalidate window. */
 let fetching = false;
@@ -329,5 +333,34 @@ describe("workflows in the chat's picker", () => {
     await open();
     expect(workflowsEnabled).toHaveBeenLastCalledWith(false);
     expect(screen.queryByRole("radiogroup", { name: "Workflows" })).toBeNull();
+  });
+});
+
+describe("a link asking for one agent", () => {
+  beforeEach(() => {
+    search = "";
+  });
+
+  it("selects the agent a link names by its handle, over the default", async () => {
+    search = "agent=sales";
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue(null);
+    render(<AgentPicker />);
+
+    await waitFor(() => expect(select).toHaveBeenLastCalledWith("a2"));
+  });
+
+  it("accepts an id, and ignores an agent nobody may run here", async () => {
+    search = "agent=a1";
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue("a2");
+    const { unmount } = render(<AgentPicker />);
+    await waitFor(() => expect(select).toHaveBeenCalledWith("a1"));
+    unmount();
+
+    select.mockClear();
+    search = "agent=ghost";
+    render(<AgentPicker />);
+    expect(select).not.toHaveBeenCalled();
   });
 });

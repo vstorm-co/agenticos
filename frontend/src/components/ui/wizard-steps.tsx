@@ -15,6 +15,12 @@ interface WizardStepsProps {
   steps: WizardStep[];
   /** The id of the step on screen. */
   current: string;
+  /**
+   * A dot per step and only the current one named - for a narrow dialog of few
+   * steps, where a bar and a name per step stretched across the header said
+   * less than the form under it.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -28,8 +34,35 @@ interface WizardStepsProps {
  * on screen is the only label in full ink. On a phone only its name is written
  * out: four names do not fit a row there, and the bars still count the rest.
  */
-export function WizardSteps({ steps, current }: WizardStepsProps) {
+export function WizardSteps({ steps, current, compact = false }: WizardStepsProps) {
   const currentIdx = steps.findIndex((step) => step.id === current);
+  if (compact) {
+    return (
+      <div className="mt-2 flex items-center justify-center gap-2.5">
+        <ol className="flex h-5 items-center gap-1.5">
+          {steps.map((step, i) => {
+            const active = i === currentIdx;
+            return (
+              <li key={step.id} aria-current={active ? "step" : undefined} className="flex">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "block h-1.5 rounded-full transition-all duration-300 ease-[var(--ease-out)]",
+                    active ? "w-5" : "w-1.5",
+                    i <= currentIdx ? "bg-foreground" : "bg-muted-foreground/30",
+                  )}
+                />
+                <span className="sr-only">{step.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+        <span aria-hidden className="text-sm leading-5 font-medium">
+          {steps[currentIdx]?.label}
+        </span>
+      </div>
+    );
+  }
   return (
     <ol className="mt-4 flex gap-3">
       {steps.map((step, i) => {

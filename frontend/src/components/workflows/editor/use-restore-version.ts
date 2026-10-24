@@ -47,15 +47,17 @@ export function useRestoreVersion(
       const expectedRevision = store.expectedRevision;
       if (expectedRevision === null) return false;
       const wasDirty = store.discardPendingSave();
+      const token = store.beginSave();
       try {
         const detail = await restore({ versionId: version.id, expectedRevision });
-        useWorkflowEditorStore
-          .getState()
-          .replaceDraft(detail.draft_graph ?? EMPTY_GRAPH, detail.draft_revision);
+        const current = useWorkflowEditorStore.getState();
+        if (!current.isSaveCurrent(token)) return false;
+        current.replaceDraft(detail.draft_graph ?? EMPTY_GRAPH, detail.draft_revision);
         toast.success(t("versionRestored", { version: version.version }));
         return true;
       } catch (error) {
         const current = useWorkflowEditorStore.getState();
+        if (!current.isSaveCurrent(token)) return false;
         if (wasDirty) current.markDirty();
         const revision = error instanceof ApiError ? conflictRevision(error) : null;
         if (error instanceof ApiError && error.status === 409 && revision !== null) {

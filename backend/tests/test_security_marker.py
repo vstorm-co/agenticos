@@ -49,6 +49,10 @@ EXEMPT: dict[str, str] = {
     "tests/test_logging.py::TestSecretPaths::test_an_address_with_nothing_secret_in_it_is_left_alone": "an address with no credential segment is left alone, the redaction's complement",
     "tests/integration/test_workflow_error_foreach.py::test_an_approval_inside_an_iteration_resumes_that_iteration": "an approval resuming a loop iteration, not a refusal",
     "tests/test_workflow_node_guards.py::TestHttpConfig::test_a_step_without_a_credential_has_no_secret_to_check": "no credential configured means nothing to check, not a refusal",
+    "tests/test_generated_media.py::TestTheRetentionSweep::test_no_batch_starts_once_the_time_budget_is_spent": "the sweep's time budget, not a spending budget, no refusal",
+    "tests/test_teams_channel.py::TestRegisteringABot::test_a_teams_bot_carries_its_app_and_tenant_and_is_a_webhook_bot": (
+        "'tenant' is the Azure tenant id a Teams bot is registered with, not tenancy"
+    ),
     "tests/test_agent_realtime.py::test_azure_builds_from_the_azure_secret_with_the_deployment_name": "builds a client from a secret of the right kind, no refusal",
     "tests/test_agent_voice.py::test_a_voice_agent_resolves_approvals_inline": "assembly wiring of the inline approval handler, no refusal",
     "tests/integration/test_channel_prompts.py::test_an_approval_prompt_must_name_its_approval": "a table check constraint on a prompt row, no refusal of a caller",
@@ -85,6 +89,9 @@ EXEMPT: dict[str, str] = {
     "tests/integration/test_notification_center.py::TestMandatoryEvents::test_a_metered_mandatory_write_within_budget_still_writes": "'budget' names the rate-limit allowance, not a spend cap; a write within it succeeds, no refusal",
     "tests/integration/test_notification_center.py::TestMandatoryEvents::test_a_burst_past_the_budget_coalesces_into_one_row": "'budget' names the same rate-limit allowance; a burst past it is coalesced rather than refused",
     "tests/integration/test_notification_center.py::TestListInboxPagination::test_a_fully_gated_backlog_exhausts_its_fetch_budget": "'budget' names the pagination fetch-round bound, not a spend cap; no refusal",
+    "tests/test_mcp_connections.py::TestProbeErrors::test_a_session_past_the_handshake_budget_is_a_timeout": "'budget' names the MCP probe's time limit, not a spend cap; a timeout, no refusal",
+    "tests/test_mcp_connections.py::TestProbeErrors::test_a_callers_budget_reaches_the_transport_and_the_refusal": "'budget' names the MCP probe's time limit, not a spend cap; a timeout, no refusal",
+    "tests/test_mcp_connections.py::TestProbeErrors::test_a_connect_timeout_names_the_connect_budget": "'budget' names the MCP probe's connect time limit, not a spend cap; a timeout, no refusal",
     "tests/integration/test_notification_delivery.py::TestRenderDispatch::test_budget_exceeded_renders_its_own_key_unchanged": "'budget' names the notification event type (budget_exceeded), not a spend cap; renders successfully, no refusal",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_an_unconditional_api_key_secret_gets_a_probe_value": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/test_embedding_resolution.py::TestCredentialDegradation::test_a_deleted_secret_degrades_to_no_key": "a missing secret degrades to no key rather than refusing, availability",

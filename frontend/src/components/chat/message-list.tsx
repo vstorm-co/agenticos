@@ -1,9 +1,11 @@
 "use client";
 
 import { Fragment, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useAgents } from "@/hooks";
+import { consoleLink, pointAt } from "@/lib/assistant-highlight";
 import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { ChatMessage, TurnUsage } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
@@ -101,6 +103,23 @@ export function turnUsage(messages: ChatMessage[], index: number): TurnUsage | u
   return messages[at]?.usage;
 }
 
+/**
+ * What the person asked for, when the message at `index` is the answer that ends a turn.
+ *
+ * The nearest of their messages above it: a turn that parked on an approval is
+ * several assistant segments under one request, and only the last carries the
+ * "make a skill of this" shortcut, so the request it hands over is the one the
+ * whole turn answered.
+ */
+export function requestOf(messages: ChatMessage[], index: number): string | undefined {
+  if (messages[index]?.role !== "assistant" || !endsTurn(messages, index)) return undefined;
+  for (let at = index - 1; at >= 0; at--) {
+    const message = messages[at];
+    if (message?.role === "user") return message.content || undefined;
+  }
+  return undefined;
+}
+
 export function MessageList({ messages, onRegenerate, pins }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
@@ -109,6 +128,7 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
   // part in before it was retired still has to say who answered.
   const { agents } = useAgents({ includeArchived: true });
   const byId = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
+  const router = useRouter();
 
   const getGroupPosition = (
     message: ChatMessage,
@@ -136,8 +156,20 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
   const timestamps = messages.map((message) => message.timestamp);
   const now = new Date();
 
+  // "Show me" (#2301): a console link an agent wrote opens that page in the
+  // console and points at the control its `?highlight=` names, as the
+  // Architect's links do - rather than reloading the whole app.
+  const onClickCapture = (event: React.MouseEvent) => {
+    const anchor = (event.target as Element).closest("a");
+    const link = consoleLink(anchor?.getAttribute("href") ?? null, window.location.origin);
+    if (link === null) return;
+    event.preventDefault();
+    router.push(link.path);
+    if (link.anchor) void pointAt(link.anchor);
+  };
+
   return (
-    <div className="space-y-0">
+    <div className="space-y-0" onClickCapture={onClickCapture}>
       {messages.map((message, index) => (
         <Fragment key={message.renderKey ?? message.id}>
           {/* Never inside a turn: a run that crossed midnight is still one answer. */}
@@ -154,6 +186,7 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
             openLastStep={index === openStepsAt}
             pins={pins}
             agents={agents}
+            request={pins ? undefined : requestOf(messages, index)}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? () => onRegenerate(message.id)

@@ -283,6 +283,25 @@ async def published_budget_caps(
     return {row[0]: row[1] for row in result.all()}
 
 
+async def published_starters(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, list[str]]:
+    """Each version's first messages, read off the frozen spec's JSONB.
+
+    The same one-path-per-row extraction as `published_budget_caps`. A version
+    published before `starters` existed has none and is absent.
+    """
+    if not version_ids:
+        return {}
+    starters = AgentVersion.spec["starters"]
+    result = await db.execute(
+        select(AgentVersion.id, starters).where(
+            AgentVersion.id.in_(list(version_ids)), starters.isnot(None)
+        )
+    )
+    return {row[0]: [str(item) for item in row[1]] for row in result.all()}
+
+
 async def published_model_profiles(
     db: AsyncSession, *, version_ids: Sequence[UUID]
 ) -> dict[UUID, UUID]:

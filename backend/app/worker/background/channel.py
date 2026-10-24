@@ -12,6 +12,7 @@ from app.db.session import get_db_context
 from app.repositories import channel_bot_repo
 from app.services.channels.base import FeedbackComment, read_feedback
 from app.services.channels.feedback import ChannelFeedback
+from app.services.channels.next_steps import ChannelNextSteps, read_next
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.slack_app import SlackSurfaces
@@ -41,9 +42,14 @@ async def process_channel_press(press: Any) -> None:
     """
     try:
         async with get_db_context() as db:
-            # A thumbs button rates an answer; every other button answers a prompt.
+            # A thumbs button rates an answer, a next step is the presser's next
+            # message, and every other button answers a prompt.
             if read_feedback(press.value) is not None:
                 await ChannelFeedback(db).rate(press)
+            elif read_next(press.value) is not None:
+                said = await ChannelNextSteps(db).take(press)
+                if said is not None:
+                    await ChannelMessageRouter().route(said, db)
             else:
                 await ChannelPrompts(db).press(press)
     except Exception:

@@ -15,6 +15,8 @@ import {
   Input,
   Label,
   MarkdownEditor,
+  MarkdownModeToggle,
+  type MarkdownMode,
   Select,
   SelectContent,
   SelectItem,
@@ -30,7 +32,15 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
+import {
+  CadenceChoices,
+  chosenCadence,
+  isWorkdays,
+  WORKDAYS,
+  type CadenceChoice,
+} from "@/components/triggers/cadence-choices";
 import { OverlapField } from "@/components/triggers/overlap-field";
+import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
 import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
@@ -61,11 +71,11 @@ import type {
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
 import {
-  DIALOG_BROAD,
   DIALOG_CONFIRM,
   DIALOG_FORM,
   DIALOG_FRAMED,
   DIALOG_SCROLL,
+  DIALOG_WIDE,
 } from "@/lib/dialog-sizes";
 
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
@@ -128,6 +138,8 @@ interface TriggerFormDialogProps {
   initialType?: TriggerType;
   /** A template the new trigger starts from - an idea picked on the Routines page. */
   initialTemplate?: TriggerTemplate | null;
+  /** Told once a new trigger exists - a suggestion is taken only then, not when the form opens. */
+  onCreated?: (trigger: Trigger) => void;
 }
 
 /**
@@ -151,6 +163,7 @@ export function TriggerFormDialog({
   trigger = null,
   initialType = "schedule",
   initialTemplate = null,
+  onCreated,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const editing = trigger !== null;
@@ -194,6 +207,7 @@ export function TriggerFormDialog({
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
   const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
+  const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
   // A new trigger is the caller's own; an existing one is whoever made it.
   const me = useAuthStore((state) => state.user?.id ?? null);
   const isCreator = trigger === null || trigger.created_by_user_id === me;
@@ -334,19 +348,34 @@ export function TriggerFormDialog({
     setTemplateName(null);
   }
 
-  /** Set the cadence controls to a quick preset; they stay editable below it. */
-  function applyPreset(preset: CadencePreset) {
+  // Custom stays picked while somebody builds a cadence that happens to equal one
+  // of the few - "every 6 hours" typed into the builder does not hide it.
+  const [customCadence, setCustomCadence] = useState(false);
+  const cadenceChoice: CadenceChoice = customCadence
+    ? "custom"
+    : chosenCadence({ scheduleKind, intervalUnit, intervalCount, cronFreq, cronWeekdays });
+
+  /** Set the cadence controls to one of the few; a time or days stay as they were. */
+  function pickCadence(choice: CadenceChoice) {
     setCadenceTouched(true);
-    if (preset.kind === "interval") {
+    setCustomCadence(choice === "custom");
+    const interval = (unit: IntervalUnit, count: number) => {
       setScheduleKind("interval");
-      setIntervalUnit(preset.unit);
-      setIntervalCount(String(preset.count));
-      return;
-    }
-    setScheduleKind("cron");
-    setCronFreq(preset.freq);
-    setCronTime(preset.time);
-    if (preset.freq === "weekly") setCronWeekdays(preset.weekdays);
+      setIntervalUnit(unit);
+      setIntervalCount(String(count));
+    };
+    const cron = (freq: CronFrequency, weekdays?: number[]) => {
+      setScheduleKind("cron");
+      setCronFreq(freq);
+      if (weekdays) setCronWeekdays(weekdays);
+    };
+    if (choice === "every15m") interval("minutes", 15);
+    else if (choice === "hourly") interval("hours", 1);
+    else if (choice === "every6h") interval("hours", 6);
+    else if (choice === "daily") cron("daily");
+    else if (choice === "weekdays") cron("weekly", [...WORKDAYS]);
+    // Weekly from the weekdays choice starts on Monday, not on all five.
+    else if (choice === "weekly") cron("weekly", isWorkdays(cronWeekdays) ? [1] : undefined);
   }
 
   /** Wraps a cadence setter so editing any cadence control flips `cadenceTouched`. */
@@ -390,6 +419,7 @@ export function TriggerFormDialog({
       // Only when asked for: off is the server's default, and the request then
       // says nothing about acting as anybody.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
+      ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
     };
     if (type === "schedule") {
       return { ...base, ...scheduleCadence(), overlap };
@@ -418,6 +448,8 @@ export function TriggerFormDialog({
         if (trigger.trigger_type === "schedule" && overlap !== trigger.overlap) {
           patch.overlap = overlap;
         }
+        const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
+        if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
         // A schedule's cadence, only when a cadence control was actually touched.
         // The server recomputes next_fire_at on any cadence field it receives, so
         // echoing the cadence on a prompt-only edit would needlessly reset the
@@ -442,6 +474,7 @@ export function TriggerFormDialog({
         onOpenChange(false);
       } else {
         const result = await create.mutateAsync(buildCreate());
+        onCreated?.(result);
         // A new event trigger stays open on its webhook URL - the caller has to
         // paste it into the provider or nothing will ever fire it. A schedule
         // has nothing more to do, so it closes.
@@ -534,7 +567,11 @@ export function TriggerFormDialog({
   }
 
   const scheduleFields = type === "schedule" && (
-    <ScheduleFields
+    <CadenceFields
+      choice={cadenceChoice}
+      onChoice={pickCadence}
+      overlap={overlap}
+      onOverlap={setOverlap}
       scheduleKind={scheduleKind}
       onScheduleKind={onCadence(setScheduleKind)}
       intervalCount={intervalCount}
@@ -576,9 +613,6 @@ export function TriggerFormDialog({
             <PromptField value={prompt} onChange={setPrompt} />
 
             {scheduleFields}
-            {trigger.trigger_type === "schedule" && (
-              <OverlapField value={overlap} onChange={setOverlap} />
-            )}
 
             {trigger.trigger_type === "event" && trigger.webhook_url && (
               <WebhookField url={trigger.webhook_url} />
@@ -627,6 +661,8 @@ export function TriggerFormDialog({
               />
             )}
 
+            <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+
             <RunAsCreatorField
               checked={runsAsCreator}
               onChange={setRunsAsCreator}
@@ -665,18 +701,20 @@ export function TriggerFormDialog({
           white under the last caption and the Continue button pinned to the
           bottom of the screen (#1069). The grid rows still pin the header and the
           nav and give the body whatever is between. */}
-      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_BROAD)}>
-        <DialogHeader className="border-foreground/10 border-b px-6 py-4">
+      {/* `gap-0`: the three bands pad themselves, and the dialog's own grid gap
+          on top of the body's padding left a band of nothing over the first field. */}
+      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_WIDE, "gap-0")}>
+        <DialogHeader className="border-foreground/10 border-b px-6 pt-4 pb-3">
           <DialogTitle className="text-base font-semibold">
             {type === "event" ? t("newEvent") : t("newSchedule")}
           </DialogTitle>
           <DialogDescription>{t("createDescription")}</DialogDescription>
-          <WizardSteps steps={steps} current={step} />
+          <WizardSteps steps={steps} current={step} compact />
         </DialogHeader>
 
         {/* Keyed on the step, so each one slides in rather than swapping in place -
             the eye follows the wizard forward instead of re-reading the frame. */}
-        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-4">
           {step === "event" && (
             <EventFields
               eventSource={eventSource}
@@ -691,9 +729,9 @@ export function TriggerFormDialog({
           )}
 
           {step === "configure" && (
-            // Side by side: the dialog is sized for the message step's editor,
-            // and two fields stretched across it read as a form nobody finished.
-            <div className="grid items-start gap-4 sm:grid-cols-2">
+            // One column: the dialog is a form's width, and the agent above its
+            // name reads in the order they are chosen.
+            <div className="space-y-4">
               {agentId === null && (
                 <FormField label={t("agent")} htmlFor="trigger-agent">
                   <Select
@@ -739,6 +777,8 @@ export function TriggerFormDialog({
                 />
               )}
 
+              <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+
               <RunAsCreatorField
                 checked={runsAsCreator}
                 onChange={setRunsAsCreator}
@@ -764,21 +804,7 @@ export function TriggerFormDialog({
             </div>
           )}
 
-          {step === "schedule" && (
-            <div className="space-y-4">
-              <CadencePresets
-                scheduleKind={scheduleKind}
-                intervalUnit={intervalUnit}
-                intervalCount={intervalCount}
-                cronFreq={cronFreq}
-                cronTime={cronTime}
-                cronWeekdays={cronWeekdays}
-                onApply={applyPreset}
-              />
-              {scheduleFields}
-              <OverlapField value={overlap} onChange={setOverlap} />
-            </div>
-          )}
+          {step === "schedule" && scheduleFields}
         </div>
 
         <WizardNav
@@ -823,9 +849,15 @@ function PromptField({
   rows?: number;
 }) {
   const t = useTranslations("triggers");
+  const [mode, setMode] = useState<MarkdownMode>("source");
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
+      {/* The label and the source/preview toggle on one row, rather than the
+          toggle on a row of its own between them. */}
+      <div className="flex items-end justify-between gap-2">
+        <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
+        <MarkdownModeToggle mode={mode} onChange={setMode} />
+      </div>
       <MarkdownEditor
         id="trigger-prompt"
         label={t("prompt")}
@@ -834,106 +866,11 @@ function PromptField({
         placeholder={t("promptPlaceholder")}
         rows={rows}
         describedBy="trigger-prompt-desc"
+        mode={mode}
       />
       <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
         {t("promptHelp")}
       </p>
-    </div>
-  );
-}
-
-/** A quick cadence worth one click: an interval, or a cron shape and a time. */
-type CadencePreset =
-  | { key: string; kind: "interval"; unit: IntervalUnit; count: number }
-  | { key: string; kind: "cron"; freq: "daily"; time: string }
-  | { key: string; kind: "cron"; freq: "weekly"; time: string; weekdays: number[] };
-
-/** The presets on the schedule step, mirroring the KB sync-source pills. */
-const CADENCE_PRESETS: readonly CadencePreset[] = [
-  { key: "presetEvery15m", kind: "interval", unit: "minutes", count: 15 },
-  { key: "presetHourly", kind: "interval", unit: "hours", count: 1 },
-  { key: "presetEvery6h", kind: "interval", unit: "hours", count: 6 },
-  { key: "presetDaily9", kind: "cron", freq: "daily", time: "09:00" },
-  {
-    key: "presetWeekdays9",
-    kind: "cron",
-    freq: "weekly",
-    time: "09:00",
-    weekdays: [1, 2, 3, 4, 5],
-  },
-];
-
-interface CadencePresetsProps {
-  scheduleKind: ScheduleKind;
-  intervalUnit: IntervalUnit;
-  intervalCount: string;
-  cronFreq: CronFrequency;
-  cronTime: string;
-  cronWeekdays: number[];
-  onApply: (preset: CadencePreset) => void;
-}
-
-/**
- * One-click cadences above the full builder. A pill lights up while the
- * controls below still spell out what it set, so a preset is a shortcut into
- * the builder rather than a mode of its own - editing any control underneath
- * simply unlights it.
- */
-function CadencePresets({
-  scheduleKind,
-  intervalUnit,
-  intervalCount,
-  cronFreq,
-  cronTime,
-  cronWeekdays,
-  onApply,
-}: CadencePresetsProps) {
-  const t = useTranslations("triggers");
-
-  function isActive(preset: CadencePreset): boolean {
-    if (preset.kind === "interval") {
-      return (
-        scheduleKind === "interval" &&
-        intervalUnit === preset.unit &&
-        Number(intervalCount) === preset.count
-      );
-    }
-    if (scheduleKind !== "cron" || cronFreq !== preset.freq || cronTime !== preset.time) {
-      return false;
-    }
-    if (preset.freq === "weekly") {
-      return [...cronWeekdays].sort((a, b) => a - b).join(",") === preset.weekdays.join(",");
-    }
-    return true;
-  }
-
-  return (
-    <div className="space-y-2">
-      {/* The label the rest of the form uses, not a faint uppercase one: this is
-          the control the cadence is actually steered by, and at 11px uppercase
-          mono it was the least legible text in the dialog (#1069). */}
-      <Label>{t("presetsLabel")}</Label>
-      <div className="flex flex-wrap gap-2">
-        {CADENCE_PRESETS.map((preset) => {
-          const active = isActive(preset);
-          return (
-            <button
-              key={preset.key}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onApply(preset)}
-              className={cn(
-                "border-input inline-flex rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                active
-                  ? "bg-foreground text-background border-foreground"
-                  : "text-foreground hover:border-foreground/40 hover:bg-accent",
-              )}
-            >
-              {t(preset.key)}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -1090,34 +1027,7 @@ function CronBuilder({
             </div>
           )}
 
-          {freq === "weekly" && (
-            <div className="space-y-1">
-              <Label>{t("weekdaysLabel")}</Label>
-              <div className="flex flex-wrap gap-1" role="group" aria-label={t("weekdaysLabel")}>
-                {WEEKDAYS.map((day) => {
-                  const active = weekdays.includes(day.value);
-                  return (
-                    <button
-                      key={day.value}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => onToggleWeekday(day.value)}
-                      className={cn(
-                        // The same pill the quick presets wear, so the two rows
-                        // of toggles in this dialog read as one control family.
-                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 text-sm font-medium transition-colors",
-                        active
-                          ? "bg-foreground text-background border-foreground"
-                          : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
-                      )}
-                    >
-                      {t(day.key)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {freq === "weekly" && <WeekdayPills weekdays={weekdays} onToggle={onToggleWeekday} />}
 
           {freq === "monthly" && (
             <FormField label={t("dayOfMonthLabel")} htmlFor="cron-day-of-month">
@@ -1135,30 +1045,127 @@ function CronBuilder({
 
           {/* An "every N days" cadence is a continuous interval with no time of
               day to anchor to, so it offers no time field. */}
-          {freq !== "everyNDays" && (
-            <FormField label={t("timeLabel")} htmlFor="cron-time">
-              <Input
-                id="cron-time"
-                type="time"
-                value={time}
-                onChange={(event) => onTime(event.target.value)}
-                className="w-36"
-              />
-            </FormField>
-          )}
-
-          <p className="text-muted-foreground text-sm">
-            <CronSummary
-              freq={freq}
-              time={time}
-              everyDays={everyDays}
-              weekdays={weekdays}
-              dayOfMonth={dayOfMonth}
-            />
-          </p>
+          {freq !== "everyNDays" && <TimeField value={time} onChange={onTime} />}
         </>
       )}
     </div>
+  );
+}
+
+function TimeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const t = useTranslations("triggers");
+  return (
+    <FormField label={t("timeLabel")} htmlFor="cron-time">
+      <Input
+        id="cron-time"
+        type="time"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-36"
+      />
+    </FormField>
+  );
+}
+
+function WeekdayPills({
+  weekdays,
+  onToggle,
+}: {
+  weekdays: number[];
+  onToggle: (value: number) => void;
+}) {
+  const t = useTranslations("triggers");
+  return (
+    <div className="space-y-1">
+      <Label>{t("weekdaysLabel")}</Label>
+      <div className="flex flex-wrap gap-1" role="group" aria-label={t("weekdaysLabel")}>
+        {WEEKDAYS.map((day) => {
+          const active = weekdays.includes(day.value);
+          return (
+            <button
+              key={day.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onToggle(day.value)}
+              className={cn(
+                // The pill the cadence choices wear, so the two rows of toggles
+                // in this dialog read as one control family.
+                "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 text-sm font-medium transition-colors",
+                active
+                  ? "bg-foreground text-background border-foreground"
+                  : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
+              )}
+            >
+              {t(day.key)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface CadenceFieldsProps extends ScheduleFieldsProps {
+  choice: CadenceChoice;
+  onChoice: (choice: CadenceChoice) => void;
+  overlap: TriggerOverlap;
+  onOverlap: (value: TriggerOverlap) => void;
+}
+
+/**
+ * A schedule's cadence, asked in order: how often, then only what that choice
+ * needs, then what it means in one sentence. What happens when a run is still
+ * going is rarely changed, so it waits under More options.
+ */
+function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: CadenceFieldsProps) {
+  const t = useTranslations("triggers");
+  const { cron } = schedule;
+  return (
+    <div className="space-y-4">
+      <CadenceChoices value={choice} onChange={onChoice} />
+      {choice === "weekly" && (
+        <WeekdayPills weekdays={cron.weekdays} onToggle={cron.onToggleWeekday} />
+      )}
+      {(choice === "daily" || choice === "weekdays" || choice === "weekly") && (
+        <TimeField value={cron.time} onChange={cron.onTime} />
+      )}
+      {choice === "custom" && <ScheduleFields {...schedule} />}
+      <CadenceSummary {...schedule} />
+      <details className="group">
+        <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium select-none">
+          {t("moreOptions")}
+        </summary>
+        <div className="pt-3">
+          <OverlapField value={overlap} onChange={onOverlap} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+/** What the cadence means, in a sentence - for every choice, the builder's included. */
+function CadenceSummary({ scheduleKind, intervalCount, intervalUnit, cron }: ScheduleFieldsProps) {
+  const t = useTranslations("triggers");
+  if (scheduleKind === "interval") {
+    // An invalid count says so under its own field; there is nothing to restate.
+    if (!intervalCountValid(intervalCount)) return null;
+    return (
+      <p className="bg-muted/60 rounded-xl px-3 py-2 text-sm">
+        {t("summaryInterval", { unit: intervalUnit, count: Number(intervalCount) })}
+      </p>
+    );
+  }
+  if (cron.freq === "advanced") return null;
+  return (
+    <p className="bg-muted/60 rounded-xl px-3 py-2 text-sm">
+      <CronSummary
+        freq={cron.freq}
+        time={cron.time}
+        everyDays={cron.everyDays}
+        weekdays={cron.weekdays}
+        dayOfMonth={cron.dayOfMonth}
+      />
+    </p>
   );
 }
 

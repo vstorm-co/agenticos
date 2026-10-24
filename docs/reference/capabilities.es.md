@@ -1,5 +1,5 @@
 ---
-source_sha: "194ff5bef0dc"
+source_sha: "715d4fbf0ade"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -35,11 +35,24 @@ En los ajustes de una capability, los límites, la vida de la caché, los prompt
 el resto del ajuste fino quedan plegados en **Ajustes avanzados**, que se abren
 solos donde alguno se haya establecido.
 
-Las capabilities que tiene el agente inicial - la plantilla **Claude Code like**,
-que una organización nueva recibe en su primer arranque - llevan la insignia
+Las capabilities que tiene el agente inicial - la plantilla **AgenticOS**, que una
+organización nueva recibe en su primer arranque - llevan la insignia
 **Recommended**, y un agente creado con **New agent** empieza con exactamente esas
-activadas, configuradas como las configura la plantilla. Su autor desactiva lo que
-el agente no deba hacer.
+activadas, configuradas como las configura la plantilla, junto con sus
+instrucciones, skills, herramientas de la plataforma y presupuesto. Su autor
+desactiva lo que el agente no deba hacer.
+
+Acabe con las capabilities que acabe, cada run recibe en sus instrucciones, bajo
+**Your setup**, cuáles tiene y cuáles no - así describe solo lo que puede hacer y
+dice qué habría que activar para el resto.
+
+Cuando una petición necesita una que el agent no tiene, muestra en el chat una
+tarjeta con ella y su motivo. Quien puede editar el agent la activa desde la
+tarjeta, vinculada como la vincula el agent inicial y comprobada como comprueba
+una publicación. Se publica en el acto solo si el borrador no tenía nada sin
+publicar y esa persona puede publicar; si no, espera en el borrador al Builder.
+Cualquier otra persona se lo pide desde la tarjeta al propietario del agent, que
+recibe una notificación que abre el Toolbox del agent.
 
 Dos de ellas dependen de lo que ejecuta el despliegue. El espacio de trabajo es un
 contenedor en el servicio de sandbox del propio despliegue, que el bootstrap y la
@@ -67,6 +80,8 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | tal cual |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria | tal cual |
+| `text_to_speech` | Texto a voz | analysis | `generate_speech` | — | obligatoria | tal cual |
+| `video_generation` | Generación de vídeo | analysis | `generate_video` | — | obligatoria | delegada |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria | delegada |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
@@ -81,6 +96,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | no disponible |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
+| `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | no disponible |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -114,7 +130,8 @@ las enumera para un agent que las tiene, igual que trabajar mientras corren
 herramientas, que solo manda al fondo una herramienta delegada. *En pantalla*
 hace sus preguntas en la tarjeta de la vista de la llamada en `/chat`. La
 consulta del canal de chat *no está disponible*, porque una llamada nunca se
-hace en un canal. *Sin efecto* marca tres que
+hace en un canal, y tampoco Follow-ups, cuyos botones una llamada no tiene dónde
+mostrar. *Sin efecto* marca tres que
 actúan sobre las peticiones al modelo de un run de texto y sobre su historial
 almacenado, que una llamada no envía.
 
@@ -1125,12 +1142,172 @@ total como parcial (`cost_is_partial`) en vez de ocultar el gasto.
 **Adónde va la imagen.** Cada imagen generada se guarda **por organización** y se
 sirve de vuelta con [`GET /api/v1/generated/{filename}`](../architecture.md),
 acotada a la organización propia de quien llama: una frontera más amplia que la de
-un archivo subido a un chat, que pertenece a un solo usuario, porque no hay
-constancia de quién produjo una imagen. Cuando el agent tiene además un workspace
+un archivo subido a un chat, que pertenece a un solo usuario. Se registra con la
+conversación en la que se hizo y se borra con ella, cuenta contra la cuota de medios
+generados de la organización y se borra tras el periodo de retención
+([configuración](../configuration.md#generated-media)). Pasada la cuota, la
+herramienta lo responde antes de gastar nada. Cuando el agent tiene además un workspace
 (la capability `sandbox`), la misma imagen se escribe en él bajo `/output`, para que
 un paso `execute` posterior pueda construir con ella: montar un PDF, una diapositiva,
 una página. Un agent sin workspace sigue generando y mostrando imágenes; simplemente
 no tiene dónde construir con ellas.
+
+## Texto a voz { #text-to-speech }
+
+`generate_speech` — *Lee un texto en voz alta como clip de audio.*
+
+Lee un texto en voz alta con el provider de voz que elige el autor y se comporta
+como la generación de imágenes: el clip se guarda, aparece en la conversación como
+reproductor y se escribe en `output/` cuando hay un workspace abierto (#2259).
+
+| Configuración | Por defecto | Valores |
+|---|---|---|
+| `provider` | `openai` | `openai`, `elevenlabs`, `google` |
+| `model` | `gpt-4o-mini-tts` | Los modelos de ese provider, de `app/core/catalog/text_to_speech_models.json` |
+| `voice` | la primera del modelo | La voz por defecto del agente; puede cambiarla en cada clip dentro de `voices`. Una voz del catálogo para OpenAI y Gemini; un id de tu propia biblioteca de voces para ElevenLabs |
+| `voices` | ninguna: cualquier voz del modelo | Hasta 20 voces a las que el agente puede cambiar en cada clip, cada una con un `id` y, para una voz de la cuenta, una `note` de hasta 120 caracteres que dice quién es. Vacía permite todas las voces del modelo; en ElevenLabs, cualquier id de voz de la cuenta |
+| `output_format` | el primero del provider | `mp3`, `wav` (Gemini solo devuelve `wav`) |
+| `max_characters` | `5000` | 1–10 000; el máximo de texto que puede decir una llamada |
+
+**Providers, modelos, voces y precios son datos**, en el fichero del catálogo. Un
+provider es un [propósito de secreto](../secrets.md) con una clave de API simple -
+ElevenLabs no ejecuta modelos de chat, así que es un servicio en el vault y no un
+provider de modelos - y una entrada sin propósito, o cuya forma de API no tiene
+cliente, se descarta. Los antiguos `tts-1` y `tts-1-hd` de OpenAI hablan con nueve
+de sus trece voces, por eso las voces se listan por modelo.
+
+**Las voces de ElevenLabs pertenecen a la cuenta.** Sus voces por defecto
+compartidas caducan el 31-12-2026, así que el catálogo no lista ninguna y un
+binding nombra una de las voces propias de la cuenta por su id; publicar sin ella
+se rechaza.
+
+**La voz es un valor por defecto; las voces permitidas son el límite.** `voice`
+es la voz con la que habla el agente mientras no pida otra, y `voices` enumera
+las únicas demás a las que puede cambiar, para un diálogo o para un narrador y
+un personaje. Vacía, se permite cualquier voz del modelo; en ElevenLabs,
+cualquier id de voz de la cuenta, clonadas incluidas, y el Builder lo advierte.
+Las voces llegan al modelo como un `enum` en el parámetro `voice` de la
+herramienta, con la habitual como valor por defecto y la descripción de cada una
+del catálogo o, para una voz de la cuenta, la nota del autor. Una voz de cuenta
+abierta es texto libre cuyo formato se comprueba. Una voz de la lista que el
+modelo no tiene se rechaza al publicar, y una fuera de la lista se devuelve al
+modelo en la llamada.
+
+**El selector de claves muestra las claves del provider elegido.** El secreto es
+obligatorio para todos los providers y se declara obligatorio *cuando* `provider`
+es uno de ellos, lo que le dice al Builder que el provider es el propósito de la
+clave.
+
+**Un texto largo es un solo clip.** Un texto que supera el límite por petición del
+modelo se corta en un párrafo, una frase o una palabra y se dice en orden. Los
+trozos MP3 se unen uno tras otro; el WAV se pide a cada provider como PCM de
+24 kHz y se envuelve en una sola cabecera. `instructions` - tono, ritmo, acento -
+llegan a los modelos que las leen (`gpt-4o-mini-tts` de OpenAI, Gemini) y se
+omiten en los demás.
+
+**Al budget se le pregunta con el precio del clip.** La voz se vende por carácter,
+así que el catálogo guarda un precio fechado por millón de caracteres y el coste
+se conoce antes de la llamada. Se rechaza un clip que llevaría el run más allá de
+un límite; después se registra el coste y, si falla a medias, también los trozos
+ya dichos. Los modelos que facturan por tokens se comprueban con un precio por
+carácter de habla típica. Gemini, que devuelve su audio como PCM sin procesar, se
+contabiliza después a partir del audio que devolvió cada trozo - tokens de texto de
+entrada y 25 tokens de audio por segundo de salida -, así que una locución lenta
+cuesta lo que el provider factura por ella. Un precio fechado entra en vigor ese día: así queda registrada la
+duplicación de precios de Gemini el 01-01-2027.
+
+**Se registra mientras se dice, un clip cada vez.** Cada trozo de un texto largo
+se registra cuando llega su audio, así que un fallo o un run cancelado a medias
+sigue registrando los trozos que volvieron. La comprobación del budget no reserva
+nada, así que la herramienta hace una llamada cada vez. `instructions` tiene un
+límite de 1000 caracteres, va al provider con cada trozo y no se tarifica.
+
+**Tiene efectos secundarios**, por las mismas razones que la generación de
+imágenes: gasta dinero y produce una grabación que alguien puede publicar.
+
+**Los fallos van a quien puede arreglarlos.** El texto vacío, el que supera
+`max_characters` o el que rechaza el provider vuelve al modelo, igual que un
+provider que limita el tráfico o no responde. Una clave rechazada, una voz
+desconocida y un budget agotado se responden como resultado, porque solo el autor
+o el operador pueden arreglarlos; una voz elegida por el modelo que el provider no
+conoce vuelve al modelo. Solo se registra el código de error del provider; su
+texto de error nunca llega a los registros ni al modelo.
+
+## Generación de vídeo { #video-generation }
+
+`generate_video` — *Crea un vídeo corto a partir de una descripción escrita.*
+
+Crea un clip corto con el provider de vídeo que elige el autor y se comporta como
+la generación de imágenes: el clip se guarda, aparece en la conversación como
+reproductor y se escribe en `output/` cuando hay un workspace abierto (#2260).
+Puede empezar desde una imagen: el `filename` que devolvió `generate_image` en el
+mismo run o una ruta del workspace, donde una imagen generada también queda en
+`output/`, reconocida por sus bytes y no por su nombre. Un nombre de fichero por sí
+solo nunca llega a los ficheros generados de la organización: el run tiene que
+haber hecho la imagen.
+
+| Configuración | Por defecto | Valores |
+|---|---|---|
+| `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
+| `model` | `gemini-omni-1.1-flash` | Los modelos de ese provider, de `app/core/catalog/video_models.json` |
+| `resolution` | la primera del modelo | La de por defecto; el agente puede pedir otra en cada clip, hasta `max_resolution` |
+| `max_resolution` | ninguna: cualquiera que renderice el modelo | La más alta que el agente puede pedir; al menos `resolution` |
+| `aspect_ratio` | la primera del modelo | La de por defecto; el agente puede pedir cualquier proporción que renderice el modelo |
+| `seconds` | 5, o la más cercana del modelo | Dentro del rango del modelo; se rechaza para Gemini Omni, que decide su duración |
+| `max_seconds` | el clip más largo del modelo | El clip más largo que puede pedir el agente; se rechaza para Gemini Omni |
+| `audio` | la del provider | Por defecto activado o no; el agente puede pedir cualquiera de los dos en cada clip. Se rechaza cuando el sonido del modelo es fijo |
+| `alibaba_workspace` | ninguno: el endpoint compartido de DashScope | Solo Alibaba: el id del workspace de Model Studio, una etiqueta de host; Wan se llama entonces en `https://{workspace}.{region}.maas.aliyuncs.com/api/v1` |
+| `alibaba_region` | `ap-southeast-1` | Solo Alibaba: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong` |
+| `timeout_seconds` | `600` | 60–1800 |
+
+**Lo que puede hacer cada modelo son datos.** El catálogo indica el rango de
+duración de cada modelo, sus proporciones, sus resoluciones, si sus clips llevan
+sonido y si puede empezar desde una imagen, y el Builder solo ofrece eso. BytePlus
+es un [propósito de secreto](../secrets.md) en el vault; Google, xAI y Alibaba
+Cloud ya son providers de modelos. Falta OpenAI: su API de vídeo se cerró el
+24-09-2026.
+
+**Los ajustes son valores por defecto; la resolución más alta es el límite.** La
+resolución, la proporción, la duración y el sonido de un binding son los del
+clip, salvo que el agente pida otros en la llamada. La duración se detiene en
+`max_seconds`, la proporción en las que renderiza el modelo y la resolución en
+`max_resolution`: vacía, el agente puede pedir cualquier resolución del modelo,
+y el Builder lo advierte, porque la resolución es lo que cuesta un segundo. El
+presupuesto se consulta con el precio de la resolución elegida. La proporción y
+la resolución llegan al modelo como un `enum` con la habitual por defecto, y el
+sonido solo se ofrece donde el modelo lo hace opcional.
+
+**Un clip es un trabajo que se espera como una imagen.** Gemini responde en la
+propia petición; BytePlus, xAI y Alibaba aceptan un trabajo que se consulta. En
+ambos casos la llamada espera uno o varios minutos, como mucho `timeout_seconds`.
+Un trabajo que lo supera se cancela donde el provider lo permite - en BytePlus,
+mientras sigue en cola - y la llamada recibe una respuesta en vez de reintentarse,
+porque xAI y Alibaba no documentan la cancelación y pueden terminar y facturar el
+trabajo. El clip se descarga antes de que caduque la dirección del provider, y la
+clave nunca va a un host de almacenamiento.
+
+**Al budget se le pregunta con el precio del clip.** Todos los providers facturan
+por segundo con una tarifa que fija la resolución, así que el catálogo guarda un
+precio fechado por segundo y resolución. Se rechaza un clip que llevaría el run
+más allá de un límite; después se registra la duración que informa el provider.
+Gemini Omni decide su duración y no la informa, así que allí el clip se tarifica y
+se registra con la duración máxima del modelo.
+
+**Tiene efectos secundarios**, por las mismas razones que la generación de
+imágenes, y más: un clip es la llamada individual más cara que hace un agente.
+
+**Los fallos van a quien puede arreglarlos.** Un prompt vacío, una duración o
+proporción que el modelo no hace y una imagen que no se puede leer vuelven al
+modelo con una indicación, igual que un provider que limita o está caído. Una
+clave rechazada, un presupuesto agotado, un prompt que la política de contenido
+del provider rechazó y un trabajo que pasa el límite de tiempo se responden como
+resultado: una indicación de reintento ante un rechazo invitaría a sortearlo. Un
+trabajo que pasa el límite de tiempo, o que se cancela con la ejecución, se
+contabiliza con su estimación en cuanto su solicitud pudo llegar al provider,
+porque el provider aún puede
+terminarlo y cobrarlo. Un clip hecho que no se pudo descargar también se
+contabiliza, y se responde como resultado en lugar de devolverse al modelo: un
+segundo intento se cobraría de nuevo.
 
 ## Coding agent { #coding-agent }
 
@@ -1257,8 +1434,9 @@ dibujo y lo envía solo cuando la persona hace clic en *Enviar*; una petición s
 clic detrás se descarta. Consulte
 [mensajes de seguimiento](../artifacts.md#visuals).
 
-**Mapas.** `lib/agenticos-map-1.js` dibuja un itinerario - chinchetas numeradas que
-caen en orden, la línea entre ellas, pausa y repetición, y una tarjeta por parada -
+**Mapas.** `lib/agenticos-map-2.js` dibuja un itinerario - chinchetas numeradas en
+orden y la línea entre ellas, mostradas a la vez y que caen una a una cuando se pide,
+sobre un mapa 16:9 del ancho de la página, y una tarjeta por parada -
 sobre el servidor de teselas que nombra `VISUAL_MAP_TILES`, o como un contorno de
 las paradas en un despliegue que no nombra ninguno. Las instrucciones de la
 capability le dicen al modelo cuál es el caso, para que no prometa calles que no
@@ -2486,6 +2664,42 @@ detuvo. Solo la persona a quien se preguntó puede responder, mediante
 `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve a leer la
 tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
+
+## Follow-ups { #follow-ups }
+
+Al final de una respuesta, `suggest_next_steps` ofrece debajo hasta tres pasos
+siguientes como botones, cada uno de 80 caracteres como mucho y dicho como lo
+diría la persona: «Hazlo una tabla», «Haz esto cada lunes a las 9:00». Un clic
+envía el paso como su siguiente mensaje. Solo la respuesta más reciente los
+ofrece, y ninguna mientras un turno está en marcha. El agent los omite tras una
+charla trivial o una pregunta suya, y no repite los pasos en su respuesta. En
+Slack, Teams, Telegram y Mattermost los pasos llegan bajo la respuesta como un
+mensaje de botones, y pulsar uno es quien pulsa diciendo ese paso - el detalle
+está en [Canales](../channels.md#next-steps-as-buttons).
+
+**Modelo para los pasos siguientes** (`model_profile_id`) entrega los pasos a un
+modelo propio: al agent ya no se le ofrece `suggest_next_steps`, y cuando su
+respuesta está lista ese modelo lee la petición y la respuesta y escribe hasta tres
+pasos, o ninguno. Para tres botones cortos basta un modelo pequeño y barato, y el
+agent ya no gasta una petición en ellos. La llamada se comprueba antes contra los
+budgets y se anota en el run como cualquier otra; una que no se puede hacer cuesta
+los botones, nunca la respuesta. Vacío, el agent los ofrece él mismo.
+
+`propose_setup` propone hasta tres cosas que configurar, dibujadas como tarjetas
+bajo la respuesta: un agent propio de la persona, una rutina o un servicio que
+conectar. Una tarjeta actúa con un clic - una rutina abre el diálogo de rutinas
+relleno, en el agent que la propuso; un agent es una pregunta al Architect.
+
+Una conexión que nombra su servidor por clave del catálogo es la tarjeta de ese
+servicio - su logo y su botón Conectar, que lleva directo al inicio de sesión del
+proveedor y de vuelta a la conversación - y una sin clave abre la página de
+servidores MCP en su botón de añadir. El agent AgenticOS termina con ellas su
+entrevista de bienvenida, y ofrece una tarjeta de conexión siempre que una
+petición necesita un servicio que la persona no ha conectado. Las tarjetas son de la
+consola; una app de chat no las dibuja.
+
+Está activa en el agent inicial y en el Architect, y un autor puede desactivarla.
+Una llamada de voz la deja fuera.
 
 ## Qué puede cambiar una vinculación { #what-a-binding-may-change }
 

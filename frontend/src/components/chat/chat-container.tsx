@@ -58,7 +58,7 @@ import type {
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
-import { planProgress } from "@/lib/plan-state";
+import { dockedPlan } from "@/lib/plan-state";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -97,6 +97,7 @@ import { AGENT_CALLS_ANCHOR, AGENT_DICTATION_ANCHOR } from "@/components/agents/
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { FloatingPill } from "@/components/voice/floating-pill";
 import { MessageItem } from "./message-item";
+import { NextSteps, nextStepsOf } from "./next-steps";
 import { VoiceCallButton } from "@/components/voice/voice-call-button";
 import { voiceFailureHint } from "@/components/voice/voice-call-strip";
 import {
@@ -441,6 +442,8 @@ export function ChatContainer({
   // its row commits, and the session writes the answer after that, so the first
   // read can come back ending in the question - and nothing else would ask again.
   const runningIn = useRef<{ id: string | null; running: boolean }>({ id: null, running: false });
+  // The conversation whose run ended without writing an answer.
+  const [lostIn, setLostIn] = useState<string | null>(null);
   const answered = messages.at(-1)?.role === "assistant";
   const answeredRef = useRef(answered);
   useEffect(() => {
@@ -461,11 +464,32 @@ export function ChatContainer({
         await selectConversation(id);
         if (useConversationStore.getState().currentMessages.at(-1)?.role === "assistant") return;
       }
+      // The run ended and wrote nothing: its process died under it and the
+      // stale-run sweep closed it. No answer is coming, so say that instead.
+      if (waiting) setLostIn(id);
     })();
     return () => {
       waiting = false;
     };
   }, [runningSince, currentConversationId, selectConversation]);
+  // Until something else is asked or answered there: then the transcript no
+  // longer ends with the question nobody answered.
+  const unanswered = messages.at(-1);
+  const lostQuestion =
+    lostIn !== null &&
+    lostIn === currentConversationId &&
+    runningSince === null &&
+    !isProcessing &&
+    unanswered?.role === "user"
+      ? unanswered.content
+      : null;
+  const askAgain = useCallback(
+    (question: string) => {
+      setLostIn(null);
+      sendMessage(question);
+    },
+    [sendMessage],
+  );
 
   // What the file panel watches, rather than a timer. Counted from the transcript
   // rather than kept as state: a finished assistant message *is* a finished turn,
@@ -671,6 +695,8 @@ export function ChatContainer({
       interrupted={interrupted}
       detachedTurnPending={detachedTurnPending}
       leftTurnPending={leftTurnPending || answeringElsewhere}
+      answerLost={lostQuestion !== null}
+      onAskAgain={lostQuestion === null ? undefined : () => askAgain(lostQuestion)}
       onRecheck={handleRecheck}
       personalGaps={personalGaps}
       // The live turn's cost while there is one, and the newest measured answer in
@@ -759,6 +785,10 @@ interface ChatUIProps {
   detachedTurnPending?: boolean;
   /** True while a turn the reader left running here is still on its way. */
   leftTurnPending?: boolean;
+  /** True when the turn ended without an answer - its process died under it. */
+  answerLost?: boolean;
+  /** Ask the unanswered question again. */
+  onAskAgain?: () => void;
   /** Read the transcript again, for the notice above. */
   onRecheck?: () => void;
   /** The agent's personal MCP services this person cannot reach, drawn as a card with the button that connects one. */
@@ -855,6 +885,8 @@ function ChatUI({
   interrupted = false,
   detachedTurnPending = false,
   leftTurnPending = false,
+  answerLost = false,
+  onAskAgain,
   onRecheck,
   personalGaps,
   lastUsage,
@@ -982,6 +1014,10 @@ function ChatUI({
   );
   const browserLevel = useAudioLevel(stopBrowserDictation ? mic.stream : null);
   const [composerFocused, setComposerFocused] = useState(false);
+  // The latest answer's next steps sit on the composer until somebody types
+  // their own (#2301).
+  const [drafting, setDrafting] = useState(false);
+  const nextSteps = drafting ? [] : nextStepsOf(messages, isProcessing);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   // Offered by `@` only while the chat can still choose its project, as the `+` is.
   const projectMentions = useProjectMentions(!agentFixed && conversationId === null);
@@ -1002,12 +1038,12 @@ function ChatUI({
   // a page, with no room for the rail and no use for the full chat's spacing.
   const compact = useInChatScope();
 
-  // A voice call (#54): offered beside the microphone when the selected agent
-  // can take one, crossed out with the reason when it cannot. Not in the narrow
-  // windows: the test panel runs the draft and a call runs what is published, and
-  // the Architect's window has no room for a call bar beside the page.
+  // A voice call (#54): offered in Send's place when the selected agent can take
+  // one, crossed out with the reason when it cannot - in the narrow windows too.
+  // The test panel runs the draft while a call runs what is published, so there
+  // the button says so.
   const tVoice = useTranslations("chat.voice");
-  const offerCall = hasAgent && !compact;
+  const offerCall = hasAgent;
   const { readiness, failed: readinessFailed } = useVoiceReadiness(
     offerCall ? selectedAgentId : null,
   );
@@ -1122,7 +1158,7 @@ function ChatUI({
   // The agent's own checklist, folded out of the planning calls the transcript
   // already carries - nothing streams a plan frame. Memoized because the fold walks
   // every message and this component re-renders on every streaming delta.
-  const plan = useMemo(() => planProgress(messages), [messages]);
+  const plan = useMemo(() => dockedPlan(messages), [messages]);
   const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
   // Where the files button sits: among the composer's own controls, rather than
   // in a strip of its own down the conversation's right edge.
@@ -1147,6 +1183,23 @@ function ChatUI({
     if (scroller === null || userScrolledUpRef.current || empty) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [dockHeight, scrollContainerRef, userScrolledUpRef, messages.length, voice.call.phase]);
+  const callReady = offerCall && readiness?.available === true;
+  const callShown = offerCall && (readiness !== null || readinessFailed);
+  // Hidden, not unmounted, during a call: the pill holds its controls, and focus
+  // comes back here when it ends.
+  const callButton = (
+    <span ref={callButtonRef} className={onCall ? "hidden" : "contents"}>
+      <VoiceCallButton
+        readiness={readiness}
+        failed={readinessFailed}
+        disabled={isProcessing || isArchived}
+        onStart={startCall}
+        setUpHref={agentCallsHref}
+        prominent={callReady}
+        publishedOnly={testingDraft}
+      />
+    </span>
+  );
   return (
     <div className="relative flex h-full w-full">
       {/* The column no longer carries the width. The scroller does, and the
@@ -1340,7 +1393,9 @@ function ChatUI({
               interrupted={interrupted}
               detached={detachedTurnPending}
               left={leftTurnPending}
+              lost={answerLost}
               onRecheck={onRecheck}
+              onAskAgain={onAskAgain}
             />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
             {sandboxPreparing && <SandboxPreparingNotice />}
@@ -1430,6 +1485,9 @@ function ChatUI({
                   the typing goes. The glow outside it answers the microphone
                   and the turn; this is the box's own. */}
                   {/* Every hint on top of the box, beside the pill it belongs to. */}
+                  {!isArchived && !onCall && (
+                    <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
+                  )}
                   <DictationStrip hint={composerStrip} placement="above" />
                   <Beam
                     size="md"
@@ -1440,7 +1498,7 @@ function ChatUI({
                     <div
                       data-tour="chat-composer"
                       className={cn(
-                        "panel focus-within:border-foreground/30 rounded-2xl transition-colors",
+                        "panel composer-box focus-within:border-foreground/30 rounded-2xl transition-colors",
                         !compact && "composer-glass",
                         composerStrip !== null && "rounded-t-none",
                       )}
@@ -1478,6 +1536,8 @@ function ChatUI({
                           attachmentSlot={attachmentSlot}
                           incoming={incoming}
                           onTyping={onTyping}
+                          onDraftChange={setDrafting}
+                          offline={!isConnected}
                           projects={projectMentions.items}
                           onPickProject={projectMentions.pick}
                           mic={mic}
@@ -1523,31 +1583,24 @@ function ChatUI({
                                   agentModel={agentModel}
                                 />
                               </div>
-                              {offerCall && (
-                                // Hidden, not unmounted, during a call: the pill holds
-                                // its controls, and focus comes back here when it ends.
-                                <span
-                                  ref={callButtonRef}
-                                  className={onCall ? "hidden" : "contents"}
-                                >
-                                  <VoiceCallButton
-                                    readiness={readiness}
-                                    failed={readinessFailed}
-                                    disabled={isProcessing || isArchived}
-                                    onStart={startCall}
-                                    setUpHref={agentCallsHref}
-                                  />
-                                </span>
-                              )}
+                              {/* The call stands in Send's place, as one that can
+                                  start or one that says why it cannot - except
+                                  during the call, when it waits here, hidden, for
+                                  focus to come back to. */}
+                              {onCall && callButton}
                             </>
                           }
+                          // Not during a call: the box is closed then, Send with it.
+                          // Nor while readiness loads, when the button draws
+                          // nothing and the slot would leave no Send at all.
+                          idleSlot={callShown && !onCall ? callButton : undefined}
                         />
                       </div>
                     </div>
                   </Beam>
                 </div>
               </div>
-              <ComposerStatus isConnected={isConnected} compact={compact} />
+              <ComposerStatus isConnected={isConnected} />
             </div>
           </div>
         </div>
@@ -1570,6 +1623,7 @@ function ChatUI({
           revision={turns}
           attachments={attachments}
           buttonSlot={filesSlot}
+          overlay={compact}
         />
       </div>
     </div>

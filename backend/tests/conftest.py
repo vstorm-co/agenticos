@@ -100,6 +100,19 @@ from app.clients.redis import RedisClient
 from app.api.deps import get_db_session
 
 
+@pytest.fixture(autouse=True)
+def _no_steps_written_after(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No follow-ups model wrote next steps after any run here (#2301).
+
+    Most runner tests stub the build with a `MagicMock`, whose deps answer
+    `next_steps` with steps no JSON encoder can write - across the runner's,
+    the surfaces' and the delegation suites. The helper is covered on its own by
+    `test_agent_runner.py::TestNextStepsWrittenAfterTheAnswer`, which calls it
+    directly.
+    """
+    monkeypatch.setattr("app.services.agent_runner._written_next_steps", lambda _deps: [])
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     """Specify the async backend for anyio tests.
@@ -172,6 +185,105 @@ def sole_source_run() -> Generator[None]:
 
     with patch.object(rag_tasks, "_exclusive_source_run", new=held):
         yield
+
+
+@pytest.fixture
+def _generated_media_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[list[dict[str, object]], dict[object, dict[str, object]]]:
+    """Generated media's rows and quota claims, held in memory instead of a database.
+
+    The organization's advisory lock is an `anyio.Lock` held until the fake
+    session ends, as a transaction-scoped lock is held until the commit, so
+    concurrent admissions serialize here as they do on Postgres.
+    """
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    import anyio
+
+    from app.services import generated_media
+
+    rows: list[dict[str, object]] = []
+    reservations: dict[object, dict[str, object]] = {}
+    locks: dict[object, anyio.Lock] = {}
+
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[SimpleNamespace]:
+        db = SimpleNamespace(held=[])
+        try:
+            yield db
+        finally:
+            for lock in db.held:
+                lock.release()
+
+    async def hold_subject(db: SimpleNamespace, _scope: object, subject: object) -> None:
+        lock = locks.setdefault(subject, anyio.Lock())
+        await lock.acquire()
+        db.held.append(lock)
+
+    async def create(_db: object, **row: object) -> SimpleNamespace:
+        rows.append(row)
+        return SimpleNamespace(**row)
+
+    async def bytes_used(_db: object, *, organization_id: object) -> int:
+        return sum(
+            int(str(row["size_bytes"])) for row in rows if row["organization_id"] == organization_id
+        )
+
+    async def bytes_reserved(_db: object, *, organization_id: object, since: object) -> int:
+        return sum(
+            int(str(claim["size_bytes"]))
+            for claim in reservations.values()
+            if claim["organization_id"] == organization_id
+        )
+
+    async def reserve(_db: object, *, organization_id: object, size_bytes: int) -> object:
+        reservation_id = uuid4()
+        reservations[reservation_id] = {
+            "organization_id": organization_id,
+            "size_bytes": size_bytes,
+        }
+        return reservation_id
+
+    async def release(_db: object, *, organization_id: object, reservation_id: object) -> None:
+        if reservations.get(reservation_id, {}).get("organization_id") == organization_id:
+            del reservations[reservation_id]
+
+    monkeypatch.setattr(generated_media, "get_db_context", session)
+    monkeypatch.setattr(generated_media, "hold_subject", hold_subject)
+    repo = generated_media.generated_media_repo
+    monkeypatch.setattr(repo, "create", create)
+    monkeypatch.setattr(repo, "bytes_used", bytes_used)
+    monkeypatch.setattr(repo, "bytes_reserved", bytes_reserved)
+    monkeypatch.setattr(repo, "reserve", reserve)
+    monkeypatch.setattr(repo, "release", release)
+    return rows, reservations
+
+
+@pytest.fixture
+def generated_media_ledger(
+    _generated_media_store: tuple[list[dict[str, object]], dict[object, dict[str, object]]],
+) -> list[dict[str, object]]:
+    """Record generated media in a list rather than a database; the list is returned.
+
+    Every file an agent's tool stores is recorded in `generated_media` through a
+    session of its own (#2310), and the quota is summed from those rows and the
+    claims of calls in flight (`generated_media_reservations`). The unit tests
+    of the tools are about what a tool does with a file, so they are handed
+    this; the rows themselves are proved against a real database in
+    `tests/integration/test_generated_media.py`.
+    """
+    return _generated_media_store[0]
+
+
+@pytest.fixture
+def generated_media_reservations(
+    _generated_media_store: tuple[list[dict[str, object]], dict[object, dict[str, object]]],
+) -> dict[object, dict[str, object]]:
+    """The quota claims of generation calls in flight, by id, beside `generated_media_ledger`."""
+    return _generated_media_store[1]
 
 
 @pytest.fixture

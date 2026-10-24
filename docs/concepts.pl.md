@@ -1,5 +1,5 @@
 ---
-source_sha: "b1c2a3e35524"
+source_sha: "58c831c0926b"
 ---
 
 # Koncepcje { #concepts }
@@ -202,9 +202,9 @@ skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
   notatka zapisana na jej podstawie byłaby czytana w każdym kolejnym czacie jako
   własna notatka twórcy.
 - **Poprzednie rozmowy pozostają zamknięte** w obu przypadkach.
-- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska albo filtra
-  triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt nie przepisze
-  tego, co działa jako ty. Administrator działający jako ty przez impersonację
+- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska, filtra albo
+  kanału Teams triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt
+  nie przepisze tego, co działa jako ty, ani nie wyśle odpowiedzi gdzie indziej. Administrator działający jako ty przez impersonację
   ani skrypt z twoim kluczem API nie mogą go włączyć.
 - **Tak samo nowa wersja opublikowana nie przez ciebie osobiście.** Publikacja, promocja
   albo cofnięcie przez kogokolwiek innego to wyłącza - także zrobione twoim
@@ -235,6 +235,8 @@ używany* potrafi odróżnić run bez nadzoru od runa człowieka. Każde odpalen
 osobny run w Activity, a jego odpowiedzi zbierają się w jednej rozmowie będącej
 dziennikiem runów, którą trigger otwiera raz — zawczasu, w momencie utworzenia
 triggera, więc jest klikalną pozycją, zanim jeszcze kiedykolwiek się odpali.
+Trigger może też publikować każdą odpowiedź na kanale albo w czacie grupowym Teams,
+w którym jest bot jego organizacji ([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Dwa sposoby odpalania { #two-ways-to-fire }
 

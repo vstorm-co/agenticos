@@ -89,7 +89,7 @@ describe("PendingApproval - a call from an MCP server", () => {
     inIntl(
       <PendingApproval
         approval={approval({
-          agent_name: "Claude Code like",
+          agent_name: "AgenticOS",
           tool_id: "notion_notion-search",
           tool_args: { query: "what's new", page_url: "" },
         })}

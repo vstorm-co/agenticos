@@ -131,7 +131,7 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 @click.option(
     "--platform",
     required=True,
-    type=click.Choice(["telegram", "slack", "mattermost"]),
+    type=click.Choice(["telegram", "slack", "mattermost", "teams"]),
     help="Platform name",
 )
 @click.option("--name", "-n", required=True, help="Bot display name")
@@ -155,6 +155,16 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
         "shows it when the integration is created; Telegram needs none here."
     ),
 )
+@click.option(
+    "--teams-app-id",
+    default=None,
+    help="The Azure Bot's Microsoft App ID. Teams only; --token is its client secret.",
+)
+@click.option(
+    "--teams-tenant-id",
+    default=None,
+    help="The Entra tenant the single-tenant Azure Bot is registered in. Teams only.",
+)
 @_org_option
 def channel_add_bot(
     platform: str,
@@ -164,6 +174,8 @@ def channel_add_bot(
     org_id: str | None,
     api_base_url: str | None,
     webhook_secret: str | None,
+    teams_app_id: str | None,
+    teams_tenant_id: str | None,
 ) -> None:
     """Encrypt the bot token and register the bot in the database.
 
@@ -182,6 +194,8 @@ def channel_add_bot(
             # A pasted secret is only ever for an inbound webhook, so saying so
             # here saves an operator a second command to switch the mode on.
             webhook_mode=webhook_secret is not None,
+            teams_app_id=teams_app_id,
+            teams_tenant_id=teams_tenant_id,
         )
         async with _channel_service(org_id) as svc:
             bot = await svc.create(data)
@@ -192,7 +206,7 @@ def channel_add_bot(
         info(f"  Mode     : {mode}")
         if api_base_url:
             info(f"  Server   : {api_base_url}")
-        if webhook_secret:
+        if webhook_secret or platform == "teams":
             info(f"  Webhook  : {inbound_webhook_url(platform, bot.id)}")
 
     asyncio.run(_run())

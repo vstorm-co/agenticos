@@ -450,7 +450,7 @@ class TestWhereAnAttachmentLands:
         # The same defect in the other direction: an image the agent made was
         # written outside the workspace, so it was also absent from the snapshot
         # a channel diffs to decide what to post back.
-        from app.agents.capabilities.image_generation._toolset import WORKSPACE_OUTPUT_DIR
+        from app.agents.capabilities._generated import WORKSPACE_OUTPUT_DIR
 
         assert not WORKSPACE_OUTPUT_DIR.startswith("/")
 

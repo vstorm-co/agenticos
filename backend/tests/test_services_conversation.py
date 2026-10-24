@@ -782,6 +782,10 @@ class TestParticipationDoesNotCarryTheWrite:
                 "app.services.conversation.personal_data_repo.attachment_paths_in",
                 new=AsyncMock(return_value=[]),
             ),
+            patch(
+                "app.services.conversation.GeneratedMediaService.forget_conversations",
+                new=AsyncMock(),
+            ),
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.favourite_ids = AsyncMock(return_value=set())
@@ -1249,6 +1253,10 @@ class TestConversationServiceDelete:
                 "app.services.conversation.personal_data_repo.attachment_paths_in",
                 new=AsyncMock(return_value=[]),
             ),
+            patch(
+                "app.services.conversation.GeneratedMediaService.forget_conversations",
+                new=AsyncMock(),
+            ),
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.delete_conversation = AsyncMock(return_value=None)
@@ -1260,6 +1268,47 @@ class TestConversationServiceDelete:
             mock_repo.delete_conversation.assert_called_once_with(
                 service.db, db_conversation=mock_conv
             )
+
+    @pytest.mark.anyio
+    async def test_deleting_a_conversation_forgets_what_its_agents_generated(
+        self, service: ConversationService, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Images, speech and video generated in a thread go with it (#2310): the
+        service drops their rows and queues their unlink as a job in this
+        transaction; the attachments keep their after-commit unlink."""
+        conv_id = uuid4()
+        unlinked: list[list[str]] = []
+
+        async def unlink(paths: list[str]) -> None:
+            unlinked.append(paths)
+
+        monkeypatch.setattr("app.services.conversation.delete_files_best_effort", unlink)
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.spawn_after_commit") as spawned,
+            patch(
+                "app.services.conversation.personal_data_repo.attachment_paths_in",
+                new=AsyncMock(return_value=["user/a.pdf"]),
+            ),
+            patch(
+                "app.services.conversation.GeneratedMediaService.forget_conversations",
+                new=AsyncMock(),
+            ) as forgot,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.delete_conversation = AsyncMock(return_value=None)
+
+            await service.delete_conversation(conv_id, organization_id=TEST_ORG_ID)
+
+        for call in spawned.call_args_list:
+            coroutine = call.args[1]
+            if call.kwargs["name"] == "delete-conversation-attachments":
+                await coroutine
+            else:
+                coroutine.close()
+
+        forgot.assert_awaited_once_with(TEST_ORG_ID, [conv_id])
+        assert unlinked == [["user/a.pdf"]]
 
     @pytest.mark.anyio
     async def test_delete_nonexistent_conversation_raises(self, service: ConversationService):

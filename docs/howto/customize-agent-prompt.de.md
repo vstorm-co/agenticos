@@ -1,5 +1,5 @@
 ---
-source_sha: "d61a7f894dfb"
+source_sha: "f3bfbd97d90e"
 ---
 
 # Die Anweisungen eines Agents schreiben { #write-an-agents-instructions }
@@ -20,7 +20,9 @@ source_sha: "d61a7f894dfb"
 |---|---|---|
 | Die Anweisungen eines Agents | `AgentSpec.instructions`, im Builder bearbeitet | Wer den Agent bearbeiten darf |
 | Die Anweisungen eines Inline-Spezialisten | `InlineSpecialistSpec.instructions`, im selben Spec | Dieselben |
-| Der Starttext, den ein neuer Agent bekommt | `backend/app/agents/default_instructions.py` | Ein Deploy — es ist die Vorstellung dieses Deployments von einem Assistenten |
+| Der Starttext, den ein neuer Agent bekommt | Die Vorlage AgenticOS, `backend/app/core/catalog/agent_templates/general/agenticos/AGENT.md` | Ein Deploy — es ist die Vorstellung dieses Deployments von einem Assistenten |
+| Was dem Agent über sein Können und seine Lücken gesagt wird | Bei jedem Run aus seinen Capabilities zusammengesetzt, unter **Your setup** | Niemand — eine Capability umzuschalten ändert es |
+| Was dem Agent über die Person gesagt wird | Ihre Sprache, Zeitzone, Rolle und Arbeit aus ihrem Konto, bei jedem Run nach den Instruktionen | Die Person selbst, unter **Einstellungen → Profil (Settings → Profile)** |
 | Ein Ablauf, den viele Agents teilen | Ein [Skill](../skills.md), eine Zeile in der Datenbank | Eine Support-Leitung, an einem Dienstagnachmittag, ohne Deploy |
 
 Die letzte Zeile ist die, nach der zu greifen sich lohnt. Zwanzig Abläufe in
@@ -30,9 +32,12 @@ was es braucht.
 
 ## Was in die Anweisungen gehört { #what-belongs-in-instructions }
 
-Lesen Sie `default_instructions.py`, bevor Sie eigene schreiben — es ist das
-durchgearbeitete Beispiel, und es erklärt seine eigenen Entscheidungen. Zwei
-davon entscheiden über den größten Teil der Qualität:
+Lesen Sie die Instruktionen der Vorlage AgenticOS, bevor Sie eigene schreiben —
+ein neuer Agent beginnt mit ihnen, also sind sie das durchgearbeitete Beispiel.
+Sie beginnen mit dem eigenen `{{agent_name}}` des Agents, führen den Menschen
+Schritt für Schritt, bieten nach einer Aufgabe einen nächsten Schritt an und
+nennen kein Werkzeug, das keine Capability mitbringt. Zwei Entscheidungen
+bestimmen den größten Teil der Qualität:
 
 - **Schreiben Sie für die Ablehnungen.** Die Absätze, die ihren Platz verdienen,
   sind die darüber, keine Tatsachen zu erfinden, zu sagen, aus welcher Quelle
@@ -85,10 +90,12 @@ Veröffentlichen und nicht zur Laufzeit. Siehe
 
 ## Daran feilen { #iterating-on-it }
 
-- **Ein Draft kann nicht laufen.** Ein Agent führt seine veröffentlichte Version
-  aus, einen neuen Prompt auszuprobieren heißt also, eine zu veröffentlichen —
-  was von Haus aus billig ist, und weshalb ein Rollback ein Promote und keine
-  Wiederherstellung ist. Feilen Sie auf einer
+- **Ein Draft läuft nur als Test.** Überall, wo ein Agent verfügbar ist,
+  antwortet er mit seiner veröffentlichten Version; das Test-Panel des Builders -
+  und `POST /agents/{id}/run` mit `"draft": true`, das `test_agent_draft` des
+  Architect aufruft - antworten als unveröffentlichter Draft, in einem Test-Run.
+  Veröffentlichen ist von Haus aus billig, und ein Rollback ist ein Promote und
+  keine Wiederherstellung. Feilen Sie auf einer
   [Umgebung](../concepts.md#version) `dev`, die jeder Veröffentlichung folgt,
   und lassen Sie `production` darauf warten, dass etwas auf sie promotet wird.
 - **Testen Sie mit echten Anfragen, nicht mit idealen.**

@@ -379,15 +379,19 @@ class TestWhoIsAskedToLinkAtAll:
         """The refusal belonged in one place. A second one here, reached only when
         both switches were set, answered a bare sentence where the invite path
         answers with the link in a direct message."""
-        with patch(
-            "app.services.channels.router.channel_identity_repo.get_or_create",
-            new=AsyncMock(return_value=MagicMock(user_id=None)),
+        with (
+            patch(
+                "app.services.channels.router.channel_identity_repo.get_or_create",
+                new=AsyncMock(return_value=MagicMock(user_id=None)),
+            ),
+            patch.object(ChannelMessageRouter, "_link_vouched", new=AsyncMock()) as vouched,
         ):
             identity = await ChannelMessageRouter()._resolve_identity(
                 _incoming(), self._bot(mode="jwt_linked", require_link=True), MagicMock()
             )
 
         assert identity.user_id is None
+        vouched.assert_awaited_once()
 
     def test_jwt_linked_with_both_switches_is_refused_at_the_admission_gate(self):
         """The refusal `_resolve_identity` used to carry was reachable only with

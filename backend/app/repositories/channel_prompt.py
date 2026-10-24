@@ -25,6 +25,7 @@ async def create(
     question_index: int | None = None,
     multi_select: bool = False,
     allow_custom: bool = False,
+    chat_type: str | None = None,
 ) -> ChannelPrompt:
     prompt = ChannelPrompt(
         organization_id=organization_id,
@@ -38,6 +39,7 @@ async def create(
         question_index=question_index,
         multi_select=multi_select,
         allow_custom=allow_custom,
+        chat_type=chat_type,
     )
     db.add(prompt)
     await db.flush()

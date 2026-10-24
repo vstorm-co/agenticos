@@ -176,6 +176,16 @@ describe("rendering an answer", () => {
     markdown(`[Revenue dashboard](${href})`);
 
     expect(screen.getByRole("link", { name: "Revenue dashboard" })).toBeInTheDocument();
+    // An app wears the app mark, not the Apps section's as well.
+    expect(screen.getByRole("link").querySelectorAll("svg")).toHaveLength(1);
+  });
+
+  it("marks a console page the agent links to with its section's icon", () => {
+    markdown("Here are your routines: [Routines](/routines?highlight=routines-create)");
+
+    const link = screen.getByRole("link", { name: "Routines" });
+    expect(link.querySelector(".lucide-repeat")).not.toBeNull();
+    expect(link).not.toHaveAttribute("target");
   });
 
   it("shows a fenced block's language, and offers it for copying", () => {

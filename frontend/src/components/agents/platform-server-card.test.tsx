@@ -5,16 +5,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui";
 import type { PlatformMcpServerRef } from "@/types/agents";
+import type { PlatformMcpTool } from "@/types/mcp";
 import { NEW_PLATFORM_BINDING, PlatformServerCard } from "./platform-server-card";
 
-const tools = vi.fn(() => ({
+const DEFAULT_TOOLS = () => ({
   tools: [
     { name: "list_agents", description: "The agents this caller can see.", writes: false },
     { name: "run_agent", description: "Run an agent.", writes: true },
-  ],
+  ] as PlatformMcpTool[],
   isLoading: false,
   error: null as Error | null,
-}));
+});
+const tools = vi.fn(DEFAULT_TOOLS);
 vi.mock("@/hooks", () => ({ usePlatformMcpTools: () => tools() }));
 vi.mock("@/components/branding/branding-provider", () => ({
   useBranding: () => ({ appName: "AgenticOS", logoUrl: null }),
@@ -45,7 +47,10 @@ function Harness({
   );
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  tools.mockImplementation(DEFAULT_TOOLS);
+});
 
 describe("the AgenticOS server in the Builder", () => {
   it("is switched on with writes held for approval, and says it acts as whoever asks", async () => {
@@ -58,6 +63,47 @@ describe("the AgenticOS server in the Builder", () => {
     expect(onChange).toHaveBeenLastCalledWith(NEW_PLATFORM_BINDING);
     expect(screen.getByRole("dialog")).toHaveTextContent("exactly their permissions");
     expect(screen.getByText("changes something")).toBeInTheDocument();
+  });
+
+  it("marks the one write no policy holds - the person's own language (#2301)", async () => {
+    tools.mockReturnValue({
+      tools: [
+        { name: "publish_agent", description: "Publish.", writes: true },
+        {
+          name: "set_my_language",
+          description: "Switch the language.",
+          writes: true,
+          ungated: true,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+    render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Asks before any change"));
+
+    expect(screen.getByText("changes something")).toBeInTheDocument();
+    expect(screen.getByText("your own setting, never asks")).toBeInTheDocument();
+  });
+
+  it("marks the one read that asks first - a whole past conversation (Codex on #2324)", async () => {
+    tools.mockReturnValue({
+      tools: [
+        { name: "get_run", description: "One run.", writes: false },
+        {
+          name: "read_conversation",
+          description: "A whole conversation.",
+          writes: false,
+          held: true,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+    render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Asks before any change"));
+
+    expect(screen.getAllByText("reads past conversations, asks first")).toHaveLength(1);
   });
 
   it("narrows the tools, and every tool chosen again is no limit at all", async () => {

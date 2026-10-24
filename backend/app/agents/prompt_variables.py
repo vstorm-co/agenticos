@@ -68,6 +68,7 @@ _CHANNELS = {
     "slack": "Slack",
     "telegram": "Telegram",
     "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
     "schedule": "a scheduled run",
 }
 
@@ -120,7 +121,7 @@ def time_zone(setting: str, person_zone: str | None) -> ZoneInfo:
     return ZoneInfo(name)
 
 
-def _flattened(value: str) -> str:
+def flattened(value: str) -> str:
     """Somebody else's text, unable to open a variable or a section of its own."""
     return " ".join(value.replace("{", "(").replace("}", ")").split())
 
@@ -131,11 +132,11 @@ def _system_values(facts: RunFacts, zone: ZoneInfo, agent_name: str) -> dict[str
         "current_date": local.date().isoformat(),
         "current_time": f"{local:%H:%M} ({zone.key})",
         "weekday": f"{local:%A}",
-        "user_name": _flattened(facts.user_name) if facts.user_name else "a visitor",
-        "user_email": _flattened(facts.user_email) if facts.user_email else "",
-        "organization_name": _flattened(facts.organization_name or ""),
-        "groups": ", ".join(_flattened(name) for name in facts.groups),
-        "agent_name": _flattened(agent_name),
+        "user_name": flattened(facts.user_name) if facts.user_name else "a visitor",
+        "user_email": flattened(facts.user_email) if facts.user_email else "",
+        "organization_name": flattened(facts.organization_name or ""),
+        "groups": ", ".join(flattened(name) for name in facts.groups),
+        "agent_name": flattened(agent_name),
         "channel": _CHANNELS.get(facts.surface, facts.surface),
     }
 

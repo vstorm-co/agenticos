@@ -9,8 +9,10 @@ unconfigured process is still covered, and the two entrypoints that were missing
 the call now make it.
 """
 
+import copy
 import io
 import logging
+import logging.config
 import secrets
 from collections.abc import Iterator
 from datetime import timedelta
@@ -21,7 +23,7 @@ import pytest
 from fastapi import FastAPI
 from starlette.datastructures import URL
 from uvicorn.config import LOGGING_CONFIG
-from uvicorn.logging import AccessFormatter, DefaultFormatter
+from uvicorn.logging import DefaultFormatter
 
 from app.core.logging import (
     SECRET_PATH_MARKER,
@@ -163,6 +165,74 @@ def test_an_unconfigured_process_redacts_through_last_resort(root_stream):
     assert any(isinstance(f, PiiRedactionFilter) for f in logging.lastResort.filters)
 
 
+_LINK_TOKEN = "1761200000." + "ab" * 32
+_ACCESS_PATH = f"/api/v1/embed/pk/generated/0123456789ab_image.png?token={_LINK_TOKEN}"
+
+
+@pytest.fixture
+def uvicorn_access() -> Iterator[io.StringIO]:
+    """uvicorn's loggers as `uvicorn app.main:app` configures them, then put back.
+
+    Its `LOGGING_CONFIG` gives `uvicorn.access` a handler of its own and turns
+    propagation off, so nothing it writes reaches the root's handlers.
+    """
+    loggers = [logging.getLogger(name) for name in ("uvicorn", "uvicorn.access", "uvicorn.error")]
+    saved = [
+        (logger, list(logger.handlers), list(logger.filters), logger.propagate, logger.level)
+        for logger in loggers
+    ]
+    logging.config.dictConfig(copy.deepcopy(LOGGING_CONFIG))
+    stream = io.StringIO()
+    for handler in logging.getLogger("uvicorn.access").handlers:
+        assert isinstance(handler, logging.StreamHandler)
+        handler.setStream(stream)
+    try:
+        yield stream
+    finally:
+        for logger, handlers, filters, propagate, level in saved:
+            logger.handlers = handlers
+            logger.filters = filters
+            logger.propagate = propagate
+            logger.setLevel(level)
+
+
+def _access_line() -> None:
+    """One request line, in the shape uvicorn's HTTP protocol logs it."""
+    logging.getLogger("uvicorn.access").info(
+        '%s - "%s %s HTTP/%s" %d', "10.0.0.5:1234", "GET", _ACCESS_PATH, "1.1", 200
+    )
+
+
+def test_a_signed_link_in_the_access_log_is_redacted(uvicorn_access):
+    """uvicorn configures its loggers before the app is imported, so the access
+    log's handler exists when `setup_logging` runs - and is not the root's."""
+    setup_logging()
+
+    _access_line()
+
+    line = uvicorn_access.getvalue()
+    assert "GET /api/v1/embed/pk/generated/0123456789ab_image.png?token=[REDACTED]" in line
+    assert _LINK_TOKEN not in line
+    assert '" 200' in line
+
+
+def test_the_access_log_is_redacted_whatever_is_configured_after_setup(uvicorn_access):
+    """A server that sets its handlers up after the app's startup still writes
+    through the logger the filter is on."""
+    logging.getLogger("uvicorn.access").filters.clear()
+    setup_logging()
+    access = logging.getLogger("uvicorn.access")
+    for handler in access.handlers:
+        handler.filters.clear()
+
+    _access_line()
+
+    assert _LINK_TOKEN not in uvicorn_access.getvalue()
+    assert any(
+        isinstance(f, PiiRedactionFilter) for f in logging.getLogger("uvicorn.error").filters
+    )
+
+
 def test_the_cli_sets_logging_up():
     from cli import commands
 
@@ -174,27 +244,6 @@ def test_the_cli_sets_logging_up():
 
     configure.assert_called_once()
     cli.assert_called_once()
-
-
-@pytest.fixture
-def uvicorn_access(root_stream) -> Iterator[io.StringIO]:
-    """`uvicorn.access` as uvicorn's own logging config leaves it: a handler of its
-    own, uvicorn's access format, and `propagate` off - so the root's handlers, and
-    whatever filters they carry, never see a request line."""
-    logger = logging.getLogger("uvicorn.access")
-    saved = (list(logger.handlers), logger.propagate, logger.level)
-    stream = io.StringIO()
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(
-        AccessFormatter(fmt=LOGGING_CONFIG["formatters"]["access"]["fmt"], use_colors=False)
-    )
-    logger.handlers = [handler]
-    logger.propagate = False
-    logger.setLevel(logging.INFO)
-    try:
-        yield stream
-    finally:
-        logger.handlers, logger.propagate, logger.level = saved[0], saved[1], saved[2]
 
 
 def _log_a_request(path: str) -> None:

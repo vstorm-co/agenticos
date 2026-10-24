@@ -22,7 +22,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, BinaryIO
 
 from app.core.blocking import (
     create_cancel_safe,
@@ -31,6 +31,7 @@ from app.core.blocking import (
     write_bytes_cancel_safe,
 )
 from app.core.config import settings
+from app.core.exceptions import ExternalServiceError
 
 if TYPE_CHECKING:
     from botocore.client import BaseClient
@@ -488,6 +489,28 @@ def make_storage_filename(filename: str) -> str:
     return f"{uuid.uuid4().hex[:12]}_{safe}"
 
 
+def _open_at(file_path: Path, start: int) -> BinaryIO:
+    """Open a file for reading and seek to `start`; both are blocking syscalls."""
+    handle = file_path.open("rb")
+    handle.seek(start)
+    return handle
+
+
+async def _read_span(handle: BinaryIO, length: int) -> AsyncIterator[bytes]:
+    """`length` bytes from an open file, a chunk at a time, closing it however
+    the iteration ends - a player that seeks away abandons the stream mid-way."""
+    remaining = length
+    try:
+        while remaining > 0:
+            chunk = await run_blocking(handle.read, min(STREAM_CHUNK_BYTES, remaining))
+            if not chunk:
+                return
+            remaining -= len(chunk)
+            yield chunk
+    finally:
+        await run_blocking(handle.close)
+
+
 class BaseFileStorage(ABC):
     """Abstract file storage backend."""
 
@@ -544,6 +567,9 @@ class BaseFileStorage(ABC):
 
         Not abstract, for `save_at`'s reason: a backend with no use for it says
         so at the call site rather than failing to import.
+
+        A prefix left partly in place raises rather than reporting success, so a
+        caller that retries - an organization purge's cleanup job - is told.
         """
         raise NotImplementedError(
             f"{type(self).__name__} cannot delete a prefix"
@@ -570,6 +596,45 @@ class BaseFileStorage(ABC):
             yield data
 
         return _one()
+
+    async def size(self, storage_path: str) -> int:
+        """How many bytes the file holds, without reading them.
+
+        What a ranged read is measured against: a `Range` header is answered
+        against the file's length, and a `416` names it. Asked before
+        :meth:`open_range` so a range is decided without the bytes passing
+        through this process.
+
+        Not abstract, for `save_at`'s reason.
+
+        Raises:
+            FileNotFoundError: the backend does not hold that path.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} cannot measure a file"
+        )  # pragma: no cover - every backend in this codebase implements it
+
+    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncIterator[bytes]:
+        """Bytes `start` to `end` of the file, inclusive, in bounded chunks.
+
+        The read a media player's `Range` request needs (#2310). A generated
+        video can be hundreds of megabytes and the route serving it has no rate
+        limit of its own, so a ranged answer that loaded the whole file to slice
+        it held the whole clip once per concurrent request. This reads only the
+        span asked for, a chunk at a time.
+
+        Opened here rather than on the first chunk, for :meth:`open_stream`'s
+        reason: a file gone between the size and the read is still a 404 rather
+        than a body that dies mid-way.
+
+        Not abstract, for `save_at`'s reason.
+
+        Raises:
+            FileNotFoundError: the backend does not hold that path.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} cannot read a byte range"
+        )  # pragma: no cover - every backend in this codebase implements it
 
     @abstractmethod
     async def exists(self, storage_path: str) -> bool:
@@ -666,11 +731,19 @@ class LocalFileStorage(BaseFileStorage):
 
         Missing is not an error: a conversation that offloaded nothing has no
         directory, and the teardown must not care.
+
+        Raises:
+            OSError: When anything is left - a file the process may not unlink,
+                or one written while the tree was removed. The rows that named
+                these bytes are gone, so a caller that retries (the cleanup job)
+                is the only thing that will ever try again, and it must be told.
         """
         if not directory.is_dir():
             return 0
         count = sum(1 for path in directory.rglob("*") if path.is_file())
         shutil.rmtree(directory, ignore_errors=True)
+        if directory.exists():
+            raise OSError(f"Stored prefix not fully removed: {directory.name}")
         return count
 
     async def load(self, storage_path: str) -> bytes:
@@ -678,6 +751,16 @@ class LocalFileStorage(BaseFileStorage):
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {storage_path}")
         return await run_blocking(file_path.read_bytes)
+
+    async def size(self, storage_path: str) -> int:
+        file_path = self._resolve_safe_path(storage_path)
+        return await run_blocking(os.path.getsize, file_path)
+
+    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncIterator[bytes]:
+        """The span off disk, a chunk at a time, on the file pool."""
+        file_path = self._resolve_safe_path(storage_path)
+        handle = await run_blocking(_open_at, file_path, start)
+        return _read_span(handle, end - start + 1)
 
     async def delete(self, storage_path: str) -> None:
         await delete_cancel_safe(self._delete_blocking, storage_path)
@@ -854,14 +937,30 @@ class S3FileStorage(BaseFileStorage):
         return await run_blocking(self._delete_prefix_blocking, self._key(prefix))
 
     def _delete_prefix_blocking(self, key_prefix: str) -> int:
+        """Raises `ExternalServiceError` when S3 refused any key - `delete_objects`
+        answers 200 and lists per-key failures (an `AccessDenied`, an object lock)
+        in `Errors`, which would otherwise read as success. Every page is tried
+        first, so one refused key does not keep the rest."""
         removed = 0
+        refused: list[str] = []
         paginator = self.client.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=self.bucket, Prefix=f"{key_prefix}/"):
             keys = [{"Key": item["Key"]} for item in page.get("Contents", [])]
             if not keys:
                 continue
-            self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys})
-            removed += len(keys)
+            response = self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys})
+            errors = response.get("Errors", [])
+            refused.extend(str(error.get("Code", "")) for error in errors)
+            removed += len(keys) - len(errors)
+        if refused:
+            raise ExternalServiceError(
+                message="S3 refused to delete objects under a prefix",
+                details={
+                    "prefix": key_prefix,
+                    "refused": len(refused),
+                    "codes": sorted(set(refused)),
+                },
+            )
         return removed
 
     async def exists(self, storage_path: str) -> bool:
@@ -869,7 +968,7 @@ class S3FileStorage(BaseFileStorage):
             key = self._key(storage_path)
         except ValueError:
             return False
-        return await run_blocking(self._head_blocking, key)
+        return await run_blocking(self._head_blocking, key) is not None
 
     async def open_stream(self, storage_path: str) -> AsyncIterator[bytes]:
         """One object, in bounded chunks, never held whole in this process.
@@ -885,12 +984,31 @@ class S3FileStorage(BaseFileStorage):
         body = await run_blocking(self._open_blocking, self._key(storage_path))
         return self._chunks(body)
 
-    def _open_blocking(self, key: str) -> Any:
+    async def size(self, storage_path: str) -> int:
+        key = self._key(storage_path)
+        length = await run_blocking(self._head_blocking, key)
+        if length is None:
+            raise FileNotFoundError(f"File not found: {key}")
+        return length
+
+    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncIterator[bytes]:
+        """A ranged `GetObject`, read in bounded chunks.
+
+        The store sends only the span, so neither the object nor the part of it
+        before `start` crosses the network into this process.
+        """
+        body = await run_blocking(
+            self._open_blocking, self._key(storage_path), f"bytes={start}-{end}"
+        )
+        return self._chunks(body)
+
+    def _open_blocking(self, key: str, byte_range: str | None = None) -> Any:
         """The open body of one object, translating a miss the way `load` does."""
         from botocore.exceptions import ClientError
 
+        ranged = {"Range": byte_range} if byte_range is not None else {}
         try:
-            response = self.client.get_object(Bucket=self.bucket, Key=key)
+            response = self.client.get_object(Bucket=self.bucket, Key=key, **ranged)
         except ClientError as exc:
             if exc.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
                 raise FileNotFoundError(f"File not found: {key}") from exc
@@ -914,25 +1032,26 @@ class S3FileStorage(BaseFileStorage):
         finally:
             await run_blocking(body.close)
 
-    def _head_blocking(self, key: str) -> bool:
-        """Whether the object is there, and only that.
+    def _head_blocking(self, key: str) -> int | None:
+        """The object's `ContentLength`, or `None` where there is no such object.
 
         A blanket `except ClientError` would answer "not there" for an
         `AccessDenied`, a throttle or an outage - so a bad bucket policy would
         read as an agent with no avatar and a knowledge base whose documents
         have all been deleted, which is the wrong thing for anybody to act on.
-        Only the codes that mean "no such object" answer `False`; everything
+        Only the codes that mean "no such object" answer `None`; everything
         else is the caller's to see.
         """
         from botocore.exceptions import ClientError
 
         try:
-            self.client.head_object(Bucket=self.bucket, Key=key)
+            response = self.client.head_object(Bucket=self.bucket, Key=key)
         except ClientError as exc:
             if exc.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
-                return False
+                return None
             raise
-        return True
+        length: int = response["ContentLength"]
+        return length
 
 
 def build_s3_client() -> BaseClient:

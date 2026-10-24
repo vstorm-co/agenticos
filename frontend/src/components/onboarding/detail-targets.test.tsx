@@ -58,7 +58,7 @@ describe("useDetailTargets", () => {
     const wrapper = wrapperWith((client) => {
       // `AgentList` object — what `useAgents` caches.
       client.setQueryData(qk.agents.list(false), {
-        items: [{ id: "agent-1", slug: "claude-code-like" }],
+        items: [{ id: "agent-1", slug: "agenticos" }],
         total: 1,
       });
       // Bare arrays — what `useKnowledgeBases` and `useOrganizationList` cache.
@@ -85,12 +85,12 @@ describe("useDetailTargets", () => {
     expect(result.current[ARTIFACT_DETAIL]).toEqual({ pending: false, href: null });
   });
 
-  it("prefers the seeded claude-code-like agent and default collection over the first row", () => {
+  it("prefers the seeded agenticos agent and default collection over the first row", () => {
     const wrapper = wrapperWith((client) => {
       client.setQueryData(qk.agents.list(false), {
         items: [
           { id: "agent-other", slug: "something-else" },
-          { id: "agent-gs", slug: "claude-code-like" },
+          { id: "agent-gs", slug: "agenticos" },
         ],
         total: 2,
       });

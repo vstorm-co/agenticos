@@ -409,3 +409,32 @@ class TestBotTranscriptionSwitch:
 
         down = _alembic("downgrade", "0150_org_speech_settings")
         assert down.returncode == 0, down.stderr
+
+
+@pytest.mark.parametrize("table", ["notifications", "notification_preferences"])
+def test_workflow_migrations_preserve_main_notification_types(table: str) -> None:
+    """Workflow CHECK rebuilds must retain the event types already deployed on main."""
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.connect() as connection:
+            definition = connection.execute(
+                text(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = to_regclass(:table) AND contype = 'c' "
+                    "AND pg_get_constraintdef(oid) LIKE '%event_type%'"
+                ),
+                {"table": table},
+            ).scalar_one()
+        for event in (
+            "capability_requested",
+            "suggestion",
+            "finding",
+            "workflow_notification",
+            "artifact_owner_changed",
+            "artifact_share_requested",
+        ):
+            assert f"'{event}'" in definition
+    finally:
+        engine.dispose()

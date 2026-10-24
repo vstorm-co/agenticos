@@ -138,4 +138,57 @@ describe("TriggerTemplatePicker", () => {
       "false",
     );
   });
+  describe("a long catalog", () => {
+    const many = Array.from({ length: 5 }, (_, i) => ({
+      ...DAILY,
+      key: `schedule-${i}`,
+      label: `Template ${i}`,
+    }));
+
+    it("shows writing your own and three templates, the rest behind Show more", async () => {
+      const user = userEvent.setup();
+      templates = many;
+      render(
+        <TriggerTemplatePicker
+          triggerType="schedule"
+          selectedKey={null}
+          onPick={vi.fn()}
+          onScratch={vi.fn()}
+        />,
+      );
+
+      const cards = screen.getAllByRole("button", { pressed: false });
+      expect(cards.map((card) => card.textContent)).toEqual([
+        expect.stringContaining("Template 0"),
+        expect.stringContaining("Template 1"),
+        expect.stringContaining("Template 2"),
+      ]);
+      expect(screen.getAllByRole("button", { pressed: true })[0]).toHaveTextContent(
+        "Start from scratch",
+      );
+
+      await user.click(screen.getByRole("button", { name: "Show 2 more" }));
+      expect(screen.getByRole("button", { name: /Template 4/ })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Show fewer" }));
+      expect(screen.queryByRole("button", { name: /Template 4/ })).toBeNull();
+    });
+
+    it("keeps a picked template from the fold in sight, with nothing to fold", () => {
+      templates = many;
+      render(
+        <TriggerTemplatePicker
+          triggerType="schedule"
+          selectedKey="schedule-4"
+          onPick={vi.fn()}
+          onScratch={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /Template 4/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
+    });
+  });
 });

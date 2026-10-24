@@ -144,6 +144,13 @@ class TriggerCreate(BaseSchema):
     name: str | None = Field(default=None, max_length=120)
     trigger_type: Literal["schedule", "event"] = "schedule"
     environment_id: UUID | None = None
+    teams_conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Also post each fire's answer to this Teams channel or group chat - one "
+            "of GET /channels/teams-conversations. Null posts nowhere (#1985)"
+        ),
+    )
     runs_as_creator: bool = Field(
         default=False,
         description=(
@@ -289,9 +296,9 @@ class TriggerUpdate(BaseSchema):
     an event is a different trigger, made by deleting this one and creating that,
     so a cadence field on an event, or an `event_config` on a schedule, is refused.
 
-    `None` means "not sent" for every field except `environment_id` and `name`,
-    whose null is the deliberate "back to the default" - the default environment,
-    the agent's own name. `prompt` and `is_active` map to NOT NULL columns, so an
+    `None` means "not sent" for every field except `environment_id`, `name` and
+    `teams_conversation_id`, whose null is the deliberate "back to the default" -
+    the default environment, the agent's own name, posting nowhere. `prompt` and `is_active` map to NOT NULL columns, so an
     *explicit* null for one is refused here as a 422 rather than reaching the row
     as a 500 IntegrityError - the `exclude_unset` dump cannot tell a sent null from
     an unsent one, so the field must. `interval_seconds` is *not* in that set: the
@@ -313,11 +320,19 @@ class TriggerUpdate(BaseSchema):
     )
     is_active: bool | None = None
     environment_id: UUID | None = None
+    teams_conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Also post each fire's answer to this Teams channel or group chat - one "
+            "of GET /channels/teams-conversations. Null posts nowhere (#1985)"
+        ),
+    )
     runs_as_creator: bool | None = Field(
         default=None,
         description=(
             "Turn acting as the creator on or off. Only the creator may turn it on; "
-            "anyone else's change to the prompt, environment or filter turns it off"
+            "anyone else's change to the prompt, environment, filter or Teams "
+            "destination turns it off"
         ),
     )
     # An event trigger's filter. Re-validated against its source's typed model in
@@ -369,6 +384,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     created_by_user_id: UUID | None = None
     is_active: bool
     environment_id: UUID | None = None
+    teams_conversation_id: UUID | None = None
     runs_as_creator: bool = False
     trigger_type: Literal["schedule", "event"]
     schedule_kind: Literal["interval", "cron"]

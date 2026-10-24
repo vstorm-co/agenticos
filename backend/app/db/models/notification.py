@@ -59,6 +59,9 @@ class NotificationEventType(enum.StrEnum):
     ARTIFACT_OWNER_CHANGED = "artifact_owner_changed"
     # Somebody asked a page's owner to share it, or to confirm a version (#1974).
     ARTIFACT_SHARE_REQUESTED = "artifact_share_requested"
+    CAPABILITY_REQUESTED = "capability_requested"
+    SUGGESTION = "suggestion"
+    FINDING = "finding"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -153,7 +156,8 @@ class Notification(Base, TimestampMixin):
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
             "'background_task_paused', 'workflow_notification', "
-            "'artifact_owner_changed', 'artifact_share_requested')",
+            "'artifact_owner_changed', 'artifact_share_requested', "
+            "'capability_requested', 'suggestion', 'finding')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

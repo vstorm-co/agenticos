@@ -506,6 +506,9 @@ class TestProfileCreation:
                 "app.services.model_profile.credential_repo.delete_profile",
                 new=AsyncMock(return_value=False),
             ),
+            patch(
+                "app.services.model_profile.organization_repo.stop_proactivity_on", new=AsyncMock()
+            ),
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
             pytest.raises(NotFoundError) as refused,
         ):
@@ -524,11 +527,21 @@ class TestProfileCreation:
                 "app.services.model_profile.credential_repo.delete_profile",
                 new=AsyncMock(return_value=True),
             ) as delete,
+            patch(
+                "app.services.model_profile.organization_repo.stop_proactivity_on",
+                new=AsyncMock(),
+            ) as stop,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
         ):
             await ModelProfileService(_db()).delete_profile(ctx, profile_id)
 
         assert delete.call_args.kwargs["organization_id"] == ctx.organization_id
+        # Proactivity running on it is switched off with it, not left "on" with no
+        # model to run on (Codex on #2324).
+        assert stop.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "model_profile_id": profile_id,
+        }
         assert audit.call_args.kwargs["action"] == "model_profile.deleted"
         assert audit.call_args.kwargs["target_id"] == str(profile_id)
 

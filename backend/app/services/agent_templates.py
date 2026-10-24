@@ -34,11 +34,12 @@ logger = logging.getLogger(__name__)
 TEMPLATES_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "agent_templates"
 
 MANIFEST = "AGENT.md"
+AVATAR = "avatar.png"
 
 # The general-purpose agent a fresh organization starts with, beside the
-# Architect - and the capabilities it binds are the ones the Toolbox recommends
-# and a new agent starts with, so "what a good agent has" is written once.
-STARTER_TEMPLATE = "general/claude-code-like"
+# Architect - and what it is, instructions and settings, is what a new agent
+# starts with, so "what a good agent has" is written once (#2301).
+STARTER_TEMPLATE = "general/agenticos"
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +70,12 @@ class AgentTemplate:
     """What a person still has to provide: `collection`, `context`, `sandbox`."""
 
     budget_usd: float | None = None
+
+    starters: tuple[str, ...] = ()
+    """First messages the chat offers, as the spec takes them."""
+
+    avatar: Path | None = None
+    """`avatar.png` beside the manifest, worn by every agent installed from it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +204,8 @@ def _read(folder: Path, *, industry: str) -> AgentTemplate:
         mcp_servers=_bindings(metadata.get("mcp_servers")),
         attach=_strings(metadata.get("attach")),
         budget_usd=float(budget) if isinstance(budget, int | float) else None,
+        starters=_strings(metadata.get("starters")),
+        avatar=avatar if (avatar := folder / AVATAR).is_file() else None,
     )
 
 

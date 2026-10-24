@@ -171,6 +171,10 @@ async function mount({
   await screen.findByText("GitHub");
 }
 
+// Opening a server writes `?server=` into jsdom's one URL, which every test
+// shares; the next would start with that server's accounts open over the page.
+beforeEach(() => window.history.replaceState({}, "", "/mcp-servers"));
+
 describe("McpServerList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -403,6 +407,43 @@ describe("McpServerList", () => {
         expect.objectContaining({ name: "linear", catalog_key: "linear" }),
       ),
     );
+    // The consent comes back to Linear's accounts, not to the top of the list.
+    await waitFor(() =>
+      expect(document.cookie).toContain(
+        `mcp_oauth_return=${encodeURIComponent("/mcp-servers?server=linear")}`,
+      ),
+    );
+  });
+
+  it("keeps the open server in the address, and opens it from there", async () => {
+    window.history.replaceState({}, "", "/mcp-servers?server=github");
+    serve([connection()], []);
+    render(<McpServerList canManageOrganization />, { wrapper });
+
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByRole("heading", { name: "GitHub" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(window.location.search).toBe("");
+
+    await openConnections();
+    expect(window.location.search).toBe("?server=github");
+  });
+
+  it("follows a disconnect at once, without being closed and opened again", async () => {
+    await mount({ org: [connection()] });
+    const connections = await openConnections();
+    await userEvent.click(connections.getByRole("button", { name: /^More for / }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Disconnect" }));
+    const confirm = (await screen.findByText(/Disconnect "github"\?/)).closest(
+      '[role="dialog"], [role="alertdialog"]',
+    ) as HTMLElement;
+
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    serve([], []);
+    await userEvent.click(within(confirm).getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^More for / })).toBeNull());
   });
 
   it("opens the form from Configure with its catalog settings folded away", async () => {

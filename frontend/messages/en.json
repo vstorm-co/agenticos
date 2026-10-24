@@ -912,7 +912,66 @@
     "removeReviewer": "Remove reviewer {name}",
     "codeMode": "Code mode",
     "codeModeHint": "The agent calls its tools from one short Python script in a sandbox - loops, conditions, many calls at once - instead of one model turn per call. Worth it for working through records or fanning out over an MCP server. Tools that need approval stay ordinary calls.",
-    "codeModeMaxCalls": "Tool calls per script"
+    "codeModeMaxCalls": "Tool calls per script",
+    "speechProvider": "Provider",
+    "speechProviderPlaceholder": "Choose a provider",
+    "speechProviderDetail": "The providers in the speech catalog whose key the vault can hold.",
+    "speechModel": "Model",
+    "speechModelPlaceholder": "Choose a model",
+    "speechModelDetail": "Every model this provider can be asked to speak with.",
+    "speechModelUnknownProvider": "This binding names {provider}, which cannot speak. Pick a provider above.",
+    "speechVoice": "Voice",
+    "speechVoicePlaceholder": "Choose a voice",
+    "speechVoiceDetail": "The default - the agent may switch to another per clip, among the voices allowed below.",
+    "speechVoiceIdPlaceholder": "Voice id",
+    "speechAccountVoiceDetail": "{provider} voices belong to your account. Paste the id of one from your voice library. It is the default - the agent may switch to another per clip, among the voices allowed below.",
+    "speechOtherVoices": "Allowed voices",
+    "speechOtherVoicesDetail": "The only voices the agent may switch to, clip by clip - for a dialogue, or a narrator and a character.",
+    "speechAnyVoiceWarning": "{count, plural, =1 {None allowed: the agent may speak in this model's one voice.} other {None allowed: the agent may speak in any of this model's # voices.}}",
+    "speechAnyAccountVoiceWarning": "None listed: the agent may speak in any voice in your {provider} account by its id - cloned voices included.",
+    "speechOtherVoicesFull": "{count} other voices is the most one agent can be offered.",
+    "speechOtherVoiceId": "Voice id {position}",
+    "speechOtherVoiceNote": "What voice {position} is for",
+    "speechOtherVoiceNotePlaceholder": "Who it is, e.g. Anna, the narrator",
+    "speechOtherVoiceRemove": "Remove voice {position}",
+    "speechOtherVoiceAdd": "Add a voice",
+    "speechProvidersLoading": "Reading what each provider offers…",
+    "speechProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
+    "videoProvider": "Provider",
+    "videoProviderPlaceholder": "Choose a provider",
+    "videoProviderDetail": "The providers in the video catalog whose key the vault can hold.",
+    "videoModel": "Model",
+    "videoModelPlaceholder": "Choose a model",
+    "videoModelDetail": "Every model this provider can be asked to make video with.",
+    "videoModelUnknownProvider": "This binding names {provider}, which cannot make video. Pick a provider above.",
+    "videoResolution": "Resolution",
+    "videoResolutionDetail": "The default - the agent may ask for another per clip, up to the highest resolution below. Higher costs more per second.",
+    "videoMaxResolution": "Highest resolution",
+    "videoMaxResolutionAny": "Any resolution",
+    "videoMaxResolutionDetail": "The one limit on the resolution: the agent may ask for anything up to it.",
+    "videoMaxResolutionAnyWarning": "With no highest resolution, the agent may ask for any resolution this model renders, up to {highest}, and a second at a higher resolution costs more.",
+    "videoAspectRatio": "Aspect ratio",
+    "videoAspectRatioDetail": "The default - the agent may ask for another shape this model renders, per clip.",
+    "videoLengthRange": "This model makes clips of {min} to {max} seconds.",
+    "videoLengthDecided": "This model decides its own length, {min} to {max} seconds.",
+    "videoProvidersLoading": "Reading what each provider offers…",
+    "videoProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
+    "videoAudio": "Sound",
+    "videoAudioDetail": "The default - the agent may ask for sound on or off, per clip.",
+    "videoAudioDefault": "Provider default",
+    "videoAudioOn": "On",
+    "videoAudioOff": "Off",
+    "speechFormat": "File format",
+    "speechFormatDetail": "The formats this provider returns. mp3 is smaller, wav is uncompressed.",
+    "startersTitle": "First messages",
+    "startersHint": "What the chat offers somebody opening this agent for the first time - one click sends one. Up to {max}; with none, the chat shows its own.",
+    "starterNumber": "First message {number}",
+    "removeStarter": "Remove first message {number}",
+    "newStarter": "New first message",
+    "newStarterPlaceholder": "What can you help me with?",
+    "addStarter": "Add",
+    "platformUngatedBadge": "your own setting, never asks",
+    "platformHeldBadge": "reads past conversations, asks first"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1047,7 +1106,6 @@
       "whoAnswers": "Who answers this conversation.",
       "workflows": "Workflows"
     },
-    "aiCanMakeMistakes": "AI can make mistakes. Verify important information.",
     "analyzeFiles": "Analyze the attached file(s)",
     "approve": "Approve",
     "archive": "Archive",
@@ -1172,11 +1230,11 @@
     "edit": "Edit",
     "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
     "empty": {
-      "brainstormPrompt": "Give me 5 ideas for our next team newsletter.",
-      "brainstormTitle": "Brainstorm",
       "commandPalette": "command palette",
-      "conceptPrompt": "Explain in plain words what an AI agent could do for my team - under 200 words.",
-      "conceptTitle": "Explain a concept",
+      "capabilitiesPrompt": "What can you do for me here? Show me with an example from my kind of work.",
+      "capabilitiesTitle": "What can you do?",
+      "routinePrompt": "Every Monday at 9:00, send me a short summary of last week's most important AI news.",
+      "routineTitle": "Set up a routine",
       "docsPrompt": "Summarize the key points from my latest documents.",
       "docsTitle": "Summarize my docs",
       "greeting": "How can I help, {name}?",
@@ -1248,7 +1306,8 @@
       "commands": "Commands",
       "commandsHint": "Pick one from a list - the same as typing /",
       "project": "Work in a project",
-      "projectHint": "Start this chat in a project: its files and instructions"
+      "projectHint": "Start this chat in a project: its files and instructions",
+      "reconnecting": "Reconnecting…"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",
@@ -1597,7 +1656,20 @@
       "approveDeleteRecord": "Delete a record from {table}",
       "workflowsListing": "Checking which workflows it can start",
       "workflowRunning": "Running a workflow",
-      "workflowRunReading": "Checking on a workflow run"
+      "workflowRunReading": "Checking on a workflow run",
+      "generateSpeech": "Speech",
+      "generatingSpeech": "Recording speech",
+      "speechNotStored": "The speech was recorded but not saved.",
+      "spokenBy": "Voice: {voice}",
+      "generateVideo": "Video",
+      "generatingVideo": "Making a video",
+      "videoNotStored": "The video was made but not saved.",
+      "suggestingNextSteps": "Suggesting next steps",
+      "nextSteps": "Next steps",
+      "requestingCapability": "Asking for a capability",
+      "capabilityRequest": "Capability request",
+      "proposingSetup": "Proposing what to set up",
+      "setupProposals": "Things to set up"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1985,12 +2057,60 @@
         "mediaFailed": "<strong>The call's audio couldn't get through,</strong> so the call has ended. Your network may block it. Everything said until then is saved above."
       },
       "openBuilder": "Open in the Agent Builder",
-      "askEditor": "Ask someone who can edit this agent to set it up."
+      "askEditor": "Ask someone who can edit this agent to set it up.",
+      "startPublished": "Start a voice call with the published version - the call does not run this draft"
     },
     "workflowRun": {
       "unnamed": "Workflow",
       "viewSteps": "View its steps"
-    }
+    },
+    "extras": {
+      "remembered": "Remembered: {note}",
+      "forgot": "Forgot: {note}",
+      "manageMemory": "Manage",
+      "capabilityNeeded": "{agent} needs {name} for this",
+      "thisAgent": "This agent",
+      "switchOn": "Switch on {name}",
+      "askOwner": "Ask the agent's owner",
+      "capabilityOn": "{name} is on. Ask again and it will be used.",
+      "capabilityDrafted": "{name} is in the agent's draft - publish it in the Builder to use it.",
+      "capabilityAsked": "The owner has been asked.",
+      "nextSteps": "Next steps",
+      "runOnSchedule": "Run this on a schedule",
+      "routineFromChat": "From a conversation",
+      "makeAgent": "Make an agent of this",
+      "makeAgentAsk": "Build me an agent that does this, so I do not have to ask in a chat each time: {request}",
+      "setup": {
+        "agentAsk": "Build me an agent that does this: {request}",
+        "take": {
+          "agent": "Build it with the Architect",
+          "routine": "Set it up",
+          "connection": "Connect it"
+        }
+      },
+      "makeSkill": "Make a skill of this",
+      "makeSkillAsk": "Make a skill of this, so any agent can do it the same way next time.\n\nWhat I asked:\n{request}\n\nHow it was answered:\n{answer}",
+      "makeSkillFromConversation": "Make a skill of this, so any agent can do it the same way next time. Read the whole conversation first with read_conversation - its id is {conversation}.\n\nWhat I asked:\n{request}"
+    },
+    "suggestions": {
+      "label": "Suggestions for you",
+      "agentAsk": "Build me an agent that does this, so I do not have to ask each time: {request}",
+      "profileSaved": "Saved to your profile - your agents know it from the next message.",
+      "packInstalling": "Adding the routines - they will be in Routines in a moment.",
+      "notNow": "Not now",
+      "take": {
+        "routine": "Set it up",
+        "agent": "Build it with the Architect",
+        "profile": "Save to my profile",
+        "role_pack": "Add these routines",
+        "finding": "Done"
+      },
+      "open": "Open",
+      "urgent": "Urgent",
+      "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
+    },
+    "turnLost": "The agent stopped before it answered - the server running it went away.",
+    "turnLostAskAgain": "Ask again"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -2692,6 +2812,16 @@
         "cost": "Cost",
         "row": "{runs, plural, one {# run} other {# runs}}",
         "rowFailed": "{runs, plural, one {# run} other {# runs}}, {failed, number} failed"
+      },
+      "suggestions": {
+        "title": "Briefing",
+        "description": "What your watches found and the nightly look proposed - what cannot wait first.",
+        "empty": {
+          "title": "Nothing proposed yet",
+          "description": "Findings from your watches and the nightly suggestions appear here.",
+          "descriptionOff": "Your organization has proactivity off."
+        },
+        "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
       }
     },
     "edit": {
@@ -2809,16 +2939,36 @@
       "title": "Get started",
       "progress": "{done} of {total} done",
       "next": "Next step",
-      "doneLabel": "Done",
       "dismiss": "Hide the checklist",
       "steps": {
-        "agent": "Create an agent",
+        "agent": "Build an agent",
         "publish": "Publish it",
         "knowledge": "Give it a knowledge base",
         "departments": "Add your departments",
         "teammate": "Invite a teammate",
-        "channel": "Put an agent where your team chats"
-      }
+        "channel": "Put an agent where your team chats",
+        "profile": "Tell agents about you",
+        "chat": "Start a conversation",
+        "routine": "Set up a routine",
+        "connection": "Connect a service"
+      },
+      "agentAsk": "Help me build my first agent. Ask me what I want it to do.",
+      "hints": {
+        "profile": "Your role and work, so answers fit you.",
+        "chat": "Ask AgenticOS anything about your work.",
+        "routine": "Let an agent do a task on a schedule.",
+        "connection": "Your mail, calendar or files, with your own account.",
+        "agent": "The Architect builds one with you.",
+        "publish": "So people can use it in chat and in channels.",
+        "knowledge": "The documents it answers from.",
+        "departments": "Groups decide who sees which agent.",
+        "teammate": "Agents are worth more shared.",
+        "channel": "Slack, Teams, Telegram or Mattermost."
+      },
+      "left": "{count, plural, =1 {1 step left} other {# steps left}}",
+      "ratio": "{done}/{total}",
+      "start": "Start",
+      "doneHeading": "Already done"
     },
     "views": {
       "label": "Dashboard view",
@@ -3752,7 +3902,8 @@
     "cardYours": "{count, plural, =1 {Your account} other {Your # accounts}}",
     "cardOrganizations": "{count, plural, =1 {The organization's account} other {The organization's # accounts}}",
     "cardYoursAndOrganizations": "Yours and the organization's",
-    "accountActions": "More for {name}"
+    "accountActions": "More for {name}",
+    "watch": "Watch"
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
@@ -3845,7 +3996,9 @@
     "allProjects": "All projects",
     "backgroundJobs": "Background jobs",
     "loadingPage": "Opening the page",
-    "tables": "Tables"
+    "tables": "Tables",
+    "inbox": "Inbox",
+    "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4592,9 +4745,32 @@
       "artifact-public-data": {
         "title": "Confirm public data again",
         "body": "The data this page shows changed, so its public link shows none until it's confirmed again. Confirm data shows what the link would share, and with whom."
+      },
+      "routines-watches": {
+        "title": "What watches your accounts",
+        "body": "Watches read your own connected accounts on a schedule - reviews waiting on you, issues assigned to you - and put what is new in your inbox. Each row says when it last looked and how much of what it found still waits."
+      },
+      "agent-starters": {
+        "title": "First messages",
+        "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
+      },
+      "inbox-filters": {
+        "title": "What came to you on its own",
+        "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
       }
     },
-    "chooseLanguage": "Language"
+    "chooseLanguage": "Language",
+    "chooseRole": "What do you do? Your agents will know.",
+    "roles": {
+      "leadership": "Leadership",
+      "sales": "Sales",
+      "marketing": "Marketing",
+      "support": "Customer support",
+      "operations": "Operations",
+      "finance": "Finance",
+      "people": "HR",
+      "engineering": "Engineering"
+    }
   },
   "organizations": {
     "accessLost": "You no longer have access to that organization.",
@@ -5451,6 +5627,15 @@
       "botToken": "Bot token",
       "botTokenHintMattermost": "The bot account's access token",
       "botTokenHintSlack": "The bot user OAuth token (xoxb-...) from your Slack app",
+      "botTokenHintTeams": "The client secret of the Azure Bot's app registration (Certificates & secrets in Entra).",
+      "teamsAppId": "Microsoft App ID",
+      "teamsAppIdHint": "On the Azure Bot resource, under Configuration. Create the bot as single-tenant.",
+      "teamsTenantId": "Tenant ID",
+      "teamsTenantIdHint": "The Entra tenant the bot is registered in. Only that tenant's Teams can reach it.",
+      "teamsEndpoint": "Messaging endpoint",
+      "teamsEndpointHint": "Paste this into the Azure Bot's configuration, and turn on its Microsoft Teams channel.",
+      "teamsPackageWhy": "Upload the app package to your tenant's Teams app catalog, then add the app to a chat or a team.",
+      "teamsPackageDownload": "Download app package",
       "botTokenHintTelegram": "The token @BotFather gives you when you create a bot",
       "botUpdated": "{bot} updated",
       "bots": "Bots",
@@ -6024,7 +6209,8 @@
       "stepApprovalsTitle": "Workflow steps waiting on you",
       "stepApprovalsCounted": "{count, plural, one {# waiting} other {# waiting}}",
       "stepApprovalExpires": "expires {at}",
-      "stepApprovalNamed": "{count, plural, one {# named approver} other {# named approvers}}"
+      "stepApprovalNamed": "{count, plural, one {# named approver} other {# named approvers}}",
+      "surfaceTeams": "Microsoft Teams"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -6175,7 +6361,29 @@
       "prefMcpServerRecovered": "MCP server answering again",
       "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again.",
       "prefArtifactShareRequested": "Page requests",
-      "prefArtifactShareRequestedTrigger": "Someone asks to open or share a page you own, or changes the data it shows."
+      "prefArtifactShareRequestedTrigger": "Someone asks to open or share a page you own, or changes the data it shows.",
+      "agentContext": {
+        "title": "What your agents know about you",
+        "description": "Every agent reads this at the start of a conversation, so you never have to repeat it in a chat.",
+        "role": "Your role",
+        "rolePlaceholder": "Head of sales",
+        "about": "What you work on",
+        "aboutPlaceholder": "Enterprise deals in the Nordics; weekly pipeline reviews with the CFO.",
+        "timeZone": "Time zone",
+        "save": "Save",
+        "saved": "Saved - your agents know it from the next message.",
+        "workingHours": "When you work",
+        "workingHoursHint": "In your time zone. Agents plan around it; nothing is held back or moved.",
+        "workingDays": "Working days",
+        "workStart": "Starts at",
+        "workEnd": "Ends at"
+      },
+      "prefSuggestion": "Suggestions for you",
+      "prefSuggestionTrigger": "AgenticOS noticed something worth setting up - a request you keep repeating, a role pack, your profile. At most once a day, to you.",
+      "prefCapabilityRequested": "A capability asked for",
+      "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability.",
+      "prefFinding": "Findings from your watches",
+      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -6254,7 +6462,8 @@
       "title": "Routines",
       "description": "Everything your agents do on their own - on a schedule, or on an event.",
       "ideasTitle": "Ideas to start from",
-      "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save."
+      "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save.",
+      "newWatch": "New watch"
     },
     "signIns": {
       "cancel": "Cancel",
@@ -7128,7 +7337,39 @@
     "publicLiveDataFailed": "Could not change whether public pages may show live data",
     "publicLiveDataConfirmTitle": "Allow live data on public pages?",
     "publicLiveDataConfirmWhy": "Anyone with a page's public link, and every site that embeds it, will see its table data without signing in. Nothing is shown until the page's owner or an Owner or Admin confirms it. Pages confirmed earlier show their data again right away.",
-    "publicLiveDataConfirm": "Allow"
+    "publicLiveDataConfirm": "Allow",
+    "proactive": {
+      "title": "Proactivity",
+      "description": "Work the platform does for people on its own, in the background. Off until you turn it on.",
+      "nightly": "Nightly suggestions",
+      "nightlyHint": "A look at each person's week: a routine for a request they keep repeating, their profile, and the first messages their empty chat offers. People can opt out in their own settings.",
+      "model": "Model",
+      "modelHint": "What the nightly look and the watches run on. A small, inexpensive model is enough.",
+      "modelPlaceholder": "Choose a model",
+      "modelRequired": "Choose the model it runs on before turning it on.",
+      "label": "Limit per person (USD a month)",
+      "days": "Days",
+      "timing": "When",
+      "timingFixed": "At a set hour",
+      "timingBeforeWork": "An hour before their working hours",
+      "hour": "Hour",
+      "hourHint": "In each person's own time zone.",
+      "hourFallbackHint": "For people whose profile states no working hours, in their own time zone.",
+      "save": "Save",
+      "saved": "Nightly suggestions saved",
+      "off": "Nightly suggestions are off",
+      "invalid": "Enter an amount in dollars, 0 or more.",
+      "welcome": "Welcome message in chat apps",
+      "welcomeHint": "A new member gets a direct message from your Slack, Teams and Mattermost bots.",
+      "welcomeText": "Message",
+      "welcomeTextHint": "Leave it empty for the built-in greeting in each person's language. '{organization}', '{bot}' and '{url}' are filled in.",
+      "welcomeTextPlaceholder": "Welcome to '{organization}'! Ask me anything right here.",
+      "welcomeSaved": "Welcome message saved",
+      "watches": "Watch people's connections",
+      "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
+      "watchMinutes": "Most often",
+      "watchMinutesHint": "How often one watch may look at most. More often costs more."
+    }
   },
   "theme": {
     "darkMode": "Dark mode",
@@ -7350,6 +7591,13 @@
     "option": "Colour {n}"
   },
   "triggers": {
+    "runAsMe": "Run as me",
+    "runAsCreator": "Runs as the person who made it",
+    "runAsMeScheduleHint": "Each run uses your memory and your own connections - your mailbox, your calendar - as your own chat does. It can save notes for you; it never searches your past conversations.",
+    "runAsMeEventHint": "Each run uses your memory and your own connections, as your own chat does. It reads your notes but never saves any, because what an event carries came from outside; it never searches your past conversations.",
+    "runAsCreatorOthersHint": "Each run uses their memory and their own connections. Only they can turn this on, and changing the message, the environment, the filter or the Teams channel turns it off.",
+    "actsAsCreator": "As its creator",
+    "personalReachHint": "This agent uses memory, conversation search or a personal connection. A schedule or event reaches memory and personal connections only when it runs as the person who made it, and never their conversations.",
     "cadence": {
       "everyMinutes": "{count, plural, =1 {Every minute} other {Every # minutes}}",
       "everyHours": "{count, plural, =1 {Every hour} other {Every # hours}}",
@@ -7440,6 +7688,11 @@
     "defaultEnvironment": "Default",
     "environmentFollows": "follows publishes",
     "environmentBehind": "{count, plural, =1 {1 version behind} other {# versions behind}}",
+    "teamsPost": "Also post the answer to Teams",
+    "teamsPostHint": "Each fire's answer goes to this channel or group chat as a new message.",
+    "teamsPostNowhere": "Don't post",
+    "teamsPostUnnamedChannel": "A Teams channel",
+    "teamsPostUnnamedGroup": "A Teams group chat",
     "environmentCaptionDefault": "Fires run whatever the default environment points at when they fire.",
     "environmentCaptionPinned": "The next fire runs v{version}.",
     "environmentCaptionTracking": "The next fire runs v{version} - this environment follows publishes, so the next publish changes what runs.",
@@ -7506,12 +7759,6 @@
     "back": "Back",
     "continue": "Continue",
     "creating": "Creating…",
-    "presetsLabel": "Quick presets",
-    "presetEvery15m": "Every 15 min",
-    "presetHourly": "Hourly",
-    "presetEvery6h": "Every 6h",
-    "presetDaily9": "Daily 09:00",
-    "presetWeekdays9": "Weekdays 09:00",
     "stepConfigure": "Configure",
     "stepMessage": "Message",
     "templateScratchHelpEvent": "Write your own message.",
@@ -7526,13 +7773,18 @@
       "queue": "Runs once the previous run ends, however many times were missed.",
       "allow": "Starts on time alongside the run still going. Both runs are paid for."
     },
-    "runAsMe": "Run as me",
-    "runAsCreator": "Runs as the person who made it",
-    "runAsMeScheduleHint": "Each run uses your memory and your own connections - your mailbox, your calendar - as your own chat does. It can save notes for you; it never searches your past conversations.",
-    "runAsMeEventHint": "Each run uses your memory and your own connections, as your own chat does. It reads your notes but never saves any, because what an event carries came from outside; it never searches your past conversations.",
-    "runAsCreatorOthersHint": "Each run uses their memory and their own connections. Only they can turn this on, and changing the message, the environment or the filter turns it off.",
-    "actsAsCreator": "As its creator",
-    "personalReachHint": "This agent uses memory, conversation search or a personal connection. A schedule or event reaches memory and personal connections only when it runs as the person who made it, and never their conversations."
+    "howOften": "How often",
+    "choiceEvery15m": "Every 15 min",
+    "choiceHourly": "Hourly",
+    "choiceEvery6h": "Every 6 hours",
+    "choiceDaily": "Daily",
+    "choiceWeekdays": "Weekdays",
+    "choiceWeekly": "Weekly",
+    "choiceCustom": "Custom",
+    "moreOptions": "More options",
+    "summaryInterval": "Runs every {unit, select, minutes {{count, plural, =1 {minute} other {# minutes}}} hours {{count, plural, =1 {hour} other {# hours}}} other {{count, plural, =1 {day} other {# days}}}}, from when it is saved.",
+    "templatesMore": "{count, plural, =1 {Show 1 more} other {Show # more}}",
+    "templatesFewer": "Show fewer"
   },
   "portals": {
     "title": "Portals",
@@ -9240,7 +9492,23 @@
     "organization": "For the organization",
     "organizationDescription": "The AI Architect is an agent like any other: change its name, model and knowledge in the Agent Builder. Switching it off and its greeting are on the organization's page.",
     "openBuilder": "Open in Agent Builder",
-    "openOrganization": "Organization settings"
+    "openOrganization": "Organization settings",
+    "suggestions": {
+      "title": "Suggestions for you",
+      "description": "What the nightly look at your week proposed, and whether it looks at all.",
+      "forMe": "Nightly suggestions for me",
+      "orgOff": "Your organization has nightly suggestions off, so none are made yet.",
+      "turnedOn": "Nightly suggestions are on for you",
+      "turnedOff": "Nightly suggestions are off for you",
+      "none": "Nothing proposed yet.",
+      "restore": "Bring back",
+      "restored": "Back among your suggestions",
+      "status": {
+        "open": "Waiting",
+        "accepted": "Taken",
+        "dismissed": "Declined"
+      }
+    }
   },
   "orgAssistant": {
     "title": "AI Architect",
@@ -9494,6 +9762,30 @@
       "example2": "Run the monthly report workflow and summarize its result",
       "needs": "At least one published workflow granted to the agent.",
       "never": "Never starts a workflow it was not granted, and never changes a workflow."
+    },
+    "text_to_speech": {
+      "name": "Text to speech",
+      "does": "Reads a text aloud as an audio clip.",
+      "example1": "A voice-over for a product video",
+      "example2": "A spoken version of a weekly summary",
+      "needs": "An API key for the speech provider in the vault. Each clip is billed by that provider, per character.",
+      "never": "Never sends audio anywhere; the clip appears in the conversation."
+    },
+    "video_generation": {
+      "name": "Video generation",
+      "does": "Makes a short video from a description, or from an image it starts with.",
+      "example1": "A ten-second teaser for a product launch",
+      "example2": "An animated version of a generated logo",
+      "needs": "An API key for the video provider in the vault. Each clip is billed by that provider, per second.",
+      "never": "Never posts a video anywhere; it appears in the conversation."
+    },
+    "follow_ups": {
+      "name": "Follow-ups",
+      "does": "Offers up to three next steps as buttons under an answer, so what to ask next is one click away.",
+      "example1": "Make this a table",
+      "example2": "Do this every Monday at 9:00",
+      "needs": "Nothing extra. The buttons show in the web chat, the widget and the hosted page.",
+      "never": "Never sends anything on its own - a step goes out only when someone clicks it."
     }
   },
   "capabilityCategories": {
@@ -9984,6 +10276,84 @@
         "title": "Show the model a page's picture",
         "description": "Hand the model the picture of a page when it previews one. Turn off for a model that cannot read images; the written report still comes back."
       }
+    },
+    "text_to_speech": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose voices speak. Offered: the providers in `app/core/catalog/text_to_speech_models.json` whose key the vault can hold."
+      },
+      "model": {
+        "title": "Speech model",
+        "description": "Which of that provider's speech models speaks. A model outside the catalog is refused here rather than mid-run."
+      },
+      "voice": {
+        "title": "Voice",
+        "description": "The voice that speaks unless the agent chooses another; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
+      },
+      "voices": {
+        "title": "Allowed voices",
+        "description": "The only voices the agent may switch to instead of the one above, per clip - for a dialogue, or a narrator and a character. Left empty, it may choose any voice the model offers - for ElevenLabs, any voice id in your account."
+      },
+      "output_format": {
+        "title": "File format",
+        "description": "mp3 is smaller, wav is uncompressed. Left empty, the provider's first format - Gemini returns wav only."
+      },
+      "max_characters": {
+        "title": "Longest text",
+        "description": "The most text one call may speak, which caps what a single call can cost."
+      }
+    },
+    "video_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose model makes the video. Offered: the providers in `app/core/catalog/video_models.json` whose key the vault can hold."
+      },
+      "model": {
+        "title": "Video model",
+        "description": "Which of that provider's video models makes the clip. A model outside the catalog is refused here rather than mid-run."
+      },
+      "resolution": {
+        "title": "Resolution",
+        "description": "The resolution a clip is made at unless the agent asks for another; left empty, the model's first. Higher costs more per second."
+      },
+      "max_resolution": {
+        "title": "Highest resolution",
+        "description": "The highest resolution the agent may ask for, at least the usual one; it caps what a second can cost. Left empty, the agent may ask for any resolution the model renders."
+      },
+      "aspect_ratio": {
+        "title": "Aspect ratio",
+        "description": "The shape a clip takes unless the agent asks for another; left empty, the model's first."
+      },
+      "seconds": {
+        "title": "Length",
+        "description": "Seconds a clip runs unless the agent asks for another length; left empty, five, or the nearest the model makes. Not for a model that decides its own length."
+      },
+      "max_seconds": {
+        "title": "Longest clip",
+        "description": "The longest clip the agent may ask for, which caps what one call can cost; left empty, the model's own limit. Not for a model that decides its own length."
+      },
+      "audio": {
+        "title": "Sound",
+        "description": "Whether clips carry sound unless the agent asks otherwise, where the model makes it optional; left empty, the provider's default."
+      },
+      "alibaba_workspace": {
+        "title": "Alibaba workspace",
+        "description": "Alibaba only: the Model Studio workspace id, which Wan 3.0 is called through. Left empty, the shared DashScope endpoint, which Alibaba keeps for existing integrations."
+      },
+      "alibaba_region": {
+        "title": "Alibaba region",
+        "description": "Alibaba only: the region the workspace is in."
+      },
+      "timeout_seconds": {
+        "title": "Time limit",
+        "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it and booked at its estimate."
+      }
+    },
+    "follow_ups": {
+      "model_profile_id": {
+        "title": "Model for next steps",
+        "description": "A model profile that writes the next steps once the answer is in, instead of the agent's own model offering them as a tool. A small, cheap model is enough for three short buttons, and the agent no longer spends a request on them. Empty lets the agent offer them itself."
+      }
     }
   },
   "apiReference": {
@@ -10243,6 +10613,183 @@
       "gone": "This form is closed.",
       "failed": "Your answers could not be sent. Try again.",
       "unavailable": "This form is not taking answers right now."
+    }
+  },
+  "watches": {
+    "title": "Watches",
+    "description": "The assistant checks your own connected accounts on a schedule and tells you what is new. It only reads, and only you see what it finds.",
+    "orgOff": "Your organization has not turned watches on. An admin can do it on the organization's page, under Proactivity.",
+    "noConnections": "Connect one of your own accounts on the MCP servers page first - GitHub, Linear, your mailbox.",
+    "add": "New watch",
+    "resumed": "Watching again",
+    "paused": "Paused",
+    "removed": "Stopped watching",
+    "urgentBadge": "Urgent at once",
+    "stopped": {
+      "watches_off": "Off for the organization",
+      "connection_disabled": "Connection off"
+    },
+    "activeLabel": "Watch {title}",
+    "editLabel": "Edit {title}",
+    "removeLabel": "Stop watching {title}",
+    "newTitle": "Watch something",
+    "editTitle": "Edit watch",
+    "dialogDescription": "What to look for in one of your accounts, and how often. It only reads; what it finds is for you alone.",
+    "connection": "Account",
+    "connectionPlaceholder": "Choose one of your connections",
+    "preset": "What to look for",
+    "custom": "Something else",
+    "name": "Name",
+    "instructions": "Look for",
+    "instructionsHint": "In plain words. Say when something counts as urgent.",
+    "instructionsPlaceholder": "For example: messages from customers waiting on my reply",
+    "howOften": "How often",
+    "urgent": "Tell me at once when it is urgent",
+    "urgentHint": "Otherwise what it finds waits for your morning briefing.",
+    "exclusions": "Leave out",
+    "exclusionsHint": "One line each: what you do not want reported again.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Start watching",
+    "saved": "Watch saved",
+    "created": "Watching - the first look is within a minute",
+    "cadence": {
+      "everyMinutes": "{count, plural, =1 {Every minute} other {Every # minutes}}",
+      "everyHours": "{count, plural, =1 {Every hour} other {Every # hours}}",
+      "daily": "Daily",
+      "weekly": "Weekly"
+    },
+    "presets": {
+      "mail-needs-reply": {
+        "title": "Mail waiting on my reply",
+        "instructions": "Unread mail written by a person that asks me something or waits on me. Leave out newsletters, notifications and receipts."
+      },
+      "mail-invoices": {
+        "title": "Invoices and overdue payments",
+        "instructions": "Invoices, payment reminders and anything that says a payment is due. Urgent when it is already past its due date."
+      },
+      "mail-newsletters": {
+        "title": "Newsletters I never open",
+        "instructions": "Newsletters and promotional senders I keep receiving and never open - worth unsubscribing from. Name the sender and how many arrived lately."
+      },
+      "github-reviews": {
+        "title": "Pull requests waiting on my review",
+        "instructions": "Pull requests where my review is requested and I have not reviewed yet. Say how long each has waited."
+      },
+      "github-failing-checks": {
+        "title": "Failing checks on my pull requests",
+        "instructions": "My own open pull requests whose checks are failing."
+      },
+      "github-mentions": {
+        "title": "Mentions I have not answered",
+        "instructions": "Issues and pull requests where I was mentioned or asked a question that I have not answered."
+      },
+      "gitlab-reviews": {
+        "title": "Merge requests waiting on me",
+        "instructions": "Merge requests waiting on my review or approval. Say how long each has waited."
+      },
+      "gitlab-pipelines": {
+        "title": "Failed pipelines",
+        "instructions": "Failed pipelines on my own open merge requests or on the default branch of projects I work in."
+      },
+      "linear-assigned": {
+        "title": "Issues assigned to me",
+        "instructions": "Issues newly assigned to me, or assigned to me and changed by somebody else since I last looked."
+      },
+      "linear-overdue": {
+        "title": "My overdue or blocked issues",
+        "instructions": "My issues that are past their due date or marked blocked."
+      },
+      "jira-assigned": {
+        "title": "Jira issues assigned to me",
+        "instructions": "Jira issues newly assigned to me, or assigned to me and commented on by somebody else."
+      },
+      "jira-overdue": {
+        "title": "My overdue Jira issues",
+        "instructions": "My Jira issues past their due date, or blocked."
+      },
+      "slack-unanswered": {
+        "title": "Slack messages waiting on me",
+        "instructions": "Direct messages and mentions of me that nobody - me included - has answered yet."
+      },
+      "teams-unanswered": {
+        "title": "Teams messages waiting on me",
+        "instructions": "Chats and channel messages mentioning me that I have not answered yet."
+      },
+      "notion-mentions": {
+        "title": "Notion mentions and comments",
+        "instructions": "Pages and comments where I was mentioned or a question waits on me."
+      },
+      "sentry-new-issues": {
+        "title": "New errors in my projects",
+        "instructions": "New errors and regressions in my projects. Urgent when one is affecting many users."
+      },
+      "pagerduty-incidents": {
+        "title": "Incidents waiting on me",
+        "instructions": "Open incidents assigned to me or my escalation policy, not yet acknowledged."
+      },
+      "hubspot-stale-deals": {
+        "title": "Deals going quiet",
+        "instructions": "My open deals with no activity for a week, or closing this week."
+      },
+      "intercom-waiting": {
+        "title": "Conversations waiting on my reply",
+        "instructions": "Conversations assigned to me that are waiting on a reply."
+      },
+      "asana-overdue": {
+        "title": "Tasks due today or overdue",
+        "instructions": "My tasks that are due today or overdue."
+      },
+      "todoist-overdue": {
+        "title": "Tasks due today or overdue",
+        "instructions": "My tasks that are due today or overdue."
+      },
+      "clickup-overdue": {
+        "title": "Tasks due today or overdue",
+        "instructions": "My tasks that are due today or overdue."
+      }
+    },
+    "signInAgain": "Sign in to it again",
+    "count": "{count, plural, =0 {Nothing watched yet} =1 {1 watch} other {# watches}}",
+    "findings": "What they found",
+    "offTitle": "Watches are off",
+    "noConnectionsTitle": "Connect an account to watch",
+    "connect": "Open MCP servers",
+    "emptyTitle": "Nothing watched yet",
+    "emptyDescription": "Pick one of your accounts and say what to look for. What a watch finds lands in your inbox; the urgent things reach you at once.",
+    "rowLooked": "{cadence} · looked {when}",
+    "rowFirst": "{cadence} · first look within a minute",
+    "waiting": "{count, plural, =1 {1 in your inbox} other {# in your inbox}}",
+    "accountNamed": "{server} ({account})",
+    "createdWhere": "It is under Routines, and what it finds lands in your inbox.",
+    "seeIt": "See it",
+    "manageInRoutines": "Manage your watches in Routines"
+  },
+  "inbox": {
+    "title": "Inbox",
+    "description": "What the platform brought you on its own: what your watches found and what the nightly look proposed.",
+    "filterLabel": "Show",
+    "filter": {
+      "all": "All",
+      "urgent": "Urgent",
+      "watches": "From watches",
+      "suggestions": "Suggestions",
+      "done": "Done"
+    },
+    "empty": {
+      "title": "Nothing waits here",
+      "description": "What your watches find and what the nightly look proposes arrives here.",
+      "watches": "Set up a watch"
+    },
+    "doneEmpty": "Nothing answered yet",
+    "waiting": "{count, plural, =0 {Nothing waiting} =1 {1 waiting} other {# waiting}}",
+    "sourceAt": "{source} · {when}",
+    "source": {
+      "routine": "Routine idea",
+      "agent": "Agent idea",
+      "profile": "Profile",
+      "role_pack": "Routine pack",
+      "finding": "Watch"
     }
   }
 }

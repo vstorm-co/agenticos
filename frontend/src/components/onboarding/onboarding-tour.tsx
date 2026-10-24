@@ -22,16 +22,27 @@ import {
 import { createTourSpotlight, type TourSpotlight } from "@/components/onboarding/tour-spotlight";
 import { useOnboardingTour } from "@/hooks";
 import type { Locale } from "@/i18n";
-import {
-  usePathname as useLocalePathname,
-  useRouter as useLocaleRouter,
-} from "@/lib/locale-navigation";
+import { useSaveAgentContext } from "@/hooks/use-account-profile";
+import { useChooseLocale } from "@/hooks/use-choose-locale";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { flowForPage } from "@/lib/onboarding/flows";
 import { pageKey } from "@/lib/onboarding/tour";
-import { useOnboardingStore } from "@/stores";
+import { useAuthStore, useOnboardingStore } from "@/stores";
 import { appendLanguageChoice } from "./tour-language";
+import { appendRoleChoice } from "./tour-role";
+
+/** The roles the first card offers, by their key under `onboarding.roles`. */
+const ROLES = [
+  "leadership",
+  "sales",
+  "marketing",
+  "support",
+  "operations",
+  "finance",
+  "people",
+  "engineering",
+] as const;
 
 /** How long the control that drives a transition is spotlighted before it fires. */
 const REVEAL_MS = 650;
@@ -92,8 +103,8 @@ export function OnboardingTour() {
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale() as Locale;
-  const localeRouter = useLocaleRouter();
-  const localePathname = useLocalePathname();
+  const chooseLocale = useChooseLocale();
+  const saveContext = useSaveAgentContext();
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
@@ -198,10 +209,21 @@ export function OnboardingTour() {
           // says anything else in one the reader may not read.
           onPopoverRender:
             step.id === "welcome"
-              ? (popover) =>
+              ? (popover) => {
                   appendLanguageChoice(popover.description, locale, t("chooseLanguage"), (next) =>
-                    localeRouter.push(localePathname, { locale: next }),
-                  )
+                    chooseLocale(next),
+                  );
+                  // What every agent is told about the reader, asked once (#2301).
+                  appendRoleChoice(
+                    popover.description,
+                    // Read as the card renders, not subscribed to: a pick re-rendering
+                    // the walk would redraw the card under the click.
+                    useAuthStore.getState().user?.job_title ?? null,
+                    t("chooseRole"),
+                    ROLES.map((role) => t(`roles.${role}`)),
+                    (role) => void saveContext({ job_title: role }).catch(() => undefined),
+                  );
+                }
               : undefined,
         },
       };
@@ -316,8 +338,8 @@ export function OnboardingTour() {
     closeWalk,
     completeWalk,
     locale,
-    localeRouter,
-    localePathname,
+    chooseLocale,
+    saveContext,
   ]);
 
   useEffect(

@@ -24,8 +24,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_actions_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0201_artifact_public_data"
-_TARGET_REVISION = "0202_artifact_actions"
+_BASE_REVISION = "0212_artifact_public_data"
+_TARGET_REVISION = "0213_artifact_actions"
 
 
 def _url(database: str) -> str:

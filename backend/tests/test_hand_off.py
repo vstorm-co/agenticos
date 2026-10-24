@@ -54,8 +54,10 @@ def _twin(respond) -> SimpleNamespace:
     )
 
 
-def _call(ask_questions=None) -> SimpleNamespace:
-    return SimpleNamespace(deps=SimpleNamespace(ask_questions=ask_questions))
+def _call(ask_questions=None, generated_files=None) -> SimpleNamespace:
+    return SimpleNamespace(
+        deps=SimpleNamespace(ask_questions=ask_questions, generated_files=generated_files or set())
+    )
 
 
 def _notes_then_answers(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -110,6 +112,22 @@ async def test_the_twin_asks_its_questions_on_the_calls_card():
     await worker.hand_off(_call(card), "Ask me")
 
     assert twin.deps.ask_questions is card
+
+
+async def test_the_twin_shares_the_calls_generated_files():
+    """A clip the twin makes may start from an image the call drew, and is the call's."""
+
+    def draws(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[TextPart("ok")])
+
+    twin = _twin(draws)
+    worker = CallWorker(lambda: twin, workspace=None, capability_names=["Sandbox"])
+    drawn = {"call-drew-this.png"}
+
+    await worker.hand_off(_call(generated_files=drawn), "Animate it")
+    twin.deps.generated_files.add("twin-made-this.mp4")
+
+    assert drawn == {"call-drew-this.png", "twin-made-this.mp4"}
 
 
 async def test_the_twin_works_in_the_calls_workspace_with_its_own_instructions():
