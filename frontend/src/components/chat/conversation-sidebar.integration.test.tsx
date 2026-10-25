@@ -169,7 +169,7 @@ describe("a sidebar that leaves while refreshing", () => {
     let refuseFirst: (reason: unknown) => void = () => {};
     let messagesRead = 0;
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
-      if (path === "/conversations/c-reopen/messages") {
+      if (path === "/conversations/c-reopen/messages?latest=true&limit=101") {
         messagesRead += 1;
         if (messagesRead === 1)
           return new Promise((_, reject) => {
@@ -210,7 +210,7 @@ describe("a sidebar that leaves while refreshing", () => {
         await pending;
       });
       expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain(
-        "/conversations/c-late/messages",
+        "/conversations/c-late/messages?latest=true&limit=101",
       );
       expect(useConversationStore.getState().currentConversationId).toBeNull();
     } finally {
