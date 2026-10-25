@@ -1,6 +1,7 @@
 """TLS DSNs and indefinite retry belong to the optional wake-up connection."""
 
 import asyncio
+from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qsl, urlsplit
 
@@ -100,3 +101,116 @@ async def test_a_successful_connection_resets_reconnect_delay(
         await module.listener("postgresql://db/app")(lambda _pool: None)
     assert pauses == [2.0, 4.0, 2.0]
     connection.close.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "failure", [ConnectionResetError("lost"), asyncpg.InterfaceError("closed"), TimeoutError()]
+)
+async def test_losing_the_connection_during_listen_retries_and_closes_it(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
+    connections = [
+        MagicMock(
+            is_closed=MagicMock(return_value=False),
+            close=AsyncMock(),
+            add_listener=AsyncMock(side_effect=failure),
+        )
+        for _ in range(3)
+    ]
+    connect = AsyncMock(side_effect=connections)
+    pauses: list[float] = []
+
+    async def pause(seconds: float) -> None:
+        pauses.append(seconds)
+        if len(pauses) == 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(module.asyncpg, "connect", connect)
+    monkeypatch.setattr(module.asyncio, "sleep", pause)
+    monkeypatch.setattr(module, "logger", MagicMock())
+    with pytest.raises(asyncio.CancelledError):
+        await module.listener("postgresql://db/app", reconnect_cap=5.0)(lambda _pool: None)
+
+    assert connect.await_count == 3
+    assert pauses == [2.0, 4.0, 5.0]
+    for connection in connections:
+        connection.close.assert_awaited_once()
+
+
+async def test_a_failed_close_is_logged_and_reconnected_with_a_pause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = MagicMock(
+        is_closed=MagicMock(return_value=False), close=AsyncMock(side_effect=OSError("lost"))
+    )
+    connect = AsyncMock(return_value=connection)
+    pauses: list[float] = []
+
+    async def pause(seconds: float) -> None:
+        pauses.append(seconds)
+        if len(pauses) == 2:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(module.asyncpg, "connect", connect)
+    monkeypatch.setattr(module, "_serve", AsyncMock())
+    monkeypatch.setattr(module.asyncio, "sleep", pause)
+    logger = MagicMock()
+    monkeypatch.setattr(module, "logger", logger)
+    with pytest.raises(asyncio.CancelledError):
+        await module.listener("postgresql://db/app")(lambda _pool: None)
+
+    assert connect.await_count == 2
+    assert pauses == [2.0, 2.0]
+    assert connection.terminate.call_count == 2
+    logger.warning.assert_any_call("background_listener_close_failed", exc_info=True)
+    connection.close.assert_awaited_with(timeout=10.0)
+
+
+async def test_cancelling_a_listener_still_cancels_when_closing_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listening = asyncio.Event()
+    connection = MagicMock(
+        is_closed=MagicMock(return_value=False), close=AsyncMock(side_effect=OSError("lost"))
+    )
+
+    async def serve(
+        _connection: asyncpg.Connection, _notify: Callable[[str], None], _check_every: float
+    ) -> None:
+        listening.set()
+        await asyncio.Event().wait()
+
+    connect = AsyncMock(return_value=connection)
+    monkeypatch.setattr(module.asyncpg, "connect", connect)
+    monkeypatch.setattr(module, "_serve", serve)
+    monkeypatch.setattr(module, "logger", MagicMock())
+    task = asyncio.create_task(module.listener("postgresql://db/app")(lambda _pool: None))
+    await asyncio.wait_for(listening.wait(), timeout=5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, timeout=5)
+
+    assert connect.await_count == 1
+    connection.terminate.assert_called_once()
+
+
+async def test_a_listener_bug_is_not_treated_as_a_recoverable_disconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed = False
+
+    async def close(*, timeout: float) -> None:
+        nonlocal closed
+        assert timeout == 10.0
+        closed = True
+
+    connection = MagicMock(is_closed=lambda: closed, close=close)
+    connect = AsyncMock(return_value=connection)
+    monkeypatch.setattr(module.asyncpg, "connect", connect)
+    monkeypatch.setattr(module, "_serve", AsyncMock(side_effect=RuntimeError("listener bug")))
+    with pytest.raises(RuntimeError, match="listener bug"):
+        await module.listener("postgresql://db/app")(lambda _pool: None)
+
+    assert closed
+    assert connect.await_count == 1
+    connection.terminate.assert_not_called()

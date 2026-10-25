@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep worker outage backoff bounded through prolonged database failures, and
+  retry lost LISTEN registrations and connection cleanup without stopping the
+  worker or swallowing cancellation.
+
 - Preserve database pool exhaustion as a retryable 503 during agent execution,
   without masking it by reading a run expired by a failed transaction.
 
