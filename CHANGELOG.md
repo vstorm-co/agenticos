@@ -287,6 +287,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep large chat file listings inside their own scrollable panel, with the title and close button visible and long filenames contained.
+
 - **Readable computer-use environments.** The capability picker uses short
   names for Automatic, E2B, Docker / Sandbox, Local and Remote computer, with
   localized requirements below the current selection instead of paragraphs
