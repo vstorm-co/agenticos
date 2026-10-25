@@ -104,7 +104,13 @@ test.describe("desktop pointer controls", () => {
   }) => {
     const listing = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname === "/api/agents" && response.request().method() === "GET",
+        new URL(response.url()).pathname === "/api/agents" &&
+        response.request().method() === "GET" &&
+        // Dashboard's agent query may still be in flight after sign-in. Its
+        // response body belongs to the document that goto is about to discard.
+        new URL(response.request().headers()["referer"] ?? "about:blank").pathname.endsWith(
+          "/agents",
+        ),
     );
     await page.goto("/agents");
     const response = await listing;

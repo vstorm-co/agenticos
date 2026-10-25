@@ -287,6 +287,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Activity controls stay still while opening a run.** Anchoring the transcript
+  scrolls only its own panel, keeping the close button in place on desktop and
+  phones instead of shifting the page during a click.
+
 - **Recover from stalled phone connections.** An initial server load or native
   sign-in return that has not completed after 30 seconds returns to the server
   form with its saved address. Successful cached offline pages remain open;
