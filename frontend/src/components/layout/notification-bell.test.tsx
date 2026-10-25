@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
+import { useSidebarStore } from "@/stores";
 import { NotificationBell } from "./notification-bell";
 import type { Notification } from "@/lib/notifications-api";
 
@@ -56,7 +57,41 @@ beforeEach(() => {
   useNotificationInboxMock.mockReset();
 });
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("NotificationBell", () => {
+  for (const variant of ["row", "icon"] as const) {
+    it(`opens a labelled phone sheet from the ${variant} trigger and closes it`, async () => {
+      const query = window.matchMedia("(max-width: 767px)");
+      vi.spyOn(window, "matchMedia").mockReturnValue({
+        ...query,
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+      renderBell(variant, { notifications: [notification()] });
+      const trigger = screen.getByRole("button", { name: /Notifications/ });
+      await userEvent.click(trigger);
+      const dialog = await screen.findByRole("dialog", { name: "Notifications" });
+      expect(dialog).toHaveTextContent("jarvis's run finished.");
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await userEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+      expect(trigger).toHaveFocus();
+    });
+  }
+
+  it("closes phone navigation when opening a notification destination", async () => {
+    const query = window.matchMedia("(max-width: 767px)");
+    vi.spyOn(window, "matchMedia").mockReturnValue({ ...query, matches: true });
+    useSidebarStore.getState().open();
+    renderBell("row", { notifications: [notification({ context_url: "/agents/a1" })] });
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+    await userEvent.click(await screen.findByRole("link", { name: /run finished/ }));
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(useSidebarStore.getState().isOpen).toBe(false);
+  });
+
   it("shows the unread count on the row trigger", () => {
     useUnreadNotificationCountMock.mockReturnValue({ count: 3, approximate: false });
     renderBell("row");

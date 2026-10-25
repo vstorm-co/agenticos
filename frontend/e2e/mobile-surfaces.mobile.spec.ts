@@ -53,6 +53,74 @@ for (const platform of ["ios", "android"] as const) {
       await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/, { timeout: 30_000 });
     });
 
+    test("keeps notifications inside the phone from the header and navigation drawer", async ({
+      page,
+    }) => {
+      await page.route("**/api/notifications/unread-count", async (route) =>
+        route.fulfill({ json: { count: 30, approximate: false } }),
+      );
+      await page.route("**/api/notifications?*", async (route) =>
+        route.fulfill({ json: { items: [], next_cursor: null } }),
+      );
+      await page.route("**/api/notifications", async (route) =>
+        route.fulfill({
+          json: {
+            items: Array.from({ length: 30 }, (_, index) => ({
+              id: `phone-notification-${index}`,
+              event_type: "run_completed",
+              summary: `Notification ${index + 1}: an agent finished its work`,
+              context_url: "/agents",
+              read_at: "2026-10-24T00:00:00Z",
+              created_at: "2026-10-24T00:00:00Z",
+            })),
+            next_cursor: null,
+          },
+        }),
+      );
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        for (const fromDrawer of [false, true]) {
+          if (fromDrawer) await page.getByRole("button", { name: "Toggle menu" }).tap();
+          const trigger = fromDrawer
+            ? page.getByRole("dialog").getByRole("button", { name: /^Notifications/ })
+            : page.locator("header").getByRole("button", { name: /^Notifications/ });
+          await trigger.tap();
+          const panel = page.getByRole("dialog", { name: "Notifications", exact: true });
+          await expect(panel).toBeVisible();
+          await expect(
+            panel.getByText("Notification 1: an agent finished its work", { exact: true }),
+          ).toBeVisible();
+          const box = await panel.boundingBox();
+          if (!box) throw new Error("Notifications has no bounds");
+          expect(box.x).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(width);
+          expect(box.y).toBeGreaterThanOrEqual(platform === "ios" ? 54 : 28);
+          expect(box.y + box.height).toBeLessThanOrEqual(844);
+          const list = panel.locator(".overflow-y-auto");
+          expect(
+            await list.evaluate((element) => element.scrollHeight > element.clientHeight),
+          ).toBe(true);
+          await list.evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+          });
+          await expect(
+            panel.getByText("Notification 30: an agent finished its work", { exact: true }),
+          ).toBeVisible();
+          if (fromDrawer && width === 320)
+            await page.screenshot({ path: test.info().outputPath("notifications-drawer-320.png") });
+          const close = panel.getByRole("button", { name: "Close", exact: true });
+          await expectTouchTarget(close);
+          await close.tap();
+          await expect(panel).toHaveCount(0);
+          if (fromDrawer)
+            await page
+              .getByRole("dialog")
+              .getByRole("button", { name: "Close", exact: true })
+              .tap();
+        }
+      }
+    });
+
     test("keeps core navigation, menus and phone actions reachable", async ({ page }) => {
       test.setTimeout(60_000);
       await expectTouchTarget(page.getByRole("button", { name: "Me", exact: true }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -12,12 +12,27 @@ import {
   PopoverContent,
   PopoverTrigger,
   RingingBell,
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetTitle,
 } from "@/components/ui";
 import { NotificationGlyph } from "@/components/layout/notification-glyph";
 import { useNotificationInbox, useUnreadNotificationCount } from "@/hooks";
 import { isInAppPath } from "@/lib/notification-link";
 import type { Notification } from "@/lib/notifications-api";
+import { useSidebarStore } from "@/stores";
 import { cn, timeAgo } from "@/lib/utils";
+
+const phoneQuery = "(max-width: 767px)";
+function subscribeToViewport(onChange: () => void) {
+  const query = window.matchMedia(phoneQuery);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+function isPhoneViewport() {
+  return window.matchMedia(phoneQuery).matches;
+}
 
 interface NotificationBellProps {
   /** The sidebar row (icon, label, badge) above `md`; a bare icon below it,
@@ -37,53 +52,79 @@ interface NotificationBellProps {
  */
 export function NotificationBell({ variant = "row" }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
+  const phone = useSyncExternalStore(subscribeToViewport, isPhoneViewport, () => false);
   const t = useTranslations("nav");
   const tNotifications = useTranslations("notifications");
   const { count: unread, approximate } = useUnreadNotificationCount();
   const label = tNotifications("triggerLabel", { count: unread });
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {variant === "row" ? (
-          <button
-            type="button"
-            data-tour="notification-bell"
-            aria-label={label}
-            className="text-muted-foreground hover:bg-accent/60 hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-1"
-          >
-            {/* The bare bell here, not `BellGlyph`: this row already ends in a
+  const trigger =
+    variant === "row" ? (
+      <button
+        type="button"
+        data-tour="notification-bell"
+        onClick={phone ? () => setOpen(true) : undefined}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={label}
+        className="text-muted-foreground hover:bg-accent/60 hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-1"
+      >
+        {/* The bare bell here, not `BellGlyph`: this row already ends in a
                 count, and a badge orbiting the icon would sit on top of the
                 label between them. */}
-            <RingingBell count={unread} className="h-4 w-4 shrink-0" />
-            <span className="flex-1 text-left">{t("notifications")}</span>
-            <UnreadBadge count={unread} />
-          </button>
-        ) : (
-          <BellGlyph
-            data-tour="notification-bell"
-            count={unread}
-            label={label}
-            size={36}
-            variant="dot"
-            className="text-muted-foreground hover:text-foreground touch:min-h-11 touch:min-w-11 shrink-0 rounded-lg"
-          />
-        )}
-      </PopoverTrigger>
+        <RingingBell count={unread} className="h-4 w-4 shrink-0" />
+        <span className="flex-1 text-left">{t("notifications")}</span>
+        <UnreadBadge count={unread} />
+      </button>
+    ) : (
+      <BellGlyph
+        data-tour="notification-bell"
+        onClick={phone ? () => setOpen(true) : undefined}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        count={unread}
+        label={label}
+        size={36}
+        variant="dot"
+        className="text-muted-foreground hover:text-foreground touch:min-h-11 touch:min-w-11 shrink-0 rounded-lg"
+      />
+    );
+  const panel = (
+    <NotificationPanel
+      open={open}
+      unread={unread}
+      approximate={approximate}
+      onNavigate={() => {
+        setOpen(false);
+        if (phone) useSidebarStore.getState().close();
+      }}
+      phone={phone}
+      onClose={() => setOpen(false)}
+    />
+  );
+  if (phone) {
+    return (
+      <>
+        {trigger}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent side="bottom" className="overflow-hidden p-0 pb-[var(--safe-bottom)]">
+            {panel}
+          </SheetContent>
+        </Sheet>
+      </>
+    );
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         side={variant === "row" ? "right" : "bottom"}
         align="start"
-        // Kept off the screen's edge: from the phone header's bell at the right
-        // edge it was pushed flush against it, with a gap only on the left.
+        // Keep desktop panels clear of the window edge.
         collisionPadding={12}
         className="w-[min(24rem,calc(100vw-1.5rem))] p-0"
       >
-        <NotificationPanel
-          open={open}
-          unread={unread}
-          approximate={approximate}
-          onNavigate={() => setOpen(false)}
-        />
+        {panel}
       </PopoverContent>
     </Popover>
   );
@@ -108,11 +149,15 @@ function NotificationPanel({
   unread,
   approximate,
   onNavigate,
+  phone,
+  onClose,
 }: {
   open: boolean;
   unread: number;
   approximate: boolean;
   onNavigate: () => void;
+  phone: boolean;
+  onClose: () => void;
 }) {
   const tNav = useTranslations("nav");
   const t = useTranslations("notifications");
@@ -142,9 +187,20 @@ function NotificationPanel({
   const hasAny = notifications.length > 0;
 
   return (
-    <div className="flex max-h-[min(28rem,var(--radix-popover-content-available-height))] min-h-0 flex-col">
+    <div
+      className={cn(
+        "flex min-h-0 flex-col",
+        phone
+          ? "max-h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px)-var(--safe-bottom)-1rem)]"
+          : "max-h-[min(28rem,var(--radix-popover-content-available-height))]",
+      )}
+    >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-        <h3 className="text-foreground text-sm font-semibold">{tNav("notifications")}</h3>
+        {phone ? (
+          <SheetTitle className="text-base">{tNav("notifications")}</SheetTitle>
+        ) : (
+          <h3 className="text-foreground text-sm font-semibold">{tNav("notifications")}</h3>
+        )}
         <div className="flex shrink-0 items-center gap-3">
           {hasUnread ? (
             <button
@@ -164,6 +220,7 @@ function NotificationPanel({
               {t("clearAll")}
             </button>
           ) : null}
+          {phone ? <SheetClose onClick={onClose} /> : null}
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
