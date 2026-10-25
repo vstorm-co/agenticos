@@ -1189,7 +1189,8 @@
         "agentModel": "Model skonfigurowany dla agenta",
         "accessHint": "Wybierz agenta z włączonym Sandbox. Tryb dostępu do folderu obejmuje narzędzia plików i powłoki. Przeglądarka i MCP korzystają z uprawnień zatwierdzanych osobno.",
         "mcpLimit": "Wybierz maksymalnie 8 lokalnych usług MCP dla czatu.",
-        "localBrowser": "Przeglądaj na tym komputerze (osobny profil)"
+        "localBrowser": "Przeglądaj na tym komputerze (osobny profil)",
+        "activeFolder": "Praca w {folder} · {access}. Zmień miejsce pracy"
       }
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
@@ -4384,7 +4385,7 @@
       },
       "project-tabs": {
         "title": "Czaty, pliki i instrukcje",
-        "body": "Zacznij czat w projekcie, dodaj pliki i foldery, na których pracują jego agenci, i ustaw, co każdy agent tu dostaje."
+        "body": "Zacznij czat w projekcie, dodaj pliki i foldery, na których pracują jego agenci, i ustaw, co każdy agent tu dostaje. W aplikacji desktopowej możesz też podłączyć lokalny folder bez przesyłania jego plików."
       },
       "chat-visual": {
         "title": "Rysunki",

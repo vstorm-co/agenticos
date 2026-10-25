@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "07581e857110"
+source_sha: "1f908ecedded"
 ---
 
 # Projekte { #projects }
@@ -82,6 +82,29 @@ des Projekts, und **Apps** die Apps, die ein Run in einem davon veröffentlicht
 hat - die, die der Leser öffnen darf. **Anweisungen** werden in Markdown mit
 Quelltext und Vorschau bearbeitet, wie die eines Agents im Agent Builder, über
 Name, Beschreibung und Standard-Agent des Projekts.
+
+## Lokale Ordner in der Desktop-App { #local-folders-in-the-desktop-app }
+
+Wählen Sie unter **Neues Projekt** oder im Tab **Dateien** eines Projekts
+**Ordner verbinden**. Der native Dialog bestätigt den Zugriff, anfangs nur lesend.
+Die Verbindung gehört Ihrem Konto und Ihrer Organisation auf diesem Computer,
+nicht dem geteilten Projekt. Sie lädt keine Kopie hoch und gewährt dem Team
+keinen Festplattenzugriff. Das Trennen lässt Berechtigungen anderer Chats bestehen.
+
+**Dieser Computer** zeigt lokale Dateien, **Gemeinsame Projektdateien** den
+Servercontainer. Die lokale Vorschau zeigt bis zu 500 Einträge und überspringt
+generierte Ordner wie `.git` und `node_modules`. Aktualisieren lädt die Liste neu;
+ein verweigerter Lesezugriff bleibt ein Fehler, statt unbemerkt Cloud-Dateien zu öffnen.
+
+Neue Desktop-Chats im Projekt übernehmen den Ordner und den genehmigten
+Zugriffsmodus. Projektanweisungen gelten weiter; Sandbox-Werkzeuge arbeiten lokal
+statt im gemeinsamen Container. **Arbeiten auf** überschreibt die Auswahl für
+einen Chat; bestehende Unterhaltungen behalten ihre Einstellungen. Der Ordner
+neben dem Eingabefeld öffnet diese Optionen. Ein nicht verfügbarer Computer oder
+widerrufener Zugriff schaltet den Lauf nicht auf Cloud um. Telefone und Browser
+verwenden weiter gemeinsame Dateien und erhalten keinen Fernzugriff. Antworten
+und Werkzeugergebnisse im Projektchat bleiben für dessen Leser sichtbar;
+berücksichtigen Sie das Publikum, bevor Sie private Dateien besprechen.
 
 ## Teilen und Berechtigungen { #sharing-and-permissions }
 

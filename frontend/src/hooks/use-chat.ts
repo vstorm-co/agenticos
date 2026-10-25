@@ -55,6 +55,8 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { setUrlParam } from "@/lib/utils";
+import { projectFolderKey, useProjectFoldersStore } from "@/stores/project-folders-store";
+import { isDesktopShell, readShellInfo } from "@/lib/desktop/shell";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { useConversationStore, useWorkingStore } from "@/stores";
 /** A correction sent to the running turn, shown until it reaches the model. */
@@ -1302,6 +1304,16 @@ export function useChat(options: UseChatOptions = {}) {
       // "Work on: This computer" (#2305): the folder and mode, read at send
       // time like the agent. The desktop app checks both against what the person
       // granted on that computer, whatever this frame says.
+      // Resolve before the first frame as well: sending may beat the project
+      // chip's metadata fetch. applyProject preserves an explicit draft override.
+      if (!conversationId && projectId && isDesktopShell(readShellInfo())) {
+        const key = projectFolderKey(useAuthStore.getState().user?.id ?? null, tenantId, projectId);
+        if (key !== null) {
+          useWorkOnStore
+            .getState()
+            .applyProject(key, useProjectFoldersStore.getState().byProject[key] ?? null);
+        }
+      }
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
       if (local) payload.local = { ...local };
       const test = testingRef.current;
@@ -1334,6 +1346,7 @@ export function useChat(options: UseChatOptions = {}) {
       // The store action that shuts the browse panel when this turn ends the
       // previous one's browse. Stable, and listed rather than omitted.
       closeBrowserPanel,
+      tenantId,
     ],
   );
 

@@ -22,5 +22,5 @@ export function useProjectFolder(projectId: string | null) {
     },
     [userId, organizationId],
   );
-  return { target, bind, available: userId !== null && organizationId !== null };
+  return { target, bind, scopeKey: key, available: userId !== null && organizationId !== null };
 }

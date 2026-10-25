@@ -2,9 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatControls } from "./chat-controls";
 
 const state = vi.hoisted(() => ({
+  desktop: false,
   profiles: [] as { id: string; label: string; provider: string; model: string }[],
   conversationId: null as string | null,
   // Both halves of "may this session waive approvals": the caller's permission
@@ -15,6 +17,10 @@ const state = vi.hoisted(() => ({
   openPage: vi.fn(),
 }));
 
+vi.mock("@/hooks/use-shell", () => ({
+  useShell: () => (state.desktop ? { platform: "macos" } : null),
+}));
+vi.mock("./work-on", () => ({ WorkOn: () => null }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
 vi.mock("@/stores/onboarding-store", () => ({
   useOnboardingStore: (pick: (store: unknown) => unknown) => pick({ openPage: state.openPage }),
@@ -67,6 +73,8 @@ function open(props: Partial<Parameters<typeof ChatControls>[0]> = {}) {
 const trigger = () => screen.getByRole("button", { name: /Chat controls/ });
 
 beforeEach(() => {
+  state.desktop = false;
+  useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
   state.profiles = [{ id: "p-1", label: "openai default", provider: "openai", model: "gpt-4.1" }];
   state.conversationId = null;
   state.mayDecide = true;
@@ -188,6 +196,8 @@ describe("the chat controls trigger", () => {
   it("names a model that is no longer in the organization's list as no model", async () => {
     // A key rotated away takes its profile with it; the trigger must not claim an
     // override it cannot name.
+    state.desktop = false;
+    useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
     state.profiles = [];
     open();
     await userEvent.click(trigger());
@@ -276,4 +286,15 @@ describe("the approval mode", () => {
 
     expect(screen.getByRole("button", { name: "Chat controls" })).toContainHTML("rounded-full");
   });
+});
+
+it("names the active folder and access beside the composer and opens its controls", async () => {
+  state.desktop = true;
+  useWorkOnStore.getState().set(null, { folder: "/approved/Launch", mode: "read_only" });
+  open();
+  const badge = screen.getByRole("button", { name: /Working in \/approved\/Launch/i });
+  expect(badge).toHaveTextContent("Launch");
+  expect(badge).toHaveAttribute("title", expect.stringContaining("/approved/Launch"));
+  await userEvent.click(badge);
+  expect(screen.getByRole("button", { name: /pick a model/ })).toBeVisible();
 });

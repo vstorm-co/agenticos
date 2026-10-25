@@ -1,3 +1,4 @@
+import { projectFolderKey, useProjectFoldersStore } from "@/stores/project-folders-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -4013,5 +4014,55 @@ it("files the local target when the conversation is created with settings closed
     expect(lastFrame().local).toEqual(target);
   } finally {
     useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
+});
+
+it("sends the inherited local project target on the first frame and keeps it after creation", () => {
+  const target = { folder: "/approved/project", mode: "read_only" as const };
+  useConversationStore.getState().setPendingProjectId("p-local");
+  useWorkOnStore.getState().applyProject("alice:org:p-local", target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("read my project files"));
+    expect(lastFrame().project_id).toBe("p-local");
+    expect(lastFrame().local).toEqual(target);
+    receive("conversation_created", { conversation_id: "project-created" });
+    expect(useWorkOnStore.getState().targetFor("project-created")).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
+    useConversationStore.getState().setPendingProjectId(null);
+  }
+});
+
+it("resolves the project folder even when sending beats project metadata rendering", () => {
+  const target = { folder: "/approved/instant", mode: "read_only" as const };
+  const key = projectFolderKey("u-1", "org-a", "p-instant");
+  if (!key) throw new Error("Expected authenticated project key");
+  useAuthStore.setState({
+    user: {
+      id: "u-1",
+      email: "test@example.com",
+      is_active: true,
+      created_at: "2026-10-25T00:00:00Z",
+    },
+  });
+  useOrgStore.setState({ activeOrgId: "org-a" });
+  useConversationStore.getState().setPendingProjectId("p-instant");
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    window: "main",
+    version: "0.2.0",
+    vibrancy: false,
+  };
+  useProjectFoldersStore.getState().bind(key, target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("inspect local project"));
+    expect(lastFrame().local).toEqual(target);
+    expect(lastFrame().project_id).toBe("p-instant");
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+    useProjectFoldersStore.setState({ byProject: {} });
+    useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
   }
 });

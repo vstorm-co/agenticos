@@ -1189,7 +1189,8 @@
         "agentModel": "Agent’s configured model",
         "accessHint": "Use an agent with Sandbox enabled. Folder access mode controls file and shell tools. Browser and MCP use the permissions you approve separately.",
         "mcpLimit": "Choose up to 8 local MCP services per chat.",
-        "localBrowser": "Browse on this computer (separate profile)"
+        "localBrowser": "Browse on this computer (separate profile)",
+        "activeFolder": "Working in {folder} · {access}. Change work location"
       }
     },
     "conversationArchived": "This conversation is archived",
@@ -4614,7 +4615,7 @@
       },
       "project-tabs": {
         "title": "Chats, files and instructions",
-        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told."
+        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told. In the desktop app, you can also connect a local folder without uploading its files."
       },
       "chat-visual": {
         "title": "Drawings",

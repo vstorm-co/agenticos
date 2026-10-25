@@ -75,6 +75,30 @@ apps a run in one of them published - those the reader may open.
 **Instructions** edits them in Markdown with Source and Preview, as the Agent
 Builder does an agent's, above the project's name, description and default agent.
 
+## Local folders in the desktop app
+
+In **New project**, or on an existing project's **Files** tab, choose **Connect a
+folder**. The native picker confirms access; read-only is the initial choice.
+The folder connection belongs to your account and organization on this computer,
+not to the shared project. It does not upload a copy or grant teammates access
+to your disk. Disconnecting the project leaves native grants used by other chats
+intact.
+
+Use **This computer** to browse local files and **Shared project files** for the
+server container. Local preview lists up to 500 entries and skips generated
+folders such as `.git` and `node_modules`. Refresh reloads the listing; a refused
+read stays an error rather than silently opening cloud files.
+
+New desktop chats in the project inherit this folder and its approved access
+mode. Project instructions still apply, while sandbox tools work locally rather
+than in the shared container. Change **Work on** for an individual chat to override
+that choice; existing conversations keep their own settings. The folder shortcut
+beside the composer opens these controls. An unavailable computer or revoked grant
+does not switch the run to Cloud. Phones and browsers continue to use shared
+project files; the connection does not give them remote access to your computer.
+Agent answers and tool results saved in a project chat remain visible to people
+who can read that chat, so consider its audience before discussing private files.
+
 ## Sharing and permissions
 
 A project is private to whoever created it until they share it, with the same

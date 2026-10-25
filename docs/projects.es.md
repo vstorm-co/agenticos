@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "07581e857110"
+source_sha: "1f908ecedded"
 ---
 
 # Proyectos { #projects }
@@ -82,6 +82,30 @@ de los chats del proyecto, y **Apps** las apps que publicó un run en uno de ell
 - las que el lector puede abrir. Las **Instrucciones** se editan en Markdown, con
 Fuente y Vista previa, como las de un agent en el Agent Builder, encima del
 nombre, la descripción y el agent por defecto del proyecto.
+
+## Carpetas locales en la aplicación de escritorio { #local-folders-in-the-desktop-app }
+
+En **Nuevo proyecto** o en la pestaña **Archivos** de un proyecto, elige
+**Conectar una carpeta**. El selector nativo confirma el acceso; inicialmente es
+solo de lectura. La conexión pertenece a tu cuenta y organización en este equipo,
+no al proyecto compartido. No sube copias ni concede acceso al disco a tus
+compañeros. Desconectarla conserva los permisos que utilizan otros chats.
+
+**Este equipo** muestra archivos locales y **Archivos compartidos del proyecto**
+el contenedor del servidor. La vista local muestra hasta 500 entradas y omite
+carpetas generadas como `.git` y `node_modules`. Actualizar vuelve a cargar la
+lista; una lectura denegada sigue siendo un error y no abre archivos de la nube.
+
+Los nuevos chats del proyecto en escritorio heredan la carpeta y el acceso
+aprobado. Las instrucciones del proyecto siguen vigentes; las herramientas del
+sandbox trabajan localmente en lugar del contenedor compartido. Cambia
+**Trabajar en** para un chat concreto; las conversaciones existentes conservan
+su configuración. El acceso directo de carpeta junto al cuadro de mensaje abre
+estas opciones. Un equipo desconectado o un permiso revocado no cambia la ejecución
+a la nube. Los teléfonos y navegadores siguen usando los archivos compartidos y
+no obtienen acceso remoto al equipo. Las respuestas y resultados de herramientas
+guardados en el chat del proyecto siguen siendo visibles para sus lectores;
+considera su audiencia antes de hablar de archivos privados.
 
 ## Compartir y permisos { #sharing-and-permissions }
 

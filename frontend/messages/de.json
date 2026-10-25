@@ -1189,7 +1189,8 @@
         "agentModel": "Konfiguriertes Modell des Agenten",
         "accessHint": "Wähle einen Agent mit aktiviertem Sandbox. Der Ordnerzugriffsmodus gilt für Datei- und Shell-Werkzeuge. Browser und MCP nutzen separat bestätigte Berechtigungen.",
         "mcpLimit": "Wähle bis zu 8 lokale MCP-Dienste pro Chat.",
-        "localBrowser": "Auf diesem Computer browsen (separates Profil)"
+        "localBrowser": "Auf diesem Computer browsen (separates Profil)",
+        "activeFolder": "Arbeiten in {folder} · {access}. Arbeitsort ändern"
       }
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
@@ -4492,7 +4493,7 @@
       },
       "project-tabs": {
         "title": "Chats, Dateien und Anweisungen",
-        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt."
+        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt. In der Desktop-App können Sie auch einen lokalen Ordner verbinden, ohne seine Dateien hochzuladen."
       },
       "chat-visual": {
         "title": "Zeichnungen",

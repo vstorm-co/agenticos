@@ -20,6 +20,10 @@ export type { LocalTarget };
 interface WorkOnState {
   byConversation: Record<string, LocalTarget>;
   draft: LocalTarget | null;
+  draftProjectKey: string | null;
+  /** Apply a project default once; subsequent edits belong to this draft. */
+  applyProject: (key: string | null, target: LocalTarget | null) => void;
+  resetDraft: () => void;
   /** The target for a conversation, or the draft for one not filed yet. */
   targetFor: (conversationId: string | null) => LocalTarget | null;
   set: (conversationId: string | null, target: LocalTarget | null) => void;
@@ -32,6 +36,11 @@ export const useWorkOnStore = create<WorkOnState>()(
     (set, get) => ({
       byConversation: {},
       draft: null,
+      draftProjectKey: null,
+      applyProject: (key, target) => {
+        if (key !== get().draftProjectKey) set({ draftProjectKey: key, draft: target });
+      },
+      resetDraft: () => set({ draft: null, draftProjectKey: null }),
       targetFor: (conversationId) =>
         conversationId === null ? get().draft : (get().byConversation[conversationId] ?? null),
       set: (conversationId, target) => {
@@ -45,7 +54,11 @@ export const useWorkOnStore = create<WorkOnState>()(
       adopt: (conversationId) => {
         const { draft, byConversation } = get();
         if (draft === null || conversationId in byConversation) return;
-        set({ draft: null, byConversation: { ...byConversation, [conversationId]: draft } });
+        set({
+          draft: null,
+          draftProjectKey: null,
+          byConversation: { ...byConversation, [conversationId]: draft },
+        });
       },
     }),
     { name: "work-on", version: 1, partialize: ({ byConversation }) => ({ byConversation }) },

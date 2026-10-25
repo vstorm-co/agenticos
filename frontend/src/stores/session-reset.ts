@@ -10,6 +10,7 @@ import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
 import { resetVisualState } from "./visual-stream-store";
+import { useWorkOnStore } from "./work-on-store";
 import { useWorkingStore } from "./working-store";
 
 /**
@@ -27,6 +28,7 @@ import { useWorkingStore } from "./working-store";
  */
 export function resetTenantState(): void {
   useConversationStore.getState().reset();
+  useWorkOnStore.getState().resetDraft();
   useChatStore.getState().clearMessages();
   useChatStore.getState().setStreaming(false);
   useWorkingStore.getState().reset();

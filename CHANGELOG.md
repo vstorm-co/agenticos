@@ -51,7 +51,10 @@ Two things are versioned separately from this file and worth knowing about:
 - **Local project folders in the desktop app.** Connect an approved folder when
   creating a project or from its Files tab. The connection stays private to the
   current account and organization on that computer; disconnecting it leaves
-  other chats and native folder grants intact.
+  other chats and native folder grants intact. Local files can be previewed in
+  place, and new project chats inherit the folder and access mode with a visible
+  composer shortcut. Each chat can override its location; a regular new chat
+  clears the previous project and folder.
 
 - **Local services and browser in the desktop app.** Approve loopback model and
   MCP services, choose them per run and browse in a visible temporary Chromium
