@@ -287,6 +287,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Align mobile project actions, group secondary folder actions in More and collapse agent discovery filters behind a selection-preserving control. Give app preview toolbars consistent vertical padding and touch targets, contain Activity CSV exports, and keep Skills/Context actions clear of card content.
+
 - Keep large chat file listings inside their own scrollable panel, with the title and close button visible and long filenames contained.
 
 - **Readable computer-use environments.** The capability picker uses short

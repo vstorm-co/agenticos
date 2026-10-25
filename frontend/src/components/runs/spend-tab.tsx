@@ -134,6 +134,7 @@ function shareColumn<T extends { cost_usd: string }>(
   const total = rows.reduce((sum, row) => sum + Number(row.cost_usd), 0);
   return {
     key: "share",
+    hideBelow: "sm",
     header,
     align: "right",
     cell: (row) => <ShareCell cost={row.cost_usd} total={total} />,
@@ -222,6 +223,7 @@ export function SpendTab({
     },
     {
       key: "runs",
+      hideBelow: "sm",
       header: t("runs2"),
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
@@ -261,6 +263,7 @@ export function SpendTab({
     },
     {
       key: "runs",
+      hideBelow: "sm",
       header: t("runs2"),
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
@@ -292,6 +295,7 @@ export function SpendTab({
     },
     {
       key: "runs",
+      hideBelow: "sm",
       header: t("runs2"),
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
@@ -378,8 +382,8 @@ export function SpendTab({
       <Card>
         {/* The same header grammar as the history tab's: what the card is on
             the left, its export on the right, carrying the page's window. */}
-        <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
-          <div className="space-y-1">
+        <CardHeader className="flex-col items-start justify-between gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:px-5">
+          <div className="w-full min-w-0 space-y-1 sm:flex-1">
             <CardTitle className="text-sm">{t("whereTheMoneyWent")}</CardTitle>
             {/* The window the server chose, said the way it was chosen. There is no
                 `?? 30` here on purpose: `period_days` is null the moment `from` is

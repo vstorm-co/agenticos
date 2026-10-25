@@ -428,6 +428,27 @@ describe("ProjectChats", () => {
 });
 
 describe("ProjectFiles", () => {
+  it("keeps folder creation available through the phone's More menu", async () => {
+    files.addFolder.mutateAsync.mockResolvedValue({ path: "phone" });
+    wrap(<ProjectFiles project={aProject()} />);
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "New folder" }));
+    await userEvent.type(screen.getByLabelText("Folder name"), "phone");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect(files.addFolder.mutateAsync).toHaveBeenCalledWith("phone");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("opens the folder picker from the phone's More menu", async () => {
+    const { container } = wrap(<ProjectFiles project={aProject()} />);
+    const picker = container.querySelector<HTMLInputElement>("input[webkitdirectory]");
+    if (!picker) throw new Error("Expected the folder picker");
+    const click = vi.spyOn(picker, "click");
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Upload folder" }));
+    expect(click).toHaveBeenCalledOnce();
+  });
+
   it("uploads picked files and folders, and clears the picker for the next pick", async () => {
     const { container } = wrap(<ProjectFiles project={aProject()} />);
     const [filesInput, folderInput] =

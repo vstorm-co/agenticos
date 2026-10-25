@@ -217,8 +217,8 @@ export function RunHistoryTab({
             title - so this card reads as the same container as the vault's or
             the workspaces'. The export sits in the header's right, where every
             list card keeps its primary control. */}
-        <CardHeader className="shrink-0 flex-row items-start justify-between space-y-0 border-b px-5 py-4">
-          <div className="space-y-1">
+        <CardHeader className="shrink-0 flex-col items-start justify-between gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:px-5">
+          <div className="w-full min-w-0 space-y-1 sm:flex-1">
             <CardTitle className="text-sm">{t("runHistory2")}</CardTitle>
             <CardDescription className="text-xs">
               {t.rich("runHistoryDescription", { em: (chunks) => <em>{chunks}</em> })}

@@ -6,6 +6,7 @@ import { FileText, Lock, Plus } from "lucide-react";
 
 import { toast } from "sonner";
 
+import { PhoneFilters } from "@/components/ui/phone-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ContextCard } from "@/components/context/context-card";
 import { ContextEditor } from "@/components/context/context-editor";
@@ -216,15 +217,49 @@ export default function ContextPage() {
 
   const controls =
     isFiltering || total > 0 ? (
-      <SearchInput
-        value={query}
-        onChange={(next) => {
-          setQuery(next);
-          setPage(0);
-        }}
-        placeholder={t("searchContext")}
-        className="sm:w-56"
-      />
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <SearchInput
+          value={query}
+          onChange={(next) => {
+            setQuery(next);
+            setPage(0);
+          }}
+          placeholder={t("searchContext")}
+          className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+        />
+        <PhoneFilters compact active={Number(groupId !== null) + Number(sort !== "name")}>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <GroupFilter
+              value={groupId}
+              onChange={(next) => {
+                setGroupId(next);
+                setPage(0);
+              }}
+            />
+            <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+              <span className="text-muted-foreground text-xs">{t("sort")}</span>
+              <Chip
+                active={sort === "name"}
+                onClick={() => {
+                  setSort("name");
+                  setPage(0);
+                }}
+              >
+                {t("name")}
+              </Chip>
+              <Chip
+                active={sort === "updated"}
+                onClick={() => {
+                  setSort("updated");
+                  setPage(0);
+                }}
+              >
+                {t("recentlyUpdated")}
+              </Chip>
+            </div>
+          </div>
+        </PhoneFilters>
+      </div>
     ) : undefined;
 
   return (
@@ -240,39 +275,6 @@ export default function ContextPage() {
         controls={controls}
       >
         <div className="space-y-4">
-          {(total > 0 || isFiltering) && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <GroupFilter
-                value={groupId}
-                onChange={(next) => {
-                  setGroupId(next);
-                  setPage(0);
-                }}
-              />
-              <div className="ml-auto flex items-center gap-1.5">
-                <span className="text-muted-foreground text-xs">{t("sort")}</span>
-                <Chip
-                  active={sort === "name"}
-                  onClick={() => {
-                    setSort("name");
-                    setPage(0);
-                  }}
-                >
-                  {t("name")}
-                </Chip>
-                <Chip
-                  active={sort === "updated"}
-                  onClick={() => {
-                    setSort("updated");
-                    setPage(0);
-                  }}
-                >
-                  {t("recentlyUpdated")}
-                </Chip>
-              </div>
-            </div>
-          )}
-
           {error ? (
             <ErrorState
               description={getErrorMessage(error, tErrors)}

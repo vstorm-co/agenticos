@@ -149,7 +149,10 @@ export function SearchInput({
             onChange("");
           }
         }}
-        className="border-foreground/12 h-9 rounded-xl border pr-11 pl-8 md:text-[13px] [&::-webkit-search-cancel-button]:appearance-none"
+        className={cn(
+          "border-foreground/12 h-9 rounded-xl border pl-8 md:text-[13px] [&::-webkit-search-cancel-button]:appearance-none",
+          value ? "pr-11" : "pr-3",
+        )}
       />
       {value && (
         <button

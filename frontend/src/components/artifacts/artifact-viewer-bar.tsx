@@ -62,7 +62,7 @@ export function ArtifactViewerBar({
   const t = useTranslations("artifacts");
   const tc = useTranslations("common");
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:px-3">
+    <header className="flex min-h-16 shrink-0 items-center gap-2 border-b px-3 py-2 sm:min-h-12">
       <IconButton asChild aria-label={t("backToArtifacts")}>
         <Link href={ROUTES.ARTIFACTS}>
           <ArrowLeft className="h-4 w-4" />
@@ -88,7 +88,7 @@ export function ArtifactViewerBar({
       {artifact !== null && (
         <div className="flex shrink-0 items-center gap-2">
           {children}
-          <Button size="sm" onClick={onShare}>
+          <Button size="sm" className="max-sm:size-11 max-sm:p-0" onClick={onShare}>
             <UserPlus className="h-3.5 w-3.5" />
             {/* The word goes on a phone, where the version it shares would not fit beside it. */}
             <span className="sr-only sm:not-sr-only">{t("share")}</span>

@@ -21,6 +21,7 @@ async function expectContained(page: Page) {
   ).toBe(0);
   const main = page.locator("main");
   await expect(main).toBeVisible();
+  expect(await main.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
   expect((await main.boundingBox())?.y).toBeGreaterThanOrEqual(0);
 }
 
@@ -111,6 +112,168 @@ for (const platform of ["ios", "android"] as const) {
       const copy = page.getByRole("button", { name: "Copy", exact: true }).first();
       await expectTouchTarget(copy);
       await expectContained(page);
+    });
+
+    test("keeps phone catalog filters compact and preserves their selection", async ({ page }) => {
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto("/agents");
+        const toggle = page.getByRole("button", { name: /^Filters/ });
+        await expectTouchTarget(toggle);
+        const status = page.getByRole("combobox", { name: "Filter by status" });
+        await expect(status).toBeHidden();
+        await toggle.tap();
+        await expect(status).toBeVisible();
+        await status.tap();
+        await page.getByRole("option", { name: "Published", exact: true }).tap();
+        await toggle.tap();
+        await expect(status).toBeHidden();
+        await expect(toggle).toHaveText("Filters 1");
+        await toggle.tap();
+        await expect(status).toContainText("Published");
+        const title = page.getByRole("heading", { level: 3 }).first();
+        await expect(title).toBeVisible();
+        expect(await title.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+          true,
+        );
+        await expectContained(page);
+        await page.screenshot({ path: test.info().outputPath(`agent-filters-${width}.png`) });
+      }
+    });
+
+    test("keeps the project phone actions on one row with secondary actions in More", async ({
+      page,
+    }) => {
+      await page.goto("/projects");
+      const project = page.locator("main a[href*='/projects/']").first();
+      await expect(project).toBeVisible();
+      const href = await project.getAttribute("href");
+      if (!href) throw new Error("Expected the project's detail link");
+      const id = href.split("/").at(-1);
+      await page.route(`**/api/projects/${id}/files`, (route) =>
+        route.fulfill({
+          json: {
+            scope: "project",
+            backend: "state",
+            owner_label: "This project",
+            items: [],
+            total: 0,
+            bytes_total: 0,
+            unreadable_reason: null,
+            truncated: false,
+          },
+        }),
+      );
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto(href);
+        const add = page.getByRole("button", { name: "Upload files", exact: true });
+        const more = page.getByRole("button", { name: "More", exact: true });
+        await expectTouchTarget(add);
+        await expectTouchTarget(more);
+        expect((await add.boundingBox())?.y).toBe((await more.boundingBox())?.y);
+        await expect(page.getByRole("button", { name: "Upload folder", exact: true })).toBeHidden();
+        await expect(page.getByRole("button", { name: "New folder", exact: true })).toBeHidden();
+        await more.tap();
+        await page.getByRole("menuitem", { name: "New folder", exact: true }).tap();
+        const dialog = page.getByRole("dialog");
+        await expect(dialog).toBeVisible();
+        await dialog.getByRole("button", { name: "Cancel", exact: true }).tap();
+        await expect(dialog).toBeHidden();
+        await expectContained(page);
+        await page.screenshot({ path: test.info().outputPath(`project-actions-${width}.png`) });
+      }
+    });
+
+    test("gives app preview actions vertical breathing room and equal touch targets", async ({
+      page,
+    }) => {
+      await page.goto("/apps");
+      const app = page.locator("main a[href*='/apps/']").first();
+      await expect(app).toBeVisible();
+      const href = await app.getAttribute("href");
+      if (!href) throw new Error("Expected an app detail link");
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto(href);
+        const share = page.getByRole("button", { name: "Share", exact: true });
+        await expectTouchTarget(share);
+        const follow = page.getByRole("button", { name: /^(Follow|Unfollow)$/ });
+        await expectTouchTarget(follow);
+        const bar = page.locator("header").filter({ has: share });
+        const bounds = await bar.boundingBox();
+        const action = await share.boundingBox();
+        if (!bounds || !action) throw new Error("Expected the app toolbar bounds");
+        expect(action.y - bounds.y).toBeGreaterThanOrEqual(8);
+        expect(bounds.y + bounds.height - action.y - action.height).toBeGreaterThanOrEqual(8);
+        expect((await follow.boundingBox())?.height).toBe(action.height);
+        await page.screenshot({ path: test.info().outputPath(`app-toolbar-${width}.png`) });
+        await share.tap();
+        await expect(page.getByRole("dialog")).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expectContained(page);
+      }
+    });
+
+    test("keeps Skills filters folded and resource actions below the card content", async ({
+      page,
+    }) => {
+      for (const [width, path] of [
+        [320, "/skills"],
+        [390, "/skills"],
+        [320, "/context"],
+        [390, "/context"],
+      ] as const) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto(path);
+        const filters = page.getByRole("button", { name: /^Filters/ });
+        await expectTouchTarget(filters);
+        const sort = page.getByRole("button", { name: "Recently updated", exact: true });
+        await expect(sort).toBeHidden();
+        await filters.tap();
+        await expect(sort).toBeVisible();
+        await filters.tap();
+        const card = page.locator("main .peek-card").first();
+        await expect(card).toBeVisible();
+        const add = card.getByRole("button", { name: "Add to an agent", exact: true });
+        await expectTouchTarget(add);
+        const content = await card.locator(":scope > button").boundingBox();
+        const action = await add.boundingBox();
+        if (!content || !action) throw new Error("Expected the resource card's bounds");
+        expect(action.y).toBeGreaterThanOrEqual(content.y + content.height);
+        await expectContained(page);
+        await page.screenshot({ path: test.info().outputPath(`${path.slice(1)}-${width}.png`) });
+      }
+    });
+
+    test("contains CSV exports inside every Activity tab header", async ({ page }) => {
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto("/runs");
+        for (const name of [/^Runs/, /^Approvals/, /^Spend/]) {
+          await page.getByRole("tab", { name }).tap();
+          const csv = page.getByRole("button", { name: "Export CSV", exact: true });
+          await csv.scrollIntoViewIfNeeded();
+          await expectTouchTarget(csv);
+          expect(await csv.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+            true,
+          );
+          const bounds = await csv.boundingBox();
+          if (!bounds) throw new Error("Expected the export button bounds");
+          expect(bounds.x).toBeGreaterThanOrEqual(12);
+          expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 12);
+          await expectContained(page);
+          if (name.source === "^Spend") {
+            const cost = await page
+              .getByRole("columnheader", { name: "Cost", exact: true })
+              .first()
+              .boundingBox();
+            if (!cost) throw new Error("Expected the spend cost column");
+            expect(cost.x + cost.width).toBeLessThanOrEqual(width);
+          }
+        }
+        await page.screenshot({ path: test.info().outputPath(`activity-${width}.png`) });
+      }
     });
   });
 }
