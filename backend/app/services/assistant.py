@@ -168,7 +168,9 @@ class AssistantService:
         # deployment has a sandbox to give it. Not in the template: bound there, an
         # organization with none could never publish its assistant (#2069, #2070).
         if await SandboxConnectionService(self.db).ensure_local_connection(organization_id):
-            capabilities.append({"id": "sandbox", "config": {"include_execute": True}})
+            capabilities.append(
+                {"id": "sandbox", "config": {"backend": "service", "include_execute": True}}
+            )
         spec = AgentSpec(
             name=name,
             description=template.description,

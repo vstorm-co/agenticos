@@ -28,6 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Select the service-backed sandbox when installing the Architect on a deployment
+  with a sandbox host, so its code tools are executable rather than files-only.
+
 - Recheck parked run state under the row lock before continuing after Stop. Keep
   Stop available when restoring question or approval cards fails, and settle
   waiting delegate panels when their run is cancelled.
