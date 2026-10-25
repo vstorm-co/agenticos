@@ -592,6 +592,7 @@ class AgentSession:
                 requested_conversation_id=data.get("conversation_id"),
                 current_conversation_id=self.current_conversation_id,
                 organization_id=self.organization_id,
+                client_message_id=data.get("client_message_id"),
                 # Read only when the turn starts a conversation: a chat is in
                 # the project it was started in, and stays there.
                 project_id=_wire_text(data.get("project_id")),
@@ -662,6 +663,7 @@ class AgentSession:
                             if prompt.message_id is None
                             else str(prompt.message_id),
                             "content": user_message,
+                            "client_message_id": data.get("client_message_id"),
                             "sender": ChatPerson.of(self.user).model_dump(mode="json"),
                             # The message it answers: "yes, do that" means nothing to
                             # a teammate without the quote above it.

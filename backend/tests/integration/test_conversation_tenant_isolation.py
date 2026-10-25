@@ -283,3 +283,23 @@ class TestSharedWithMeDropsCrossOrgRows:
         assert (
             await conversation_share_repo.count_conversations_shared_with_user(db, outsider.id) == 0
         )
+
+
+async def test_submission_correlation_round_trips_with_its_actual_author(db) -> None:
+    organization = await _org(db, name="Correlated")
+    owner = await _member(db)
+    conversation = await _conversation(db, organization, owner)
+    service = ConversationService(db)
+    saved = await service.add_message(
+        conversation.id,
+        MessageCreate(role="user", content="repeat", client_message_id="local-123"),
+        organization_id=organization.id,
+        user_id=owner.id,
+    )
+    items, total, _cost = await service.transcript(
+        conversation.id, organization_id=organization.id, user_id=owner.id, include_tool_calls=True
+    )
+    assert total == 2
+    correlated = next(item for item in items if item.id == saved.id)
+    assert correlated.client_message_id == "local-123"
+    assert correlated.sender.user_id == owner.id

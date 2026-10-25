@@ -1326,6 +1326,53 @@ describe("the chat container - late transcript reconciliation", () => {
     expect(await screen.findByText("Second answer continues")).toBeVisible();
   });
 
+  it("renders one prompt and answer when a transcript recovers a lost persistence acknowledgement", async () => {
+    const sender = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
+    useConversationStore.getState().setCurrentConversationId("c-race");
+    useConversationStore.getState().setCurrentMessages([stored("anchor", "user", "Earlier")]);
+    mount();
+    await screen.findByText("Earlier");
+    act(() => {
+      useChatStore.getState().addMessage({
+        id: "local-question",
+        role: "user",
+        content: "Question after reconnect",
+        timestamp: new Date(),
+        conversationId: "c-race",
+        sender,
+        clientMessageId: "nonce",
+        isTemporaryId: true,
+      });
+      useChatStore.getState().addMessage({
+        id: "local-answer",
+        role: "assistant",
+        content: "Partial result",
+        timestamp: new Date(),
+        conversationId: "c-race",
+        isTemporaryId: true,
+      });
+    });
+    act(() =>
+      useConversationStore.getState().setCurrentMessages([
+        stored("anchor", "user", "Earlier"),
+        {
+          ...stored("saved-question", "user", "Question after reconnect"),
+          sender,
+          client_message_id: "nonce",
+        },
+        stored("saved-answer", "assistant", "Finished result"),
+      ]),
+    );
+    expect(await screen.findByText("Finished result")).toBeVisible();
+    expect(screen.getAllByText("Question after reconnect")).toHaveLength(1);
+    expect(screen.queryByText("Partial result")).not.toBeInTheDocument();
+    expect(useChatStore.getState().messages.map((message) => message.id)).toEqual([
+      "anchor",
+      "saved-question",
+      "saved-answer",
+    ]);
+  });
+
   it("retains an unsaved result and its error when following ends", async () => {
     await openQuestion();
     receive("text_delta", { index: 0, content: "Unsaved answer" });

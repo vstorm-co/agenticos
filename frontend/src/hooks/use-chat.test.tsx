@@ -4338,3 +4338,56 @@ it("waits for the followed turn to detach before releasing a queued prompt", asy
     vi.useRealTimers();
   }
 });
+
+it.each(["saved-question", null])(
+  "reconciles its own prompt when reconnect replay carries %s",
+  (messageId) => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const sender = { user_id: "me", name: "Me", has_avatar: false, avatar_color: null };
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "local",
+        clientMessageId: "nonce",
+        role: "user",
+        content: "repeat",
+        timestamp: new Date(),
+        conversationId: "c-1",
+        isTemporaryId: true,
+        sender,
+      }),
+    );
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: messageId,
+      client_message_id: "nonce",
+      content: "repeat",
+      sender,
+    });
+    const prompts = useChatStore.getState().messages.filter((item) => item.role === "user");
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]?.id).toBe(messageId ?? "local");
+    expect(prompts[0]?.renderKey).toBe("local");
+    expect(prompts[0]?.isTemporaryId).toBe(messageId === null);
+  },
+);
+
+it("sends the prompt correlation retained beside its authenticated author", () => {
+  useAuthStore.setState({
+    user: {
+      id: "me",
+      email: "me@example.com",
+      full_name: "Me",
+      is_active: true,
+      created_at: "2026-10-01",
+      avatar_url: "/avatar/me",
+      avatar_color: 1,
+    },
+  });
+  const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+  act(() => result.current.sendMessage("repeat"));
+  const prompt = useChatStore.getState().messages.find((message) => message.role === "user");
+  expect(prompt?.clientMessageId).toEqual(expect.any(String));
+  expect(lastFrame().client_message_id).toBe(prompt?.clientMessageId);
+  expect(prompt?.sender).toEqual({ user_id: "me", name: "Me", has_avatar: true, avatar_color: 1 });
+});

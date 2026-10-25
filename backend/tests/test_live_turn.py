@@ -757,7 +757,10 @@ class TestFollowingFromAnotherSocket:
             chat.prompt.return_value = PersistedPrompt(
                 conversation_id=_CONVERSATION, newly_created=False, reply=quote
             )
-            await session.process_message(_message("yes, do that"))
+            await session.process_message(
+                {**_message("yes, do that"), "client_message_id": "local-prompt"}
+            )
+            assert chat.prompt.await_args.kwargs["client_message_id"] == "local-prompt"
 
         (trace,) = [
             key
@@ -766,6 +769,7 @@ class TestFollowingFromAnotherSocket:
         ]
         prompt = json.loads(store.lists[trace][0])["data"]
         assert prompt["reply_to"]["excerpt"] == "Plan: A, B"
+        assert prompt["client_message_id"] == "local-prompt"
 
     @pytest.mark.parametrize("stage", ["_enter_room", "publish", "turn_begun"])
     async def test_cancelling_before_the_model_still_ends_the_trace(

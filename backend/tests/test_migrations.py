@@ -422,6 +422,8 @@ class TestLegacyCookieSessionRevocation:
     @pytest.mark.anyio
     @pytest.mark.security
     async def test_upgrade_revokes_old_refresh_chains_without_restoring_them_on_downgrade(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
         up = _alembic("upgrade", "0172_mcp_health_queue_clock")
         assert up.returncode == 0, up.stderr
         engine = create_async_engine(
@@ -513,3 +515,43 @@ class TestLegacyCookieSessionRevocation:
                 assert retained is not None
         finally:
             await engine.dispose()
+
+
+class TestMessageClientCorrelation:
+    def test_old_messages_survive_upgrade_downgrade_and_the_models_match_head(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        up = _alembic("upgrade", "0173_revoke_cookie_sessions")
+        assert up.returncode == 0, up.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        message_id = uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO messages (id, conversation_id, role, content) VALUES (:id, :conversation, 'user', 'before correlation')"
+                    ),
+                    {"id": message_id, "conversation": uuid4()},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text("SELECT content, client_message_id FROM messages WHERE id=:id"),
+                    {"id": message_id},
+                ).one()
+                assert tuple(row) == ("before correlation", None)
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0173_revoke_cookie_sessions")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT content FROM messages WHERE id=:id"), {"id": message_id}
+                    )
+                    == "before correlation"
+                )
+        finally:
+            engine.dispose()

@@ -33,6 +33,10 @@ export interface MessageReply {
 }
 
 export interface ChatMessage {
+  /** Submission correlation, retained when the persistence frame was lost. */
+  clientMessageId?: string;
+  /** A saved bubble still addressed by its local id while deltas arrive. */
+  persistedId?: string;
   id: string;
   role: MessageRole;
   content: string;

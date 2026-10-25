@@ -547,6 +547,7 @@ export function useChat(options: UseChatOptions = {}) {
           const data = wsEvent.data as {
             conversation_id: string;
             message_id: string | null;
+            client_message_id?: string | null;
             content: string;
             sender: ChatPerson;
             reply_to?: WireReply | null;
@@ -559,8 +560,31 @@ export function useChat(options: UseChatOptions = {}) {
           turnAgentIdRef.current = data.agent_id ?? null;
           const id = data.message_id ?? clientId();
           if (chatApi.getState().messages.some((message) => message.id === id)) break;
+          const local = data.client_message_id
+            ? chatApi
+                .getState()
+                .messages.find(
+                  (message) =>
+                    message.role === "user" &&
+                    message.isTemporaryId &&
+                    message.clientMessageId === data.client_message_id &&
+                    message.conversationId === data.conversation_id &&
+                    message.sender?.user_id === data.sender.user_id,
+                )
+            : undefined;
+          if (local) {
+            updateMessage(local.id, (message) => ({
+              ...message,
+              id: data.message_id ?? message.id,
+              isTemporaryId: data.message_id === null,
+              renderKey: message.renderKey ?? message.id,
+            }));
+            break;
+          }
           addMessage({
             id,
+            clientMessageId: data.client_message_id ?? undefined,
+            isTemporaryId: data.message_id === null,
             role: "user",
             content: data.content,
             timestamp: new Date(),
@@ -1265,8 +1289,18 @@ export function useChat(options: UseChatOptions = {}) {
       // queued is the one it answers. Spent by this turn either way.
       const replyTo = chatApi.getState().replyTo;
       chatApi.getState().setReplyTo(null);
+      const author = useAuthStore.getState().user;
       addMessage({
         id: userMessageId,
+        clientMessageId: userMessageId,
+        sender: author
+          ? {
+              user_id: author.id,
+              name: author.full_name || author.email,
+              has_avatar: !!author.avatar_url,
+              avatar_color: author.avatar_color ?? null,
+            }
+          : undefined,
         role: "user",
         content,
         timestamp: new Date(),
@@ -1284,6 +1318,7 @@ export function useChat(options: UseChatOptions = {}) {
       processingRef.current = true;
       const payload: Record<string, unknown> = {
         message: content,
+        client_message_id: userMessageId,
         conversation_id: conversationId || null,
       };
       if (fileIds?.length) payload.file_ids = fileIds;

@@ -28,6 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reconcile persisted chat prompts by their submission id after a lost socket
+  acknowledgement, without merging repeated prompts or discarding live deltas.
+
 - Do not enqueue pending approval requests when a workspace save failure ends
   the run; retain standing-consent audit records for calls already authorized.
 

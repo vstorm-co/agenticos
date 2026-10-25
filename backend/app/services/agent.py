@@ -212,6 +212,7 @@ async def persist_user_turn(
     project_id: str | None = None,
     reply_to: str | None = None,
     mentions: Sequence[Mentionable] = (),
+    client_message_id: str | None = None,
 ) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
@@ -242,6 +243,15 @@ async def persist_user_turn(
             message must not abort a turn - but a refusal must abort, and a
             defect in this module must surface rather than read as one.
     """
+    if client_message_id is not None and (
+        not isinstance(client_message_id, str)
+        or not 1 <= len(client_message_id) <= 128
+        or client_message_id.strip() != client_message_id
+    ):
+        raise BadRequestError(
+            message="Invalid client message id",
+            details={"field": "client_message_id"},
+        )
     newly_created = False
     message_id: UUID | None = None
     for_model: str | None = None
@@ -302,6 +312,7 @@ async def persist_user_turn(
                 MessageCreate(
                     role="user",
                     content=content,
+                    client_message_id=client_message_id,
                     reply_to_message_id=replied,
                     parts=[
                         MessagePart(

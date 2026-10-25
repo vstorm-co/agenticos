@@ -1395,6 +1395,7 @@ class ConversationService:
             conversation_id=conversation_id,
             role=data.role,
             content=data.content,
+            client_message_id=data.client_message_id,
             thinking=data.thinking,
             # Dumped without its empty fields, so a text part is `{"type": "text",
             # "text": ...}` rather than that plus a null `tool_call_id`. What comes

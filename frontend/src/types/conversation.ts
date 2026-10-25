@@ -64,6 +64,9 @@ export interface ProjectChat extends Conversation {
 }
 
 export interface ConversationMessage {
+  /** Authenticated author, paired with the submission correlation. */
+  sender?: ChatPerson | null;
+  client_message_id?: string | null;
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";
