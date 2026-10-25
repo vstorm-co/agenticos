@@ -84,3 +84,26 @@ describe("useChatWith", () => {
     expect(useChatStore.getState().messages).toEqual([]);
   });
 });
+
+it("accepts the same desktop request again after leaving the request route", () => {
+  params.value = new URLSearchParams("new=again");
+  const { rerender } = renderHook(() => useChatWith(), { wrapper });
+  expect(useConversationStore.getState().currentConversationId).toBeNull();
+  params.value = new URLSearchParams();
+  rerender();
+  act(() => useConversationStore.getState().setCurrentConversationId("opened-later"));
+  params.value = new URLSearchParams("new=again");
+  rerender();
+  expect(useConversationStore.getState().currentConversationId).toBeNull();
+});
+
+it("does not consume an unchanged request again when another query field changes", () => {
+  params.value = new URLSearchParams("new=once&with=a-1");
+  const { rerender } = renderHook(() => useChatWith(), { wrapper });
+  expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-1");
+  act(() => useConversationStore.getState().setCurrentConversationId("keep-open"));
+  params.value = new URLSearchParams("new=once&with=a-2");
+  rerender();
+  expect(useConversationStore.getState().currentConversationId).toBe("keep-open");
+  expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-1");
+});

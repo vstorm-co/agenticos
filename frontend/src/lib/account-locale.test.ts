@@ -34,6 +34,7 @@ describe("sharedAccountLocale", () => {
   it.each([
     null,
     "broken",
+    '{"userId":"u-1"}',
     "[]",
     "null",
     '"en"',
@@ -105,4 +106,23 @@ describe("adoptAccountLocale", () => {
     expect(useAuthStore.getState().user?.locale).toBe("de");
     expect(warn).toHaveBeenCalledOnce();
   });
+});
+
+it("propagates programming failures in language sharing instead of treating them as storage denial", () => {
+  const write = window.localStorage.setItem.bind(window.localStorage);
+  vi.spyOn(window.localStorage, "setItem").mockImplementation((key, value) => {
+    if (key === ACCOUNT_LOCALE_STORAGE_KEY) throw new Error("Unexpected adapter failure");
+    write(key, value);
+  });
+  expect(() => adoptAccountLocale("en")).toThrow("Unexpected adapter failure");
+});
+
+it("updates the account without browser storage during server-side use", () => {
+  vi.stubGlobal("window", undefined);
+  try {
+    adoptAccountLocale("en");
+    expect(useAuthStore.getState().user?.locale).toBe("en");
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

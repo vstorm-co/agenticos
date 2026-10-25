@@ -132,3 +132,11 @@ describe("AccountLocale", () => {
     expect(useAuthStore.getState().user?.locale).toBe("en");
   });
 });
+
+it("ignores a language event when this window is signed out", () => {
+  useAuthStore.setState({ user: null });
+  render(<AccountLocale />);
+  share({ userId: ADA.id, locale: "de" });
+  expect(useAuthStore.getState().user).toBeNull();
+  expect(replace).not.toHaveBeenCalled();
+});
