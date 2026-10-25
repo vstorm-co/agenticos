@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Bot, Building2, Radar } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
+import { LoadingForm } from "@/components/states/loading-form";
 import { SectionCard } from "@/components/settings/settings-section";
 import { Button, Label, Switch } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
@@ -28,7 +29,6 @@ export function AssistantSettings() {
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
   const { assistant, isLoading, error, retry } = useAssistant();
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={4} />;
   if (error) {
     return (
       <ErrorState
@@ -37,22 +37,24 @@ export function AssistantSettings() {
       />
     );
   }
-  if (!assistant) return null;
+  if (!assistant && !isLoading) return null;
   return (
-    <div className="space-y-6">
-      {assistant.can_use ? (
-        <YourTips />
-      ) : (
-        <p className="text-muted-foreground text-sm">{t("notForYou")}</p>
-      )}
-      {/* Not the Architect's: the platform's own look at the person's week, and
+    <LoadingForm loading={isLoading}>
+      <div className="space-y-6">
+        {isLoading || assistant?.can_use ? (
+          <YourTips />
+        ) : (
+          <p className="text-muted-foreground text-sm">{t("notForYou")}</p>
+        )}
+        {/* Not the Architect's: the platform's own look at the person's week, and
           theirs to switch off whoever runs the assistant (#2301). */}
-      <YourSuggestions />
-      <WatchesLiveInRoutines />
-      {assistant.can_configure && assistant.agent_id && (
-        <WhereTheRestLives agentId={assistant.agent_id} />
-      )}
-    </div>
+        <YourSuggestions />
+        <WatchesLiveInRoutines />
+        {assistant?.can_configure && assistant.agent_id && (
+          <WhereTheRestLives agentId={assistant.agent_id} />
+        )}
+      </div>
+    </LoadingForm>
   );
 }
 

@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
@@ -19,7 +20,7 @@ import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { ViewSwitcher } from "@/components/dashboard/view-switcher";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { Button } from "@/components/ui";
-import { EmptyState, LoadingState } from "@/components/states";
+import { EmptyState } from "@/components/states";
 import { useDashboardLayout, useDashboardPresets, useGroups, usePermissions } from "@/hooks";
 import type { DashboardPreset } from "@/lib/dashboard-preset-api";
 import { useOrgStore } from "@/stores";
@@ -119,10 +120,23 @@ export default function DashboardPage() {
   // would open the organization's view for a moment and ask all of its
   // questions unnarrowed before the group arrived.
   if (isLoading || (viewParam === "group" && groupsLoading)) {
+    const loadingAudience = resolveAudience(role, isAppAdmin);
+    const loadingView =
+      viewParam === "group"
+        ? "group"
+        : viewParam === "deployment" && isAppAdmin
+          ? "deployment"
+          : "me";
     return (
       <div className="space-y-6">
         <PageHeader title={t("title")} />
-        <LoadingState variant="stats" />
+        <DashboardSkeleton
+          sections={
+            viewParam === "org"
+              ? resolveEffectiveLayout(loadingAudience, storedEntries)
+              : viewLayout(loadingView, loadingAudience)
+          }
+        />
       </div>
     );
   }

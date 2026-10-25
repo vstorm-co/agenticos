@@ -11,6 +11,7 @@ import { SkillGalleryDialog } from "@/components/skills/skill-gallery-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
 import { categoryLabel, categorySuggestions } from "@/components/skills/category-input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
@@ -380,7 +381,24 @@ export default function SkillsPage() {
               <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>
             </DialogHeader>
             {skill === undefined ? (
-              <LoadingState variant="skeleton-panel" rows={2} />
+              <div
+                className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none"
+                role="status"
+                aria-label={tc("loading")}
+              >
+                <div className="flex flex-wrap gap-4 rounded-md border p-3" aria-hidden>
+                  <Skeleton className="h-20 min-w-0 flex-1 basis-72" />
+                  <Skeleton className="h-20 w-56" />
+                  <Skeleton className="h-20 w-12" />
+                </div>
+                <div
+                  className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]"
+                  aria-hidden
+                >
+                  <Skeleton className="min-h-24 w-full max-md:h-48" />
+                  <Skeleton className="min-h-[22rem] w-full" />
+                </div>
+              </div>
             ) : (
               <SkillWorkbench
                 categorySuggestions={categorySuggestions(categories, suggestedCategories)}

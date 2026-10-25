@@ -3,7 +3,7 @@
 import { Building2, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   EntityAvatar,
   Select,
@@ -86,12 +86,34 @@ const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
  */
 export function SharingPanel({ resourceType, resourceId, canManage }: SharingPanelProps) {
   const t = useTranslations("sharing");
+  const ts = useTranslations("states");
   const activeOrgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const { members } = useMembers(activeOrgId);
   const { groups } = useGroups(activeOrgId);
   const { sharing, isLoading, share, revoke, setVisibility } = useSharing(resourceType, resourceId);
 
-  if (isLoading || !sharing) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (isLoading || !sharing)
+    return (
+      <div className="space-y-5" role="status" aria-label={ts("loading")}>
+        {canManage && <Skeleton className="h-10 w-full" />}
+        <section className="space-y-2" aria-hidden>
+          <Skeleton className="h-5 w-32" />
+          <ul className="divide-border divide-y rounded-xl border">
+            {[0, 1, 2].map((person) => (
+              <li key={person} className="flex items-center gap-3 px-3 py-2.5">
+                <Skeleton className="size-8 shrink-0 rounded-full" />
+                <Skeleton className="h-5 flex-1" />
+                <Skeleton className="h-5 w-16" />
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="space-y-2" aria-hidden>
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-12 w-full" />
+        </section>
+      </div>
+    );
 
   const shared = new Set(
     sharing.grants.map((grant) => grant.subject_user_id ?? grant.subject_group_id),

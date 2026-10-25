@@ -16,6 +16,7 @@ import {
   type ContextDraftFields,
 } from "@/components/context/file-name";
 import { FileDropOverlay } from "@/components/files";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
@@ -354,7 +355,21 @@ export default function ContextPage() {
                 cta={{ label: tc("retry"), onClick: () => void refetchFile() }}
               />
             ) : file === undefined ? (
-              <LoadingState variant="skeleton-panel" rows={2} />
+              <div
+                className="flex min-h-0 flex-1 flex-col gap-3"
+                role="status"
+                aria-label={tc("loading")}
+              >
+                <div className="space-y-4 rounded-md border p-3" aria-hidden>
+                  <div className="flex flex-wrap gap-4">
+                    <Skeleton className="h-20 w-40" />
+                    <Skeleton className="h-20 w-32" />
+                    <Skeleton className="h-20 w-16" />
+                  </div>
+                  <Skeleton className="h-20 w-full" />
+                </div>
+                <Skeleton className="min-h-[22rem] w-full flex-1" />
+              </div>
             ) : (
               <ContextEditor
                 key={file.id}

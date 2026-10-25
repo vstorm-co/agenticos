@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui";
 import { useAdminOrganizationDetail } from "@/hooks";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -24,6 +25,7 @@ import { formatDate } from "@/lib/utils";
 export default function AdminOrganizationDetailPage() {
   const t = useTranslations("pages.admin");
   const tErrors = useTranslations("errors");
+  const ts = useTranslations("states");
   const tRoles = useTranslations("dashboard.widgets.members.roles");
   const locale = useLocale();
   const params = useParams<{ id: string }>();
@@ -43,7 +45,23 @@ export default function AdminOrganizationDetailPage() {
       </Link>
 
       {isLoading ? (
-        <LoadingState variant="skeleton-list" rows={3} />
+        <div className="space-y-6" role="status" aria-label={ts("loading")}>
+          <Skeleton className="h-7 w-64" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {[0, 1, 2, 3, 4, 5].map((field) => (
+              <div key={field} className="space-y-1">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-5 w-28" />
+              </div>
+            ))}
+          </div>
+          <section className="space-y-2">
+            <Skeleton className="h-5 w-24" />
+            {[0, 1, 2].map((member) => (
+              <Skeleton key={member} className="h-12 w-full rounded-lg" />
+            ))}
+          </section>
+        </div>
       ) : notFound ? (
         <EmptyState title={t("orgNotFound")} description={t("orgNotFoundHint")} />
       ) : error ? (

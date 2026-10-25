@@ -16,7 +16,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button, ListCard } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -60,6 +61,7 @@ const STATUS_TEXT: Record<CheckStatus, string> = {
 
 export default function SystemHealthPage() {
   const tErrors = useTranslations("errors");
+  const ts = useTranslations("states");
   const t = useTranslations("pages.admin");
   const tc = useTranslations("common");
   const [auto, setAuto] = useState(true);
@@ -103,69 +105,91 @@ export default function SystemHealthPage() {
   }, [checks]);
 
   return (
-    <div className="space-y-6">
-      {summary && (
-        <section className="border-border bg-card rounded-xl border p-5">
-          {/* The controls live on this card rather than floating above it: they
+    <div className="space-y-6" aria-busy={loading && !health}>
+      {loading && !health && (
+        <span role="status" className="sr-only">
+          {ts("loading")}
+        </span>
+      )}
+      {loading && !health ? (
+        <section
+          className="border-border bg-card flex flex-wrap items-center justify-between gap-4 rounded-xl border p-5"
+          aria-hidden
+        >
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-lg" />
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-6 w-48" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+        </section>
+      ) : (
+        summary && (
+          <section className="border-border bg-card rounded-xl border p-5">
+            {/* The controls live on this card rather than floating above it: they
               are about the reading it holds - when it was taken and whether it
               refreshes itself - and a strip of buttons over an empty page had
               nothing to belong to. */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="bg-muted text-foreground inline-flex h-10 w-10 items-center justify-center rounded-lg">
-                {summary.tone === "bad" ? (
-                  <AlertCircle className="h-5 w-5" />
-                ) : (
-                  <CheckCircle2 className="h-5 w-5" />
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="bg-muted text-foreground inline-flex h-10 w-10 items-center justify-center rounded-lg">
+                  {summary.tone === "bad" ? (
+                    <AlertCircle className="h-5 w-5" />
+                  ) : (
+                    <CheckCircle2 className="h-5 w-5" />
+                  )}
+                </span>
+                <div>
+                  <p className="text-muted-foreground text-xs">{t("overallStatus")}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "h-2 w-2 rounded-full",
+                        summary.tone === "bad" ? "bg-destructive" : "bg-chart",
+                      )}
+                    />
+                    <p className="text-foreground text-base font-semibold">{summary.label}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {health && (
+                  <span className="text-muted-foreground mr-1 text-xs">
+                    {t("checkedAt", { time: new Date(health.checked_at).toLocaleTimeString() })}
+                  </span>
                 )}
-              </span>
-              <div>
-                <p className="text-muted-foreground text-xs">{t("overallStatus")}</p>
-                <div className="mt-1 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAuto((a) => !a)}
+                  className={cn(auto && "bg-muted")}
+                >
                   <span
                     aria-hidden
                     className={cn(
-                      "h-2 w-2 rounded-full",
-                      summary.tone === "bad" ? "bg-destructive" : "bg-chart",
+                      "h-1.5 w-1.5 rounded-full",
+                      auto ? "bg-chart" : "bg-muted-foreground",
                     )}
                   />
-                  <p className="text-foreground text-base font-semibold">{summary.label}</p>
-                </div>
+                  {t(auto ? "autoRefreshOn" : "autoRefreshOff")}
+                </Button>
+                <Button size="sm" variant="outline" onClick={load}>
+                  <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                  {t("refresh2")}
+                </Button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {health && (
-                <span className="text-muted-foreground mr-1 text-xs">
-                  {t("checkedAt", { time: new Date(health.checked_at).toLocaleTimeString() })}
-                </span>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setAuto((a) => !a)}
-                className={cn(auto && "bg-muted")}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    auto ? "bg-chart" : "bg-muted-foreground",
-                  )}
-                />
-                {t(auto ? "autoRefreshOn" : "autoRefreshOff")}
-              </Button>
-              <Button size="sm" variant="outline" onClick={load}>
-                <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-                {t("refresh2")}
-              </Button>
-            </div>
-          </div>
-        </section>
+          </section>
+        )
       )}
 
-      {loading && !health ? (
-        <LoadingState variant="stats" rows={4} />
-      ) : error ? (
+      {error ? (
         <ErrorState
           title={t("couldnAposTFetch")}
           description={getErrorMessage(error, tErrors, t("failedFetchHealth"))}
@@ -174,6 +198,18 @@ export default function SystemHealthPage() {
       ) : (
         <ListCard title={t("services")} counted={t("eachRowSaysWhat")} contentClassName="p-0">
           <ul className="divide-border divide-y">
+            {loading &&
+              !health &&
+              Object.keys(META).map((key) => (
+                <li key={key} className="flex items-start gap-3 px-5 py-4" aria-hidden>
+                  <Skeleton className="mt-0.5 h-9 w-9 shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-5 w-2/3" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                  <Skeleton className="h-4 w-16" />
+                </li>
+              ))}
             {checks.map((check) => {
               const meta = META[check.key];
               const Icon = meta?.icon ?? Database;

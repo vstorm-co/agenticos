@@ -10,10 +10,12 @@ import { OtherOrganizations } from "@/components/artifacts/other-organizations";
 import { ArtifactShareDialog } from "@/components/artifacts/artifact-share-dialog";
 import { ArtifactViewerBar } from "@/components/artifacts/artifact-viewer-bar";
 import { VersionPicker } from "@/components/artifacts/version-picker";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button, ConfirmDialog } from "@/components/ui";
 import { useArtifact } from "@/hooks/use-artifacts";
 import { ApiError } from "@/lib/api-error";
+import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 
 /**
@@ -40,6 +42,7 @@ interface ArtifactViewerProps {
  */
 export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerProps) {
   const t = useTranslations("artifacts");
+  const ts = useTranslations("states");
   const tc = useTranslations("common");
   const router = useRouter();
   const [versionId, setVersionId] = useState(initialVersionId);
@@ -68,9 +71,13 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
     return (
       <div className={VIEWER}>
         <ArtifactViewerBar artifact={null} />
-        <div className="flex flex-1 items-center justify-center p-6">
+        <div className={cn("flex min-h-0 flex-1", !isLoading && "items-center justify-center p-6")}>
           {isLoading ? (
-            <LoadingState variant="skeleton-panel" rows={6} />
+            <Skeleton
+              role="status"
+              aria-label={ts("loading")}
+              className="h-full min-h-0 w-full flex-1 rounded-none"
+            />
           ) : unavailable ? (
             <div className="flex flex-col items-center gap-4">
               <EmptyState icon={FileX} title={t("unavailable")} description={t("unavailableWhy")} />
