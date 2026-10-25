@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide-react";
@@ -83,10 +83,9 @@ export default function DashboardPage() {
   const { storedEntries, save, reset } = useDashboardLayout();
   const { presets, savePreset, removePreset } = useDashboardPresets();
   const searchParams = useSearchParams();
-  const [period, setPeriod] = useState<Period>(() => parsePeriodParam(searchParams.get("period")));
-  const [sectionsParam, setSectionsParam] = useState<string | null>(() =>
-    searchParams.get("sections"),
-  );
+  const periodParam = searchParams.get("period");
+  const period = useMemo(() => parsePeriodParam(periodParam), [periodParam]);
+  const sectionsParam = searchParams.get("sections");
   const [editing, setEditing] = useState(false);
   // Whether edit mode opened on a blank grid ("New blank layout") rather than on
   // the current arrangement. Composing from nothing and saving under a name is
@@ -107,8 +106,8 @@ export default function DashboardPage() {
   }
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { groups, isLoading: groupsLoading } = useGroups(activeOrgId ?? "");
-  const [viewParam, setViewParam] = useState<string | null>(() => searchParams.get("view"));
-  const [groupParam, setGroupParam] = useState<string | null>(() => searchParams.get("group"));
+  const viewParam = searchParams.get("view");
+  const groupParam = searchParams.get("group");
 
   // can() answers false while permissions load; resolving the audience from
   // that would flash a viewer-shaped page at a steward, so hold the skeleton
@@ -156,23 +155,18 @@ export default function DashboardPage() {
   const visible = visibleSections(effective, can, isAppAdmin);
 
   const changePeriod = (next: Period) => {
-    setPeriod(next);
     setUrlParam("period", formatPeriodParam(next));
   };
   const changeView = (next: DashboardView) => {
-    setViewParam(next);
     setUrlParam("view", next === fallbackView ? null : next);
     // A section chosen on one view names nothing on another.
-    setSectionsParam(null);
     setUrlParam("sections", null);
   };
   const changeGroup = (next: string) => {
-    setGroupParam(next);
     setUrlParam("group", next);
   };
   const changeSections = (selected: string[] | null) => {
     const value = formatSectionsParam(selected);
-    setSectionsParam(value);
     setUrlParam("sections", value);
   };
 

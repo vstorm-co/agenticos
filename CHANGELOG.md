@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Apply dashboard period, view, group and section filters when navigating to a
+  report without remounting the dashboard page.
+
 - Wait for chat session readiness before sending queued prompts, cancel pending
   sends on context changes, and retain live or unsaved answers during transcript
   refreshes. Reopen long conversations at their newest page, with earlier-message
