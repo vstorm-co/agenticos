@@ -821,6 +821,29 @@ class TestConfiguredDrafts:
         assert spec["mcp_servers"][0]["allowed_tools"] == ["get_file"]
         assert draft["capabilities"][0]["config"] == {"backend": "state"}
 
+    async def test_an_explicit_null_clears_a_binding_secret_reference(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.side_effect = [
+            {
+                "draft_spec": {
+                    "capabilities": [
+                        {"id": "media", "secret_id": str(KB), "approval": "required"},
+                    ]
+                }
+            },
+            {},
+        ]
+        await server.call_tool(
+            "update_agent_draft",
+            {
+                "agent_id": str(AGENT),
+                "add_capabilities": [{"id": "media", "secret_id": None}],
+            },
+        )
+        spec = api.request.await_args.kwargs["json"]["spec"]
+        assert spec["capabilities"] == [{"id": "media", "secret_id": None, "approval": "required"}]
+
     async def test_empty_config_and_mcp_list_explicitly_reset_them(
         self, server: FastMCP, api: MagicMock
     ) -> None:
