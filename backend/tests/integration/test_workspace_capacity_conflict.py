@@ -74,7 +74,8 @@ async def test_concurrent_files_and_directories_keep_the_cap_and_a_recoverable_s
                 await two.scalar(select(AgentWorkspace.version).where(AgentWorkspace.id == row.id))
                 == 0
             )
-            assert await service.SandboxWorkspaceService(one).close(first) is None
+            first_result = await service.SandboxWorkspaceService(one).close(first)
+            assert first_result is None
             await one.commit()
             if delete_source:
 

@@ -46,7 +46,11 @@ there is no step it takes that you cannot.
 
     The console uses `agenticos_access_token` and `agenticos_refresh_token`
     cookies to avoid accidental overwrites by apps with generic cookie names.
-    After upgrading from the old names, sign in again once.
+    After upgrading from the old names, sign in again once. Migration
+    `0173_revoke_cookie_sessions.py` ends existing login sessions, including
+    rotated refresh chains and impersonations. Session-based API clients must
+    also sign in again; API keys are unaffected. Downgrading never reactivates
+    revoked sessions.
 
     Give unrelated apps separate hostnames. Cookies are shared across ports on
     the same hostname; app-specific names prevent accidental collisions, but do

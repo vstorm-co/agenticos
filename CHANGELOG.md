@@ -28,6 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Do not enqueue pending approval requests when a workspace save failure ends
+  the run; retain standing-consent audit records for calls already authorized.
+
 - Select the service-backed sandbox when installing the Architect on a deployment
   with a sandbox host, so its code tools are executable rather than files-only.
 
@@ -128,7 +131,10 @@ Two things are versioned separately from this file and worth knowing about:
   hostname.** The console uses `agenticos_access_token` and
   `agenticos_refresh_token` for sign-in, refresh and logout. **After upgrading,
   sign in again once:** existing cookies with the generic names are ignored and
-  left untouched. HTTP API token fields are unchanged. Use separate hostnames
+  left untouched. Migration `0173_revoke_cookie_sessions.py` revokes
+  existing login sessions, including refresh chains and impersonations;
+  session-based API clients must also sign in again. API keys and HTTP API token
+  fields are unchanged. Downgrading does not reactivate sessions. Use separate hostnames
   for unrelated apps to keep authentication cookies from reaching another app's
   server; different ports and cookie names do not provide that isolation.
 

@@ -4379,7 +4379,7 @@ class AgentRunnerService:
                     extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
 
-    async def _write_approvals(self, prepared: PreparedRun) -> None:
+    async def _write_approvals(self, prepared: PreparedRun, *, include_pending: bool) -> None:
         """Write the approval rows the run parked, once, off the shared session.
 
         The rows are *described* while the run runs and written here, from the
@@ -4415,11 +4415,14 @@ class AgentRunnerService:
         and this does nothing.
         """
         channel = prepared.approvals
-        named = {p.subagent_agent_id for p in channel.requested if p.subagent_agent_id is not None}
+        # A workspace failure can turn a parked run into a terminal failure.
+        # Keep standing-consent audit records, but never enqueue an impossible decision.
+        requested = [p for p in channel.requested if include_pending or p.standing]
+        named = {p.subagent_agent_id for p in requested if p.subagent_agent_id is not None}
         present = await agent_repo.existing_ids_locked(
             self.db, named, organization_id=channel.organization_id
         )
-        for parked in channel.requested:
+        for parked in requested:
             await self.approvals.request(
                 approval_id=parked.approval_id,
                 organization_id=channel.organization_id,
@@ -4576,7 +4579,10 @@ class AgentRunnerService:
         # calls in one model step cannot race two inserts (agenticos#169), and this
         # is where the deferral is paid back. Before the parent's terminal write,
         # so the rows the `paused_state` names exist by the time it is stored.
-        await self._write_approvals(prepared)
+        await self._write_approvals(
+            prepared,
+            include_pending=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
+        )
 
         parked = (
             None

@@ -1759,6 +1759,20 @@ describe("useChat - approvals and questions", () => {
     },
   );
 
+  it("lets an approver stop a run whose approvals were already decided elsewhere", async () => {
+    get.mockImplementation(async (url: string) => (url.endsWith("/can-stop") ? true : []));
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    expect(result.current.pendingApproval).toBeNull();
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+  });
+
   it("checks only stopping authority without approvals:decide", async () => {
     // The endpoint is gated on the permission deciding takes, so a caller
     // without it would 403 on every reopened conversation. The stored step

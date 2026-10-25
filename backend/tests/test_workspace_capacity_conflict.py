@@ -114,6 +114,22 @@ async def test_run_completion_records_the_conflict_and_preserves_primary_failure
         WorkspaceCapacityError(message="Files preserved in recovery workspace")
     )
     monkeypatch.setattr(runner.workspaces, "close", AsyncMock(return_value=conflict))
+    pending_id, standing_id = uuid4(), uuid4()
+    prepared.approvals.requested = [
+        agent_runner.ParkedApproval(
+            approval_id=approval_id,
+            tool_call_id=str(approval_id),
+            tool_name="execute",
+            tool_args={},
+            standing=standing,
+        )
+        for approval_id, standing in ((pending_id, False), (standing_id, True))
+    ]
+    request = AsyncMock()
+    monkeypatch.setattr(runner.approvals, "request", request)
+    monkeypatch.setattr(
+        agent_runner.agent_repo, "existing_ids_locked", AsyncMock(return_value=set())
+    )
     monkeypatch.setattr(runner, "_record_manifest", AsyncMock())
     monkeypatch.setattr(runner, "_notify", AsyncMock())
     finish = AsyncMock()
@@ -129,6 +145,11 @@ async def test_run_completion_records_the_conflict_and_preserves_primary_failure
     assert "Files preserved" in fields["error"]
     assert ("Original error" in fields["error"]) == (status_name == "CANCELLED")
     assert fields["paused_state"] is None
+    request.assert_awaited_once()
+    assert request.await_args.kwargs["approval_id"] == standing_id
+    assert (
+        request.await_args.kwargs["standing_consent_by"] is prepared.approvals.standing_consent_by
+    )
 
 
 @pytest.mark.parametrize("operation", ["file", "folder", "remove"])

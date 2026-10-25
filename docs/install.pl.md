@@ -1,5 +1,5 @@
 ---
-source_sha: "3dfcb7859e41"
+source_sha: "d4203a010ad0"
 ---
 
 # Instalacja { #install }
@@ -53,7 +53,10 @@ ma kroku, który on wykonuje, a którego ty nie możesz.
     Konsola używa ciasteczek `agenticos_access_token` i
     `agenticos_refresh_token`, aby aplikacje z ogólnymi nazwami ciasteczek nie
     nadpisywały ich przypadkowo. Po aktualizacji ze starych nazw zaloguj się
-    ponownie jeden raz.
+    ponownie jeden raz. Migracja `0173_revoke_cookie_sessions.py` kończy
+    istniejące sesje logowania, w tym łańcuchy odświeżania i impersonacje.
+    Klienci API korzystający z sesji również muszą zalogować się ponownie;
+    klucze API pozostają aktywne. Downgrade nie przywraca unieważnionych sesji.
 
     Nadaj niezależnym aplikacjom osobne nazwy hostów. Ciasteczka są współdzielone
     między portami tej samej nazwy hosta; nazwy właściwe dla aplikacji zapobiegają

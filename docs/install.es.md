@@ -1,5 +1,5 @@
 ---
-source_sha: "3dfcb7859e41"
+source_sha: "d4203a010ad0"
 ---
 
 # Instalación { #install }
@@ -54,7 +54,11 @@ paso suyo que tú no puedas dar.
     La consola usa las cookies `agenticos_access_token` y
     `agenticos_refresh_token` para evitar que aplicaciones con nombres de cookies
     genéricos las sobrescriban por accidente. Tras actualizar desde los nombres
-    antiguos, vuelve a iniciar sesión una vez.
+    antiguos, vuelve a iniciar sesión una vez. La migración
+    `0173_revoke_cookie_sessions.py` termina las sesiones existentes, incluidas
+    las cadenas de renovación rotadas y las suplantaciones. Los clientes de API
+    basados en sesiones también deben volver a iniciar sesión; las claves de API
+    no cambian. Una reversión no reactiva las sesiones revocadas.
 
     Asigna nombres de host distintos a las aplicaciones independientes. Las
     cookies se comparten entre los puertos del mismo nombre de host; los nombres

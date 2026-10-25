@@ -29,11 +29,18 @@ import os
 import subprocess
 import sys
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.exceptions import AuthenticationError
+from app.db.models.session import Session
+from app.db.models.user import User
+from app.services.session import SessionService, hash_token
 
 # Owned by this module alone, and by this run of it. Not the integration suite's
 # database either: that one builds its schema from the models with `create_all`,
@@ -409,3 +416,100 @@ class TestBotTranscriptionSwitch:
 
         down = _alembic("downgrade", "0150_org_speech_settings")
         assert down.returncode == 0, down.stderr
+
+
+class TestLegacyCookieSessionRevocation:
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_upgrade_revokes_old_refresh_chains_without_restoring_them_on_downgrade(self):
+        up = _alembic("upgrade", "0172_mcp_health_queue_clock")
+        assert up.returncode == 0, up.stderr
+        engine = create_async_engine(
+            f"{settings.DATABASE_URL.rsplit('/', 1)[0]}/{MIGRATION_DATABASE}"
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with factory() as db:
+                user = User(email=f"cookie-migration-{uuid4()}@example.com")
+                admin = User(email=f"cookie-admin-{uuid4()}@example.com")
+                db.add_all([user, admin])
+                await db.flush()
+                now = datetime.now(UTC)
+                old = Session(
+                    user_id=user.id,
+                    refresh_token_hash=hash_token("legacy-current"),
+                    previous_refresh_token_hash=hash_token("legacy-spent"),
+                    rotated_at=now,
+                    expires_at=now + timedelta(days=1),
+                    is_active=True,
+                )
+                impersonation = Session(
+                    user_id=user.id,
+                    impersonator_user_id=admin.id,
+                    refresh_token_hash=hash_token("legacy-impersonation"),
+                    expires_at=now + timedelta(minutes=5),
+                    is_active=True,
+                )
+                ended = Session(
+                    user_id=user.id,
+                    refresh_token_hash=hash_token("legacy-ended"),
+                    expires_at=now + timedelta(days=1),
+                    is_active=False,
+                )
+                db.add_all([old, impersonation, ended])
+                await db.commit()
+                old_id, impersonation_id, ended_id, user_id = (
+                    old.id,
+                    impersonation.id,
+                    ended.id,
+                    user.id,
+                )
+                before = await SessionService(db).validate_refresh_token("legacy-current")
+                assert before is old
+                await db.commit()
+
+            up = _alembic("upgrade", "0173_revoke_cookie_sessions")
+            assert up.returncode == 0, up.stderr
+            async with factory() as db:
+                service = SessionService(db)
+                current = await service.validate_refresh_token("legacy-current")
+                previous = await service.claim_refresh_grace("legacy-spent")
+                assert current is None
+                assert previous is None
+                with pytest.raises(AuthenticationError, match="Session has ended"):
+                    await service.verify_access_session(
+                        payload={"sid": str(old_id)}, subject=str(user_id)
+                    )
+                rows = list(
+                    await db.scalars(
+                        select(Session).where(Session.id.in_([old_id, impersonation_id, ended_id]))
+                    )
+                )
+                assert len(rows) == 3
+                assert all(not row.is_active for row in rows)
+                fresh = Session(
+                    user_id=user_id,
+                    refresh_token_hash=hash_token("fresh-current"),
+                    expires_at=datetime.now(UTC) + timedelta(days=1),
+                    is_active=True,
+                )
+                db.add(fresh)
+                await db.commit()
+                fresh_id = fresh.id
+                refreshed = await service.validate_refresh_token("fresh-current")
+                assert refreshed is fresh
+                await service.verify_access_session(
+                    payload={"sid": str(fresh_id)}, subject=str(user_id)
+                )
+                await db.commit()
+
+            down = _alembic("downgrade", "0172_mcp_health_queue_clock")
+            assert down.returncode == 0, down.stderr
+            async with factory() as db:
+                service = SessionService(db)
+                revoked = await service.validate_refresh_token("legacy-current")
+                retained = await service.validate_refresh_token("fresh-current")
+                assert revoked is None
+                assert retained is not None
+        finally:
+            await engine.dispose()
