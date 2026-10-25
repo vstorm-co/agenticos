@@ -1,5 +1,5 @@
 ---
-source_sha: "23e56e18c7ce"
+source_sha: "bf7b39800065"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1054,6 +1054,8 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
+| `list_org_connections` | `mcp:manage` |
 | `publish_agent` | `agents:publish` auf diesem Agent |
 | `discard_agent_draft` | `agents:edit`, für Ihren eigenen, nie veröffentlichten Entwurf |
 | `run_agent` | `agents:run` |
@@ -1088,6 +1090,24 @@ eines versehentlichen Entwurfs - oder einer Routine.
 Verbundene Anwendungen stehen unter **Einstellungen → MCP-Clients**, wo das
 Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
 warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
+
+Die Entwurfswerkzeuge akzeptieren konfigurierte Fähigkeitenbindungen und reine IDs.
+Zum Beispiel gibt `capabilities: [{id: sandbox, config: {backend: service,
+include_execute: true}}]` einem Programmieragenten eine Shell auf dem Standardhost
+der Organisation. `list_capabilities` liefert das jeweilige `config_schema`;
+`list_sandbox_connections`, `list_sandbox_runtimes` und `get_sandbox_policy`
+zeigen verfügbare Hosts, Laufzeitaliasse und Hostlimits vor der Konfiguration.
+Eine reine Datei-Sandbox (`state`) führt keine Befehle aus.
+
+`update_agent_draft.add_capabilities` ergänzt oder aktualisiert Bindungen:
+ausgelassene Felder behalten ihren Wert, ein angegebenes `config` ersetzt die
+gesamte Konfiguration. Lesen Sie zuerst den Entwurf, um benötigte Einstellungen
+zu erhalten. Beide Werkzeuge akzeptieren `mcp_servers`: Organisationsverbindungs-IDs
+aus `list_org_connections` oder persönliche Katalogschlüssel aus
+`search_mcp_servers`. Persönliche Verbindungs-IDs gehören nie in eine gemeinsame
+Spezifikation. Die MCP-Bindungsliste wird vollständig ersetzt; `[]` trennt alle.
+Beim Erstellen sind auch `skill_ids` und `collection_ids` möglich. Tests und
+Veröffentlichung behalten dieselben Validierungs- und Freigaberegeln.
 
 ### Ihn einem Agent geben { #giving-it-to-an-agent }
 

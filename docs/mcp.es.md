@@ -1,5 +1,5 @@
 ---
-source_sha: "23e56e18c7ce"
+source_sha: "bf7b39800065"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1035,6 +1035,8 @@ permiso que faltaba.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
+| `list_org_connections` | `mcp:manage` |
 | `publish_agent` | `agents:publish` sobre ese agent |
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
@@ -1070,6 +1072,24 @@ una rutina. Las aplicaciones conectadas
 aparecen en **Settings → MCP clients**, donde desconectar una termina su acceso y
 el de cada token que tiene. Las llamadas que cambian
 algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
+
+Las herramientas de borradores aceptan vínculos de capacidades configurados e IDs.
+Por ejemplo, `capabilities: [{id: sandbox, config: {backend: service,
+include_execute: true}}]` da al agent programador una shell en el host de sandbox
+predeterminado de la organización. `list_capabilities` devuelve cada `config_schema`;
+`list_sandbox_connections`, `list_sandbox_runtimes` y `get_sandbox_policy`
+muestran hosts disponibles, alias de entornos y límites antes de configurarlos.
+Un sandbox de solo archivos (`state`) no ejecuta comandos.
+
+`update_agent_draft.add_capabilities` añade o actualiza vínculos: los campos
+omitidos conservan sus valores, pero un `config` explícito reemplaza toda la
+configuración. Lee primero el borrador para conservar los ajustes necesarios.
+Ambas herramientas aceptan `mcp_servers`: IDs de conexiones de organización de
+`list_org_connections` o claves de catálogo personales de `search_mcp_servers`.
+Un ID de conexión personal nunca pertenece a una especificación compartida.
+La lista MCP se reemplaza por completo; `[]` desconecta todo. La creación también
+acepta `skill_ids` y `collection_ids`. Pruebas y publicación mantienen las mismas
+reglas de validación y aprobación.
 
 ### Dárselo a un agent { #giving-it-to-an-agent }
 

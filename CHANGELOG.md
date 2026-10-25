@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Configure capability bindings and MCP services through AgenticOS MCP draft
+  tools, with sandbox connection, runtime and policy discovery. The Architect
+  can set up an executable sandbox and test it instead of handing configuration
+  back to the user.
+
 ### Fixed
 
 - Recheck parked run state under the row lock before continuing after Stop. Keep

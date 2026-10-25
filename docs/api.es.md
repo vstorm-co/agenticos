@@ -1,5 +1,5 @@
 ---
-source_sha: "d77cb23fa679"
+source_sha: "18de9f68880b"
 ---
 
 # La API HTTP { #the-http-api }
@@ -56,6 +56,13 @@ búsqueda en sus conversaciones anteriores, ni los sitios en los que el navegado
 guarda sus inicios de sesión, ni el espacio de trabajo del sandbox ligado al
 usuario. Quien tiene la clave es un script, no esa persona, así que el run
 responde como en un widget público.
+
+La consulta de conexiones también es pública y de solo lectura:
+`GET /sandbox-connections`, `GET /sandbox-connections/runtimes` y
+`GET /sandbox-connections/{id}/policy` requieren `connections:view`;
+`GET /mcp-connections` requiere `mcp:manage`. Siguen vigentes la organización
+y los permisos de la clave. Las escrituras de conexiones y las operaciones
+con credenciales siguen requiriendo una sesión.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \

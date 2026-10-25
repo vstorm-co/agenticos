@@ -1,5 +1,5 @@
 ---
-source_sha: "23e56e18c7ce"
+source_sha: "bf7b39800065"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1006,6 +1006,8 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
+| `list_org_connections` | `mcp:manage` |
 | `publish_agent` | `agents:publish` na tym agencie |
 | `discard_agent_draft` | `agents:edit`, dla twojego draftu, który nigdy nie był opublikowany |
 | `run_agent` | `agents:run` |
@@ -1039,6 +1041,23 @@ draftu utworzonego przez pomyłkę - albo rutyną. Podłączone aplikacje są
 widoczne w **Ustawienia → Klienci MCP**, gdzie odłączenie kończy ich dostęp razem
 z każdym tokenem. Wywołania, które coś
 zmieniają, czekają na zatwierdzenie, jak wyjaśnia [sekcja wyżej](#which-calls-wait-for-a-person).
+
+Narzędzia draftów przyjmują skonfigurowane wiązania możliwości oraz same identyfikatory.
+Na przykład `capabilities: [{id: sandbox, config: {backend: service,
+include_execute: true}}]` daje agentowi programistycznemu powłokę na domyślnym
+hoście sandboxa organizacji. `list_capabilities` zwraca `config_schema`;
+`list_sandbox_connections`, `list_sandbox_runtimes` i `get_sandbox_policy`
+pozwalają sprawdzić hosty, aliasy runtime’ów i ograniczenia przed wyborem ustawień.
+Sandbox tylko na pliki (`state`) nie wykonuje poleceń.
+
+`update_agent_draft.add_capabilities` dodaje lub aktualizuje wiązania: pominięte
+pola zachowują wartości, a podany `config` zastępuje całą konfigurację. Najpierw
+odczytaj draft, żeby zachować potrzebne ustawienia. Oba narzędzia przyjmują
+`mcp_servers`: identyfikatory połączeń organizacji z `list_org_connections` albo
+osobiste klucze katalogowe z `search_mcp_servers`. Identyfikator osobistego
+połączenia nie należy do współdzielonej specyfikacji. Lista wiązań MCP jest
+zastępowana w całości; `[]` odłącza wszystkie. Tworzenie przyjmuje też `skill_ids`
+i `collection_ids`. Testowanie i publikowanie zachowują te same zasady walidacji i akceptacji.
 
 ### Udostępnienie go agentowi { #giving-it-to-an-agent }
 
