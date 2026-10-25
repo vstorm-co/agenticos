@@ -1,5 +1,5 @@
 ---
-source_sha: "b18eb0c9849f"
+source_sha: "ebbdbea67616"
 ---
 
 # Konsola { #the-console }
@@ -350,6 +350,8 @@ kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
 **Godziny pracy** w **Settings → Profile** mówią agentom, kiedy pracujesz, więc
 rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wiedza
 dla agenta, nie harmonogram.
+
+Po ponownym otwarciu rozmowy widzisz najnowsze wiadomości. Wybierz **Wczytaj wcześniejsze wiadomości** nad historią, aby przeczytać starsze tury. Trwające odpowiedzi i niezapisane wyniki pozostają widoczne podczas odświeżania zapisanej historii.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.

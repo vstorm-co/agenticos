@@ -57,7 +57,14 @@ HISTORY_LIMIT = 20_000
 """Frames kept per turn. A long answer is thousands of text deltas; past this the oldest go."""
 
 NOT_KEPT = frozenset(
-    {"ask_user", "connect_account", "user_prompt", "conversation_created", "steer_unapplied"}
+    {
+        "ask_user",
+        "connect_account",
+        "user_prompt",
+        "conversation_created",
+        "steer_unapplied",
+        "session_ready",
+    }
 )
 """Frames meant for the socket that sent the message, not for someone watching.
 
@@ -81,7 +88,7 @@ text and steps, not an archive of what it showed."""
 MAX_TRACE_BYTES = 16 * 1024 * 1024
 """How much one turn's trace keeps in all. Each frame is bounded above, and a
 very long turn was not: its trace grew in the shared Redis until it expired.
-Past this, frames are still announced live and only the closing frame is kept,
+Past this, frames are still announced live; save/error/completion markers are kept,
 so somebody arriving late is shown the start, then what comes next, and reads
 the rest from the transcript once the turn ends."""
 
@@ -229,7 +236,10 @@ async def _numbered_append(turn: Turn, kind: str, data: Any, *, ttl: int) -> Non
     if kind == END or (
         kind not in LIVE_ONLY
         and len(body) <= MAX_KEPT_BYTES
-        and int(kept or 0) + len(body) <= MAX_TRACE_BYTES
+        and (
+            kind in {"message_saved", "complete", "error"}
+            or int(kept or 0) + len(body) <= MAX_TRACE_BYTES
+        )
     ):
         pipe.rpush(trace, body)
         pipe.ltrim(trace, -HISTORY_LIMIT, -1)

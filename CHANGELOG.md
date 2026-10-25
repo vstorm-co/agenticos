@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Wait for chat session readiness before sending queued prompts, cancel pending
+  sends on context changes, and retain live or unsaved answers during transcript
+  refreshes. Reopen long conversations at their newest page, with earlier-message
+  pagination, and retain terminal trace metadata beyond the content budget.
+
 - Keep worker outage backoff bounded through prolonged database failures, and
   retry lost LISTEN registrations and connection cleanup without stopping the
   worker or swallowing cancellation.

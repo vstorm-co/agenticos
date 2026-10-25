@@ -1068,6 +1068,7 @@
     "title": "Rozliczenia"
   },
   "chat": {
+    "loadEarlierMessages": "Wczytaj wcześniejsze wiadomości",
     "accessLevel": "Poziom dostępu",
     "accessRevoked": "Dostęp cofnięty",
     "agentPicker": {

@@ -1,5 +1,5 @@
 ---
-source_sha: "b18eb0c9849f"
+source_sha: "ebbdbea67616"
 ---
 
 # La consola { #the-console }
@@ -361,6 +361,8 @@ Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.
 **El horario laboral** en **Settings → Profile** dice a los agents cuándo
 trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera
 por él: es conocimiento para el agent, no un calendario.
+
+Al volver a abrir una conversación, ves los mensajes más recientes. Usa **Load earlier messages** encima del historial para leer turnos más antiguos. Las respuestas en curso y los resultados sin guardar siguen visibles mientras se actualiza el historial guardado.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina

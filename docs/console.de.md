@@ -1,5 +1,5 @@
 ---
-source_sha: "b18eb0c9849f"
+source_sha: "ebbdbea67616"
 ---
 
 # Die Konsole { #the-console }
@@ -384,6 +384,8 @@ ist [pro Person begrenzt](governance.md#proactive-work). Ein Chat-Link mit
 **Arbeitszeiten** unter **Settings → Profile** sagen Agents, wann Sie arbeiten,
 sodass eine Routine, die sie vorschlagen, in Ihren Tag fällt. Nichts wartet auf
 sie: Sie sind Wissen für den Agent, kein Zeitplan.
+
+Beim erneuten Öffnen eines Gesprächs sehen Sie die neuesten Nachrichten. Mit **Ältere Nachrichten laden** über dem Verlauf lesen Sie frühere Beiträge. Laufende Antworten und ungespeicherte Ergebnisse bleiben sichtbar, während der gespeicherte Verlauf aktualisiert wird.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht

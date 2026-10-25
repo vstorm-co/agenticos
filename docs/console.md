@@ -339,6 +339,8 @@ made again. Nothing runs when nothing new happened, and what this may spend is
 routine they propose lands inside your day. Nothing waits on them: they are
 knowledge for the agent, not a schedule.
 
+Reopening a conversation shows its newest messages first. Use **Load earlier messages** above the transcript to read older turns. Live answers and unsaved results stay visible while stored history refreshes.
+
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into

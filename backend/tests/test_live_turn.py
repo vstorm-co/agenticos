@@ -1332,3 +1332,19 @@ class TestStillReading:
 
         websocket.close.assert_awaited_once()
         member.assert_not_awaited()
+
+
+async def test_a_full_trace_keeps_save_and_completion_markers_without_replaying_a_saved_answer(
+    store: _Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    turn = await _begin()
+    await live_turn.publish(turn, "text_delta", {"content": "already saved"})
+    monkeypatch.setattr(live_turn, "MAX_TRACE_BYTES", 0)
+    await live_turn.publish(turn, "text_delta", {"content": "over the content budget"})
+    await live_turn.publish(turn, "message_saved", {"message_id": "saved"})
+    await live_turn.publish(turn, "complete", {})
+    await live_turn.end(turn)
+    frames = [frame async for frame in live_turn.follow(CONVERSATION, turn.token)]
+    assert [frame["type"] for frame in frames] == [live_turn.END]
+    kept = [json.loads(raw)["type"] for raw in store.lists[turn.key("trace")]]
+    assert kept == ["text_delta", "message_saved", "complete", live_turn.END]

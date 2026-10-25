@@ -333,3 +333,39 @@ describe("the reply being written", () => {
     expect(useChatStore.getState().replyTo).toEqual(reply);
   });
 });
+
+describe("reconciling a late transcript", () => {
+  it("keeps a later streaming turn addressable by subsequent deltas", () => {
+    store().addMessage(message({ id: "first", content: "saved" }));
+    store().addMessage(
+      message({ id: "next-user", role: "user", content: "next", isTemporaryId: true }),
+    );
+    store().addMessage(
+      message({ id: "next", content: "stream", isTemporaryId: true, isStreaming: true }),
+    );
+    store().rereadMessages([message({ id: "first", content: "saved" })]);
+    store().appendTextDelta("next", " continues");
+    expect(store().messages.map((item) => item.id)).toEqual(["first", "next-user", "next"]);
+    expect(store().messages.at(-1)?.content).toBe("stream continues");
+  });
+
+  it("keeps an unsaved answer and its error while replacing the persisted prefix", () => {
+    store().addMessage(message({ id: "question", role: "user" }));
+    store().addMessage(
+      message({ id: "unsaved", content: "Answer\nCould not save", isTemporaryId: true }),
+    );
+    store().rereadMessages([message({ id: "question", role: "user" })]);
+    expect(store().messages.at(-1)?.content).toBe("Answer\nCould not save");
+  });
+});
+
+it("does not truncate a live persisted bubble or remount a saved one on a stale read", () => {
+  store().addMessage(message({ id: "saved", content: "saved", renderKey: "original" }));
+  store().addMessage(message({ id: "live", content: "new deltas", isStreaming: true }));
+  store().rereadMessages([
+    message({ id: "saved", content: "saved" }),
+    message({ id: "live", content: "old deltas" }),
+  ]);
+  expect(store().messages[0]?.renderKey).toBe("original");
+  expect(store().messages[1]?.content).toBe("new deltas");
+});

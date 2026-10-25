@@ -322,6 +322,7 @@ describe("useChat - the streamed answer", () => {
     receive("text_delta", { index: 0, content: "first" });
     receive("final_result", { output: "first" });
     receive("complete", {});
+    receive("session_ready", {});
 
     receive("model_request_start", {});
 
@@ -1076,6 +1077,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
 
     receive("complete", {});
+    receive("session_ready", {});
     expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
   });
 
@@ -1171,6 +1173,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("complete", {});
+    receive("session_ready", {});
 
     receive("message_saved", { message_id: "m-real" });
 
@@ -1184,6 +1187,7 @@ describe("useChat - the conversation a turn belongs to", () => {
   it("renames nothing when there is no temporary message to rename", () => {
     renderHook(() => useChat(), { wrapper });
     receive("complete", {});
+    receive("session_ready", {});
 
     receive("message_saved", { message_id: "m-real" });
 
@@ -1196,6 +1200,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(listener).toHaveBeenCalled();
     expect(result.current.isProcessing).toBe(false);
@@ -1248,6 +1253,7 @@ describe("useChat - a sandbox still being opened", () => {
     receive("sandbox_preparing", {});
 
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(result.current.sandboxPreparing).toBe(false);
   });
@@ -1316,6 +1322,7 @@ describe("useChat - the summary of its own history", () => {
       window_tokens: 5_000,
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(result.current.compactionImpossible).toMatchObject({ overhead_tokens: 3_843 });
   });
@@ -1350,6 +1357,7 @@ describe("useChat - the summary of its own history", () => {
     });
 
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(result.current.compacting).toBeNull();
   });
@@ -1473,6 +1481,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1524,6 +1533,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1555,6 +1565,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1580,6 +1591,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "reject" }]);
@@ -1905,6 +1917,7 @@ describe("useChat - approvals and questions", () => {
     expect(get).not.toHaveBeenCalled();
 
     receive("complete", {});
+    receive("session_ready", {});
     await act(async () => {});
 
     expect(get).toHaveBeenCalledTimes(1);
@@ -1981,6 +1994,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -2017,6 +2031,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -2051,6 +2066,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -2102,6 +2118,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -2131,6 +2148,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
     const before = useChatStore.getState().messages.length;
 
     await act(async () => {
@@ -2470,6 +2488,7 @@ describe("useChat - what goes out with a turn", () => {
 
     rerender({ id: "c-1" });
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("again"));
     expect(frame(1)).not.toHaveProperty("project_id");
   });
@@ -2482,6 +2501,7 @@ describe("useChat - what goes out with a turn", () => {
 
     act(() => result.current.setModelProfile("p-1"));
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("second"));
 
     expect(frame(1)).toMatchObject({ model_profile_id: "p-1" });
@@ -2497,6 +2517,7 @@ describe("useChat - what goes out with a turn", () => {
 
     act(() => result.current.setApprovalMode("ask_all"));
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("second"));
 
     expect(frame(1)).toMatchObject({ approval_mode: "ask_all" });
@@ -2510,6 +2531,7 @@ describe("useChat - what goes out with a turn", () => {
 
     act(() => result.current.setApprovalMode("follow_agent"));
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("second"));
 
     expect(frame(1)).not.toHaveProperty("approval_mode");
@@ -2776,6 +2798,7 @@ describe("useChat - a socket that went away mid-answer", () => {
 
     act(() => result.current.sendMessage("never mind, this instead"));
     receive("complete", {});
+    receive("session_ready", {});
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
@@ -2827,7 +2850,8 @@ describe("useChat - a socket that went away mid-answer", () => {
       vi.advanceTimersByTime(100);
     });
 
-    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(result.current.queuedMessages).toHaveLength(0);
+    // Switching threads cancels this queue; the reconnect only follows.
     // The reconnect asks to follow the interrupted turn; nothing queued went out.
     const sentNotFollowing = sent.mock.calls.filter(
       ([sentFrame]) => (sentFrame as { type?: string }).type !== "attach",
@@ -2904,6 +2928,7 @@ describe("useChat - a socket that went away mid-answer", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("first"));
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("second"));
 
     expect(result.current.detachedTurnPending).toBe(false);
@@ -2911,6 +2936,70 @@ describe("useChat - a socket that went away mid-answer", () => {
 });
 
 describe("useChat - the outbound queue", () => {
+  it("waits for session readiness after the result and the saved answer", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useChat(), { wrapper });
+      act(() => result.current.sendMessage("first"));
+      receive("model_request_start", {});
+      receive("final_result", { output: "answer" });
+      act(() => result.current.sendMessage("second"));
+      receive("message_saved", { message_id: "saved" });
+      receive("complete", {});
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(1);
+      receive("session_ready", {});
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(
+        sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+      ).toEqual(["first", "second"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["conversation", "new-chat-to-existing", "organization", "account", "unmount", "clear"])(
+    "cancels a scheduled send after %s changes",
+    async (changed) => {
+      vi.useFakeTimers();
+      try {
+        useConversationStore.setState({
+          currentConversationId: changed === "new-chat-to-existing" ? null : "c-1",
+        });
+        const { result, unmount } = renderHook(() => useChat(), { wrapper });
+        act(() => result.current.sendMessage("first"));
+        act(() => result.current.sendMessage("belongs to c-1"));
+        receive("complete", {});
+        receive("session_ready", {});
+        act(() => {
+          if (changed === "conversation" || changed === "new-chat-to-existing")
+            useConversationStore.setState({ currentConversationId: "c-2" });
+          else if (changed === "organization") {
+            get.mockResolvedValue({ permissions: [] });
+            useOrgStore.setState({ activeOrgId: "org-other" });
+          } else if (changed === "account")
+            useAuthStore.setState({
+              user: {
+                id: "other",
+                email: "other@example.test",
+                is_active: true,
+                created_at: "2026-01-01T00:00:00Z",
+              },
+            });
+          else if (changed === "unmount") unmount();
+          else result.current.clearQueued();
+          vi.advanceTimersByTime(100);
+        });
+        await act(async () => vi.advanceTimersByTimeAsync(100));
+        expect(
+          sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+        ).toEqual(["first"]);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it("queues what is sent to wait for the answer, and drains it when the agent is idle", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -2922,6 +3011,7 @@ describe("useChat - the outbound queue", () => {
     expect(sent).toHaveBeenCalledTimes(1);
 
     receive("complete", {});
+    receive("session_ready", {});
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
@@ -2960,6 +3050,7 @@ describe("useChat - the outbound queue", () => {
 
     act(() => result.current.sendMessage("second", undefined, undefined, [drive]));
     receive("complete", {});
+    receive("session_ready", {});
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
@@ -3140,6 +3231,7 @@ describe("what the person cannot reach", () => {
 
     receive("personal_services_unavailable", { services: [NOTION] });
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(result.current.personalGaps).toEqual([NOTION]);
   });
@@ -3916,6 +4008,7 @@ describe("useChat - coming back to a turn still being written", () => {
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "Writing index.html" });
     expect(streaming()?.content).toContain("Writing index.html");
+    receive("message_saved", { message_id: "stored-answer" });
 
     receive("turn_followed_to_end", { conversation_id: "c-1" });
     expect(result.current.isProcessing).toBe(false);
@@ -4099,4 +4192,58 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
     expect(result.current.isProcessing).toBe(false);
   });
+});
+
+it("adopts the persisted prompt id before reconciling a live transcript", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("A question"));
+  const temporary = useChatStore.getState().messages[0]!;
+  receive("user_prompt", { message_id: "stored-question", content: "A question" });
+  expect(useChatStore.getState().messages[0]).toMatchObject({
+    id: "stored-question",
+    isTemporaryId: false,
+    renderKey: temporary.id,
+  });
+});
+
+it("holds queued prompts when the socket drops after completion but before admission is ready", async () => {
+  vi.useFakeTimers();
+  try {
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("waiting"));
+    receive("complete", {});
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(result.current.interrupted).toBe(true);
+    expect(result.current.queuedMessages.map((message) => message.content)).toEqual(["waiting"]);
+    expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("waits for the followed turn to detach before releasing a queued prompt", async () => {
+  vi.useFakeTimers();
+  try {
+    const { result } = renderHook(() => useChat({ conversationId: "followed" }), { wrapper });
+    receive("turn_attached", { conversation_id: "followed" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "An answer" });
+    act(() => result.current.sendMessage("next question"));
+    receive("complete", {});
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(0);
+    receive("turn_followed_to_end", { conversation_id: "followed" });
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(
+      sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+    ).toEqual(["next question"]);
+    expect(streaming()?.isStreaming).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
 });

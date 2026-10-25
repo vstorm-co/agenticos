@@ -1240,6 +1240,8 @@ class ConversationService:
         *,
         skip: int = 0,
         limit: int = 100,
+        latest: bool = False,
+        before: UUID | None = None,
         organization_id: UUID,
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
@@ -1277,6 +1279,8 @@ class ConversationService:
             skip=skip,
             limit=limit,
             include_tool_calls=include_tool_calls,
+            latest=latest,
+            before=before,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
         await self._attach_senders(items, conversation)

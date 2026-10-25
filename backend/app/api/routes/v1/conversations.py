@@ -355,8 +355,14 @@ async def list_messages(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    latest: bool = False,
+    before: UUID | None = None,
 ) -> Any:
     """List messages in a conversation, always scoped to the caller.
+
+    `latest=true` selects the newest page, still returned chronologically.
+    `before` selects messages older than this conversation's named message;
+    combine both to page backwards without concurrent appends shifting offsets.
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
@@ -370,6 +376,8 @@ async def list_messages(
         conversation_id,
         skip=skip,
         limit=limit,
+        latest=latest,
+        before=before,
         include_tool_calls=True,
         organization_id=active_org.id,
         user_id=current_user.id,

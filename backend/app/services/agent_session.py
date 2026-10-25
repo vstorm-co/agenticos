@@ -456,6 +456,11 @@ class AgentSession:
                 },
             )
             raise
+        finally:
+            # `complete` precedes persistence/trace cleanup. Free the slot before
+            # inviting another prompt, so receiving this frame is an admission guarantee.
+            self._turn_task = None
+            await self._emit("session_ready", {"conversation_id": self.current_conversation_id})
 
     async def _cancel_turn(self) -> None:
         """Cancel the in-flight turn task and wait for it to unwind."""
@@ -675,7 +680,13 @@ class AgentSession:
                     {"conversation_id": self.current_conversation_id},
                 )
 
-            await self._emit("user_prompt", {"content": user_message})
+            await self._emit(
+                "user_prompt",
+                {
+                    "content": user_message,
+                    "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                },
+            )
 
             # One session for the whole turn: the history and the files it is
             # given, the run row, the approvals it parks and the cost it books.

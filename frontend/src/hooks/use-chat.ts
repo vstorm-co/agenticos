@@ -211,6 +211,8 @@ export function useChat(options: UseChatOptions = {}) {
   // without waiting for React's batched re-render. The handler never causes a
   // re-render based on this id, so state isn't needed.
   const currentMessageIdRef = useRef<string | null>(null);
+  const currentUserMessageIdRef = useRef<string | null>(null);
+  const createdConversationIdRef = useRef<string | null>(null);
   const setCurrentMessageId = useCallback((id: string | null) => {
     currentMessageIdRef.current = id;
   }, []);
@@ -228,6 +230,9 @@ export function useChat(options: UseChatOptions = {}) {
   // drainer effect; the parallel state triggers re-renders for the UI.
   const messageQueueRef = useRef<QueuedMessage[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+  const queuedSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionReadyRef = useRef(true);
+  const [sessionReady, setSessionReady] = useState(true);
   // Corrections sent into the running turn, until `steer_applied` says the model
   // has them, and questions asked beside it with their answers (#2087).
   const [steers, setSteers] = useState<SteerDraft[]>([]);
@@ -502,6 +507,20 @@ export function useChat(options: UseChatOptions = {}) {
       };
 
       switch (wsEvent.type) {
+        case "user_prompt": {
+          const { message_id } = wsEvent.data as { message_id?: string | null };
+          const id = currentUserMessageIdRef.current;
+          if (id && message_id) {
+            updateMessage(id, (message) => ({
+              ...message,
+              id: message_id,
+              isTemporaryId: false,
+              renderKey: message.renderKey ?? id,
+            }));
+            currentUserMessageIdRef.current = null;
+          }
+          break;
+        }
         // The reader came back to a conversation whose agent is still answering,
         // under a socket this tab no longer holds - another chat was opened, the
         // page reloaded. The server sends the turn so far and then the rest as it
@@ -596,6 +615,7 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "conversation_created": {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
+          createdConversationIdRef.current = conversation_id;
           setCurrentConversationId(conversation_id);
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);
@@ -818,7 +838,6 @@ export function useChat(options: UseChatOptions = {}) {
               isStreaming: false,
             }));
           }
-          setIsProcessing(false);
           // Don't clear currentMessageId yet - we need it for message_saved event
           currentGroupIdRef.current = null;
           break;
@@ -920,7 +939,7 @@ export function useChat(options: UseChatOptions = {}) {
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
             abandonOpenCalls(id);
           }
-          setIsProcessing(false);
+          if (followingRef.current === null) setIsProcessing(false);
           // The turn is over and no `subagent_complete` is coming for whatever was
           // still running. A panel left open past that spins forever - the state a
           // parked tool call used to sit in.
@@ -1004,8 +1023,14 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "session_ready": {
+          sessionReadyRef.current = true;
+          setSessionReady(true);
+          break;
+        }
+
         case "complete": {
-          setIsProcessing(false);
+          if (followingRef.current === null) setIsProcessing(false);
           // A turn that ended is waiting on nothing: a card left up would answer
           // a run that is gone - a sibling tool failing or parking ends it too.
           setPendingConnection(null);
@@ -1057,7 +1082,12 @@ export function useChat(options: UseChatOptions = {}) {
               void refreshConversationCost();
             }
           }
-          // Clear currentMessageId after complete (message_saved should have handled ID mapping)
+          // A terminal frame may arrive without final_result, including a stop.
+          if (currentMessageIdRef.current)
+            updateMessage(currentMessageIdRef.current, (message) => ({
+              ...message,
+              isStreaming: false,
+            }));
           setCurrentMessageId(null);
           // The turn just debited credits server-side - nudge any mounted
           // billing view to refetch so the user doesn't see stale numbers.
@@ -1184,6 +1214,8 @@ export function useChat(options: UseChatOptions = {}) {
 
   const doSend = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
+      sessionReadyRef.current = false;
+      setSessionReady(false);
       // The previous turn's panels belong to the previous turn. Cleared here rather
       // than on `complete` so they survive it - which is the whole point - and a
       // late frame from a background delegation of the turn before is dropped by
@@ -1224,6 +1256,7 @@ export function useChat(options: UseChatOptions = {}) {
         setCurrentMessageId(null);
       }
       const userMessageId = clientId();
+      currentUserMessageIdRef.current = userMessageId;
       // Read at send time, as the agent is: a reply chosen while the turn was
       // queued is the one it answers. Spent by this turn either way.
       const replyTo = chatApi.getState().replyTo;
@@ -1309,7 +1342,12 @@ export function useChat(options: UseChatOptions = {}) {
       // Queue when the agent is busy OR the socket is offline. The queue is
       // surfaced above the input as pending entries the user can cancel; the
       // drainer effect below pops the head as soon as the agent is idle.
-      if (isProcessing || !isConnected) {
+      if (
+        processingRef.current ||
+        !sessionReadyRef.current ||
+        !isConnected ||
+        (messageQueueRef.current.length > 0 && interruptedForRef.current === null)
+      ) {
         const id = clientId();
         messageQueueRef.current.push({ id, content, fileIds, files, mentions });
         setQueuedMessages([...messageQueueRef.current]);
@@ -1317,7 +1355,7 @@ export function useChat(options: UseChatOptions = {}) {
       }
       doSend(content, fileIds, files, mentions);
     },
-    [isProcessing, isConnected, doSend],
+    [isConnected, doSend],
   );
 
   /**
@@ -1364,6 +1402,8 @@ export function useChat(options: UseChatOptions = {}) {
   }, []);
 
   const clearQueued = useCallback(() => {
+    if (queuedSendTimer.current !== null) clearTimeout(queuedSendTimer.current);
+    queuedSendTimer.current = null;
     messageQueueRef.current = [];
     setQueuedMessages([]);
   }, []);
@@ -1379,9 +1419,12 @@ export function useChat(options: UseChatOptions = {}) {
   // in a ref as well as in state and a ref may not be written while rendering.
   // Before the paint either way, so nothing of the previous tenant is shown.
   const queueBelongsTo = useRef(tenantId);
+  const queueAccountId = useAuthStore((state) => state.user?.id);
+  const queueAccount = useRef(queueAccountId);
   useLayoutEffect(() => {
-    if (queueBelongsTo.current === tenantId) return;
+    if (queueBelongsTo.current === tenantId && queueAccount.current === queueAccountId) return;
     queueBelongsTo.current = tenantId;
+    queueAccount.current = queueAccountId;
     stoppingRef.current = null;
     setIsStopping(false);
     clearQueued();
@@ -1401,7 +1444,18 @@ export function useChat(options: UseChatOptions = {}) {
     // picture of somebody else's data.
     setBrowses([]);
     closeBrowserPanel();
-  }, [tenantId, clearQueued, closeBrowserPanel]);
+  }, [tenantId, queueAccountId, clearQueued, closeBrowserPanel]);
+
+  const queuedConversation = useRef(activeConversationId);
+  useLayoutEffect(() => {
+    const previous = queuedConversation.current;
+    queuedConversation.current = activeConversationId;
+    if (previous === activeConversationId) return;
+    const justCreated =
+      previous === null && createdConversationIdRef.current === activeConversationId;
+    createdConversationIdRef.current = null;
+    if (!justCreated) clearQueued();
+  }, [activeConversationId, clearQueued]);
 
   // The other half: a delegation, an approval and a question all belong to a run in
   // *this* conversation, and all three are drawn over whatever transcript is on
@@ -1955,6 +2009,7 @@ export function useChat(options: UseChatOptions = {}) {
    *  here means the panels never outlive the run that fed them.
    */
   const endTurnLocally = useCallback(() => {
+    processingRef.current = false;
     if (currentMessageIdRef.current) {
       updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
       abandonOpenCalls(currentMessageIdRef.current);
@@ -2100,6 +2155,8 @@ export function useChat(options: UseChatOptions = {}) {
     // the thread left is still being answered, whatever this tab does next.
     handOffWorking(previous);
     endTurnLocally();
+    sessionReadyRef.current = true;
+    setSessionReady(true);
     reopen();
     setLeftRunning((threads) => new Set(threads).add(previous));
   }, [activeConversationId, isProcessing, endTurnLocally, reopen, handOffWorking]);
@@ -2139,7 +2196,11 @@ export function useChat(options: UseChatOptions = {}) {
     const dropped = wasConnected.current && !isConnected;
     const returned = !wasConnected.current && isConnected;
     wasConnected.current = isConnected;
-    if (dropped && isProcessing) {
+    if (returned) {
+      sessionReadyRef.current = true;
+      setSessionReady(true);
+    }
+    if (dropped && (isProcessing || !sessionReadyRef.current)) {
       const thread = { id: activeConversationId };
       interruptedRef.current = thread;
       interruptedForRef.current = thread;
@@ -2236,16 +2297,44 @@ export function useChat(options: UseChatOptions = {}) {
   // send it schedules cannot be called back (#1775).
   useEffect(() => {
     if (interruptedFor !== null) return;
-    if (isConnected && !isProcessing && messageQueueRef.current.length > 0) {
-      const next = messageQueueRef.current.shift();
+    if (!isConnected || isProcessing || !sessionReady) return;
+    const next = messageQueueRef.current[0];
+    if (!next) return;
+    const account = useAuthStore.getState().user?.id;
+    const organization = useOrgStore.getState().activeOrgId;
+    const conversation = conversationApi.getState().currentConversationId;
+    const timer = setTimeout(() => {
+      queuedSendTimer.current = null;
+      if (
+        account !== useAuthStore.getState().user?.id ||
+        organization !== useOrgStore.getState().activeOrgId ||
+        conversation !== conversationApi.getState().currentConversationId ||
+        messageQueueRef.current[0] !== next ||
+        processingRef.current ||
+        !sessionReadyRef.current
+      )
+        return;
+      messageQueueRef.current.shift();
       setQueuedMessages([...messageQueueRef.current]);
-      if (next) {
-        // Small debounce so the UI shows the queue clearing visibly before
-        // the next user bubble lands; also avoids racing the WS state flip.
-        setTimeout(() => doSend(next.content, next.fileIds, next.files, next.mentions), 100);
-      }
-    }
-  }, [isProcessing, isConnected, interruptedFor, doSend]);
+      doSend(next.content, next.fileIds, next.files, next.mentions);
+    }, 100);
+    queuedSendTimer.current = timer;
+    return () => {
+      clearTimeout(timer);
+      if (queuedSendTimer.current === timer) queuedSendTimer.current = null;
+    };
+  }, [
+    isProcessing,
+    isConnected,
+    sessionReady,
+    interruptedFor,
+    doSend,
+    queuedMessages,
+    tenantId,
+    queueAccountId,
+    activeConversationId,
+    conversationApi,
+  ]);
 
   // The interrupted turn's answer landing is the only thing that actually
   // resolves it, and the transcript is where it lands - not the socket this

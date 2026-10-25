@@ -736,7 +736,9 @@ describe("the chat container - a voice call (#54)", () => {
     const loading = vi.fn();
     const stop = useConversationStore.subscribe((state) => loading(state.isLoading));
     act(() => voiceCall.options.onTurnSaved?.());
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-a/messages"));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/conversations/c-a/messages?latest=true&limit=101"),
+    );
     stop();
     // Not the select path: nothing is cleared and no skeleton is drawn.
     expect(loading).not.toHaveBeenCalledWith(true);
@@ -750,7 +752,9 @@ describe("the chat container - a voice call (#54)", () => {
     expect(useConversationStore.getState().currentConversationId).toBe("c-new");
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-new/messages"));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/conversations/c-new/messages?latest=true&limit=101"),
+    );
     expect(voiceCall.end).not.toHaveBeenCalled();
   });
 
@@ -765,7 +769,7 @@ describe("the chat container - a voice call (#54)", () => {
     // A saved turn from the old call no longer reloads the conversation on screen.
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
-    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages");
+    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages?latest=true&limit=101");
   });
 
   it("hangs up a call started in a new chat when another conversation is opened before it is named", async () => {
@@ -1008,7 +1012,7 @@ describe("the chat container - an answer still being written after its person le
           ],
           total: 1,
         });
-      if (url === `/conversations/${LEFT}/messages`) {
+      if (url === `/conversations/${LEFT}/messages?latest=true&limit=101`) {
         answered();
         const question = {
           id: "m-1",
@@ -1051,7 +1055,10 @@ describe("the chat container - an answer still being written after its person le
     );
 
     expect(await screen.findByText(/still answering when you left/)).toBeInTheDocument();
-    const reads = () => get.mock.calls.filter(([url]) => url === `/conversations/${LEFT}/messages`);
+    const reads = () =>
+      get.mock.calls.filter(
+        ([url]) => url === `/conversations/${LEFT}/messages?latest=true&limit=101`,
+      );
     const before = reads().length;
 
     // The run ends: the next read of the list no longer says it is at work.
@@ -1221,4 +1228,122 @@ describe("the chat container - @-mentions (#2189)", () => {
     // On the question, where it was written.
     expect(await screen.findByTitle("Finance Analyst")).toBeInTheDocument();
   });
+});
+
+describe("the chat container - late transcript reconciliation", () => {
+  function stored(id: string, role: "user" | "assistant", content: string) {
+    return { id, role, content, conversation_id: "c-race", created_at: "2026-10-01T12:00:00Z" };
+  }
+
+  async function openQuestion() {
+    useConversationStore.getState().setCurrentConversationId("c-race");
+    useConversationStore
+      .getState()
+      .setCurrentMessages([stored("question", "user", "Initial question")]);
+    mount();
+    await screen.findByText("Initial question");
+    receive("turn_attached", { conversation_id: "c-race" });
+    receive("model_request_start", {});
+  }
+
+  it("keeps the next streamed bubble when the previous turn's late history lands", async () => {
+    await openQuestion();
+    receive("text_delta", { index: 0, content: "First answer" });
+    receive("message_saved", { message_id: "first-answer" });
+    receive("complete", {});
+    let finish!: (value: unknown) => void;
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path.includes("/messages")
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : fallback(path),
+    );
+    receive("turn_followed_to_end", { conversation_id: "c-race" });
+    receive("turn_attached", { conversation_id: "c-race" });
+    receive("turn_prompt", {
+      conversation_id: "c-race",
+      message_id: "second-question",
+      content: "Next question",
+      sender: { user_id: "u-1", name: "Kacper" },
+    });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Second answer" });
+    await act(async () =>
+      finish({
+        items: [
+          stored("question", "user", "Initial question"),
+          stored("first-answer", "assistant", "First answer"),
+        ],
+        total: 2,
+        cost: null,
+      }),
+    );
+    receive("text_delta", { index: 0, content: " continues" });
+    expect(useChatStore.getState().messages.at(-1)?.content).toBe("Second answer continues");
+    receive("final_result", { output: "Second answer continues" });
+    receive("complete", {});
+    expect(await screen.findByText("Second answer continues")).toBeVisible();
+  });
+
+  it("retains an unsaved result and its error when following ends", async () => {
+    await openQuestion();
+    receive("text_delta", { index: 0, content: "Unsaved answer" });
+    receive("error", { message: "Could not persist this answer" });
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path.includes("/messages")
+        ? Promise.resolve({
+            items: [stored("question", "user", "Initial question")],
+            total: 1,
+            cost: null,
+          })
+        : fallback(path),
+    );
+    receive("complete", {});
+    receive("turn_followed_to_end", { conversation_id: "c-race" });
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith(
+        expect.stringContaining("/conversations/c-race/messages?latest=true"),
+      ),
+    );
+    await act(async () => {});
+    expect(useChatStore.getState().messages.at(-1)?.content).toContain("Unsaved answer");
+    expect(useChatStore.getState().messages.at(-1)?.content).toContain(
+      "Could not persist this answer",
+    );
+    expect(screen.getByText(/Could not persist this answer/)).toBeVisible();
+  });
+});
+
+it("loads earlier messages from the transcript control without losing the current page", async () => {
+  const current = {
+    id: "m-2",
+    role: "user" as const,
+    content: "Current page",
+    conversation_id: "paged",
+    created_at: "2026-10-01T12:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("paged");
+  useConversationStore.getState().setCurrentMessages([current], null, true);
+  const fallback = get.getMockImplementation()!;
+  let finish!: (value: unknown) => void;
+  get.mockImplementation((path: string) =>
+    path.includes("before=m-2")
+      ? new Promise((resolve) => {
+          finish = resolve;
+        })
+      : fallback(path),
+  );
+  mount();
+  const button = await screen.findByRole("button", { name: "Load earlier messages" });
+  fireEvent.click(button);
+  expect(button).toBeDisabled();
+  await act(async () =>
+    finish({ items: [{ ...current, id: "m-1", content: "Earlier page" }], total: 2, cost: null }),
+  );
+  expect(await screen.findByText("Earlier page")).toBeVisible();
+  expect(screen.getByText("Current page")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Load earlier messages" })).not.toBeInTheDocument();
 });

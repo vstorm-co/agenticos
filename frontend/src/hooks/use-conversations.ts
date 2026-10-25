@@ -72,6 +72,16 @@ interface MessagesResponse {
 }
 
 const PAGE_SIZE = 30;
+const MESSAGE_PAGE_SIZE = 100;
+const transcriptPath = (id: string, before?: string) => {
+  const params = new URLSearchParams({ latest: "true", limit: String(MESSAGE_PAGE_SIZE + 1) });
+  if (before) params.set("before", before);
+  return `/conversations/${encodeURIComponent(id)}/messages?${params}`;
+};
+const transcriptPage = (response: MessagesResponse) => ({
+  items: response.items.slice(-MESSAGE_PAGE_SIZE),
+  hasEarlier: response.items.length > MESSAGE_PAGE_SIZE,
+});
 
 /** Which threads a listing is about. `all` is both, and the default. */
 export type ConversationView = "active" | "archived" | "all";
@@ -153,6 +163,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const {
     currentConversationId,
     currentMessages,
+    hasEarlierMessages,
     isLoading: selectLoading,
     error,
     setCurrentConversationId,
@@ -317,14 +328,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         const stillSelected = () =>
           conversationApi.getState().currentConversationId === selectedBefore;
         try {
-          const msgs = await apiClient.get<MessagesResponse>(
-            `/conversations/${encodeURIComponent(urlId)}/messages`,
-            { signal },
-          );
+          const msgs = await apiClient.get<MessagesResponse>(transcriptPath(urlId), { signal });
           if (!stillCurrent() || !stillAddressed() || !stillSelected()) return;
           clearMessages();
           setCurrentConversationId(urlId);
-          setCurrentMessages(msgs.items, msgs.cost);
+          const page = transcriptPage(msgs);
+          setCurrentMessages(page.items, msgs.cost, page.hasEarlier);
         } catch {
           // The failure belongs to whoever asked. A refusal answering after
           // somebody else has signed in says nothing about the conversation they
@@ -415,26 +424,35 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const controller = new AbortController();
       messagesAbortRef.current = controller;
       const startedAs = useAuthStore.getState().user?.id;
+      const startedOrg = useOrgStore.getState().activeOrgId;
+      const stillSelected = () =>
+        !controller.signal.aborted &&
+        stillSameAccount(startedAs) &&
+        useOrgStore.getState().activeOrgId === startedOrg &&
+        stillSameTenant(tenant) &&
+        conversationApi.getState().currentConversationId === id;
 
       setCurrentConversationId(id);
       clearMessages();
+      setCurrentMessages([]);
       if (!scoped) setUrlParam("id", id);
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`, {
+        const response = await apiClient.get<MessagesResponse>(transcriptPath(id), {
           signal: controller.signal,
         });
         // Guard against a superseded request resolving after a newer select.
-        if (controller.signal.aborted || !stillSameAccount(startedAs)) return;
-        setCurrentMessages(response.items, response.cost);
+        if (!stillSelected()) return;
+        const page = transcriptPage(response);
+        setCurrentMessages(page.items, response.cost, page.hasEarlier);
       } catch (err) {
         // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (
           controller.signal.aborted ||
           (err instanceof DOMException && err.name === "AbortError") ||
           // As above: one account's failure is not the next one's error banner.
-          !stillSameAccount(startedAs)
+          !stillSelected()
         ) {
           return;
         }
@@ -457,6 +475,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       t,
       tErrors,
       scoped,
+      tenant,
+      stillSameTenant,
+      conversationApi,
     ],
   );
 
@@ -470,9 +491,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     async (id: string) => {
       const ticket = ++rereadRef.current;
       const startedAs = useAuthStore.getState().user?.id;
+      const startedOrg = useOrgStore.getState().activeOrgId;
       let response: MessagesResponse;
       try {
-        response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`);
+        response = await apiClient.get<MessagesResponse>(transcriptPath(id));
       } catch {
         // The turn is saved whatever this read did; the transcript keeps what it
         // shows, and the next saved turn reads it again.
@@ -480,15 +502,71 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
       if (
         ticket !== rereadRef.current ||
-        useConversationStore.getState().currentConversationId !== id ||
+        conversationApi.getState().currentConversationId !== id ||
+        useOrgStore.getState().activeOrgId !== startedOrg ||
+        !stillSameTenant(tenant) ||
         !stillSameAccount(startedAs)
       ) {
         return;
       }
-      setCurrentMessages(response.items, response.cost);
+      const page = transcriptPage(response);
+      const previous = conversationApi.getState();
+      const first = previous.currentMessages[0];
+      const keepsEarlier =
+        first !== undefined && !page.items.some((message) => message.id === first.id);
+      const merged = [
+        ...new Map(
+          [...previous.currentMessages, ...page.items].map((message) => [message.id, message]),
+        ).values(),
+      ];
+      setCurrentMessages(
+        merged,
+        response.cost,
+        keepsEarlier ? previous.hasEarlierMessages : page.hasEarlier,
+      );
     },
-    [setCurrentMessages],
+    [setCurrentMessages, conversationApi, tenant, stillSameTenant],
   );
+
+  const [isLoadingEarlier, setLoadingEarlier] = useState(false);
+  const earlierRequest = useRef(false);
+  const loadEarlierMessages = useCallback(async () => {
+    const selected = conversationApi.getState();
+    const id = selected.currentConversationId;
+    const first = selected.currentMessages[0];
+    if (!id || !first || !selected.hasEarlierMessages || earlierRequest.current) return;
+    const account = useAuthStore.getState().user?.id;
+    const organization = useOrgStore.getState().activeOrgId;
+    const stillSelected = () =>
+      stillSameAccount(account) &&
+      stillSameTenant(tenant) &&
+      useOrgStore.getState().activeOrgId === organization &&
+      conversationApi.getState().currentConversationId === id;
+    earlierRequest.current = true;
+    setLoadingEarlier(true);
+    try {
+      const response = await apiClient.get<MessagesResponse>(transcriptPath(id, first.id));
+      if (!stillSelected()) return;
+      const page = transcriptPage(response);
+      const previous = conversationApi.getState();
+      const merged = [
+        ...new Map(
+          [...page.items, ...previous.currentMessages].map((message) => [message.id, message]),
+        ).values(),
+      ];
+      setCurrentMessages(merged, previous.currentCost, page.hasEarlier);
+      setError(null);
+    } catch (error) {
+      if (stillSelected()) {
+        const message = getErrorMessage(error, tErrors, t("failedFetchMessages"));
+        setError(message);
+        toast.error(message);
+      }
+    } finally {
+      earlierRequest.current = false;
+      setLoadingEarlier(false);
+    }
+  }, [conversationApi, setCurrentMessages, setError, tenant, stillSameTenant, t, tErrors]);
 
   const archiveConversation = useCallback(
     async (id: string) => {
@@ -759,6 +837,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     createConversation,
     selectConversation,
     rereadConversation,
+    hasEarlierMessages,
+    isLoadingEarlier,
+    loadEarlierMessages,
     archiveConversation,
     unarchiveConversation,
     setFavourite,
