@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { FolderPlus, FolderUp, Upload } from "lucide-react";
+import { FolderPlus, FolderUp, MoreHorizontal, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { FileDropZone } from "@/components/rag/file-drop-zone";
@@ -15,6 +15,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   FormField,
   Input,
 } from "@/components/ui";
@@ -83,6 +87,7 @@ function DesktopProjectFiles({ project }: { project: Project }) {
 
 function SharedProjectFiles({ project }: { project: Project }) {
   const t = useTranslations("projects");
+  const tc = useTranslations("common");
   const { files, isLoading, error, upload, uploads, addFolder, remove } = useProjectFiles(
     project.id,
   );
@@ -99,24 +104,59 @@ function SharedProjectFiles({ project }: { project: Project }) {
   }
 
   const toolbar = project.can_use ? (
-    <span className="mr-auto flex flex-wrap items-center gap-1.5" data-tour="project-files-add">
-      <Button size="sm" onClick={() => filesInput.current?.click()} disabled={upload.isPending}>
+    <span
+      className="mr-auto flex w-full items-center gap-2 sm:w-auto"
+      data-tour="project-files-add"
+    >
+      <Button
+        size="sm"
+        className="flex-1 sm:flex-none"
+        onClick={() => filesInput.current?.click()}
+        disabled={upload.isPending}
+      >
         <Upload className="h-4 w-4" />
         {t("uploadFiles")}
       </Button>
       <Button
         size="sm"
         variant="outline"
+        className="hidden sm:inline-flex"
         onClick={() => folderInput.current?.click()}
         disabled={upload.isPending}
       >
         <FolderUp className="h-4 w-4" />
         {t("uploadFolder")}
       </Button>
-      <Button size="sm" variant="outline" onClick={() => setFolderOpen(true)}>
+      <Button
+        size="sm"
+        variant="outline"
+        className="hidden sm:inline-flex"
+        onClick={() => setFolderOpen(true)}
+      >
         <FolderPlus className="h-4 w-4" />
         {t("newFolder")}
       </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className="sm:hidden" aria-label={tc("showMore")}>
+            <MoreHorizontal className="h-4 w-4" />
+            {tc("showMore")}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            disabled={upload.isPending}
+            onSelect={() => folderInput.current?.click()}
+          >
+            <FolderUp className="h-4 w-4" />
+            {t("uploadFolder")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setFolderOpen(true)}>
+            <FolderPlus className="h-4 w-4" />
+            {t("newFolder")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <input
         ref={filesInput}
         type="file"
@@ -149,17 +189,28 @@ function SharedProjectFiles({ project }: { project: Project }) {
   const empty = files !== null && files.total === 0 && uploads.length === 0;
 
   const explorer = empty ? (
-    <div className="border-border flex min-h-[24rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
+    <div className="border-border flex min-h-64 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-5 py-8 text-center sm:min-h-[24rem] sm:px-6 sm:py-12">
       <span className="bg-muted text-foreground grid h-14 w-14 place-items-center rounded-xl">
         <Upload className="h-6 w-6" aria-hidden />
       </span>
       <div className="max-w-md space-y-1">
         <p className="text-foreground text-base font-semibold">{t("noFilesYet")}</p>
         <p className="text-muted-foreground text-sm">
-          {project.can_use ? t("noFilesHint") : t("noFilesViewer")}
+          {project.can_use ? (
+            <>
+              <span className="sm:hidden">{t("noFilesMobileHint")}</span>
+              <span className="hidden sm:inline">{t("noFilesHint")}</span>
+            </>
+          ) : (
+            t("noFilesViewer")
+          )}
         </p>
       </div>
-      {toolbar && <div className="flex justify-center [&>span]:mr-0">{toolbar}</div>}
+      {toolbar && (
+        <div className="flex w-full max-w-sm justify-center sm:w-auto sm:max-w-none [&>span]:mr-0">
+          {toolbar}
+        </div>
+      )}
     </div>
   ) : (
     <div className="flex min-h-[32rem] flex-1 flex-col">
@@ -178,7 +229,7 @@ function SharedProjectFiles({ project }: { project: Project }) {
   return (
     // Down to the bottom of the screen, as the folder page's reader is: the files
     // are what the tab is for, and a fixed floor left half the screen empty.
-    <div className="flex min-h-[calc(100dvh-17rem)] flex-1 flex-col">
+    <div className="flex min-h-64 flex-1 flex-col sm:min-h-[calc(100dvh-17rem)]">
       {/* A file dropped anywhere on the tab lands in the project, as one dropped
           on a knowledge base lands in it - for whoever may add files. */}
       {project.can_use ? (

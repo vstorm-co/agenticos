@@ -8560,7 +8560,8 @@
       "sharedFiles": "Wspólne pliki projektu",
       "refresh": "Odśwież pliki",
       "previewHint": "Podgląd maksymalnie 500 lokalnych elementów. Foldery generowane, np. node_modules i .git, są pomijane. Pliki pozostają na tym komputerze."
-    }
+    },
+    "noFilesMobileHint": "Prześlij pliki, aby udostępnić je w projekcie. Każdy czat w projekcie może z nich korzystać."
   },
   "voiceGlow": {
     "title": "Animacja dyktowania",

@@ -8775,7 +8775,8 @@
       "sharedFiles": "Shared project files",
       "refresh": "Refresh files",
       "previewHint": "Preview up to 500 local entries. Generated folders such as node_modules and .git are skipped. Files stay on this computer."
-    }
+    },
+    "noFilesMobileHint": "Upload files to share them with the project. Every project chat can use them."
   },
   "voiceGlow": {
     "title": "Voice glow",

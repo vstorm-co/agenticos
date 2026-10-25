@@ -30,11 +30,11 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
   const t = useTranslations("context");
   const tc = useTranslations("common");
   return (
-    <Card className="peek-card group hover:border-foreground/20 relative h-full overflow-hidden">
+    <Card className="peek-card group hover:border-foreground/20 relative flex h-full flex-col overflow-hidden">
       <button
         type="button"
         onClick={onOpen}
-        className="flex h-full w-full flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
+        className="flex w-full flex-1 flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
       >
         {/* Not on a phone - see `SkillCard`. */}
         <DocPeek className="h-32 max-sm:hidden">
@@ -47,9 +47,9 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
             <BlankPeek />
           )}
         </DocPeek>
-        <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5 pb-12">
-          <span className="flex items-center gap-2 pr-8">
-            <span className="text-foreground truncate font-mono text-sm font-medium">
+        <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5 pb-3 sm:pb-12">
+          <span className="flex min-w-0 flex-wrap items-center gap-2 sm:pr-8">
+            <span className="text-foreground max-w-full truncate font-mono text-sm font-medium">
               {file.name}
             </span>
             <Badge variant={file.mode === "inject" ? "secondary" : "outline"}>
@@ -74,7 +74,7 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
           it: giving it to an agent is the next step after writing one (#2075). It
           keeps the card's edge, and the bin that appears on hover sits beside it
           rather than holding a gap open when it does not. */}
-      <div className="absolute right-4 bottom-3 flex items-center gap-1">
+      <div className="flex items-center justify-end gap-1 border-t px-3 py-2 sm:absolute sm:right-4 sm:bottom-3 sm:border-0 sm:p-0">
         {canEdit && (
           // Outside the open button - a button cannot hold another - and quiet until
           // the card is pointed at, so a grid of cards is not a column of bins.

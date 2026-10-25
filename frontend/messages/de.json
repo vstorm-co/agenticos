@@ -8654,7 +8654,8 @@
       "sharedFiles": "Gemeinsame Projektdateien",
       "refresh": "Dateien aktualisieren",
       "previewHint": "Vorschau von bis zu 500 lokalen Einträgen. Generierte Ordner wie node_modules und .git werden übersprungen. Die Dateien bleiben auf diesem Computer."
-    }
+    },
+    "noFilesMobileHint": "Lade Dateien hoch, um sie im Projekt zu teilen. Jeder Projektchat kann sie verwenden."
   },
   "voiceGlow": {
     "title": "Diktieranimation",

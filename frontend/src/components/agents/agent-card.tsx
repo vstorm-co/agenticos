@@ -128,26 +128,29 @@ export function AgentCard({
             aria-label={tc("openNamed", { name: agent.name })}
           />
 
-          <div className="pointer-events-none relative mb-3 flex items-start gap-3">
+          <div className="pointer-events-none relative mb-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:flex">
             <AgentAvatar
               agentId={agent.id}
               slug={agent.slug}
               hasAvatar={agent.has_avatar}
               colorSlot={agent.avatar_color}
               size="lg"
+              className="max-sm:size-12"
             />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-foreground truncate font-medium">{agent.name}</p>
+            <div className="contents sm:block sm:min-w-0 sm:flex-1">
+              <div className="flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-2">
+                <div className="w-full min-w-0 sm:w-auto">
+                  <h3 className="text-foreground line-clamp-2 font-medium break-words sm:truncate">
+                    {agent.name}
+                  </h3>
                   <p className="text-muted-foreground truncate font-mono text-xs">@{agent.slug}</p>
                 </div>
                 <AgentStatusBadge status={agent.status} />
               </div>
-              <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
+              <p className="text-muted-foreground col-span-2 line-clamp-2 min-h-[2.5rem] text-sm sm:mt-2">
                 {agent.description || t("noDescription")}
               </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
                 <AccessChip agent={agent} />
                 {(agent.channels ?? []).map((channel) => (
                   <Badge

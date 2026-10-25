@@ -105,6 +105,24 @@ function statusFilter() {
 }
 
 describe("the agents gallery filter", () => {
+  it("keeps the selected status when the phone filters are collapsed and reopened", async () => {
+    render(<AgentsPage />, { wrapper });
+    await screen.findByText("Live");
+    const toggle = screen.getByRole("button", { name: "Filters" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(statusFilter());
+    await userEvent.click(screen.getByRole("option", { name: "Drafts" }));
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveTextContent("1");
+    await userEvent.click(toggle);
+    expect(statusFilter()).toHaveTextContent("Drafts");
+    expect(screen.getByText("Draft")).toBeVisible();
+    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+  });
+
   it("shows every status on 'All'", async () => {
     render(<AgentsPage />, { wrapper });
 
