@@ -84,7 +84,14 @@ async def test_more_than_1100_failed_connections_still_retry_and_can_be_cancelle
 async def test_a_successful_connection_resets_reconnect_delay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    connection = MagicMock(is_closed=MagicMock(return_value=False), close=AsyncMock())
+    closed = False
+
+    async def close(*, timeout: float) -> None:
+        nonlocal closed
+        assert timeout == 10.0
+        closed = True
+
+    connection = MagicMock(is_closed=lambda: closed, close=AsyncMock(side_effect=close))
     connect = AsyncMock(side_effect=[OSError(), OSError(), connection, OSError()])
     pauses: list[float] = []
 
@@ -101,6 +108,8 @@ async def test_a_successful_connection_resets_reconnect_delay(
         await module.listener("postgresql://db/app")(lambda _pool: None)
     assert pauses == [2.0, 4.0, 2.0]
     connection.close.assert_awaited_once()
+    assert closed
+    connection.terminate.assert_not_called()
 
 
 @pytest.mark.parametrize(
