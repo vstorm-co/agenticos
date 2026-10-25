@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-10-25
+
 ### Added
 
 - Configure capability bindings and MCP services through AgenticOS MCP draft
