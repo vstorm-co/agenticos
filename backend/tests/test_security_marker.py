@@ -41,6 +41,7 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_platform_mcp_tools.py::TestConfiguredDrafts::test_an_explicit_null_clears_a_binding_secret_reference": "serializes a nullable UUID reference in a JSONB spec, no credential read or authorization refusal",
     "tests/test_generated_media.py::TestTheRetentionSweep::test_no_batch_starts_once_the_time_budget_is_spent": "the sweep's time budget, not a spending budget, no refusal",
     "tests/test_teams_channel.py::TestRegisteringABot::test_a_teams_bot_carries_its_app_and_tenant_and_is_a_webhook_bot": (
         "'tenant' is the Azure tenant id a Teams bot is registered with, not tenancy"
