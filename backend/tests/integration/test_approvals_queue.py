@@ -472,3 +472,33 @@ async def test_expiry_waits_for_a_stop_before_locking_its_approvals(
         assert (ended.input_tokens, ended.output_tokens) == (7, 3)
         assert ended.paused_state is None
         assert decided.status == ApprovalStatus.EXPIRED.value
+
+
+@pytest.mark.parametrize("status", [RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL])
+async def test_continuation_refreshes_a_preloaded_run_after_stop(
+    db: AsyncSession, engine: AsyncEngine, status: RunStatus
+) -> None:
+    """A second tab must observe Stop even with the run in its identity map."""
+    from app.core.exceptions import BadRequestError
+
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    run = await _run(db, org, agent, started_by=owner)
+    run.status = status.value
+    run.paused_state = {"messages": [], "tool_call_ids": {}}
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as answering, factory() as stopping:
+        service = AgentRunnerService(answering)
+        loaded = await service.get_run(_ctx(org, owner), run.id)
+        assert loaded.status == status.value
+        await AgentRunnerService(stopping).cancel_parked(_ctx(org, owner), run.id)
+        await stopping.commit()
+        assert loaded.status == status.value
+        with pytest.raises(BadRequestError) as refused:
+            if status == RunStatus.AWAITING_ANSWER:
+                await service.answer(_ctx(org, owner), run.id, {})
+            else:
+                await service.resume(_ctx(org, owner), run.id)
+        assert loaded.status == RunStatus.CANCELLED.value
+        assert refused.value.details["status"] == RunStatus.CANCELLED.value

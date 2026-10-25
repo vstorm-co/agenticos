@@ -299,6 +299,7 @@ export function useChat(options: UseChatOptions = {}) {
   // started to handle. Here the panels simply outlive `complete`, and each closes
   // on its own `subagent_complete`.
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  const delegationMessageIdRef = useRef<string | null>(null);
   // The browses of the turn on screen, keyed by their own `call_id` and held
   // outside the assistant message for the reason the delegations above are: a
   // `browse_page` call outlives nothing here, but its finish frame can land
@@ -854,6 +855,9 @@ export function useChat(options: UseChatOptions = {}) {
           // `kind` (see `AgentSession._subagent_event`), so the payload narrows
           // itself and the cases share one reducer instead of one copy each of
           // "find the task, change one field".
+          if (wsEvent.type === "subagent_start") {
+            delegationMessageIdRef.current = currentMessageIdRef.current;
+          }
           setDelegations((current) => applyDelegationFrame(current, wsEvent.data as SubagentFrame));
           break;
         }
@@ -1802,15 +1806,20 @@ export function useChat(options: UseChatOptions = {}) {
   const queryClient = useQueryClient();
   const stopCandidates = useMemo(() => {
     const candidates = new Map<string, { runId: string; messageId: string }>();
-    if (!permissionsLoaded || canDecide || isProcessing || pendingApproval !== null) return [];
+    if (!permissionsLoaded || isProcessing || pendingApproval !== null || pendingQuestions !== null)
+      return [];
     for (const message of [...messages].reverse()) {
       if (message.runId === undefined || candidates.has(message.runId)) continue;
-      if ((message.toolCalls ?? []).some((call) => call.status === "awaiting_approval")) {
+      if (
+        (message.toolCalls ?? []).some(
+          (call) => call.status === "awaiting_approval" || call.status === "awaiting_answer",
+        )
+      ) {
         candidates.set(message.runId, { runId: message.runId, messageId: message.id });
       }
     }
     return [...candidates.values()];
-  }, [messages, permissionsLoaded, canDecide, isProcessing, pendingApproval]);
+  }, [messages, permissionsLoaded, isProcessing, pendingApproval, pendingQuestions]);
   const stopAuthority = useQueries({
     queries: stopCandidates.map(({ runId }) => ({
       queryKey: qk.runs.canStop(tenantId, stopAccountId, runId),
@@ -2062,6 +2071,18 @@ export function useChat(options: UseChatOptions = {}) {
         try {
           const settled = await apiClient.post<string | null>(`/runs/${parked.runId}/cancel`);
           if (!stillHere()) return;
+          if (
+            chatApi
+              .getState()
+              .messages.some(
+                (message) =>
+                  message.runId === parked.runId && message.id === delegationMessageIdRef.current,
+              )
+          ) {
+            setDelegations((current) =>
+              resolveAwaitingOnResume(closeOpenDelegations(current), "cancelled"),
+            );
+          }
           if (settled === null) {
             dismiss();
             onTurnInterrupted?.();

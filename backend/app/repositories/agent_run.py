@@ -337,12 +337,15 @@ async def claim_parked_run(
 
     Resuming replays a side-effecting tool call, so two requests arriving
     together - a double-clicked Approve - must not both replay it. The second
-    waits here and then finds the run no longer parked.
+    waits here and then finds the run no longer parked. Refresh the identity
+    map too: answering a question may have already loaded the run before Stop
+    committed in another session.
     """
     result = await db.execute(
         select(AgentRun)
         .where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 

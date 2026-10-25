@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Recheck parked run state under the row lock before continuing after Stop. Keep
+  Stop available when restoring question or approval cards fails, and settle
+  waiting delegate panels when their run is cancelled.
+
 - Apply dashboard period, view, group and section filters when navigating to a
   report without remounting the dashboard page.
 

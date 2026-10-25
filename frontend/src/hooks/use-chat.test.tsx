@@ -819,6 +819,53 @@ describe("useChat - streaming a delegation", () => {
     });
   });
 
+  it.each(["Not performed: the run was stopped.", null])(
+    "settles waiting delegates after Stop returns %s",
+    async (settled) => {
+      post.mockResolvedValue(settled);
+      const { result } = renderHook(() => useChat(), { wrapper: decider });
+      receive("model_request_start", {});
+      startDelegation("t1");
+      receive("subagent_awaiting_approval", {
+        kind: "subagent_awaiting_approval",
+        task_id: "t1",
+        subagent: "researcher",
+        depth: 0,
+      });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+        review_configs: [],
+      });
+      receive("complete", {});
+      expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+      act(() => result.current.stopGeneration());
+      await waitFor(() => expect(result.current.pendingApproval).toBeNull());
+      expect(result.current.delegations[0]?.status).toBe("cancelled");
+    },
+  );
+
+  it("keeps another run's delegation panel unchanged when stopping an older run", async () => {
+    get.mockResolvedValue(true);
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    startDelegation("other-task");
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "other-task",
+      subagent: "researcher",
+      depth: 0,
+    });
+    receive("complete", {});
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+  });
+
   it("closes a delegate's panel into a waiting state when it stops for a person", () => {
     // A sync delegate that parks on an approval sends `subagent_awaiting_approval`
     // and no `subagent_complete` until the person decides. The panel must stop
@@ -1671,7 +1718,9 @@ describe("useChat - approvals and questions", () => {
     const { result } = renderHook(() => useChat(), { wrapper: decider });
     await act(async () => {});
 
-    expect(get.mock.calls).toEqual([["/runs/r-1/parked"]]);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toEqual([
+      ["/runs/r-1/parked"],
+    ]);
     expect(result.current.pendingApproval).toEqual({
       actionRequests: [
         { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: { to: "a@b.c" } },
@@ -1685,6 +1734,30 @@ describe("useChat - approvals and questions", () => {
       messageId: "m-1",
     });
   });
+
+  it.each([
+    ["approval", "parked", parkedTurn],
+    ["question", "questions", askedTurn],
+  ] as const)(
+    "keeps Stop available when restoring a %s fails for an approver",
+    async (_, path, turn) => {
+      get.mockImplementation(async (url: string) => {
+        if (url.endsWith("/can-stop")) return true;
+        throw new Error("restore failed");
+      });
+      post.mockResolvedValue("Not performed: the run was stopped.");
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      useChatStore.getState().addMessage(turn());
+      const { result } = renderHook(() => useChat(), { wrapper: decider });
+      await waitFor(() => expect(get).toHaveBeenCalledWith(`/runs/r-1/${path}`));
+      await waitFor(() => expect(result.current.canStopParked).toBe(true));
+      expect(result.current.pendingApproval).toBeNull();
+      expect(result.current.pendingQuestions).toBeNull();
+      act(() => result.current.stopGeneration());
+      await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+      expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+    },
+  );
 
   it("checks only stopping authority without approvals:decide", async () => {
     // The endpoint is gated on the permission deciding takes, so a caller
@@ -1811,7 +1884,7 @@ describe("useChat - approvals and questions", () => {
       }),
     );
     await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
-    expect(get.mock.calls.some(([url]) => url.endsWith("/can-stop"))).toBe(false);
+    expect(get.mock.calls.some(([url]) => url.endsWith("/can-stop"))).toBe(true);
   });
 
   it("automatically retries a temporary authority failure without another message", async () => {
@@ -1843,7 +1916,7 @@ describe("useChat - approvals and questions", () => {
 
     // Once for the run - and an answer of "nothing pending" leaves the panel
     // down rather than inventing one: the calls were decided somewhere else.
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
   });
 
   it("leaves a parked step from before runs were stamped on messages alone", async () => {
@@ -1869,7 +1942,7 @@ describe("useChat - approvals and questions", () => {
     const { result } = renderHook(() => useChat(), { wrapper: decider });
     await act(async () => {});
 
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
     expect(result.current.pendingApproval).toBeNull();
   });
 
@@ -1879,16 +1952,18 @@ describe("useChat - approvals and questions", () => {
     // switch effect exists to prevent - Approve would decide a call the person
     // is no longer looking at.
     let resolveParked!: (rows: unknown) => void;
-    get.mockReturnValue(
-      new Promise((resolve) => {
-        resolveParked = resolve;
-      }),
+    get.mockImplementation((url: string) =>
+      url.endsWith("/can-stop")
+        ? Promise.resolve(false)
+        : new Promise((resolve) => {
+            resolveParked = resolve;
+          }),
     );
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(parkedTurn());
     const { result } = renderHook(() => useChat(), { wrapper: decider });
     await act(async () => {});
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
 
     act(() => {
       useConversationStore.getState().setCurrentConversationId("c-2");
@@ -1920,7 +1995,7 @@ describe("useChat - approvals and questions", () => {
     receive("session_ready", {});
     await act(async () => {});
 
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
   });
 
   it("takes a pending question off screen when another conversation is opened", () => {
@@ -3443,7 +3518,9 @@ describe("useChat - a question its person came back to", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     await act(async () => {});
 
-    expect(get.mock.calls).toEqual([["/runs/r-1/questions"]]);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/questions"))).toEqual([
+      ["/runs/r-1/questions"],
+    ]);
     expect(result.current.pendingQuestions?.[0]).toMatchObject({
       question: "How formal?",
       header: "Tone",
@@ -3794,7 +3871,7 @@ describe("useChat - a question its person came back to", () => {
     act(() => useChatStore.getState().addMessage({ ...askedTurn(), id: "m-2", runId: "r-1" }));
     await act(async () => {});
 
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/questions"))).toHaveLength(2);
     expect(result.current.pendingQuestions?.[0]).toMatchObject({ question: "How formal?" });
   });
 
@@ -3827,7 +3904,7 @@ describe("useChat - a question its person came back to", () => {
     });
     await act(async () => {});
 
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/questions"))).toHaveLength(1);
     expect(result.current.pendingQuestions).toBeNull();
   });
 

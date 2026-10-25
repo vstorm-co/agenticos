@@ -279,6 +279,45 @@ beforeEach(() => {
   voiceCall.call = initialCall;
 });
 
+describe("the chat container - Stop without a restored decision card", () => {
+  it.each(["awaiting_answer", "awaiting_approval"] as const)(
+    "offers Stop after restoring %s fails",
+    async (status) => {
+      const fallback = get.getMockImplementation()!;
+      get.mockImplementation((url: string) => {
+        if (url === "/me/permissions")
+          return Promise.resolve({
+            organization_id: "org-1",
+            role: "admin",
+            is_app_admin: false,
+            permissions: [{ permission: "approvals:decide", scope: "all" }],
+          });
+        if (url.endsWith("/can-stop")) return Promise.resolve(true);
+        if (url.endsWith("/questions") || url.endsWith("/parked"))
+          return Promise.reject(new Error("offline"));
+        return fallback(url);
+      });
+      vi.mocked(apiClient.post).mockResolvedValue("Not performed: the run was stopped.");
+      mount();
+      await screen.findByRole("button", { name: "Voice input" });
+      act(() =>
+        useChatStore.getState().addMessage({
+          id: "parked-message",
+          role: "assistant",
+          content: "Waiting",
+          timestamp: new Date(),
+          runId: "parked-run",
+          toolCalls: [{ id: "call", name: "execute", args: {}, status }],
+        }),
+      );
+      const stop = await screen.findByRole("button", { name: "Stop generating" });
+      await userEvent.click(stop);
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/parked-run/cancel"));
+      await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+    },
+  );
+});
+
 describe("the chat container - following the transcript", () => {
   afterEach(() => vi.unstubAllGlobals());
 
