@@ -122,3 +122,14 @@ action carries at most 2000 characters.
   sandbox connection kind, and its desktop would come with it.
 - A sandbox desktop is not hidden from the shell: an agent with `execute` can
   run `xdotool` itself, past an approval held on `computer_act`.
+
+## Environment picker
+
+The Builder shows short environment names and the requirements of the selected
+option underneath. Stored values stay `auto`, `e2b`, `sandbox`, `local` and
+`daemon`. **Docker / Sandbox** reuses the agent's configured Sandbox connection
+(Docker or E2B, on the `desktop` runtime); **E2B** opens a separate desktop for the
+run using the capability's vault key. **Local** requires the paired app and a
+chat working on that computer. **Remote computer** uses an approved computerd
+address and its token. Automatic retains its existing Local → E2B → sandbox
+resolution; the form does not change execution or migrate existing specs.

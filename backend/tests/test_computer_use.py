@@ -1214,7 +1214,21 @@ class TestRegistration:
     def test_where_the_desktop_is_is_asked_first_and_only_a_daemon_has_a_url(self):
         properties = ComputerUseConfig.model_json_schema()["properties"]
         assert next(iter(properties)) == "desktop"
-        assert properties["desktop"]["enum"] == ["auto", "sandbox", "daemon", "local", "e2b"]
+        assert properties["desktop"]["enum"] == ["auto", "e2b", "sandbox", "local", "daemon"]
+        labels = properties["desktop"]["x-enum-labels"]
+        assert labels == {
+            "auto": "Automatic",
+            "sandbox": "Docker / Sandbox",
+            "daemon": "Remote computer",
+            "local": "Local",
+            "e2b": "E2B",
+        }
+        hints = properties["desktop"]["x-enum-descriptions"]
+        assert set(hints) == set(labels)
+        assert "Sandbox connection" in hints["sandbox"]
+        assert "no Sandbox connection is needed" in hints["e2b"]
+        for choice in labels:
+            assert ComputerUseConfig.model_validate({"desktop": choice}).desktop == choice
         assert properties["daemon_url"]["x-visible-when"] == {
             "field": "desktop",
             "equals": ["daemon"],

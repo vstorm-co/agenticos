@@ -287,6 +287,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Readable computer-use environments.** The capability picker uses short
+  names for Automatic, E2B, Docker / Sandbox, Local and Remote computer, with
+  localized requirements below the current selection instead of paragraphs
+  inside the dropdown. Existing agent settings retain their meaning.
+
 - **Activity controls stay still while opening a run.** Anchoring the transcript
   scrolls only its own panel, keeping the close button in place on desktop and
   phones instead of shifting the page during a click.

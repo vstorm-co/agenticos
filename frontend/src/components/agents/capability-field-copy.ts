@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 export interface FieldCopy {
   title: string;
   description: string;
+  options?: Record<string, { label: string; description: string }>;
 }
 
 /** The copy for a field of a generated form, or `null` to show the schema's own. */
@@ -26,15 +27,33 @@ export type FieldCopyFor = (field: string) => FieldCopy | null;
  */
 export function useCapabilityFieldCopy(capabilityId: string): FieldCopyFor {
   const t = useTranslations("capabilityConfig");
+  const choices = useTranslations("capabilityChoices");
   return useCallback(
     (field: string) => {
       if (!t.has(`${capabilityId}.${field}.title`)) return null;
       const title: unknown = t.raw(`${capabilityId}.${field}.title`);
       const description: unknown = t.raw(`${capabilityId}.${field}.description`);
-      return typeof title === "string" && typeof description === "string"
-        ? { title, description }
-        : null;
+      if (typeof title !== "string" || typeof description !== "string") return null;
+      const path = `${capabilityId}.${field}`;
+      if (!choices.has(path)) return { title, description };
+      const raw: unknown = choices.raw(path);
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { title, description };
+      const options: NonNullable<FieldCopy["options"]> = {};
+      const entries: [string, unknown][] = Object.entries(raw);
+      for (const [key, entry] of entries) {
+        if (
+          entry &&
+          typeof entry === "object" &&
+          "label" in entry &&
+          "description" in entry &&
+          typeof entry.label === "string" &&
+          typeof entry.description === "string"
+        ) {
+          options[key] = { label: entry.label, description: entry.description };
+        }
+      }
+      return { title, description, options };
     },
-    [t, capabilityId],
+    [t, choices, capabilityId],
   );
 }

@@ -34,27 +34,28 @@ def _daemon_url_form(schema: dict[str, JsonValue]) -> None:
 class ComputerUseConfig(BaseModel):
     """Which desktop this agent works, and how much of it per run."""
 
-    desktop: Literal["auto", "sandbox", "daemon", "local", "e2b"] = Field(
+    desktop: Literal["auto", "e2b", "sandbox", "local", "daemon"] = Field(
         default="auto",
-        title="Desktop",
-        description=(
-            "The agent's own sandbox, with a desktop in it, a computer you run, or "
-            "the person's own computer when their chat works on it. The sandbox needs "
-            "the Sandbox capability on a sandbox connection."
-        ),
+        title="Environment",
+        description="Choose where this agent operates a desktop. The selected environment's requirements are shown below.",
         json_schema_extra={
             "x-enum-labels": {
-                "auto": (
-                    "The person's computer when their chat works on it, else an E2B "
-                    "desktop if a key is named, else the sandbox"
-                ),
-                "sandbox": "The agent's sandbox (a Linux desktop in its container)",
-                "daemon": "A computer you run (computerd: your Linux desktop or a Mac)",
-                "local": "Only the person's own computer, from the desktop app",
-                "e2b": "An E2B desktop of each run's own (the organization's E2B key)",
-            }
+                "auto": "Automatic",
+                "sandbox": "Docker / Sandbox",
+                "daemon": "Remote computer",
+                "local": "Local",
+                "e2b": "E2B",
+            },
+            "x-enum-descriptions": {
+                "auto": "Use Local when the chat works on this computer; otherwise E2B if this capability has a key, or the agent's sandbox.",
+                "sandbox": "Use the agent's Sandbox connection (Docker or E2B) with the desktop runtime. Configure the connection in the Sandbox capability.",
+                "daemon": "Connect to a computer running computerd. Set its approved address and select its access token below.",
+                "local": "Use the person's paired desktop app. The chat must have This computer selected and the person must approve screen access.",
+                "e2b": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed.",
+            },
         },
     )
+
     daemon_url: str = Field(
         default="",
         title="Daemon URL",

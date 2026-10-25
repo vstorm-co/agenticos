@@ -8319,8 +8319,8 @@
     },
     "computer_use": {
       "desktop": {
-        "title": "Pulpit",
-        "description": "Własny sandbox agenta z pulpitem, komputer, który uruchamiasz sam, albo własny komputer użytkownika, gdy czat na nim pracuje. Sandbox wymaga możliwości Sandbox na połączeniu z sandboxem."
+        "title": "Środowisko",
+        "description": "Wybierz, gdzie agent obsługuje pulpit. Wymagania wybranego środowiska znajdziesz poniżej."
       },
       "daemon_url": {
         "title": "Adres daemona",
@@ -9079,6 +9079,32 @@
       "profile": "Profil",
       "role_pack": "Pakiet rutyn",
       "finding": "Obserwacja"
+    }
+  },
+  "capabilityChoices": {
+    "computer_use": {
+      "desktop": {
+        "auto": {
+          "label": "Automatycznie",
+          "description": "Użyj Local, gdy czat pracuje na tym komputerze; w przeciwnym razie E2B, jeśli ta capability ma klucz, albo sandboxa agenta."
+        },
+        "e2b": {
+          "label": "E2B",
+          "description": "Uruchom osobny pulpit E2B dla tego przebiegu. Wybierz poniżej klucz E2B organizacji; połączenie Sandbox nie jest potrzebne."
+        },
+        "sandbox": {
+          "label": "Docker / Sandbox",
+          "description": "Użyj połączenia Sandbox agenta (Docker lub E2B) z runtime desktop. Połączenie skonfiguruj w capability Sandbox."
+        },
+        "local": {
+          "label": "Local",
+          "description": "Użyj sparowanej aplikacji desktopowej użytkownika. Czat musi mieć wybrane Ten komputer, a użytkownik musi zatwierdzić dostęp do ekranu."
+        },
+        "daemon": {
+          "label": "Zdalny komputer",
+          "description": "Połącz się z komputerem, na którym działa computerd. Ustaw poniżej zatwierdzony adres i wybierz jego token dostępu."
+        }
+      }
     }
   }
 }

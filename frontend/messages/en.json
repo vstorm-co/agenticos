@@ -8534,8 +8534,8 @@
     },
     "computer_use": {
       "desktop": {
-        "title": "Desktop",
-        "description": "The agent's own sandbox, with a desktop in it, a computer you run, or the person's own computer when their chat works on it. The sandbox needs the Sandbox capability on a sandbox connection."
+        "title": "Environment",
+        "description": "Choose where this agent operates a desktop. The selected environment's requirements are shown below."
       },
       "daemon_url": {
         "title": "Daemon URL",
@@ -9294,6 +9294,32 @@
       "profile": "Profile",
       "role_pack": "Routine pack",
       "finding": "Watch"
+    }
+  },
+  "capabilityChoices": {
+    "computer_use": {
+      "desktop": {
+        "auto": {
+          "label": "Automatic",
+          "description": "Use Local when the chat works on this computer; otherwise E2B if this capability has a key, or the agent's sandbox."
+        },
+        "sandbox": {
+          "label": "Docker / Sandbox",
+          "description": "Use the agent's Sandbox connection (Docker or E2B) with the desktop runtime. Configure the connection in the Sandbox capability."
+        },
+        "daemon": {
+          "label": "Remote computer",
+          "description": "Connect to a computer running computerd. Set its approved address and select its access token below."
+        },
+        "local": {
+          "label": "Local",
+          "description": "Use the person's paired desktop app. The chat must have This computer selected and the person must approve screen access."
+        },
+        "e2b": {
+          "label": "E2B",
+          "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed."
+        }
+      }
     }
   }
 }
