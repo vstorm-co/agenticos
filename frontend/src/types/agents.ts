@@ -774,6 +774,8 @@ export interface JsonSchemaProperty {
    * side outlives the value it was written for without anyone noticing.
    */
   "x-enum-labels"?: Record<string, string>;
+  /** Help for the selected option, kept out of the menu label. */
+  "x-enum-descriptions"?: Record<string, string>;
   /**
    * Whether this string is paragraphs rather than a value.
    *
@@ -839,6 +841,8 @@ export interface JsonSchemaProperty {
     format?: string;
     items?: { type?: string };
     "x-enum-labels"?: Record<string, string>;
+    /** Help for the selected option, kept out of the menu label. */
+    "x-enum-descriptions"?: Record<string, string>;
   }[];
 }
 

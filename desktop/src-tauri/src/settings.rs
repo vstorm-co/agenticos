@@ -53,6 +53,7 @@ pub enum Deployment {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Action {
+    OpenConsole,
     ScreenshotChat,
     QuickAsk,
     /// Push to talk: held, quick ask records; let go, the words are its question.
@@ -62,7 +63,8 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 4] = [
+    pub const ALL: [Action; 5] = [
+        Action::OpenConsole,
         Action::ScreenshotChat,
         Action::QuickAsk,
         Action::Dictate,
@@ -73,6 +75,7 @@ impl Action {
     /// once, so it waits until somebody picks a combination for it.
     pub fn default_accelerator(self) -> Option<&'static str> {
         match self {
+            Action::OpenConsole => Some("CmdOrCtrl+Shift+O"),
             Action::ScreenshotChat => Some("CmdOrCtrl+Shift+A"),
             Action::QuickAsk => Some("Alt+Space"),
             Action::Dictate => Some("Alt+Shift+Space"),
@@ -85,6 +88,8 @@ impl Action {
 /// `None` is a shortcut somebody switched off.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Shortcuts {
+    #[serde(default = "default_open_console")]
+    pub open_console: Option<String>,
     #[serde(default = "default_screenshot")]
     pub screenshot_chat: Option<String>,
     #[serde(default = "default_quick_ask")]
@@ -97,6 +102,10 @@ pub struct Shortcuts {
 
 fn default_for(action: Action) -> Option<String> {
     action.default_accelerator().map(str::to_owned)
+}
+
+fn default_open_console() -> Option<String> {
+    default_for(Action::OpenConsole)
 }
 
 fn default_screenshot() -> Option<String> {
@@ -114,6 +123,7 @@ fn default_dictate() -> Option<String> {
 impl Default for Shortcuts {
     fn default() -> Self {
         Self {
+            open_console: default_open_console(),
             screenshot_chat: default_screenshot(),
             quick_ask: default_quick_ask(),
             dictate: default_dictate(),
@@ -125,6 +135,7 @@ impl Default for Shortcuts {
 impl Shortcuts {
     pub fn get(&self, action: Action) -> Option<&String> {
         match action {
+            Action::OpenConsole => self.open_console.as_ref(),
             Action::ScreenshotChat => self.screenshot_chat.as_ref(),
             Action::QuickAsk => self.quick_ask.as_ref(),
             Action::Dictate => self.dictate.as_ref(),
@@ -134,6 +145,7 @@ impl Shortcuts {
 
     pub fn set(&mut self, action: Action, accelerator: Option<String>) {
         match action {
+            Action::OpenConsole => self.open_console = accelerator,
             Action::ScreenshotChat => self.screenshot_chat = accelerator,
             Action::QuickAsk => self.quick_ask = accelerator,
             Action::Dictate => self.dictate = accelerator,
@@ -239,6 +251,22 @@ mod tests {
     use tauri_plugin_global_shortcut::Shortcut;
 
     use super::{Action, Settings, Shortcuts, WindowPreferences};
+
+    #[test]
+    fn existing_installs_get_open_console_and_can_rebind_or_disable_it() {
+        let mut shortcuts: Shortcuts = serde_json::from_str(r#"{"quick_ask":null}"#).unwrap();
+        assert_eq!(
+            shortcuts.get(Action::OpenConsole).map(String::as_str),
+            Some("CmdOrCtrl+Shift+O")
+        );
+        assert!(shortcuts.get(Action::QuickAsk).is_none());
+        shortcuts.set(Action::OpenConsole, Some("Alt+O".into()));
+        let restored: Shortcuts = serde_json::from_str(&serde_json::to_string(&shortcuts).unwrap()).unwrap();
+        assert_eq!(restored.get(Action::OpenConsole).map(String::as_str), Some("Alt+O"));
+        shortcuts.set(Action::OpenConsole, None);
+        let restored: Shortcuts = serde_json::from_str(&serde_json::to_string(&shortcuts).unwrap()).unwrap();
+        assert!(restored.get(Action::OpenConsole).is_none());
+    }
 
     #[test]
     fn a_configuration_saved_before_shortcuts_existed_gets_the_default_bindings() {

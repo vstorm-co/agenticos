@@ -1167,10 +1167,12 @@
         "title": "Work on",
         "cloud": "Cloud",
         "computer": "This computer",
-        "notLinked": "Link this computer in Settings → Desktop to let agents work here.",
+        "notLinked": "Choose This computer to link it, then approve a folder for agents to work in.",
+        "linking": "Linking…",
         "offline": "This computer is not connected right now; a run waits for it to come back.",
         "folders": "Folders",
         "pick": "Choose a folder…",
+        "folderAccess": "Folder access",
         "pickFailed": "That folder could not be added.",
         "revoke": "Stop letting agents work in {folder}",
         "mode": {
@@ -1187,7 +1189,8 @@
         "agentModel": "Agent’s configured model",
         "accessHint": "Use an agent with Sandbox enabled. Folder access mode controls file and shell tools. Browser and MCP use the permissions you approve separately.",
         "mcpLimit": "Choose up to 8 local MCP services per chat.",
-        "localBrowser": "Browse on this computer (separate profile)"
+        "localBrowser": "Browse on this computer (separate profile)",
+        "activeFolder": "Working in {folder} · {access}. Change work location"
       }
     },
     "conversationArchived": "This conversation is archived",
@@ -4612,7 +4615,7 @@
       },
       "project-tabs": {
         "title": "Chats, files and instructions",
-        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told."
+        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told. In the desktop app, you can also connect a local folder without uploading its files."
       },
       "chat-visual": {
         "title": "Drawings",
@@ -8531,8 +8534,8 @@
     },
     "computer_use": {
       "desktop": {
-        "title": "Desktop",
-        "description": "The agent's own sandbox, with a desktop in it, a computer you run, or the person's own computer when their chat works on it. The sandbox needs the Sandbox capability on a sandbox connection."
+        "title": "Environment",
+        "description": "Choose where this agent operates a desktop. The selected environment's requirements are shown below."
       },
       "daemon_url": {
         "title": "Daemon URL",
@@ -8758,7 +8761,21 @@
     "uploadFailed": "The upload failed",
     "noFilesYet": "Nothing in this project yet",
     "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
-    "noFilesViewer": "Files added to the project will appear here."
+    "noFilesViewer": "Files added to the project will appear here.",
+    "localFolder": {
+      "title": "Folder on this computer",
+      "hint": "Use files in place, without uploading a copy. This connection is only for you on this computer; other project members keep using shared files.",
+      "connect": "Connect a folder",
+      "change": "Change folder",
+      "disconnect": "Disconnect",
+      "connecting": "Connecting…",
+      "activeAccess": "Current access: {mode}",
+      "fileLocation": "File location",
+      "localFiles": "This computer",
+      "sharedFiles": "Shared project files",
+      "refresh": "Refresh files",
+      "previewHint": "Preview up to 500 local entries. Generated folders such as node_modules and .git are skipped. Files stay on this computer."
+    }
   },
   "voiceGlow": {
     "title": "Voice glow",
@@ -8802,6 +8819,10 @@
     }
   },
   "desktop": {
+    "server": {
+      "change": "Change server…",
+      "changeFailed": "The server picker could not be opened."
+    },
     "changeFailed": "The desktop app did not take that change.",
     "blobby": {
       "label": "Blobby. Drag to move, click to wave, double-click to open the console, right-click for its menu.",
@@ -8917,6 +8938,10 @@
         "headingHint": "Global: they work whichever application is in front.",
         "title": "Global shortcuts",
         "description": "Click a field, then hold the modifiers and press a key. Escape cancels; a combination needs at least one modifier.",
+        "open_console": {
+          "label": "Open AgenticOS",
+          "hint": "Bring the main AgenticOS window to the front."
+        },
         "quick_ask": {
           "label": "Quick ask",
           "hint": "A floating panel to ask any agent, over whatever you are doing."
@@ -9015,6 +9040,7 @@
       "shortcuts": {
         "title": "Shortcuts that work anywhere",
         "body": "They work whichever application is in front.",
+        "open_console": "Open AgenticOS",
         "quick_ask": "Ask any agent",
         "screenshot_chat": "Screenshot to a new chat",
         "off": "Off",
@@ -9268,6 +9294,32 @@
       "profile": "Profile",
       "role_pack": "Routine pack",
       "finding": "Watch"
+    }
+  },
+  "capabilityChoices": {
+    "computer_use": {
+      "desktop": {
+        "auto": {
+          "label": "Automatic",
+          "description": "Use Local when the chat works on this computer; otherwise E2B if this capability has a key, or the agent's sandbox."
+        },
+        "sandbox": {
+          "label": "Docker / Sandbox",
+          "description": "Use the agent's Sandbox connection (Docker or E2B) with the desktop runtime. Configure the connection in the Sandbox capability."
+        },
+        "daemon": {
+          "label": "Remote computer",
+          "description": "Connect to a computer running computerd. Set its approved address and select its access token below."
+        },
+        "local": {
+          "label": "Local",
+          "description": "Use the person's paired desktop app. The chat must have This computer selected and the person must approve screen access."
+        },
+        "e2b": {
+          "label": "E2B",
+          "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed."
+        }
+      }
     }
   }
 }

@@ -35,4 +35,13 @@ describe("CookieBanner", () => {
       unmount();
     }
   });
+
+  it.each(["macos", "ios", "android"] as const)(
+    "leaves sign-in unobstructed in the %s app",
+    (platform) => {
+      window.__AGENTICOS_SHELL__ = { platform, window: "main", version: "0.2.0", vibrancy: false };
+      const { container } = render(<CookieBanner />);
+      expect(container).toBeEmptyDOMElement();
+    },
+  );
 });

@@ -229,7 +229,7 @@ function SchemaField({
 }: SchemaFieldProps) {
   const t = useTranslations("agents");
   const label = copy?.title ?? property.title ?? humanise(name);
-  const description = copy?.description ?? property.description;
+
   const choices = enumChoices(property);
   const kind = resolveKind(property);
   const masked = isSecret(property);
@@ -241,6 +241,18 @@ function SchemaField({
   // to its default mean the same thing to the server, and writing the default
   // in would freeze it against a later change in code.
   const fallback = defaultOf(property);
+  const selected =
+    typeof value === "string" ? value : typeof fallback === "string" ? fallback : UNSET;
+  const optionDescriptions =
+    property["x-enum-descriptions"] ??
+    property.anyOf?.find((entry) => entry["x-enum-descriptions"])?.["x-enum-descriptions"];
+  const description =
+    (kind === "enum"
+      ? (copy?.options?.[selected]?.description ?? optionDescriptions?.[selected])
+      : undefined) ??
+    copy?.description ??
+    property.description;
+
   const multiline = property["x-multiline"] === true;
   // A connector's plain-text config box (`textarea`), distinct from the prompt
   // editor `multiline` gets: the two never coincide on one field.
@@ -308,7 +320,7 @@ function SchemaField({
           disabled={disabled}
           onValueChange={(choice) => onChange(choice === UNSET ? undefined : choice)}
         >
-          <SelectTrigger id={id}>
+          <SelectTrigger id={id} aria-describedby={description ? `${id}-description` : undefined}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -331,7 +343,7 @@ function SchemaField({
                       before it is read at all, and the choice is the one thing
                       on these forms that is a product rather than a setting. */}
                   {choiceMark(choice)}
-                  {enumLabel(property, choice)}
+                  {enumLabel(property, choice, copy)}
                 </span>
               </SelectItem>
             ))}
@@ -473,7 +485,11 @@ function SchemaField({
         </div>
       )}
 
-      {description && <p className="text-muted-foreground text-xs">{description}</p>}
+      {description && (
+        <p id={`${id}-description`} className="text-muted-foreground text-xs">
+          {description}
+        </p>
+      )}
 
       {error !== undefined && (
         <p id={errorId} className="text-destructive text-xs">
@@ -629,11 +645,11 @@ function choiceMark(choice: string) {
  * turning `get_channel_info` into `Get channel info` in a picker whose choice is
  * stored as the former is a rename this form is not entitled to make.
  */
-function enumLabel(property: JsonSchemaProperty, choice: string): string {
+function enumLabel(property: JsonSchemaProperty, choice: string, copy: FieldCopy | null): string {
   const labels =
     property["x-enum-labels"] ??
     property.anyOf?.find((entry) => entry["x-enum-labels"])?.["x-enum-labels"];
-  return labels?.[choice] ?? choice;
+  return copy?.options?.[choice]?.label ?? labels?.[choice] ?? choice;
 }
 
 /**

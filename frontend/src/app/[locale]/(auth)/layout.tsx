@@ -3,6 +3,7 @@
 import { BrandMark } from "@/components/branding/brand-mark";
 import { useBranding } from "@/components/branding/branding-provider";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
+import { useOnScreenKeyboard } from "@/hooks/use-on-screen-keyboard";
 import { useTranslations } from "next-intl";
 
 /**
@@ -17,11 +18,15 @@ import { useTranslations } from "next-intl";
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("pages.auth");
   const { appName } = useBranding();
+  useOnScreenKeyboard();
 
   return (
-    <div className="theme-light bg-background text-foreground grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <main id="main" className="bg-card flex flex-col">
-        <header className="flex h-16 items-center px-6 sm:px-10">
+    <div className="theme-light bg-background text-foreground grid h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <main
+        id="main"
+        className="bg-card flex min-h-0 flex-col overflow-y-auto pb-[var(--safe-bottom)]"
+      >
+        <header className="flex h-16 shrink-0 items-center px-6 sm:px-10">
           {/* Not a link: the root redirects straight back here, so a brand mark
               that navigates would be a no-op. */}
           <span className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">

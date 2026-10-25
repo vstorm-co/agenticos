@@ -167,12 +167,11 @@ export function WorkspaceFiles({
   return (
     <aside
       className={cn(
-        "border-border w-72 shrink-0 space-y-3 border-l p-4",
-        overlay &&
-          "bg-background absolute inset-y-0 right-0 z-20 max-w-[85%] scrollbar-thin overflow-y-auto shadow-xl",
+        "border-border flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden border-l",
+        overlay && "bg-background absolute inset-y-0 right-0 z-20 max-w-[85%] shadow-xl",
       )}
     >
-      <div className="space-y-1">
+      <div className="shrink-0 space-y-1 border-b p-4">
         <div className="flex items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <FolderOpen className="h-4 w-4" aria-hidden />
@@ -188,7 +187,7 @@ export function WorkspaceFiles({
           </button>
         </div>
         {workspace !== null && workspace.backend !== "none" && (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-xs break-all">
             {workspace.owner_label}
             {workspace.backend === "state" && workspace.bytes_total > 0 && (
               <> · {t("storedSuffix", { size: formatBytes(workspace.bytes_total) })}</>
@@ -197,88 +196,90 @@ export function WorkspaceFiles({
         )}
       </div>
 
-      {conversationId === null && (
-        <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
-      )}
+      <div className="min-h-0 flex-1 scrollbar-thin space-y-3 overflow-y-auto overscroll-contain p-4">
+        {conversationId === null && (
+          <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
+        )}
 
-      {error !== null && (
-        <div className="text-destructive flex items-start gap-2 text-xs">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <p>{error}</p>
-        </div>
-      )}
+        {error !== null && (
+          <div className="text-destructive flex items-start gap-2 text-xs">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <p>{error}</p>
+          </div>
+        )}
 
-      {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
+        {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
           is a configuration somebody chose, with a one-line fix this message names
           - and saying "no files" as well would be the second of two wrong answers. */}
-      {workspace?.unreadable_reason != null && (
-        <div className="text-muted-foreground flex items-start gap-2 text-xs">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <p>{workspace.unreadable_reason}</p>
-        </div>
-      )}
+        {workspace?.unreadable_reason != null && (
+          <div className="text-muted-foreground flex items-start gap-2 text-xs">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <p>{workspace.unreadable_reason}</p>
+          </div>
+        )}
 
-      {/* Two different answers, and they were one. "Nothing yet" is right for a
+        {/* Two different answers, and they were one. "Nothing yet" is right for a
           workspace that is empty; for an agent that has none it describes a wait
           that will never end, since no turn is going to put a file there. */}
-      {workspace !== null && workspace.unreadable_reason == null && count === 0 && (
-        <p className="text-muted-foreground text-xs">
-          {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
-        </p>
-      )}
+        {workspace !== null && workspace.unreadable_reason == null && count === 0 && (
+          <p className="text-muted-foreground text-xs">
+            {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
+          </p>
+        )}
 
-      {/* Tiles rather than rows. The name is what somebody scans for and the icon
+        {/* Tiles rather than rows. The name is what somebody scans for and the icon
           says what kind of thing it is before the name is read, which a 288-pixel
           column of monospace paths did not. */}
-      {files.length > 0 && (
-        <ul className="rise-in grid grid-cols-2 gap-2">
-          {files.map((file) => (
-            <li key={file.path}>
-              <FileCard
-                name={file.path.split("/").filter(Boolean).pop() ?? file.path}
-                size={file.size}
-                preview={file.preview}
-                imageUrl={file.thumbnail}
-                onOpen={() => setReading(file)}
-                className="w-full"
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+        {files.length > 0 && (
+          <ul className="rise-in grid grid-cols-2 gap-2 [&>li]:min-w-0">
+            {files.map((file) => (
+              <li key={file.path}>
+                <FileCard
+                  name={file.path.split("/").filter(Boolean).pop() ?? file.path}
+                  size={file.size}
+                  preview={file.preview}
+                  imageUrl={file.thumbnail}
+                  onOpen={() => setReading(file)}
+                  className="w-full"
+                />
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {/* What people attached and the agent has no copy of. Its own group, under its
+        {/* What people attached and the agent has no copy of. Its own group, under its
           own heading, because where a file came from changes what it means: the agent
           wrote the ones above and can read them back, while these are only in the
           chat - so an agent with no workspace can be *shown* one and cannot open it.
           Opened through the shared preview panel, which is what the attachment chips
           on the messages already use, rather than the workspace viewer that would
           have nothing to read. */}
-      {unstored.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
-          <ul className="grid grid-cols-2 gap-2">
-            {unstored.map((file) => (
-              <li key={file.id}>
-                <FileCard
-                  name={file.filename}
-                  mimeType={file.mime_type}
-                  // An attachment is behind the same authenticated address the
-                  // viewer reads it from, so the card can draw the picture rather
-                  // than a grey glyph standing in for one. Nothing is fetched here
-                  // - the browser loads what an `img` points at, and a chat holds
-                  // a handful of attachments rather than a listing. Only a
-                  // render-safe type: a TIFF is an `image` kind no browser draws, so
-                  // it gets its glyph rather than a broken thumbnail (#1591).
-                  imageUrl={isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null}
-                  onOpen={() => openAttachment(file)}
-                  className="w-full"
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        {unstored.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
+            <ul className="grid grid-cols-2 gap-2 [&>li]:min-w-0">
+              {unstored.map((file) => (
+                <li key={file.id}>
+                  <FileCard
+                    name={file.filename}
+                    mimeType={file.mime_type}
+                    // An attachment is behind the same authenticated address the
+                    // viewer reads it from, so the card can draw the picture rather
+                    // than a grey glyph standing in for one. Nothing is fetched here
+                    // - the browser loads what an `img` points at, and a chat holds
+                    // a handful of attachments rather than a listing. Only a
+                    // render-safe type: a TIFF is an `image` kind no browser draws, so
+                    // it gets its glyph rather than a broken thumbnail (#1591).
+                    imageUrl={isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null}
+                    onOpen={() => openAttachment(file)}
+                    className="w-full"
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
       {source !== null && reading !== null && (
         <FileViewer

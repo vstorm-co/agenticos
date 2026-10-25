@@ -21,6 +21,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Styles in the account menu.** Appearance now offers Standard, Glass, Graphite,
+  Midnight and Paper beside Light, Dark and System, with previews and the active
+  style on the trigger. Settings use larger previews and a selection tick;
+  Graphite, Midnight and Paper have softer surface borders in both color modes.
+
+- **Desktop shortcuts in native menus.** Open AgenticOS has a configurable global
+  shortcut (`CmdOrCtrl+Shift+O`), and its menu entry, Quick Ask and Screenshot to
+  New Chat show their active bindings, including changes made in Settings.
+
+- **Clearer desktop work location controls.** Cloud and This computer share a
+  segmented selector; folder access has a labelled dropdown and explanation,
+  followed by a full-width folder picker.
+
+- **Switch servers from the console sidebar.** Change server opens the native
+  connection form directly, including when the sidebar is collapsed.
+- **Link a desktop from the chat.** Choosing This computer under Work on now
+  offers native pairing and folder selection without a detour through Settings.
 - **A more comfortable console on desktop and phone.** Search is labelled above
   navigation, touch controls are larger, table headings and form feedback are
   easier to read, and dashboard figures adapt to the widget's width. Dialogs fit
@@ -30,6 +47,14 @@ Two things are versioned separately from this file and worth knowing about:
   shorter motion without per-word blur.
 
 ### Added
+
+- **Local project folders in the desktop app.** Connect an approved folder when
+  creating a project or from its Files tab. The connection stays private to the
+  current account and organization on that computer; disconnecting it leaves
+  other chats and native folder grants intact. Local files can be previewed in
+  place, and new project chats inherit the folder and access mode with a visible
+  composer shortcut. Each chat can override its location; a regular new chat
+  clears the previous project and folder.
 
 - **Local services and browser in the desktop app.** Approve loopback model and
   MCP services, choose them per run and browse in a visible temporary Chromium
@@ -262,6 +287,58 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep large chat file listings inside their own scrollable panel, with the title and close button visible and long filenames contained.
+
+- **Readable computer-use environments.** The capability picker uses short
+  names for Automatic, E2B, Docker / Sandbox, Local and Remote computer, with
+  localized requirements below the current selection instead of paragraphs
+  inside the dropdown. Existing agent settings retain their meaning.
+
+- **Activity controls stay still while opening a run.** Anchoring the transcript
+  scrolls only its own panel, keeping the close button in place on desktop and
+  phones instead of shifting the page during a click.
+
+- **Recover from stalled phone connections.** An initial server load or native
+  sign-in return that has not completed after 30 seconds returns to the server
+  form with its saved address. Successful cached offline pages remain open;
+  completed or superseded attempts cancel their recovery wait.
+
+- **Native sharing on phones.** The share inbox and attachment picker now use
+  separate native dispatchers, so opening the picker cannot replace the command
+  that receives content shared from another app.
+
+- **Phone controls and keyboard layout.** Chat, agent cards, dashboard controls,
+  settings, avatar colors and sort chips have larger touch targets. Copy and tip
+  actions remain visible without hover. Sign-in fits system insets and the
+  keyboard, without a browser cookie banner in native apps. Viewport updates
+  coalesce per frame and undo late iOS page pans after keyboard animations.
+
+- **Keep a native folder selection when chat settings close.** Pairing and folder
+  approval now finish for the original chat even if the settings panel closes
+  while a native dialog is open, instead of dropping the choice and using Cloud.
+
+- **Native controls above opened apps.** The macOS app viewer reserves a title-bar
+  row, keeping the traffic lights clear of the back button and app title while
+  leaving browser viewers edge to edge.
+
+- **Clickable desktop page actions and panel controls.** The window drag area
+  now has its own row outside the scrolling content, so it cannot cover New agent,
+  close buttons, tabs or other controls near the top of the window. The web
+  assistant stays at the desktop console’s edge instead of covering card actions.
+
+- **Start a fresh chat from Blobby.** New Chat in the desktop menus and the
+  Blobby button now reset the active conversation, even while `/chat` is open.
+
+- **Honor the chat's local workspace selection.** Choosing This computer opens
+  the native folder picker immediately. The access selector reflects the approved
+  mode, and local settings follow a new conversation even with its settings closed.
+
+- **Keep the desktop running when switching servers.** Blobby and Quick ask now
+  navigate their existing windows to the selected server instead of destroying
+  and immediately recreating native windows.
+
+- **One language across desktop windows.** Blobby and quick ask follow the
+  signed-in account on launch and when the console language changes.
 - Push subscriptions linked to a device session stop receiving deliveries when
   that session is revoked, expired or belongs to a different account.
 

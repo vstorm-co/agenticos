@@ -1167,10 +1167,12 @@
         "title": "Arbeiten auf",
         "cloud": "Cloud",
         "computer": "Diesem Computer",
-        "notLinked": "Verknüpfen Sie diesen Computer unter Einstellungen → Desktop, damit Agenten hier arbeiten können.",
+        "notLinked": "Wählen Sie Dieser Computer, um ihn zu verknüpfen, und geben Sie dann einen Ordner für Agenten frei.",
+        "linking": "Verknüpfen…",
         "offline": "Dieser Computer ist gerade nicht verbunden; ein Lauf wartet, bis er zurück ist.",
         "folders": "Ordner",
         "pick": "Ordner wählen…",
+        "folderAccess": "Ordnerzugriff",
         "pickFailed": "Dieser Ordner konnte nicht hinzugefügt werden.",
         "revoke": "Agenten nicht mehr in {folder} arbeiten lassen",
         "mode": {
@@ -1187,7 +1189,8 @@
         "agentModel": "Konfiguriertes Modell des Agenten",
         "accessHint": "Wähle einen Agent mit aktiviertem Sandbox. Der Ordnerzugriffsmodus gilt für Datei- und Shell-Werkzeuge. Browser und MCP nutzen separat bestätigte Berechtigungen.",
         "mcpLimit": "Wähle bis zu 8 lokale MCP-Dienste pro Chat.",
-        "localBrowser": "Auf diesem Computer browsen (separates Profil)"
+        "localBrowser": "Auf diesem Computer browsen (separates Profil)",
+        "activeFolder": "Arbeiten in {folder} · {access}. Arbeitsort ändern"
       }
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
@@ -4490,7 +4493,7 @@
       },
       "project-tabs": {
         "title": "Chats, Dateien und Anweisungen",
-        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt."
+        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt. In der Desktop-App können Sie auch einen lokalen Ordner verbinden, ohne seine Dateien hochzuladen."
       },
       "chat-visual": {
         "title": "Zeichnungen",
@@ -8410,8 +8413,8 @@
     },
     "computer_use": {
       "desktop": {
-        "title": "Desktop",
-        "description": "Die eigene Sandbox des Agenten mit einem Desktop darin, ein selbst betriebener Computer oder der eigene Computer der Person, wenn ihr Chat darauf arbeitet. Die Sandbox braucht die Sandbox-Fähigkeit auf einer Sandbox-Verbindung."
+        "title": "Umgebung",
+        "description": "Wählen Sie, wo der Agent einen Desktop bedient. Die Anforderungen der gewählten Umgebung stehen unten."
       },
       "daemon_url": {
         "title": "Daemon-URL",
@@ -8637,7 +8640,21 @@
     "uploadFailed": "Der Upload ist fehlgeschlagen",
     "noFilesYet": "Noch nichts in diesem Projekt",
     "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
-    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
+    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier.",
+    "localFolder": {
+      "title": "Ordner auf diesem Computer",
+      "hint": "Dateien direkt verwenden, ohne eine Kopie hochzuladen. Diese Verbindung gilt nur für Sie auf diesem Computer; andere Projektmitglieder verwenden gemeinsame Dateien.",
+      "connect": "Ordner verbinden",
+      "change": "Ordner ändern",
+      "disconnect": "Trennen",
+      "connecting": "Verbinden…",
+      "activeAccess": "Aktueller Zugriff: {mode}",
+      "fileLocation": "Dateispeicherort",
+      "localFiles": "Dieser Computer",
+      "sharedFiles": "Gemeinsame Projektdateien",
+      "refresh": "Dateien aktualisieren",
+      "previewHint": "Vorschau von bis zu 500 lokalen Einträgen. Generierte Ordner wie node_modules und .git werden übersprungen. Die Dateien bleiben auf diesem Computer."
+    }
   },
   "voiceGlow": {
     "title": "Diktieranimation",
@@ -8699,6 +8716,10 @@
     }
   },
   "desktop": {
+    "server": {
+      "change": "Server wechseln…",
+      "changeFailed": "Die Serverauswahl konnte nicht geöffnet werden."
+    },
     "blobby": {
       "dropHere": "Lass es hier fallen, dann starte ich damit einen Chat."
     },
@@ -8736,6 +8757,17 @@
         "removeNamed": "{name} entfernen",
         "add": "Dienst verbinden",
         "confirm": "In der App bestätigen…"
+      },
+      "shortcuts": {
+        "open_console": {
+          "label": "AgenticOS öffnen",
+          "hint": "Das Hauptfenster von AgenticOS in den Vordergrund bringen."
+        }
+      }
+    },
+    "welcome": {
+      "shortcuts": {
+        "open_console": "AgenticOS öffnen"
       }
     }
   },
@@ -8927,6 +8959,32 @@
       "profile": "Profil",
       "role_pack": "Routinenpaket",
       "finding": "Beobachtung"
+    }
+  },
+  "capabilityChoices": {
+    "computer_use": {
+      "desktop": {
+        "auto": {
+          "label": "Automatisch",
+          "description": "Local verwenden, wenn der Chat auf diesem Computer arbeitet; andernfalls E2B, wenn diese Capability einen Schlüssel hat, oder die Sandbox des Agenten."
+        },
+        "e2b": {
+          "label": "E2B",
+          "description": "Einen eigenen E2B-Desktop für diesen Lauf starten. Unten den E2B-Schlüssel der Organisation wählen; keine Sandbox-Verbindung erforderlich."
+        },
+        "sandbox": {
+          "label": "Docker / Sandbox",
+          "description": "Die Sandbox-Verbindung des Agenten (Docker oder E2B) mit der Runtime desktop verwenden. Die Verbindung wird in der Capability Sandbox eingerichtet."
+        },
+        "local": {
+          "label": "Local",
+          "description": "Die gekoppelte Desktop-App der Person verwenden. Im Chat muss Dieser Computer ausgewählt sein, und die Person muss den Bildschirmzugriff bestätigen."
+        },
+        "daemon": {
+          "label": "Remote-Computer",
+          "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen."
+        }
+      }
     }
   }
 }

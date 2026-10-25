@@ -1,5 +1,5 @@
 ---
-source_sha: "2cdd1d63b902"
+source_sha: "dc1f3fe63a6e"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -28,6 +28,11 @@ hinter Face ID, Touch ID oder dem Fingerabdruck.
 **Aktive Sitzungen** unter Einstellungen → Profil listet jedes angemeldete Gerät:
 „AgenticOS for iOS 0.2.0“ für die App, sonst den Browser, und welche davon Push
 erhalten. Wer dort eine widerruft, meldet diese App sofort ab.
+
+Wenn die erste Verbindung oder die Rückkehr von der Anmeldung nach 30 Sekunden
+noch nicht geladen ist, kehrt die App zum Serverformular mit der gespeicherten
+Adresse und einem Verbindungshinweis zurück. Erneut versuchen oder eine andere
+Adresse eingeben. Eine erfolgreich geladene Offlinekopie bleibt geöffnet.
 
 ## Push { #push }
 
@@ -85,6 +90,12 @@ Solange die App gesperrt ist, wird nichts angehängt.
 - **Seiten bewegen sich wie die des Telefons.** Eine geöffnete Seite gleitet von der
   hinteren Kante herein, eine, zu der man zurückgeht, von der vorderen. Reduzierte
   Bewegung schaltet das ab.
+
+Anmeldeformular und Chat passen in den sichtbaren Bereich über der Tastatur,
+einschließlich Statusleiste und Gestenanzeige. Touch-Bedienelemente behalten auch
+bei kleinen Symbolen eine ausreichend große Trefferfläche; Kopieren und
+Ausblenden von Tipps bleiben ohne Mauszeiger sichtbar. Das native Anmeldeformular
+wird nicht vom Cookie-Banner des Browsers verdeckt.
 
 ## Ohne Netz { #without-a-network }
 

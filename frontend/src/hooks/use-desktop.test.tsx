@@ -8,6 +8,7 @@ import type { DesktopState } from "@/lib/desktop/commands";
 import { qk } from "@/lib/query-keys";
 
 import {
+  useChangeServer,
   useDeviceStatus,
   useDeviceLink,
   useLocalFolders,
@@ -21,6 +22,7 @@ import {
 } from "./use-desktop";
 
 const shell = vi.hoisted(() => ({
+  changeServer: vi.fn(),
   getDeviceStatus: vi.fn(),
   linkDevice: vi.fn(),
   unlinkDevice: vi.fn(),
@@ -41,6 +43,7 @@ const shell = vi.hoisted(() => ({
 
 vi.mock("@/lib/desktop/commands", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/commands")>()),
+  changeServer: shell.changeServer,
   getDeviceStatus: shell.getDeviceStatus,
   linkDevice: shell.linkDevice,
   unlinkDevice: shell.unlinkDevice,
@@ -107,6 +110,26 @@ beforeEach(() => {
 
 afterEach(() => {
   delete window.__AGENTICOS_SHELL__;
+});
+
+describe("useChangeServer", () => {
+  it("opens the native picker only when requested", async () => {
+    shell.changeServer.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useChangeServer(), { wrapper });
+    expect(shell.changeServer).not.toHaveBeenCalled();
+    await act(() => result.current.mutateAsync());
+    expect(shell.changeServer).toHaveBeenCalledOnce();
+  });
+
+  it("reports a refused command without pretending the picker opened", async () => {
+    shell.changeServer.mockRejectedValueOnce(new Error("refused"));
+    const { result } = renderHook(() => useChangeServer(), { wrapper });
+    await act(async () => {
+      await expect(result.current.mutateAsync()).rejects.toThrow("refused");
+    });
+    expect(toast.error).toHaveBeenCalledWith("The server picker could not be opened.");
+    expect(shell.reportShellFailure).toHaveBeenCalled();
+  });
 });
 
 describe("useDesktopState", () => {

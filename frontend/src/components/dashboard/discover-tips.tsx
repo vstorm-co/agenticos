@@ -247,7 +247,7 @@ function TipTile({ tip, lit, onDismiss }: { tip: Tip; lit: boolean; onDismiss: (
         type="button"
         onClick={onDismiss}
         aria-label={t("dismiss", { title })}
-        className="bg-background/85 text-muted-foreground hover:text-foreground absolute top-2 right-2 grid size-6 place-items-center rounded-full opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+        className="bg-background/85 text-muted-foreground hover:text-foreground touch:size-11 touch:opacity-100 absolute top-2 right-2 grid size-6 touch-manipulation place-items-center rounded-full opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
       >
         <X className="size-3.5" />
       </button>

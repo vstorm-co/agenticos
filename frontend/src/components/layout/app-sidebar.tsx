@@ -269,15 +269,17 @@ export function AppSidebar() {
         collapsed ? "w-14" : "w-[240px]",
       )}
     >
+      {/* Native macOS window controls need their own draggable row, including
+          when the navigation is collapsed. Hidden on every other surface. */}
+      <div aria-hidden className="macos-window-controls" data-tauri-drag-region />
       {/* The brand heads the column because there is no top bar above `md` for
           it to head instead, and the collapse control sits beside it: the one
           control that is about the column rather than about anything in it,
           on the column's own title bar - where every editor and console with a
           collapsible panel puts one. Search and the bell are actions and live
           with the account at the foot, where a hand rests. */}
-      {/* In the desktop app this row is also the window's title bar: it holds
-          the traffic lights on macOS (`desktop.css`) and the window is dragged
-          by it. "deep", so its empty space drags and its controls still click -
+      {/* In the desktop app this row also drags the window. "deep", so its
+          empty space drags and its controls still click -
           Tauri's drag script skips buttons and links on its own. */}
       <div
         data-titlebar

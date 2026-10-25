@@ -1,5 +1,6 @@
 "use client";
 
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -150,7 +151,6 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   } = useConversationStore();
   const { clearMessages } = useChatStore();
   // The scope's own stores, for reads made in a callback rather than a render.
-  const chatApi = useChatStore.useApi();
   const conversationApi = useConversationStore.useApi();
   const selectionApi = useAgentSelectionStore.useApi();
   const scoped = useInChatScope();
@@ -670,51 +670,35 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     },
     [invalidateLists, setError, t, tErrors],
   );
-  const startNewChat = useCallback(async () => {
-    // A new chat starts with the user's default agent, when one is starred.
-    // Mid-thread switches stay per-thread; this is the reset point. If the
-    // default has since been unpublished, the picker resolves the stale
-    // selection to the first published agent as usual.
-    const { defaultAgentId, select } = selectionApi.getState();
-    if (defaultAgentId) select(defaultAgentId);
-    // Nor in the last one's project: a new chat is an ordinary one until the
-    // composer's `+` puts it in a project.
-    conversationApi.getState().setPendingProjectId(null);
-    // Reuse the conversation already open when it is empty, so a stray click does
-    // not leave an untitled row in the sidebar.
-    //
-    // **Empty means nothing on screen**, which is the chat store and not only the
-    // fetched list. A conversation created over the websocket never has its
-    // messages fetched - `conversation_created` sets the store's id and the `?id=`
-    // before `fetchConversations` reads them, so that fetch skips - and
-    // `currentMessages` therefore stays empty for a thread that has just answered.
-    // Judged on that list alone this reused it: the transcript was cleared while
-    // the id and the `?id=` survived, so the strip under the input went on
-    // reporting the previous turn's tokens and its workspace fill, the file panel
-    // stayed open on the old workspace, and the next message landed in the
-    // conversation the user thought they had left.
-    const currentId = conversationApi.getState().currentConversationId;
-    if (currentId) {
-      const fetched = conversationApi.getState().currentMessages;
-      const onScreen = chatApi.getState().messages;
-      if (fetched.length === 0 && onScreen.length === 0) return;
-    }
-    clearMessages();
-    setCurrentMessages([]);
-    setCurrentConversationId(null);
-    // Strip the stale ?id= immediately so a refresh mid-flight lands on a
-    // fresh /chat instead of the old conversation. The new id will be set
-    // by the WS conversation_created event on first message.
-    if (!scoped) setUrlParam("id", null);
-  }, [
-    clearMessages,
-    setCurrentMessages,
-    setCurrentConversationId,
-    chatApi,
-    conversationApi,
-    scoped,
-    selectionApi,
-  ]);
+  const startNewChat = useCallback(
+    async (projectId: string | null = null) => {
+      // A new chat starts with the user's default agent, when one is starred.
+      // Mid-thread switches stay per-thread; this is the reset point. If the
+      // default has since been unpublished, the picker resolves the stale
+      // selection to the first published agent as usual.
+      const { defaultAgentId, select } = selectionApi.getState();
+      if (defaultAgentId) select(defaultAgentId);
+      conversationApi.getState().setPendingProjectId(projectId);
+      if (!scoped) useWorkOnStore.getState().resetDraft();
+      // Even an empty stored conversation already has a project identity. A new
+      // draft must not reuse it when entered from another project's New chat.
+      clearMessages();
+      setCurrentMessages([]);
+      setCurrentConversationId(null);
+      // Strip the stale ?id= immediately so a refresh mid-flight lands on a
+      // fresh /chat instead of the old conversation. The new id will be set
+      // by the WS conversation_created event on first message.
+      if (!scoped) setUrlParam("id", null);
+    },
+    [
+      clearMessages,
+      setCurrentMessages,
+      setCurrentConversationId,
+      conversationApi,
+      scoped,
+      selectionApi,
+    ],
+  );
 
   return {
     conversations,

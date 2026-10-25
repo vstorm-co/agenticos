@@ -65,7 +65,7 @@ function Chip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "touch:min-h-11 touch-manipulation rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
         // Ink for the chosen chip, same register as the primary button - the
         // accent stays out of filter chrome.
         active

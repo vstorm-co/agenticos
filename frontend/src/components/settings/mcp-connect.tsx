@@ -79,7 +79,7 @@ export function McpConnect() {
                   aria-checked={auth === choice}
                   onClick={() => setAuth(choice)}
                   className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium",
+                    "touch:min-h-11 touch-manipulation rounded-md px-3 py-1.5 text-xs font-medium",
                     auth === choice ? "bg-background shadow-sm" : "text-muted-foreground",
                   )}
                 >

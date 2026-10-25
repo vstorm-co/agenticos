@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "07581e857110"
+source_sha: "1f908ecedded"
 ---
 
 # Projekty { #projects }
@@ -75,6 +75,29 @@ pierwsze pliki. **Czaty** to tabela czatów projektu, a **Aplikacje** -
 aplikacje opublikowane przez run w jednym z nich, te, które czytający może
 otworzyć. **Instrukcje** edytuje się w Markdownie, ze Źródłem i Podglądem, jak
 instrukcje agenta w Agent Builderze, nad nazwą, opisem i domyślnym agentem projektu.
+
+## Lokalne foldery w aplikacji desktopowej { #local-folders-in-the-desktop-app }
+
+W formularzu **Nowy projekt** lub na karcie **Pliki** istniejącego projektu wybierz
+**Podłącz folder**. Natywne okno potwierdza dostęp; początkowo tylko do odczytu.
+Powiązanie należy do Twojego konta i organizacji na tym komputerze, a nie do
+współdzielonego projektu. Nie przesyła kopii ani nie daje zespołowi dostępu do
+dysku. Odłączenie folderu od projektu pozostawia uprawnienia używane przez inne czaty.
+
+**Ten komputer** pokazuje lokalne pliki, a **Wspólne pliki projektu** kontener
+serwera. Lokalny podgląd obejmuje maksymalnie 500 elementów i pomija foldery
+generowane, np. `.git` i `node_modules`. Odświeżenie ponownie wczytuje listę;
+odmowa odczytu pozostaje błędem i nie otwiera po cichu plików w chmurze.
+
+Nowe czaty projektu na desktopie dziedziczą folder i zatwierdzony tryb dostępu.
+Instrukcje projektu nadal obowiązują, a narzędzia sandboxa pracują lokalnie zamiast
+we wspólnym kontenerze. Ustawienie **Pracuj na** można zmienić dla pojedynczego
+czatu; istniejące rozmowy zachowują swoje ustawienia. Skrót folderu przy polu
+wiadomości otwiera te opcje. Niedostępny komputer lub cofnięte uprawnienie nie
+przełącza wykonania do chmury. Telefony i przeglądarki nadal używają wspólnych
+plików; powiązanie nie daje im zdalnego dostępu do komputera. Odpowiedzi agenta
+i wyniki narzędzi zapisane w czacie projektu są widoczne dla osób mogących czytać
+ten czat, więc uwzględnij jego odbiorców przed omawianiem prywatnych plików.
 
 ## Udostępnianie i uprawnienia { #sharing-and-permissions }
 

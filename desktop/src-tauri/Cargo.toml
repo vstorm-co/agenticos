@@ -56,3 +56,6 @@ tauri-plugin-single-instance = "2"
 # window layer; declared because this code calls it.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }

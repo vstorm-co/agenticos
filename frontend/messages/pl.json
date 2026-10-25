@@ -1167,10 +1167,12 @@
         "title": "Pracuj na",
         "cloud": "Chmura",
         "computer": "Ten komputer",
-        "notLinked": "Połącz ten komputer w Ustawienia → Desktop, aby agenci mogli tu pracować.",
+        "notLinked": "Wybierz Ten komputer, aby go połączyć, a potem zatwierdź folder dla agentów.",
+        "linking": "Łączenie…",
         "offline": "Ten komputer nie jest teraz połączony; uruchomienie poczeka, aż wróci.",
         "folders": "Foldery",
         "pick": "Wybierz folder…",
+        "folderAccess": "Dostęp do folderu",
         "pickFailed": "Nie udało się dodać tego folderu.",
         "revoke": "Zabroń agentom pracy w {folder}",
         "mode": {
@@ -1187,7 +1189,8 @@
         "agentModel": "Model skonfigurowany dla agenta",
         "accessHint": "Wybierz agenta z włączonym Sandbox. Tryb dostępu do folderu obejmuje narzędzia plików i powłoki. Przeglądarka i MCP korzystają z uprawnień zatwierdzanych osobno.",
         "mcpLimit": "Wybierz maksymalnie 8 lokalnych usług MCP dla czatu.",
-        "localBrowser": "Przeglądaj na tym komputerze (osobny profil)"
+        "localBrowser": "Przeglądaj na tym komputerze (osobny profil)",
+        "activeFolder": "Praca w {folder} · {access}. Zmień miejsce pracy"
       }
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
@@ -4382,7 +4385,7 @@
       },
       "project-tabs": {
         "title": "Czaty, pliki i instrukcje",
-        "body": "Zacznij czat w projekcie, dodaj pliki i foldery, na których pracują jego agenci, i ustaw, co każdy agent tu dostaje."
+        "body": "Zacznij czat w projekcie, dodaj pliki i foldery, na których pracują jego agenci, i ustaw, co każdy agent tu dostaje. W aplikacji desktopowej możesz też podłączyć lokalny folder bez przesyłania jego plików."
       },
       "chat-visual": {
         "title": "Rysunki",
@@ -8316,8 +8319,8 @@
     },
     "computer_use": {
       "desktop": {
-        "title": "Pulpit",
-        "description": "Własny sandbox agenta z pulpitem, komputer, który uruchamiasz sam, albo własny komputer użytkownika, gdy czat na nim pracuje. Sandbox wymaga możliwości Sandbox na połączeniu z sandboxem."
+        "title": "Środowisko",
+        "description": "Wybierz, gdzie agent obsługuje pulpit. Wymagania wybranego środowiska znajdziesz poniżej."
       },
       "daemon_url": {
         "title": "Adres daemona",
@@ -8543,7 +8546,21 @@
     "uploadFailed": "Przesyłanie się nie udało",
     "noFilesYet": "W tym projekcie nie ma jeszcze plików",
     "noFilesHint": "Upuść tu pliki albo cały folder, albo je prześlij. Każdy czat w projekcie je czyta i na nich pracuje.",
-    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj."
+    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj.",
+    "localFolder": {
+      "title": "Folder na tym komputerze",
+      "hint": "Pracuj na plikach bez wysyłania ich kopii. To powiązanie dotyczy tylko Ciebie na tym komputerze; inni członkowie projektu korzystają ze współdzielonych plików.",
+      "connect": "Podepnij folder",
+      "change": "Zmień folder",
+      "disconnect": "Odłącz",
+      "connecting": "Łączenie…",
+      "activeAccess": "Aktualny dostęp: {mode}",
+      "fileLocation": "Lokalizacja plików",
+      "localFiles": "Ten komputer",
+      "sharedFiles": "Wspólne pliki projektu",
+      "refresh": "Odśwież pliki",
+      "previewHint": "Podgląd maksymalnie 500 lokalnych elementów. Foldery generowane, np. node_modules i .git, są pomijane. Pliki pozostają na tym komputerze."
+    }
   },
   "voiceGlow": {
     "title": "Animacja dyktowania",
@@ -8587,6 +8604,10 @@
     }
   },
   "desktop": {
+    "server": {
+      "change": "Zmień serwer…",
+      "changeFailed": "Nie udało się otworzyć wyboru serwera."
+    },
     "changeFailed": "Aplikacja desktopowa nie przyjęła tej zmiany.",
     "blobby": {
       "label": "Blobby. Przeciągnij, żeby przenieść, kliknij, żeby pomachał, kliknij dwukrotnie, żeby otworzyć konsolę, prawy przycisk otwiera menu.",
@@ -8702,6 +8723,10 @@
         "headingHint": "Globalne: działają niezależnie od tego, która aplikacja jest z przodu.",
         "title": "Skróty globalne",
         "description": "Kliknij pole, przytrzymaj modyfikatory i naciśnij klawisz. Escape anuluje; kombinacja wymaga co najmniej jednego modyfikatora.",
+        "open_console": {
+          "label": "Otwórz AgenticOS",
+          "hint": "Pokaż główne okno AgenticOS na pierwszym planie."
+        },
         "quick_ask": {
           "label": "Quick ask",
           "hint": "Pływający panel, w którym zapytasz dowolnego agenta, nad czymkolwiek właśnie robisz."
@@ -8800,6 +8825,7 @@
       "shortcuts": {
         "title": "Skróty, które działają wszędzie",
         "body": "Działają niezależnie od tego, która aplikacja jest z przodu.",
+        "open_console": "Otwórz AgenticOS",
         "quick_ask": "Zapytaj dowolnego agenta",
         "screenshot_chat": "Zrzut ekranu do nowego czatu",
         "off": "Wyłączony",
@@ -9053,6 +9079,32 @@
       "profile": "Profil",
       "role_pack": "Pakiet rutyn",
       "finding": "Obserwacja"
+    }
+  },
+  "capabilityChoices": {
+    "computer_use": {
+      "desktop": {
+        "auto": {
+          "label": "Automatycznie",
+          "description": "Użyj Local, gdy czat pracuje na tym komputerze; w przeciwnym razie E2B, jeśli ta capability ma klucz, albo sandboxa agenta."
+        },
+        "e2b": {
+          "label": "E2B",
+          "description": "Uruchom osobny pulpit E2B dla tego przebiegu. Wybierz poniżej klucz E2B organizacji; połączenie Sandbox nie jest potrzebne."
+        },
+        "sandbox": {
+          "label": "Docker / Sandbox",
+          "description": "Użyj połączenia Sandbox agenta (Docker lub E2B) z runtime desktop. Połączenie skonfiguruj w capability Sandbox."
+        },
+        "local": {
+          "label": "Local",
+          "description": "Użyj sparowanej aplikacji desktopowej użytkownika. Czat musi mieć wybrane Ten komputer, a użytkownik musi zatwierdzić dostęp do ekranu."
+        },
+        "daemon": {
+          "label": "Zdalny komputer",
+          "description": "Połącz się z komputerem, na którym działa computerd. Ustaw poniżej zatwierdzony adres i wybierz jego token dostępu."
+        }
+      }
     }
   }
 }

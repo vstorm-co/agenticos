@@ -35,6 +35,15 @@ describe("ShortcutSettings", () => {
     expect(field("Screenshot to a new chat")).toHaveValue("⌘⇧A");
   });
 
+  it("offers opening the main console as a configurable global shortcut", () => {
+    env.state = {
+      ...DESKTOP_STATE,
+      shortcuts: [{ action: "open_console", accelerator: "CmdOrCtrl+Shift+O", problem: null }],
+    } satisfies DesktopState;
+    render(<ShortcutSettings />);
+    expect(field("Open AgenticOS")).toHaveValue("⌘⇧O");
+  });
+
   it("records the next combination pressed in a field and saves it", async () => {
     render(<ShortcutSettings />);
     await userEvent.click(field("Quick ask"));

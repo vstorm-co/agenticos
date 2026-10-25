@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { HelpCircle, SlidersHorizontal } from "lucide-react";
+import { FolderOpen, HelpCircle, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn } from "./work-on";
 import { YourConnections } from "./your-connections";
@@ -77,6 +80,9 @@ export function ChatControls({
   const openPage = useOnboardingStore((state) => state.openPage);
   const [open, setOpen] = useState(false);
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
+  const shell = useShell();
+  const target = useWorkOnStore((state) => state.targetFor(currentConversationId));
+  const tWork = useTranslations("chat.controls.workOn");
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -101,6 +107,24 @@ export function ChatControls({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      {isDesktopShell(shell) && target && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title={`${target.folder} · ${tWork(`mode.${target.mode}`)}`}
+          aria-label={tWork("activeFolder", {
+            folder: target.folder,
+            access: tWork(`mode.${target.mode}`),
+          })}
+          className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 inline-flex min-h-9 min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs"
+        >
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="max-w-28 truncate">
+            {target.folder.split(/[\\/]/).filter(Boolean).at(-1) ?? target.folder}
+          </span>
+          <span className="hidden shrink-0 xl:inline">{tWork(`mode.${target.mode}`)}</span>
+        </button>
+      )}
       <PopoverTrigger asChild>
         <button
           type="button"

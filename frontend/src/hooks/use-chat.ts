@@ -55,6 +55,8 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { setUrlParam } from "@/lib/utils";
+import { projectFolderKey, useProjectFoldersStore } from "@/stores/project-folders-store";
+import { isDesktopShell, readShellInfo } from "@/lib/desktop/shell";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { useConversationStore, useWorkingStore } from "@/stores";
 /** A correction sent to the running turn, shown until it reaches the model. */
@@ -598,6 +600,9 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "conversation_created": {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
+          // The settings popover may be closed: filing a draft's local target
+          // belongs to the chat lifecycle, before another turn can be sent.
+          useWorkOnStore.getState().adopt(conversation_id);
           setCurrentConversationId(conversation_id);
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);
@@ -1299,6 +1304,16 @@ export function useChat(options: UseChatOptions = {}) {
       // "Work on: This computer" (#2305): the folder and mode, read at send
       // time like the agent. The desktop app checks both against what the person
       // granted on that computer, whatever this frame says.
+      // Resolve before the first frame as well: sending may beat the project
+      // chip's metadata fetch. applyProject preserves an explicit draft override.
+      if (!conversationId && projectId && isDesktopShell(readShellInfo())) {
+        const key = projectFolderKey(useAuthStore.getState().user?.id ?? null, tenantId, projectId);
+        if (key !== null) {
+          useWorkOnStore
+            .getState()
+            .applyProject(key, useProjectFoldersStore.getState().byProject[key] ?? null);
+        }
+      }
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
       if (local) payload.local = { ...local };
       const test = testingRef.current;
@@ -1331,6 +1346,7 @@ export function useChat(options: UseChatOptions = {}) {
       // The store action that shuts the browse panel when this turn ends the
       // previous one's browse. Stable, and listed rather than omitted.
       closeBrowserPanel,
+      tenantId,
     ],
   );
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "2cdd1d63b902"
+source_sha: "dc1f3fe63a6e"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -28,6 +28,11 @@ nieobecności.
 **Aktywne sesje** w Ustawienia → Profil wymieniają każde zalogowane urządzenie:
 „AgenticOS for iOS 0.2.0” dla aplikacji, w innym razie przeglądarkę, oraz które z
 nich dostają push. Unieważnienie jednej z nich od razu wylogowuje tę aplikację.
+
+Jeśli pierwsze połączenie albo powrót z logowania nie zakończy ładowania w ciągu
+30 sekund, aplikacja wróci do formularza z zapisanym adresem i komunikatem o
+połączeniu. Ponów próbę albo wpisz inny adres. Poprawnie załadowana kopia offline
+pozostaje otwarta.
 
 ## Push { #push }
 
@@ -82,6 +87,11 @@ nie jest dołączane, gdy aplikacja jest zablokowana.
 - **Strony ruszają się jak w telefonie.** Otwierana strona wjeżdża od końcowej
   krawędzi, a ta, do której się wraca, od początkowej. Ograniczony ruch to
   wyłącza.
+
+Formularz logowania i czat mieszczą się nad klawiaturą, z uwzględnieniem paska
+stanu i wskaźnika gestów. Przyciski zachowują pełne pole dotyku także przy małych
+ikonach; kopiowanie i ukrywanie wskazówek jest dostępne bez najeżdżania kursorem.
+Natywnego logowania nie zasłania baner cookies przeznaczony dla przeglądarki.
 
 ## Bez sieci { #without-a-network }
 

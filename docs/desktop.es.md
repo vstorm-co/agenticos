@@ -1,5 +1,5 @@
 ---
-source_sha: "7a2d9e84d16e"
+source_sha: "92fafc5f91d2"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -67,6 +67,11 @@ Linux. Un archivo que ya no se puede leer se aparta como `server.json.invalid` y
 se escribe uno nuevo. El servidor se cambia en **Ajustes…** (`⌘,`), desde el menú
 de la bandeja o arrancando con `--server <address>`.
 
+**Cambiar servidor…** también es un botón fijo sobre tu cuenta en la barra
+lateral de la consola. Abre directamente el formulario de conexión; la barra
+lateral contraída muestra su icono de servidor. Puedes cambiar la dirección sin
+usar blobby.
+
 ## Una aplicación, no una pestaña { #an-application-not-a-tab }
 
 En macOS la barra lateral de la consola lleva los botones de la ventana y la
@@ -77,6 +82,16 @@ notificaciones nativas llevan Approve y Reject para una aprobación pendiente, y
 Dock o la barra de tareas muestra cuántas esperan. **Ajustes → App de escritorio**
 abre la app al iniciar sesión, la mantiene con la ventana cerrada y activa o
 desactiva el contador.
+
+Encima del contenido hay una fila reservada para arrastrar la ventana, fuera del
+área desplazable. Las acciones de página y los botones de cierre siguen siendo
+pulsables. El botón web de Architect queda en el borde derecho de la consola y
+se despliega al pasar el puntero, dejando la esquina para las acciones y Blobby.
+
+**Apariencia** en el menú de cuenta ofrece el modo claro/oscuro y Standard, Glass,
+Graphite, Midnight y Paper con vistas previas. La fila indica el estilo actual.
+Son las mismas opciones de **Ajustes → Perfil → Apariencia**; cambiar el estilo
+conserva el modo de color y la selección se mantiene al reiniciar la app.
 
 **Agents fijados**: la página de un agent ofrece Fijar en el Dock (en la barra de
 tareas en otros sistemas). Un agent fijado está en el menú del Dock y en el de la
@@ -98,6 +113,13 @@ Su ventana es transparente, lo que en macOS necesita `macOSPrivateApi` en
 autoalojada no iba a ir de todos modos.
 
 ## Pregunta rápida y voz { #quick-ask-and-voice }
+
+**Abrir AgenticOS** (`⌘⇧O` en macOS, `Ctrl+Shift+O` en los demás sistemas) trae
+la consola al frente desde cualquier app. Cambia o borra la combinación en
+**Ajustes → Atajos**. La barra de menús y los menús de la bandeja y de Blobby
+muestran los atajos activos para abrir AgenticOS, Pregunta rápida y Captura a un
+chat nuevo. Se actualizan al cambiar una combinación. El menú no anuncia atajos
+que no se hayan podido registrar.
 
 **Pregunta rápida** (`⌥Space`, configurable) abre un panel flotante para preguntar
 a cualquier agent desde cualquier sitio, sin traer la consola al frente. En macOS
@@ -121,16 +143,24 @@ trabajar en una carpeta del ordenador donde corre la app, en vez de en la nube.
 Las herramientas de archivos y shell del agent - listar, leer, escribir, editar,
 ejecutar - llegan a esa carpeta a través de la app.
 
-**Vincula el ordenador una vez.** **Ajustes → App de escritorio → Este ordenador →
-Dejar que los agents trabajen aquí** da a la app una sesión propia para este
-ordenador, tras pedirte confirmación en un diálogo nativo, y guarda su refresh
-token en el llavero del sistema. La app mantiene entonces una conexión WebSocket
-saliente al device hub del servidor (`/api/v1/ws/device`); nada escucha en el
-ordenador. **Desvincular** termina esa sesión.
+**Vincula el ordenador una vez.** En los ajustes del chat, elige
+**Trabajar en → Este ordenador** para vincularlo directamente. Confirma en el
+diálogo nativo y luego elige una carpeta y su modo de acceso en el mismo panel.
+**Ajustes → App de escritorio → Este ordenador → Dejar que los agents trabajen
+aquí** ofrece la misma acción. La app obtiene una sesión propia para este
+ordenador y guarda su refresh token en el llavero del sistema. Mantiene una
+conexión WebSocket saliente al device hub del servidor (`/api/v1/ws/device`);
+nada escucha en el ordenador. **Desvincular** termina esa sesión.
 
 **Elígelo por chat.** En la app de escritorio los ajustes del chat ofrecen
 **Trabajar en (Work on): Nube / Este ordenador**. Elegir este ordenador pide una
 carpeta en el selector nativo y hasta dónde puede llegar el agent en ella:
+
+Este ordenador solo queda seleccionado después de aprobar una carpeta. El
+selector de acceso muestra el modo aprobado para esa carpeta; cambiarlo vuelve
+a abrir el selector nativo de carpetas para confirmar el nuevo permiso. Cancelar
+conserva la elección anterior. La carpeta y el modo se mantienen al cerrar los
+ajustes y cuando un chat nuevo recibe su ID.
 
 | Modo | Qué puede hacer el agent | Cómo se le sujeta |
 |---|---|---|

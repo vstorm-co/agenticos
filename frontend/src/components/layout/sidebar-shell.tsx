@@ -6,6 +6,7 @@
 import type { ReactNode } from "react";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { ServerSwitch } from "@/components/desktop/server-switch";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ export function SidebarShell({
         ) : (
           <NotificationBell variant="row" />
         )}
+        <ServerSwitch compact={collapsed} />
         <SidebarUser compact={collapsed} />
       </div>
     </>

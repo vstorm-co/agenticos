@@ -1,5 +1,5 @@
 ---
-source_sha: "7a2d9e84d16e"
+source_sha: "92fafc5f91d2"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -69,6 +69,11 @@ beiseitegelegt und eine neue geschrieben. Der Server wird unter
 **Einstellungen…** (`⌘,`), im Tray-Menü oder per Start mit `--server <address>`
 geändert.
 
+**Server wechseln…** ist auch eine feste Schaltfläche über Ihrem Konto in der
+Seitenleiste der Konsole. Sie öffnet direkt das Verbindungsformular; die
+eingeklappte Seitenleiste zeigt das Serversymbol. Sie können die Adresse ohne
+blobby ändern.
+
 ## Eine Anwendung, kein Tab { #an-application-not-a-tab }
 
 Auf macOS trägt die Seitenleiste der Konsole die Fensterknöpfe und zieht das
@@ -79,6 +84,17 @@ Benachrichtigungen tragen Approve und Reject für eine wartende Freigabe, und Do
 oder Taskleiste zeigen, wie viele warten. **Einstellungen → Desktop-App** öffnet
 die App bei der Anmeldung, hält sie bei geschlossenem Fenster am Laufen und schaltet
 die Plakette an oder aus.
+
+Über dem Inhalt liegt eine eigene Zeile zum Ziehen des Fensters, außerhalb des
+Scrollbereichs. Seitenaktionen und Schließen-Schaltflächen bleiben dadurch
+anklickbar. Der Web-Architect bleibt am rechten Rand der Desktop-Konsole und
+fährt beim Darüberfahren aus; die Ecke bleibt für Kartenaktionen und Blobby frei.
+
+**Erscheinungsbild** im Kontomenü bietet den Hell-/Dunkelmodus sowie Standard,
+Glass, Graphite, Midnight und Paper mit Vorschauen. Der Menüeintrag nennt den
+aktuellen Stil. Es sind dieselben Einstellungen wie unter
+**Einstellungen → Profil → Erscheinungsbild**; ein Stilwechsel behält den
+Farbmodus bei und bleibt nach einem Neustart erhalten.
 
 **Angeheftete Agents**: Die Seite eines Agents bietet „An Dock anheften“ (sonst an
 die Taskleiste). Ein angehefteter Agent steht im Dock-Menü und im Tray-Menü, einen
@@ -102,6 +118,13 @@ braucht - und das schließt den Mac App Store aus, wohin eine selbst gehostete
 Konsole ohnehin nicht wollte.
 
 ## Schnelle Frage und Sprache { #quick-ask-and-voice }
+
+**AgenticOS öffnen** (`⌘⇧O` unter macOS, sonst `Ctrl+Shift+O`) bringt die Konsole
+aus jeder App nach vorne. Ändern oder löschen Sie die Belegung unter
+**Einstellungen → Tastenkürzel**. Menüleiste, Tray und Blobby zeigen die aktiven
+Kürzel zum Öffnen von AgenticOS, für Schnelle Frage und Screenshot zu neuem Chat.
+Änderungen werden sofort übernommen. Nicht registrierbare Kürzel erscheinen
+nicht im Menü.
 
 **Schnelle Frage** (`⌥Space`, änderbar) öffnet ein schwebendes Feld, um einen
 beliebigen Agent von überall zu fragen, ohne die Konsole nach vorn zu holen. Auf
@@ -127,17 +150,25 @@ kann statt in der Cloud in einem Ordner auf dem Computer arbeiten, auf dem die A
 läuft. Die Datei- und Shell-Werkzeuge des Agents - auflisten, lesen, schreiben,
 bearbeiten, ausführen - erreichen diesen Ordner über die App.
 
-**Den Computer einmal verknüpfen.** **Einstellungen → Desktop-App → Dieser Computer
-→ Agents hier arbeiten lassen** gibt der App eine eigene Sitzung für diesen
-Computer, nachdem ein nativer Dialog Sie um Bestätigung gebeten hat, und hält ihr
-Refresh-Token im Schlüsselbund des Systems. Die App hält dann eine ausgehende
-WebSocket-Verbindung zum Device-Hub des Servers (`/api/v1/ws/device`); auf dem
-Computer lauscht nichts. **Trennen** beendet diese Sitzung.
+**Den Computer einmal verknüpfen.** Wählen Sie in den Chat-Einstellungen
+**Arbeiten auf → Dieser Computer**, um ihn direkt zu verknüpfen. Bestätigen Sie im
+nativen Dialog und wählen Sie anschließend im selben Bereich einen Ordner und
+seinen Zugriffsmodus. **Einstellungen → Desktop-App → Dieser Computer → Agents
+hier arbeiten lassen** bietet dieselbe Aktion. Die App erhält eine eigene Sitzung
+für diesen Computer und speichert ihr Refresh-Token im Schlüsselbund des Systems.
+Sie hält eine ausgehende WebSocket-Verbindung zum Device-Hub des Servers
+(`/api/v1/ws/device`); auf dem Computer lauscht nichts. **Trennen** beendet die Sitzung.
 
 **Pro Chat wählen.** In der Desktop-App bieten die Einstellungen eines Chats
 **Arbeiten auf (Work on): Cloud / Diesem Computer**. Die Wahl dieses Computers
 fragt im nativen Auswahldialog nach einem Ordner und danach, wie weit der Agent
 darin gehen darf:
+
+Dieser Computer wird erst nach der Freigabe eines Ordners ausgewählt. Die
+Zugriffsauswahl zeigt den genehmigten Modus dieses Ordners; eine Änderung öffnet
+die native Ordnerauswahl erneut, um die neue Berechtigung zu bestätigen.
+Abbrechen behält die bisherige Auswahl bei. Ordner und Modus bleiben ausgewählt,
+wenn die Einstellungen geschlossen werden und ein neuer Chat seine ID erhält.
 
 | Modus | Was der Agent darf | Wie das durchgesetzt wird |
 |---|---|---|

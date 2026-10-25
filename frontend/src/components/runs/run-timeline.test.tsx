@@ -52,12 +52,19 @@ function serve(transcript: Partial<RunTranscript>) {
   });
 }
 
-function renderTimeline(runId = "run-1") {
+function renderTimeline(runId = "run-1", scroll = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale="en" messages={messages}>
-        <RunTimeline runId={runId} />
+        <div
+          data-run-scrollport
+          ref={(node) => {
+            if (node) node.scrollTo = scroll;
+          }}
+        >
+          <RunTimeline runId={runId} />
+        </div>
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
@@ -125,7 +132,9 @@ describe("the thread and the run inside it", () => {
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
       >
         <NextIntlClientProvider locale="en" messages={messages}>
-          <RunTimeline runId="run-1" />
+          <div data-run-scrollport>
+            <RunTimeline runId="run-1" />
+          </div>
         </NextIntlClientProvider>
       </QueryClientProvider>,
     );
@@ -154,7 +163,8 @@ describe("the thread and the run inside it", () => {
 
   it("scrolls the reader to the run's own section, not the top of the thread", () => {
     const scrolled = vi.fn();
-    Element.prototype.scrollIntoView = scrolled;
+    const scrollAncestors = vi.fn();
+    Element.prototype.scrollIntoView = scrollAncestors;
     serve({
       items: [
         turn({ id: "m-ctx", run_id: "run-0" }),
@@ -163,10 +173,12 @@ describe("the thread and the run inside it", () => {
       ],
     });
 
-    renderTimeline();
+    renderTimeline("run-1", scrolled);
 
-    // Once - the section is the landing, however many turns it holds.
+    // Only this transcript's viewport moves, never the page or its toolbar.
     expect(scrolled).toHaveBeenCalledTimes(1);
+    expect(scrolled.mock.contexts[0]).toBe(document.querySelector("[data-run-scrollport]"));
+    expect(scrollAncestors).not.toHaveBeenCalled();
   });
 });
 

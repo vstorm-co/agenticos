@@ -1218,7 +1218,7 @@ function ChatUI({
     </span>
   );
   return (
-    <div className="relative flex h-full w-full">
+    <div className="relative flex h-full min-h-0 w-full overflow-hidden">
       {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
@@ -1684,7 +1684,7 @@ function ChatUI({
           permanent third column took space from every conversation including the
           ones where the agent keeps nothing. Hidden on a narrow screen, where there
           is no room for it. */}
-      <div className="hidden lg:block">
+      <div className="hidden h-full min-h-0 shrink-0 lg:block">
         <WorkspaceFiles
           conversationId={conversationId}
           revision={turns}

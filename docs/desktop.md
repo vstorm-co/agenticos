@@ -62,6 +62,10 @@ Linux. A file that no longer parses is set aside as `server.json.invalid` and a
 fresh one is written. The server is changed under **Settings…** (`⌘,`), from the
 tray menu, or by launching with `--server <address>`.
 
+**Change server…** is also a permanent button above your account in the console
+sidebar. It opens the connection form directly; a collapsed sidebar shows its
+server icon. You can change the address without using blobby.
+
 ## An application, not a tab
 
 On macOS the console's sidebar holds the traffic lights and drags the window, the
@@ -71,6 +75,16 @@ menu does the same on Windows and Linux. Native notifications carry Approve and
 Reject for a waiting approval, and the Dock or taskbar shows how many are waiting.
 **Settings → Desktop app** opens the app at login, keeps it running with the window
 closed, and turns the badge on or off.
+
+The top of the content has a reserved window-drag row outside its scroll area,
+so page actions and panel close buttons stay clickable. The web Architect launcher
+stays tucked into the desktop console's right edge and slides out on hover,
+leaving the corner free for card actions and native Blobby.
+
+**Appearance** in the account menu offers both the light/dark mode and Standard,
+Glass, Graphite, Midnight and Paper, with previews. The trigger names the current
+style. These are the same choices as **Settings → Profile → Appearance**; changing
+a style keeps the color mode and survives restarting the app.
 
 **Pinned agents**: an agent's page offers Pin to Dock (Pin to taskbar elsewhere).
 A pinned agent is in the Dock's menu and the tray menu, one click from a new chat
@@ -93,6 +107,12 @@ console was going.
 
 ## Quick ask and voice
 
+**Open AgenticOS** (`⌘⇧O` on macOS, `Ctrl+Shift+O` elsewhere) brings the console
+forward from any app. Change or clear it in **Settings → Shortcuts**. The menu bar,
+tray and Blobby menus show the active shortcuts for opening AgenticOS, Quick Ask
+and Screenshot to New Chat, and update when a binding changes. A shortcut that
+could not be registered is not advertised in the menu.
+
 **Quick ask** (`⌥Space`, rebindable) opens a floating panel to ask any agent from
 anywhere, without bringing the console forward. On macOS it can carry what you
 were looking at: the text selected in another app, the clipboard, or the files
@@ -114,16 +134,22 @@ The one thing a browser cannot do: a chat whose agent has a sandbox can work in 
 folder on the computer the app runs on instead of in the cloud. The agent's file
 and shell tools - list, read, write, edit, run - reach that folder through the app.
 
-**Link the computer once.** **Settings → Desktop app → This computer → Let agents
-work here** gives the app a session of its own for this computer, after a native
-dialog asks you to confirm, and keeps its refresh token in the system keychain. The
-app then holds one outbound WebSocket to the server's device hub
-(`/api/v1/ws/device`); nothing listens on the computer. **Unlink** ends that
-session.
+**Link the computer once.** In the chat settings, choose **Work on → This computer**
+to link it directly. Confirm in the native dialog, then choose a folder and its
+access mode in the same panel. **Settings → Desktop app → This computer → Let
+agents work here** offers the same linking action. The app gets its own session
+for this computer and keeps its refresh token in the system keychain. It holds one
+outbound WebSocket to the server's device hub (`/api/v1/ws/device`); nothing listens
+on the computer. **Unlink** ends that session.
 
 **Choose it per chat.** In the desktop app the chat's settings offer **Work on:
 Cloud / This computer**. Choosing this computer asks for a folder in the native
 picker and how far the agent may go in it:
+
+This computer becomes selected only after you approve a folder. The access
+selector shows that folder's approved mode; changing it opens the native folder
+picker again to confirm the new permission. Cancelling keeps the previous choice.
+The folder and mode stay selected when settings close and when a new chat gets its ID.
 
 | Mode | What the agent may do | How it is held to it |
 |---|---|---|

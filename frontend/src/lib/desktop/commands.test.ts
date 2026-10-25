@@ -149,6 +149,7 @@ describe("the commands", () => {
     await commands.openInConsole("/chat");
     await commands.openChat();
     await commands.showConsole();
+    await commands.changeServer();
     await commands.saveBlobbyPosition(1, 2);
     await commands.showBlobbyMenu();
     await commands.resizeBlobby(9);
@@ -167,6 +168,7 @@ describe("the commands", () => {
       ["open_in_console", { path: "/chat" }],
       ["open_chat"],
       ["show_console"],
+      ["change_server"],
       ["save_blobby_position", { x: 1, y: 2 }],
       ["blobby_menu"],
       ["resize_blobby", { size: 1.6 }],

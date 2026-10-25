@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
+  changeServer,
   getLocalServices,
   saveLocalService,
   removeLocalService,
@@ -39,6 +40,18 @@ import { isDesktopShell, listenShell, reportShellFailure } from "@/lib/desktop/s
 import { createPairingCode } from "@/lib/pairing-api";
 import { qk } from "@/lib/query-keys";
 import { useShell } from "@/hooks/use-shell";
+
+/** Open the trusted server picker without depending on blobby or the tray. */
+export function useChangeServer() {
+  const t = useTranslations("desktop.server");
+  return useMutation({
+    mutationFn: changeServer,
+    onError: (error) => {
+      reportShellFailure("opening the server picker", error);
+      toast.error(t("changeFailed"));
+    },
+  });
+}
 
 /** What the desktop app holds for this person; disabled, and `undefined`, in a browser. */
 export function useDesktopState() {

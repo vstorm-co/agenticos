@@ -1,3 +1,4 @@
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -1274,8 +1275,8 @@ describe("a request that outlives the account that made it", () => {
 });
 
 describe("starting a new chat", () => {
-  it("reuses the conversation already open when it is empty", async () => {
-    // Otherwise every stray click leaves an untitled empty row in the sidebar.
+  it("leaves even an empty stored conversation so its project cannot leak into a new draft", async () => {
+    // A stored conversation has a fixed project identity, even before any messages.
     const result = await hook();
     useConversationStore.getState().setCurrentConversationId("c-1");
     useConversationStore.getState().setCurrentMessages([]);
@@ -1285,8 +1286,8 @@ describe("starting a new chat", () => {
       await result.current.startNewChat();
     });
 
-    expect(useConversationStore.getState().currentConversationId).toBe("c-1");
-    expect(window.location.search).toBe("?id=c-1");
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(window.location.search).toBe("");
   });
 
   it("starts outside the last chat's project", async () => {
@@ -1448,4 +1449,18 @@ describe("reading an open conversation again (#54)", () => {
     });
     expect(useConversationStore.getState().error).toBeNull();
   });
+});
+
+it("starts a project draft without reusing an unrelated empty conversation or folder", async () => {
+  const result = await hook();
+  useConversationStore.getState().setCurrentConversationId("empty-other-project");
+  useConversationStore.getState().setCurrentMessages([]);
+  useChatStore.setState({ messages: [] });
+  useWorkOnStore.getState().applyProject("old-project", { folder: "/old", mode: "read_only" });
+  await act(async () => {
+    await result.current.startNewChat("new-project");
+  });
+  expect(useConversationStore.getState().currentConversationId).toBeNull();
+  expect(useConversationStore.getState().pendingProjectId).toBe("new-project");
+  expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
 });

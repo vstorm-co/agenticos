@@ -1,5 +1,5 @@
 ---
-source_sha: "2cdd1d63b902"
+source_sha: "dc1f3fe63a6e"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -29,6 +29,11 @@ después de cinco minutos fuera.
 **Sesiones activas**, en Ajustes → Perfil, lista cada dispositivo con sesión
 iniciada: «AgenticOS for iOS 0.2.0» para la app, el navegador en otro caso, y
 cuáles reciben push. Revocar una allí cierra la sesión de esa app al instante.
+
+Si la conexión inicial o el regreso del inicio de sesión no termina de cargar
+en 30 segundos, la app vuelve al formulario del servidor con la dirección
+guardada y un mensaje de conexión. Reintenta o escribe otra dirección. Una copia
+sin conexión que carga correctamente permanece abierta.
 
 ## Push { #push }
 
@@ -84,6 +89,12 @@ mensaje nuevo. Con la app bloqueada no se adjunta nada.
 - **Las páginas se mueven como las del móvil.** Una página abierta entra desde el
   borde final y una a la que se vuelve, desde el inicial. Reducir el movimiento lo
   desactiva.
+
+El formulario de acceso y el chat se ajustan al área visible sobre el teclado,
+incluidas la barra de estado y la zona de gestos. Los controles táctiles mantienen
+un área de pulsación amplia aunque el icono sea pequeño; copiar y ocultar consejos
+siguen disponibles sin pasar el puntero. El aviso de cookies del navegador no
+tapa el acceso en la aplicación nativa.
 
 ## Sin red { #without-a-network }
 

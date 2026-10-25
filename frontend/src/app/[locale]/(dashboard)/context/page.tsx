@@ -62,7 +62,7 @@ function Chip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "touch:min-h-11 touch-manipulation rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
         active
           ? "bg-primary text-primary-foreground border-transparent"
           : "text-muted-foreground hover:bg-accent hover:text-foreground border-border",

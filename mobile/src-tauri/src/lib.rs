@@ -17,6 +17,7 @@
 mod apns;
 mod live;
 mod managed;
+mod navigation;
 mod pin;
 mod push;
 mod share;
@@ -43,6 +44,7 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
 
 const WINDOW: &str = "main";
+const LOAD_TIMEOUT: Duration = Duration::from_secs(30);
 /// After this long away, the console is locked again when the app returns.
 const LOCK_AFTER: Duration = Duration::from_secs(5 * 60);
 /// Plain `http` to the laptop beside the phone, in a development build only.
@@ -187,6 +189,67 @@ const LOCK_SCRIPT: &str = r#"(() => {
 })();"#;
 const UNLOCK_SCRIPT: &str = r#"document.getElementById("agenticos-lock")?.remove();"#;
 
+/// Keep cached offline pages usable: this observes the webview load rather
+/// than probing the network before it can open the service worker's copy.
+fn watch_navigation(app: &AppHandle, url: &Url) -> Result<(), String> {
+    let attempt = app.state::<navigation::Navigation>().begin()?;
+    let origin = url.origin().ascii_serialization();
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        if attempt.cancelled.recv_timeout(LOAD_TIMEOUT)
+            != Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        {
+            return;
+        }
+        let recovery = handle.clone();
+        if let Err(e) = handle.run_on_main_thread(move || {
+            if !attempt.claim() {
+                return;
+            }
+            let state = recovery.state::<navigation::Navigation>();
+            if let Ok(mut notice) = state.notice.lock() {
+                *notice = Some(format!(
+                    "Could not load {origin}. Check your connection, then try again or enter another server."
+                ));
+            }
+            let origin = if cfg!(target_os = "android") {
+                "http://tauri.localhost"
+            } else {
+                "tauri://localhost"
+            };
+            let local = Url::parse(&format!("{origin}/index.html"))
+                .expect("a literal onboarding URL parses");
+            if let Err(e) = console(&recovery).and_then(|window| {
+                window.navigate(local).map_err(|e| e.to_string())
+            }) {
+                eprintln!("Could not open connection recovery: {e}");
+            }
+        }) {
+            eprintln!("Could not schedule connection recovery: {e}");
+        }
+    });
+    Ok(())
+}
+
+fn navigate_console(app: &AppHandle, url: Url) -> Result<(), String> {
+    let window = console(app)?;
+    watch_navigation(app, &url)?;
+    if let Err(e) = window.navigate(url) {
+        app.state::<navigation::Navigation>().finish()?;
+        return Err(e.to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn startup_notice(app: AppHandle) -> Option<String> {
+    app.state::<navigation::Navigation>()
+        .notice
+        .lock()
+        .ok()
+        .and_then(|mut notice| notice.take())
+}
+
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     let handle = app.clone();
     let version = app.package_info().version.to_string();
@@ -196,6 +259,16 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
         // returning, a pairing - is veiled again rather than opened by it.
         .on_page_load(|window, payload| {
             if payload.event() != PageLoadEvent::Finished {
+                return;
+            }
+            if let Err(e) = window.state::<navigation::Navigation>().finish() {
+                eprintln!("Could not finish navigation: {e}");
+            }
+            // Recovery contains no account content and must remain usable when
+            // a failed remote page was locked behind biometrics.
+            if payload.url().scheme() == "tauri"
+                || payload.url().host_str() == Some("tauri.localhost")
+            {
                 return;
             }
             let locked = window
@@ -304,9 +377,7 @@ fn pair(app: &AppHandle, pairing: &Pairing) -> Result<(), String> {
     let mut stored = settings(app);
     stored.server_url = Some(pairing.server.clone());
     save(app, &stored)?;
-    console(app)?
-        .navigate(pairing.redeem_url())
-        .map_err(|e| e.to_string())
+    navigate_console(app, pairing.redeem_url())
 }
 
 /// What the onboarding page shows first: an address already chosen, if any.
@@ -331,7 +402,7 @@ fn connect(app: AppHandle, url: String) -> Result<(), String> {
     stored.server_url = Some(server.clone());
     save(&app, &stored)?;
     let login = server.join("login").map_err(|e| e.to_string())?;
-    console(&app)?.navigate(login).map_err(|e| e.to_string())
+    navigate_console(&app, login)
 }
 
 /// Hide the console and ask for the device's biometrics; reveal it once they
@@ -353,6 +424,12 @@ fn lock(app: &AppHandle) -> bool {
     let Ok(window) = console(app) else {
         return false;
     };
+    if window
+        .url()
+        .is_ok_and(|url| url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost"))
+    {
+        return false;
+    }
     let held = app.state::<Lock>();
     let Ok(mut state) = held.0.lock() else {
         return false;
@@ -529,10 +606,8 @@ fn on_deep_link(app: &AppHandle, links: Vec<Url>) {
             expected.as_deref(),
             link.as_str(),
         ) {
-            if let Ok(window) = console(app) {
-                if let Err(e) = window.navigate(destination) {
-                    eprintln!("Could not finish signing in: {e}");
-                }
+            if let Err(e) = navigate_console(app, destination) {
+                eprintln!("Could not finish signing in: {e}");
             }
             return;
         }
@@ -552,6 +627,7 @@ pub fn run() {
         .plugin(pin::init())
         .plugin(push::init())
         .plugin(share::init())
+        .plugin(share::attach())
         .plugin(widget::init());
     // The camera scanner is a phone's; the same app on a laptop types the address.
     #[cfg(mobile)]
@@ -559,6 +635,7 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             server_url,
+            startup_notice,
             pair_with,
             connect,
             unlock,
@@ -579,6 +656,14 @@ pub fn run() {
         ])
         .manage(PendingSignIn::default())
         .manage(Lock::default())
+        .manage(navigation::Navigation::default())
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Err(e) = window.state::<navigation::Navigation>().finish() {
+                    eprintln!("Could not cancel navigation: {e}");
+                }
+            }
+        })
         .setup(|app| {
             let handle = app.handle();
             app.manage(SettingsPath(resolve_settings_path(handle)?));
@@ -598,7 +683,9 @@ pub fn run() {
                 // asked to sign in again on every launch.
                 Some(server) => {
                     grant_console(handle, &server)?;
-                    WebviewUrl::External(server.join("dashboard")?)
+                    let destination = server.join("dashboard")?;
+                    watch_navigation(handle, &destination)?;
+                    WebviewUrl::External(destination)
                 }
                 None => WebviewUrl::App("index.html".into()),
             };

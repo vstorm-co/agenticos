@@ -1,5 +1,5 @@
 ---
-source_sha: "7a2d9e84d16e"
+source_sha: "92fafc5f91d2"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -67,6 +67,10 @@ Linuksie. Plik, który przestał się parsować, jest odkładany jako
 **Ustawieniach…** (`⌘,`), z menu w zasobniku albo uruchamiając z
 `--server <address>`.
 
+**Zmień serwer…** jest też stałym przyciskiem nad kontem w pasku bocznym konsoli.
+Otwiera bezpośrednio formularz połączenia; zwinięty pasek pokazuje jego ikonę
+serwera. Możesz zmienić adres bez używania blobby.
+
 ## Aplikacja, nie karta { #an-application-not-a-tab }
 
 Na macOS pasek boczny konsoli trzyma przyciski okna i przeciąga okno, okno
@@ -76,6 +80,16 @@ zasobniku robi to samo na Windows i Linuksie. Natywne powiadomienia mają Approv
 Reject dla czekającej akceptacji, a Dock lub pasek zadań pokazuje, ile czeka.
 **Ustawienia → Aplikacja desktopowa** uruchamia aplikację przy logowaniu, trzyma
 ją przy zamkniętym oknie i włącza lub wyłącza licznik.
+
+Nad treścią jest osobny wiersz do przeciągania okna, poza obszarem przewijania,
+więc akcje stron i przyciski zamykania paneli pozostają klikalne. Webowy przycisk
+Architect jest schowany przy prawej krawędzi konsoli desktopowej i wysuwa się po
+najechaniu, zostawiając róg wolny dla akcji kart i natywnego Blobby.
+
+**Wygląd** w menu konta pozwala wybrać tryb jasny/ciemny oraz Standard, Glass,
+Graphite, Midnight i Paper z podglądami. Wiersz menu pokazuje aktualny styl. To te
+same ustawienia co **Ustawienia → Profil → Wygląd**; zmiana stylu zachowuje tryb
+kolorów, a wybór pozostaje po ponownym uruchomieniu aplikacji.
 
 **Przypięte agenty**: strona agenta oferuje Przypnij do Docka (gdzie indziej do
 paska zadań). Przypięty agent jest w menu Docka i w menu zasobnika, jedno
@@ -97,6 +111,12 @@ Jego okno jest przezroczyste, co na macOS wymaga `macOSPrivateApi` w
 konsola i tak się nie wybierała.
 
 ## Szybkie pytanie i głos { #quick-ask-and-voice }
+
+**Otwórz AgenticOS** (`⌘⇧O` na macOS, `Ctrl+Shift+O` na pozostałych systemach)
+pokazuje konsolę z dowolnej aplikacji. Zmień lub wyczyść skrót w **Ustawienia →
+Skróty**. Pasek menu oraz menu zasobnika i Blobby pokazują aktywne skróty otwierania
+AgenticOS, szybkiego pytania i zrzutu ekranu do nowego czatu. Oznaczenia odświeżają
+się po zmianie skrótu. Menu nie pokazuje skrótu, którego nie udało się zarejestrować.
 
 **Szybkie pytanie** (`⌥Space`, do zmiany) otwiera pływający panel, żeby zapytać
 dowolnego agenta z dowolnego miejsca, bez wysuwania konsoli na wierzch. Na macOS
@@ -121,16 +141,23 @@ może pracować w folderze na komputerze, na którym działa aplikacja, zamiast 
 chmurze. Narzędzia agenta do plików i powłoki - listowanie, czytanie, zapis,
 edycja, uruchamianie - sięgają tego folderu przez aplikację.
 
-**Połącz komputer raz.** **Ustawienia → Aplikacja desktopowa → Ten komputer →
-Pozwól agentom tu pracować** daje aplikacji własną sesję dla tego komputera, po
-tym jak natywne okno poprosi cię o potwierdzenie, i trzyma jej refresh token w
-systemowym pęku kluczy. Aplikacja trzyma wtedy jedno wychodzące połączenie
-WebSocket do device huba serwera (`/api/v1/ws/device`); nic nie nasłuchuje na
-komputerze. **Rozłącz** kończy tę sesję.
+**Połącz komputer raz.** W ustawieniach czatu wybierz **Pracuj na → Ten komputer**,
+aby połączyć go bezpośrednio. Potwierdź w natywnym oknie, a potem wybierz folder i
+tryb dostępu w tym samym panelu. **Ustawienia → Aplikacja desktopowa → Ten komputer
+→ Pozwól agentom tu pracować** oferuje tę samą akcję łączenia. Aplikacja dostaje
+własną sesję dla tego komputera i przechowuje jej refresh token w systemowym pęku
+kluczy. Trzyma jedno wychodzące połączenie WebSocket do device huba serwera
+(`/api/v1/ws/device`); nic nie nasłuchuje na komputerze. **Rozłącz** kończy tę sesję.
 
 **Wybierz to dla czatu.** W aplikacji desktopowej ustawienia czatu oferują
 **Pracuj na (Work on): Chmura / Ten komputer**. Wybranie tego komputera prosi o
 folder w natywnym oknie wyboru i o to, jak daleko agent może w nim sięgać:
+
+Ten komputer zostaje wybrany dopiero po zatwierdzeniu folderu. Lista dostępu
+pokazuje zatwierdzony tryb tego folderu; jego zmiana ponownie otwiera natywne okno
+wyboru folderu, aby potwierdzić nowe uprawnienia. Anulowanie zachowuje poprzedni
+wybór. Folder i tryb pozostają wybrane po zamknięciu ustawień oraz po nadaniu
+nowemu czatowi identyfikatora.
 
 | Tryb | Co agent może | Jak jest tego pilnowane |
 |---|---|---|
