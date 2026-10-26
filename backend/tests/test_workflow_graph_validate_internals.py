@@ -35,6 +35,7 @@ from app.workflows.graph.validate import (
     node_scope_map,
     validate_graph,
 )
+from app.workflows.nodes import _model_step
 
 pytestmark = pytest.mark.anyio
 
@@ -264,6 +265,48 @@ async def test_an_edge_naming_a_port_the_definition_does_not_declare_is_refused(
     with pytest.raises(GraphValidationError) as excinfo:
         await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert any(f["field"] == f"edges.{edge.id}" for f in excinfo.value.details["fields"])
+
+
+def _classifier(**config: object) -> NodeInstance:
+    return _echo_node(
+        definition_id="ai.classify",
+        config={
+            "model_profile_id": str(uuid4()),
+            "categories": [{"name": "sales", "description": "Wants to buy"}],
+            **config,
+        },
+    )
+
+
+def _classified(a: NodeInstance, b: NodeInstance, edge: Edge) -> WorkflowGraph:
+    bindings = tuple(
+        Binding(target_node_id=n.id, target_field="text", source=LiteralValue(value="x"))
+        for n in (a, b)
+    )
+    return WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=bindings)
+
+
+async def test_an_unsure_edge_on_a_classifier_without_a_minimum_is_refused(
+    mock_db_session, monkeypatch
+):
+    monkeypatch.setattr(_model_step, "problems", AsyncMock(return_value=[]))
+    a, b = _classifier(), _classifier()
+    edge = _edge(a.id, "unsure", b.id, "in")
+    graph = _classified(a, b, edge)
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == f"edges.{edge.id}" for f in excinfo.value.details["fields"])
+
+
+async def test_an_unsure_edge_on_a_classifier_with_a_minimum_publishes(
+    mock_db_session, monkeypatch
+):
+    monkeypatch.setattr(_model_step, "problems", AsyncMock(return_value=[]))
+    a, b = _classifier(min_confidence=0.7), _classifier()
+    edge = _edge(a.id, "unsure", b.id, "in")
+    graph = _classified(a, b, edge)
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert validated.edges == (edge,)
 
 
 async def test_an_edge_naming_a_target_port_the_definition_does_not_declare_is_refused(

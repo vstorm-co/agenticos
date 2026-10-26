@@ -8,7 +8,7 @@ import type { JsonSchema, NodeDefinition, NodeInstance, Port } from "./types";
  *
  * `error.handle` has one output per configured branch beside `default`,
  * `logic.switch` one per rule before `otherwise`, and `ai.classify` one per
- * category before `other`; a
+ * category before `other`, then `unsure` when it sets a minimum confidence; a
  * Manual or API trigger's `out` carries a `payload` typed by the fields it
  * declares, and any node whose policy routes its errors has an `error` output
  * carrying the `WorkflowError`. Everything that reads ports - the node's handles, the edge
@@ -107,6 +107,18 @@ export function instancePorts(instance: NodeInstance, definition: NodeDefinition
   }
   if (definition.id === "ai.classify") {
     ports = namedOutputsBefore(ports, classifyCategories(instance.config), "other");
+    // Below its minimum confidence the step leaves by `unsure`; the backend declares
+    // that port only when a minimum is set, so a graph cannot wire it otherwise.
+    if (
+      typeof instance.config.min_confidence === "number" &&
+      !ports.some((port) => port.id === "unsure")
+    ) {
+      const other = ports.find((port) => port.id === "other");
+      ports = [
+        ...ports,
+        { id: "unsure", label: "Unsure", kind: "output", schema: other?.schema ?? null },
+      ];
+    }
   }
   if (FIELD_TRIGGERS.has(definition.id)) {
     const fields = inputFieldsOf(instance.config);

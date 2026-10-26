@@ -1,5 +1,5 @@
 ---
-source_sha: "c0c3258f9d23"
+source_sha: "becb6b2fd45b"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -368,7 +368,7 @@ Publikacja sprawdza, czy autor może używać modelu.
 | Krok | Robi | Przekazuje dalej |
 |---|---|---|
 | `ai.prompt` | Odpowiada na zbindowany `prompt` według `instructions` kroku | `text`, a `structured`, gdy `structured_output_schema` prosi o obiekt |
-| `ai.classify` | Przypisuje zbindowany `text` do jednej z `categories` kroku albo do `other` | Wychodzi portem kategorii, z `category`, jednozdaniowym `reason` i `text` |
+| `ai.classify` | Przypisuje zbindowany `text` do jednej z `categories` kroku albo do `other` | Wychodzi portem kategorii, z `category`, jednozdaniowym `reason`, `text` i `confidence`; poniżej `min_confidence` - portem `unsure` |
 | `ai.extract` | Wyciąga ze zbindowanego `text` pola nazwane w `output_schema`, pomijając to, czego tekst nie mówi | `data`, obiekt tego kształtu |
 | `ai.rewrite` | Streszcza (`short`, `medium`, `long`), tłumaczy na `language` albo przepisuje zbindowany `text` w danym `style` | `text` |
 
@@ -377,7 +377,20 @@ tylko nazwą jednej z nich albo `other`. Odpowiedź, która nie jest obiektem, o
 który prosił krok, kończy go błędem `STRUCTURED_OUTPUT_MISMATCH`; wyczerpany
 limit - błędem `AGENT_BUDGET_EXCEEDED`.
 
+Gdy ustawiono `min_confidence`, model podaje też własną pewność co do kategorii,
+od 0 do 1. To jego deklaracja, nie prawdopodobieństwo, i nie jest skalibrowana:
+zanim zaufasz progowi, sprawdź go na własnych przypadkach za pomocą
+[ewaluacji](../workflows.md#evals-for-a-model-step) kroku. Minimum dodaje port
+`unsure` po `other`: poniżej niego krok wychodzi tym portem, niosąc to samo
+wyjście, więc `category` nadal jest do dyspozycji workflow.
+
+Bez minimum model nie jest pytany o liczbę, prompt się nie zmienia, `confidence`
+jest null, a kategoria zawsze wygrywa. Odpowiedź bez liczby nigdy nie wychodzi
+portem `unsure`, a gdy ten port istnieje, `unsure` nie może być nazwą kategorii.
+
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyOutput
 
 ## Decyzje { #decisions }
 
@@ -386,6 +399,10 @@ API TypeSafe z vaulta. Jev nie pisze tekstu: odpowiada na pytanie z pewnością 
 do 1, w jednym żądaniu, i może odpowiedzieć tylko jedną z odpowiedzi, na które krok
 pozwala. Poniżej `min_confidence` kroku wychodzi on portem `unsure`, więc to
 workflow decyduje, co człowiek albo agent zrobi z wątpliwym przypadkiem.
+
+`decide.*` wywołuje wyłącznie hostowanego Jev od TypeSafe. Wątpliwe przypadki na
+modelu hostowanym u siebie kieruj przez `ai.classify` z `min_confidence`, który
+wychodzi portem `unsure` tak samo.
 
 | Krok | Pyta | Wychodzi portem |
 |---|---|---|

@@ -1,5 +1,5 @@
 ---
-source_sha: "c0c3258f9d23"
+source_sha: "becb6b2fd45b"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -376,7 +376,7 @@ el modelo.
 | Paso | Hace | Pasa |
 |---|---|---|
 | `ai.prompt` | Responde a un `prompt` enlazado según las `instructions` del paso | `text`, y `structured` cuando `structured_output_schema` pide un objeto |
-| `ai.classify` | Pone un `text` enlazado en una de las `categories` del paso, o en `other` | Sale por el puerto de la categoría, con la `category`, un `reason` de una frase y el `text` |
+| `ai.classify` | Pone un `text` enlazado en una de las `categories` del paso, o en `other` | Sale por el puerto de la categoría, con la `category`, un `reason` de una frase, el `text` y `confidence`; por debajo de `min_confidence`, por `unsure` |
 | `ai.extract` | Saca de un `text` enlazado los campos que nombra `output_schema`, omitiendo lo que no dice | `data`, un objeto con esa forma |
 | `ai.rewrite` | Resume (`short`, `medium`, `long`), traduce a `language` o reescribe un `text` enlazado con un `style` | `text` |
 
@@ -385,7 +385,22 @@ puede responder con uno de sus nombres o `other`. Una respuesta que no es el
 objeto que pidió el paso lo hace fallar con `STRUCTURED_OUTPUT_MISMATCH`; un
 límite agotado, con `AGENT_BUDGET_EXCEEDED`.
 
+Con `min_confidence` fijado, el modelo informa además de su propia confianza en la
+categoría, de 0 a 1. Es lo que él dice, no una probabilidad, y no está calibrada:
+prueba un umbral con tus propios casos usando los
+[evals](../workflows.md#evals-for-a-model-step) del paso antes de fiarte de él. El
+mínimo añade un puerto `unsure` después de `other`: por debajo de él el paso sale
+por ese puerto, con la misma salida, así que la `category` sigue disponible para el
+workflow.
+
+Sin mínimo no se pide un número al modelo, el prompt no cambia, `confidence` es
+null y siempre gana la categoría. Una respuesta sin número nunca sale por
+`unsure`, y mientras exista el puerto, `unsure` no puede ser el nombre de una
+categoría.
+
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyOutput
 
 ## Decisiones { #decisions }
 
@@ -395,6 +410,10 @@ pregunta con una confianza de 0 a 1, en una sola petición, y solo puede respond
 con una de las respuestas que el paso permite. Por debajo del `min_confidence` del
 paso, sale por su puerto `unsure`, así que el workflow decide ahí qué hace una
 persona o un agent con un caso dudoso.
+
+`decide.*` solo llama al Jev alojado de TypeSafe. Para encaminar los casos dudosos
+con un modelo autoalojado usa `ai.classify` con `min_confidence`, que sale por
+`unsure` de la misma manera.
 
 | Paso | Pregunta | Sale por |
 |---|---|---|

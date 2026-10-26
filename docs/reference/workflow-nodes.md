@@ -358,7 +358,7 @@ Publishing checks that the author may use the model.
 | Step | Does | Hands on |
 |---|---|---|
 | `ai.prompt` | Answers a bound `prompt` under the step's `instructions` | `text`, and `structured` when `structured_output_schema` asks for an object |
-| `ai.classify` | Puts a bound `text` in one of the step's `categories`, or `other` | Leaves by the category's port, with the `category`, a one-sentence `reason` and the `text` |
+| `ai.classify` | Puts a bound `text` in one of the step's `categories`, or `other` | Leaves by the category's port, with the `category`, a one-sentence `reason`, the `text` and `confidence`; below `min_confidence`, by `unsure` |
 | `ai.extract` | Pulls the fields `output_schema` names out of a bound `text`, leaving out what it does not say | `data`, an object of that shape |
 | `ai.rewrite` | Summarizes (`short`, `medium`, `long`), translates into `language`, or rewrites a bound `text` in a `style` | `text` |
 
@@ -367,7 +367,20 @@ answer with one of their names or `other`. An answer that is not the object a
 step asked for fails it with `STRUCTURED_OUTPUT_MISMATCH`; a spent limit fails
 it with `AGENT_BUDGET_EXCEEDED`.
 
+With `min_confidence` set, the model also reports its own confidence in the
+category, from 0 to 1. That is its say-so, not a probability, and it is not
+calibrated: test a threshold on your own cases with the step's
+[evals](../workflows.md#evals-for-a-model-step) before trusting it. The minimum
+adds an `unsure` port after `other`: below it the step leaves by that port,
+carrying the same output, so the `category` is still there for the workflow to use.
+
+Without a minimum the model is not asked for a number, the prompt is unchanged,
+`confidence` is null and the category always wins. An answer with no number never
+leaves by `unsure`, and while the port exists `unsure` cannot be a category name.
+
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyOutput
 
 ## Decisions { #decisions }
 
@@ -377,6 +390,10 @@ question with a confidence from 0 to 1, in one request, and it can only answer
 with one of the answers the step allows. Below the step's `min_confidence` the
 step leaves by its `unsure` port instead, so a workflow decides there what a
 person or an agent does with a doubtful case.
+
+`decide.*` calls TypeSafe's hosted Jev only. To route doubtful cases on a
+self-hosted model, use `ai.classify` with `min_confidence`, which leaves by
+`unsure` the same way.
 
 | Step | Asks | Leaves by |
 |---|---|---|

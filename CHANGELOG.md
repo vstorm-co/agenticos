@@ -28,6 +28,12 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **`ai.classify` can leave by `unsure` below a confidence.** With a
+  `min_confidence`, the model also states how sure it is of the category, from 0
+  to 1 (its own report, not a calibrated probability), and the step leaves by an
+  `unsure` port below it, as `decide.*` does. Steps without a minimum are
+  unchanged: same prompt, same ports, `confidence: null`.
+
 - **Two self-hosted mail servers in the MCP catalog.** `google-workspace` is
   `taylorwilsdon/google_workspace_mcp` (Gmail, Calendar, Drive and Sheets, over
   Streamable HTTP with `MCP_ENABLE_OAUTH21`, using your own Google OAuth client);

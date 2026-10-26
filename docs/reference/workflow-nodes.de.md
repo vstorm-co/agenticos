@@ -1,5 +1,5 @@
 ---
-source_sha: "c0c3258f9d23"
+source_sha: "becb6b2fd45b"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -387,7 +387,7 @@ Veröffentlichen prüft, ob der Autor das Modell verwenden darf.
 | Schritt | Tut | Gibt weiter |
 |---|---|---|
 | `ai.prompt` | Beantwortet einen gebundenen `prompt` nach den `instructions` des Schritts | `text`, und `structured`, wenn `structured_output_schema` ein Objekt verlangt |
-| `ai.classify` | Ordnet einen gebundenen `text` einer der `categories` des Schritts zu, oder `other` | Verlässt den Schritt über den Port der Kategorie, mit `category`, einem einsätzigen `reason` und dem `text` |
+| `ai.classify` | Ordnet einen gebundenen `text` einer der `categories` des Schritts zu, oder `other` | Verlässt den Schritt über den Port der Kategorie, mit `category`, einem einsätzigen `reason`, dem `text` und `confidence`; unter `min_confidence` über `unsure` |
 | `ai.extract` | Zieht die in `output_schema` genannten Felder aus einem gebundenen `text` und lässt weg, was er nicht sagt | `data`, ein Objekt dieser Form |
 | `ai.rewrite` | Fasst zusammen (`short`, `medium`, `long`), übersetzt in `language` oder schreibt einen gebundenen `text` in einem `style` um | `text` |
 
@@ -397,7 +397,22 @@ nicht das verlangte Objekt ist, lässt den Schritt mit
 `STRUCTURED_OUTPUT_MISMATCH` fehlschlagen; ein ausgeschöpftes Limit mit
 `AGENT_BUDGET_EXCEEDED`.
 
+Ist `min_confidence` gesetzt, meldet das Modell zusätzlich seine eigene Konfidenz
+für die Kategorie, von 0 bis 1. Das ist seine Selbstauskunft, keine
+Wahrscheinlichkeit, und sie ist nicht kalibriert: Prüfen Sie einen Schwellenwert
+mit den [Evals](../workflows.md#evals-for-a-model-step) des Schritts an Ihren
+eigenen Fällen, bevor Sie ihm trauen. Das Minimum fügt nach `other` einen Port
+`unsure` hinzu: Unter dem Minimum geht es über diesen Port weiter, mit derselben
+Ausgabe, sodass die `category` dem Workflow weiter zur Verfügung steht.
+
+Ohne Minimum wird das Modell nicht nach einer Zahl gefragt, der Prompt bleibt
+unverändert, `confidence` ist null und die Kategorie gewinnt immer. Eine Antwort
+ohne Zahl verlässt den Schritt nie über `unsure`, und solange der Port existiert,
+darf `unsure` kein Kategoriename sein.
+
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyOutput
 
 ## Entscheidungen { #decisions }
 
@@ -408,6 +423,10 @@ nur mit einer der Antworten antworten, die der Schritt zulässt. Unter dem
 `min_confidence` des Schritts verlässt er ihn stattdessen über seinen Port
 `unsure`, sodass ein Workflow dort entscheidet, was ein Mensch oder ein Agent mit
 einem zweifelhaften Fall tut.
+
+`decide.*` ruft nur TypeSafes gehostetes Jev auf. Um zweifelhafte Fälle mit einem
+selbst gehosteten Modell zu routen, nehmen Sie `ai.classify` mit `min_confidence`,
+das den Schritt genauso über `unsure` verlässt.
 
 | Schritt | Fragt | Verlässt über |
 |---|---|---|

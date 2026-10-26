@@ -1,5 +1,5 @@
 ---
-source_sha: "1b24107e2e10"
+source_sha: "f3dba1d7839c"
 ---
 
 # Ein Modell wählen { #choosing-a-model }
@@ -43,6 +43,11 @@ bezahlen ist der häufigste Weg, auf dem ein Agent-Budget verschwindet.
     es wollen, wechseln Sie dann im Profil auf ein günstigeres und sehen Sie, ob
     es jemandem auffällt. Andersherum debuggen Sie Ihre Instruktionen und das
     Modell gleichzeitig, und Sie werden dem Falschen die Schuld geben.
+
+Die Selbstauskunft eines Modells, wie sicher es ist, nach der `ai.classify` mit gesetztem `min_confidence` fragen kann, ordnet Antworten von sicherer zu unsicherer;
+sie ist keine Wahrscheinlichkeit. Kleinere Modelle mit offenen Gewichten melden sie
+weniger verlässlich. Wählen Sie den Schwellenwert anhand Ihrer eigenen Evals, nicht
+nach dem Nennwert der Zahl.
 
 ## Geschlossene Modelle oder offene Gewichte { #closed-models-or-open-weights }
 
