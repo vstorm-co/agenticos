@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
+    AuthorizationError,
     ConcurrentChangeError,
     NotFoundError,
     PaymentRequiredError,
@@ -152,6 +153,81 @@ async def test_ready_proposal_survives_repeated_transitions_without_changing_the
     await _ready_proposal(db)
 
 
+async def test_every_move_is_announced_to_the_agents_open_pages(db):
+    with (
+        patch("app.services.improvement_pipeline.change_feed") as feed,
+        patch("app.services.improvement_pipeline.spawn_after_commit") as queued,
+    ):
+        _, agent, ready = await _ready_proposal(db)
+    events = [call.args[0] for call in feed.publish.call_args_list]
+    assert queued.call_count == len(events) >= 2
+    assert {(event.resource, event.id, event.surface) for event in events} == {
+        ("improvement", agent.id, "system")
+    }
+    assert all(event.actor_user_id is None for event in events)
+    assert ready.status == "ready"
+
+
+async def _queued_advances(db: AsyncSession, run_id: UUID) -> int:
+    from app.db.models.background_job import BackgroundJob
+
+    return await db.scalar(
+        select(func.count())
+        .select_from(BackgroundJob)
+        .where(
+            BackgroundJob.kind == "advance-improvement",
+            BackgroundJob.status == "queued",
+            BackgroundJob.payload["run_id"].astext == str(run_id),
+        )
+    )
+
+
+async def _settle_queued_jobs(db: AsyncSession) -> None:
+    from sqlalchemy import update
+
+    from app.db.models.background_job import BackgroundJob
+
+    await db.execute(
+        update(BackgroundJob).where(BackgroundJob.status == "queued").values(status="succeeded")
+    )
+
+
+async def test_an_ended_step_wakes_its_session_instead_of_waiting_for_the_sweep(db):
+    from app.db.models.eval_run import EvalRun as EvalRunRow
+    from app.services.notifications import NotificationService
+
+    ctx, agent, _, read = await _started(db)
+    await _until_child(db, ctx, read.id)
+    proposing = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
+    request = await db.get(AuthoringRequest, proposing.iterations[0].authoring_request_id)
+    await _settle_queued_jobs(db)
+    await AuthoringWorker._fail(db, request, "The improver could not answer.")
+    assert await _queued_advances(db, read.id) == 1
+
+    await _settle_queued_jobs(db)
+    check = EvalRunRow(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        status="completed",
+        purpose="gate",
+        created_by_user_id=ctx.user_id,
+        proposal_check={"improvement_run_id": str(read.id)},
+    )
+    with patch(
+        "app.services.notifications.spawn_after_commit",
+        side_effect=lambda _db, coro, *, name: coro.close(),
+    ):
+        await NotificationService(db).eval_run_finished(check)
+    assert await _queued_advances(db, read.id) == 1
+
+    await ImprovementPipelineService(db).cancel(ctx, agent.id, read.id)
+    await _settle_queued_jobs(db)
+    await ImprovementPipelineService(db).wake(read.id, organization_id=ctx.organization_id)
+    await ImprovementPipelineService(db).wake(read.id, organization_id=uuid4())
+    assert await _queued_advances(db, read.id) == 0
+
+
 async def test_failed_paid_attempt_does_not_spend_the_confirming_measurement(db):
     ctx, _, read = await _ready_proposal(db)
     ids = read.iterations[0].eval_run_ids
@@ -226,7 +302,38 @@ async def test_second_start_is_a_conflict_and_estimate_writes_nothing(db):
     )
     assert estimate.total_usd == estimate.per_round_usd * 2
     assert estimate.per_round_usd == estimate.proposal_usd + 2 * estimate.eval_usd
+    assert estimate.estimated_minutes >= 3
     assert await db.scalar(select(func.count()).select_from(ImprovementRun)) == 1
+
+
+@pytest.mark.security
+async def test_an_editor_who_cannot_read_runs_is_told_why_before_any_estimate_or_start(db):
+    from dataclasses import replace
+
+    from app.core.permissions import Perm
+
+    ctx, agent, _ = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=5)
+    editor = replace(
+        ctx,
+        key_scopes=frozenset(
+            {Perm.AGENTS_VIEW, Perm.AGENTS_EDIT, Perm.DATASETS_VIEW, Perm.DATASETS_RUN}
+        ),
+    )
+    service = ImprovementPipelineService(db)
+    target = ImprovementTarget(dataset_id=dataset.id)
+    with pytest.raises(AuthorizationError) as estimate:
+        await service.estimate(editor, agent.id, target)
+    with pytest.raises(AuthorizationError) as start:
+        await service.start(
+            editor,
+            agent.id,
+            ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal("5")),
+        )
+    for refused in (estimate.value, start.value):
+        assert refused.message == "Improving an agent needs runs:view"
+        assert refused.details == {"permission": "runs:view"}
+    assert await db.scalar(select(func.count()).select_from(ImprovementRun)) == 0
 
 
 @pytest.mark.parametrize("change", ["draft", "publish", "scoring", "archive"])

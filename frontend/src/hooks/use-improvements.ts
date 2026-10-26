@@ -16,6 +16,12 @@ import type {
   ImprovementTarget,
 } from "@/types/improvement";
 
+/**
+ * A live session is refreshed by its `improvement` change event; this slower read
+ * only covers a console whose live-updates socket is not connected.
+ */
+const IMPROVEMENT_FALLBACK_MS = 30_000;
+
 export function useImprovements(agentId: string, { enabled = true } = {}) {
   const queryClient = useQueryClient();
   const base = `/agents/${agentId}/improvements`;
@@ -25,7 +31,7 @@ export function useImprovements(agentId: string, { enabled = true } = {}) {
     enabled,
     refetchInterval: (query) =>
       query.state.data?.some((r) => ["queued", "running", "ready", "accepted"].includes(r.status))
-        ? 3000
+        ? IMPROVEMENT_FALLBACK_MS
         : false,
   });
   const estimate = useMutation({
@@ -55,7 +61,7 @@ export function useImprovement(agentId: string, runId: string) {
     refetchInterval: (current) =>
       current.state.data &&
       ["queued", "running", "ready", "accepted"].includes(current.state.data.status)
-        ? 3000
+        ? IMPROVEMENT_FALLBACK_MS
         : false,
   });
   const refresh = async () => {
@@ -188,7 +194,7 @@ export function useImprovementEvidence(
           : `/agents/${agentId}/improvements/preview`,
         { params: !sessionId && datasetId ? { dataset_id: datasetId } : {} },
       ),
-    refetchInterval: live ? 3000 : false,
+    refetchInterval: live ? IMPROVEMENT_FALLBACK_MS : false,
   });
   return {
     evidence: query.data,

@@ -9,6 +9,7 @@ A session ends in `ready` at the furthest: nothing here accepts, publishes or
 promotes, and no transition leaves `ready` except by a person's decision.
 """
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -30,6 +31,12 @@ MIN_GRADABLE_CASES = 5
 
 INCONCLUSIVE_RERUNS = 1
 """How often an inconclusive check is run again before the session gives up."""
+
+PROPOSAL_SECONDS = 90
+"""What one round's proposal adds to a time estimate: reading the evidence and writing changes."""
+
+ANSWER_SECONDS = 20.0
+"""How long one answer is taken to take when the agent has answered nothing recently."""
 
 STALL_MARGIN = timedelta(minutes=10)
 STEP_TIMEOUT: dict[ImprovementStage, timedelta] = {
@@ -413,3 +420,13 @@ def stalled(
 def stall(stage: ImprovementStage | None) -> Transition:
     """Where a stalled session goes: failed, on the step it stalled at."""
     return _fail(stage, StopReason.STALLED)
+
+
+def estimated_minutes(
+    *, rounds: int, answers: int, answer_seconds: float | None, concurrency: int
+) -> int:
+    """About how long a session takes when every round runs: one proposal, then
+    every answer of its check, `concurrency` of them at a time."""
+    each = ANSWER_SECONDS if answer_seconds is None else answer_seconds
+    per_round = PROPOSAL_SECONDS + math.ceil(answers / max(concurrency, 1)) * each
+    return max(1, math.ceil(rounds * per_round / 60))

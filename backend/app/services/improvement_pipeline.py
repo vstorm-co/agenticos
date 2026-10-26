@@ -8,7 +8,7 @@ transition without repeating a model call. Only an explicit human finish accepts
 import hashlib
 import json
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -24,6 +24,7 @@ from app.agents.capabilities.skills import SkillBody
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec
 from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -53,6 +54,7 @@ from app.db.models.improvement import (
 )
 from app.repositories import (
     agent_repo,
+    agent_run_repo,
     authoring_repo,
     dataset_repo,
     improvement_repo,
@@ -63,7 +65,9 @@ from app.repositories import (
 from app.repositories import (
     background_job as background_job_repo,
 )
+from app.repositories.agent_run import RunFilter
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
+from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_run import (
     EvalComparisonRead,
     EvalRunRead,
@@ -98,7 +102,7 @@ from app.schemas.improvement import (
     SelectionEstimate,
 )
 from app.schemas.scoring import DatasetScoring
-from app.services import authoring_fields, authoring_hunks
+from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
@@ -121,6 +125,9 @@ from app.worker.jobs import (
     ClassifyGaps,
     DraftGaps,
 )
+
+ANSWER_TIME_WINDOW = timedelta(days=30)
+"""How far back the agent's answers are read to time a session's checks."""
 
 
 @dataclass(frozen=True)
@@ -473,6 +480,14 @@ class ImprovementPipelineService:
             )
         total = per_round * target.max_iterations + knowledge
         org_left = await self.evals._org_left(ctx)
+        now = datetime.now(UTC)
+        answer_ms, _ = await agent_run_repo.latency_percentiles_ms(
+            self.db,
+            organization_id=ctx.organization_id,
+            start=now - ANSWER_TIME_WINDOW,
+            end=now,
+            where=RunFilter(agent_id=inputs.agent.id),
+        )
         return ImprovementEstimate(
             proposal_usd=proposal.estimate_usd,
             knowledge_usd=knowledge,
@@ -482,6 +497,12 @@ class ImprovementPipelineService:
             max_iterations=target.max_iterations,
             cases=check.cases,
             evidence_runs=proposal.runs,
+            estimated_minutes=rules.estimated_minutes(
+                rounds=target.max_iterations,
+                answers=check.cases * len(check.arms),
+                answer_seconds=None if answer_ms is None else answer_ms / 1000,
+                concurrency=settings.EVAL_RUN_CONCURRENCY,
+            ),
             affordable=proposal.affordable
             and check.affordable
             and (org_left is None or total <= org_left),
@@ -1240,6 +1261,15 @@ class ImprovementPipelineService:
                         now=datetime.now(UTC),
                     )
 
+    async def wake(self, run_id: UUID, *, organization_id: UUID) -> None:
+        """Advance a session as soon as a step it waits on has ended, not at the next sweep.
+
+        Called in the transaction that ends the step, so the advance runs on what it wrote.
+        """
+        run = await improvement_repo.get_run(self.db, run_id, organization_id=organization_id)
+        if run is not None and Status(run.status).active:
+            await self._queue(run)
+
     async def _queue(self, run: ImprovementRun) -> None:
         # State is part of dedupe: the current job may enqueue its successor.
         children = await improvement_repo.get_iteration(
@@ -1369,6 +1399,21 @@ class ImprovementPipelineService:
         )
         await self._audit(
             run, "stage_changed" if transition.status.active else transition.status.value
+        )
+        spawn_after_commit(
+            self.db,
+            change_feed.publish(
+                ChangeEvent(
+                    organization_id=run.organization_id,
+                    resource="improvement",
+                    id=run.agent_id,
+                    action="updated",
+                    surface="system",
+                    actor_user_id=None,
+                    actor_name=None,
+                )
+            ),
+            name=f"improvement-moved:{run.id}",
         )
         if transition.status.active:
             await self._queue(run)

@@ -38,6 +38,11 @@ describe("staleQueries", () => {
       qk.knowledgeGaps.all(),
       qk.improvements.all(),
     ]);
+    expect(staleQueries(change("improvement"))).toEqual([
+      qk.improvements.all(),
+      qk.authoring.all(),
+      qk.evalRuns.all(),
+    ]);
   });
 
   it("refreshes the sharing panels with every row somebody can share", () => {

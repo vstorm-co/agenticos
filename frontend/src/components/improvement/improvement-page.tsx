@@ -122,6 +122,7 @@ function Session({
             label: t(`steps.${id}`),
             status: states[id],
             statusLabel: t(`stepState.${states[id]}`),
+            tourId: `improvement-step-${id}`,
           }))}
           current={step}
           onSelect={(id) => {
@@ -229,7 +230,10 @@ function Session({
                 </p>
               )}
               {session.offer_automatic_check && (
-                <label className="flex items-start gap-2 text-sm">
+                <label
+                  className="flex items-start gap-2 text-sm"
+                  data-tour="improvement-automatic-check"
+                >
                   <input
                     type="checkbox"
                     checked={automatic}
@@ -238,7 +242,9 @@ function Session({
                   {t("automatic")}
                 </label>
               )}
-              <p className="text-muted-foreground text-sm">{t("publishImpact")}</p>
+              <p className="text-muted-foreground text-sm" data-tour="improvement-guard">
+                {t("publishImpact")}
+              </p>
               <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"

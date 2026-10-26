@@ -93,6 +93,24 @@ describe("GenerateCasesDialog", () => {
     expect(toast.success).toHaveBeenCalled();
   });
 
+  it("opens on the agent and count it was given, and estimates those", async () => {
+    estimate.mutateAsync.mockResolvedValue(ESTIMATE);
+    render(
+      <GenerateCasesDialog
+        datasetId="d1"
+        open
+        onOpenChange={vi.fn()}
+        initial={{ agentId: "a1", count: 5 }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+    expect(estimate.mutateAsync).toHaveBeenCalledWith({
+      agent_id: "a1",
+      sources: ["agent", "red_team"],
+      count: 5,
+    });
+  });
+
   it("throws the estimate away when anything changes", async () => {
     estimate.mutateAsync.mockResolvedValue(ESTIMATE);
     mount();

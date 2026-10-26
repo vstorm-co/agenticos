@@ -12,6 +12,8 @@ export interface WizardStep {
   label: string;
   status?: "done" | "running" | "needs_you" | "skipped" | "pending";
   statusLabel?: string;
+  /** A `data-tour` anchor, so a walkthrough can open this step before pointing into it. */
+  tourId?: string;
 }
 
 interface WizardStepsProps {
@@ -54,6 +56,7 @@ function StepTrigger({
       type="button"
       aria-label={step.label}
       aria-describedby={step.statusLabel ? descriptionId : undefined}
+      data-tour={step.tourId}
       className="focus-visible:ring-ring block min-h-11 w-full rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
       onClick={() => onSelect(step.id)}
     >

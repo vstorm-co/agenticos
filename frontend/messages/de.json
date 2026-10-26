@@ -4835,25 +4835,73 @@
         "title": "Was von selbst zu Ihnen kam",
         "body": "Funde Ihrer Beobachtungen und die nächtlichen Vorschläge, Dringendes zuerst. Nach Herkunft filtern oder unter Erledigt einen abgelehnten zurückholen."
       },
+      "improvement-test-set": {
+        "title": "Testfragen",
+        "body": "Wählen Sie die Fragen, an denen eine Änderung gemessen wird. Ein Teil dient zum Schreiben der Änderungen; der Rest wird zurückgehalten und entscheidet, ob sie wirkt."
+      },
       "improvement-start": {
         "title": "Testfragen",
         "body": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam."
+      },
+      "improvement-questions": {
+        "title": "Fragen und Bewertung",
+        "body": "Die Fragen und wie jede Antwort bewertet wird, sind ab dem Start der Sitzung festgelegt. Die Bewertung ändern Sie im Tab Bewertung des Fragensets; sie gilt ab der nächsten Sitzung."
+      },
+      "improvement-today": {
+        "title": "Der erste Run",
+        "body": "Bevor sich etwas ändert, beantwortet der Agent jede Frage so wie heute. Dieser Run ist der Ausgangspunkt, mit dem jede Änderung verglichen wird."
+      },
+      "improvement-review": {
+        "title": "Prüfung",
+        "body": "Öffnen Sie die vollständige Prüfung, um eine zweifelhafte Antwort zur Prüfung zu schicken. Das Urteil einer Person ersetzt dort das des Bewerters, und das Ergebnis wird neu berechnet."
       },
       "improvement-results": {
         "title": "Ergebnis",
         "body": "Die Prüfung läuft im Hintergrund. Sie können diese Seite schließen — wir benachrichtigen Sie, sobald das Ergebnis vorliegt."
       },
+      "improvement-automatic-check": {
+        "title": "Automatische Prüfung",
+        "body": "Haken Sie dies in der ersten Sitzung an, um diese Fragen bei jeder Veröffentlichung erneut zu testen. Eine Version, die eine davon bricht, erreicht keine geschützte Umgebung."
+      },
+      "improvement-guard": {
+        "title": "Schutz",
+        "body": "Eine Umgebung kann durch eine automatische Prüfung geschützt sein. Veröffentlichen erzeugt eine neue Version; eine geschützte Umgebung wechselt erst darauf, wenn ihre Prüfung besteht."
+      },
       "improvement-accept": {
         "title": "Annehmen",
         "body": "In den Entwurf übernehmen oder gemeinsam annehmen und veröffentlichen. Dabei gelten die üblichen Prüfungen. Eine geschützte Umgebung behält ihre bisherige Version, bis die automatische Prüfung besteht."
+      },
+      "flow-improvement-test-set": {
+        "title": "Testfragen",
+        "body": "Wählen Sie die Fragen, an denen eine Änderung gemessen wird. Ein Teil dient zum Schreiben der Änderungen; der Rest wird zurückgehalten und entscheidet, ob sie wirkt."
       },
       "flow-improvement-start": {
         "title": "Testfragen",
         "body": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam."
       },
+      "flow-improvement-questions": {
+        "title": "Fragen und Bewertung",
+        "body": "Die Fragen und wie jede Antwort bewertet wird, sind ab dem Start der Sitzung festgelegt. Die Bewertung ändern Sie im Tab Bewertung des Fragensets; sie gilt ab der nächsten Sitzung."
+      },
+      "flow-improvement-today": {
+        "title": "Der erste Run",
+        "body": "Bevor sich etwas ändert, beantwortet der Agent jede Frage so wie heute. Dieser Run ist der Ausgangspunkt, mit dem jede Änderung verglichen wird."
+      },
+      "flow-improvement-review": {
+        "title": "Prüfung",
+        "body": "Öffnen Sie die vollständige Prüfung, um eine zweifelhafte Antwort zur Prüfung zu schicken. Das Urteil einer Person ersetzt dort das des Bewerters, und das Ergebnis wird neu berechnet."
+      },
       "flow-improvement-results": {
         "title": "Ergebnis",
         "body": "Die Prüfung läuft im Hintergrund. Sie können diese Seite schließen — wir benachrichtigen Sie, sobald das Ergebnis vorliegt."
+      },
+      "flow-improvement-automatic-check": {
+        "title": "Automatische Prüfung",
+        "body": "Haken Sie dies in der ersten Sitzung an, um diese Fragen bei jeder Veröffentlichung erneut zu testen. Eine Version, die eine davon bricht, erreicht keine geschützte Umgebung."
+      },
+      "flow-improvement-guard": {
+        "title": "Schutz",
+        "body": "Eine Umgebung kann durch eine automatische Prüfung geschützt sein. Veröffentlichen erzeugt eine neue Version; eine geschützte Umgebung wechselt erst darauf, wenn ihre Prüfung besteht."
       },
       "flow-improvement-accept": {
         "title": "Annehmen",
@@ -10600,7 +10648,8 @@
     "openConversation": "Gespräch öffnen",
     "questionCount": "{count} Testfragen · Version {version}",
     "pinnedQuestions": "Die Sitzung verwendet die beim Start gewählte Version. Änderungen an Fragen gelten für künftige Sitzungen. Trainingsfragen helfen beim Schreiben von Änderungen; zurückgehaltene Fragen messen sie.",
-    "noQuestions": "Diese angeheftete Version enthält keine Fragen. Fügen Sie Fragen hinzu und starten Sie eine neue Sitzung.",
+    "tooFewQuestions": "Zu wenige Fragen, um eine Änderung zu messen: Eine einzige bestandene oder nicht bestandene Frage würde das ganze Ergebnis kippen. Fügen Sie mindestens 3 hinzu und starten Sie dann eine neue Sitzung.",
+    "writeMoreQuestions": "{count, plural, other {# weitere schreiben}}",
     "goodAnswer": "Eine gute Antwort: {answer}",
     "sourcePreviousQuestions": "Vorherige Fragen",
     "sourceNextQuestions": "Nächste Fragen",
@@ -10623,8 +10672,9 @@
     "questionsQueued": "Die Fragen werden im Hintergrund vorbereitet.",
     "reviewQuestions": "Fragen prüfen",
     "baseline": "Heutige Antworten des Agenten testen",
-    "estimate": "Sitzungskosten schätzen",
-    "sessionQuote": "Bis zu {cost} (Schätzung), {rounds} Runden mit {count} Fragen.",
+    "estimate": "Erneut schätzen",
+    "estimating": "Zeit und Kosten werden geschätzt…",
+    "sessionQuote": "Etwa {minutes, plural, one {# Minute} other {# Minuten}}, bis zu {cost} (Schätzung) für {rounds} Runden mit {count} Fragen.",
     "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
     "budget": "Ausgabenlimit der Sitzung (USD)",
     "start": "Verbesserung starten",

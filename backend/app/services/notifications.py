@@ -934,6 +934,14 @@ class NotificationService:
             ),
             name=f"eval-run-finished:{run.id}",
         )
+        session_id = (run.proposal_check or {}).get("improvement_run_id")
+        if session_id is not None:
+            # The pipeline imports this module.
+            from app.services.improvement_pipeline import ImprovementPipelineService
+
+            await ImprovementPipelineService(self.db).wake(
+                UUID(session_id), organization_id=run.organization_id
+            )
         if run.purpose != EvalRunPurpose.MANUAL.value or run.proposal_check is not None:
             return
         await self._evaluation_finished(

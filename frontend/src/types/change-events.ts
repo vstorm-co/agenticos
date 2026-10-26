@@ -19,7 +19,8 @@ export type ChangeResource =
   | "eval_suite"
   | "eval_run"
   | "dataset"
-  | "knowledge_gap";
+  | "knowledge_gap"
+  | "improvement";
 
 export type ChangeAction = "created" | "updated" | "deleted";
 
@@ -57,9 +58,10 @@ export interface RunChange extends ChangeEventBase {
   actor_name: null;
 }
 
-/** Work the platform does on its own schedule, such as a grouping pass placing questions. */
+/** Work the platform does on its own schedule, such as a grouping pass placing questions
+ *  or an improvement session moving to its next stage. */
 export interface SystemChange extends ChangeEventBase {
-  resource: "knowledge_gap";
+  resource: "knowledge_gap" | "improvement";
   surface: "system";
   actor_user_id: null;
   actor_name: null;

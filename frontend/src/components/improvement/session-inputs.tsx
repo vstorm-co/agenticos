@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
-import { useDatasetCases } from "@/hooks/use-datasets";
+import { GenerateCasesDialog } from "@/components/datasets/generate-cases-dialog";
+import { useDataset, useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalRun, useEvalCases } from "@/hooks/use-eval-runs";
 import { useAgentAttention } from "@/hooks/use-usage-stats";
 import { getErrorMessage } from "@/lib/api-error";
@@ -156,10 +157,16 @@ function EvidenceCard({ item }: { item: ImprovementEvidenceItem }) {
   );
 }
 
+/** Below this, one question changing outcome swings the result too far to read it as a change. */
+const MEASURABLE_QUESTIONS = 3;
+const MORE_QUESTIONS = 5;
+
 export function TestQuestions({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const [skip, setSkip] = useState(0);
+  const [writing, setWriting] = useState(false);
+  const { dataset } = useDataset(session.dataset_id);
   const questions = useDatasetCases(session.dataset_id, {
     version: session.dataset_version,
     skip,
@@ -168,12 +175,29 @@ export function TestQuestions({ session }: { session: Improvement }) {
   if (questions.error) return <p role="alert">{getErrorMessage(questions.error, tErrors)}</p>;
   if (questions.isLoading) return <p role="status">{t("loading")}</p>;
   return (
-    <section className="space-y-4">
+    <section className="space-y-4" data-tour="improvement-test-questions">
       <h2 className="font-medium">
         {t("questionCount", { count: questions.total, version: session.dataset_version })}
       </h2>
       <p className="text-muted-foreground text-sm">{t("pinnedQuestions")}</p>
-      {questions.total === 0 && <p>{t("noQuestions")}</p>}
+      {questions.total < MEASURABLE_QUESTIONS && (
+        <div className="space-y-3 rounded-lg border p-3 text-sm">
+          <p>{t("tooFewQuestions")}</p>
+          {dataset?.can_edit && (
+            <Button variant="outline" size="sm" onClick={() => setWriting(true)}>
+              {t("writeMoreQuestions", { count: MORE_QUESTIONS })}
+            </Button>
+          )}
+        </div>
+      )}
+      {writing && (
+        <GenerateCasesDialog
+          datasetId={session.dataset_id}
+          open
+          onOpenChange={setWriting}
+          initial={{ agentId: session.agent_id, count: MORE_QUESTIONS }}
+        />
+      )}
       <details className="rounded-xl border p-4">
         <summary className="cursor-pointer text-sm font-medium">{t("reviewQuestions")}</summary>
         <ul className="mt-3 divide-y">
@@ -224,7 +248,7 @@ export function Today({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const firstCheck = session.iterations[0]?.eval_run_ids.at(-1);
   return (
-    <section className="space-y-4">
+    <section className="space-y-4" data-tour="improvement-today">
       <h2 className="font-medium">{t("steps.today")}</h2>
       {firstCheck ? (
         <BaselineResult runId={firstCheck} />
@@ -296,6 +320,7 @@ function BaselineQuestions({
       <Link
         className="text-sm underline underline-offset-4"
         href={`/agents/${agentId}/evals/${runId}`}
+        data-tour="improvement-open-check"
       >
         {t("openCheck")}
       </Link>

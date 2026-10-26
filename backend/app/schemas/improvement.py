@@ -46,6 +46,9 @@ class ImprovementEstimate(BaseSchema):
     max_iterations: int
     cases: int
     evidence_runs: int
+    estimated_minutes: int = Field(
+        description="About how long the session takes if every round runs; an estimate only"
+    )
     affordable: bool
     reason: str | None = None
 

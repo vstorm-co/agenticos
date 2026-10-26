@@ -48,6 +48,8 @@ interface GenerateCasesDialogProps {
   datasetId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** What the form opens with, when the caller already knows the agent and how many. */
+  initial?: { agentId: string; count: number };
 }
 
 /**
@@ -57,16 +59,21 @@ interface GenerateCasesDialogProps {
  * generation. Changing anything throws the estimate away, so what is started is
  * always what was estimated.
  */
-export function GenerateCasesDialog({ datasetId, open, onOpenChange }: GenerateCasesDialogProps) {
+export function GenerateCasesDialog({
+  datasetId,
+  open,
+  onOpenChange,
+  initial,
+}: GenerateCasesDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const { can } = usePermissions();
   const { agents } = useAgents();
   const { estimate, start } = useGenerateCases(datasetId);
   const [generatorId, setGeneratorId] = useState<string | null>(null);
-  const [agentId, setAgentId] = useState("");
+  const [agentId, setAgentId] = useState(initial?.agentId ?? "");
   const [sources, setSources] = useState<CaseOrigin[]>(["agent", "red_team"]);
-  const [count, setCount] = useState(20);
+  const [count, setCount] = useState(initial?.count ?? 20);
   const [estimated, setEstimated] = useState<CaseGenerationEstimate | null>(null);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 

@@ -89,6 +89,7 @@ from app.services.authoring_evidence import (
     PackedRun,
     render_runs,
 )
+from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
@@ -1106,6 +1107,8 @@ class AuthoringWorker:
             except Exception:
                 logger.exception("authoring_request_failed", extra={"request": str(request.id)})
                 await self._fail(db, request, "The assistant stopped unexpectedly. Try again.")
+            else:
+                await _wake_session(db, request)
 
     @staticmethod
     async def _fail(db: AsyncSession, request: AuthoringRequest, error: str) -> None:
@@ -1119,3 +1122,12 @@ class AuthoringWorker:
                 "finished_at": datetime.now(UTC),
             },
         )
+        await _wake_session(db, request)
+
+
+async def _wake_session(db: AsyncSession, request: AuthoringRequest) -> None:
+    if request.improvement_run_id is None:
+        return
+    await ImprovementPipelineService(db).wake(
+        request.improvement_run_id, organization_id=request.organization_id
+    )

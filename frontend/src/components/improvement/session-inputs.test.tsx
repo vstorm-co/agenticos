@@ -29,6 +29,7 @@ const state = vi.hoisted(() => ({
   cases: [] as EvalCase[],
   casesError: null as Error | null,
   casesLoading: false,
+  canEditDataset: true,
   datasetHook: vi.fn(),
   evidenceHook: vi.fn(),
 }));
@@ -45,7 +46,22 @@ vi.mock("@/hooks/use-usage-stats", () => ({
     error: state.attentionError,
   }),
 }));
+vi.mock("@/components/datasets/generate-cases-dialog", () => ({
+  GenerateCasesDialog: ({
+    initial,
+    onOpenChange,
+  }: {
+    initial: { agentId: string; count: number };
+    onOpenChange: (open: boolean) => void;
+  }) => (
+    <div role="dialog">
+      Write {initial.count} for {initial.agentId}
+      <button onClick={() => onOpenChange(false)}>Close</button>
+    </div>
+  ),
+}));
 vi.mock("@/hooks/use-datasets", () => ({
+  useDataset: () => ({ dataset: { can_edit: state.canEditDataset } }),
   useDatasetCases: (...args: unknown[]) => {
     state.datasetHook(...args);
     return {
@@ -129,6 +145,7 @@ beforeEach(() => {
   state.loading = state.casesLoading = false;
   state.rated = 5;
   state.total = 21;
+  state.canEditDataset = true;
   state.questions = [
     {
       id: "q1",
@@ -226,11 +243,26 @@ it("pages the pinned questions and explains train versus holdout", async () => {
     limit: 20,
   });
 });
+it("offers to write more questions when too few can measure a change", async () => {
+  state.total = 2;
+  const view = render(<TestQuestions session={SESSION} />);
+  expect(screen.getByText(/Too few questions to measure a change/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Write 5 more" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent(`Write 5 for ${SESSION.agent_id}`);
+  await userEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  state.canEditDataset = false;
+  view.rerender(<TestQuestions session={SESSION} />);
+  expect(screen.queryByRole("button", { name: "Write 5 more" })).not.toBeInTheDocument();
+  state.total = 3;
+  view.rerender(<TestQuestions session={SESSION} />);
+  expect(screen.queryByText(/Too few questions/)).not.toBeInTheDocument();
+});
 it("explains missing questions and handles their loading or access failure", () => {
   state.total = 0;
   state.questions = [];
   const view = render(<TestQuestions session={SESSION} />);
-  expect(screen.getByText(/no questions in this pinned version/)).toBeInTheDocument();
+  expect(screen.getByText(/Too few questions to measure a change/)).toBeInTheDocument();
   state.loading = true;
   view.rerender(<TestQuestions session={SESSION} />);
   expect(screen.getByRole("status")).toBeInTheDocument();

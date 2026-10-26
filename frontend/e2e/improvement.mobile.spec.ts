@@ -36,26 +36,25 @@ async function write(
   return record(await response.json());
 }
 
-/** Actual API, worker and persisted rows; only the external model is a fixture.
- * Unique resources keep this phone journey independent of other writers.
+/** An agent answering from the stub with a question set it fails, measured once, and an improver.
+ * Unique resources keep each phone journey independent of other writers.
  */
-test("test questions, review and improvement publish keep a guarded environment on its version", async ({
-  page,
-}, info) => {
-  test.setTimeout(300_000);
+async function seedImprovableAgent(page: Page) {
   await page.goto("/agents");
-  const organizationId = await page.evaluate(() => {
-    const value: unknown = JSON.parse(localStorage.getItem("org-storage") ?? "null");
-    if (typeof value !== "object" || value === null || !("state" in value)) return null;
-    const state = value.state;
-    return typeof state === "object" &&
-      state !== null &&
-      "activeOrgId" in state &&
-      typeof state.activeOrgId === "string"
-      ? state.activeOrgId
-      : null;
-  });
-  expect(organizationId).toBeTruthy();
+  const activeOrganization = () =>
+    page.evaluate(() => {
+      const value: unknown = JSON.parse(localStorage.getItem("org-storage") ?? "null");
+      if (typeof value !== "object" || value === null || !("state" in value)) return null;
+      const state = value.state;
+      return typeof state === "object" &&
+        state !== null &&
+        "activeOrgId" in state &&
+        typeof state.activeOrgId === "string"
+        ? state.activeOrgId
+        : null;
+    });
+  await expect.poll(activeOrganization).toBeTruthy();
+  const organizationId = await activeOrganization();
   const headers = { "X-Organization-Id": organizationId ?? "" };
   const api = page.request;
   const stamp = Date.now().toString(36);
@@ -118,6 +117,16 @@ test("test questions, review and improvement publish keep a guarded environment 
       timeout: 90_000,
     })
     .toBe("completed");
+  return { api, headers, stamp, model, agent, helper, dataset, initial };
+}
+
+/** Actual API, worker and persisted rows; only the external model is a fixture. */
+test("test questions, review and improvement publish keep a guarded environment on its version", async ({
+  page,
+}, info) => {
+  test.setTimeout(420_000);
+  const { api, headers, stamp, model, agent, helper, dataset, initial } =
+    await seedImprovableAgent(page);
   await page.goto("/datasets");
   await expect(page.getByText(String(dataset.name), { exact: true })).toBeVisible();
   await capture(page, info, "datasets");
@@ -178,6 +187,8 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByRole("tab", { name: "Grading", exact: true }).click();
   await capture(page, info, "dataset-grading");
   await page.getByRole("tab", { name: "Review", exact: true }).click();
+  // An eval run queues nothing for review by itself, so its answers are under all results.
+  await page.getByRole("button", { name: /^All results \(\d+\)$/ }).click();
   await expect(page.getByText("Return policy question 1", { exact: true })).toBeVisible();
   await capture(page, info, "dataset-review");
   await page.getByText("Return policy question 1", { exact: true }).click();
@@ -234,9 +245,9 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByLabel("Test questions", { exact: true }).click();
   await page.getByRole("option", { name: String(dataset.name), exact: true }).click();
   await page.getByText("Authoring assistant", { exact: true }).click();
-  await page.getByRole("combobox").last().click();
+  await page.getByRole("combobox", { name: "Run with" }).click();
   await page.getByRole("option", { name: String(helper.name), exact: true }).click();
-  await page.getByRole("button", { name: "Estimate the session" }).click();
+  await expect(page.getByText(/^About \d+ minutes?, up to .+ \(estimate\)/)).toBeVisible();
   const budget = page.getByLabel("Session spending limit (USD)");
   await expect(budget).toBeVisible();
   expect(
@@ -251,7 +262,7 @@ test("test questions, review and improvement publish keep a guarded environment 
     .poll(
       async () =>
         (await read(api, `/agents/${id(agent)}/improvements/${sessionId}`, headers)).status,
-      { timeout: 120_000 },
+      { timeout: 180_000 },
     )
     .toBe("ready");
   await page.reload();
@@ -269,12 +280,13 @@ test("test questions, review and improvement publish keep a guarded environment 
   const published = await read(api, `/agents/${id(agent)}/improvements/${sessionId}`, headers);
   expect(published.status).toBe("published");
   expect(published.published_version).toBe(2);
+  // The suite sweep ticks once a minute: one tick starts the guard's run, the next settles it.
   await expect
     .poll(
       async () =>
         items(await read(api, `/agents/${id(agent)}/eval-suites/${id(suite)}/results`, headers))[0]
           ?.status,
-      { timeout: 90_000 },
+      { timeout: 180_000 },
     )
     .toBe("failed");
   const after = items(await read(api, `/agents/${id(agent)}/environments`, headers)).find(
@@ -288,6 +300,38 @@ test("test questions, review and improvement publish keep a guarded environment 
     /PONG-IMPROVEMENT-AFTER/,
   );
   await capture(page, info, "published-version");
+});
+
+test("a first improvement offers the automatic check, and ticking it creates the suite", async ({
+  page,
+}) => {
+  test.setTimeout(420_000);
+  const { api, headers, agent, helper, dataset } = await seedImprovableAgent(page);
+  expect(items(await read(api, `/agents/${id(agent)}/eval-suites`, headers))).toEqual([]);
+  const session = await write(api, "post", `/agents/${id(agent)}/improvements`, headers, {
+    dataset_id: id(dataset),
+    improver_agent_id: id(helper),
+    max_iterations: 3,
+    budget_usd: "5",
+  });
+  await expect
+    .poll(
+      async () =>
+        (await read(api, `/agents/${id(agent)}/improvements/${id(session)}`, headers)).status,
+      { timeout: 180_000 },
+    )
+    .toBe("ready");
+  await page.goto(`/agents/${id(agent)}/improve/${id(session)}`);
+  await page.getByRole("button", { name: "Accept", exact: true }).click();
+  await expect(page.getByLabel(/^Check these questions automatically/)).toBeChecked();
+  await page.getByLabel("I have reviewed the selected changes and want to apply them.").check();
+  await page.getByRole("button", { name: "Publish version 2" }).click();
+  await expect(page.getByRole("link", { name: "Open version 2" })).toBeVisible();
+  const suites = items(await read(api, `/agents/${id(agent)}/eval-suites`, headers));
+  expect(suites).toHaveLength(1);
+  const [suite] = suites;
+  expect(suite).toMatchObject({ dataset_id: id(dataset), on_publish: true });
+  expect(record(suite?.threshold).max_confirmed_regressions).toBe(0);
 });
 
 async function capture(page: Page, info: TestInfo, name: string) {

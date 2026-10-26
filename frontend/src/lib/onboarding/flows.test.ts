@@ -643,3 +643,22 @@ describe("canOfferFlow", () => {
 it("registers the dedicated first improvement journey", () => {
   expect(flowForPage(IMPROVEMENT)).toBe("first-improvement");
 });
+
+it("walks a first improvement from its questions to the guard that holds a publish", () => {
+  const steps = FLOWS["first-improvement"].steps;
+  expect(steps.map((step) => step.target)).toEqual([
+    "improvement-test-set",
+    "improvement-start",
+    "improvement-test-questions",
+    "improvement-today",
+    "improvement-open-check",
+    "improvement-results",
+    "improvement-automatic-check",
+    "improvement-guard",
+    "improvement-accept",
+  ]);
+  expect(steps.every((step) => step.optional && step.permission === Perm.runsView)).toBe(true);
+  expect(steps.find((step) => step.id === "flow-improvement-review")?.activate).toBe(
+    "improvement-step-today",
+  );
+});

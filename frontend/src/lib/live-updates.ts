@@ -62,6 +62,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   ],
   // A topic dismissed or drafted, or a grouping pass that placed new questions.
   knowledge_gap: () => [qk.knowledgeGaps.all(), qk.improvements.all()],
+  // An improvement session moved on: its timeline, the proposal it wrote and the checks it ran.
+  improvement: () => [qk.improvements.all(), qk.authoring.all(), qk.evalRuns.all()],
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {
