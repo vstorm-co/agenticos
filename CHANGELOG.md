@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Explain why existing private provider keys or ChatGPT sign-ins cannot be
+  selected for organization speech to text, instead of implying the vault
+  has no credentials for the provider.
+
 ## [1.19.0] - 2026-10-26
 
 ### Changed

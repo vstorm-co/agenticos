@@ -1,5 +1,5 @@
 ---
-source_sha: "2048c082178a"
+source_sha: "b9555c3e0565"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -116,6 +116,12 @@ członka i każdą notatkę głosową, którą bot odbiera, więc prywatny klucz
 jest odrzucany przy zapisie każdego z nich, a klucz, który później stał się
 prywatny, przestaje być używany. W odróżnieniu od `github_oauth_app` te klucze
 są wskazywane po identyfikatorze, więc może ich być kilka obok siebie.
+
+Lista kluczy głosowych wskazuje widoczne klucze, których nie można wybrać,
+ponieważ są prywatne lub udostępnione tylko wybranym osobom, i wyjaśnia potrzebę
+udostępnienia ich organizacji. Logowanie ChatGPT jest rozpoznawane osobno:
+uwierzytelnia agentów programistycznych i nie zastępuje klucza API OpenAI
+do transkrypcji. Lista nigdy nie zmienia automatycznie dostępu do poświadczeń.
 
 `git_token` niesie swój host, bo źródło synchronizacji Git wysyła token pod adres
 URL wybrany przez tego, kto edytuje źródło. Związany z hostem, z którym został

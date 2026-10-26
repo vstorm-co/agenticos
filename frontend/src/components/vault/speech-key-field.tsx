@@ -111,6 +111,13 @@ export function SpeechKeyField({
   const { secrets, isLoading, listError } = useSecrets();
   const keys = speechKeysFor(secrets, provider, orgVisibleOnly, kind);
   const only = keys.length === 1 ? keys[0]!.id : null;
+  const restrictedKeys = orgVisibleOnly
+    ? speechKeysFor(secrets, provider, false, kind).filter((key) => key.visibility !== "org")
+    : [];
+  const chatGPTSignIns =
+    provider === "openai" && kind === "api_key" && keys.length === 0
+      ? secrets.filter((key) => key.kind === "openai_codex" && key.purpose === "openai_codex")
+      : [];
 
   // A prop callback rather than state of this component: the key belongs to
   // whoever stores the pair, and storing it is the point.
@@ -159,15 +166,28 @@ export function SpeechKeyField({
           {t("speechKey.stale")}
         </p>
       )}
-      {!isLoading && keys.length === 0 && (
-        <p className="text-muted-foreground text-xs">
-          {kind !== "api_key"
-            ? t("speechKey.noneInVault", { provider: providerName })
-            : orgVisibleOnly
-              ? t("speechKey.noneOrg", { provider: providerName })
-              : t("speechKey.none", { provider: providerName })}
-        </p>
+      {!isLoading && (restrictedKeys.length > 0 || chatGPTSignIns.length > 0) && (
+        <ul className="text-muted-foreground space-y-1 text-xs">
+          {restrictedKeys.map((key) => (
+            <li key={key.id}>{t("speechKey.notShared", { name: key.name })}</li>
+          ))}
+          {chatGPTSignIns.map((key) => (
+            <li key={key.id}>{t("speechKey.chatGPTSignIn", { name: key.name })}</li>
+          ))}
+        </ul>
       )}
+      {!isLoading &&
+        keys.length === 0 &&
+        restrictedKeys.length === 0 &&
+        chatGPTSignIns.length === 0 && (
+          <p className="text-muted-foreground text-xs">
+            {kind !== "api_key"
+              ? t("speechKey.noneInVault", { provider: providerName })
+              : orgVisibleOnly
+                ? t("speechKey.noneOrg", { provider: providerName })
+                : t("speechKey.none", { provider: providerName })}
+          </p>
+        )}
       {kind === "api_key" ? (
         <InlineSecret
           kind="api_key"

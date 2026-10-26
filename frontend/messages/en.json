@@ -908,7 +908,7 @@
     "embedVoiceUnavailable": "Voice calls need a voice set up on this agent's Voice card.",
     "embedVoiceDrift": "Visitors see no call button until this agent can take calls again.",
     "embedVoiceUnchecked": "Voice calls can't be checked right now: this agent's call readiness didn't load. Reload the page to try again.",
-    "voiceProviderNoKey": "{name} (no key yet)",
+    "voiceProviderNoKey": "{name} (no usable key)",
     "voiceConversationEnabled": "Allow voice calls",
     "voiceConversationEnabledHint": "Off until you switch it on. Takes effect when the agent is published.",
     "voiceConversationProvider": "Call provider",
@@ -5096,7 +5096,7 @@
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
-      "transcriptionProviderNoKey": "{name} (no key yet)",
+      "transcriptionProviderNoKey": "{name} (no usable key)",
       "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
     },
     "invitations": {
@@ -6530,7 +6530,7 @@
       "cancel": "Cancel",
       "save": "Save changes",
       "saved": "Voice settings saved",
-      "providerNoKey": "{name} (no key yet)",
+      "providerNoKey": "{name} (no usable key)",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
     },
     "proactive": {
@@ -6725,7 +6725,9 @@
       "noneOrg": "No organization-wide {provider} keys in the vault yet. Add one below, or share an existing one with the whole organization.",
       "cannotList": "You cannot list the vault's keys, so a key cannot be chosen here. Ask someone who manages connections.",
       "suggestedName": "{provider} speech to text",
-      "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here."
+      "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here.",
+      "notShared": "{name} is already in the vault, but must be shared with the whole organization before it can be used here. Change its access in the Vault.",
+      "chatGPTSignIn": "{name} is a ChatGPT sign-in for coding agents. Speech to text requires an OpenAI API key; this sign-in cannot be used here."
     }
   },
   "context": {

@@ -1,5 +1,5 @@
 ---
-source_sha: "2048c082178a"
+source_sha: "b9555c3e0565"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -119,6 +119,12 @@ así que la clave privada de un miembro se rechaza al guardar cualquiera de los
 dos, y una clave que se vuelve privada después deja de usarse. A diferencia de
 `github_oauth_app`, estas claves se nombran por id, así que puede haber varias
 guardadas a la vez.
+
+El selector de claves identifica las claves visibles que son privadas o están
+compartidas solo con algunas personas y explica que primero deben compartirse
+con la organización. Identifica por separado el inicio de sesión de ChatGPT:
+autentica agentes de programación y no sustituye una clave de API de OpenAI
+para la transcripción. El selector nunca cambia automáticamente el acceso.
 
 `git_token` lleva su host porque una fuente de sincronización Git envía el token a
 una URL que elige quien edita la fuente. Atado al host con el que se añadió, el
