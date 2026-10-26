@@ -81,7 +81,8 @@ environment without a person's decision.
   warning appears before a second case asks the same question. Leaving a
   dataset with an unsaved case, grading or details edit asks to save, discard
   or stay, and an unsaved case or grading edit is kept in the browser and
-  offered back on return.
+  offered back on return. The dataset list counts each dataset at one version,
+  so its figures stay consistent while cases are being added.
 - **Grading.** A dataset is graded by checks, expected tool calls and a judge
   with criteria, a scale and a pass mark. A dataset can have a judge of its
   own; criteria can be scoped to case tags. The judge quotes the answer for
@@ -159,7 +160,13 @@ environment without a person's decision.
   skills, needs instructions and a large enough `max_tokens` to publish, runs
   on its default environment only, and is refused as the subject of evals,
   Improve and A2A. The seeded default of each kind cannot be archived or
-  deleted, and its page shows what kind it is.
+  deleted, and its page shows what kind it is. **Use the knowledge base** on
+  its Build tab lets it search the knowledge bases its run is about - the
+  graded agent's for a judge, the gap's for the drafter and classifier, the
+  sources for the case generator, the improved agent's for the assistant -
+  and only those the person the run is for may read, within its step limit (3
+  by default, 5 at most). A judge or classifier warns when its temperature is
+  above 0.
 - **Activity shows whose work a run was.** A **Source** filter narrows to
   conversations, Improve and evals, or system agents, and each platform run
   names its agent and links the eval run, Improve session, gap topic or
@@ -205,6 +212,11 @@ environment without a person's decision.
   `runs:view` and access to the agent.
 - Queued case generation and improvement work runs with the original API key
   and rechecks its current scopes and membership before each paid step.
+- A system agent never reads anyone's memory, even from a version published
+  with memory before that was refused, and reads only the context files and
+  skills shared with the whole organization. Case generation removes the
+  personal data the detectors find from people's questions and comments before
+  the generator reads them.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
 
