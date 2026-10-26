@@ -940,14 +940,11 @@ class NotificationService:
             from app.services.eval_suite import wake_sweep
 
             await wake_sweep(self.db)
-        session_id = (run.proposal_check or {}).get("improvement_run_id")
-        if session_id is not None:
+        if (run.proposal_check or {}).get("improvement_run_id") is not None:
             # The pipeline imports this module.
             from app.services.improvement_pipeline import ImprovementPipelineService
 
-            await ImprovementPipelineService(self.db).wake(
-                UUID(session_id), organization_id=run.organization_id
-            )
+            await ImprovementPipelineService(self.db).check_finished(run)
         if run.purpose != EvalRunPurpose.MANUAL.value or run.proposal_check is not None:
             return
         await self._evaluation_finished(
@@ -1007,9 +1004,21 @@ class NotificationService:
         )
 
     async def improvement_finished(
-        self, *, agent: Agent, run_id: UUID, user_id: UUID | None, status: str, reason: str | None
+        self,
+        *,
+        agent: Agent,
+        run_id: UUID,
+        user_id: UUID | None,
+        status: str,
+        reason: str | None,
+        end: str,
     ) -> None:
-        """A terminal pipeline result, once; no evidence text is put in the notification."""
+        """One end of a session - each end once, however often it is reported.
+
+        A session ends more than once: stopped on its budget, continued, then
+        ready. `end` names which end this is, so the next one is not taken for a
+        repeat of the last. No evidence text is put in the notification.
+        """
         if user_id is None:
             return
         recipients = await member_repo.list_member_ids_for(
@@ -1019,7 +1028,7 @@ class NotificationService:
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.IMPROVEMENT_FINISHED,
-            occurrence_id=str(run_id),
+            occurrence_id=f"{run_id}:{end}",
             summary=f"Improvement of {agent.name}: {status}" + (f" ({reason})" if reason else ""),
             context_url=path,
             render_context={

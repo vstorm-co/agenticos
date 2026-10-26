@@ -1,16 +1,28 @@
-"""A session ends where a person leaves it: an equal later round and its own exposures decide nothing."""
+"""A session ends where a person leaves it, and says so at every end.
+
+An equal later round and its own exposures decide nothing; every end - ready,
+stopped, stale, cancelled by somebody else, decided outside the wizard, a check
+of a finished session - reaches its requester once, and open pages hear of it.
+"""
 
 from datetime import UTC, datetime
+from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from app.db.models.authoring import BatchStatus
+from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
+from app.db.models.notification import Notification
 from app.repositories import authoring_repo, improvement_repo
 from app.schemas.improvement import ImprovementFinish
 from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.notifications import NotificationService
 from tests.integration.test_authoring import _environment as _environment
-from tests.integration.test_improvement_pipeline import _ready_proposal
+from tests.integration.test_eval_suites import _member
+from tests.integration.test_improvement_pipeline import _ready_proposal, _started
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
@@ -85,3 +97,130 @@ async def test_a_batch_its_own_session_superseded_is_not_a_rejection(db):
     await db.flush()
     await ImprovementPipelineService(db).advance(run.id, ctx.organization_id)
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, run.id)).status == "rejected"
+
+
+async def _ends(db, run_id) -> list[tuple[str, str | None]]:
+    rows = await db.scalars(
+        select(Notification)
+        .where(Notification.event_type == "improvement_finished")
+        .order_by(Notification.created_at)
+    )
+    return [
+        (row.render_context["status"], row.render_context["reason"])
+        for row in rows
+        if str(run_id) in row.occurrence_id
+    ]
+
+
+async def test_each_end_of_a_session_reaches_its_requester_once(db):
+    ctx, agent, ready = await _ready_proposal(db)
+    assert await _ends(db, ready.id) == [("ready", None)]
+    run, *_ = await _equal_second_round(db, ctx, agent, ready)
+
+    await ImprovementPipelineService(db).advance(run.id, ctx.organization_id)
+    assert await _ends(db, ready.id) == [("ready", None), ("ready", None)]
+
+    service = NotificationService(db)
+    for _ in range(2):
+        await service.improvement_finished(
+            agent=agent,
+            run_id=run.id,
+            user_id=ctx.user_id,
+            status="stopped",
+            reason="budget",
+            end="the same end",
+        )
+    assert len(await _ends(db, ready.id)) == 3
+
+
+async def test_a_stale_session_and_one_stopped_by_an_administrator_are_announced(db):
+    from app.core.permissions import OrgRoleName
+
+    ctx, agent, _, stale = await _started(db)
+    agent.draft_spec = {**agent.draft_spec, "instructions": "A newer manual decision"}
+    await db.flush()
+    await ImprovementPipelineService(db).advance(stale.id, ctx.organization_id)
+    assert await _ends(db, stale.id) == [("stale", "stale")]
+
+    run = await db.get(ImprovementRun, stale.id)
+    run.status, run.stop_reason, run.finished_at = "running", None, None
+    await db.flush()
+    await ImprovementPipelineService(db).cancel(ctx, agent.id, stale.id)
+    assert len(await _ends(db, stale.id)) == 1
+
+    run.status = "running"
+    await db.flush()
+    admin = await _member(db, ctx, OrgRoleName.ADMIN)
+    await ImprovementPipelineService(db).cancel(admin, agent.id, stale.id)
+    assert (await _ends(db, stale.id))[-1] == ("cancelled", None)
+
+
+async def test_a_decision_made_outside_the_wizard_ends_the_session_and_is_announced(db):
+    from app.schemas.authoring import HunkDecision
+    from app.services.authoring import AuthoringService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    batch = await authoring_repo.get_batch(
+        db, ready.iterations[0].batch_id, organization_id=ctx.organization_id
+    )
+    hunks = await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=batch.id
+    )
+    for hunk in hunks:
+        await AuthoringService(db).decide(ctx, agent.id, hunk.id, HunkDecision(action="accept"))
+    with patch("app.services.improvement_pipeline.spawn_after_commit") as announced:
+        await ImprovementPipelineService(db).advance(ready.id, ctx.organization_id)
+    assert (await ImprovementPipelineService(db).read(ctx, agent.id, ready.id)).status == (
+        "accepted"
+    )
+    assert announced.call_count == 1
+    assert (await _ends(db, ready.id))[-1] == ("accepted", None)
+
+
+async def test_finishing_tells_the_agents_other_open_pages(db):
+    ctx, agent, ready = await _ready_proposal(db)
+    with patch("app.services.improvement_pipeline.spawn_after_commit") as announced:
+        await ImprovementPipelineService(db).finish(
+            ctx, agent.id, ready.id, ImprovementFinish(confirmed=True)
+        )
+    assert [call.kwargs["name"] for call in announced.call_args_list] == [
+        f"improvement-moved:{ready.id}"
+    ]
+
+
+async def test_a_knowledge_or_attribution_check_of_a_finished_session_is_announced(db):
+    ctx, agent, ready = await _ready_proposal(db)
+    org = ctx.organization_id
+
+    def check(**proposal) -> EvalRun:
+        return EvalRun(
+            id=uuid4(),
+            organization_id=org,
+            agent_id=agent.id,
+            status="completed",
+            purpose="gate",
+            created_by_user_id=ctx.user_id,
+            proposal_check={"improvement_run_id": str(ready.id), **proposal},
+        )
+
+    service = ImprovementPipelineService(db)
+    knowledge = check(knowledge={"topic_id": str(uuid4())})
+    await service.check_finished(knowledge)
+    attribution = check()
+    [round_one] = await improvement_repo.list_iterations(db, organization_id=org, run_id=ready.id)
+    await improvement_repo.update_iteration(
+        db,
+        iteration=round_one,
+        values={"attribution_eval_run_ids": {str(uuid4()): str(attribution.id)}},
+    )
+    await service.check_finished(attribution)
+    await service.check_finished(check())
+    assert (await _ends(db, ready.id))[1:] == [
+        ("ready", "knowledge_check"),
+        ("ready", "attribution_check"),
+    ]
+
+    gone = check()
+    gone.proposal_check = {"improvement_run_id": str(uuid4())}
+    await service.check_finished(gone)
+    assert len(await _ends(db, ready.id)) == 3

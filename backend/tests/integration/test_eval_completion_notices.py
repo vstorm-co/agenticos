@@ -142,7 +142,7 @@ async def test_an_improvement_nobody_requested_notifies_nobody(db, _events):
     agent, _ = await _agent(db, ctx)
 
     await NotificationService(db).improvement_finished(
-        agent=agent, run_id=uuid4(), user_id=None, status="ready", reason=None
+        agent=agent, run_id=uuid4(), user_id=None, status="ready", reason=None, end="e"
     )
 
     assert list(await db.scalars(select(Notification))) == []

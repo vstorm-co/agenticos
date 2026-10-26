@@ -38,6 +38,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import AuthoringStatus, BatchStatus, HunkKind, HunkStatus
+from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import (
     DroppedHunk,
     EvidenceDecision,
@@ -810,7 +811,9 @@ class ImprovementPipelineService:
             # Cancellation must still work after the creator loses resource access.
             await self._stop_children(run)
             await self._move(
-                run, rules.Transition(Status.CANCELLED, Stage(run.stage) if run.stage else None)
+                run,
+                rules.Transition(Status.CANCELLED, Stage(run.stage) if run.stage else None),
+                actor_user_id=ctx.subject_id,
             )
         return await self._read(ctx, run)
 
@@ -896,6 +899,7 @@ class ImprovementPipelineService:
             },
         )
         await self._audit(run, "published" if version else "accepted", actor_user_id=ctx.subject_id)
+        self._announce(run)
         return ImprovementFinished(
             session=await self._read(ctx, run),
             version_id=None if version is None else version.id,
@@ -1408,6 +1412,8 @@ class ImprovementPipelineService:
         if run.status != status:
             await improvement_repo.update_run(self.db, run=run, values={"status": status.value})
             await self._audit(run, status.value)
+            self._announce(run)
+            await self._notify_end(run, end=datetime.now(UTC).isoformat())
 
     async def _audit(
         self,
@@ -1445,7 +1451,13 @@ class ImprovementPipelineService:
             },
         )
 
-    async def _move(self, run: ImprovementRun, transition: rules.Transition) -> None:
+    async def _move(
+        self,
+        run: ImprovementRun,
+        transition: rules.Transition,
+        *,
+        actor_user_id: UUID | None = None,
+    ) -> None:
         now = datetime.now(UTC)
         await improvement_repo.update_run(
             self.db,
@@ -1467,6 +1479,14 @@ class ImprovementPipelineService:
         await self._audit(
             run, "stage_changed" if transition.status.active else transition.status.value
         )
+        self._announce(run)
+        if transition.status.active:
+            await self._queue(run)
+        elif actor_user_id is None or actor_user_id != run.created_by_user_id:
+            await self._notify_end(run, end=now.isoformat())
+
+    def _announce(self, run: ImprovementRun) -> None:
+        """Tell open pages of the agent that this session changed, once the change commits."""
         spawn_after_commit(
             self.db,
             change_feed.publish(
@@ -1482,18 +1502,47 @@ class ImprovementPipelineService:
             ),
             name=f"improvement-moved:{run.id}",
         )
-        if transition.status.active:
+
+    async def _notify_end(
+        self, run: ImprovementRun, *, end: str, reason: str | None = None
+    ) -> None:
+        agent = await agent_repo.get(self.db, run.agent_id, organization_id=run.organization_id)
+        if agent is None or run.created_by_user_id is None:
+            return
+        await NotificationService(self.db).improvement_finished(
+            agent=agent,
+            run_id=run.id,
+            user_id=run.created_by_user_id,
+            status=run.status,
+            reason=reason or run.stop_reason,
+            end=end,
+        )
+
+    async def check_finished(self, check: EvalRun) -> None:
+        """One of a session's eval runs ended: advance the session at once, and tell its
+        requester when it was a knowledge or attribution check of a finished session."""
+        session_id = (check.proposal_check or {}).get("improvement_run_id")
+        assert session_id is not None, "only a session's own check reports here"
+        run = await improvement_repo.get_run(
+            self.db, UUID(session_id), organization_id=check.organization_id
+        )
+        if run is None:
+            return
+        if Status(run.status).active:
             await self._queue(run)
-        elif transition.status in {Status.READY, Status.STOPPED, Status.FAILED}:
-            agent = await agent_repo.get(self.db, run.agent_id, organization_id=run.organization_id)
-            if agent is not None and run.created_by_user_id is not None:
-                await NotificationService(self.db).improvement_finished(
-                    agent=agent,
-                    run_id=run.id,
-                    user_id=run.created_by_user_id,
-                    status=run.status,
-                    reason=run.stop_reason,
-                )
+            return
+        if (check.proposal_check or {}).get("knowledge") is not None:
+            kind = "knowledge_check"
+        elif any(
+            str(check.id) in map(str, item.attribution_eval_run_ids.values())
+            for item in await improvement_repo.list_iterations(
+                self.db, organization_id=run.organization_id, run_id=run.id
+            )
+        ):
+            kind = "attribution_check"
+        else:
+            return
+        await self._notify_end(run, end=f"{kind}:{check.id}", reason=kind)
 
     async def ensure_current(
         self, ctx: AuthContext, run_id: UUID, *, allow_finished: bool = False
@@ -2298,7 +2347,7 @@ class ImprovementPipelineService:
                 self.db, run=run, values={"best_iteration_id": iteration.id}
             )
         await self._audit(run, "round_selected")
-        await self._move(run, transition)
+        await self._move(run, transition, actor_user_id=ctx.subject_id)
         return await self._read(ctx, run)
 
     async def _knowledge_plan(
