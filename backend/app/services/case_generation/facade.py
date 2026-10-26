@@ -15,7 +15,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import CASE_GENERATOR
+from app.agents.system_agents import CASE_GENERATOR, steps
 from app.core.audit import record_audit
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -151,6 +151,7 @@ class CaseGenerationService:
             )
         )
         profile_id: UUID | None = None
+        requests = 1
         if agent is None:
             oldest = await credential_repo.oldest_profile(
                 self.db, organization_id=ctx.organization_id
@@ -160,9 +161,9 @@ class CaseGenerationService:
             version = await agent_repo.get_version(
                 self.db, agent.current_version_id, organization_id=ctx.organization_id
             )
-            profile_id = (
-                AgentSpec.model_validate(version.spec).model_profile_id if version else None
-            )
+            spec = None if version is None else AgentSpec.model_validate(version.spec)
+            profile_id = None if spec is None else spec.model_profile_id
+            requests = 1 if spec is None else steps(spec)
         profile = (
             await credential_repo.get_profile(
                 self.db, profile_id, organization_id=ctx.organization_id
@@ -172,7 +173,8 @@ class CaseGenerationService:
         )
         if profile is None:
             return None
-        return estimate_cost(prompt, count, model_name=profile.model, provider=profile.provider)
+        cost = estimate_cost(prompt, count, model_name=profile.model, provider=profile.provider)
+        return None if cost is None else cost * requests
 
     async def estimate(
         self, ctx: AuthContext, dataset_id: UUID, data: CaseGenerationRequest

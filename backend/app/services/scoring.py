@@ -69,6 +69,7 @@ from app.schemas.scoring import (
     JudgeCreate,
     JudgePin,
     JudgeTemplate,
+    KnowledgeFinding,
     PendingDataset,
     PendingScore,
     Rescored,
@@ -852,6 +853,7 @@ class ScoringService:
                 agent_id=scoring.judge.agent_id,
                 version_id=judge_version_id,
                 improvement_run_id=improvement_run_id,
+                knowledge_base_ids=await self._answering_bases(ctx, answer),
             )
         except AiAssistanceDisabledError as exc:
             skipped = not_graded(
@@ -893,7 +895,39 @@ class ScoringService:
             run_id=result.run.id,
             counter_example=case.counter_example,
         )
+        if result.found:
+            found = [
+                KnowledgeFinding(source=item.source, quote=item.quote) for item in result.found
+            ]
+            grades = [grade.model_copy(update={"knowledge": found}) for grade in grades]
         return Evaluation(grades, await self._pin(ctx, result.run, criteria, scoring))
+
+    async def _answering_bases(self, ctx: AuthContext, answer: ScoredAnswer) -> list[UUID]:
+        """The knowledge bases of the agent whose answer is graded, as it answered.
+
+        Read from the version its run ran on, or its draft for a run of none; a
+        judge that searches checks the answer's facts against these alone.
+        """
+        if answer.agent_id is None:
+            return []
+        run = (
+            None
+            if answer.run_id is None
+            else await agent_run_repo.get_run(
+                self.db, answer.run_id, organization_id=ctx.organization_id
+            )
+        )
+        if run is not None and run.agent_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+            spec = None if version is None else version.spec
+        else:
+            agent = await agent_repo.get(
+                self.db, answer.agent_id, organization_id=ctx.organization_id
+            )
+            spec = None if agent is None else agent.draft_spec
+        return [] if spec is None else [UUID(str(base)) for base in spec.get("collection_ids", [])]
 
     async def _failed_pin(
         self,

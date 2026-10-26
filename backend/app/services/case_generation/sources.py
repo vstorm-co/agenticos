@@ -9,7 +9,9 @@ The generator itself has no tools. Everything it sees is gathered here, bounded
 and deterministic, and handed over in the prompt - so the only thing a hostile
 document or conversation can steer is the text of a proposal a person reviews.
 Text from conversations and documents is redacted before it leaves for the
-model, the same way a case is redacted before it is stored.
+model, the same way a case is redacted before it is stored, and what people
+wrote loses the personal data the detectors find as well: a case is read by
+everyone who may read its dataset, never only by whoever asked.
 """
 
 from dataclasses import dataclass, field
@@ -24,6 +26,7 @@ from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.phone import phone_text_error
 from app.db.models.agent import Agent
 from app.db.models.case_generation import CaseOrigin
 from app.db.models.knowledge_base import KnowledgeBase
@@ -31,6 +34,7 @@ from app.repositories import agent_repo, agent_run_repo, knowledge_base_repo, ra
 from app.services.access import COLLECTION, SKILL, resolve_access
 from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import redact_credentials
+from app.services.ml import pii
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.skills import SkillService
 
@@ -107,6 +111,8 @@ class Material:
     questions: list[Question] = field(default_factory=list)
     # Collections the agent binds that the caller may not read.
     excluded_collections: int = 0
+    # The readable ones its passages come from, which the generator may search.
+    knowledge_base_ids: list[UUID] = field(default_factory=list)
 
 
 def _clip(text: str, limit: int) -> str:
@@ -116,6 +122,17 @@ def _clip(text: str, limit: int) -> str:
 def _redacted(text: str) -> str:
     cleaned, _ = redact_credentials(text)
     return cleaned or ""
+
+
+def _private(text: str) -> str:
+    """What a person wrote, without credentials or the personal data the detectors find."""
+    cleaned = _redacted(text)
+    categories = (
+        None
+        if phone_text_error(cleaned, pii.PHONE_REGIONS) is None
+        else [name for name in pii.known_categories() if name != pii.PHONE]
+    )
+    return pii.scan(cleaned, categories=categories).redacted_text
 
 
 def spread[T](items: list[T], count: int) -> list[T]:
@@ -236,6 +253,7 @@ class SourceGatherer:
                 "sources", "You cannot read any of the knowledge bases this agent uses"
             )
         by_id = {kb.id: kb for kb in readable}
+        material.knowledge_base_ids = list(by_id)
         documents = await rag_document_repo.indexed_in(
             self.db, list(by_id), organization_id=ctx.organization_id, limit=DOCUMENT_POOL
         )
@@ -278,9 +296,9 @@ class SourceGatherer:
                 message_id=question.message_id,
                 conversation_id=question.conversation_id,
                 run_id=question.run_id,
-                text=_redacted(_clip(question.content, MAX_QUESTION)),
+                text=_private(_clip(question.content, MAX_QUESTION)),
                 rated_down=question.rated_down,
-                comment=_redacted(question.comment) if question.comment else None,
+                comment=_private(question.comment) if question.comment else None,
                 askers=question.askers,
             )
             for index, question in enumerate(asked, start=1)

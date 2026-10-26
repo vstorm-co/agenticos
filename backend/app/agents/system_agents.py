@@ -253,9 +253,19 @@ def system_agent(key: str) -> SystemAgentDef:
     raise KeyError(key)
 
 
-SYSTEM_CAPABILITIES = frozenset({"thinking", "context", "skills"})
-"""The capabilities a system agent may bind: how it reasons and what standing text it
-knows, never anything it could call to reach further than its prompt."""
+KNOWLEDGE = "knowledge"
+
+SYSTEM_CAPABILITIES = frozenset({"thinking", "context", "skills", KNOWLEDGE})
+"""The capabilities a system agent may bind: how it reasons, the standing text it reads,
+and a search of the knowledge bases the platform picks for each run - never anything
+that reaches further than what the run is about."""
+
+SEARCH_STEPS = 3
+"""The model requests a system agent that searches makes by default: a search or two,
+then its answer."""
+
+MAX_SEARCH_STEPS = 5
+"""The most it may be given: every request is paid for on every case it grades."""
 
 
 @dataclass(frozen=True)
@@ -323,7 +333,57 @@ def unusable_parts(spec: AgentSpec) -> list[SpecPart]:
         ("reviewers", spec.reviewers, "answers in one request, with nothing to review"),
     )
     parts.extend(SpecPart(field, f"A system agent {why}") for field, value, why in refused if value)
+    if spec.max_steps is not None and spec.max_steps > MAX_SEARCH_STEPS:
+        parts.append(
+            SpecPart(
+                "max_steps",
+                f"A system agent takes at most {MAX_SEARCH_STEPS} steps: each is paid for "
+                "on every answer it reads",
+            )
+        )
     return parts
+
+
+def searches(spec: AgentSpec) -> bool:
+    """Whether a system agent searches the knowledge bases picked for its runs."""
+    return any(binding.id == KNOWLEDGE and binding.enabled for binding in spec.capabilities)
+
+
+def steps(spec: AgentSpec) -> int:
+    """How many model requests one call of a system agent is priced at."""
+    if not searches(spec):
+        return 1
+    return min(spec.max_steps or SEARCH_STEPS, MAX_SEARCH_STEPS)
+
+
+def for_the_platform(spec: AgentSpec) -> AgentSpec:
+    """The spec a system agent runs with, whatever its stored version holds.
+
+    Its stored spec is refused what it may not use when saved and published,
+    but a version published before that still holds it. So it runs without:
+    nothing reaches past its prompt but a search of the run's own knowledge
+    bases, nobody's memory is read into its instructions - the same answer is
+    judged the same whoever asked - and a search ends within its steps.
+    """
+    return spec.model_copy(
+        update={
+            "capabilities": [
+                binding.model_copy(update={"approval": "default", "tool_approval": {}})
+                for binding in spec.capabilities
+                if binding.id in SYSTEM_CAPABILITIES
+            ],
+            "collection_ids": [],
+            "mcp_servers": [],
+            "subagents": [],
+            "external_agents": [],
+            "reviewers": [],
+            "starters": [],
+            "voice": None,
+            "speech_to_text": None,
+            "code_mode": spec.code_mode.model_copy(update={"enabled": False}),
+            "max_steps": steps(spec) if searches(spec) else spec.max_steps,
+        }
+    )
 
 
 def incomplete_parts(spec: AgentSpec, kind: str) -> list[SpecPart]:

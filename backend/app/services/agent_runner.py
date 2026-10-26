@@ -184,6 +184,7 @@ from app.agents.hand_off import CallWorker, HandOffSpend
 from app.agents.isolation import (
     CallRow,
     RunIsolation,
+    RunKnowledge,
     ToolClass,
     ToolRecording,
     capability_tools,
@@ -225,7 +226,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
-from app.agents.system_agents import refuse_system_agent
+from app.agents.system_agents import for_the_platform, refuse_system_agent, searches
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.core.audit import record_audit
 from app.core.config import settings
@@ -292,6 +293,7 @@ from app.services.channel_link import mcp_servers_link
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
+from app.services.collection_access import readable_kb
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
@@ -2748,6 +2750,26 @@ class AgentRunnerService:
             names[collection.collection_name] = collection_id
         return names
 
+    async def _run_collections(
+        self, ctx: AuthContext, spec: AgentSpec, knowledge: RunKnowledge | None
+    ) -> dict[str, UUID]:
+        """The knowledge bases a system agent searches on this run, as `_collections` names them.
+
+        Picked by whoever started the run rather than bound in the spec, and
+        only those the person the run is for may read: what it finds is shown to
+        the readers of what it answers.
+        """
+        if knowledge is None or not searches(spec):
+            return {}
+        found = await knowledge_base_repo.get_by_ids(self.db, list(knowledge.knowledge_base_ids))
+        return {
+            base.collection_name: base.id
+            for base_id in knowledge.knowledge_base_ids
+            if (base := found.get(base_id)) is not None
+            and base.organization_id == ctx.organization_id
+            and await readable_kb(self.db, ctx, base)
+        }
+
     async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
         """What an earlier turn of this thread recorded, in one read.
 
@@ -3106,6 +3128,9 @@ class AgentRunnerService:
         # surface - here, so a resumed run and every fresh surface are held to it.
         if surface != RunSurface.EVAL:
             refuse_system_agent(agent, action=f"a {surface.value} run")
+        system = agent.kind != AgentKind.AGENT.value
+        if system:
+            spec = for_the_platform(spec)
         # Whose ChatGPT sign-in the run's models may run on: the person the run
         # is for. On a resume `ctx` is the approver's, and releasing somebody's
         # run must neither lend it the approver's subscription nor refuse it the
@@ -3158,8 +3183,17 @@ class AgentRunnerService:
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
-        collections = await self._collections(spec, ctx)
-        search_log = KnowledgeSearchLog(agent_id=agent.id, collections=collections)
+        knowledge = None if isolation is None else isolation.knowledge
+        collections = (
+            await self._run_collections(ctx, spec, knowledge)
+            if system
+            else await self._collections(spec, ctx)
+        )
+        search_log = KnowledgeSearchLog(
+            agent_id=agent.id,
+            collections=collections,
+            found=None if knowledge is None else knowledge.found,
+        )
         resources: dict[str, Any] = {
             "kb_collection_names": list(collections),
             KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,

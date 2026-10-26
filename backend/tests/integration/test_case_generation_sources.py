@@ -272,3 +272,28 @@ async def test_conversations_need_runs_view_and_reach_the_model_redacted(db) -> 
         await _gatherer(db).gather(owner, silent.id, [CaseOrigin.CONVERSATION])
     assert "view runs" in _refusal(no_runs_view)
     assert "Nobody has asked" in _refusal(nobody_asked)
+
+
+async def test_what_people_wrote_reaches_the_model_without_their_contact_details(db) -> None:
+    """A case is read by everyone who reads its dataset, never only by whoever asked."""
+    owner, org = await _owner(db)
+    agent = await world.agent(db, org, visibility="org", draft_spec={"name": "Clerk"})
+    customer = await world.user(db)
+    await world.asked(
+        db,
+        org,
+        agent,
+        customer,
+        "Write back to ann.lee@example.com about order 5531",
+        minutes=1,
+        rating=-1,
+        comment="Call me on +48 601 234 567",
+    )
+
+    material = await _gatherer(db).gather(owner, agent.id, [CaseOrigin.CONVERSATION])
+
+    [question] = material.questions
+    assert "ann.lee@example.com" not in question.text
+    assert "order 5531" in question.text
+    assert question.comment is not None
+    assert "601 234 567" not in question.comment

@@ -45,7 +45,7 @@ from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.knowledge._log import MAX_QUERY_CHARS
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
+from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER, steps
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -1037,6 +1037,7 @@ class KnowledgeGapService:
             prompt=_drafting_prompt(kb.name, material, documents, context_files),
             output_type=KnowledgeGapDraft,
             improvement_run_id=improvement_run_id,
+            knowledge_base_ids=[kb.id],
         )
         if improvement_run_id is not None:
             from app.services.improvement_pipeline import ImprovementPipelineService
@@ -1665,7 +1666,7 @@ class KnowledgeGapService:
         )
         if priced is None:
             raise BadRequestError(message="The knowledge helper has no known model price")
-        return priced
+        return priced * steps(spec)
 
     async def classify_batch(
         self,
@@ -1721,6 +1722,7 @@ class KnowledgeGapService:
             ),
             output_type=KnowledgeGapClassification,
             improvement_run_id=improvement_run_id,
+            knowledge_base_ids=[kb.id],
         )
         if improvement_run_id is not None:
             from app.services.improvement_pipeline import ImprovementPipelineService

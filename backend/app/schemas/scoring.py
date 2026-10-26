@@ -295,6 +295,13 @@ class DatasetScoringUpdate(BaseSchema):
     review: ReviewScorer = Field(default_factory=ReviewScorer)
 
 
+class KnowledgeFinding(BaseSchema):
+    """A passage a judge that searches found in the graded agent's knowledge bases."""
+
+    source: str | None = None
+    quote: str
+
+
 class ScorerResult(BaseSchema):
     """What one scorer found.
 
@@ -304,7 +311,8 @@ class ScorerResult(BaseSchema):
     the answer the judge quoted that the answer does not hold. `rule` is the rule
     the judge says its grade follows from; `unverified` marks a top grade with
     nothing quoted from the answer to show for it. `judge_said` is the start of
-    an answer the judge gave that could not be read.
+    an answer the judge gave that could not be read. `knowledge` is what a judge
+    that searches found in the graded agent's knowledge bases while grading.
     """
 
     scorer: ScorerKind
@@ -319,6 +327,7 @@ class ScorerResult(BaseSchema):
     unverified: bool = False
     judge_said: str | None = None
     judge_run_id: UUID | None = None
+    knowledge: list[KnowledgeFinding] = Field(default_factory=list)
 
 
 class ExpectedToolCall(BaseSchema):

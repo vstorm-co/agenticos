@@ -94,6 +94,7 @@ async def generate(
             agent_id=generator_agent_id,
             prompt=prompt,
             output_type=DraftedCases,
+            knowledge_base_ids=material.knowledge_base_ids,
         )
     except AppException as exc:
         await finish(

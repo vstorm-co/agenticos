@@ -39,7 +39,7 @@ from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER, refuse_system_agent
+from app.agents.system_agents import IMPROVER, refuse_system_agent, steps
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -363,7 +363,8 @@ class AuthoringService:
         )
 
     async def _per_call(self, ctx: AuthContext, improver: Agent, chars: int) -> Decimal:
-        """One improver call: its recent average, or a call this size at its model's price."""
+        """One improver call: its recent average, which holds the searches it made, or a
+        call this size at its model's price, once per request it may make."""
         average = await agent_run_repo.average_cost(
             self.db,
             organization_id=ctx.organization_id,
@@ -381,8 +382,8 @@ class AuthoringService:
             )
             priced = price_request(usage, model.model, model.provider)
             if priced is not None:
-                return Decimal(priced)
-        return settings.EVAL_FALLBACK_CASE_COST_USD
+                return Decimal(priced) * steps(published)
+        return settings.EVAL_FALLBACK_CASE_COST_USD * steps(published)
 
     async def _improver_left(self, ctx: AuthContext, improver: Agent) -> Decimal | None:
         published = await self._improver_spec(ctx, improver)

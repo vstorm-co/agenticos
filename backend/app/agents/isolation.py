@@ -50,6 +50,7 @@ from app.agents.approval import refusal
 from app.agents.capabilities import LOAD_CAPABILITY
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ApprovalGate
+from app.agents.capabilities.knowledge import FoundPassage
 from app.agents.deps import AgentDeps
 from app.agents.mcp import MCP_ORIGIN
 from app.agents.spec import AgentSpec
@@ -242,6 +243,8 @@ class RunIsolation:
         live_reads: With a recording, let a read-only call the recording does not
             hold run live rather than be recorded as divergent.
         intercepted: What the run did not execute, in the order it was asked.
+        knowledge: A system agent's knowledge, picked for this run by whoever
+            started it; `None` lets it search nothing.
     """
 
     recording: ToolRecording | None = None
@@ -249,6 +252,25 @@ class RunIsolation:
     intercepted: list[InterceptedCall] = field(default_factory=list)
     improvement_run_id: UUID | None = None
     knowledge_overlay: KnowledgeOverlay | None = None
+    knowledge: RunKnowledge | None = None
+
+
+@dataclass
+class RunKnowledge:
+    """The knowledge bases one system agent run may search, and what it found there.
+
+    A system agent binds no knowledge base of its own: the platform picks the ones
+    the run is about - the graded agent's, a gap's, a generation's sources - so
+    its answer draws on nothing its readers did not already have at hand.
+
+    Attributes:
+        knowledge_base_ids: The bases picked for the run; the caller's own access
+            still decides which of them it searches.
+        found: The passages its searches returned, filled as it runs.
+    """
+
+    knowledge_base_ids: tuple[UUID, ...]
+    found: list[FoundPassage] = field(default_factory=list)
 
 
 def _blocked_notice(name: str) -> str:

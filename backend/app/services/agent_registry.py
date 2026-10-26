@@ -1711,7 +1711,11 @@ class AgentRegistryService:
             else await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
         )
         if owner is not None and owner.kind != AgentKind.AGENT.value:
-            for part in [*unusable_parts(spec), *incomplete_parts(spec, owner.kind)]:
+            for part in [
+                *unusable_parts(spec),
+                *incomplete_parts(spec, owner.kind),
+                *await self._narrowly_shared(ctx, spec),
+            ]:
                 problems.messages.append(part.message)
                 problems.fields.append({"field": part.field, "message": part.message})
 
@@ -1725,6 +1729,29 @@ class AgentRegistryService:
             if problems.fixes:
                 details["fixes"] = problems.fixes
             raise BadRequestError(message="This agent cannot be published yet", details=details)
+
+    async def _narrowly_shared(self, ctx: AuthContext, spec: AgentSpec) -> list[SpecPart]:
+        """A system agent's context files and skills not shared with the whole organization.
+
+        What it reads can reach whoever reads what it answers - a dataset's
+        readers, a knowledge base's editors - so it reads only what they all may.
+        """
+        contexts = await context_repo.get_many(
+            self.db, list(spec.context_ids), organization_id=ctx.organization_id
+        )
+        skills = await skill_repo.get_many(
+            self.db, list(spec.skill_ids), organization_id=ctx.organization_id
+        )
+        return [
+            SpecPart(
+                field,
+                f"'{row.name}' is not shared with the whole organization, and a system agent "
+                "reads only what everyone who reads its answers may",
+            )
+            for field, rows in (("context_ids", contexts), ("skill_ids", skills))
+            for row in rows.values()
+            if row.visibility != Visibility.ORG.value
+        ]
 
     async def reference_problems(
         self, ctx: AuthContext, spec: AgentSpec, *, path: str, op: str

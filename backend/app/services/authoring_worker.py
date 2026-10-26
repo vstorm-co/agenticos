@@ -393,6 +393,8 @@ class AuthoringRun:
         self.cost = Decimal(0)
         self.run_ids: list[UUID] = []
         self.rejected: list[dict[str, Any]] = []
+        # What the improved agent searches, which an assistant that searches reads too.
+        self.knowledge_base_ids: list[UUID] = []
 
     async def _ask[T: BaseModel](self, prompt: str, output_type: type[T]) -> T:
         try:
@@ -403,6 +405,7 @@ class AuthoringRun:
                 prompt=prompt,
                 output_type=output_type,
                 improvement_run_id=self.request.improvement_run_id,
+                knowledge_base_ids=self.knowledge_base_ids,
             )
         except (SystemAgentRunError, SystemAgentOutputError) as exc:
             # The call was made and priced even though it gave no answer.
@@ -474,6 +477,7 @@ class AuthoringRun:
         if agent is None:
             raise Stopped("The agent is gone.")
         spec = AgentSpec.model_validate(agent.draft_spec)
+        self.knowledge_base_ids = list(spec.collection_ids)
         if self.request.improvement_run_id is not None:
             from app.services.improvement_pipeline import ImprovementPipelineService
 
@@ -532,6 +536,7 @@ class AuthoringRun:
             raise Stopped("The agent has no published version to compare with.")
         published = AgentSpec.model_validate(version.spec)
         draft = AgentSpec.model_validate(agent.draft_spec)
+        self.knowledge_base_ids = list(draft.collection_ids)
         pack = await self.evidence.for_agent(
             self.ctx,
             agent.id,

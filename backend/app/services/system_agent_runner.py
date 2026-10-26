@@ -21,18 +21,22 @@ not change whether its answer can be read.
 
 import json
 import re
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
+from pydantic_ai.exceptions import UsageLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.isolation import RunIsolation
+from app.agents.capabilities.knowledge import FoundPassage
+from app.agents.isolation import RunIsolation, RunKnowledge
 from app.agents.system_agents import system_agent
 from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
+    RunFailedError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
@@ -58,10 +62,12 @@ class SystemAgentResult[T]:
     Attributes:
         output: The answer, validated as the caller's result type.
         run: The recorded run - its id, cost and status, as Activity shows them.
+        found: What its searches of the run's knowledge bases returned.
     """
 
     output: T
     run: AgentRun
+    found: list[FoundPassage] = field(default_factory=list)
 
 
 def output_contract(output_type: type[object]) -> str:
@@ -114,6 +120,7 @@ class SystemAgentRunner:
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         improvement_run_id: UUID | None = None,
+        knowledge_base_ids: Sequence[UUID] = (),
     ) -> SystemAgentResult[T]:
         """Run system agent `key` on `prompt` as the caller, and validate its answer.
 
@@ -131,6 +138,9 @@ class SystemAgentRunner:
                 judge - rather than the seeded one.
             model_profile_id: Run on this model rather than the one the agent
                 publishes on.
+            knowledge_base_ids: What the run is about - the graded agent's
+                knowledge bases, a gap's, a generation's sources. An agent that
+                searches searches these alone, as far as the caller may read them.
 
         Raises:
             AiAssistanceDisabledError: The organization switched AI assistance off.
@@ -139,7 +149,8 @@ class SystemAgentRunner:
                 `unpublished`, `archived`, `no_access` for this caller, or
                 `no_model` when the model it would run on is gone or has no key.
             SystemAgentRunError: The run was recorded but ended without an answer:
-                a budget refusal, a guardrail block, a failure, a parked approval.
+                a budget refusal, a guardrail block, a failure, a parked approval,
+                or a search that used up its steps.
             SystemAgentOutputError: The agent answered in a shape that does not
                 validate. Not retried.
         """
@@ -151,15 +162,31 @@ class SystemAgentRunner:
             version_id=version_id,
         )
 
-        text, run = await AgentRunnerService(self.db).execute(
-            ctx,
-            agent.id,
-            f"{prompt}\n\n{output_contract(output_type)}",
-            surface=RunSurface.EVAL,
-            model_profile_id=model_profile_id,
-            isolation=RunIsolation(improvement_run_id=improvement_run_id),
-            candidate=None if version_id is None else PublishedCandidate(version_id=version_id),
-        )
+        knowledge = RunKnowledge(tuple(knowledge_base_ids))
+        try:
+            text, run = await AgentRunnerService(self.db).execute(
+                ctx,
+                agent.id,
+                f"{prompt}\n\n{output_contract(output_type)}",
+                surface=RunSurface.EVAL,
+                model_profile_id=model_profile_id,
+                isolation=RunIsolation(improvement_run_id=improvement_run_id, knowledge=knowledge),
+                candidate=None if version_id is None else PublishedCandidate(version_id=version_id),
+                reports_failure=True,
+            )
+        except RunFailedError as failure:
+            cause = failure.__cause__
+            if not isinstance(cause, UsageLimitExceeded):
+                raise cause or failure from None
+            recorded = failure.details or {}
+            raise SystemAgentRunError(
+                message=(
+                    f"'{agent.name}' searched until it ran out of steps and gave no answer. "
+                    "Give it more steps, or let it search less."
+                ),
+                run_id=UUID(str(recorded["run_id"])),
+                status=str(recorded["status"]),
+            ) from failure
         if run.status != RunStatus.COMPLETED.value:
             raise SystemAgentRunError(
                 message=f"'{agent.name}' did not finish: {run.status}",
@@ -178,7 +205,7 @@ class SystemAgentRunner:
                 run_id=run.id,
                 answer=text,
             ) from exc
-        return SystemAgentResult(output=output, run=run)
+        return SystemAgentResult(output=output, run=run, found=knowledge.found)
 
     async def require_runnable(
         self,

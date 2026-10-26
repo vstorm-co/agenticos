@@ -46,7 +46,7 @@ from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import JUDGE, refuse_system_agent
+from app.agents.system_agents import JUDGE, refuse_system_agent, steps
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -958,6 +958,18 @@ class EvalRunService:
         )
         return AgentSpec.model_validate(version.spec).model_profile_id if version else None
 
+    async def _judge_steps(
+        self, ctx: AuthContext, judge: Agent, *, version_id: UUID | None = None
+    ) -> int:
+        """How many model requests one grading by the judge is priced at."""
+        selected = version_id or judge.current_version_id
+        version = (
+            await agent_repo.get_version(self.db, selected, organization_id=ctx.organization_id)
+            if selected is not None
+            else None
+        )
+        return steps(AgentSpec.model_validate(version.spec)) if version else 1
+
     async def _judge_agent(self, ctx: AuthContext, judge_id: UUID | None) -> Agent | None:
         """The agent that grades a dataset: the judge it names, or the default one."""
         if judge_id is not None:
@@ -1304,11 +1316,17 @@ class EvalRunService:
                 if judge_model is not None
                 else None
             )
-            judge_per_case = (
-                (await self._per_case(ctx, judge.id, judge_label, judge_model))[0]
-                if judge is not None
-                else settings.EVAL_FALLBACK_CASE_COST_USD
-            )
+            if judge is None:
+                judge_per_case = settings.EVAL_FALLBACK_CASE_COST_USD
+            else:
+                judge_per_case, known = await self._per_case(
+                    ctx, judge.id, judge_label, judge_model
+                )
+                # Its history already holds the searches it made; a guess holds one request.
+                if not known:
+                    judge_per_case *= await self._judge_steps(
+                        ctx, judge, version_id=plan.judge_version_id
+                    )
         fresh_arms = sum(1 for arm in plan.arms if arm.cached is None)
         judge_usd = judge_per_case * cases * fresh_arms
         total = arms_usd + judge_usd

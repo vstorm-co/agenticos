@@ -25,9 +25,14 @@ from app.agents.system_agents import (
     IMPROVER,
     JUDGE,
     KNOWLEDGE_GAP_DRAFTER,
+    MAX_SEARCH_STEPS,
+    SEARCH_STEPS,
     SYSTEM_AGENTS,
+    for_the_platform,
     incomplete_parts,
     of_kind,
+    searches,
+    steps,
     system_agent,
     unusable_parts,
 )
@@ -189,6 +194,7 @@ def test_a_seeded_spec_holds_nothing_a_system_agent_may_not_use() -> None:
     [
         ("capabilities", {"capabilities": [{"id": "web_fetch"}]}),
         ("capabilities", {"capabilities": [{"id": "context", "approval": "required"}]}),
+        ("capabilities", {"capabilities": [{"id": "memory_files"}]}),
         ("capabilities", {"capabilities": [{"id": "skills", "tool_approval": {"x": "never"}}]}),
         ("collection_ids", {"collection_ids": [str(uuid.uuid4())]}),
         (
@@ -218,7 +224,12 @@ def test_how_it_reasons_and_what_standing_text_it_knows_stay_allowed() -> None:
         {
             "name": "Judge",
             "instructions": "Grade.",
-            "capabilities": [{"id": "thinking"}, {"id": "context"}, {"id": "skills"}],
+            "capabilities": [
+                {"id": "thinking"},
+                {"id": "context"},
+                {"id": "skills"},
+                {"id": "knowledge"},
+            ],
             "context_ids": [str(uuid.uuid4())],
             "skill_ids": [str(uuid.uuid4())],
         }
@@ -255,3 +266,54 @@ def test_each_floor_leaves_room_for_the_largest_answer_its_caller_asks_for() -> 
     # A passage, or a new skill, at its 20 000-character limit is about 5 000 tokens.
     assert KNOWLEDGE_GAP_DRAFTER.max_tokens_floor > 20_000 // 4
     assert IMPROVER.max_tokens_floor > 20_000 // 4
+
+
+def test_more_steps_than_a_search_needs_are_named() -> None:
+    spec = AgentSpec(name="Judge", instructions="Grade.", max_steps=MAX_SEARCH_STEPS + 1)
+
+    assert [part.field for part in unusable_parts(spec)] == ["max_steps"]
+
+
+def test_a_search_is_priced_at_its_steps_and_no_search_at_one_request() -> None:
+    searching = AgentSpec(name="Judge", capabilities=[{"id": "knowledge"}])
+
+    assert steps(AgentSpec(name="Judge")) == 1
+    assert steps(searching) == SEARCH_STEPS
+    assert steps(searching.model_copy(update={"max_steps": 2})) == 2
+    assert not searches(
+        AgentSpec.model_validate(
+            {"name": "Judge", "capabilities": [{"id": "knowledge", "enabled": False}]}
+        )
+    )
+
+
+def test_it_runs_with_nothing_past_its_prompt_but_its_runs_own_search() -> None:
+    stored = AgentSpec.model_validate(
+        {
+            "name": "Judge",
+            "instructions": "Grade.",
+            "capabilities": [
+                {"id": "knowledge", "approval": "required"},
+                {"id": "memory_files"},
+                {"id": "web_fetch"},
+            ],
+            "collection_ids": [str(uuid.uuid4())],
+            "starters": ["Hi"],
+            "voice": {"provider": "openai"},
+            "code_mode": {"enabled": True},
+        }
+    )
+
+    ran = for_the_platform(stored)
+
+    assert [(binding.id, binding.approval) for binding in ran.capabilities] == [
+        ("knowledge", "default")
+    ]
+    assert (ran.collection_ids, ran.starters, ran.voice, ran.code_mode.enabled) == (
+        [],
+        [],
+        None,
+        False,
+    )
+    assert ran.max_steps == SEARCH_STEPS
+    assert for_the_platform(AgentSpec(name="Judge", max_steps=7)).max_steps == 7

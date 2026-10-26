@@ -23,8 +23,10 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentKind, AgentStatus
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.context import ContextFile
 from app.db.models.dataset import Dataset
 from app.db.models.organization import Organization
+from app.db.models.skill import Skill
 from app.repositories import authoring_repo
 from app.schemas.agent import SystemAgentCreate
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
@@ -205,6 +207,59 @@ class TestWhatItsSpecMayHold:
         )
         await registry.save_draft(owner, judge.id, roomy)
         assert (await registry.publish(owner, judge.id)).version == 2
+
+    async def test_it_reads_only_context_and_skills_shared_with_the_whole_organization(
+        self, db
+    ) -> None:
+        """What it reads reaches everyone who reads what it answers."""
+        organization, owner, judge = await _seeded(db)
+        mine = ContextFile(
+            id=uuid.uuid4(),
+            organization_id=organization.id,
+            owner_user_id=owner.user_id,
+            visibility="private",
+            name="my-notes",
+            content="Grade gently.",
+        )
+        shared = Skill(
+            id=uuid.uuid4(),
+            organization_id=organization.id,
+            owner_user_id=owner.user_id,
+            visibility="org",
+            name="rubric",
+            description="How to read the rubric.",
+            content="Read every criterion.",
+        )
+        team = Skill(
+            id=uuid.uuid4(),
+            organization_id=organization.id,
+            owner_user_id=owner.user_id,
+            visibility="team",
+            name="house-style",
+            description="Our tone.",
+            content="Be brief.",
+        )
+        db.add_all([mine, shared, team])
+        await db.flush()
+        registry = AgentRegistryService(db)
+        await registry.save_draft(
+            owner,
+            judge.id,
+            _edited(
+                judge,
+                capabilities=[{"id": "context"}, {"id": "skills"}],
+                context_ids=[str(mine.id)],
+                skill_ids=[str(shared.id), str(team.id)],
+            ),
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await registry.publish(owner, judge.id)
+
+        problems = refused.value.details["fields"]
+        assert [problem["field"] for problem in problems] == ["context_ids", "skill_ids"]
+        assert "my-notes" in problems[0]["message"]
+        assert "house-style" in problems[1]["message"]
 
 
 class TestRetiringOne:
