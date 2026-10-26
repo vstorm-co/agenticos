@@ -495,14 +495,19 @@ async def case_stats(
         .where(ranked.c.rank <= TOP_TAGS)
         .order_by(ranked.c.dataset_id, ranked.c.rank)
     )
+    # Each statement reads what is committed when it runs, so a case added after the
+    # counts can name a dataset they did not see; it is left to the next read.
     for dataset_id, name, cases in tags.all():
-        stats[dataset_id].top_tags.append(DatasetTagCount(tag=name, cases=cases))
+        if dataset_id in stats:
+            stats[dataset_id].top_tags.append(DatasetTagCount(tag=name, cases=cases))
     groups = await db.execute(
         select(
             held.c.dataset_id, held.c.tags, has_checks, has_calls, compared, func.count()
         ).group_by(held.c.dataset_id, held.c.tags, has_checks, has_calls, compared)
     )
     for dataset_id, group_tags, checks, calls, reference, cases in groups.all():
+        if dataset_id not in stats:
+            continue
         stats[dataset_id].tag_groups.append(
             DatasetTagGroup(
                 tags=group_tags, checks=checks, tool_calls=calls, reference=reference, cases=cases

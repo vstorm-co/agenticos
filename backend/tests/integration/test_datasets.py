@@ -405,6 +405,33 @@ async def test_stats_count_what_the_newest_version_tests_against(db) -> None:
     assert await dataset_repo.case_stats(db, [], organization_id=ctx.organization_id) == {}
 
 
+async def test_a_case_added_while_the_counts_are_read_waits_for_the_next_listing(
+    db, monkeypatch
+) -> None:
+    """The counts and the tag queries are separate statements; one committed between
+    them names a dataset the counts never saw, which once answered the listing 500."""
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="racing"))
+    execute = db.execute
+    added = False
+
+    async def add_after_the_counts(*args, **kwargs):
+        nonlocal added
+        result = await execute(*args, **kwargs)
+        if not added:
+            added = True
+            await service.add_case(
+                ctx, dataset.id, DatasetCaseCreate(input="q", reference_answer="yes", tags=["late"])
+            )
+        return result
+
+    monkeypatch.setattr(db, "execute", add_after_the_counts)
+    assert (
+        await dataset_repo.case_stats(db, [dataset.id], organization_id=ctx.organization_id) == {}
+    )
+
+
 async def test_a_version_number_the_dataset_never_reached_is_not_found(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
