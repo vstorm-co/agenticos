@@ -7,7 +7,10 @@ topics, and that a pass with nothing to do costs no embedding call.
 """
 
 import uuid
+from collections.abc import Iterator
 from contextlib import ExitStack
+from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -16,6 +19,7 @@ import pytest
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
@@ -23,10 +27,12 @@ from app.db.models.knowledge_gap import (
     KnowledgeGapTopic,
     KnowledgeSearch,
 )
-from app.repositories import knowledge_gap_repo
+from app.repositories import authoring_repo, knowledge_gap_repo
+from app.repositories.authoring import EvidenceInputs
 from app.repositories.knowledge_gap import CandidateRow, DraftingRow
-from app.schemas.knowledge_gap import ClassifiedAnswer
+from app.schemas.knowledge_gap import ClassifiedAnswer, KnowledgeGapReport
 from app.services import change_feed
+from app.services.embedding_resolution import EmbeddingKeySource
 from app.services.knowledge_gaps import (
     KnowledgeGapService,
     _assign,
@@ -781,3 +787,112 @@ class TestTheDraftingJob:
 
         assert drafted == 1
         assert draft.await_count == 2
+
+
+def _owner() -> AuthContext:
+    return AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role=OrgRoleName.OWNER)
+
+
+class TestTheDraftsSourceMaterial:
+    @pytest.fixture
+    def topic(self) -> Iterator[KnowledgeGapTopic]:
+        topic = KnowledgeGapTopic(id=uuid.uuid4(), organization_id=ORG, knowledge_base_id=KB)
+        with patch.object(KnowledgeGapService, "_topic", new=AsyncMock(return_value=topic)):
+            yield topic
+
+    async def _record(self, topic: KnowledgeGapTopic) -> None:
+        await KnowledgeGapService(MagicMock()).record_draft(
+            _owner(), KnowledgeGapReport(topic_id=topic.id, title="Parking", content="Level 2.")
+        )
+
+    async def test_a_topic_with_more_searches_than_can_be_tracked_keeps_no_draft(self, topic):
+        searches = [MagicMock(run_id=uuid.uuid4()) for _ in range(1001)]
+        inputs = AsyncMock()
+        with (
+            patch.object(
+                knowledge_gap_repo, "topic_evidence", new=AsyncMock(return_value=searches)
+            ),
+            patch.object(authoring_repo, "evidence_inputs", new=inputs),
+            pytest.raises(BadRequestError, match="too much source material"),
+        ):
+            await self._record(topic)
+
+        inputs.assert_not_awaited()
+        assert topic.draft_content is None
+
+    async def test_source_turns_that_do_not_fit_in_one_read_keep_no_draft(self, topic):
+        searches = [MagicMock(run_id=uuid.uuid4(), query="Where do I park?")]
+        overflow = EvidenceInputs(inputs=["Where do I park?"], run_ids=set(), truncated=True)
+        members = AsyncMock()
+        with (
+            patch.object(
+                knowledge_gap_repo, "topic_evidence", new=AsyncMock(return_value=searches)
+            ),
+            patch.object(authoring_repo, "evidence_inputs", new=AsyncMock(return_value=overflow)),
+            patch.object(knowledge_gap_repo, "member_queries", new=members),
+            pytest.raises(BadRequestError, match="too much source material"),
+        ):
+            await self._record(topic)
+
+        members.assert_not_awaited()
+        assert topic.draft_content is None
+
+
+class TestTheImprovementEstimate:
+    HELPER = Decimal("0.01")
+
+    @pytest.fixture
+    def kb(self) -> Iterator[Any]:
+        kb = SimpleNamespace(
+            id=KB,
+            name="Handbook",
+            collection_name="handbook",
+            gap_classifier_agent_id=None,
+            gap_drafter_agent_id=None,
+        )
+        with (
+            patch.object(KnowledgeGapService, "_knowledge_base", new=AsyncMock(return_value=kb)),
+            patch.object(
+                KnowledgeGapService, "_helper_estimate", new=AsyncMock(return_value=self.HELPER)
+            ),
+            patch.object(
+                knowledge_gap_repo, "classification_candidates", new=AsyncMock(return_value=[])
+            ),
+            patch.object(knowledge_gap_repo, "ungrouped_misses", new=AsyncMock(return_value=[])),
+        ):
+            yield kb
+
+    async def _estimate(self, resolved: Any) -> Decimal:
+        with patch(f"{_SERVICE}.embeddings_for_collection", new=AsyncMock(return_value=resolved)):
+            return await KnowledgeGapService(MagicMock()).improvement_estimate(
+                _owner(), [KB], [uuid.uuid4()]
+            )
+
+    def _embeddings(self, model: str, source: EmbeddingKeySource) -> Any:
+        return SimpleNamespace(model=model, provider="openai", key_source=source)
+
+    async def test_nothing_to_classify_quotes_only_the_drafts_and_the_grouping(self, kb):
+        price = await self._estimate(
+            self._embeddings("text-embedding-3-small", EmbeddingKeySource.ORGANIZATION)
+        )
+
+        assert self.HELPER * 3 < price < self.HELPER * 4
+
+    @pytest.mark.parametrize(
+        "resolved",
+        [
+            None,
+            SimpleNamespace(
+                model="x", provider="openai", key_source=EmbeddingKeySource.NONE_CHOSEN
+            ),
+        ],
+    )
+    async def test_a_collection_that_cannot_embed_refuses_the_quote(self, kb, resolved):
+        with pytest.raises(BadRequestError, match="embedding configuration"):
+            await self._estimate(resolved)
+
+    async def test_an_embedding_model_without_a_price_refuses_the_quote(self, kb):
+        with pytest.raises(BadRequestError, match="no known embedding price"):
+            await self._estimate(
+                self._embeddings("no-such-embedder", EmbeddingKeySource.ORGANIZATION)
+            )

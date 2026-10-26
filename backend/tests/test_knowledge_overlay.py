@@ -1,10 +1,13 @@
 """A run's private draft cannot escape its owner or spoof a retrieved hit."""
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
+from app.agents.capabilities.knowledge._search import search_knowledge_base
+from app.core.exceptions import ConfigurationError
 from app.services.rag.filters import AppScope, RetrievalQuery, TenantScope, UnscopedScope
 from app.services.rag.models import SearchResult
 from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument, active_overlay, with_overlay
@@ -104,3 +107,26 @@ async def test_an_unsupported_store_refuses_before_a_normal_search_can_hide_the_
         )
     assert overlay.failed
     store.search.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_a_refused_search_marks_the_overlay_failed_and_keeps_its_own_refusal():
+    doc = _doc()
+    overlay = KnowledgeOverlay((doc,))
+    service = MagicMock()
+    service.resolve_scope = AsyncMock(return_value=TenantScope(organization_id=doc.organization_id))
+    service.retrieve = AsyncMock(
+        side_effect=ConfigurationError(message="No embedding credential is configured")
+    )
+    with (
+        patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ),
+        with_overlay(overlay),
+        pytest.raises(ConfigurationError, match="No embedding credential"),
+    ):
+        await search_knowledge_base(
+            query="returns", kb_collection_names=["handbook"], organization_id=doc.organization_id
+        )
+    assert overlay.failed and overlay.returned_topic_ids == set()

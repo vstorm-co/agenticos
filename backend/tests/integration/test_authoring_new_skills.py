@@ -2,13 +2,13 @@
 
 from dataclasses import replace
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.skills import to_toolkit_skill
+from app.agents.capabilities.skills import SkillBody, to_toolkit_skill
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AuthorizationError,
@@ -24,7 +24,7 @@ from app.db.models.skill import Skill
 from app.repositories import eval_run_repo
 from app.schemas.authoring import HunkDecision, ProposalCheck
 from app.schemas.eval_run import EvalRunRequest
-from app.services.agent_registry import UnpublishedCandidate
+from app.services.agent_registry import AgentRegistryService, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring import AuthoringService
 from app.services.eval_run import EvalRunService
@@ -182,6 +182,26 @@ async def test_eval_reads_the_projected_skill_without_creating_a_resource(db: As
     assert projected and all("90-day window" in content for content in projected)
     assert await db.scalar(select(func.count()).select_from(Skill)) == 0
     assert AgentSpec.model_validate(agent.draft_spec).skill_ids == []
+
+
+async def test_two_projected_skills_with_one_name_are_refused_before_a_run(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, _ = await _setup(db)
+    first, second = uuid4(), uuid4()
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"skill_ids": [first, second]}
+    )
+    body = SkillBody(name="return-procedure", description="Returns", content="Check the date.")
+    with pytest.raises(BadRequestError, match="Projected skills must have distinct names"):
+        await AgentRegistryService(db).get_candidate_spec(
+            ctx,
+            agent.id,
+            UnpublishedCandidate(
+                spec, skill_bodies={first: body, second: replace(body, content="Other steps.")}
+            ),
+        )
+    assert await db.scalar(select(func.count()).select_from(Skill)) == 0
 
 
 @pytest.mark.parametrize(

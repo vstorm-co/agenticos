@@ -12,11 +12,20 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.repositories import authoring_repo, conversation_repo, personal_data_repo
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.repositories import (
+    authoring_repo,
+    conversation_repo,
+    eval_run_repo,
+    improvement_repo,
+    personal_data_repo,
+)
 from app.repositories.authoring import EvidenceRun
 from app.schemas.authoring import MAX_EVIDENCE_ITEMS, MAX_QUOTE_CHARS, EvidenceQuote
 from app.services import authoring_evidence
+from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack, EvidenceService, PackedRun
+from app.services.eval_run import EvalRunService
 
 pytestmark = pytest.mark.anyio
 
@@ -214,3 +223,138 @@ class TestService:
 
         assert reads.await_args.kwargs["skill_name"] == "refunds"
         assert pack.runs[0].prompt == "" and pack.runs[0].rating == 1
+
+
+def _train_row(*, case_id: uuid.UUID, arm: SimpleNamespace, answer: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        run=SimpleNamespace(id=uuid.uuid4(), user_id=None, initiated_by_publisher_fallback=False),
+        case=SimpleNamespace(
+            case_id=case_id,
+            tags=None,
+            input="How long do I have to return shoes?",
+            created_by_user_id=None,
+            asked_by_user_id=None,
+            noted_by_user_id=None,
+            history_author_ids=None,
+        ),
+        score=None,
+        attempt=SimpleNamespace(answer=answer, error=None),
+        arm=arm,
+    )
+
+
+class TestTrainingFeedback:
+    @pytest.fixture
+    def evaluated(self, monkeypatch) -> uuid.UUID:
+        dataset_id = uuid.uuid4()
+        monkeypatch.setattr(
+            authoring_repo,
+            "evaluated_datasets",
+            AsyncMock(return_value=[SimpleNamespace(id=dataset_id)]),
+        )
+        return dataset_id
+
+    async def test_only_the_newest_answer_per_case_is_read_and_an_ungraded_one_has_no_grade_line(
+        self, monkeypatch, mock_db_session, evaluated
+    ):
+        case_id = uuid.uuid4()
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4())
+        newest = _train_row(case_id=case_id, arm=arm, answer="90 days")
+        older = _train_row(case_id=case_id, arm=arm, answer="60 days")
+        monkeypatch.setattr(
+            authoring_evidence, "accessible_ids", AsyncMock(return_value={evaluated})
+        )
+        monkeypatch.setattr(
+            authoring_repo, "train_answers", AsyncMock(return_value=[newest, older])
+        )
+        monkeypatch.setattr(eval_run_repo, "list_cases", AsyncMock(return_value=[]))
+        monkeypatch.setattr(eval_run_repo, "list_arms", AsyncMock(return_value=[]))
+        monkeypatch.setattr(
+            EvalRunService, "outcomes", AsyncMock(return_value={case_id: (False, (), ())})
+        )
+        monkeypatch.setattr(
+            EvalRunService,
+            "compare",
+            AsyncMock(return_value=SimpleNamespace(cases=[], verdict="better")),
+        )
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+
+        packed, feedback = await EvidenceService(mock_db_session)._train(
+            ctx, uuid.uuid4(), window_days=30
+        )
+
+        (run,) = packed
+        assert run.run_id == newest.run.id and run.answer == "90 days"
+        assert run.status == "train_eval_failure" and run.comments == []
+        assert "(untagged): 0/1 passed" in feedback
+
+    async def test_training_answers_of_datasets_the_caller_cannot_read_are_never_queried(
+        self, monkeypatch, mock_db_session, evaluated
+    ):
+        monkeypatch.setattr(authoring_evidence, "accessible_ids", AsyncMock(return_value=set()))
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+
+        packed, feedback = await EvidenceService(mock_db_session)._train(
+            ctx, uuid.uuid4(), window_days=30
+        )
+
+        assert packed == [] and feedback == ""
+        mock_db_session.execute.assert_not_awaited()
+
+
+@pytest.mark.security
+class TestImprovementEvidenceRefusals:
+    async def test_reading_a_sessions_evidence_without_runs_view_is_refused(self, mock_db_session):
+        ctx = SimpleNamespace(organization_id=uuid.uuid4(), has=lambda _perm: False)
+
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await EvidenceService(mock_db_session).for_improvement(ctx, uuid.uuid4())
+
+    async def test_a_session_of_another_organization_reads_as_not_found(
+        self, monkeypatch, mock_db_session
+    ):
+        lookup = AsyncMock(return_value=None)
+        monkeypatch.setattr(improvement_repo, "get_run", lookup)
+        ctx = SimpleNamespace(organization_id=uuid.uuid4(), has=lambda _perm: True)
+
+        with pytest.raises(NotFoundError, match="Improvement session not found"):
+            await EvidenceService(mock_db_session).for_improvement(ctx, uuid.uuid4())
+        assert lookup.await_args.kwargs["organization_id"] == ctx.organization_id
+
+
+class TestProposalSourceIdentities:
+    async def _ids(self, monkeypatch, mock_db_session, *, request_id, request):
+        monkeypatch.setattr(authoring_repo, "get_request", AsyncMock(return_value=request))
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+        batch = SimpleNamespace(request_id=request_id)
+        return await AuthoringService(mock_db_session).evidence_run_ids(ctx, batch)
+
+    async def test_a_proposal_without_a_readable_request_has_no_source_runs(
+        self, monkeypatch, mock_db_session
+    ):
+        assert await self._ids(monkeypatch, mock_db_session, request_id=None, request=None) == []
+        assert (
+            await self._ids(monkeypatch, mock_db_session, request_id=uuid.uuid4(), request=None)
+            == []
+        )
+
+    async def test_the_requests_recorded_source_runs_are_read_back(
+        self, monkeypatch, mock_db_session
+    ):
+        source = uuid.uuid4()
+        request = SimpleNamespace(evidence={"source_run_ids": [str(source)]})
+
+        ids = await self._ids(
+            monkeypatch, mock_db_session, request_id=uuid.uuid4(), request=request
+        )
+
+        assert ids == [source]
+
+    async def test_source_identities_that_no_longer_parse_are_refused(
+        self, monkeypatch, mock_db_session
+    ):
+        request = SimpleNamespace(evidence={"source_run_ids": ["not-a-run"]})
+
+        with pytest.raises(BadRequestError) as refused:
+            await self._ids(monkeypatch, mock_db_session, request_id=uuid.uuid4(), request=request)
+        assert refused.value.details == {"reason": "invalid_evidence"}
