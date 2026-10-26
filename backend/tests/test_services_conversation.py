@@ -1607,13 +1607,19 @@ class TestConversationServiceAddMessage:
         conv_id, run_id = uuid4(), uuid4()
         data = MessageCreate(role="assistant", content="answered")
 
-        with patch("app.services.conversation.conversation_repo") as mock_repo:
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.follow_ups.queue_next_steps") as queued,
+        ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
             mock_repo.create_message = AsyncMock(return_value=MockMessage())
 
             await service.add_message(conv_id, data, organization_id=TEST_ORG_ID, run_id=run_id)
 
         assert mock_repo.create_message.await_args.kwargs["run_id"] == run_id
+        queued.assert_called_once_with(
+            service.db, mock_repo.create_message.return_value.id, TEST_ORG_ID
+        )
 
     @pytest.mark.anyio
     async def test_add_message_to_archived_conversation_raises_bad_request(

@@ -1219,6 +1219,25 @@ class TestTheRoom:
             await session._follow(CONVERSATION, "token")
         assert _sent_events(session) == [(live_turn.END, {"conversation_id": CONVERSATION})]
 
+    async def test_late_next_steps_name_the_saved_answer_without_following_another_turn(self):
+        session = _session()
+        session._room = CONVERSATION
+        room = self._room(
+            events=[{"type": "next_steps", "message_id": "answer-1", "steps": ["Make a table"]}]
+        )
+        follow = AsyncMock()
+        with (
+            patch.object(session, "_still_reads", AsyncMock(return_value=True)),
+            patch.object(session, "_follow_if_running", follow),
+            patch.multiple("app.services.agent_session.chat_room", **room),
+        ):
+            await session._hear_room(CONVERSATION)
+        assert (
+            "next_steps",
+            {"conversation_id": CONVERSATION, "message_id": "answer-1", "steps": ["Make a table"]},
+        ) in _sent_events(session)
+        follow.assert_not_awaited()
+
     async def test_a_busy_room_asks_about_its_reader_once_a_while(self) -> None:
         """Each keystroke announced asked again: a credential, membership and
         conversation query per reader per announcement."""

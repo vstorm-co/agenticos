@@ -908,7 +908,7 @@
     "embedVoiceUnavailable": "Voice calls need a voice set up on this agent's Voice card.",
     "embedVoiceDrift": "Visitors see no call button until this agent can take calls again.",
     "embedVoiceUnchecked": "Voice calls can't be checked right now: this agent's call readiness didn't load. Reload the page to try again.",
-    "voiceProviderNoKey": "{name} (no key yet)",
+    "voiceProviderNoKey": "{name} (no usable key)",
     "voiceConversationEnabled": "Allow voice calls",
     "voiceConversationEnabledHint": "Off until you switch it on. Takes effect when the agent is published.",
     "voiceConversationProvider": "Call provider",
@@ -2524,13 +2524,15 @@
         },
         "names": {
           "api": "HTTP API",
+          "follow_ups": "Follow-ups",
           "embed": "Widget",
           "mattermost": "Mattermost",
           "playground": "Playground",
           "schedule": "Schedule",
           "slack": "Slack",
           "telegram": "Telegram",
-          "web": "Web chat"
+          "web": "Web chat",
+          "proactive": "Proactive"
         },
         "title": "Where runs come from",
         "description": "Where runs come from - web chat, API, channels.",
@@ -4572,6 +4574,14 @@
       "inbox-filters": {
         "title": "What came to you on its own",
         "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
+      },
+      "org-governance": {
+        "title": "Budget and approvals",
+        "body": "Set the organization spending limit and manage approval waivers. Controls depend on your permissions."
+      },
+      "org-proactivity": {
+        "title": "Proactivity",
+        "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."
       }
     },
     "chooseLanguage": "Language",
@@ -5094,7 +5104,7 @@
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
-      "transcriptionProviderNoKey": "{name} (no key yet)",
+      "transcriptionProviderNoKey": "{name} (no usable key)",
       "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
     },
     "invitations": {
@@ -5298,7 +5308,12 @@
       "workspaceProfile": "Organization profile",
       "workspaces": "Organizations",
       "you": "(you)",
-      "yourRoleHere": "Your role here is <badge>{role}</badge>"
+      "yourRoleHere": "Your role here is <badge>{role}</badge>",
+      "tabProfile": "Profile",
+      "tabGovernance": "Budget and approvals",
+      "tabProactivity": "Proactivity",
+      "tabVoice": "Voice",
+      "tabAssistant": "AI Architect"
     },
     "rag": {
       "active": "Active",
@@ -5509,6 +5524,7 @@
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceFollowUps": "Follow-ups",
       "surfaceSchedule": "Schedule",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -5580,7 +5596,10 @@
       "anyModality": "Any kind",
       "modalityText": "Text",
       "modalityVoiceCalls": "Voice calls",
-      "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}"
+      "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}",
+      "surfaceProactive": "Proactive",
+      "standaloneRequest": "Model request",
+      "standaloneResponse": "Model response"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -6524,7 +6543,7 @@
       "cancel": "Cancel",
       "save": "Save changes",
       "saved": "Voice settings saved",
-      "providerNoKey": "{name} (no key yet)",
+      "providerNoKey": "{name} (no usable key)",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
     },
     "proactive": {
@@ -6557,7 +6576,8 @@
       "watches": "Watch people's connections",
       "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
       "watchMinutes": "Most often",
-      "watchMinutesHint": "How often one watch may look at most. More often costs more."
+      "watchMinutesHint": "How often one watch may look at most. More often costs more.",
+      "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
     }
   },
   "theme": {
@@ -6710,7 +6730,6 @@
     "speechKey": {
       "label": "Key",
       "choose": "Choose a key",
-      "option": "{name} (…{hint})",
       "orgHint": "An organization-wide API key for this provider. It is spent for everybody, so a key only some people can see cannot be chosen here.",
       "agentHint": "An API key for this provider that you can see. Publishing lends it to everyone who can run this agent.",
       "stale": "The chosen key was deleted or can no longer be used here. Choose a key.",
@@ -6718,7 +6737,9 @@
       "noneOrg": "No organization-wide {provider} keys in the vault yet. Add one below, or share an existing one with the whole organization.",
       "cannotList": "You cannot list the vault's keys, so a key cannot be chosen here. Ask someone who manages connections.",
       "suggestedName": "{provider} speech to text",
-      "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here."
+      "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here.",
+      "notShared": "{name} is already in the vault, but must be shared with the whole organization before it can be used here. Change its access in the Vault.",
+      "chatGPTSignIn": "{name} is a ChatGPT sign-in for model access through a ChatGPT subscription. Voice features require an OpenAI API key; this sign-in cannot be used here."
     }
   },
   "context": {
@@ -7152,7 +7173,10 @@
     "follow": "Follow",
     "unfollow": "Unfollow",
     "followed": "You will be notified when a new version is published",
-    "unfollowed": "You will no longer be notified about this app"
+    "unfollowed": "You will no longer be notified about this app",
+    "appTheme": "App theme",
+    "lightTheme": "Use light app theme",
+    "darkTheme": "Use dark app theme"
   },
   "groups": {
     "title": "Groups",
@@ -8381,7 +8405,7 @@
     "follow_ups": {
       "model_profile_id": {
         "title": "Model for next steps",
-        "description": "A model profile that writes the next steps once the answer is in, instead of the agent's own model offering them as a tool. A small, cheap model is enough for three short buttons, and the agent no longer spends a request on them. Empty lets the agent offer them itself."
+        "description": "A separate model profile that writes next-step buttons in the background after the answer is saved. It never delays the answer or the next message. A small, cheap model is enough. Empty disables next-step suggestions."
       }
     }
   },
