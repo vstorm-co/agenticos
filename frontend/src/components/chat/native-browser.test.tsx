@@ -55,3 +55,16 @@ it("keeps the panel open when closing the tab fails", async () => {
   await waitFor(() => expect(native.send).toHaveBeenCalledWith("close"));
   expect(close).not.toHaveBeenCalled();
 });
+
+it("expands the native renderer without reopening its tab", async () => {
+  const toggle = vi.fn();
+  const view = render(<NativeBrowser id="tab" onClose={vi.fn()} onToggleFullscreen={toggle} />);
+  fireEvent.click(screen.getByRole("button", { name: "Maximize" }));
+  expect(toggle).toHaveBeenCalledTimes(1);
+  view.rerender(
+    <NativeBrowser id="tab" onClose={vi.fn()} fullscreen onToggleFullscreen={toggle} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Back beside the chat" }));
+  expect(toggle).toHaveBeenCalledTimes(2);
+  expect(native.send).not.toHaveBeenCalled();
+});

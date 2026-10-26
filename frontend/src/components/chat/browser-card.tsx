@@ -160,7 +160,7 @@ function InlineBrowser({
           className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
         >
           <Maximize2 className="size-5" aria-hidden />
-          {t("browserShownFullScreen", { host: hostOf(browse.url) ?? t("browserHeading") })}
+          {t("browserShownInPanel", { host: hostOf(browse.url) ?? t("browserHeading") })}
         </button>
       ) : (
         <BrowserWindow
@@ -171,6 +171,7 @@ function InlineBrowser({
               ? { canControl: live.canControl, canRemember: live.canRemember, send: live.send }
               : null
           }
+          maximizeLabel={t("browserOpenPanel")}
           onMaximize={() => expand(streamed.callId)}
           newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
           onComment={onComment}

@@ -1,5 +1,5 @@
 ---
-source_sha: "1f04e9369e53"
+source_sha: "0070c0a80dfb"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -290,6 +290,11 @@ stronę w panelu przeglądarki konsoli. Kliknięcia, przewijanie i wpisywanie od
 się lokalnie, bez przesyłania screenshotów. Prywatna sesja nie importuje osobistych
 kart ani haseł. Tekst strony nadal trafia do modelu agenta. Ręczna interakcja
 przejmuje sterowanie; **Oddaj agentowi** zwraca je agentowi.
+
+Przy szerokim czacie przeglądarka otwiera się obok rozmowy, zarówno lokalnie, jak
+i zdalnie. Przeciągnij separator lub użyj jego klawiszy strzałek, aby zmienić
+szerokość. **Maksymalizuj** otwiera pełny ekran, a **Wróć obok czatu** przywraca
+panel. Wąskie obszary czatu i telefony automatycznie używają pełnego ekranu.
 
 Natywna karta należy do komputera, organizacji, osoby, agenta i rozmowy. Pozostaje
 otwarta między runami, a `browser_read` ją wznawia. W danej chwili może jej używać

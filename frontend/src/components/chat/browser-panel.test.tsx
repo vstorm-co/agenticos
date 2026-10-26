@@ -58,7 +58,7 @@ beforeEach(() => {
   useBrowserPanelStore.setState({ openCallId: null });
 });
 
-describe("BrowserPanel - a browse opened full screen", () => {
+describe("BrowserPanel - a browse beside the chat", () => {
   it("draws nothing when nothing has browsed, or nothing was opened", () => {
     const { container, rerender } = render(<BrowserPanel browses={[]} />);
     expect(container).toBeEmptyDOMElement();
@@ -133,7 +133,7 @@ describe("BrowserPanel - a browse opened full screen", () => {
       "/browse/run-1/c1",
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Back under the message" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close the browser panel" }));
     expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 });
@@ -160,4 +160,16 @@ it("mounts the native renderer in the desktop console", () => {
   } finally {
     delete window.__AGENTICOS_SHELL__;
   }
+});
+
+it("expands and docks the same remote browse without closing it", async () => {
+  useBrowserPanelStore.setState({ openCallId: "c1" });
+  const view = render(<BrowserPanel browses={[browse()]} />);
+  const panel = view.container.querySelector("[data-browser-panel]");
+  expect(panel).toHaveAttribute("data-browser-panel", "docked");
+  await userEvent.click(screen.getByRole("button", { name: "Maximize" }));
+  expect(panel).toHaveAttribute("data-browser-panel", "fullscreen");
+  await userEvent.click(screen.getByRole("button", { name: "Back beside the chat" }));
+  expect(panel).toHaveAttribute("data-browser-panel", "docked");
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
 });

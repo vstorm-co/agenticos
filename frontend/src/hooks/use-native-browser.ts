@@ -68,7 +68,11 @@ export function useNativeBrowser(id: string) {
           const bounds = element.getBoundingClientRect();
           const blocked =
             document.visibilityState === "hidden" ||
-            Boolean(document.querySelector('[role="dialog"][data-state="open"],dialog[open]'));
+            Boolean(
+              document.querySelector(
+                '[role="dialog"][data-state="open"],dialog[open],[data-native-browser-blocked]',
+              ),
+            );
           if (blocked || bounds.width < 1 || bounds.height < 1)
             await controlNativeBrowser(id, "hide", { mount });
           else

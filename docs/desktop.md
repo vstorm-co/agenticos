@@ -282,6 +282,11 @@ the page does not travel as screenshots. Its private session does not import
 personal browser tabs or passwords. Page text still reaches the agent's model.
 Manual input takes control from the agent; **Return to agent** gives it back.
 
+On a wide chat, the browser opens beside the conversation, for both local and
+remote browsing. Drag the divider or use its arrow keys to change the width.
+**Maximize** uses the full screen; **Back beside the chat** restores the panel.
+Narrow chat areas and phones use the full screen automatically.
+
 A native tab belongs to this computer, organization, person, agent and
 conversation. It stays open between runs; `browser_read` resumes it. Only one run
 may lease it at a time. The run renews its lease automatically; if its backend

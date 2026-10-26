@@ -1237,484 +1237,485 @@ function ChatUI({
   );
   return (
     <div className="relative flex h-full min-h-0 w-full overflow-hidden">
-      {/* The column no longer carries the width. The scroller does, and the
+      <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
+        {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
           right of the text with white on both sides of it. */}
-      {/* `@container/chat`: the turn rail sits in the column's left margin, so it
+        {/* `@container/chat`: the turn rail sits in the column's left margin, so it
           shows only while the column is wide enough to have one beside the
           centred transcript - not at a window width, which says nothing about
           a column narrowed by the sidebar and the conversation list. */}
-      <div className="@container/chat relative flex h-full min-w-0 flex-1 flex-col">
-        {!compact && <TurnRail entries={railEntries} />}
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 scrollbar-thin overflow-y-auto"
-          style={{
-            paddingBottom: dockHeight,
-            // In the page the transcript fades out as it reaches the glass
-            // composer, so nothing sharp is ever behind it: a backdrop blur is
-            // drawn by the GPU and is not always drawn - a screen capture, a
-            // throttled tab - and without it the words under the box read
-            // through it, crisp, beside the placeholder.
-            ...(compact
-              ? {}
-              : {
-                  maskImage: `linear-gradient(to bottom, #000 calc(100% - ${dockHeight + 8}px), transparent calc(100% - ${Math.max(dockHeight - 32, 0)}px))`,
-                }),
-          }}
-        >
+        <div className="@container/chat relative flex h-full min-w-0 flex-1 flex-col">
+          {!compact && <TurnRail entries={railEntries} />}
           <div
-            ref={transcriptRef}
-            data-transcript
-            className={cn(
-              compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
-            )}
+            ref={scrollContainerRef}
+            className="flex-1 scrollbar-thin overflow-y-auto"
+            style={{
+              paddingBottom: dockHeight,
+              // In the page the transcript fades out as it reaches the glass
+              // composer, so nothing sharp is ever behind it: a backdrop blur is
+              // drawn by the GPU and is not always drawn - a screen capture, a
+              // throttled tab - and without it the words under the box read
+              // through it, crisp, beside the placeholder.
+              ...(compact
+                ? {}
+                : {
+                    maskImage: `linear-gradient(to bottom, #000 calc(100% - ${dockHeight + 8}px), transparent calc(100% - ${Math.max(dockHeight - 32, 0)}px))`,
+                  }),
+            }}
           >
-            {/* Who else has this chat open, held at the top while the transcript scrolls:
+            <div
+              ref={transcriptRef}
+              data-transcript
+              className={cn(
+                compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
+              )}
+            >
+              {/* Who else has this chat open, held at the top while the transcript scrolls:
                 a project's chat is several people's at once. */}
-            {conversationId && !compact && (
-              <ChatRoomBar
-                conversationId={conversationId}
-                present={present}
-                meId={authUser?.id}
-                canShare={ownsConversation}
-                className="sticky top-2 z-20 mb-3"
-              />
-            )}
-            {isLoadingConversation ? (
-              <ConversationSkeleton />
-            ) : messages.length === 0 && voice.call.phase === "idle" ? (
-              <div className="flex h-full items-center">
-                {emptyState ? (
-                  emptyState((picked) => sendMessage(picked))
-                ) : (
-                  <ChatEmptyState onPick={(picked) => sendMessage(picked)} />
-                )}
-              </div>
-            ) : (
-              <LiveBrowsesProvider value={{ browses, onComment: commentOnPage }}>
-                <ConversationVisualsProvider
-                  messages={messages}
+              {conversationId && !compact && (
+                <ChatRoomBar
                   conversationId={conversationId}
-                  onReport={onVisualReport}
-                  onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
-                  onSend={isArchived ? undefined : (text) => sendMessage(text)}
-                >
-                  {hasEarlierMessages && (
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-foreground mx-auto block px-4 py-2 text-sm"
-                      disabled={isLoadingEarlier}
-                      onClick={() => void loadEarlierMessages()}
-                    >
-                      {t("loadEarlierMessages")}
-                    </button>
+                  present={present}
+                  meId={authUser?.id}
+                  canShare={ownsConversation}
+                  className="sticky top-2 z-20 mb-3"
+                />
+              )}
+              {isLoadingConversation ? (
+                <ConversationSkeleton />
+              ) : messages.length === 0 && voice.call.phase === "idle" ? (
+                <div className="flex h-full items-center">
+                  {emptyState ? (
+                    emptyState((picked) => sendMessage(picked))
+                  ) : (
+                    <ChatEmptyState onPick={(picked) => sendMessage(picked)} />
                   )}
-                  <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
-                </ConversationVisualsProvider>
-              </LiveBrowsesProvider>
-            )}
-            {/* After the transcript, not inside it: a delegation is a second agent's
+                </div>
+              ) : (
+                <LiveBrowsesProvider value={{ browses, onComment: commentOnPage }}>
+                  <ConversationVisualsProvider
+                    messages={messages}
+                    conversationId={conversationId}
+                    onReport={onVisualReport}
+                    onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
+                    onSend={isArchived ? undefined : (text) => sendMessage(text)}
+                  >
+                    {hasEarlierMessages && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground mx-auto block px-4 py-2 text-sm"
+                        disabled={isLoadingEarlier}
+                        onClick={() => void loadEarlierMessages()}
+                      >
+                        {t("loadEarlierMessages")}
+                      </button>
+                    )}
+                    <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                  </ConversationVisualsProvider>
+                </LiveBrowsesProvider>
+              )}
+              {/* After the transcript, not inside it: a delegation is a second agent's
                 conversation happening inside one turn of this one, and it can still be
                 streaming when the turn it belongs to has already answered. */}
-            <DelegationPanels
-              delegations={delegations}
-              agents={knownAgents}
-              parent={knownAgents.find((agent) => agent.id === delegatingAgentId)}
-              settled={!isProcessing}
-              conversation={isProcessing}
-            />
-            {/* The call, as it happens: live captions inside the turns being
+              <DelegationPanels
+                delegations={delegations}
+                agents={knownAgents}
+                parent={knownAgents.find((agent) => agent.id === delegatingAgentId)}
+                settled={!isProcessing}
+                conversation={isProcessing}
+              />
+              {/* The call, as it happens: live captions inside the turns being
                 spoken, the approval card, and the summary when it ends. */}
-            <VoiceCallFeed
-              session={voice}
-              agentName={callAgent?.name ?? t("rail.agent")}
-              agent={callAgent}
-              canDecide={can(Perm.approvalsDecide)}
-              hidden={savedTurns}
-              onCallAgain={startCall}
-              onContinueInText={endForText}
-              // As the message it becomes once saved, so the saved one takes its
-              // place without the turn moving, restyling or changing colour.
-              renderTurn={(turn) => (
-                <MessageItem
-                  message={{
-                    id: `voice-${turn.turnId}`,
-                    role: turn.role === "user" ? "user" : "assistant",
-                    content: turn.text,
-                    timestamp: callStartedAt,
-                    turnId: turn.turnId,
-                    agentId: turn.role === "user" ? undefined : callAgent?.id,
-                    isStreaming: turn.role !== "user" && turn.live,
-                  }}
-                  agent={turn.role === "user" ? undefined : callAgent}
-                  agents={knownAgents}
-                />
-              )}
-              // The agent's message, thinking - where its spoken answer will be.
-              renderThinking={() => (
-                <MessageItem
-                  message={{
-                    id: "voice-thinking",
-                    role: "assistant",
-                    content: "",
-                    timestamp: callStartedAt,
-                    agentId: callAgent?.id,
-                    isStreaming: true,
-                  }}
-                  agent={callAgent}
-                  agents={knownAgents}
-                />
-              )}
-            />
+              <VoiceCallFeed
+                session={voice}
+                agentName={callAgent?.name ?? t("rail.agent")}
+                agent={callAgent}
+                canDecide={can(Perm.approvalsDecide)}
+                hidden={savedTurns}
+                onCallAgain={startCall}
+                onContinueInText={endForText}
+                // As the message it becomes once saved, so the saved one takes its
+                // place without the turn moving, restyling or changing colour.
+                renderTurn={(turn) => (
+                  <MessageItem
+                    message={{
+                      id: `voice-${turn.turnId}`,
+                      role: turn.role === "user" ? "user" : "assistant",
+                      content: turn.text,
+                      timestamp: callStartedAt,
+                      turnId: turn.turnId,
+                      agentId: turn.role === "user" ? undefined : callAgent?.id,
+                      isStreaming: turn.role !== "user" && turn.live,
+                    }}
+                    agent={turn.role === "user" ? undefined : callAgent}
+                    agents={knownAgents}
+                  />
+                )}
+                // The agent's message, thinking - where its spoken answer will be.
+                renderThinking={() => (
+                  <MessageItem
+                    message={{
+                      id: "voice-thinking",
+                      role: "assistant",
+                      content: "",
+                      timestamp: callStartedAt,
+                      agentId: callAgent?.id,
+                      isStreaming: true,
+                    }}
+                    agent={callAgent}
+                    agents={knownAgents}
+                  />
+                )}
+              />
+            </div>
           </div>
-        </div>
-        {/* The floating dock: banners, the composer, the caption. Over the
+          {/* The floating dock: banners, the composer, the caption. Over the
             transcript, not under it. `pointer-events-none` on the wrapper so
             the transparent gutters beside the column do not swallow clicks and
             the scrollbar's bottom stays draggable; each child takes its own
             pointer-events back. */}
-        {/* z-20: a message avatar carries z-10 of its own, and without a higher
+          {/* z-20: a message avatar carries z-10 of its own, and without a higher
             index here it rides over the composer instead of passing behind
             it - which, now that the composer is opaque, is the difference
             between a message sliding under the dock and one drawn on top of
             it. */}
-        {/* Opaque under the composer: the transcript would otherwise show through
+          {/* Opaque under the composer: the transcript would otherwise show through
             the gutter under the box, behind the disclaimer, as a line of text cut
             in half. The whole dock in the narrow column; in the page, the
             column the composer sits in, so the gutters beside it stay clear. */}
-        <div
-          ref={dockRef}
-          className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 z-20",
-            compact && "bg-background",
-          )}
-        >
-          {personalGaps.length > 0 && (
-            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-              <ConnectServicesCard gaps={personalGaps} />
-            </div>
-          )}
-          {pendingApproval && onResumeDecisions && (
-            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-              <ToolApprovalDialog
-                actionRequests={pendingApproval.actionRequests}
-                reviewConfigs={pendingApproval.reviewConfigs}
-                onDecisions={onResumeDecisions}
-                disabled={!isConnected || isStopping}
-              />
-            </div>
-          )}
-          {pendingConnection && onConnectionResponse && (
-            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-              <ConnectAccountPrompt
-                request={pendingConnection}
-                disabled={!isConnected || isStopping}
-                onRespond={onConnectionResponse}
-              />
-            </div>
-          )}
-          {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-              <QuestionPrompt
-                questions={pendingQuestions}
-                disabled={!isConnected || isStopping}
-                onComplete={onAnswerQuestions}
-              />
-            </div>
-          )}
           <div
+            ref={dockRef}
             className={cn(
-              "pointer-events-auto mx-auto w-full",
-              // Glass in the page: the answer scrolls on behind the composer,
-              // blurred, and the strip fades to the page by the caption under it
-              // so no line of text is ever cut in half behind the words.
-              compact
-                ? "px-3 pt-1 pb-1.5"
-                : "max-w-5xl bg-[linear-gradient(to_bottom,transparent_30%,var(--color-background)_62%)] px-2 pb-2 sm:px-4 sm:pb-4",
+              "pointer-events-none absolute inset-x-0 bottom-0 z-20",
+              compact && "bg-background",
             )}
           >
-            <InterruptedNotice
-              interrupted={interrupted}
-              detached={detachedTurnPending}
-              left={leftTurnPending}
-              lost={answerLost}
-              onRecheck={onRecheck}
-              onAskAgain={onAskAgain}
-            />
-            <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
-            {sandboxPreparing && <SandboxPreparingNotice />}
-            {onCancelQueued && (
-              <PendingMessages
-                messages={queuedMessages ?? []}
-                steers={steers}
-                onCancel={onCancelQueued}
-                onRetry={onRetryQueued}
-                waitingForNetwork={!isConnected}
-                onSendNow={isProcessing && isConnected ? onSendQueuedNow : undefined}
-                onMove={onMoveQueued}
-              />
+            {personalGaps.length > 0 && (
+              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+                <ConnectServicesCard gaps={personalGaps} />
+              </div>
             )}
-            {/* The checklist the agent is working to. Here rather than in the
+            {pendingApproval && onResumeDecisions && (
+              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+                <ToolApprovalDialog
+                  actionRequests={pendingApproval.actionRequests}
+                  reviewConfigs={pendingApproval.reviewConfigs}
+                  onDecisions={onResumeDecisions}
+                  disabled={!isConnected || isStopping}
+                />
+              </div>
+            )}
+            {pendingConnection && onConnectionResponse && (
+              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+                <ConnectAccountPrompt
+                  request={pendingConnection}
+                  disabled={!isConnected || isStopping}
+                  onRespond={onConnectionResponse}
+                />
+              </div>
+            )}
+            {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
+              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+                <QuestionPrompt
+                  questions={pendingQuestions}
+                  disabled={!isConnected || isStopping}
+                  onComplete={onAnswerQuestions}
+                />
+              </div>
+            )}
+            <div
+              className={cn(
+                "pointer-events-auto mx-auto w-full",
+                // Glass in the page: the answer scrolls on behind the composer,
+                // blurred, and the strip fades to the page by the caption under it
+                // so no line of text is ever cut in half behind the words.
+                compact
+                  ? "px-3 pt-1 pb-1.5"
+                  : "max-w-5xl bg-[linear-gradient(to_bottom,transparent_30%,var(--color-background)_62%)] px-2 pb-2 sm:px-4 sm:pb-4",
+              )}
+            >
+              <InterruptedNotice
+                interrupted={interrupted}
+                detached={detachedTurnPending}
+                left={leftTurnPending}
+                lost={answerLost}
+                onRecheck={onRecheck}
+                onAskAgain={onAskAgain}
+              />
+              <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
+              {sandboxPreparing && <SandboxPreparingNotice />}
+              {onCancelQueued && (
+                <PendingMessages
+                  messages={queuedMessages ?? []}
+                  steers={steers}
+                  onCancel={onCancelQueued}
+                  onRetry={onRetryQueued}
+                  waitingForNetwork={!isConnected}
+                  onSendNow={isProcessing && isConnected ? onSendQueuedNow : undefined}
+                  onMove={onMoveQueued}
+                />
+              )}
+              {/* The checklist the agent is working to. Here rather than in the
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
-            <PlanStrip plan={plan} live={isProcessing} />
-            {/* Right over the box the reply is written in, where a messenger says it. */}
-            <TypingIndicator people={typing} />
-            {/* What is attached, above the composer rather than inside it. The
+              <PlanStrip plan={plan} live={isProcessing} />
+              {/* Right over the box the reply is written in, where a messenger says it. */}
+              <TypingIndicator people={typing} />
+              {/* What is attached, above the composer rather than inside it. The
                 slot is here because the box below is drawn here; `ChatInput`
                 portals its row into it and keeps the upload state. */}
-            <div ref={setAttachmentSlot} />
-            {/* `@container`, so the composer and the line under it change shape
+              <div ref={setAttachmentSlot} />
+              {/* `@container`, so the composer and the line under it change shape
                 on their own width rather than on the window's. They are not the
                 same question: at 900px with the conversation list open this box
                 is 360px wide, and a viewport breakpoint showed a reading there
                 that had nowhere to go. */}
-            <div className="@container">
-              {/* While a call is on, the composer does not change: the call is one
+              <div className="@container">
+                {/* While a call is on, the composer does not change: the call is one
                   pill floating above it, so the chat stays the chat and a draft
                   and its attachments are still there when the call ends. */}
-              <div className="relative">
-                <FloatingPill
-                  pill={
-                    onCall
-                      ? {
-                          key: "call",
-                          node: (
-                            <VoiceCallBar
-                              pill
-                              session={voice}
-                              agentName={callAgent?.name ?? t("rail.agent")}
-                              avatar={
-                                callAgent ? (
-                                  <AgentAvatar
-                                    agentId={callAgent.id}
-                                    slug={callAgent.slug}
-                                    hasAvatar={callAgent.has_avatar}
-                                    colorSlot={callAgent.avatar_color}
-                                    size="sm"
-                                    className="rounded-full"
-                                  />
-                                ) : undefined
-                              }
-                              canDecide={can(Perm.approvalsDecide)}
-                              onShowApproval={showVoiceApproval}
-                            />
-                          ),
-                        }
-                      : serverDictating
+                <div className="relative">
+                  <FloatingPill
+                    pill={
+                      onCall
                         ? {
-                            key: "dictation",
+                            key: "call",
                             node: (
-                              <DictationPill state={dictationState} actions={dictationActions} />
+                              <VoiceCallBar
+                                pill
+                                session={voice}
+                                agentName={callAgent?.name ?? t("rail.agent")}
+                                avatar={
+                                  callAgent ? (
+                                    <AgentAvatar
+                                      agentId={callAgent.id}
+                                      slug={callAgent.slug}
+                                      hasAvatar={callAgent.has_avatar}
+                                      colorSlot={callAgent.avatar_color}
+                                      size="sm"
+                                      className="rounded-full"
+                                    />
+                                  ) : undefined
+                                }
+                                canDecide={can(Perm.approvalsDecide)}
+                                onShowApproval={showVoiceApproval}
+                              />
                             ),
                           }
-                        : stopBrowserDictation
+                        : serverDictating
                           ? {
-                              key: "browser",
+                              key: "dictation",
                               node: (
-                                <BrowserDictationPill
-                                  level={browserLevel}
-                                  onDone={stopBrowserDictation}
-                                />
+                                <DictationPill state={dictationState} actions={dictationActions} />
                               ),
                             }
-                          : null
-                  }
-                />
-                {/* No glow under the box: the pill above it says the microphone is
+                          : stopBrowserDictation
+                            ? {
+                                key: "browser",
+                                node: (
+                                  <BrowserDictationPill
+                                    level={browserLevel}
+                                    onDone={stopBrowserDictation}
+                                  />
+                                ),
+                              }
+                            : null
+                    }
+                  />
+                  {/* No glow under the box: the pill above it says the microphone is
                     open and how loud, and a second signal below read as a shadow. */}
-                <div>
-                  {/* All the way around the composer, and only while somebody is in
+                  <div>
+                    {/* All the way around the composer, and only while somebody is in
                   it. A border that glows permanently is decoration; one that
                   lights when the caret arrives is the box saying it is where
                   the typing goes. The glow outside it answers the microphone
                   and the turn; this is the box's own. */}
-                  {/* Every hint on top of the box, beside the pill it belongs to. */}
-                  {!isArchived && !onCall && (
-                    <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
-                  )}
-                  <DictationStrip hint={composerStrip} placement="above" />
-                  <Beam
-                    size="md"
-                    borderRadius={16}
-                    active={composerFocused}
-                    onFocusChange={setComposerFocused}
-                  >
-                    <div
-                      data-tour="chat-composer"
-                      className={cn(
-                        "panel composer-box focus-within:border-foreground/30 rounded-2xl transition-colors",
-                        !compact && "composer-glass",
-                        composerStrip !== null && "rounded-t-none",
-                      )}
+                    {/* Every hint on top of the box, beside the pill it belongs to. */}
+                    {!isArchived && !onCall && (
+                      <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
+                    )}
+                    <DictationStrip hint={composerStrip} placement="above" />
+                    <Beam
+                      size="md"
+                      borderRadius={16}
+                      active={composerFocused}
+                      onFocusChange={setComposerFocused}
                     >
-                      <div className={cn("px-3 pt-3 pb-1", !compact && "sm:px-4 sm:pt-4")}>
-                        {isArchived && (
-                          <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
-                            {t("conversationArchived")}
-                          </p>
+                      <div
+                        data-tour="chat-composer"
+                        className={cn(
+                          "panel composer-box focus-within:border-foreground/30 rounded-2xl transition-colors",
+                          !compact && "composer-glass",
+                          composerStrip !== null && "rounded-t-none",
                         )}
-                        {/* One row of actions under the text, the same at every
+                      >
+                        <div className={cn("px-3 pt-3 pb-1", !compact && "sm:px-4 sm:pt-4")}>
+                          {isArchived && (
+                            <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
+                              {t("conversationArchived")}
+                            </p>
+                          )}
+                          {/* One row of actions under the text, the same at every
                           level of every limit: attach and who answers on the left;
                           usage, the model, the microphone and send on the right. A
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
-                        <ChatInput
-                          onSend={sendMessage}
-                          // Mentions address the agent the thread is talking to -
-                          // in a fixed window (the test panel, the Architect) the
-                          // scope's own selection holds it.
-                          agentId={delegatingAgentId}
-                          mentionsFromDraft={testingDraft}
-                          hints={messages.length === 0}
-                          disabled={
-                            isStopping ||
-                            (!isConnected && !keepsOutbox) ||
-                            isArchived ||
-                            onCall ||
-                            !!pendingApproval ||
-                            !!(pendingQuestions && pendingQuestions.length)
-                          }
-                          isProcessing={isProcessing}
-                          canStop={
-                            isStopping ||
-                            canStopParked ||
-                            isProcessing ||
-                            !!pendingApproval ||
-                            !!pendingQuestions?.length ||
-                            !!pendingConnection
-                          }
-                          onStop={onStop}
-                          stopDisabled={isStopping}
-                          slashContext={slashContext}
-                          commands={slashCommands}
-                          attachmentSlot={attachmentSlot}
-                          incoming={incoming}
-                          onTyping={onTyping}
-                          onDraftChange={setDrafting}
-                          offline={!isConnected}
-                          projects={projectMentions.items}
-                          onPickProject={projectMentions.pick}
-                          mic={mic}
-                          onListeningChange={onListeningChange}
-                          dictation={{
-                            engine,
-                            state: dictationState,
-                            actions: dictationActions,
-                          }}
-                          dictateNow={dictateNow}
-                          onDictateStarted={clearIntent}
-                          // Who answers first and largest: it is the most
-                          // consequential choice in the composer.
-                          controlsSlot={
-                            agentFixed ? undefined : (
-                              <>
-                                <AgentPicker />
-                                {/* A phone's row is the agent alone; the project is
+                          <ChatInput
+                            onSend={sendMessage}
+                            // Mentions address the agent the thread is talking to -
+                            // in a fixed window (the test panel, the Architect) the
+                            // scope's own selection holds it.
+                            agentId={delegatingAgentId}
+                            mentionsFromDraft={testingDraft}
+                            hints={messages.length === 0}
+                            disabled={
+                              isStopping ||
+                              (!isConnected && !keepsOutbox) ||
+                              isArchived ||
+                              onCall ||
+                              !!pendingApproval ||
+                              !!(pendingQuestions && pendingQuestions.length)
+                            }
+                            isProcessing={isProcessing}
+                            canStop={
+                              isStopping ||
+                              canStopParked ||
+                              isProcessing ||
+                              !!pendingApproval ||
+                              !!pendingQuestions?.length ||
+                              !!pendingConnection
+                            }
+                            onStop={onStop}
+                            stopDisabled={isStopping}
+                            slashContext={slashContext}
+                            commands={slashCommands}
+                            attachmentSlot={attachmentSlot}
+                            incoming={incoming}
+                            onTyping={onTyping}
+                            onDraftChange={setDrafting}
+                            offline={!isConnected}
+                            projects={projectMentions.items}
+                            onPickProject={projectMentions.pick}
+                            mic={mic}
+                            onListeningChange={onListeningChange}
+                            dictation={{
+                              engine,
+                              state: dictationState,
+                              actions: dictationActions,
+                            }}
+                            dictateNow={dictateNow}
+                            onDictateStarted={clearIntent}
+                            // Who answers first and largest: it is the most
+                            // consequential choice in the composer.
+                            controlsSlot={
+                              agentFixed ? undefined : (
+                                <>
+                                  <AgentPicker />
+                                  {/* A phone's row is the agent alone; the project is
                                     picked from its `+` sheet. */}
-                                <span className="contents max-md:hidden">
-                                  <ProjectChip
-                                    conversationId={conversationId}
-                                    pickerOpen={projectPickerOpen}
-                                    onPickerOpenChange={setProjectPickerOpen}
-                                  />
-                                </span>
-                              </>
-                            )
-                          }
-                          onProject={
-                            agentFixed || conversationId
-                              ? undefined
-                              : () => setProjectPickerOpen(true)
-                          }
-                          // A phone's row keeps +, the agent, the microphone and
-                          // send; these move into its `+` sheet as rows.
-                          phoneRows={
-                            <>
-                              {offerCall && !onCall && (
+                                  <span className="contents max-md:hidden">
+                                    <ProjectChip
+                                      conversationId={conversationId}
+                                      pickerOpen={projectPickerOpen}
+                                      onPickerOpenChange={setProjectPickerOpen}
+                                    />
+                                  </span>
+                                </>
+                              )
+                            }
+                            onProject={
+                              agentFixed || conversationId
+                                ? undefined
+                                : () => setProjectPickerOpen(true)
+                            }
+                            // A phone's row keeps +, the agent, the microphone and
+                            // send; these move into its `+` sheet as rows.
+                            phoneRows={
+                              <>
+                                {offerCall && !onCall && (
+                                  <SheetRow
+                                    icon={PhoneCall}
+                                    label={t("input.callAgent", {
+                                      agent: callAgent?.name ?? t("rail.agent"),
+                                    })}
+                                  >
+                                    <VoiceCallButton
+                                      readiness={readiness}
+                                      failed={readinessFailed}
+                                      disabled={isProcessing || isArchived}
+                                      onStart={startCall}
+                                      setUpHref={agentCallsHref}
+                                      publishedOnly={testingDraft}
+                                    />
+                                  </SheetRow>
+                                )}
                                 <SheetRow
-                                  icon={PhoneCall}
-                                  label={t("input.callAgent", {
-                                    agent: callAgent?.name ?? t("rail.agent"),
-                                  })}
+                                  icon={SlidersHorizontal}
+                                  label={t("input.modelAndApprovals")}
                                 >
-                                  <VoiceCallButton
-                                    readiness={readiness}
-                                    failed={readinessFailed}
-                                    disabled={isProcessing || isArchived}
-                                    onStart={startCall}
-                                    setUpHref={agentCallsHref}
-                                    publishedOnly={testingDraft}
+                                  <ChatControls
+                                    onModelProfileChange={onModelProfileChange}
+                                    onApprovalModeChange={onApprovalModeChange}
+                                    agentModel={agentModel}
                                   />
                                 </SheetRow>
-                              )}
-                              <SheetRow
-                                icon={SlidersHorizontal}
-                                label={t("input.modelAndApprovals")}
-                              >
-                                <ChatControls
-                                  onModelProfileChange={onModelProfileChange}
-                                  onApprovalModeChange={onApprovalModeChange}
-                                  agentModel={agentModel}
-                                />
-                              </SheetRow>
-                              <SheetRow icon={Gauge} label={t("input.contextUsed")}>
+                                <SheetRow icon={Gauge} label={t("input.contextUsed")}>
+                                  <UsageMeter
+                                    usage={lastUsage}
+                                    workspace={workspace}
+                                    total={conversationCost}
+                                    contextWindow={contextWindow}
+                                  />
+                                </SheetRow>
+                              </>
+                            }
+                            actionsSlot={
+                              <span className="contents max-md:hidden">
+                                {/* Wide screens only, as is the panel it opens. */}
+                                <span ref={setFilesSlot} className="hidden lg:contents" />
                                 <UsageMeter
                                   usage={lastUsage}
                                   workspace={workspace}
                                   total={conversationCost}
                                   contextWindow={contextWindow}
                                 />
-                              </SheetRow>
-                            </>
-                          }
-                          actionsSlot={
-                            <span className="contents max-md:hidden">
-                              {/* Wide screens only, as is the panel it opens. */}
-                              <span ref={setFilesSlot} className="hidden lg:contents" />
-                              <UsageMeter
-                                usage={lastUsage}
-                                workspace={workspace}
-                                total={conversationCost}
-                                contextWindow={contextWindow}
-                              />
-                              <div data-tour="chat-model-picker">
-                                <ChatControls
-                                  onModelProfileChange={onModelProfileChange}
-                                  onApprovalModeChange={onApprovalModeChange}
-                                  agentModel={agentModel}
-                                />
-                              </div>
-                              {/* The call stands in Send's place, as one that can
+                                <div data-tour="chat-model-picker">
+                                  <ChatControls
+                                    onModelProfileChange={onModelProfileChange}
+                                    onApprovalModeChange={onApprovalModeChange}
+                                    agentModel={agentModel}
+                                  />
+                                </div>
+                                {/* The call stands in Send's place, as one that can
                                   start or one that says why it cannot - except
                                   during the call, when it waits here, hidden, for
                                   focus to come back to. */}
-                              {onCall && callButton}
-                            </span>
-                          }
-                          // Not during a call: the box is closed then, Send with it.
-                          // Nor while readiness loads, when the button draws
-                          // nothing and the slot would leave no Send at all.
-                          idleSlot={callShown && !onCall ? callButton : undefined}
-                        />
+                                {onCall && callButton}
+                              </span>
+                            }
+                            // Not during a call: the box is closed then, Send with it.
+                            // Nor while readiness loads, when the button draws
+                            // nothing and the slot would leave no Send at all.
+                            idleSlot={callShown && !onCall ? callButton : undefined}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  </Beam>
+                    </Beam>
+                  </div>
                 </div>
+                <ComposerStatus isConnected={isConnected} />
               </div>
-              <ComposerStatus isConnected={isConnected} />
             </div>
           </div>
         </div>
+        <FilePreviewDialog />
+        <SourcesPanel contained={compact} />
+        {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
+        <BrowserPanel browses={browses} onComment={commentOnPage} />
       </div>
-      <FilePreviewDialog />
-      <SourcesPanel contained={compact} />
-      {/* A browse opened full screen from under its message. Draws nothing
-          until somebody does, so a conversation with no browsing costs nothing. */}
-      <BrowserPanel browses={browses} onComment={commentOnPage} />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
           down would move the box you are typing in. Closed by default - it is a

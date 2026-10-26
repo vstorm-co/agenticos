@@ -1,5 +1,5 @@
 ---
-source_sha: "1f04e9369e53"
+source_sha: "0070c0a80dfb"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -301,6 +301,12 @@ escritura ocurren localmente, sin transmitir capturas. La sesión privada no
 importa pestañas ni contraseñas personales. El texto de la página sigue llegando
 al modelo del agente. La interacción manual toma el control; **Return to agent**
 lo devuelve al agente.
+
+En un chat ancho, el navegador se abre junto a la conversación, tanto local como
+remoto. Arrastra el separador o usa sus teclas de flecha para ajustar el ancho.
+Maximizar abre la pantalla completa y la acción de volver junto al chat restaura
+el panel. Las áreas de chat estrechas y los teléfonos usan la pantalla completa
+automáticamente.
 
 La pestaña nativa pertenece al equipo, organización, persona, agente y conversación.
 Permanece abierta entre runs; `browser_read` la reanuda. Solo un run puede usarla

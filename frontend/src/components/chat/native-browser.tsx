@@ -1,17 +1,27 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { X } from "lucide-react";
+import { Maximize2, Minimize2, X } from "lucide-react";
 import { useNativeBrowser } from "@/hooks/use-native-browser";
 import { BrowserNavigation } from "./browser-navigation";
 
 /** The page below this toolbar is an operating-system WebView, without image transport. */
-export function NativeBrowser({ id, onClose }: { id: string; onClose: () => void }) {
+export function NativeBrowser({
+  id,
+  onClose,
+  fullscreen = false,
+  onToggleFullscreen,
+}: {
+  id: string;
+  onClose: () => void;
+  fullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+}) {
   const t = useTranslations("browse");
   const chat = useTranslations("chat");
   const { viewport, state, error, send } = useNativeBrowser(id);
   return (
-    <aside className="bg-background fixed inset-0 z-50 flex flex-col">
+    <section className="bg-background flex h-full min-h-0 min-w-0 flex-col">
       <header className="border-border flex shrink-0 flex-wrap items-center gap-2 border-b p-2">
         <BrowserNavigation
           url={state?.url ?? null}
@@ -37,6 +47,20 @@ export function NativeBrowser({ id, onClose }: { id: string; onClose: () => void
         >
           {t("nativeCloseTab")}
         </button>
+        {onToggleFullscreen && (
+          <button
+            type="button"
+            className="hover:bg-muted rounded-md p-2"
+            aria-label={chat(fullscreen ? "browserDock" : "browserMaximize")}
+            onClick={onToggleFullscreen}
+          >
+            {fullscreen ? (
+              <Minimize2 className="size-4" aria-hidden />
+            ) : (
+              <Maximize2 className="size-4" aria-hidden />
+            )}
+          </button>
+        )}
         <button
           type="button"
           className="hover:bg-muted rounded-md p-2"
@@ -52,6 +76,6 @@ export function NativeBrowser({ id, onClose }: { id: string; onClose: () => void
         </p>
       )}
       <div ref={viewport} className="min-h-0 flex-1" aria-label={t("nativeViewport")} />
-    </aside>
+    </section>
   );
 }

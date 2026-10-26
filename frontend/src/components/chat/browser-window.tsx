@@ -303,6 +303,7 @@ export function BrowserWindow({
   onClose,
   maximized,
   onMaximize,
+  maximizeLabel,
   newTabHref,
   waitForFit = false,
   onComment,
@@ -312,6 +313,7 @@ export function BrowserWindow({
   onClose?: () => void;
   maximized?: boolean;
   onMaximize?: () => void;
+  maximizeLabel?: string;
   /** Where the same browse opens on a page of its own, where that is somewhere else. */
   newTabHref?: string;
   /** Hold the picture back until a frame of this window's size arrives - see `useFitted`. */
@@ -438,7 +440,7 @@ export function BrowserWindow({
         )}
         {onMaximize && (
           <ChromeButton
-            label={maximized ? t("browserRestore") : t("browserMaximize")}
+            label={maximizeLabel ?? (maximized ? t("browserRestore") : t("browserMaximize"))}
             onClick={onMaximize}
           >
             {maximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}

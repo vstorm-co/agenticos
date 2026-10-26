@@ -275,6 +275,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Browser panels open beside wide chats, resize by pointer or keyboard, and
+  expand to full screen without reopening their native tab. Narrow chats and
+  phones keep a full-screen view.
+
 - Remote browser previews coalesce pending images and disconnect stalled viewers;
   live-view images are no longer duplicated in the resumable chat stream.
 

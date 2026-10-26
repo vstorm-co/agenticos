@@ -225,3 +225,26 @@ it("closes without querying the destroyed native document", async () => {
   view.unmount();
   await settle();
 });
+
+it("hides native pixels during a panel drag and restores their new geometry", async () => {
+  const view = render(<View />);
+  await settle();
+  const blocker = document.createElement("div");
+  blocker.setAttribute("data-native-browser-blocked", "");
+  document.body.append(blocker);
+  act(() => mutate());
+  await settle();
+  expect(api.control).toHaveBeenLastCalledWith("tab", "hide", { mount: expect.any(String) });
+  blocker.remove();
+  vi.mocked(Element.prototype.getBoundingClientRect).mockReturnValue(
+    new DOMRect(500, 60, 700, 600),
+  );
+  act(() => resize());
+  await settle();
+  expect(api.control).toHaveBeenLastCalledWith("tab", "show", {
+    mount: expect.any(String),
+    bounds: { x: 500, y: 60, width: 700, height: 600 },
+  });
+  view.unmount();
+  await settle();
+});

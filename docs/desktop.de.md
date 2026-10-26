@@ -1,5 +1,5 @@
 ---
-source_sha: "1f04e9369e53"
+source_sha: "0070c0a80dfb"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -311,6 +311,11 @@ Seite im Browserpanel der Konsole. Klicken, Scrollen und Tippen erfolgen lokal,
 ohne Screenshots zu übertragen. Die private Sitzung importiert keine persönlichen
 Tabs oder Passwörter. Seitentext erreicht weiterhin das Agent-Modell. Manuelle
 Eingaben übernehmen die Kontrolle; **An Agent zurückgeben** gibt sie zurück.
+
+Bei breitem Chat öffnet sich der Browser neben dem Gespräch, lokal wie remote.
+Ziehen Sie die Trennlinie oder ändern Sie die Breite mit deren Pfeiltasten.
+**Maximieren** öffnet das Vollbild; **Zurück neben den Chat** stellt den Bereich
+wieder her. Schmale Chatbereiche und Telefone verwenden automatisch das Vollbild.
 
 Ein nativer Tab gehört zu Computer, Organisation, Person, Agent und Gespräch.
 Er bleibt zwischen Runs offen; `browser_read` setzt ihn fort. Nur ein Run kann ihn

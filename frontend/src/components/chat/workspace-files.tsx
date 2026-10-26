@@ -166,6 +166,7 @@ export function WorkspaceFiles({
 
   return (
     <aside
+      data-native-browser-blocked={overlay ? "" : undefined}
       className={cn(
         "border-border flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden border-l",
         overlay && "bg-background absolute inset-y-0 right-0 z-20 max-w-[85%] shadow-xl",

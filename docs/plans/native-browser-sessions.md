@@ -52,3 +52,9 @@ closed/idle tabs and rejects a token belonging to a different active run.
 The redirect check reproduced and guards against treating HTTP redirects as
 manual takeover. Only trusted physical input and console controls pause the
 agent; page navigation still passes the domain policy before it loads.
+
+Browser panels now dock beside the chat when their available area is at least
+900 CSS pixels wide. The separator supports pointer capture and keyboard arrows;
+width stays between 35% and 65%. Explicit fullscreen keeps the same renderer and
+lease mounted. Native pixels hide during resize and over source/file overlays or
+dialogs, then return at the measured DOM bounds. Phones remain fullscreen.

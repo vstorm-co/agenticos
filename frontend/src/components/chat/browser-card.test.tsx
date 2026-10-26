@@ -102,14 +102,16 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     expect(container.querySelector(".md\\:grid-cols-2")).not.toBeNull();
   });
 
-  it("opens full screen, and lets its socket go while it is shown there", async () => {
+  it("opens beside the chat, and lets its inline socket go", async () => {
     render(<BrowserCards browses={[browse()]} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Maximize" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open beside the chat" }));
 
     expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
     expect(live.calls.at(-1)).toEqual(["run-1", "c1", false]);
-    await userEvent.click(screen.getByRole("button", { name: /example.test is open full screen/ }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /example.test is open in the browser panel/ }),
+    );
     expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
   });
 
