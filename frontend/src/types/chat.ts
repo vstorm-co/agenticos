@@ -228,6 +228,7 @@ export type WSEventType =
   // Read by `use-chat.ts`.
   | "conversation_created"
   | "message_saved"
+  | "next_steps"
   | "user_prompt"
   | "session_ready"
   | "model_request_start"

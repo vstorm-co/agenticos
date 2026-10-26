@@ -87,6 +87,12 @@ describe("OrgProactivity", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains fixed attribution and the separate proactivity model", () => {
+    render(<OrgProactivity org={org()} />);
+    expect(screen.getByText(/This assignment is fixed by the platform/)).toBeVisible();
+    expect(screen.getByText(/independently of the agent’s own model/)).toBeVisible();
+  });
+
   it("starts off, and is not turned on without a model to run on", async () => {
     render(<OrgProactivity org={org()} />);
     const nightly = screen.getByRole("switch", { name: "Nightly suggestions" });

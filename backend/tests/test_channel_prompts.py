@@ -367,7 +367,13 @@ class TestTheApprovalReadsAsARequest:
 
 class TestPressingAnApproval:
     async def _press(
-        self, *, choice: int | None, role: str | None = "admin", pending: bool = False, prompt=None
+        self,
+        *,
+        choice: int | None,
+        role: str | None = "admin",
+        pending: bool = False,
+        prompt=None,
+        segment=None,
     ):
         bot = _bot()
         prompt = prompt or _prompt()
@@ -380,7 +386,9 @@ class TestPressingAnApproval:
                     f"{_MODULE}.agent_run_repo.list_approvals_for_run",
                     new=AsyncMock(return_value=approvals),
                 ),
-                patch.object(service.runner, "resume", new=AsyncMock(return_value=_segment())),
+                patch.object(
+                    service.runner, "resume", new=AsyncMock(return_value=segment or _segment())
+                ),
                 patch.object(service, "offer", new=AsyncMock()) as offered,
             ):
                 approvals_service.return_value.decide = AsyncMock()
@@ -681,6 +689,7 @@ class TestTypingAnAnswer:
         role: str | None = "member",
         text: str = "Kraków, please",
         answer_raises: Exception | None = None,
+        segment=None,
     ) -> tuple[bool, _Patched, AsyncMock, AsyncMock]:
         bot = _bot()
         service = ChannelPrompts(_session())
@@ -697,7 +706,7 @@ class TestTypingAnAnswer:
                     service.runner,
                     "answer",
                     new=AsyncMock(
-                        return_value=_segment("Kraków it is."), side_effect=answer_raises
+                        return_value=segment or _segment("Kraków it is."), side_effect=answer_raises
                     ),
                 ),
                 patch.object(service, "offer", new=AsyncMock()),
@@ -844,3 +853,47 @@ class TestTheRepository:
 
         assert [call.args[0] for call in db.delete.await_args_list] == prompts
         db.flush.assert_awaited_once()
+
+
+@pytest.mark.parametrize("delivery", ["press", "reply"])
+async def test_a_completed_channel_continuation_defers_buttons_after_posting_its_answer(
+    monkeypatch, delivery
+):
+    import app.services.channels.prompts as module
+
+    segment = SimpleNamespace(
+        output="Sent.",
+        run=SimpleNamespace(
+            id=RUN,
+            status="completed",
+            channel_identity_id=uuid.uuid4(),
+        ),
+    )
+    jobs = []
+    monkeypatch.setattr(module, "spawn_after_commit", lambda _db, job, **_kw: jobs.append(job))
+    offer = AsyncMock()
+    monkeypatch.setattr(module, "offer_after_resume", offer)
+    if delivery == "press":
+        env, *_ = await TestPressingAnApproval()._press(choice=0, segment=segment)
+    else:
+        _, env, *_ = await TestTypingAnAnswer()._reply(
+            prompt=_prompt(QUESTION, allow_custom=True), segment=segment
+        )
+    assert env.said() == ["Sent."]
+    offer.assert_not_awaited()
+    assert len(jobs) == 1
+    await jobs[0]
+    org, run_id, bot_id, chat_id = offer.await_args.args
+    assert org == ORG and run_id == RUN
+    assert isinstance(bot_id, uuid.UUID)
+    assert chat_id == "C1:1.0"
+
+
+async def test_a_continuation_without_a_channel_identity_never_schedules_buttons(monkeypatch):
+    import app.services.channels.prompts as module
+
+    queue = MagicMock()
+    monkeypatch.setattr(module, "spawn_after_commit", queue)
+    run = SimpleNamespace(id=RUN, status="completed", channel_identity_id=None)
+    ChannelPrompts(_session())._follow_ups(_bot(), SimpleNamespace(run=run), "C1")
+    queue.assert_not_called()

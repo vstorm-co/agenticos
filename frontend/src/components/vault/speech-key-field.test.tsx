@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SpeechKeyField, speechKeysFor, useSpeechKeyCheck } from "./speech-key-field";
+import { providerMarkIn } from "@/test-utils/brand-marks";
 import type { Secret } from "@/types/secrets";
 
 const state = vi.hoisted(() => ({
@@ -121,6 +122,19 @@ describe("useSpeechKeyCheck", () => {
 });
 
 describe("the speech-to-text key field", () => {
+  it.each([true, false])(
+    "shows the key's provider icon in the selected value and option (organization default: %s)",
+    async (orgVisibleOnly) => {
+      state.secrets = [secret("OpenAI key")];
+      mount({ value: "OpenAI key", orgVisibleOnly });
+      expect(providerMarkIn(screen.getByLabelText("Key"))).toBe("openai");
+      await userEvent.click(screen.getByLabelText("Key"));
+      expect(providerMarkIn(screen.getByRole("option", { name: /OpenAI key.*abcd/ }))).toBe(
+        "openai",
+      );
+    },
+  );
+
   it("stores the only key that fits, explicitly", () => {
     state.secrets = [secret("team-openai"), secret("mine", { visibility: "private" })];
     const { onChange } = mount();
@@ -133,7 +147,7 @@ describe("the speech-to-text key field", () => {
     expect(onChange).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByLabelText("Key"));
-    await userEvent.click(screen.getByRole("option", { name: "b (…abcd)" }));
+    await userEvent.click(screen.getByRole("option", { name: /^b.*abcd$/ }));
     expect(onChange).toHaveBeenCalledWith("b");
   });
 
@@ -153,19 +167,64 @@ describe("the speech-to-text key field", () => {
   it("shows the chosen key", () => {
     state.secrets = [secret("a"), secret("b")];
     mount({ value: "b" });
-    expect(screen.getByLabelText("Key")).toHaveTextContent("b (…abcd)");
+    expect(screen.getByLabelText("Key")).toHaveTextContent("b····abcd");
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
   it("with no organization-wide key, says so and offers to add one", async () => {
     state.secrets = [secret("mine", { visibility: "private" })];
     const { onChange } = mount();
+    expect(screen.getByText(/mine.*shared with the whole organization/)).toBeVisible();
     expect(
-      screen.getByText(/No organization-wide OpenAI keys in the vault yet/),
-    ).toBeInTheDocument();
+      screen.queryByText(/No organization-wide OpenAI keys in the vault yet/),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Key"));
+    expect(screen.queryByRole("option", { name: /mine/ })).not.toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
 
     await userEvent.click(screen.getByRole("button", { name: "add OpenAI speech to text" }));
     expect(onChange).toHaveBeenCalledWith("new-openai");
+  });
+
+  it("explains why an existing ChatGPT sign-in cannot pay for transcription", () => {
+    state.secrets = [secret("My ChatGPT", { kind: "openai_codex", purpose: "openai_codex" })];
+    const { onChange } = mount();
+    expect(
+      screen.getByText(
+        /My ChatGPT.*ChatGPT subscription.*Voice features require an OpenAI API key/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(/No organization-wide OpenAI keys in the vault yet/),
+    ).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("does not report incompatible sign-ins for other providers or while loading", () => {
+    state.secrets = [secret("My ChatGPT", { kind: "openai_codex", purpose: "openai_codex" })];
+    const view = render(
+      <SpeechKeyField
+        id="key"
+        provider="groq"
+        providerName="Groq"
+        value={null}
+        orgVisibleOnly
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/ChatGPT sign-in/)).not.toBeInTheDocument();
+    state.isLoading = true;
+    view.rerender(
+      <SpeechKeyField
+        id="key"
+        provider="openai"
+        providerName="OpenAI"
+        value={null}
+        orgVisibleOnly
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/ChatGPT sign-in/)).not.toBeInTheDocument();
   });
 
   it("for an agent, says there is no key at all", () => {

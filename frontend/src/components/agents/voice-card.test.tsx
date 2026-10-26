@@ -154,7 +154,7 @@ describe("the agent's Voice card", () => {
     const { onChange } = mount(pair("groq", "whisper-large-v3"));
 
     await userEvent.click(screen.getByLabelText("Provider"));
-    const option = screen.getByRole("option", { name: "OpenAI (no key yet)" });
+    const option = screen.getByRole("option", { name: "OpenAI (no usable key)" });
     expect(option).not.toHaveAttribute("aria-disabled");
     await userEvent.click(option);
 

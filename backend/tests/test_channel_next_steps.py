@@ -292,3 +292,170 @@ class TestTheBackgroundHandler:
         router.return_value.route.assert_awaited_once()
         assert router.return_value.route.await_args.args[0] is said
         prompts.return_value.press.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        "off",
+        "missing",
+        "other_org",
+        "no_answer",
+        "empty",
+        "disabled_later",
+        "missing_later",
+        "other_org_later",
+        "run_missing_later",
+        "access_revoked_later",
+        "steps",
+    ],
+)
+async def test_post_answer_writer_reloads_the_bot_before_delivering(monkeypatch, outcome):
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+
+    from app.db import session as session_module
+    from app.repositories import conversation_repo
+    from app.services import follow_ups
+    from app.services.channels.next_steps import offer_after_answer
+
+    bot = _bot()
+    incoming = IncomingMessage(
+        platform="slack",
+        bot_id=str(bot.id),
+        platform_user_id="U1",
+        platform_chat_id="C1:1.0",
+        chat_type="group",
+        text="",
+    )
+    db = AsyncMock()
+
+    @asynccontextmanager
+    async def context():
+        yield db
+
+    monkeypatch.setattr(session_module, "get_db_context", context)
+    first = (
+        None
+        if outcome == "missing"
+        else _bot(
+            id=bot.id,
+            is_active=outcome != "off",
+            organization_id=uuid.uuid4() if outcome == "other_org" else ORG,
+        )
+    )
+    second = (
+        None
+        if outcome == "missing_later"
+        else _bot(
+            id=bot.id,
+            is_active=outcome != "disabled_later",
+            organization_id=uuid.uuid4() if outcome == "other_org_later" else ORG,
+        )
+    )
+    monkeypatch.setattr(
+        "app.repositories.channel_bot_repo.get_for_org", AsyncMock(side_effect=[first, second])
+    )
+    monkeypatch.setattr(
+        conversation_repo,
+        "last_answer_message",
+        AsyncMock(
+            return_value=None if outcome == "no_answer" else SimpleNamespace(id=uuid.uuid4())
+        ),
+    )
+    write = AsyncMock(return_value=[] if outcome == "empty" else ["Make a table"])
+    monkeypatch.setattr(follow_ups.FollowUpService, "write", write)
+    from app.services.channels.router import ChannelMessageRouter
+
+    monkeypatch.setattr(
+        "app.repositories.agent_run_repo.get_run",
+        AsyncMock(return_value=None if outcome == "run_missing_later" else SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        ChannelMessageRouter,
+        "may_continue",
+        AsyncMock(return_value=outcome != "access_revoked_later"),
+    )
+    offer = AsyncMock()
+    monkeypatch.setattr(ChannelNextSteps, "offer", offer)
+    await offer_after_answer(ORG, RUN, incoming)
+    if outcome == "steps":
+        offer.assert_awaited_once_with(second, incoming, run_id=RUN, steps=["Make a table"])
+        assert write.await_args.kwargs["channel"] is incoming
+    else:
+        offer.assert_not_awaited()
+
+
+async def test_background_channel_suggestions_skip_capacity(monkeypatch):
+    import asyncio
+
+    from app.services import follow_ups
+    from app.services.channels.next_steps import offer_after_answer
+
+    monkeypatch.setattr(follow_ups, "suggestion_slots", asyncio.Semaphore(0))
+    incoming = IncomingMessage(
+        platform="slack",
+        bot_id=str(uuid.uuid4()),
+        platform_user_id="U1",
+        platform_chat_id="C1",
+        chat_type="private",
+        text="",
+    )
+    await offer_after_answer(ORG, RUN, incoming)
+
+
+@pytest.mark.parametrize(
+    "missing", [None, "run", "identity_id", "identity", "session", "conversation"]
+)
+async def test_resumed_writer_uses_the_original_sender_in_a_session_of_its_own(
+    monkeypatch, missing
+):
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+
+    from app.db import session as sessions
+    from app.repositories import agent_run_repo, channel_identity_repo, channel_session_repo
+    from app.services.channels import next_steps as module
+
+    db = AsyncMock()
+    identity_id, conversation, bot = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    run = SimpleNamespace(
+        channel_identity_id=None if missing == "identity_id" else identity_id,
+        conversation_id=conversation,
+    )
+    identity = SimpleNamespace(platform="slack", platform_user_id="ORIGINAL-SENDER")
+    session = SimpleNamespace(
+        conversation_id=uuid.uuid4() if missing == "conversation" else conversation,
+        chat_type="group",
+    )
+
+    @asynccontextmanager
+    async def context():
+        yield db
+
+    monkeypatch.setattr(sessions, "get_db_context", context)
+    monkeypatch.setattr(
+        agent_run_repo, "get_run", AsyncMock(return_value=None if missing == "run" else run)
+    )
+    monkeypatch.setattr(
+        channel_identity_repo,
+        "get_by_id",
+        AsyncMock(return_value=None if missing == "identity" else identity),
+    )
+    monkeypatch.setattr(
+        channel_session_repo,
+        "get_by_bot_and_chat",
+        AsyncMock(return_value=None if missing == "session" else session),
+    )
+    offer = AsyncMock()
+    monkeypatch.setattr(module, "offer_after_answer", offer)
+    await module.offer_after_resume(ORG, RUN, bot, "C1:1.0")
+    if missing is not None:
+        offer.assert_not_awaited()
+    else:
+        org, run_id, incoming = offer.await_args.args
+        assert org == ORG and run_id == RUN
+        assert incoming.platform_user_id == "ORIGINAL-SENDER"
+        assert incoming.bot_id == str(bot)
+        assert incoming.platform_chat_id == "C1:1.0"
+        assert incoming.chat_type == "group"
