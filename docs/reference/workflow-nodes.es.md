@@ -1,5 +1,5 @@
 ---
-source_sha: "5243432ac707"
+source_sha: "1887baea5a17"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -137,7 +137,11 @@ puede, o muestra el secreto una vez para pegarlo. `triggered_by` es `github`.
 
 **Gmail.** Se inicia con un mensaje nuevo en el buzón de Gmail conectado de la
 organización que encaja con todos los filtros puestos, leído una vez por minuto. La
-publicación se rechaza hasta que haya un buzón conectado. `triggered_by` es `gmail`.
+publicación se rechaza hasta que haya un buzón conectado. `triggered_by` es `gmail`. **Sender contains** compara la dirección del remitente, no el
+nombre visible: `@acme.com` es exactamente ese dominio, sin subdominios. Con él
+puesto, el mensaje debe además pasar la comprobación de remitente autenticado (DMARC
+o una firma DKIM del dominio del remitente). Los mensajes con la etiqueta `SENT`,
+`DRAFT`, `SPAM` o `TRASH` se omiten, salvo que **Label** los nombre.
 
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "5243432ac707"
+source_sha: "1887baea5a17"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -144,7 +144,11 @@ Organisation, wenn sie kann, oder zeigt das Geheimnis einmal zum Einfügen.
 **Gmail.** Gestartet von einer neuen Nachricht im verbundenen Gmail-Postfach der
 Organisation, die zu allen gesetzten Filtern passt, einmal pro Minute gelesen. Die
 Veröffentlichung wird abgelehnt, bis ein Postfach verbunden ist. `triggered_by` ist
-`gmail`.
+`gmail`. **Sender contains** prüft die Adresse des Absenders, nicht den Anzeigenamen:
+`@acme.com` ist genau diese Domain, ohne Subdomains. Ist es gesetzt, muss die
+Nachricht außerdem die Prüfung des authentifizierten Absenders bestehen (DMARC oder
+eine DKIM-Signatur der Absenderdomain). Nachrichten mit dem Label `SENT`, `DRAFT`,
+`SPAM` oder `TRASH` werden übersprungen, es sei denn, **Label** nennt sie.
 
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 

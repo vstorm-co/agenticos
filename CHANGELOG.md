@@ -235,7 +235,10 @@ Two things are versioned separately from this file and worth knowing about:
   agents' Gmail triggers. A message read twice runs once, and one the
   organization had no room for is read again a minute later. The step shows
   whether a mailbox is connected and connects one; a GitHub step shows the
-  same for its account. Migration `0207_workflow_gmail_trigger`.
+  same for its account. Migration `0207_workflow_gmail_trigger`. The sender
+  filter reads the address only (`@acme.com` is that domain, not its
+  subdomains), needs mail the sender's domain authenticated, and sent mail,
+  drafts, spam and the bin start nothing.
 
 - **Workflows started from GitHub.** A **GitHub** trigger starts a run for
   the issues, comments, pull requests, reviews, pushes, releases or Actions

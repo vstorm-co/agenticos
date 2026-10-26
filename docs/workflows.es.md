@@ -1,5 +1,5 @@
 ---
-source_sha: "8576230541cd"
+source_sha: "da2df408552f"
 ---
 
 # Workflows { #workflows }
@@ -787,6 +787,15 @@ triggers de Gmail de los agentes, y cada mensaje nuevo que encaja con todos los
 filtros puestos - **Subject contains** y **Sender contains**, sin distinguir
 mayúsculas, y **Label**, exacto - inicia una ejecución como el miembro que publicó el
 workflow.
+
+**Sender contains** lee la dirección del remitente, nunca el nombre visible:
+`@acme.com` coincide exactamente con ese dominio y no con sus subdominios, una
+dirección completa coincide con esa dirección y cualquier otro texto con una parte de
+la dirección. Con él puesto, el mensaje debe además pasar la comprobación de remitente
+autenticado - DMARC superado, o firmado con DKIM por el dominio del remitente -, así
+que un `From` que cualquiera puede escribir no inicia una ejecución. Los mensajes con
+la etiqueta `SENT`, `DRAFT`, `SPAM` o `TRASH` no son llegadas y no inician nada, salvo
+que **Label** nombre una de ellas.
 
 La ejecución recibe `sender`, `to`, `subject`, `text`, `snippet`, `labels` y el
 `message_id` del buzón. Un mensaje leído dos veces inicia su ejecución una vez, y uno

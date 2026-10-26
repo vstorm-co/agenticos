@@ -1,5 +1,5 @@
 ---
-source_sha: "5243432ac707"
+source_sha: "1887baea5a17"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -134,7 +134,11 @@ sekret do wklejenia. `triggered_by` to `github`.
 
 **Gmail.** Startuje od nowej wiadomości w podłączonej skrzynce Gmail organizacji,
 pasującej do wszystkich ustawionych filtrów, czytanej raz na minutę. Publikacja jest
-odrzucana, dopóki skrzynka nie jest podłączona. `triggered_by` to `gmail`.
+odrzucana, dopóki skrzynka nie jest podłączona. `triggered_by` to `gmail`. **Sender contains** dopasowuje adres nadawcy, nie nazwę
+wyświetlaną: `@acme.com` to dokładnie ta domena, bez poddomen. Gdy jest ustawiony,
+wiadomość musi też przejść sprawdzenie uwierzytelnienia nadawcy (DMARC albo podpis
+DKIM domeny nadawcy). Wiadomości z etykietą `SENT`, `DRAFT`, `SPAM` lub `TRASH` są
+pomijane, chyba że **Label** je wskazuje.
 
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 

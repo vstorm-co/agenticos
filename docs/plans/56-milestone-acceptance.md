@@ -235,6 +235,12 @@ cursors, API validation, account/tenant switches, duplicate clicks and the actua
 chat container. This issue was requested separately and is outside the 56-issue
 milestone count.
 
+> **Superseded by #2474 (merged from main).** The conversation-scoped message
+> cursor described here was replaced by main's paging: the messages route takes a
+> cursor `before` and `latest=true` for the newest page, and conversation
+> metadata is read from `/metadata`. The text above records what this branch
+> shipped first.
+
 
 ### Additional requested fix: #2469
 

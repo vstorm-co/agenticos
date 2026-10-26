@@ -2,7 +2,9 @@
 
 The mailbox is the one the organization connected through the Gmail portal, read
 once a minute by the same poll that fires agent triggers. Each new message that
-fits this node's filter starts one run, as the member who published it.
+fits this node's filter starts one run, as the member who published it. Sent mail,
+drafts, spam and the bin are not arrivals and start nothing, unless the label filter
+names one of them.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -14,7 +16,9 @@ from app.workflows.nodes._triggers import EmailTriggerOutput, run_input_as
 class GmailTriggerConfig(BaseModel):
     """Which messages start the workflow; every new one when nothing is set.
 
-    The same filter an agent's Gmail trigger applies, read by the same matcher.
+    The same filter an agent's Gmail trigger applies, read by the same matcher. A
+    sender filter also needs the message to pass the authenticated-sender check
+    (DMARC, or a DKIM signature from the sender's domain).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -29,13 +33,21 @@ class GmailTriggerConfig(BaseModel):
         default=None,
         max_length=255,
         title="Sender contains",
-        description="Part of the sender's name or address, such as @acme.com",
+        description=(
+            "Matched against the sender's address only, never the display name, ignoring "
+            "case: @acme.com is that domain exactly (not its subdomains), a full address "
+            "is that address, other text is part of the address. Needs mail the sender "
+            "domain authenticated"
+        ),
     )
     label: str | None = Field(
         default=None,
         max_length=128,
         title="Label",
-        description="One of the mailbox's labels, exactly, such as INBOX or IMPORTANT",
+        description=(
+            "One of the mailbox's labels, exactly, such as INBOX or IMPORTANT. Mail "
+            "labelled SENT, DRAFT, SPAM or TRASH is skipped unless this names that label"
+        ),
     )
 
 

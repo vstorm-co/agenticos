@@ -740,6 +740,14 @@ triggers, and each new message that fits every filter set - **Subject contains**
 **Sender contains**, ignoring case, and **Label**, exactly - starts a run as the
 member who published the workflow.
 
+**Sender contains** reads the sender's address, never the display name: `@acme.com`
+matches that domain exactly and not its subdomains, a full address matches that
+address, and other text matches part of the address. With it set, a message must also
+pass the authenticated-sender check - DMARC passed, or the sender's domain signed it
+with DKIM - so a `From` anyone can type does not start a run. Messages labelled
+`SENT`, `DRAFT`, `SPAM` or `TRASH` are not arrivals and start nothing, unless
+**Label** names one of those.
+
 The run gets the `sender`, `to`, `subject`, `text`, `snippet`, `labels` and the
 mailbox's `message_id`. A message read twice starts its run once, and one the
 organization had no room to run yet is read again a minute later. See

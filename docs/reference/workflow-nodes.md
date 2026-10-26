@@ -126,7 +126,11 @@ secret once to paste. `triggered_by` is `github`.
 
 **Gmail.** Started by a new message in the organization's connected Gmail mailbox that
 fits every filter set, read once a minute. Publishing is refused until a mailbox is
-connected. `triggered_by` is `gmail`.
+connected. `triggered_by` is `gmail`. **Sender contains** matches the sender's
+address, not the display name: `@acme.com` is that domain exactly, not its
+subdomains. With it set, the message must also pass the authenticated-sender check
+(DMARC, or a DKIM signature from the sender's domain). Mail labelled `SENT`,
+`DRAFT`, `SPAM` or `TRASH` is skipped unless **Label** names it.
 
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 

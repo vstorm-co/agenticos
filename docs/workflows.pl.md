@@ -1,5 +1,5 @@
 ---
-source_sha: "8576230541cd"
+source_sha: "da2df408552f"
 ---
 
 # Workflows { #workflows }
@@ -764,6 +764,14 @@ nie jest. Skrzynka jest czytana raz na minutę, tym samym odczytem, który uruch
 wyzwalacze Gmail agentów, a każda nowa wiadomość pasująca do wszystkich ustawionych
 filtrów - **Subject contains** i **Sender contains** bez względu na wielkość liter
 oraz **Label** dokładnie - uruchamia run jako członek, który opublikował workflow.
+
+**Sender contains** czyta adres nadawcy, nigdy nazwę wyświetlaną: `@acme.com`
+pasuje dokładnie do tej domeny, a nie do jej poddomen, pełny adres pasuje do tego
+adresu, a inny tekst do fragmentu adresu. Gdy jest ustawiony, wiadomość musi też
+przejść sprawdzenie uwierzytelnienia nadawcy - DMARC zakończony powodzeniem albo
+podpis DKIM domeny nadawcy - więc `From`, który każdy może wpisać, nie uruchamia
+runa. Wiadomości z etykietą `SENT`, `DRAFT`, `SPAM` lub `TRASH` nie są nowymi
+wiadomościami i niczego nie uruchamiają, chyba że **Label** wskazuje jedną z nich.
 
 Run dostaje `sender`, `to`, `subject`, `text`, `snippet`, `labels` i `message_id`
 skrzynki. Wiadomość przeczytana dwa razy uruchamia run raz, a ta, dla której

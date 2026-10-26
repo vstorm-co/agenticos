@@ -1,5 +1,5 @@
 ---
-source_sha: "8576230541cd"
+source_sha: "da2df408552f"
 ---
 
 # Workflows { #workflows }
@@ -833,6 +833,15 @@ gelesen, von dem Abruf, der auch die Gmail-Trigger der Agenten auslöst, und jed
 Nachricht, die zu allen gesetzten Filtern passt - **Subject contains** und **Sender
 contains** ohne Groß- und Kleinschreibung, **Label** genau -, startet einen Lauf als
 das Mitglied, das den Workflow veröffentlicht hat.
+
+**Sender contains** liest die Adresse des Absenders, nie den Anzeigenamen:
+`@acme.com` passt genau auf diese Domain und nicht auf ihre Subdomains, eine
+vollständige Adresse passt auf diese Adresse, anderer Text auf einen Teil der
+Adresse. Ist es gesetzt, muss die Nachricht außerdem die Prüfung des authentifizierten
+Absenders bestehen - DMARC bestanden oder von der Domain des Absenders mit DKIM
+signiert -, sodass ein `From`, das jeder eintippen kann, keinen Lauf startet.
+Nachrichten mit dem Label `SENT`, `DRAFT`, `SPAM` oder `TRASH` sind keine Eingänge und
+starten nichts, es sei denn, **Label** nennt eines davon.
 
 Der Lauf bekommt `sender`, `to`, `subject`, `text`, `snippet`, `labels` und die
 `message_id` des Postfachs. Eine zweimal gelesene Nachricht startet ihren Lauf einmal,
