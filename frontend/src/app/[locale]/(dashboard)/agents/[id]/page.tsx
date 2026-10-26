@@ -1049,6 +1049,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <Button
                   data-tour="agent-improve"
                   variant={needsImprovement ? "default" : "outline"}
+                  className={needsImprovement ? "max-md:order-first" : undefined}
                   onClick={() =>
                     void (async () => {
                       if (await persist())
@@ -1127,8 +1128,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onClick={handlePublish}
                   disabled={publish.isPending || !spec?.name.trim()}
                   data-tour="agent-publish"
-                  // First in the row a phone scrolls, rather than past its edge.
-                  className="max-md:order-first"
+                  // Answers rated down or failed runs make Improve the one primary
+                  // action; otherwise Publish leads, first in the row a phone scrolls.
+                  variant={needsImprovement ? "outline" : "default"}
+                  className={needsImprovement ? undefined : "max-md:order-first"}
                 >
                   <Upload className="h-4 w-4" />
                   {t("publish")}

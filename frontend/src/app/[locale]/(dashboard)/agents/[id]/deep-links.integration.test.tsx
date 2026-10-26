@@ -278,13 +278,15 @@ describe("the detail page's way into Improve", () => {
     allowed = new Set([Perm.runsView]);
     await mount();
     expect(await screen.findByRole("button", { name: "Improve" })).not.toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-primary");
   });
 
   it("leads with Improve when people rated answers down", async () => {
     allowed = new Set([Perm.runsView]);
-    page.attention = [{ agent_id: "a1", rated_down: 2, failed_runs: 0 }];
+    page.attention = [{ agent_id: "a1", rated_down: 7, failed_runs: 1 }];
     await mount();
     expect(await screen.findByRole("button", { name: "Improve" })).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Publish" })).not.toHaveClass("bg-primary");
   });
 
   it("is linked from the agent's knowledge gaps", async () => {
