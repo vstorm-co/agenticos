@@ -53,6 +53,7 @@ export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
 export {
   useAgent,
+  useAgentCeiling,
   useAgents,
   useAgentVersion,
   useAgentVersions,

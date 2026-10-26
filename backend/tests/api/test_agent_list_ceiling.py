@@ -29,7 +29,7 @@ def service() -> Iterator[MagicMock]:
     registry.list_labels = AsyncMock(return_value=([], []))
     registry.ceiling = AsyncMock(return_value=None)
     context = AuthContext(
-        user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.VIEWER
+        user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.BUILDER
     )
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_agent_registry_service] = lambda: registry

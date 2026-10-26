@@ -141,6 +141,16 @@ describe("AgentTemplateDialog", () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
+  it("offers installs below the limit", async () => {
+    render(<AgentTemplateDialog open onOpenChange={vi.fn()} ceiling={{ limit: 5, held: 4 }} />, {
+      wrapper,
+    });
+    await userEvent.click(await screen.findByText("Healthcare"));
+
+    expect(screen.queryByText("This organization is at its agent limit")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use this" })).toBeEnabled();
+  });
+
   it("installs a template and opens the draft in the Builder", async () => {
     const onOpenChange = vi.fn();
     render(<AgentTemplateDialog open onOpenChange={onOpenChange} ceiling={null} />, { wrapper });

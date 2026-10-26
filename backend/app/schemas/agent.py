@@ -262,7 +262,8 @@ class AgentList(BaseSchema):
         description=(
             "The deployment's agents-per-organization limit and this organization's "
             "count against it, so a console can say a create would be refused before "
-            "it is attempted. Null when the deployment sets no limit"
+            "it is attempted. Null when the deployment sets no limit, or the caller "
+            "cannot create agents"
         ),
     )
     categories: list[str] = Field(

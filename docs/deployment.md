@@ -511,9 +511,11 @@ rather than by an administrator's memory. It is raised in the service that
 creates the thing, not at the route, because the route is not the only way in.
 
 The console does not wait for that refusal. `GET /agents` carries the same pair as
-`ceiling` — null where no limit is set — and at the limit the Agents page disables
-**New agent** and template installs and says why, before anybody fills in a form.
-The refusal stays the guarantee: the count is a forecast, read without the lock.
+`ceiling` — null where no limit is set, and for a caller without `agents:edit`,
+since the count includes agents they cannot see — and at the limit the Agents
+page disables **New agent** and template installs and says why, before anybody
+fills in a form. Duplicate and Restore are still refused only when tried. The
+refusal stays the guarantee: the count is a forecast, read without the lock.
 
 Zero is refused by the schema: an account that may own no organizations is an
 account that cannot be created, since sign-up gives every one of them a personal

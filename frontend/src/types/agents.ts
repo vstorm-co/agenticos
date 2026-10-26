@@ -543,7 +543,7 @@ export interface AgentCeiling {
 export interface AgentList {
   items: Agent[];
   total: number;
-  /** Null when the deployment sets no limit. */
+  /** Null when the deployment sets no limit, or the caller cannot create agents. */
   ceiling?: AgentCeiling | null;
   /** Every distinct category on the agents the caller may list - the filter's choices. */
   categories: string[];

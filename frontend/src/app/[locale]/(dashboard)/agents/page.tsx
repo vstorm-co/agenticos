@@ -28,7 +28,7 @@ import {
   SearchInput,
   Skeleton,
 } from "@/components/ui";
-import { useAgents, usePermissions } from "@/hooks";
+import { useAgentCeiling, useAgents, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { Agent, AgentStatus } from "@/types/agents";
@@ -101,7 +101,6 @@ export default function AgentsPage() {
     total,
     categoryOptions,
     tagOptions,
-    ceiling,
     isLoading,
     clone,
     archive,
@@ -114,9 +113,9 @@ export default function AgentsPage() {
   });
   const { can } = usePermissions();
   const canEdit = can(Perm.agentsEdit);
-  // At the deployment's agents-per-organization limit a create is refused, so
-  // New agent says so up front rather than after the form is filled in (#2488).
+  const { ceiling, known: ceilingKnown } = useAgentCeiling({ enabled: canEdit });
   const atLimit = isAtAgentLimit(ceiling);
+  const tLimit = useTranslations("agentLimit");
 
   // Any narrowing at all - the client status/text filters and the server facet.
   // A zero-match facet returns an empty page, so this is what tells "no agent
@@ -211,7 +210,7 @@ export default function AgentsPage() {
               </Button>
               <Button
                 data-tour="agents-new"
-                disabled={atLimit}
+                disabled={!ceilingKnown || atLimit}
                 aria-describedby={atLimit ? AGENT_LIMIT_NOTICE_ID : undefined}
                 onClick={() => setCreateOpen(true)}
               >
@@ -258,7 +257,9 @@ export default function AgentsPage() {
                 filtersActive
                   ? t("noAgentHereMatches")
                   : canEdit
-                    ? t("createOneGiveInstructions")
+                    ? atLimit
+                      ? tLimit("emptyGallery")
+                      : t("createOneGiveInstructions")
                     : t("nobodyHasSharedAgent")
               }
               cta={
@@ -267,7 +268,7 @@ export default function AgentsPage() {
                       label: t("clearFilters"),
                       onClick: clearFilters,
                     }
-                  : canEdit && !atLimit
+                  : canEdit && ceilingKnown && !atLimit
                     ? {
                         label: (
                           <>
@@ -304,11 +305,7 @@ export default function AgentsPage() {
         </AgentsCard>
       )}
 
-      <AgentTemplateDialog
-        open={templatesOpen}
-        onOpenChange={setTemplatesOpen}
-        ceiling={atLimit ? ceiling : null}
-      />
+      <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} ceiling={ceiling} />
       <CreateAgentDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

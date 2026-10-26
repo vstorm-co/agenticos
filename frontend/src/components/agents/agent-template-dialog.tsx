@@ -35,7 +35,7 @@ import { useAgentTemplates } from "@/hooks/use-agent-templates";
 import { useCapabilityGuide } from "@/hooks/use-capability-guide";
 import { useMcpCatalog } from "@/hooks/use-mcp-servers";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
-import { AgentLimitNotice } from "@/components/agents/agent-limit-notice";
+import { AgentLimitNotice, isAtAgentLimit } from "@/components/agents/agent-limit-notice";
 import type { AgentCeiling } from "@/types/agents";
 import type { AgentTemplate, TemplateIndustry } from "@/types/providers";
 
@@ -52,9 +52,9 @@ const INDUSTRY_ICONS: Record<string, LucideIcon> = {
 };
 
 /**
- * `ceiling` is set when the organization is at its agent limit: installing a
- * template creates an agent, so the dialog says why it cannot rather than
- * letting each install be refused (#2488). Browsing stays open.
+ * At the agent limit (`ceiling`) installing a template would be refused - it
+ * creates an agent - so the dialog says why and disables installs. Browsing
+ * stays open.
  */
 export function AgentTemplateDialog({
   open,
@@ -67,6 +67,7 @@ export function AgentTemplateDialog({
 }) {
   const t = useTranslations("agentTemplates");
   const router = useRouter();
+  const atLimit = isAtAgentLimit(ceiling);
   const [industryId, setIndustryId] = useState<string | null>(null);
 
   const { industries, isLoading, isError, install, isInstalling, installingKey } =
@@ -92,7 +93,7 @@ export function AgentTemplateDialog({
           <DialogDescription>{industry ? t("industryHint") : t("description")}</DialogDescription>
         </DialogHeader>
 
-        {ceiling ? <AgentLimitNotice ceiling={ceiling} /> : null}
+        {atLimit ? <AgentLimitNotice ceiling={ceiling} /> : null}
 
         {isLoading ? (
           <LoadingState variant="skeleton-tiles" />
@@ -105,7 +106,7 @@ export function AgentTemplateDialog({
             onInstall={install}
             isInstalling={isInstalling}
             installingKey={installingKey}
-            blocked={ceiling !== null}
+            blocked={atLimit}
           />
         ) : (
           <IndustryCards industries={industries} onPick={setIndustryId} />

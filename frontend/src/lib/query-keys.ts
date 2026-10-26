@@ -79,6 +79,10 @@ export const qk = {
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
+    // The agent limit and the count against it - its own key, not a list
+    // page's, so a filter change cannot unset it; under "agents" so whatever
+    // moves the list refreshes it.
+    ceiling: () => ["agents", "ceiling"] as const,
     detail: (id: string) => ["agents", id] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several

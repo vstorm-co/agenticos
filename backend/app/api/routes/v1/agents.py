@@ -290,9 +290,9 @@ async def list_agents(
     across facets, matched case-insensitively (query values are folded the same
     way stored ones are). The service folds and bounds them.
 
-    `ceiling` is the deployment's agents-per-organization limit and the count
-    against it, null when there is none - so **New agent** can say it would be
-    refused rather than finding out from the create (#2488).
+    `ceiling` is the deployment's agents-per-organization limit and the
+    organization's count against it - the pair a create is refused on. Null when
+    the deployment sets no limit, or the caller holds no `agents:edit`.
     """
     items, total = await service.list_agents(
         ctx,

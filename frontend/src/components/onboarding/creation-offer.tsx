@@ -3,7 +3,9 @@
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
+import { isAtAgentLimit } from "@/components/agents/agent-limit-notice";
 import { ConfirmDialog } from "@/components/ui";
+import { useAgentCeiling } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
 import { canOfferFlow, FLOWS } from "@/lib/onboarding/flows";
 import { qk } from "@/lib/query-keys";
@@ -46,6 +48,7 @@ export function CreationOffer() {
     queryKey: qk.agents.anyRunnable(),
     queryFn: skipToken,
   });
+  const { ceiling, known: ceilingKnown } = useAgentCeiling({ enabled: offer === "create-agent" });
 
   if (offer === null || !canOfferFlow(FLOWS[offer], can)) return null;
   // The MCP catalog is compiled into the deployment; empty, there is nothing to
@@ -74,6 +77,12 @@ export function CreationOffer() {
     offerFromTour &&
     (queryClient.getQueryData<AgentList>(qk.agents.list())?.total ?? 0) > 0
   ) {
+    return null;
+  }
+  // The agent flow's first target is New agent, which the Agents page disables at
+  // the organization's agent limit, and a coach waiting on a disabled control
+  // has no way forward. So no offer at the limit, and none until it is known.
+  if (offer === "create-agent" && (!ceilingKnown || isAtAgentLimit(ceiling))) {
     return null;
   }
   // The routine flow's first target is the Routines page's create buttons, which

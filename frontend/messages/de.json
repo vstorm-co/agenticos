@@ -6934,7 +6934,8 @@
   },
   "agentLimit": {
     "title": "Diese Organisation hat ihr Agenten-Limit erreicht",
-    "body": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat {held}. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen."
+    "body": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat {held}. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "emptyGallery": "Keiner der Agenten dieser Organisation ist mit Ihnen geteilt, und sie hat bereits so viele, wie dieses Deployment erlaubt."
   },
   "notifications": {
     "markAllRead": "Alle als gelesen markieren",

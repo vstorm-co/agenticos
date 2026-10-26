@@ -2968,12 +2968,15 @@ class AgentRegistryService:
         return walk.pins[cache_key]
 
     async def ceiling(self, ctx: AuthContext) -> AgentCeiling | None:
-        """The organization's agent limit and its count against it, or None for no limit.
+        """The organization's agent limit and its count against it, or None.
 
-        What the console reads to say a create would be refused before the form
-        is filled in (#2488). Counted as `_refuse_past_the_ceiling` counts, but
-        without its lock: this is a forecast, and the refusal stays the guarantee.
+        None when the deployment sets no limit, and for a caller who cannot
+        create agents: the count includes agents they cannot see, and they have
+        no create for it to forecast. Counted as `_refuse_past_the_ceiling`
+        counts, but without its lock - a forecast; the refusal stays the guarantee.
         """
+        if not ctx.has(Perm.AGENTS_EDIT):
+            return None
         limit = (await DeploymentSettingsService(self.db).limits()).agents_per_organization
         if limit is None:
             return None

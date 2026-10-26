@@ -4927,6 +4927,20 @@ class TestCeiling:
         count.assert_not_awaited()
 
     @pytest.mark.anyio
+    async def test_a_caller_who_cannot_create_gets_no_ceiling(self):
+        """The count includes agents a Viewer cannot see, and they have no create."""
+        limits = AsyncMock(return_value=DeploymentLimits(agents_per_organization=5))
+        with (
+            patch(f"{REGISTRY_PATH}.DeploymentSettingsService.limits", new=limits),
+            patch(f"{REGISTRY_PATH}.agent_repo.count_for_organization", new=AsyncMock()) as count,
+        ):
+            ceiling = await AgentRegistryService(_db()).ceiling(_ctx(OrgRoleName.VIEWER))
+
+        assert ceiling is None
+        limits.assert_not_awaited()
+        count.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_a_limit_comes_with_the_organization_count(self):
         ctx = _ctx()
 

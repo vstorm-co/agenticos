@@ -15,6 +15,7 @@ import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
 import type {
   Agent,
+  AgentCeiling,
   AgentDetail,
   AgentList,
   AgentSpec,
@@ -65,6 +66,32 @@ async function everyAgent(params: ReturnType<typeof agentListParams>): Promise<A
   return { ...first, items };
 }
 
+/** Fetch only the ceiling: one row is the smallest page the route serves. */
+export async function fetchAgentCeiling(): Promise<AgentCeiling | null> {
+  const page = await apiClient.get<AgentList>("/agents", { params: { limit: "1" } });
+  return page.ceiling ?? null;
+}
+
+/**
+ * The organization's agent limit and its count, or null for no limit.
+ *
+ * `known` is false until the server has answered: an unknown ceiling is not
+ * "below the limit", so a create control waits for it. A failed read counts as
+ * known - the server still refuses past the limit. Kept fresher than the list,
+ * because another member's archive or an administrator's new limit reaches
+ * this caller through no event of theirs.
+ */
+export function useAgentCeiling({ enabled = true }: { enabled?: boolean } = {}) {
+  const { data, isSuccess, isError } = useQuery({
+    queryKey: qk.agents.ceiling(),
+    queryFn: fetchAgentCeiling,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    enabled,
+  });
+  return { ceiling: data ?? null, known: isSuccess || isError };
+}
+
 export function useAgents({
   includeArchived = false,
   enabled = true,
@@ -96,6 +123,11 @@ export function useAgents({
 
   const invalidate = useCallback(
     () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+    [queryClient],
+  );
+  // A refused create may be the limit the cached ceiling did not know about yet.
+  const recount = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: qk.agents.ceiling() }),
     [queryClient],
   );
 
@@ -140,6 +172,7 @@ export function useAgents({
       await invalidate();
       toast.success(t("created", { name: agent.name }));
     },
+    onError: recount,
   });
 
   /**
@@ -155,7 +188,10 @@ export function useAgents({
       await invalidate();
       toast.success(t("createdDraft", { name: agent.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      void recount();
+      toast.error(getErrorMessage(error, tErrors));
+    },
   });
 
   /**
@@ -197,7 +233,10 @@ export function useAgents({
           : t("backAsDraft", { name: agent.name }),
       );
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      void recount();
+      toast.error(getErrorMessage(error, tErrors));
+    },
   });
 
   const remove = useMutation({
@@ -216,9 +255,6 @@ export function useAgents({
     // unnarrowed by the filter itself.
     categoryOptions: data?.categories ?? [],
     tagOptions: data?.tags ?? [],
-    // The agents-per-organization limit and the count against it, so New agent
-    // can say a create would be refused before the form is filled in (#2488).
-    ceiling: data?.ceiling ?? null,
     isLoading,
     error,
     refetch,

@@ -19,14 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- `GET /agents` carries `ceiling`: the deployment's agents-per-organization
+  limit and the organization's count against it. It is null when there is no
+  limit, and for a caller without `agents:edit`, since the count includes agents
+  they cannot see (#2488).
+
 ### Fixed
 
-- Say an organization is at its agent limit before a create is attempted.
-  `GET /agents` now carries `ceiling` - the deployment's agents-per-organization
-  limit and the organization's count against it, null when there is no limit -
-  and at the limit the Agents page disables **New agent** and template installs
-  with the reason, instead of refusing the create after the dialog is filled in.
-  The server-side refusal is unchanged (#2488).
+- Say an organization is at its agent limit before a create is attempted. At
+  the limit the Agents page disables **New agent** and template installs with
+  the reason, and the onboarding no longer offers to guide a create, instead of
+  refusing the create after the dialog is filled in. The server-side refusal is
+  unchanged (#2488).
 
 ## [1.18.0] - 2026-10-26
 

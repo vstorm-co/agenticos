@@ -7051,7 +7051,8 @@
   },
   "agentLimit": {
     "title": "This organization is at its agent limit",
-    "body": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has {held}. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit."
+    "body": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has {held}. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit.",
+    "emptyGallery": "None of this organization's agents are shared with you, and it already holds as many as this deployment allows."
   },
   "notifications": {
     "markAllRead": "Mark all read",
