@@ -13,6 +13,7 @@ import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
+import { coalesceChatFrames } from "@/lib/chat-frame-batch";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
@@ -489,7 +490,8 @@ export function useChat(options: UseChatOptions = {}) {
       // question - see `doSend`.
       const createNewMessage = (content: string): string => {
         const newMsgId = clientId();
-        const effectiveConversationId = activeConversationId ?? undefined;
+        const effectiveConversationId =
+          conversationApi.getState().currentConversationId ?? activeConversationId ?? undefined;
         addMessage({
           id: newMsgId,
           role: "assistant",
@@ -1176,6 +1178,7 @@ export function useChat(options: UseChatOptions = {}) {
   // socket, so a conversation never continues under the wrong organization.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const tenantId = useTenantId();
+  const queueAccountId = useAuthStore((state) => state.user?.id);
   const { wsUrl: wsOrigin } = usePublicConfig();
   const wsUrl = useMemo(() => {
     const base = `${wsOrigin}/api/v1/ws/agent`;
@@ -1193,10 +1196,20 @@ export function useChat(options: UseChatOptions = {}) {
   // in-flight /me at a time is enough to recover a stale access token.
   const refreshingRef = useRef(false);
 
+  const handleWebSocketBatch = useCallback(
+    (events: readonly MessageEvent[]) => {
+      for (const event of coalesceChatFrames(events)) handleWebSocketMessage(event);
+    },
+    [handleWebSocketMessage],
+  );
+
   const { isConnected, connect, disconnect, reopen, sendMessage } = useWebSocket({
     url: wsUrl,
     protocols: wsProtocols,
     onMessage: handleWebSocketMessage,
+    onMessageBatch: handleWebSocketBatch,
+    messageScope: JSON.stringify([activeOrgId, queueAccountId, activeConversationId]),
+    identity: queueAccountId,
     // A dropped socket is often a stale access token. Refresh it so the
     // auto-reconnect (and the token-gated connect effect) uses a fresh one.
     // The hook only calls this on genuine drops (not deliberate disconnects),
@@ -1458,7 +1471,6 @@ export function useChat(options: UseChatOptions = {}) {
   // in a ref as well as in state and a ref may not be written while rendering.
   // Before the paint either way, so nothing of the previous tenant is shown.
   const queueBelongsTo = useRef(tenantId);
-  const queueAccountId = useAuthStore((state) => state.user?.id);
   const queueAccount = useRef(queueAccountId);
   useLayoutEffect(() => {
     if (queueBelongsTo.current === tenantId && queueAccount.current === queueAccountId) return;

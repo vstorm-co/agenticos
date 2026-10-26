@@ -1,5 +1,5 @@
 ---
-source_sha: "22652979b979"
+source_sha: "f059e3252bba"
 ---
 
 # Kod konsoli { #the-consoles-code }
@@ -51,6 +51,24 @@ hooka.** Żadnego `fetch` w komponencie.
 Dane serwerowe mieszkają w warstwie zapytań; **store'y trzymają wyłącznie stan
 UI i stan ulotny**. Zarejestruj każdy klucz zapytania w `query-keys.ts`, żeby
 unieważnianie po zapisie pozostawało spójne.
+
+## Historia czatu i aktualizacje streamu { #chat-history-and-streamed-updates }
+
+Konsola otwiera najnowszą stronę transcriptu i doczytuje wcześniejsze wiadomości na
+żądanie. Chip projektu odczytuje `/conversations/{id}/metadata`, z tą samą kontrolą
+czytelnika i organizacji, bez ładowania wiadomości. Odczyty repozytorium pomijają
+zapisane podsumowanie modelu, chyba że odtworzenie historii modelu jawnie go żąda.
+
+Socket czatu dostarcza serie ramek raz na klatkę animacji, z fallbackiem 50 ms dla
+ukrytych kart i limitem kolejki 256 ramek. Sąsiednie delty tekstu lub rozumowania
+są łączone; granice sterowania, narzędzi i części zachowują kolejność. Zmiana
+rozmowy, konta lub organizacji usuwa oczekujące ramki.
+
+Niezmieniony Markdown i wyniki narzędzi są wykorzystywane ponownie. Przewijanie
+śledzi zmierzony przyrost treści. Gotowe wizualizacje montują się blisko viewportu
+i odmontowują poza nim, zachowując zmierzone miejsce; ich skrypty uruchamiają się
+ponownie po powrocie. Streamowane wizualizacje pozostają aktywne, a pełny ekran
+wstrzymuje kopię w transcripcie.
 
 ## Uprawnienia to decyzja o renderowaniu { #permissions-are-a-rendering-decision }
 

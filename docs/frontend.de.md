@@ -1,5 +1,5 @@
 ---
-source_sha: "22652979b979"
+source_sha: "f059e3252bba"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -53,6 +53,26 @@ konsumiert.** Kein `fetch` in einer Komponente.
 Serverdaten wohnen in der Query-Schicht; **Stores halten nur UI- und flüchtigen
 State**. Registrieren Sie jeden Query Key in `query-keys.ts`, damit die
 Invalidierung nach einem Schreibvorgang konsistent bleibt.
+
+## Chatverlauf und Stream-Aktualisierungen { #chat-history-and-streamed-updates }
+
+Die Konsole öffnet die neueste Transcript-Seite und lädt frühere Nachrichten auf
+Anforderung. Projekt-Chips lesen `/conversations/{id}/metadata` mit denselben
+Leser- und Organisationsprüfungen, ohne Nachrichten zu laden. Repository-Lesezugriffe
+lassen die gespeicherte Modellzusammenfassung aus, sofern die Rekonstruktion des
+Modellverlaufs sie nicht ausdrücklich anfordert.
+
+Chat-Sockets liefern Nachrichtenserien einmal pro Animationsframe, mit einem
+50-ms-Fallback für verborgene Tabs und einer Warteschlangengrenze von 256 Frames.
+Benachbarte Text- oder Denk-Deltas werden zusammengefasst; Steuerungs-, Tool- und
+Teilgrenzen behalten ihre Reihenfolge. Ein Wechsel von Unterhaltung, Konto oder
+Organisation verwirft gepufferte Frames.
+
+Unverändertes Markdown und Tool-Ausgaben werden wiederverwendet. Das Scrollen folgt
+dem gemessenen Inhaltswachstum. Fertige Zeichnungen werden nahe dem Viewport
+eingebunden und außerhalb entfernt, behalten aber ihren gemessenen Platz; bei der
+Rückkehr starten ihre Skripte neu. Gestreamte Zeichnungen bleiben aktiv, und der
+Vollbildmodus pausiert die Inline-Kopie.
 
 ## Permissions sind eine Rendering-Entscheidung { #permissions-are-a-rendering-decision }
 

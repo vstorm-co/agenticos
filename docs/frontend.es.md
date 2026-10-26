@@ -1,5 +1,5 @@
 ---
-source_sha: "22652979b979"
+source_sha: "f059e3252bba"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -52,6 +52,26 @@ de un hook.** Nada de `fetch` en un componente.
 Los datos del servidor viven en la capa de queries; **los stores guardan solo
 state de UI y efímero**. Registra cada query key en `query-keys.ts` para que la
 invalidación tras una escritura se mantenga consistente.
+
+## Historial del chat y actualizaciones del stream { #chat-history-and-streamed-updates }
+
+La consola abre la página más reciente del transcript y carga mensajes anteriores
+bajo demanda. Los chips de proyecto consultan `/conversations/{id}/metadata`, con
+las mismas comprobaciones de lector y organización, sin cargar mensajes. Las
+lecturas del repositorio omiten el resumen almacenado del modelo, salvo que la
+reconstrucción de su historial lo solicite explícitamente.
+
+Los sockets del chat entregan ráfagas una vez por frame de animación, con una
+alternativa de 50 ms para pestañas ocultas y un límite de cola de 256 frames.
+Los deltas contiguos de texto o razonamiento se combinan; los límites de control,
+herramientas y partes conservan su orden. Cambiar de conversación, cuenta u
+organización descarta los frames pendientes.
+
+Se reutilizan el Markdown y los resultados de herramientas sin cambios. El
+desplazamiento sigue el crecimiento medido del contenido. Los dibujos terminados
+se montan cerca del viewport y se desmontan fuera, conservando su espacio medido;
+sus scripts se reinician al volver. Los dibujos en stream siguen activos y la
+pantalla completa suspende la copia del transcript.
 
 ## Los permisos son una decisión de renderizado { #permissions-are-a-rendering-decision }
 
