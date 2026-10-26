@@ -1,5 +1,5 @@
 ---
-source_sha: "0b4f246091bb"
+source_sha: "1b075bc0f314"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -156,12 +156,16 @@ verwendet hat. Das Modell bestimmt, *was* gesucht wird, niemals *wo*: Die
 Collections werden vor dem Run aus dem Spec aufgelöst und der Capability übergeben,
 sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat.
 
-Jedes Ergebnis nennt sein Dokument und die Stelle des Treffers darin. Ein PDF oder
-eine Präsentation nennt die Seite. Eine Markdown-, Text- oder Word-Datei hat keine
-Seiten; sie nennt die Abschnittsüberschrift, mit der der getroffene Chunk beginnt,
-oder nur den Dokumentnamen. Das entscheidet der Dokumenttyp, wenn das Ergebnis
-angezeigt wird, sodass eine früher ingestierte Collection keine erneute Ingestion
-braucht.
+Jedes Ergebnis nennt sein Dokument und die Stelle des Treffers darin. Ein PDF, eine
+Präsentation oder eine Textverarbeitungsdatei wie `.doc`, `.odt` oder `.rtf` nennt
+die Seite. Eine `.docx`-Datei, eine Tabelle oder eine Markdown-Datei hat keine
+Seite, die ein Leser öffnen kann. Sie nennt die Abschnittsüberschrift, mit der der
+getroffene Chunk beginnt, wenn er mit einer beginnt, oder nur den Dokumentnamen.
+Eine reine Textdatei nennt nur den Dokumentnamen, weil eine Zeile mit `#` am Anfang
+zu ihrem Text gehört.
+
+Das entscheidet der Dokumenttyp, wenn das Ergebnis angezeigt wird, sodass eine
+früher ingestierte Collection keine erneute Ingestion braucht.
 
 | Konfiguration | Standard | Bereich |
 |---|---|---|

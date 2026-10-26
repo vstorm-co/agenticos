@@ -1,5 +1,5 @@
 ---
-source_sha: "0b4f246091bb"
+source_sha: "1b075bc0f314"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -153,10 +153,14 @@ pyta, *czego* szukać, nigdy *gdzie*: kolekcje są rozwiązywane ze speca przed
 runem i przekazywane capability, więc agent nie sięgnie do kolekcji, której nikt
 do niego nie podłączył.
 
-Każdy wynik podaje swój dokument i miejsce dopasowania w nim. PDF lub prezentacja
-podaje stronę. Plik Markdown, tekstowy lub Word nie ma stron, więc podaje nagłówek
-sekcji, od którego zaczyna się dopasowany chunk, albo tylko nazwę dokumentu. O tym
-decyduje typ dokumentu w chwili pokazania wyniku, więc kolekcja zaindeksowana
+Każdy wynik podaje swój dokument i miejsce dopasowania w nim. PDF, prezentacja lub
+plik edytora tekstu taki jak `.doc`, `.odt` czy `.rtf` podaje stronę. Plik `.docx`,
+arkusz kalkulacyjny lub plik Markdown nie ma strony, którą czytelnik może otworzyć.
+Podaje nagłówek sekcji, od którego zaczyna się dopasowany chunk, jeśli chunk się od
+niego zaczyna, albo tylko nazwę dokumentu. Plik tekstowy podaje tylko nazwę
+dokumentu, bo linia zaczynająca się od `#` jest częścią jego tekstu.
+
+O tym decyduje typ dokumentu w chwili pokazania wyniku, więc kolekcja zaindeksowana
 wcześniej nie wymaga ponownej ingestii.
 
 | Konfiguracja | Domyślnie | Zakres wartości |

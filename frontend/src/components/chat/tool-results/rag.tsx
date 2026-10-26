@@ -8,6 +8,8 @@ interface RAGResultItem {
   index: number;
   source: string;
   page?: string;
+  /** The heading the matched chunk opens with, for a source without pages (#2489). */
+  section?: string;
   chunk?: string;
   collection?: string;
   score: string;
@@ -16,19 +18,22 @@ interface RAGResultItem {
 
 export function parseRAGResults(result: string): RAGResultItem[] {
   const items: RAGResultItem[] = [];
-  // Match: [1] Source: filename, page X, chunk Y [collection] (score: 0.xxx)\ncontent
+  // Match: [1] Source: filename, page X | section "Heading", chunk Y [collection],
+  // with surrounding text (score: 0.xxx)\ncontent - every part after the name
+  // optional. The backend never puts a `"` inside the section's quotes.
   const pattern =
-    /\[(\d+)\]\s*Source:\s*([^,\n]+?)(?:,\s*page\s*(\d+))?(?:,\s*chunk\s*(\d+))?(?:\s*\[([^\]]+)\])?\s*\(score:\s*([\d.]+)\)\n([\s\S]*?)(?=\n\[\d+\]|$)/g;
+    /\[(\d+)\]\s*Source:\s*([^,\n]+?)(?:,\s*page\s*(\d+))?(?:,\s*section\s*"([^"\n]*)")?(?:,\s*chunk\s*(\d+))?(?:\s*\[([^\]]+)\])?(?:,\s*with surrounding text)?\s*\(score:\s*([\d.]+)\)\n([\s\S]*?)(?=\n\[\d+\]|$)/g;
   let match;
   while ((match = pattern.exec(result)) !== null) {
     items.push({
       index: parseInt(match[1] ?? "0"),
       source: (match[2] ?? "").trim(),
       page: match[3],
-      chunk: match[4],
-      collection: match[5],
-      score: match[6] ?? "",
-      content: (match[7] ?? "").trim(),
+      section: match[4] || undefined,
+      chunk: match[5],
+      collection: match[6],
+      score: match[7] ?? "",
+      content: (match[8] ?? "").trim(),
     });
   }
   return items;
@@ -143,12 +148,15 @@ function RAGSourceGroup({
                   >
                     {chunk.content}
                   </p>
-                  {(chunk.page || chunk.chunk) && (
+                  {(chunk.page || chunk.section || chunk.chunk) && (
                     <div className="text-muted-foreground mt-1 flex items-center gap-1.5 font-mono text-xs tracking-wider uppercase">
                       {chunk.page && <span>p.{chunk.page}</span>}
+                      {chunk.section && (
+                        <span className="truncate normal-case">{chunk.section}</span>
+                      )}
                       {chunk.chunk && (
                         <>
-                          {chunk.page && <span>·</span>}
+                          {(chunk.page || chunk.section) && <span>·</span>}
                           <span>{t("chunkNumber", { number: chunk.chunk })}</span>
                         </>
                       )}

@@ -59,9 +59,11 @@ LITEPARSE_IMAGE_FORMATS: set[str] = {
     ".svg",
 }
 
-# Mirrors OFFICE_EXTENSIONS + PRESENTATION_EXTENSIONS + SPREADSHEET_EXTENSIONS
+# Mirrors OFFICE_EXTENSIONS + PRESENTATION_EXTENSIONS, then SPREADSHEET_EXTENSIONS,
 # in liteparse's `conversion.rs`. Kept in that order so the two can be diffed.
-LITEPARSE_OFFICE_FORMATS: set[str] = {
+# Split in two because the first set has pages a citation can name and the
+# second does not (#2489).
+LITEPARSE_PAGED_OFFICE_FORMATS: set[str] = {
     ".doc",
     ".docx",
     ".docm",
@@ -81,6 +83,9 @@ LITEPARSE_OFFICE_FORMATS: set[str] = {
     ".odp",
     ".otp",
     ".key",
+}
+
+LITEPARSE_SPREADSHEET_FORMATS: set[str] = {
     ".xls",
     ".xlsx",
     ".xlsm",
@@ -91,6 +96,8 @@ LITEPARSE_OFFICE_FORMATS: set[str] = {
     ".tsv",
     ".numbers",
 }
+
+LITEPARSE_OFFICE_FORMATS: set[str] = LITEPARSE_PAGED_OFFICE_FORMATS | LITEPARSE_SPREADSHEET_FORMATS
 
 LITEPARSE_PDF_FORMATS: set[str] = {".pdf"} | LITEPARSE_IMAGE_FORMATS | LITEPARSE_OFFICE_FORMATS
 

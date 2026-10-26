@@ -141,11 +141,15 @@ asks *what* to search, never *where*: collections are resolved from the spec
 before the run and handed to the capability, so an agent cannot reach a collection
 nobody connected to it.
 
-Each result names its document and where in it the match is. A PDF or a
-presentation gives the page. A Markdown, text or Word file has no pages, so it
-gives the section heading the matched chunk starts with, or only the document
-name. This is decided from the document's type when the result is shown, so a
-collection ingested earlier needs no re-ingestion.
+Each result names its document and where in it the match is. A PDF, a presentation
+or a word-processing file such as `.doc`, `.odt` or `.rtf` gives the page. A `.docx`
+file, a spreadsheet or a Markdown file has no page a reader can open. It gives the
+section heading the matched chunk starts with, if the chunk starts with one, or only
+the document name. A plain-text file gives only the document name, because a line
+starting with `#` is part of its text.
+
+This is decided from the document's type when the result is shown, so a collection
+ingested earlier needs no re-ingestion.
 
 | Config | Default | Range |
 |---|---|---|

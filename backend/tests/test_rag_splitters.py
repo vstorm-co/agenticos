@@ -22,9 +22,9 @@ from app.services.rag._splitters import (
     DEFAULT_SEPARATORS,
     MarkdownHeaderSplitter,
     RecursiveCharacterSplitter,
-    _header_level,
     _split_keeping_separator,
     _split_on_headers,
+    header_level,
 )
 from app.services.rag.config import RAGSettings
 from app.services.rag.documents import DocumentProcessor
@@ -296,7 +296,7 @@ class TestHeaderLevel:
         ],
     )
     def test_a_marker_only_opens_a_header_when_a_space_or_nothing_follows(self, line, level):
-        assert _header_level(line) == level
+        assert header_level(line) == level
 
 
 class TestHeaderSections:

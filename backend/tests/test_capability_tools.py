@@ -524,12 +524,24 @@ class TestKnowledgeFormatting:
         result.metadata = {"filename": "capabilities.pl.md", "filetype": "md", "page_num": 1}
         formatted = _format_results([result])
         assert "Source: capabilities.pl.md (score" in formatted
-        assert "page" not in formatted
+        assert "capabilities.pl.md, page" not in formatted
 
     def test_a_markdown_hit_names_the_section_it_opens(self):
         result = MagicMock(score=0.9, content="## Knowledge\nSearches.", expanded_content=None)
         result.metadata = {"filename": "capabilities.md", "filetype": "md", "page_num": 1}
         assert 'Source: capabilities.md, section "Knowledge" (score' in _format_results([result])
+
+    def test_the_section_is_the_matched_chunks_not_the_expanded_passages(self):
+        """Small-to-big text opens with a neighbour's heading; the citation is the match's."""
+        result = MagicMock(
+            score=0.9,
+            content="## Knowledge\nSearches.",
+            expanded_content="## Overview\nBefore.\n\n## Knowledge\nSearches.",
+        )
+        result.metadata = {"filename": "capabilities.md", "filetype": "md", "page_num": 1}
+        formatted = _format_results([result])
+        assert 'section "Knowledge"' in formatted
+        assert 'section "Overview"' not in formatted
 
     def test_the_model_is_told_to_cite_inline(self):
         """Without this instruction models append a bibliography nobody reads."""

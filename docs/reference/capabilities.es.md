@@ -1,5 +1,5 @@
 ---
-source_sha: "0b4f246091bb"
+source_sha: "1b075bc0f314"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -156,12 +156,16 @@ modelo pide *qué* buscar, nunca *dónde*: las colecciones se resuelven desde el
 antes del run y se entregan a la capability, así que un agent no puede alcanzar una
 colección que nadie le conectó.
 
-Cada resultado nombra su documento y dónde está la coincidencia en él. Un PDF o una
-presentación da la página. Un archivo Markdown, de texto o de Word no tiene
-páginas, así que da el encabezado de sección con el que empieza el chunk
-coincidente, o solo el nombre del documento. Lo decide el tipo del documento al
-mostrar el resultado, así que una colección ingerida antes no necesita volver a
-ingerirse.
+Cada resultado nombra su documento y dónde está la coincidencia en él. Un PDF, una
+presentación o un archivo de procesador de textos como `.doc`, `.odt` o `.rtf` da la
+página. Un archivo `.docx`, una hoja de cálculo o un archivo Markdown no tiene una
+página que un lector pueda abrir. Da el encabezado de sección con el que empieza el
+chunk coincidente, si empieza con uno, o solo el nombre del documento. Un archivo de
+texto plano da solo el nombre del documento, porque una línea que empieza por `#` es
+parte de su texto.
+
+Lo decide el tipo del documento al mostrar el resultado, así que una colección
+ingerida antes no necesita volver a ingerirse.
 
 | Configuración | Valor por defecto | Rango |
 |---|---|---|
