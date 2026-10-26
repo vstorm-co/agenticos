@@ -130,6 +130,14 @@ def _connection_state(
     return "connected"
 
 
+def _covers_read_scopes(required: Sequence[str], granted: Sequence[str]) -> bool:
+    """Graph may spell delegated scopes either bare or with its resource prefix."""
+    prefix = "https://graph.microsoft.com/"
+    return {
+        scope.removeprefix(prefix).casefold() for scope in required if scope != "offline_access"
+    }.issubset({scope.removeprefix(prefix).casefold() for scope in granted})
+
+
 def _connect_blocked_by(
     portal: portal_catalog.PortalEntry, *, oauth_apps: int
 ) -> Literal["oauth_app_secret", "ambiguous_oauth_app_secret", "oauth_unavailable"] | None:
@@ -326,6 +334,15 @@ def _guard_shared_mailbox(
         AuthorizationError: A new or changed `mailbox` from a caller without
             `mcp:manage`.
     """
+    if event_source == EventSource.MICROSOFT_FILES.value:
+        site = str(config.get("site_url") or "").strip().rstrip("/").casefold()
+        previous = str((before or {}).get("site_url") or "").strip().rstrip("/").casefold()
+        if site and site != previous and not ctx.has(Perm.MCP_MANAGE):
+            message = "Choosing a SharePoint site needs the permission to manage connections"
+            raise AuthorizationError(
+                message=message, details=field_details("event_config.site_url", message)
+            )
+        return
     if event_source != EventSource.OUTLOOK.value:
         return
     mailbox = str(config.get("mailbox") or "").casefold()
@@ -542,7 +559,11 @@ class AgentTriggerService:
             # along.
             connection = (
                 await self.connections.get_org_portal_grant(ctx, portal.key)
-                if portal.delivery is portal_catalog.DeliveryMode.POLLING
+                if portal.delivery
+                in {
+                    portal_catalog.DeliveryMode.POLLING,
+                    portal_catalog.DeliveryMode.APP_WEBHOOK,
+                }
                 else await mcp_connection_repo.get_org_scoped_by_catalog_key(
                     self.db,
                     organization_id=ctx.organization_id,
@@ -565,7 +586,16 @@ class AgentTriggerService:
                     webhook_admin_scopes=list(portal.webhook_admin_scopes),
                     connection_id=connection.id if connection is not None else None,
                     connection_state=(
-                        _connection_state(connection) if connection is not None else None
+                        (
+                            "needs_authorization"
+                            if portal.delivery is DeliveryMode.POLLING
+                            and not _covers_read_scopes(
+                                portal.read_scopes, connection.granted_scopes or ()
+                            )
+                            else _connection_state(connection)
+                        )
+                        if connection is not None
+                        else None
                     ),
                     connect_blocked_by=_connect_blocked_by(
                         portal, oauth_apps=stored.get(portal.oauth_app_kind or "", 0)
@@ -583,6 +613,7 @@ class AgentTriggerService:
                             label=preset.label,
                             description=preset.description,
                             target_required=preset.target_required,
+                            event_config=preset.event_config,
                         )
                         for preset in portal.presets
                     ],
@@ -619,9 +650,15 @@ class AgentTriggerService:
         adapter = portals.get_adapter(portal_key)
         if adapter is None:
             return []
-        token = await self.connections.webhook_access_token(
-            ctx, connection_id, required_scopes=portal.read_scopes
-        )
+        if portal.delivery is DeliveryMode.APP_WEBHOOK:
+            grant = await self.connections.get_org_portal_connection(ctx, connection_id)
+            if grant.portal_key != portal.key or not grant.is_enabled:
+                return []
+            token = await self.connections.github_app_access_token(grant)
+        else:
+            token = await self.connections.webhook_access_token(
+                ctx, connection_id, required_scopes=portal.read_scopes
+            )
         if token is None:
             return []
         return await adapter.list_preset_targets(access_token=token)
@@ -705,7 +742,7 @@ class AgentTriggerService:
                     # in the same table under different purposes: a polled grant is
                     # invisible to every MCP-facing read, so proving it through the
                     # MCP lookup refused the caller's own mailbox as not found.
-                    if polled:
+                    if polled or portal.delivery is DeliveryMode.APP_WEBHOOK:
                         grant = await self.connections.get_org_portal_connection(
                             ctx, data.connection_id
                         )
@@ -1575,6 +1612,7 @@ class AgentTriggerService:
         organization_id: UUID,
         event_source: str,
         events: Sequence[portals.PolledEvent],
+        announced: dict[str, str] | None = None,
     ) -> list[EventFireDecision]:
         """Which triggers one poll's events should fire, in the order they arrived.
 
@@ -1607,8 +1645,28 @@ class AgentTriggerService:
                     event_source, headers={}, payload=event.payload, config=trigger.event_config
                 ):
                     continue
+                file_key: str | None = None
+                if announced is not None and event_source in {
+                    EventSource.GOOGLE_DRIVE.value,
+                    EventSource.MICROSOFT_FILES.value,
+                }:
+                    file_key = f"{trigger.id}:{event.payload.get('place', '')}:{event.payload.get('file_id', '')}"
+                    previous = announced.get(file_key)
+                    if previous is not None:
+                        try:
+                            recent = datetime.fromisoformat(previous)
+                        except ValueError:
+                            recent = None
+                        if (
+                            recent is not None
+                            and recent.tzinfo is not None
+                            and datetime.now(UTC) - recent < timedelta(minutes=30)
+                        ):
+                            continue
                 if not await self._claim(trigger.id, event.delivery_id):
                     continue
+                if file_key is not None and announced is not None:
+                    announced[file_key] = datetime.now(UTC).isoformat()
                 decisions.append(
                     EventFireDecision(
                         trigger_id=trigger.id,

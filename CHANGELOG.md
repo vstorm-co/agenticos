@@ -58,6 +58,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Trigger integrations follow provider contracts.** Sender filters use the real
+  address, SharePoint site selection requires connection-management permission,
+  calendar reads paginate with the required scopes, and file watches resolve
+  folders outside delta responses and retain their creation boundary. Debounce
+  applies only after a trigger matches. Gmail retains overflow for later ticks
+  and reads separately stored MIME bodies. GitHub App installation binding and
+  repository selection work through their own grant. The console edits file and
+  calendar filters, own changes, mentions, branches and meeting leads, and hides
+  signing-secret rotation for polled triggers. Reconnect Microsoft Files and
+  Google Calendar accounts to approve their additional read scopes.
+
 - **A Gmail trigger no longer fires on the account's own mail.** Sent mail,
   drafts, spam and the bin were read as arrivals, so an agent replying by email
   set its own trigger off. They fire only a trigger whose label names them.

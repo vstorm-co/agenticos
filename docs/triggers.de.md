@@ -1,5 +1,5 @@
 ---
-source_sha: "863f89d4d163"
+source_sha: "3530a3aa9612"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -250,9 +250,10 @@ postet. Was Sie darüber wissen sollten, wie es liest:
   das Verbinden löst den Agent also nicht einmal pro bereits dort liegender
   Nachricht aus, und Post, die zwischen der Zustimmung und dem ersten Heartbeat
   eintrifft, landet trotzdem nach dieser Position und löst aus.
-- **Ein Schwall ist begrenzt.** Ein Tick liest höchstens 25 neue Nachrichten
-  vollständig. Der Abwurf einer Mailingliste wird nicht zu 400 Agent-Runs; die
-  Position rückt trotzdem vor, der Rückstand wird also nicht ewig neu gelesen.
+- **Ein Schwall wird eingereiht.** Ein Tick liest höchstens 25 Nachrichten
+  vollständig. Ungelesene Nachrichten-IDs bleiben im Cursor und werden in späteren
+  Ticks von der ältesten an verarbeitet, auch ohne neue Verlaufseinträge.
+  Gesendete Nachrichten und Spam verdrängen eingehende Nachrichten nicht dauerhaft.
 - **Eine Nachricht kann mehrere Trigger auslösen.** Anders als bei einem Webhook,
   dessen URL genau einen benennt - "jede Nachricht" und "als wichtig markiert" auf
   demselben Postfach lösen beide aus.
@@ -371,6 +372,10 @@ protokolliert (`trigger_mail_unauthenticated`, mit der Domain des Absenders), un
 `authenticated_only` auf `false` in der `event_config` des Triggers lässt diesen
 Absender durch.
 
+Ein Absenderfilter prüft die geparste Adresse, niemals den Anzeigenamen.
+Eine vollständige Adresse oder ein `@domain`-Filter muss exakt passen; anderer
+Text wird als Teil der Adresse gesucht. DMARC authentifiziert keinen Anzeigenamen.
+
 ## HubSpot { #hubspot }
 
 HubSpot verschickt Webhooks aus einer App - eine Private App in Ihrem
@@ -428,7 +433,7 @@ als Dateien:
 | | Google Drive | OneDrive & SharePoint |
 |---|---|---|
 | Secret im Vault | Der Google-OAuth-Client von Gmail, mit aktivierter Drive API | Die Microsoft-OAuth-App von Outlook |
-| Berechtigung | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `offline_access` (ohne Administratorzustimmung) |
+| Berechtigung | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `User.Read`, `offline_access` (ohne Administratorzustimmung) |
 | Wo es schaut | Jede Datei, die das Konto sieht, geteilte Ablagen eingeschlossen | Das eigene OneDrive des Kontos, oder die Dokumentbibliothek einer SharePoint-Website je `site_url` |
 | Grenzt ein nach | `folder_id` (Link oder ID des Ordners), `name_contains` | `folder_path` (ein Ordner und alles darunter), `name_contains` |
 
@@ -451,6 +456,21 @@ Presets bieten **New files** und **New or changed files**.
 - **Eine Website, die nicht gelesen werden kann, stoppt ihre Trigger**, mit dem
   Grund im Audit-Log, während die anderen Orte des Kontos weiter gelesen werden.
 
+Die Auswahl oder Änderung einer SharePoint-`site_url` erfordert `mcp:manage`,
+auch über die API. Der Zugriff des verbundenen Kontos berechtigt den Ersteller
+nicht zur Auswahl einer neuen Website. Dasselbe gilt für freigegebene Postfächer.
+Die Identitätsabfrage verwendet `User.Read`; SharePoint benötigt kein persönliches
+OneDrive. Verbinden Sie bestehende Microsoft-Files- und Google-Calendar-Konten
+erneut, um die zusätzlichen Leseberechtigungen zu erteilen.
+
+Im Trigger-Editor können Sie Datei- und Kalenderfilter ändern, eigene Änderungen
+einschließen und den Vorlauf auf 5 bis 120 Minuten setzen. GitHub-Vorlagen lassen
+Erwähnungstext und kommagetrennte Branches ändern. Abgefragte Trigger haben keine
+Signatur-Secret-Rotation. Die Wiederholungssperre gilt je passendem Trigger:
+Eine ignorierte eigene Änderung blockiert keine spätere fremde Änderung.
+Beide Kalender folgen Folgeseiten bis zu einem festen Limit; dessen Überschreitung
+meldet einen Providerfehler statt unvollständige Ergebnisse zu akzeptieren.
+
 ## Termine: Google Calendar und Outlook Calendar { #meetings-google-calendar-and-outlook-calendar }
 
 Ein Kalender-Trigger löst **vor** einem Termin aus statt dann, wenn sich etwas
@@ -463,7 +483,7 @@ Beschreibung - genug, um ein Briefing vorzubereiten.
 | | Google Calendar | Outlook Calendar |
 |---|---|---|
 | Secret im Vault | Der Google-OAuth-Client, mit aktivierter Calendar API | Die Microsoft-OAuth-App |
-| Berechtigung | `calendar.events.readonly` | `Calendars.Read`, `offline_access` |
+| Berechtigung | `calendar.events.readonly`, `calendar.calendars.readonly` | `Calendars.Read`, `offline_access` |
 | Gelesener Kalender | Der Hauptkalender des Kontos | Der Standardkalender des Kontos |
 
 - **Nur ein Termin.** Einer ohne sonst jemanden, einer, den Sie abgelehnt haben,

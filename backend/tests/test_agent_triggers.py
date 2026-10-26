@@ -2810,6 +2810,9 @@ class TestCreatingFromAPortalPreset:
             repo.create = AsyncMock(
                 return_value=_event_trigger(conversation_id=uuid.uuid4(), delivery_mode="manual")
             )
+            service.connections.get_org_portal_connection = AsyncMock(
+                return_value=MagicMock(portal_key="github_app")
+            )
             result = await service.create(_ctx(), agent.id, _preset_create(portal_key="github_app"))
 
         assert result.provider_target == "acme/api"
@@ -4113,3 +4116,109 @@ class TestASharedMailbox:
         )
 
         updated.assert_awaited_once()
+
+
+class TestPortalReviewRegressions:
+    async def test_an_operator_cannot_expand_the_sharepoint_grants_reach(self) -> None:
+        data = TriggerCreate(
+            trigger_type="event",
+            prompt="Watch",
+            portal_key="microsoft_files",
+            preset_key="any_change",
+            event_config={"site_url": "https://acme.sharepoint.com/sites/Executive"},
+        )
+        with pytest.raises(AuthorizationError):
+            await TestASharedMailbox()._create(OrgRoleName.OPERATOR, data)
+        created = await TestASharedMailbox()._create(OrgRoleName.OWNER, data)
+        assert created.await_args.kwargs["event_config"]["site_url"].endswith("Executive")
+
+    async def test_a_skipped_file_edit_does_not_debounce_an_eligible_change(self) -> None:
+        from app.services.portals import PolledEvent
+
+        trigger = _event_trigger(event_source="google_drive", event_config={})
+        service = _service()
+        service._claim = AsyncMock(return_value=True)
+        record: dict[str, str] = {}
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.list_active_for_event_source = AsyncMock(return_value=[trigger])
+            skipped = await service.prepare_polled_fires(
+                organization_id=_ORG,
+                event_source="google_drive",
+                events=[
+                    PolledEvent(
+                        delivery_id="own",
+                        payload={"file_id": "doc", "change": "modified", "by_account": True},
+                    )
+                ],
+                announced=record,
+            )
+            assert skipped == [] and record == {}
+            accepted = await service.prepare_polled_fires(
+                organization_id=_ORG,
+                event_source="google_drive",
+                events=[
+                    PolledEvent(
+                        delivery_id="other",
+                        payload={"file_id": "doc", "change": "modified", "by_account": False},
+                    )
+                ],
+                announced=record,
+            )
+            assert len(accepted) == 1
+            repeated = await service.prepare_polled_fires(
+                organization_id=_ORG,
+                event_source="google_drive",
+                events=[
+                    PolledEvent(
+                        delivery_id="third",
+                        payload={"file_id": "doc", "change": "modified", "by_account": False},
+                    )
+                ],
+                announced=record,
+            )
+            assert repeated == []
+
+
+@pytest.mark.anyio
+async def test_github_app_target_listing_uses_the_installation_grant() -> None:
+    service = _service()
+    grant = MagicMock(portal_key="github_app", is_enabled=True)
+    service.connections.get_org_portal_connection = AsyncMock(return_value=grant)
+    service.connections.github_app_access_token = AsyncMock(return_value="installation-token")
+    adapter = MagicMock(
+        list_preset_targets=AsyncMock(return_value=[PortalTarget(id="acme/api", label="acme/api")])
+    )
+    with patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter):
+        targets = await service.list_portal_targets(
+            _ctx(), "github_app", uuid.uuid4(), agent_id=uuid.uuid4()
+        )
+        assert targets[0].id == "acme/api"
+        grant.is_enabled = False
+        assert (
+            await service.list_portal_targets(
+                _ctx(), "github_app", uuid.uuid4(), agent_id=uuid.uuid4()
+            )
+            == []
+        )
+    service.connections.github_app_access_token.assert_awaited_once_with(grant)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("stamp", ["invalid", "2026-01-01T00:00:00", "2000-01-01T00:00:00+00:00"])
+async def test_a_file_debounce_record_from_an_old_cursor_can_be_recovered(stamp: str) -> None:
+    from app.services.portals import PolledEvent
+
+    trigger = _event_trigger(event_source="google_drive", event_config={})
+    service = _service()
+    service._claim = AsyncMock(return_value=True)
+    with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+        repo.list_active_for_event_source = AsyncMock(return_value=[trigger])
+        decisions = await service.prepare_polled_fires(
+            organization_id=_ORG,
+            event_source="google_drive",
+            events=[
+                PolledEvent(delivery_id="new", payload={"file_id": "doc", "change": "modified"})
+            ],
+            announced={f"{trigger.id}::doc": stamp},
+        )
+    assert len(decisions) == 1

@@ -16,6 +16,7 @@ from app.services.portals import _calendar
 from app.services.portals._api import TIMEOUT, get_json, nested
 from app.services.portals._files import parse_time
 from app.services.portals.base import NOWHERE, PolledEvents, PortalAdapter
+from app.services.portals.exceptions import PortalUnreachable
 
 _API_BASE = "https://graph.microsoft.com/v1.0"
 _FIELDS = (
@@ -51,23 +52,30 @@ class OutlookCalendarPortalAdapter(PortalAdapter):
             watched = _calendar.leads(places)
             if not watched:
                 return PolledEvents(events=(), cursor=cursor)
-            listing = await self._get(
-                client,
-                access_token,
-                f"{_API_BASE}/me/calendarView",
-                {
-                    "startDateTime": now.isoformat(),
-                    "endDateTime": (now + timedelta(minutes=max(watched))).isoformat(),
-                    "$select": _FIELDS,
-                    "$orderby": "start/dateTime",
-                    "$top": "50",
-                },
-            )
-        meetings = [
-            meeting
-            for item in listing.get("value") or []
-            if (meeting := _meeting(item, account=cursor["account"])) is not None
-        ]
+            params: dict[str, str] | None = {
+                "startDateTime": now.isoformat(),
+                "endDateTime": (now + timedelta(minutes=max(watched))).isoformat(),
+                "$select": _FIELDS,
+                "$orderby": "start/dateTime",
+                "$top": "1000",
+            }
+            url = f"{_API_BASE}/me/calendarView"
+            meetings: list[_calendar.Meeting] = []
+            for _ in range(10):
+                listing = await self._get(client, access_token, url, params)
+                meetings.extend(
+                    meeting
+                    for item in listing.get("value") or []
+                    if (meeting := _meeting(item, account=cursor["account"])) is not None
+                )
+                following = listing.get("@odata.nextLink")
+                if not isinstance(following, str) or not following:
+                    break
+                if not following.startswith(_API_BASE + "/"):
+                    raise PortalUnreachable(message="Microsoft Graph returned an invalid page URL")
+                url, params = following, None
+            else:
+                raise PortalUnreachable(message="Outlook Calendar pagination limit reached")
         events, announced = _calendar.announce(
             meetings,
             watched=watched,
@@ -81,7 +89,7 @@ class OutlookCalendarPortalAdapter(PortalAdapter):
         )
 
     async def _get(
-        self, client: httpx.AsyncClient, access_token: str, url: str, params: dict[str, str]
+        self, client: httpx.AsyncClient, access_token: str, url: str, params: dict[str, str] | None
     ) -> dict[str, Any]:
         return await get_json(
             client,

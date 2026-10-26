@@ -7037,7 +7037,7 @@
     "targetPlaceholder": "Choose one",
     "targetFreeText": "e.g. owner/repository",
     "polledTitle": "Trigger created",
-    "polledDescription": "Nothing else to set up. Your mailbox is checked every minute and a matching message fires the agent.",
+    "polledDescription": "The connected service is checked every minute. Matching events start the agent.",
     "registeredTitle": "Trigger ready",
     "registeredDescription": "The webhook was registered for you. The agent runs when the event arrives.",
     "manualResultDescription": "Add this webhook URL to your provider. Nothing fires until it delivers.",
@@ -7064,7 +7064,18 @@
     "folderPathFilterPlaceholder": "e.g. Invoices/2026",
     "attendeeFilterLabel": "Attendee contains",
     "attendeeFilterPlaceholder": "e.g. @client.com",
-    "oauthAppFallback": "OAuth app"
+    "oauthAppFallback": "OAuth app",
+    "includeOwnChanges": "Include my own changes",
+    "mentionFilterLabel": "Mention phrase",
+    "branchesFilterLabel": "Branches (comma-separated)",
+    "minutesBeforeLabel": "Minutes before the meeting",
+    "externalOnlyLabel": "Only meetings with external attendees",
+    "githubAppInstallTitle": "Connect GitHub App",
+    "githubAppInstallHelp": "Install the app on your repositories, then enter its installation ID from the GitHub installation URL.",
+    "installationIdLabel": "Installation ID",
+    "mailLabelFilter": "Gmail label ID",
+    "mailFolderFilter": "Mailbox folder",
+    "sharedMailboxFilter": "Shared mailbox"
   },
   "agentTemplates": {
     "browse": "Agent templates",

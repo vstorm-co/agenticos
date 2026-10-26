@@ -6812,7 +6812,7 @@
     "targetPlaceholder": "Wybierz jeden",
     "targetFreeText": "np. właściciel/repozytorium",
     "polledTitle": "Wyzwalacz utworzony",
-    "polledDescription": "Nie trzeba nic więcej ustawiać. Skrzynka jest sprawdzana co minutę, a pasująca wiadomość uruchamia agenta.",
+    "polledDescription": "Podłączona usługa jest sprawdzana co minutę. Pasujące zdarzenia uruchamiają agenta.",
     "registeredTitle": "Wyzwalacz gotowy",
     "registeredDescription": "Webhook został zarejestrowany. Agent uruchomi się, gdy nadejdzie zdarzenie.",
     "manualResultDescription": "Dodaj ten adres webhooka u swojego dostawcy. Nic się nie uruchomi, dopóki nie nadejdzie zdarzenie.",
@@ -6839,7 +6839,18 @@
     "folderPathFilterPlaceholder": "np. Faktury/2026",
     "attendeeFilterLabel": "Uczestnik zawiera",
     "attendeeFilterPlaceholder": "np. @klient.pl",
-    "oauthAppFallback": "aplikacji OAuth"
+    "oauthAppFallback": "aplikacji OAuth",
+    "includeOwnChanges": "Uwzględniaj moje zmiany",
+    "mentionFilterLabel": "Fraza wzmianki",
+    "branchesFilterLabel": "Gałęzie (oddzielone przecinkami)",
+    "minutesBeforeLabel": "Minuty przed spotkaniem",
+    "externalOnlyLabel": "Tylko spotkania z osobami spoza organizacji",
+    "githubAppInstallTitle": "Podłącz GitHub App",
+    "githubAppInstallHelp": "Zainstaluj aplikację w repozytoriach, a następnie podaj ID instalacji z adresu jej strony w GitHub.",
+    "installationIdLabel": "ID instalacji",
+    "mailLabelFilter": "ID etykiety Gmail",
+    "mailFolderFilter": "Folder skrzynki",
+    "sharedMailboxFilter": "Skrzynka współdzielona"
   },
   "agentTemplates": {
     "browse": "Szablony agentów",

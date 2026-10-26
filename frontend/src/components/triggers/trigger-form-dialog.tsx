@@ -1,5 +1,7 @@
 "use client";
 
+import { EventOptions, eventOptionsValid } from "./event-options";
+import { FILTER_COPY } from "./portal-trigger-dialog";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -45,6 +47,7 @@ import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore, useAuthStore } from "@/stores";
@@ -167,12 +170,14 @@ export function TriggerFormDialog({
   onCreated,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
+  const tp = useTranslations("portals");
   const editing = trigger !== null;
 
   // The registry list backs the picker when the caller brought no agent. It is
   // the same cached query every agent surface reads, so on the surfaces that
   // already know whom they are scheduling this costs nothing new.
   const { agents } = useAgents();
+  const { can } = usePermissions();
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
   // Only agents the caller may actually run: a published version to run, and a
   // `can_run` that resolves the caller's role scope plus any run grant. Seeding
@@ -272,6 +277,9 @@ export function TriggerFormDialog({
     const value = key ? trigger.event_config[key] : undefined;
     return typeof value === "string" ? value : "";
   };
+  const [extraConfig, setExtraConfig] = useState<Record<string, unknown>>(
+    trigger?.event_config ?? {},
+  );
   const [filterA, setFilterA] = useState(seededFilter(0));
   const [filterB, setFilterB] = useState(seededFilter(1));
   // The event trigger just created, held so the dialog can show its webhook URL
@@ -475,9 +483,9 @@ export function TriggerFormDialog({
           const changed = keys.some(
             (key, index) => ([filterA, filterB][index]?.trim() ?? "") !== seededFilter(index),
           );
-          if (changed) {
+          if (changed || JSON.stringify(extraConfig) !== JSON.stringify(trigger.event_config)) {
             const kept = Object.fromEntries(
-              Object.entries(trigger.event_config).filter(([key]) => !keys.includes(key)),
+              Object.entries(extraConfig).filter(([key]) => !keys.includes(key)),
             );
             patch.event_config = {
               ...kept,
@@ -513,7 +521,11 @@ export function TriggerFormDialog({
   const taskValid = prompt.trim().length > 0 && effectiveAgentId !== null;
   // Editing a schedule can change its cadence, so the cadence is guarded then
   // too; an event edit has no cadence and only its prompt/name to check.
-  const canSubmit = taskValid && (type !== "schedule" || scheduleValid) && !pending;
+  const canSubmit =
+    taskValid &&
+    (type !== "schedule" || scheduleValid) &&
+    eventOptionsValid(extraConfig) &&
+    !pending;
 
   const steps: WizardStep[] =
     type === "schedule"
@@ -646,19 +658,23 @@ export function TriggerFormDialog({
             {trigger.trigger_type === "event" &&
               trigger.event_source &&
               (() => {
-                const filters = SOURCE_FILTERS[trigger.event_source];
+                const filters = FILTER_KEYS[trigger.event_source];
                 return filters ? (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField label={t(filters[0])} htmlFor="edit-filter-a">
+                    <FormField
+                      label={tp(FILTER_COPY[filters[0]]!.labelKey)}
+                      htmlFor="edit-filter-a"
+                    >
                       <Input
                         id="edit-filter-a"
+                        readOnly={filters[0] === "site_url" && !can("mcp:manage")}
                         value={filterA}
                         onChange={(event) => setFilterA(event.target.value)}
                         placeholder={t("filterOptional")}
                       />
                     </FormField>
                     <FormField
-                      label={t(filters[1])}
+                      label={tp(FILTER_COPY[filters[1]]!.labelKey)}
                       htmlFor="edit-filter-b"
                       description={t("senderVouchedHint")}
                     >
@@ -673,9 +689,20 @@ export function TriggerFormDialog({
                 ) : null;
               })()}
 
-            {trigger.trigger_type === "event" && trigger.can_manage && (
-              <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
+            {trigger.trigger_type === "event" && trigger.event_source && (
+              <EventOptions
+                source={trigger.event_source}
+                config={extraConfig}
+                onChange={setExtraConfig}
+                canManageConnections={can("mcp:manage")}
+              />
             )}
+            {trigger.trigger_type === "event" &&
+              trigger.can_manage &&
+              trigger.delivery_mode !== "polling" &&
+              trigger.delivery_mode !== "app_webhook" && (
+                <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
+              )}
 
             {namedEnvironments.length > 0 && (
               <EnvironmentField

@@ -9,7 +9,7 @@ committed with the fires, so a crash re-reads rather than forgets it.
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -36,6 +36,7 @@ class ChangedFile:
     modified_by: str
     by_account: bool
     location: dict[str, Any]
+    is_new: bool | None = None
 
 
 def parse_time(value: Any) -> datetime | None:
@@ -49,13 +50,41 @@ def parse_time(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
+def classify(
+    changed: list[ChangedFile],
+    *,
+    since: datetime,
+    seen: Mapping[str, str],
+    now: datetime,
+    complete: bool,
+) -> tuple[list[ChangedFile], dict[str, str]]:
+    """Identify creations inside a delta round, preserving its boundary across pages.
+
+    Once a round completes, older creations cannot be new again. Items created
+    during the request remain remembered across the next round's boundary.
+    """
+    known = dict(seen)
+    classified: list[ChangedFile] = []
+    for item in {entry.file_id: entry for entry in changed}.values():
+        key = item.file_id
+        classified.append(replace(item, is_new=item.created_at >= since and key not in known))
+        known[key] = item.created_at.isoformat()
+    floor = now if complete else since
+    return classified, {
+        key: stamp
+        for key, stamp in known.items()
+        if (created := parse_time(stamp)) is not None and created >= floor
+    }
+
+
 def news(
     changed: list[ChangedFile], *, announced: Mapping[str, Any], now: datetime
 ) -> tuple[list[PolledEvent], dict[str, str]]:
     """The events among `changed`, and what the cursor records as announced.
 
-    A file created within a minute of its last change is `created`; any other is
-    `modified`, and is held back while the same file was announced within
+    The adapter's delta-round classification distinguishes creations from edits.
+    Without that classification, equal creation and modification timestamps mark
+    a creation. An edit is held back while the same file was announced within
     `SETTLE`. The record keeps only what is still inside the window, so it stays
     the size of the recent activity rather than of the drive.
     """
@@ -73,7 +102,7 @@ def news(
             latest[item.file_id] = item
     events: list[PolledEvent] = []
     for item in sorted(latest.values(), key=lambda one: one.modified_at)[-MAX_FILES_PER_POLL:]:
-        created = item.modified_at - item.created_at < timedelta(minutes=1)
+        created = item.is_new if item.is_new is not None else item.modified_at == item.created_at
         if not created and item.file_id in record:
             continue
         record[item.file_id] = now.isoformat()

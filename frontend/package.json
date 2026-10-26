@@ -107,7 +107,9 @@
   "overrides": {
     "nanoid": "^3.3.18",
     "js-yaml": "^4.3.2",
-    "vite": "~8.2.4"
+    "vite": "~8.2.4",
+    "zod": "~4.6.7",
+    "undici": "~8.12.2"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx,mdx}": [

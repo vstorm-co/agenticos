@@ -358,6 +358,7 @@
     "read_scopes": [
       "https://graph.microsoft.com/Files.Read.All",
       "https://graph.microsoft.com/Sites.Read.All",
+      "https://graph.microsoft.com/User.Read",
       "offline_access"
     ],
     "webhook_admin_scopes": [],
@@ -390,7 +391,8 @@
     "delivery": "polling",
     "icon": "googlecalendar",
     "read_scopes": [
-      "https://www.googleapis.com/auth/calendar.events.readonly"
+      "https://www.googleapis.com/auth/calendar.events.readonly",
+      "https://www.googleapis.com/auth/calendar.calendars.readonly"
     ],
     "webhook_admin_scopes": [],
     "mcp_catalog_key": null,

@@ -665,3 +665,26 @@ class TestGithubContext:
     )
     def test_each_event_says_what_happened(self, payload, expected):
         assert expected in trigger_events.render_context("github", payload=payload)
+
+
+@pytest.mark.parametrize("source", ["gmail", "outlook"])
+@pytest.mark.parametrize(
+    "sender", ['"ceo@acme.com" <attacker@evil.test>', "ceo@acme.com.evil.test"]
+)
+def test_authenticated_mail_cannot_impersonate_a_sender_filter(source: str, sender: str) -> None:
+    assert not trigger_events.event_matches(
+        source,
+        headers={},
+        payload={"from": sender, "authenticated": True, "place": "|inbox"},
+        config={"sender_contains": "ceo@acme.com"},
+    )
+
+
+@pytest.mark.parametrize("action", ["requested", "in_progress"])
+def test_unfinished_workflows_do_not_require_a_final_conclusion(action: str) -> None:
+    assert trigger_events.event_matches(
+        "github",
+        headers={"x-github-event": "workflow_run"},
+        payload={"action": action, "workflow_run": {"conclusion": None, "head_branch": "main"}},
+        config={"event": "workflow_run", "actions": [action]},
+    )

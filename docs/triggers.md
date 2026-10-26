@@ -220,9 +220,10 @@ you should know about how it reads:
   the moment consent completes, so connecting does not fire the agent once per
   message already sitting there, and mail arriving between the consent and the
   first heartbeat still lands after that position and fires.
-- **A burst is bounded.** One tick reads at most 25 new messages in full. A mailing
-  list dump does not become 400 agent runs; the position still advances, so the
-  backlog is not re-read for ever.
+- **A burst is queued.** One tick reads at most 25 messages in full. Unread message
+  IDs stay in the cursor and are processed oldest first on later ticks, including
+  when the next history read reports nothing new. Sent mail and spam cannot
+  permanently displace an incoming message.
 - **One message can fire several triggers.** Unlike a webhook, whose URL names
   exactly one - "any message" and "marked important" on the same mailbox both fire.
 - **Only mail that arrived.** Gmail's history reports the account's own sends,
@@ -326,6 +327,10 @@ gateway - is refused by a sender filter. The refusal is logged
 `authenticated_only` to `false` in the trigger's `event_config` lets that sender
 through.
 
+A sender filter matches the parsed address, never the display name. A complete
+address or an `@domain` filter is an exact match; other text is a substring of the
+address. DMARC does not authenticate a person's display name.
+
 ## HubSpot
 
 HubSpot posts webhooks from an app - a private app in your HubSpot account is
@@ -376,7 +381,7 @@ Two polled portals, each a separate consent so neither asks for more than files:
 | | Google Drive | OneDrive & SharePoint |
 |---|---|---|
 | Vault secret | The Google OAuth client Gmail uses, with the Drive API enabled | The Microsoft OAuth app Outlook uses |
-| Permission | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `offline_access` (no admin consent) |
+| Permission | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `User.Read`, `offline_access` (no admin consent) |
 | Where it looks | Every file the account can see, shared drives included | The account's own OneDrive, or one SharePoint site's document library per `site_url` |
 | Narrows by | `folder_id` (the folder's link or id), `name_contains` | `folder_path` (a folder and everything under it), `name_contains` |
 
@@ -398,6 +403,21 @@ offer **New files** and **New or changed files**.
 - **A site that cannot be read stops its triggers**, with the reason in the audit
   log, while the account's other places are read on.
 
+Choosing or changing a SharePoint `site_url` requires `mcp:manage`, including
+through the API. The granting account's access is not the trigger creator's
+permission to select a new site. Shared mailbox selection follows the same rule.
+The identity request uses `User.Read`; SharePoint does not require a personal
+OneDrive. Reconnect existing Microsoft Files and Google Calendar accounts to
+approve their additional read scopes.
+
+In the trigger editor you can change file and calendar filters, include your own
+file changes, and choose the meeting lead from 5 to 120 minutes. GitHub presets
+let you change the mention phrase and comma-separated branches. Polled triggers
+have no signing-secret rotation. File debounce is per matching trigger: an
+ignored own edit does not suppress somebody else's later edit. Both calendar
+adapters follow all result pages up to a bounded limit; exceeding it reports a
+provider error instead of accepting an incomplete result.
+
 ## Meetings: Google Calendar and Outlook Calendar
 
 A calendar trigger fires **before** a meeting rather than when something
@@ -410,7 +430,7 @@ description - enough to prepare a brief.
 | | Google Calendar | Outlook Calendar |
 |---|---|---|
 | Vault secret | The Google OAuth client, with the Calendar API enabled | The Microsoft OAuth app |
-| Permission | `calendar.events.readonly` | `Calendars.Read`, `offline_access` |
+| Permission | `calendar.events.readonly`, `calendar.calendars.readonly` | `Calendars.Read`, `offline_access` |
 | Calendar read | The account's primary calendar | The account's default calendar |
 
 - **Only a meeting.** One with nobody else on it, one you declined, one that was

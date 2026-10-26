@@ -1,5 +1,5 @@
 ---
-source_sha: "863f89d4d163"
+source_sha: "3530a3aa9612"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -239,9 +239,10 @@ conviene saber sobre cómo lee:
   el agent una vez por cada mensaje que ya estuviera ahí, y el correo que llegue
   entre el consentimiento y el primer latido aterriza igualmente después de esa
   posición y dispara.
-- **Una ráfaga está acotada.** Un tic lee como mucho 25 mensajes nuevos enteros.
-  El volcado de una lista de correo no se convierte en 400 runs de agent; la
-  posición avanza igualmente, así que el atasco no se relee para siempre.
+- **Una ráfaga se pone en cola.** Un tic lee como mucho 25 mensajes completos.
+  Los IDs pendientes permanecen en el cursor y se procesan del más antiguo al
+  más reciente en los siguientes tics, incluso sin cambios nuevos en el historial.
+  Los mensajes enviados y el spam no desplazan permanentemente el correo entrante.
 - **Un mensaje puede disparar varios triggers.** A diferencia de un webhook, cuya
   URL nombra exactamente uno - «cualquier mensaje» y «marcado como importante»
   sobre el mismo buzón disparan los dos.
@@ -355,6 +356,10 @@ antigua - queda rechazado por un filtro de remitente. El rechazo se registra
 `authenticated_only` a `false` en el `event_config` del trigger deja pasar a ese
 remitente.
 
+El filtro de remitente compara la dirección analizada, nunca el nombre visible.
+Una dirección completa o un filtro `@dominio` requiere coincidencia exacta; otro
+texto se busca dentro de la dirección. DMARC no autentica el nombre visible.
+
 ## HubSpot { #hubspot }
 
 HubSpot envía webhooks desde una app - basta una private app en tu cuenta de
@@ -409,7 +414,7 @@ pida más que archivos:
 | | Google Drive | OneDrive & SharePoint |
 |---|---|---|
 | Secreto en el vault | El cliente Google OAuth que usa Gmail, con la Drive API activada | La app Microsoft OAuth que usa Outlook |
-| Permiso | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `offline_access` (sin consentimiento de administrador) |
+| Permiso | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `User.Read`, `offline_access` (sin consentimiento de administrador) |
 | Dónde mira | Cada archivo que ve la cuenta, unidades compartidas incluidas | El OneDrive propio de la cuenta, o la biblioteca de documentos de un sitio de SharePoint por `site_url` |
 | Afina por | `folder_id` (el enlace o el id de la carpeta), `name_contains` | `folder_path` (una carpeta y todo lo que hay debajo), `name_contains` |
 
@@ -432,6 +437,21 @@ presets ofrecen **New files** y **New or changed files**.
 - **Un sitio que no se puede leer detiene sus triggers**, con el motivo en el log
   de auditoría, mientras los demás lugares de la cuenta se siguen leyendo.
 
+Elegir o cambiar una `site_url` de SharePoint requiere `mcp:manage`, también
+por API. El acceso de la cuenta conectada no autoriza al creador del trigger a
+elegir otro sitio. Lo mismo se aplica a buzones compartidos. La consulta de
+identidad usa `User.Read`; SharePoint no requiere un OneDrive personal.
+Vuelve a conectar las cuentas existentes de Microsoft Files y Google Calendar
+para aprobar los permisos adicionales.
+
+El editor permite cambiar filtros de archivos y calendarios, incluir cambios
+propios y elegir una antelación de 5 a 120 minutos. Los presets de GitHub permiten
+editar la frase de mención y las ramas separadas por comas. Los triggers por
+sondeo no tienen rotación del secreto. La supresión de repeticiones se aplica
+por trigger coincidente: un cambio propio ignorado no bloquea otro cambio ajeno.
+Ambos calendarios siguen las páginas hasta un límite; superarlo informa de un
+error del proveedor en lugar de aceptar resultados incompletos.
+
 ## Reuniones: Google Calendar y Outlook Calendar { #meetings-google-calendar-and-outlook-calendar }
 
 Un trigger de calendario se dispara **antes** de una reunión, no cuando algo
@@ -444,7 +464,7 @@ suficiente para preparar un brief.
 | | Google Calendar | Outlook Calendar |
 |---|---|---|
 | Secreto en el vault | El cliente Google OAuth, con la Calendar API activada | La app Microsoft OAuth |
-| Permiso | `calendar.events.readonly` | `Calendars.Read`, `offline_access` |
+| Permiso | `calendar.events.readonly`, `calendar.calendars.readonly` | `Calendars.Read`, `offline_access` |
 | Calendario que lee | El calendario principal de la cuenta | El calendario predeterminado de la cuenta |
 
 - **Solo una reunión.** Una sin nadie más, una que rechazaste, una cancelada y un

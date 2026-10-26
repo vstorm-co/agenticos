@@ -5,8 +5,8 @@ Outlook's folders the poller reads exactly the *places* the organization's
 triggers name: the account's own OneDrive, or a SharePoint site's document
 library by the site's address. Each place keeps its delta link in the cursor.
 
-A new place starts from `token=latest`, Graph's "from now" - a first read never
-walks a library's history. A link Graph has dropped (410, or a lost-sync code)
+A new place starts from its trigger's creation timestamp, so the first tick
+includes changes since the trigger was saved without walking earlier history. A link Graph has dropped (410, or a lost-sync code)
 starts again the same way. A site that does not exist or that the account
 cannot read is unreadable, and the triggers on it are turned off with a reason.
 """
@@ -15,7 +15,7 @@ import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 
@@ -56,18 +56,14 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
     ) -> PolledEvents:
         """Files created or changed in each watched place, and the cursor to resume from.
 
-        With no cursor this records the account - its own drive's id, and the user
-        id that tells its own edits apart - and returns nothing.
+        With no cursor this records the consenting user's id and returns nothing.
+        Identifying the account does not require a personal OneDrive.
         """
         now = datetime.now(UTC)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             if not cursor or not isinstance(cursor.get("account"), str):
-                drive = await self._get(
-                    client, access_token, f"{_API_BASE}/me/drive", {"$select": "id,owner"}
-                )
-                owner = nested(drive, "owner")
-                user = nested(owner, "user")
-                fresh: dict[str, Any] = {"account": str(drive.get("id") or ""), "places": {}}
+                user = await self._get(client, access_token, f"{_API_BASE}/me", {"$select": "id"})
+                fresh: dict[str, Any] = {"account": str(user.get("id") or ""), "places": {}}
                 if isinstance(user.get("id"), str):
                     fresh["user_id"] = user["id"]
                 return PolledEvents(events=(), cursor=fresh)
@@ -76,7 +72,7 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
             next_states: dict[str, Any] = {}
             changed: list[_files.ChangedFile] = []
             unreadable: set[str] = set()
-            for key in places:
+            for key, watched_since in places.items():
                 state = states.get(key)
                 try:
                     found, next_states[key] = await self._read_place(
@@ -85,19 +81,20 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
                         key,
                         state=state if isinstance(state, dict) else {},
                         user_id=cursor.get("user_id"),
+                        watched_since=watched_since,
+                        now=now,
                     )
                 except _PlaceUnreadable:
                     logger.info("microsoft_files_place_unreadable", extra={"place": key})
                     unreadable.add(key)
                     continue
                 changed += found
-        events, announced = _files.news(changed, announced=cursor.get("announced") or {}, now=now)
+        events, _ = _files.news(changed, announced={}, now=now)
         return PolledEvents(
             events=tuple(events),
             cursor={
                 **{key: cursor[key] for key in ("account", "user_id") if key in cursor},
                 "places": next_states,
-                "announced": announced,
             },
             unreadable=frozenset(unreadable),
         )
@@ -110,6 +107,8 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         *,
         state: dict[str, Any],
         user_id: Any,
+        watched_since: datetime,
+        now: datetime,
     ) -> tuple[list[_files.ChangedFile], dict[str, Any]]:
         """The files changed in one place since its stored link, and its new state."""
         drive_id = state.get("drive_id")
@@ -120,10 +119,12 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         # Graph's own address is ever asked.
         link = stored if isinstance(stored, str) and stored.startswith(_API_BASE + "/") else None
         changed: list[_files.ChangedFile] = []
+        following: object = None
         for _ in range(_MAX_PAGES):
             if link is None:
-                # From now: a new place, or one whose sync state Graph dropped.
-                link = f"{_API_BASE}/drives/{quote(drive_id, safe='')}/root/delta?token=latest"
+                # Begin at the watch boundary; expired sync states reset it below.
+                stamp = quote(watched_since.isoformat(), safe="")
+                link = f"{_API_BASE}/drives/{quote(drive_id, safe='')}/root/delta?token={stamp}"
             try:
                 body = await self._get(client, access_token, link, None)
             except PortalUnreachable as exc:
@@ -133,11 +134,33 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
                 ):
                     logger.info("microsoft_files_delta_expired", extra={"place": key})
                     link = None
+                    watched_since = now
                     continue
                 if details.get("status") in {403, 404}:
                     raise _PlaceUnreadable from exc
                 raise
             for item in body.get("value") or []:
+                if (
+                    isinstance(item, dict)
+                    and isinstance(item.get("file"), dict)
+                    and "deleted" not in item
+                ):
+                    identifier = item.get("id")
+                    parent = nested(item, "parentReference")
+                    if isinstance(identifier, str) and not isinstance(parent.get("path"), str):
+                        try:
+                            item = await self._get(
+                                client,
+                                access_token,
+                                f"{_API_BASE}/drives/{quote(drive_id, safe='')}/items/{quote(identifier, safe='')}",
+                                {
+                                    "$select": "id,name,file,createdDateTime,lastModifiedDateTime,lastModifiedBy,parentReference,webUrl"
+                                },
+                            )
+                        except PortalUnreachable as exc:
+                            if (exc.details or {}).get("status") == 404:
+                                continue
+                            raise
                 found = _changed_file(item, key=key, user_id=user_id)
                 if found is not None:
                     changed.append(found)
@@ -146,7 +169,25 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
             link = following if isinstance(following, str) else final
             if not isinstance(following, str):
                 break
-        return changed, {"drive_id": drive_id, "link": link if isinstance(link, str) else None}
+        if link is None:
+            raise PortalUnreachable(message="Microsoft Graph repeatedly rejected the sync state")
+        complete = not isinstance(following, str)
+        since = _files.parse_time(state.get("created_since")) or (now if stored else watched_since)
+        seen = state.get("seen_files")
+        known = (
+            {key: value for key, value in seen.items() if isinstance(value, str)}
+            if isinstance(seen, dict)
+            else {}
+        )
+        changed, known = _files.classify(
+            changed, since=since, seen=known, now=now, complete=complete
+        )
+        return changed, {
+            "drive_id": drive_id,
+            "link": link if isinstance(link, str) else None,
+            "created_since": (now if complete else since).isoformat(),
+            "seen_files": known,
+        }
 
     async def _drive_id(self, client: httpx.AsyncClient, access_token: str, key: str) -> str:
         """The id of the drive a place reads: the own OneDrive, or a site's library.
@@ -157,7 +198,9 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         if key:
             parts = urlsplit(key)
             path = parts.path.strip("/")
-            site = f"{_API_BASE}/sites/{parts.hostname}" + (f":/{quote(path)}:" if path else "")
+            site = f"{_API_BASE}/sites/{parts.hostname}" + (
+                f":/{quote(unquote(path))}:" if path else ""
+            )
             url = f"{site}/drive"
         else:
             url = f"{_API_BASE}/me/drive"
@@ -212,5 +255,5 @@ def _changed_file(item: Any, *, key: str, user_id: Any) -> _files.ChangedFile | 
         url=str(item.get("webUrl") or ""),
         modified_by=str(editor.get("email") or editor.get("displayName") or ""),
         by_account=isinstance(user_id, str) and editor.get("id") == user_id,
-        location={"place": key, "site_url": key or None, "folder": path.strip("/")},
+        location={"place": key, "site_url": key or None, "folder": unquote(path).strip("/")},
     )

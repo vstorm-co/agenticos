@@ -354,7 +354,9 @@ def _github_matches(
         return parsed.mention is None or parsed.mention.casefold() in body
     if event == "workflow_run":
         run = _mapping(payload.get("workflow_run"))
-        if run.get("conclusion") not in (parsed.conclusions or ()):
+        if payload.get("action") == "completed" and run.get("conclusion") not in (
+            parsed.conclusions or ()
+        ):
             return False
         return _on_branch(parsed.branches, run.get("head_branch"))
     if event == "push":
@@ -375,6 +377,18 @@ def _on_branch(branches: list[str] | None, branch: Any) -> bool:
     return branches is None or branch in branches
 
 
+def _sender_matches(address: str, wanted: str | None) -> bool:
+    """Match an address or domain exactly; plain text narrows the real address."""
+    if wanted is None:
+        return True
+    wanted = wanted.strip().casefold()
+    if wanted.startswith("@"):
+        return address.rpartition("@")[2] == wanted[1:]
+    if "@" in wanted:
+        return address == wanted
+    return wanted in address
+
+
 def _gmail_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
     # Substring filters are case-insensitive: an email domain is case-insensitive by
     # spec, so a `@Vstorm.co` filter that never matched `john@vstorm.co`, or a
@@ -382,10 +396,10 @@ def _gmail_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> boo
     # the trigger simply never fires, with nothing to tell the user why.
     parsed = GmailTriggerConfig.model_validate(dict(config))
     subject = str(payload.get("subject") or "").casefold()
-    sender = str(payload.get("from") or "").casefold()
+    sender = parseaddr(str(payload.get("from") or ""))[1].casefold()
     if parsed.subject_contains is not None and parsed.subject_contains.casefold() not in subject:
         return False
-    if parsed.sender_contains is not None and parsed.sender_contains.casefold() not in sender:
+    if not _sender_matches(sender, parsed.sender_contains):
         return False
     if not _vouched_for(payload, parsed.authenticated_only, parsed.sender_contains):
         return False
@@ -436,10 +450,10 @@ def _outlook_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> b
     if payload.get("place") != outlook_place(mailbox=parsed.mailbox, folder=parsed.folder):
         return False
     subject = str(payload.get("subject") or "").casefold()
-    sender = str(payload.get("from") or "").casefold()
+    sender = parseaddr(str(payload.get("from") or ""))[1].casefold()
     if parsed.subject_contains is not None and parsed.subject_contains.casefold() not in subject:
         return False
-    if parsed.sender_contains is not None and parsed.sender_contains.casefold() not in sender:
+    if not _sender_matches(sender, parsed.sender_contains):
         return False
     if not _vouched_for(payload, parsed.authenticated_only, parsed.sender_contains):
         return False

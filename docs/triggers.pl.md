@@ -1,5 +1,5 @@
 ---
-source_sha: "863f89d4d163"
+source_sha: "3530a3aa9612"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -236,9 +236,10 @@ warto wiedzieć o tym, jak to czyta:
   chwili zakończenia zgody, więc podłączenie nie odpala agenta raz na każdą
   wiadomość, która już tam leży, a poczta przychodząca między zgodą a pierwszym
   heartbeatem wciąż ląduje za tą pozycją i odpala.
-- **Nawał jest ograniczony.** Jedno tyknięcie czyta najwyżej 25 nowych wiadomości
-  w całości. Zrzut z listy mailingowej nie staje się 400 runami agenta; pozycja
-  i tak idzie do przodu, więc zaległość nie jest czytana w kółko.
+- **Nawał trafia do kolejki.** Jedno tyknięcie czyta najwyżej 25 wiadomości
+  w całości. Nieprzeczytane identyfikatory pozostają w kursorze i są przetwarzane
+  od najstarszych w kolejnych tyknięciach, także gdy historia nie zwraca nowych
+  wiadomości. Wysłane wiadomości i spam nie wypierają trwale poczty przychodzącej.
 - **Jedna wiadomość może odpalić kilka triggerów.** W odróżnieniu od webhooka,
   którego URL nazywa dokładnie jeden - „dowolna wiadomość” i „oznaczone jako
   ważne” na tej samej skrzynce odpalają oba.
@@ -351,6 +352,10 @@ pocztowa - zostaje odrzucony przez filtr nadawcy. Odmowa jest logowana
 `authenticated_only` na `false` w `event_config` triggera przepuszcza tego
 nadawcę.
 
+Filtr nadawcy porównuje sparsowany adres, nigdy nazwę wyświetlaną. Pełny adres
+lub filtr `@domena` wymaga dokładnego dopasowania; inny tekst jest fragmentem
+adresu. DMARC nie uwierzytelnia nazwy wyświetlanej osoby.
+
 ## HubSpot { #hubspot }
 
 HubSpot wysyła webhooki z aplikacji - wystarczy private app na twoim koncie
@@ -405,7 +410,7 @@ pliki:
 | | Google Drive | OneDrive & SharePoint |
 |---|---|---|
 | Sekret w vault | Klient Google OAuth, którego używa Gmail, z włączonym Drive API | Aplikacja Microsoft OAuth, której używa Outlook |
-| Uprawnienie | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `offline_access` (bez zgody administratora) |
+| Uprawnienie | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `User.Read`, `offline_access` (bez zgody administratora) |
 | Gdzie patrzy | Każdy plik, który konto widzi, łącznie z dyskami współdzielonymi | Własny OneDrive konta albo biblioteka dokumentów jednej witryny SharePoint na `site_url` |
 | Zawęża po | `folder_id` (link folderu albo jego id), `name_contains` | `folder_path` (folder i wszystko pod nim), `name_contains` |
 
@@ -428,6 +433,20 @@ presety oferują **New files** i **New or changed files**.
 - **Witryna, której nie da się odczytać, zatrzymuje swoje triggery**, z powodem w
   dzienniku audytu, a pozostałe miejsca konta są czytane dalej.
 
+Wybór lub zmiana `site_url` SharePointa wymaga `mcp:manage`, również przez API.
+Dostęp podłączonego konta nie uprawnia twórcy triggera do wyboru nowej witryny.
+Ta sama zasada dotyczy skrzynek współdzielonych. Odczyt tożsamości używa
+`User.Read`; SharePoint nie wymaga osobistego OneDrive. Podłącz ponownie
+istniejące konta Microsoft Files i Google Calendar, aby zatwierdzić nowe zakresy.
+
+Edytor triggera pozwala zmieniać filtry plików i kalendarzy, uwzględniać własne
+zmiany oraz ustawiać wyprzedzenie spotkania od 5 do 120 minut. Presety GitHub
+pozwalają zmienić frazę wzmianki i gałęzie oddzielone przecinkami. Odpytywane
+triggery nie mają rotacji sekretu. Ograniczenie powtórzeń plików dotyczy każdego
+pasującego triggera osobno: pominięta własna edycja nie blokuje późniejszej cudzej.
+Oba kalendarze odczytują kolejne strony do ustalonego limitu; jego przekroczenie
+zgłasza błąd dostawcy zamiast przyjmować niepełne wyniki.
+
 ## Spotkania: Google Calendar i Outlook Calendar { #meetings-google-calendar-and-outlook-calendar }
 
 Trigger kalendarza odpala się **przed** spotkaniem, a nie wtedy, gdy coś się
@@ -439,7 +458,7 @@ spoza twojej domeny, link do dołączenia i opis - dość, by przygotować brief
 | | Google Calendar | Outlook Calendar |
 |---|---|---|
 | Sekret w vault | Klient Google OAuth, z włączonym Calendar API | Aplikacja Microsoft OAuth |
-| Uprawnienie | `calendar.events.readonly` | `Calendars.Read`, `offline_access` |
+| Uprawnienie | `calendar.events.readonly`, `calendar.calendars.readonly` | `Calendars.Read`, `offline_access` |
 | Czytany kalendarz | Główny kalendarz konta | Domyślny kalendarz konta |
 
 - **Tylko spotkanie.** Takie bez nikogo innego, odrzucone przez ciebie, odwołane

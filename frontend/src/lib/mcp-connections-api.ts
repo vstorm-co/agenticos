@@ -231,3 +231,8 @@ export interface McpSignInProbeResult {
 export async function probeMcpSignIn(url: string): Promise<McpSignInProbeResult> {
   return apiClient.post<McpSignInProbeResult>("/me/mcp-connections/probe", { url });
 }
+
+/** Bind the organization's GitHub App installation after verifying its key. */
+export async function connectGithubApp(installationId: string): Promise<void> {
+  await apiClient.post("/mcp-connections/portals/github-app", { installation_id: installationId });
+}

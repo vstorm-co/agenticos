@@ -15,7 +15,7 @@ Two halves (see `docs/design/heartbeat-triggers-plan.md`, sections 3 and 4):
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.db.session import get_worker_db_context
@@ -77,11 +77,25 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             reason="mailbox_folder_unreadable",
             places=read.unreadable,
         )
+    stored = (grant.poll_cursor or {}).get("trigger_announced")
+    cutoff = datetime.now(UTC) - timedelta(minutes=30)
+    announced: dict[str, str] = {}
+    if isinstance(stored, dict):
+        for key, value in stored.items():
+            if isinstance(key, str) and isinstance(value, str):
+                try:
+                    stamp = datetime.fromisoformat(value)
+                except ValueError:
+                    continue
+                if stamp.tzinfo is not None and stamp >= cutoff:
+                    announced[key] = value
     decisions = await triggers.prepare_polled_fires(
         organization_id=grant.organization_id,
         event_source=source,
         events=read.events,
+        announced=announced,
     )
+    read.cursor["trigger_announced"] = announced
     service = AgentTriggerService(db)
     for decision in decisions:
         await service.queue_fire(

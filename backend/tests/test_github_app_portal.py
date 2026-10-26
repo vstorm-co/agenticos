@@ -801,3 +801,33 @@ class TestWhatADisabledGrantDoes:
 
         compiled = str(statements[-1].compile(dialect=postgresql.dialect()))
         assert "is_enabled" in compiled
+
+
+class TestInstallationReadToken:
+    async def test_repository_listing_mints_with_the_owning_organizations_key(self) -> None:
+        from app.services.mcp_connection import McpConnectionService
+
+        service = McpConnectionService(MagicMock())
+        grant = MagicMock(organization_id=ORG, portal_key="github_app", portal_account_id="42")
+        with (
+            patch(
+                "app.services.mcp_connection.OrganizationSecretService.app_secret",
+                new=AsyncMock(return_value=_secret()),
+            ),
+            patch(
+                "app.services.mcp_connection.github_app.installation_token",
+                new=AsyncMock(return_value="installation-token"),
+            ) as mint,
+        ):
+            assert await service.github_app_access_token(grant) == "installation-token"
+        assert mint.await_args.kwargs["installation_id"] == "42"
+
+    @pytest.mark.parametrize("organization,portal", [(None, "github_app"), (ORG, "google")])
+    async def test_an_unrelated_grant_never_mints_an_app_token(self, organization, portal) -> None:
+        from app.core.exceptions import BadRequestError
+        from app.services.mcp_connection import McpConnectionService
+
+        with pytest.raises(BadRequestError):
+            await McpConnectionService(MagicMock()).github_app_access_token(
+                MagicMock(organization_id=organization, portal_key=portal)
+            )

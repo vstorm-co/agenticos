@@ -6920,7 +6920,7 @@
     "targetPlaceholder": "Wählen Sie eines",
     "targetFreeText": "z. B. owner/repository",
     "polledTitle": "Trigger erstellt",
-    "polledDescription": "Sonst ist nichts einzurichten. Ihr Postfach wird jede Minute geprüft, und eine passende Nachricht startet den Agent.",
+    "polledDescription": "Der verbundene Dienst wird jede Minute geprüft. Passende Ereignisse starten den Agenten.",
     "registeredTitle": "Trigger bereit",
     "registeredDescription": "Der Webhook wurde für Sie registriert. Der Agent läuft, sobald das Ereignis eintrifft.",
     "manualResultDescription": "Tragen Sie diese Webhook-URL bei Ihrem Provider ein. Nichts wird ausgelöst, bis er zustellt.",
@@ -6947,7 +6947,18 @@
     "folderPathFilterPlaceholder": "z. B. Rechnungen/2026",
     "attendeeFilterLabel": "Teilnehmer enthält",
     "attendeeFilterPlaceholder": "z. B. @kunde.de",
-    "oauthAppFallback": "die OAuth-App"
+    "oauthAppFallback": "die OAuth-App",
+    "includeOwnChanges": "Eigene Änderungen berücksichtigen",
+    "mentionFilterLabel": "Erwähnungstext",
+    "branchesFilterLabel": "Branches (kommagetrennt)",
+    "minutesBeforeLabel": "Minuten vor dem Termin",
+    "externalOnlyLabel": "Nur Termine mit externen Teilnehmenden",
+    "githubAppInstallTitle": "GitHub App verbinden",
+    "githubAppInstallHelp": "Installieren Sie die App in Ihren Repositorys und geben Sie die Installations-ID aus der GitHub-Installations-URL ein.",
+    "installationIdLabel": "Installations-ID",
+    "mailLabelFilter": "Gmail-Label-ID",
+    "mailFolderFilter": "Postfachordner",
+    "sharedMailboxFilter": "Freigegebenes Postfach"
   },
   "agentTemplates": {
     "browse": "Agent-Vorlagen",

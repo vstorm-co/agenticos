@@ -69,7 +69,7 @@ def _service(recorder: _Recorder, *, read: object, decisions: list):
 
     triggers = MagicMock()
 
-    async def prepare(*, organization_id, event_source, events):
+    async def prepare(*, organization_id, event_source, events, announced=None):
         recorder.steps.append(f"match:{event_source}:{len(events)}")
         return decisions
 
@@ -733,3 +733,31 @@ class TestWhereAnOutlookPollLooks:
 
         assert stopped == 1
         assert disabled.await_args.args == (shared,)
+
+
+async def test_file_debounce_history_is_pruned_before_matching() -> None:
+    from app.worker.tasks.trigger_tasks import _poll_one_grant
+
+    now = datetime.now(UTC)
+    grant = _grant(
+        poll_cursor={
+            "trigger_announced": {
+                "good": now.isoformat(),
+                "old": (now - timedelta(hours=1)).isoformat(),
+                "invalid": "x",
+                "naive": "2026-01-01T00:00:00",
+                "wrong": 5,
+            }
+        }
+    )
+    triggers = MagicMock(
+        polled_places=AsyncMock(return_value={}), prepare_polled_fires=AsyncMock(return_value=[])
+    )
+    read = PolledEvents(events=(), cursor={})
+    connections = MagicMock(poll_grant=AsyncMock(return_value=read), store_poll_cursor=AsyncMock())
+    with (
+        patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
+        patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
+    ):
+        assert await _poll_one_grant(MagicMock(), grant, "google_drive") == 0
+    assert read.cursor["trigger_announced"] == {"good": now.isoformat()}

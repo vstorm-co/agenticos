@@ -1603,6 +1603,21 @@ class McpConnectionService:
         )
         return consent_url
 
+    async def github_app_access_token(self, grant: McpConnection) -> str:
+        """Mint a token for a resolved organization's installed GitHub App."""
+        if grant.organization_id is None or grant.portal_key != GitHubAppPortalAdapter.portal_key:
+            raise BadRequestError(message="This connection is not a GitHub App installation")
+        secret = TypeAdapter(GithubAppSecret).validate_python(
+            await OrganizationSecretService(self.db).app_secret(
+                grant.organization_id, kind=SecretKind.GITHUB_APP
+            )
+        )
+        return await github_app.installation_token(
+            app_id=secret.app_id,
+            private_key=secret.private_key.get_secret_value(),
+            installation_id=grant.portal_account_id or "",
+        )
+
     async def connect_github_app(self, ctx: AuthContext, *, installation_id: str) -> McpConnection:
         """Record which GitHub App installation this organization's triggers belong to.
 

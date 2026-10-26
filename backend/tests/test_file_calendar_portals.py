@@ -91,7 +91,7 @@ class TestWhichFileChangesAreNews:
         old = _NOW - timedelta(days=3)
         events, record = _files.news(
             [
-                _changed("new", created=_NOW - timedelta(seconds=20), modified=_NOW),
+                _changed("new", created=_NOW - timedelta(seconds=20), modified=_NOW, is_new=True),
                 _changed("old", created=old, modified=_NOW),
             ],
             announced={},
@@ -300,7 +300,9 @@ class TestGoogleDrive:
         _install(api, monkeypatch)
         read = await GoogleDrivePortalAdapter().poll(access_token="t", cursor=None)
         assert read.events == ()
-        assert read.cursor == {"page_token": "100", "account": "ann@acme.test"}
+        assert read.cursor["page_token"] == "100"
+        assert read.cursor["account"] == "ann@acme.test"
+        assert _files.parse_time(read.cursor["created_since"]) is not None
 
     async def test_changes_become_events_and_what_is_not_a_file_is_skipped(self, monkeypatch):
         pages = {
@@ -332,7 +334,7 @@ class TestGoogleDrive:
         assert read.events[0].payload["parents"] == ["FOLDER"]
         assert read.cursor["page_token"] == "102"
         assert read.cursor["account"] == "ann@acme.test"
-        assert set(read.cursor["announced"]) == {"a", "b"}
+        assert read.cursor["seen_files"] == {}
 
     async def test_a_long_feed_is_read_over_several_ticks(self, monkeypatch):
         def endless(request: httpx.Request) -> httpx.Response:
@@ -372,7 +374,8 @@ class TestGoogleDrive:
         )
         _install(api, monkeypatch)
         read = await GoogleDrivePortalAdapter().poll(access_token="t", cursor={})
-        assert read.cursor == {"page_token": "1"}
+        assert read.cursor["page_token"] == "1"
+        assert "account" not in read.cursor
 
 
 def _gcal_event(**overrides: Any) -> dict[str, Any]:
@@ -566,6 +569,8 @@ class _Drives:
 
     def routes(self) -> dict[str, Route | dict[str, Any]]:
         routes: dict[str, Route | dict[str, Any]] = {
+            "/v1.0/me": {"id": "user-ann"},
+            "/v1.0/drives/D1/items/nopath": _drive_item("nopath"),
             "/v1.0/me/drive": {"id": "OWN", "owner": {"user": {"id": "user-ann"}}},
             **self.sites,
         }
@@ -583,7 +588,7 @@ class _Drives:
                 self.expired.discard(token)
                 return httpx.Response(410, json={"error": {"code": "resyncRequired"}})
             base = f"{_GRAPH}/drives/{drive}/root/delta"
-            if token == "latest":
+            if token == "latest" or "T" in token:
                 return httpx.Response(
                     200, json={"value": [], "@odata.deltaLink": f"{base}?token={drive}-0"}
                 )
@@ -609,14 +614,14 @@ class TestMicrosoftFiles:
     async def test_a_first_poll_records_the_account_and_fires_nothing(self, monkeypatch):
         _install(_Api(_Drives().routes()), monkeypatch)
         read = await MicrosoftFilesPortalAdapter().poll(access_token="t", cursor=None)
-        assert read.cursor == {"account": "OWN", "places": {}, "user_id": "user-ann"}
+        assert read.cursor == {"account": "user-ann", "places": {}, "user_id": "user-ann"}
 
     async def test_an_owner_graph_names_no_user_for_is_recorded_without_one(self, monkeypatch):
         routes = _Drives().routes()
-        routes["/v1.0/me/drive"] = {"id": "OWN", "owner": None}
+        routes["/v1.0/me"] = {"id": "user-ann"}
         _install(_Api(routes), monkeypatch)
         read = await MicrosoftFilesPortalAdapter().poll(access_token="t", cursor=None)
-        assert read.cursor == {"account": "OWN", "places": {}}
+        assert read.cursor["account"] == "user-ann"
 
     async def test_a_long_delta_is_read_over_several_ticks(self, monkeypatch):
         drives = _Drives()
@@ -637,10 +642,9 @@ class TestMicrosoftFiles:
             access_token="t", cursor=self._cursor(), places={"": _NOW, _SITE: _NOW}
         )
         assert read.events == ()
-        assert read.cursor["places"] == {
-            "": {"drive_id": "OWN", "link": f"{_GRAPH}/drives/OWN/root/delta?token=OWN-0"},
-            _SITE: {"drive_id": "D1", "link": f"{_GRAPH}/drives/D1/root/delta?token=D1-0"},
-        }
+        assert read.cursor["places"][""]["drive_id"] == "OWN"
+        assert read.cursor["places"][_SITE]["drive_id"] == "D1"
+        assert read.cursor["places"][_SITE]["link"].endswith("token=D1-0")
 
     async def test_changes_in_a_library_become_events_with_where_they_are(self, monkeypatch):
         drives = _Drives()
@@ -885,3 +889,178 @@ class TestContext:
         assert rendered.endswith("Agenda")
         bare = trigger_events.render_context("outlook_calendar", payload={})
         assert "From outside" not in bare
+
+
+class TestProviderContractRegressions:
+    def test_creation_is_identified_after_an_edit_before_the_first_read(self) -> None:
+        created = _NOW - timedelta(minutes=3)
+        changed, seen = _files.classify(
+            [_changed("new", created=created, modified=_NOW)],
+            since=_NOW - timedelta(minutes=5),
+            seen={},
+            now=_NOW,
+            complete=False,
+        )
+        events, _ = _files.news(changed, announced={}, now=_NOW)
+        assert events[0].payload["change"] == "created"
+        changed, _ = _files.classify(
+            [_changed("new", created=created, modified=_NOW)],
+            since=_NOW - timedelta(minutes=5),
+            seen=seen,
+            now=_NOW,
+            complete=True,
+        )
+        events, _ = _files.news(changed, announced={}, now=_NOW)
+        assert events[0].payload["change"] == "modified"
+
+    async def test_sharepoint_delta_resolves_the_folder_outside_the_delta_feed(
+        self, monkeypatch
+    ) -> None:
+        drives = _Drives()
+        drives.pages["D1-0"] = [
+            [_drive_item("doc", parentReference={"id": "folder", "driveId": "D1"})]
+        ]
+        routes = drives.routes()
+        routes["/v1.0/drives/D1/items/doc"] = _drive_item("doc")
+        _install(_Api(routes), monkeypatch)
+        read = await MicrosoftFilesPortalAdapter().poll(
+            access_token="t",
+            cursor={
+                "account": "ann",
+                "places": {
+                    _SITE: {"drive_id": "D1", "link": f"{_GRAPH}/drives/D1/root/delta?token=D1-0"}
+                },
+            },
+            places={_SITE: _NOW},
+        )
+        assert read.events[0].payload["folder"] == "Invoices/2026"
+        assert _matches(
+            "microsoft_files",
+            read.events[0].payload,
+            {"site_url": _SITE, "folder_path": "Invoices"},
+        )
+
+    async def test_sharepoint_identity_does_not_require_a_personal_drive(self, monkeypatch) -> None:
+        api = _Api({"/v1.0/me": {"id": "guest"}})
+        _install(api, monkeypatch)
+        read = await MicrosoftFilesPortalAdapter().poll(access_token="t", cursor=None)
+        assert read.cursor["account"] == "guest"
+        assert [request.url.path for request in api.asked] == ["/v1.0/me"]
+
+    async def test_a_new_sharepoint_watch_uses_its_creation_time(self, monkeypatch) -> None:
+        api = _Api(_Drives().routes())
+        _install(api, monkeypatch)
+        await MicrosoftFilesPortalAdapter().poll(
+            access_token="t", cursor={"account": "ann", "places": {}}, places={_SITE: _NOW}
+        )
+        request = next(request for request in api.asked if request.url.path.endswith("/delta"))
+        assert request.url.params["token"] == _NOW.isoformat()
+
+    @pytest.mark.parametrize("provider", ["google", "outlook"])
+    async def test_calendar_reads_the_next_page(self, provider: str, monkeypatch) -> None:
+        def page(request: httpx.Request) -> httpx.Response:
+            if "pageToken" in request.url.params or "$skip" in request.url.params:
+                return httpx.Response(
+                    200, json={"items": [_gcal_event()], "value": [_graph_event()]}
+                )
+            return httpx.Response(
+                200,
+                json={
+                    "items": [],
+                    "value": [],
+                    "nextPageToken": "2",
+                    "@odata.nextLink": f"{_GRAPH}/me/calendarView?$skip=1",
+                },
+            )
+
+        route = (
+            "/calendar/v3/calendars/primary/events"
+            if provider == "google"
+            else "/v1.0/me/calendarView"
+        )
+        api = _Api({route: page})
+        _install(api, monkeypatch)
+        adapter = (
+            GoogleCalendarPortalAdapter()
+            if provider == "google"
+            else OutlookCalendarPortalAdapter()
+        )
+        read = await adapter.poll(
+            access_token="t", cursor={"account": "ann@acme.test"}, places={"15": _NOW}
+        )
+        assert len(api.asked) == 2
+        assert len(read.events) == 1
+
+
+@pytest.mark.parametrize("provider", ["google", "outlook"])
+async def test_a_calendar_pagination_overflow_is_an_observable_failure(
+    provider: str, monkeypatch
+) -> None:
+    api = _Api(
+        {
+            "/calendar/v3/calendars/primary/events": {"items": [], "nextPageToken": "next"},
+            "/v1.0/me/calendarView": {
+                "value": [],
+                "@odata.nextLink": f"{_GRAPH}/me/calendarView?$skip=1",
+            },
+        }
+    )
+    _install(api, monkeypatch)
+    adapter = (
+        GoogleCalendarPortalAdapter() if provider == "google" else OutlookCalendarPortalAdapter()
+    )
+    with pytest.raises(PortalUnreachable):
+        await adapter.poll(
+            access_token="t", cursor={"account": "ann@acme.test"}, places={"15": _NOW}
+        )
+    assert len(api.asked) == 10
+
+
+async def test_calendar_pagination_never_sends_the_token_to_another_host(monkeypatch) -> None:
+    api = _Api(
+        {"/v1.0/me/calendarView": {"value": [], "@odata.nextLink": "https://other.test/steal"}}
+    )
+    _install(api, monkeypatch)
+    with pytest.raises(PortalUnreachable):
+        await OutlookCalendarPortalAdapter().poll(
+            access_token="t", cursor={"account": "ann@acme.test"}, places={"15": _NOW}
+        )
+    assert len(api.asked) == 1
+
+
+@pytest.mark.parametrize("status", [404, 503])
+async def test_a_file_removed_between_delta_and_metadata_does_not_break_the_cursor(
+    status: int, monkeypatch
+) -> None:
+    drives = _Drives()
+    drives.pages["D1-0"] = [[_drive_item("gone", parentReference={"id": "folder"})]]
+    routes = drives.routes()
+    routes["/v1.0/drives/D1/items/gone"] = lambda request: httpx.Response(status, json={})
+    _install(_Api(routes), monkeypatch)
+    operation = MicrosoftFilesPortalAdapter().poll(
+        access_token="t",
+        cursor={
+            "account": "ann",
+            "places": {
+                _SITE: {"drive_id": "D1", "link": f"{_GRAPH}/drives/D1/root/delta?token=D1-0"}
+            },
+        },
+        places={_SITE: _NOW},
+    )
+    if status == 503:
+        with pytest.raises(PortalUnreachable):
+            await operation
+    else:
+        assert (await operation).events == ()
+
+
+async def test_repeated_lost_sync_never_advances_the_drive_cursor(monkeypatch) -> None:
+    api = _Api({"/v1.0/drives/D1/root/delta": lambda request: httpx.Response(410, json={})})
+    _install(api, monkeypatch)
+    with pytest.raises(PortalUnreachable):
+        await MicrosoftFilesPortalAdapter().poll(
+            access_token="t",
+            cursor={"account": "ann", "places": {_SITE: {"drive_id": "D1"}}},
+            places={_SITE: _NOW},
+        )
+    assert len(api.asked) == 10

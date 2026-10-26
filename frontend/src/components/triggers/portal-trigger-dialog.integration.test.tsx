@@ -100,6 +100,8 @@ function agent(id: string, name: string, status = "published", can_run = true) {
 
 function serve(targets: { id: string; label: string }[] = []) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/me/permissions")
+      return { permissions: [{ permission: "mcp:manage", scope: "all" }] };
     if (path === "/agents") return { items: [agent("a1", "Analyst")], total: 1 };
     if (path.includes("/targets")) return { items: targets, total: targets.length };
     // Any agent's environments and triggers.
@@ -357,7 +359,7 @@ describe("PortalTriggerDialog", () => {
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText(/Nothing else to set up/)).toBeVisible();
+    expect(await screen.findByText(/connected service is checked every minute/)).toBeVisible();
     expect(screen.queryByLabelText("Webhook URL")).toBeNull();
     expect(screen.queryByLabelText("Signing secret")).toBeNull();
     expect(screen.queryByText(/add this webhook URL/i)).toBeNull();

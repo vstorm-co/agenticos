@@ -61,19 +61,33 @@ class GoogleDrivePortalAdapter(PortalAdapter):
                     client, access_token, "/about", {"fields": "user(emailAddress)"}
                 )
                 user = about.get("user")
-                fresh: dict[str, Any] = {"page_token": await self._start(client, access_token)}
+                fresh: dict[str, Any] = {
+                    "page_token": await self._start(client, access_token),
+                    "created_since": now.isoformat(),
+                }
                 if isinstance(user, dict) and isinstance(user.get("emailAddress"), str):
                     fresh["account"] = user["emailAddress"].casefold()
                 return PolledEvents(events=(), cursor=fresh)
             assert cursor is not None
-            changed, resume = await self._changed_since(client, access_token, token)
-        events, announced = _files.news(changed, announced=cursor.get("announced") or {}, now=now)
+            changed, resume, complete = await self._changed_since(client, access_token, token)
+        since = _files.parse_time(cursor.get("created_since")) or now
+        seen = cursor.get("seen_files")
+        known = (
+            {key: value for key, value in seen.items() if isinstance(value, str)}
+            if isinstance(seen, dict)
+            else {}
+        )
+        changed, known = _files.classify(
+            changed, since=since, seen=known, now=now, complete=complete
+        )
+        events, _ = _files.news(changed, announced={}, now=now)
         return PolledEvents(
             events=tuple(events),
             cursor={
                 **{key: cursor[key] for key in ("account",) if key in cursor},
                 "page_token": resume,
-                "announced": announced,
+                "created_since": (now if complete else since).isoformat(),
+                "seen_files": known,
             },
         )
 
@@ -85,7 +99,7 @@ class GoogleDrivePortalAdapter(PortalAdapter):
 
     async def _changed_since(
         self, client: httpx.AsyncClient, access_token: str, token: str
-    ) -> tuple[list[_files.ChangedFile], str]:
+    ) -> tuple[list[_files.ChangedFile], str, bool]:
         """The files changed since `token`, and the token to store next.
 
         Bounded to `_MAX_PAGES`: past it the next page's token is stored, so a
@@ -104,16 +118,16 @@ class GoogleDrivePortalAdapter(PortalAdapter):
                 if (exc.details or {}).get("status") not in {404, 410}:
                     raise
                 logger.info("google_drive_token_expired")
-                return [], await self._start(client, access_token)
+                return [], await self._start(client, access_token), True
             for change in body.get("changes") or []:
                 item = _changed_file(change)
                 if item is not None:
                     changed.append(item)
             following = body.get("nextPageToken")
             if not isinstance(following, str) or not following:
-                return changed, str(body.get("newStartPageToken") or token)
+                return changed, str(body.get("newStartPageToken") or token), True
             token = following
-        return changed, token
+        return changed, token, False
 
     async def _get(
         self,

@@ -16,6 +16,7 @@ from app.services.portals import _calendar
 from app.services.portals._api import TIMEOUT, get_json, nested
 from app.services.portals._files import parse_time
 from app.services.portals.base import NOWHERE, PolledEvents, PortalAdapter
+from app.services.portals.exceptions import PortalUnreachable
 
 _API_BASE = "https://www.googleapis.com/calendar/v3"
 
@@ -44,23 +45,27 @@ class GoogleCalendarPortalAdapter(PortalAdapter):
             watched = _calendar.leads(places)
             if not watched:
                 return PolledEvents(events=(), cursor=cursor)
-            listing = await self._get(
-                client,
-                access_token,
-                "/calendars/primary/events",
-                {
-                    "timeMin": now.isoformat(),
-                    "timeMax": (now + timedelta(minutes=max(watched))).isoformat(),
-                    "singleEvents": "true",
-                    "orderBy": "startTime",
-                    "maxResults": "50",
-                },
-            )
-        meetings = [
-            meeting
-            for item in listing.get("items") or []
-            if (meeting := _meeting(item)) is not None
-        ]
+            params = {
+                "timeMin": now.isoformat(),
+                "timeMax": (now + timedelta(minutes=max(watched))).isoformat(),
+                "singleEvents": "true",
+                "orderBy": "startTime",
+                "maxResults": "250",
+            }
+            meetings: list[_calendar.Meeting] = []
+            for _ in range(10):
+                listing = await self._get(client, access_token, "/calendars/primary/events", params)
+                meetings.extend(
+                    meeting
+                    for item in listing.get("items") or []
+                    if (meeting := _meeting(item)) is not None
+                )
+                following = listing.get("nextPageToken")
+                if not isinstance(following, str) or not following:
+                    break
+                params["pageToken"] = following
+            else:
+                raise PortalUnreachable(message="Google Calendar pagination limit reached")
         events, announced = _calendar.announce(
             meetings,
             watched=watched,

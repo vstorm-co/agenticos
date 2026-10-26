@@ -24,6 +24,8 @@ import {
   WizardNav,
   WizardSteps,
 } from "@/components/ui";
+import { EventOptions, eventOptionsValid } from "./event-options";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
@@ -56,37 +58,39 @@ function targetLabelKey(targetKind: string | null): string {
  * this one narrow on the same fields; the friendly copy - a concrete example per
  * field - lives here, since the raw form uses one generic "optional" placeholder.
  */
-const FILTER_COPY: Record<string, { labelKey: string; placeholderKey: string; helpKey?: string }> =
-  {
-    subject_contains: {
-      labelKey: "subjectFilterLabel",
-      placeholderKey: "subjectFilterPlaceholder",
-    },
-    sender_contains: { labelKey: "senderFilterLabel", placeholderKey: "senderFilterPlaceholder" },
-    author_contains: { labelKey: "authorFilterLabel", placeholderKey: "authorFilterPlaceholder" },
-    text_contains: { labelKey: "textFilterLabel", placeholderKey: "textFilterPlaceholder" },
-    folder_id: {
-      labelKey: "folderIdFilterLabel",
-      placeholderKey: "folderIdFilterPlaceholder",
-      helpKey: "folderIdFilterHelp",
-    },
-    name_contains: { labelKey: "nameFilterLabel", placeholderKey: "nameFilterPlaceholder" },
-    // Where the poller looks rather than a filter: blank is the account's own
-    // OneDrive, so the generic "blank fires on everything" would mislead.
-    site_url: {
-      labelKey: "siteUrlFilterLabel",
-      placeholderKey: "siteUrlFilterPlaceholder",
-      helpKey: "siteUrlFilterHelp",
-    },
-    folder_path: {
-      labelKey: "folderPathFilterLabel",
-      placeholderKey: "folderPathFilterPlaceholder",
-    },
-    attendee_contains: {
-      labelKey: "attendeeFilterLabel",
-      placeholderKey: "attendeeFilterPlaceholder",
-    },
-  };
+export const FILTER_COPY: Record<
+  string,
+  { labelKey: string; placeholderKey: string; helpKey?: string }
+> = {
+  subject_contains: {
+    labelKey: "subjectFilterLabel",
+    placeholderKey: "subjectFilterPlaceholder",
+  },
+  sender_contains: { labelKey: "senderFilterLabel", placeholderKey: "senderFilterPlaceholder" },
+  author_contains: { labelKey: "authorFilterLabel", placeholderKey: "authorFilterPlaceholder" },
+  text_contains: { labelKey: "textFilterLabel", placeholderKey: "textFilterPlaceholder" },
+  folder_id: {
+    labelKey: "folderIdFilterLabel",
+    placeholderKey: "folderIdFilterPlaceholder",
+    helpKey: "folderIdFilterHelp",
+  },
+  name_contains: { labelKey: "nameFilterLabel", placeholderKey: "nameFilterPlaceholder" },
+  // Where the poller looks rather than a filter: blank is the account's own
+  // OneDrive, so the generic "blank fires on everything" would mislead.
+  site_url: {
+    labelKey: "siteUrlFilterLabel",
+    placeholderKey: "siteUrlFilterPlaceholder",
+    helpKey: "siteUrlFilterHelp",
+  },
+  folder_path: {
+    labelKey: "folderPathFilterLabel",
+    placeholderKey: "folderPathFilterPlaceholder",
+  },
+  attendee_contains: {
+    labelKey: "attendeeFilterLabel",
+    placeholderKey: "attendeeFilterPlaceholder",
+  },
+};
 
 interface PortalTriggerDialogProps {
   portal: PortalCatalogEntry;
@@ -119,6 +123,7 @@ export function PortalTriggerDialog({
   const tt = useTranslations("triggers");
 
   const { agents } = useAgents();
+  const { can } = usePermissions();
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
   // Only agents the caller may actually run: a published version to run, and a
   // `can_run` resolving the caller's role scope plus any run grant. Seeding the
@@ -144,6 +149,7 @@ export function PortalTriggerDialog({
   // Two generic substring slots, mapped to the source's `event_config` keys by
   // `FILTER_KEYS` - a subject and sender for email, none for a source that
   // filters nothing. Empty slots are not sent.
+  const [extraConfig, setExtraConfig] = useState<Record<string, unknown>>({});
   const [filterA, setFilterA] = useState("");
   const [filterB, setFilterB] = useState("");
   // Which seeded template the message started from, or null for "from scratch".
@@ -164,12 +170,13 @@ export function PortalTriggerDialog({
 
   function choosePreset(key: string) {
     setPresetKey(key);
+    setExtraConfig(portal.presets.find((entry) => entry.key === key)?.event_config ?? {});
     setStep("configure");
   }
 
   async function submit() {
     if (preset === null || effectiveAgentId === "") return;
-    const eventConfig = eventFilterConfig(eventSource, [filterA, filterB]);
+    const eventConfig = { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) };
     const payload: TriggerCreate = {
       prompt,
       name: name.trim() || null,
@@ -179,7 +186,7 @@ export function PortalTriggerDialog({
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
       ...(connectionId ? { connection_id: connectionId } : {}),
       ...(needsTarget && target.trim() ? { target: target.trim() } : {}),
-      ...(eventConfig ? { event_config: eventConfig } : {}),
+      ...(Object.keys(eventConfig).length ? { event_config: eventConfig } : {}),
     };
     try {
       const result = await create.mutateAsync(payload);
@@ -195,7 +202,8 @@ export function PortalTriggerDialog({
     effectiveAgentId !== "" &&
     prompt.trim().length > 0 &&
     (!needsTarget || target.trim().length > 0) &&
-    !create.isPending;
+    !create.isPending &&
+    eventOptionsValid(extraConfig);
 
   if (created !== null) {
     // Three outcomes, not two. `manual` is the only one with anything to hand
@@ -356,6 +364,7 @@ export function PortalTriggerDialog({
               )}
 
               {filterKeys.map((key, index) => {
+                if (key === "site_url" && !can("mcp:manage")) return null;
                 const copy = FILTER_COPY[key]!;
                 const value = index === 0 ? filterA : filterB;
                 const onChange = index === 0 ? setFilterA : setFilterB;
@@ -379,12 +388,18 @@ export function PortalTriggerDialog({
                       value={value}
                       onChange={(event) => onChange(event.target.value)}
                       placeholder={t(copy.placeholderKey)}
-                      maxLength={255}
+                      maxLength={["site_url", "folder_path", "folder_id"].includes(key) ? 512 : 255}
                     />
                   </FormField>
                 );
               })}
 
+              <EventOptions
+                source={eventSource}
+                config={extraConfig}
+                onChange={setExtraConfig}
+                canManageConnections={can("mcp:manage")}
+              />
               {namedEnvironments.length > 0 && (
                 <EnvironmentField
                   id="portal-environment"

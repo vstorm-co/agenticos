@@ -58,7 +58,9 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
 }
 
 function serve() {
-  vi.mocked(apiClient.get).mockImplementation(async () => ({ items: [], total: 0 }));
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 },
+  );
 }
 
 /** The event form, as reached from the portal grid's "Advanced: API trigger". */
@@ -251,6 +253,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
   it("offers the source's message templates and prefills the prompt from one", async () => {
     const user = userEvent.setup();
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/me/permissions") return { permissions: [] };
       if (path === "/trigger-templates") {
         return {
           items: [
