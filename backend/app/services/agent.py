@@ -21,13 +21,13 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.models.agent_run import RunStatus
 from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
+from app.repositories import agent_run_repo, member_repo
 from app.repositories import conversation as conversation_repo
-from app.repositories import member_repo
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationUpdate,
@@ -40,7 +40,7 @@ from app.schemas.conversation import (
 from app.schemas.mention import Mentionable
 from app.services.conversation import ConversationService
 from app.services.project import ProjectService
-from app.services.transcript import what_arrived
+from app.services.transcript import STOPPED_TOOL_RESULT, what_arrived
 from app.services.usage_report import UsageReport
 
 logger = logging.getLogger(__name__)
@@ -212,6 +212,7 @@ async def persist_user_turn(
     project_id: str | None = None,
     reply_to: str | None = None,
     mentions: Sequence[Mentionable] = (),
+    client_message_id: str | None = None,
 ) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
@@ -242,6 +243,15 @@ async def persist_user_turn(
             message must not abort a turn - but a refusal must abort, and a
             defect in this module must surface rather than read as one.
     """
+    if client_message_id is not None and (
+        not isinstance(client_message_id, str)
+        or not 1 <= len(client_message_id) <= 128
+        or client_message_id.strip() != client_message_id
+    ):
+        raise BadRequestError(
+            message="Invalid client message id",
+            details={"field": "client_message_id"},
+        )
     newly_created = False
     message_id: UUID | None = None
     for_model: str | None = None
@@ -252,7 +262,7 @@ async def persist_user_turn(
     conversation: Conversation | None = None
     try:
         async with get_db_context() as db:
-            conv_service = get_conversation_service(db)
+            conv_service = ConversationService(db)
 
             if requested_conversation_id:
                 current_conversation_id = requested_conversation_id
@@ -302,6 +312,7 @@ async def persist_user_turn(
                 MessageCreate(
                     role="user",
                     content=content,
+                    client_message_id=client_message_id,
                     reply_to_message_id=replied,
                     parts=[
                         MessagePart(
@@ -428,7 +439,15 @@ async def persist_assistant_turn(
     """
     try:
         async with get_db_context() as db:
-            conv_service = get_conversation_service(db)
+            stopped = False
+            if run_id is not None and parked_tool_call_ids:
+                # Hold the same lock as Stop until these call rows commit. If
+                # Stop won, persist their settled outcome instead of stale cards.
+                run = await agent_run_repo.claim_parked_run(
+                    db, run_id, organization_id=organization_id
+                )
+                stopped = run is not None and run.status == RunStatus.CANCELLED.value
+            conv_service = ConversationService(db)
             spent = (
                 conversation_repo.Attributed()
                 if run_id is None
@@ -497,14 +516,17 @@ async def persist_assistant_turn(
                             args=normalize_tool_args(tc.get("args")),
                             started_at=datetime.now(UTC),
                         ),
-                        parked=tc["tool_call_id"] in parked_tool_call_ids,
+                        parked=tc["tool_call_id"] in parked_tool_call_ids and not stopped,
                         mcp_connection_id=(mcp_origins or {}).get(tc["tool_name"]),
                     )
-                    if tc.get("result"):
+                    result = tc.get("result")
+                    if stopped and tc["tool_call_id"] in parked_tool_call_ids:
+                        result = STOPPED_TOOL_RESULT
+                    if result:
                         await conv_service.complete_tool_call(
                             tc_obj.id,
                             ToolCallComplete(
-                                result=tc["result"],
+                                result=result,
                                 completed_at=datetime.now(UTC),
                                 success=True,
                             ),

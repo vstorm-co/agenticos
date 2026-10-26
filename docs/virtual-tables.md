@@ -479,7 +479,7 @@ to share for a page.
 
 Kanban lanes load 25 cards at a time. **Load more** retains existing cards; a failed page offers **Retry**. Changing the grouping can be saved into the active view. Reading a private view after another member retypes its columns removes incompatible filters, sorting and grouping from the returned configuration without rewriting its owner's stored view. A page query that would lose a filter requires renewed consent.
 
-Table events use the wall clock at insertion after the mutation lock, matching trigger activation. A transaction started before activation can still produce a later eligible event. Migration `0221_table_event_wall_clock.py` changes future timestamps; it does not replay previously skipped events, which could duplicate effects.
+Table events use the wall clock at insertion after the mutation lock, matching trigger activation. A transaction started before activation can still produce a later eligible event. Migration `0229_table_event_wall_clock.py` changes future timestamps; it does not replay previously skipped events, which could duplicate effects.
 
 
 A [workflow](workflows.md#when-a-table-record-is-added) whose trigger node is **Table

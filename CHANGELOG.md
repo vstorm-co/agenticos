@@ -69,7 +69,7 @@ Two things are versioned separately from this file and worth knowing about:
   it; the page reads back only its status, answer text, structured answer without files
   and a short error. Public links, embeds, previews, history and impersonated sessions
   get no actions. New `artifact_versions.actions`, `workflow_runs.source_artifact_id`
-  and `source_version_number` (migration `0213_artifact_actions`), the setting
+  and `source_version_number` (migration `0221_artifact_actions`), the setting
   `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` and the audit entry `artifact.action_started`.
   (#1976) [Artifacts](docs/artifacts.md#actions) has the rules.
 
@@ -87,7 +87,7 @@ Two things are versioned separately from this file and worth knowing about:
   Reads are shared for 30 seconds in a byte-bounded cache in the API process, never in
   Redis, and each page's real reads are capped per minute. Editors see why a consented
   page shows nothing. New `organizations.public_live_data` and public data columns on
-  `artifacts` (migrations `0211_org_public_live_data`, `0212_artifact_public_data`), settings
+  `artifacts` (migrations `0219_org_public_live_data`, `0220_artifact_public_data`), settings
   `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` and `ARTIFACT_PUBLIC_DATA_CACHE_BYTES`, and
   audit entries `organization.public_live_data_changed`, `artifact.public_data_consented`,
   `artifact.public_data_withdrawn` and `artifact.public_data_voided`. No agent tool reaches
@@ -114,8 +114,8 @@ Two things are versioned separately from this file and worth knowing about:
   cannot see can **Request access**. Agents get `share_artifact`, which only asks. New
   `artifact_share_requests`, consent columns on `artifact_versions`, `artifacts.auto_consent`,
   the `edit_data` grant level, the `artifact_share_requested` and `artifact_owner_changed`
-  notifications (migrations `0207_artifact_consent`, `0208_artifact_owner_changed`,
-  `0209_artifact_share_requests`, `0210_grant_edit_data`) and audit entries
+  notifications (migrations `0215_artifact_consent`, `0216_artifact_owner_changed`,
+  `0217_artifact_share_requests`, `0218_grant_edit_data`) and audit entries
   `artifact.data_consented`, `artifact.data_withdrawn`, `artifact.auto_consent_changed`,
   `artifact.owner_changed`, `artifact.share_requested`, `artifact.share_request_approved`,
   `artifact.share_request_declined` and `artifact.edit_data_granted`. A public link or an
@@ -158,14 +158,14 @@ Two things are versioned separately from this file and worth knowing about:
   `POST /api/v1/artifacts/{id}/archive` and `/unarchive` (audited as
   `artifact.archived` and `artifact.unarchived`), `include_archived` on the
   list, an **Archived included** filter and an **Archived** badge in the
-  console, and `artifacts.archived_at` (migration `0203_artifact_archive`).
+  console, and `artifacts.archived_at` (migration `0211_artifact_archive`).
 
 - **A restored page version says what it was restored from.** Restoring a
   kept version of an artifact still adds a new version with its bytes; that
   version now records the number it came from, and the console's version list
   shows it as `v4 · restored from v2`. A publish leaves it empty. New
   `restored_from` on the version read and `artifact_versions.restored_from`
-  (migration `0204_artifact_restored_from`).
+  (migration `0212_artifact_restored_from`).
 
 - **Tool-call approvals say what they will do in names.** A gated table
   write is parked with its ids resolved, as the run's person, to the table and
@@ -174,7 +174,7 @@ Two things are versioned separately from this file and worth knowing about:
   `register(...)`; one that fails or is slow parks the call without a sentence.
   New `context` on `GET /approvals` rows, `GET /runs/{id}/parked` and the
   `tool_approval_required` frame, and `tool_approvals.context` (migration
-  `0205_tool_approval_context`).
+  `0213_tool_approval_context`).
 
 - **Archiving and restoring a table from the console.** A member who can edit
   a Virtual Table archives it from **More actions** on its page, after a
@@ -218,7 +218,7 @@ Two things are versioned separately from this file and worth knowing about:
   the answer to look and whether it should contain, not contain or equal a
   value. **Try** starts a test run of the step per case and marks each passed
   or failed as its run ends, with what the answer said and what it cost.
-  Migration `0200_workflow_step_evals`.
+  Migration `0208_workflow_step_evals`.
 
 - **Limits and figures for a workflow's runs.** A workflow's settings take how
   many real runs may be under way at once (a start past it is refused with
@@ -235,7 +235,7 @@ Two things are versioned separately from this file and worth knowing about:
   agents' Gmail triggers. A message read twice runs once, and one the
   organization had no room for is read again a minute later. The step shows
   whether a mailbox is connected and connects one; a GitHub step shows the
-  same for its account. Migration `0199_workflow_gmail_trigger`.
+  same for its account. Migration `0207_workflow_gmail_trigger`.
 
 - **Workflows started from GitHub.** A **GitHub** trigger starts a run for
   the issues, comments, pull requests, reviews, pushes, releases or Actions
@@ -245,14 +245,14 @@ Two things are versioned separately from this file and worth knowing about:
   otherwise it shows the address and secret once, to paste. Deliveries are
   checked against GitHub's signature, a redelivery answers with its first run,
   and a `ping` or anything not named is skipped. Migration
-  `0198_workflow_github_trigger`.
+  `0206_workflow_github_trigger`.
 
 - **Workflows started from a channel message.** A **Channel message** trigger
   hands a Slack, Mattermost or Telegram bot's messages to a workflow: each one
   the bot's agent would have answered, and that fits the trigger's chats and
   words, starts a run as its publisher with the text, the sender and where to
   answer. The rest still reach the bot's agent, and a bot's messages start one
-  workflow at most. Migration `0197_workflow_channel_trigger`.
+  workflow at most. Migration `0205_workflow_channel_trigger`.
 
 - **Workflows started from a form.** A **Form** trigger gives a workflow a
   public page with the fields it declares, its own title, description, button
@@ -260,7 +260,7 @@ Two things are versioned separately from this file and worth knowing about:
   answer that fits starts a run as the member who published it. **Trigger**
   shows the link, **New link** replaces it, and pausing closes the page; each
   form takes at most `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute,
-  and a hidden field turns scripts away. Migration `0196_workflow_form_trigger`.
+  and a hidden field turns scripts away. Migration `0204_workflow_form_trigger`.
 
 - **Agents start workflows.** The **Workflows** capability gives an agent the
   published workflows its spec names as tools: it reads the input each one
@@ -270,7 +270,7 @@ Two things are versioned separately from this file and worth knowing about:
   started it. An agent running as a workflow's own step starts none. A run
   with no member behind it (a widget, embed or hosted-page visitor, an unlinked
   channel sender, an agent event trigger's delivery) starts none.
-  Migration `0195_workflow_run_from_agent`.
+  Migration `0203_workflow_run_from_agent`.
 
 - **Import a CSV file again to update a table.** With an external id column mapped,
   **Update records already here** changes the cells a row names on the record
@@ -282,7 +282,7 @@ Two things are versioned separately from this file and worth knowing about:
   changed or deleted, and a change only when one of the columns chosen for the
   table changed. The run gets the record with its `event`, its values `before`
   and the `changed` columns. Changes and deletions are queued only for a table a
-  trigger listens to. Migration `0194_table_trigger_events`.
+  trigger listens to. Migration `0202_table_trigger_events`.
 
 - **Formula columns.** A table column can work a value out from the record's
   other columns - `{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
@@ -332,7 +332,7 @@ Two things are versioned separately from this file and worth knowing about:
   step's first run, republished when its spec changes, kept out of the catalog and
   reached through the workflow's access. **Copy its configuration into this step**
   and **Save as an agent** move between the two. `max_cost_usd` caps one execution
-  of the step. Migration `0193_workflow_agents`.
+  of the step. Migration `0201_workflow_agents`.
 
 - **A workflow note can be tinted** grey, yellow, green, blue, purple or red
   from the swatches a selected note shows; the graph keeps the colour.
@@ -604,7 +604,7 @@ Two things are versioned separately from this file and worth knowing about:
   service. A retried step or tool call replays its first write, and a table
   or pinned column a live workflow uses cannot be archived. Creating a table
   is now idempotent under an operation key; migration
-  `0180_table_create_receipts.py` (#1784).
+  `0188_table_create_receipts.py` (#1784).
 - **Workflows can do real work: agents, knowledge, data, branches, HTTP and
   notifications.** Nine nodes join the palette. `core.input` and `core.output`
   carry a run's `input` and `output` (`POST /workflow-runs` takes `input`, and
@@ -618,7 +618,7 @@ Two things are versioned separately from this file and worth knowing about:
   them. `http.request` calls APIs through the SSRF-pinned client, and
   `notification.send` notifies members who can see the workflow. Every node
   is in the new [node reference](docs/reference/workflow-nodes.md).
-  Migrations `0178_workflow_run_io.py` and `0179_workflow_notification.py`
+  Migrations `0186_workflow_run_io.py` and `0187_workflow_notification.py`
   (#1789).
 - **Restore a published workflow version to the draft.** **Restore to draft** in
   a version's preview replaces the draft with that version's graph, after a
@@ -642,7 +642,7 @@ Two things are versioned separately from this file and worth knowing about:
   Runs, their events and cancel have routes of their own; see
   [the HTTP API](docs/api.md#running-a-workflow) and
   [Permissions](docs/permissions.md#workflow-runs). Migration
-  `0176_workflow_runs.py`. (#1788)
+  `0184_workflow_runs.py`. (#1788)
 - **Virtual Tables: typed records behind one service and an HTTP API.** A table is
   metadata plus JSONB, never a physical SQL table, with immutable schema versions,
   stable table, column and option ids, and nine column types (text, long text,
@@ -654,7 +654,7 @@ Two things are versioned separately from this file and worth knowing about:
   `Idempotency-Key` header makes a retry return the first answer. Access is
   visibility plus grants like context files, with new `tables:view`, `tables:edit`
   and `tables:create` permissions, and every route answers refusals in one typed
-  error envelope. Migration `0171_virtual_tables.py`; see
+  error envelope. Migration `0179_virtual_tables.py`; see
   [Virtual Tables](docs/virtual-tables.md). (#1782)
 - **Virtual Tables in the console: a catalog, table/kanban/list views, and saved
   views.** `/tables` lists, searches and creates tables. A table's page edits its
@@ -667,27 +667,53 @@ Two things are versioned separately from this file and worth knowing about:
   `/tables/{id}/views` (paged, per kind). Archiving a column is refused only by a
   view the caller can both see and change; any other view drops the column when
   read instead. Also a Tables dashboard card, a sidebar entry and onboarding stops.
-  Migration `0174_table_views.py`; see
+  Migration `0182_table_views.py`; see
   [saved views](docs/virtual-tables.md#saved-views). (#1783)
+- **Outlook mail can start an agent** (#1984). A Microsoft 365 mailbox connects
+  as a trigger the way Gmail does - an app registration stored in Vault as a
+  Microsoft OAuth app, a consent screen, nothing to paste - and is read once a
+  minute. A trigger watches a folder (the inbox, a folder a mail rule files into,
+  or a shared mailbox) and narrows by sender, subject, attachments, importance or
+  category; the run gets the message as text with its attachments listed. A
+  message read twice fires once, and Outlook variants of the email templates come
+  with it.
+- **More of GitHub can start an agent.** Beside a new issue, a GitHub trigger now
+  fires on a pull request opened, ready or awaiting review, a comment that
+  mentions a phrase such as `@agent`, a failed workflow run, a published release
+  or a push, each a preset on both GitHub portals and narrowed by branch where it
+  applies. Issues, pull requests and comments fire only for the repository's own
+  members by default (`authors: anyone` lets everybody through), and never for a
+  bot or the account the trigger was connected with.
+- **HubSpot and Zendesk webhooks fire agents.** Two new signed sources, each
+  verified by its provider's own scheme against the secret the provider issues:
+  HubSpot's v3 signature (and its v1 one for CRM subscriptions), narrowed by
+  event type and property, and Zendesk's, narrowed by event type.
+- **Files and calendars start agents.** Four new portals, each its own consent
+  on the organization's existing Google or Microsoft app: Google Drive and
+  OneDrive & SharePoint fire on new or changed files (a file being edited at most
+  once in half an hour, the account's own edits never), and Google Calendar and
+  Outlook Calendar fire a set time before a meeting with somebody else on it -
+  15 minutes by default, 5 to 120, optionally only with outsiders - so an agent
+  can prepare a brief.
+- **A schedule has a time zone.** A schedule set to a time of day is read in an
+  IANA zone and keeps its hour through daylight saving; a new one takes the
+  maker's account zone. The form picks it beside the time, the cadence line and
+  the dashboard's next fire name it, and the assistant's routine tools take it.
+  A schedule saved before is still read in UTC.
+- **A generic webhook may sign the time.** With `X-Signature-Timestamp` the
+  signature covers `{timestamp}.{body}` and a delivery more than five minutes
+  off is refused, so a captured one cannot be replayed.
 
 ### Fixed
 
 - Reserve workflow inputs, test snapshots and Wait payloads before storing them;
   authenticate resume links before reading bodies. Backfill retained byte counters
-  with migration `0224_workflow_input_bytes.py` while API and worker writers stop.
+  with migration `0232_workflow_input_bytes.py` while API and worker writers stop.
 - Protect files referenced by stored graphs and retained imports during cleanup
   and workflow deletion, and unregister GitHub hooks on successful deletion.
 - Serialize eval-case creation, refuse structured Combine keys without retries,
   refresh terminal files independently and include all workflows in dashboard totals.
 - Cover storage lifecycle locks and editor workflow changes in regression fixtures.
-
-
-- Open chat without downloading full transcripts for project metadata or decoding
-  model summaries. Reuse unchanged message renders, lay out long turns in linear
-  work, batch replay frames and release offscreen historical drawing frames (#2469).
-
-- Reopen long conversations at the newest messages and load older pages on
-  demand, preserving scroll position and live answers (#2468).
 
 - Bound foreach output collection before loading JSONB, validate terminal node
   results without retrying completed effects, and keep summary group keys intact.
@@ -733,8 +759,8 @@ Two things are versioned separately from this file and worth knowing about:
   imports their output files after rechecking access.
 - Decision and knowledge-search steps record model and embedding fees, including
   fees incurred before a search fails, in the organization bill even after run
-  retention. Migration `0219_workflow_node_spend.py` retains these direct fees;
-  `0218_workflow_child_cost.py` rolls existing child spend up to callers.
+  retention. Migration `0227_workflow_node_spend.py` retains these direct fees;
+  `0226_workflow_child_cost.py` rolls existing child spend up to callers.
   Organization keys cannot inspect or import
   files from personal workflow runs.
 - Deferred table deletion keeps the organization selected when it was requested;
@@ -790,7 +816,7 @@ Two things are versioned separately from this file and worth knowing about:
   no sign-in - the link, a MAC of the run under `SECRET_KEY`, is the
   credential - and answers `404` for a link that is not the run's and
   `WORKFLOW_NOT_WAITING` (409) when nothing waits. Migration
-  `0192_node_run_resume_payload.py`.
+  `0200_node_run_resume_payload.py`.
 - **A test run on the canvas, and a step switched off, as proposed.** A
   connection says how many items went along it when the step before handed
   on a list, and an edit that ends the run's overlay leaves a bar with
@@ -805,7 +831,7 @@ Two things are versioned separately from this file and worth knowing about:
   description is edited in the editor's header like the name (#1942). Run
   history narrows by when a run started (#1943). A date step that names no
   timezone writes in the workflow's, kept on the run from its start in
-  `workflow_runs.timezone` (migration `0191_workflow_run_timezone.py`, #1944).
+  `workflow_runs.timezone` (migration `0199_workflow_run_timezone.py`, #1944).
   A called run links back to its caller and the calling step to the run it
   started (#1946). Before any run a step's panes list the fields it declares,
   and a long table can show every row (#1934). The code editor boxes the
@@ -907,7 +933,47 @@ Two things are versioned separately from this file and worth knowing about:
   budget for receipts, outbox rows and history now scales with
   `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`, so one pass keeps draining a member
   writing at the limit instead of falling behind it. Migration
-  `0172_virtual_table_sweep_indexes.py`; see [Virtual Tables](docs/virtual-tables.md).
+  `0180_virtual_table_sweep_indexes.py`; see [Virtual Tables](docs/virtual-tables.md).
+- **Trigger integrations follow provider contracts.** Sender filters use the real
+  address, SharePoint site selection requires connection-management permission,
+  calendar reads paginate with the required scopes, and file watches resolve
+  folders outside delta responses and retain their creation boundary. Debounce
+  applies only after a trigger matches. Gmail retains overflow for later ticks
+  and reads separately stored MIME bodies. GitHub App installation binding and
+  repository selection work through their own grant. The console edits file and
+  calendar filters, own changes, mentions, branches and meeting leads, and hides
+  signing-secret rotation for polled triggers. Reconnect Microsoft Files and
+  Google Calendar accounts to approve their additional read scopes.
+
+- **A Gmail trigger no longer fires on the account's own mail.** Sent mail,
+  drafts, spam and the bin were read as arrivals, so an agent replying by email
+  set its own trigger off. They fire only a trigger whose label names them.
+- **A sender filter fires only on mail the sender signed.** `sender_contains`
+  read a `From` anybody can type. Gmail and Outlook triggers that filter on the
+  sender now fire only when DMARC passed or the sender's domain signed it with
+  DKIM, read from the provider's own `Authentication-Results`; Outlook counts
+  mail inside the tenant as signed. `authenticated_only` turns it on or off per
+  trigger.
+- **What an event carries is fenced off from the prompt.** An issue, an email or
+  a webhook body reaches the run inside a block marked as data, not appended to
+  the instructions where a sentence in it could read as an order.
+- **One trigger fires at most 60 times a minute.** A verified delivery past that
+  is a `429` with `Retry-After`, so a leaked secret or a relay in a loop cannot
+  spend the budget.
+
+- **A mailbox whose consent was withdrawn stops its triggers** (#1984). Gmail
+  and Outlook triggers were left on and retried every minute in silence; they
+  are now turned off with the reason in the audit log, and the card asks for a
+  reconnect. A refresh token the provider refuses as `invalid_grant` - or, from
+  Microsoft, `interaction_required` or `consent_required`, which a new MFA or
+  Conditional Access policy brings - is no longer spent again.
+- **Editing a mail trigger's subject or sender keeps the rest of its filter.**
+  Saving the two fields replaced the whole filter, dropping a Gmail label.
+
+- Read chat project metadata without downloading the transcript, and load model
+  summaries only for model-history reconstruction. Coalesce streamed text updates,
+  reuse unchanged Markdown and tool output, follow content size changes, and release
+  completed visual frames outside the viewport (#2469).
 
 ### Security
 
@@ -943,7 +1009,7 @@ Two things are versioned separately from this file and worth knowing about:
   from the instant it is admitted - not once its nodes fan out - and the check is
   serialized per organization and per principal so it cannot be raced. A start
   over the ceiling is refused with `429` `WORKFLOW_ADMISSION_QUOTA_EXCEEDED` until
-  running work drains. Migration `0177_workflow_run_node_count.py`. (#1907)
+  running work drains. Migration `0185_workflow_run_node_count.py`. (#1907)
 
 ### Changed
 
@@ -1077,6 +1143,156 @@ Two things are versioned separately from this file and worth knowing about:
   `REVISION_CONFLICT` from `table.record.update`, `.upsert` or `.delete` fails
   the step at once, because the same revision would conflict on every retry;
   route it with `error.handle` to a fresh read instead (#1790).
+
+## [1.17.0] - 2026-10-25
+
+### Added
+
+- Configure capability bindings and MCP services through AgenticOS MCP draft
+  tools, with sandbox connection, runtime and policy discovery. The Architect
+  can set up an executable sandbox and test it instead of handing configuration
+  back to the user.
+
+### Fixed
+
+- Reconcile persisted chat prompts by their submission id after a lost socket
+  acknowledgement, without merging repeated prompts or discarding live deltas.
+- Keep loading layouts aligned with forms, queue sections, dashboard placements,
+  editors, API reference, sharing controls, spend cards, file explorers and run
+  and artifact previews.
+
+- Do not enqueue pending approval requests when a workspace save failure ends
+  the run; retain standing-consent audit records for calls already authorized.
+
+- Select the service-backed sandbox when installing the Architect on a deployment
+  with a sandbox host, so its code tools are executable rather than files-only.
+
+- Recheck parked run state under the row lock before continuing after Stop. Keep
+  Stop available when restoring question or approval cards fails, and settle
+  waiting delegate panels when their run is cancelled.
+
+- Apply dashboard period, view, group and section filters when navigating to a
+  report without remounting the dashboard page.
+
+- Wait for chat session readiness before sending queued prompts, cancel pending
+  sends on context changes, and retain live or unsaved answers during transcript
+  refreshes. Reopen long conversations at their newest page, with earlier-message
+  pagination, and retain terminal trace metadata beyond the content budget.
+
+- Keep worker outage backoff bounded through prolonged database failures, and
+  retry lost LISTEN registrations and connection cleanup without stopping the
+  worker or swallowing cancellation.
+
+- Preserve database pool exhaustion as a retryable 503 during agent execution,
+  without masking it by reading a run expired by a failed transaction.
+
+- Enforce the state workspace cap after concurrent merges, preserve rejected snapshots as access-controlled recovery copies, cascade their deletion and report persistence failures to runs and project uploads.
+
+- Commit rotating OAuth credentials independently of agent preparation, drain cancellation through persistence, and serialize mailbox polls without holding credential row locks.
+
+- Bound scheduled MCP health checks to 64 oldest-first servers and eight simultaneous probes; advance unauthorized accounts so they cannot starve the queue; use a separate indexed health clock so OAuth renewal cannot postpone probes.
+
+- Serialize draft saves, publish/rollback version allocation and environment
+  changes per agent. Preserve edits waiting behind a publication, refresh
+  serving pointers after lock waits and allow new runs to start during
+  publication validation.
+
+- Use effective per-resource edit access for context, skill and vault controls.
+  Honor explicit edit grants and hide write actions on private resources
+  shared read-only, while keeping collection creation gated by its permission.
+
+- End console voice calls and pending microphone/setup/reconnect work on
+  tenant or account changes. Ignore stale media and transcript callbacks,
+  and keep late failures from ending a newer call. Public embeds retain
+  their separate visitor scope.
+
+- Show failed context-detail, retention-policy, environment and watch reads
+  with retry controls instead of endless loading or misleading empty states.
+
+- Serialize first-account bootstrap across password and OAuth signup so only
+  one account gets deployment-administrator authority. Grant that authority
+  to the first OAuth account and recheck the signup policy after contention.
+  Hash passwords before taking the bootstrap lock and send best-effort welcome
+  mail only after account creation commits.
+
+- Heartbeat proactive model runs while they execute, meter each response,
+  and durably settle consumed tokens on failure or cancellation, including
+  repeated cancellation during terminal persistence.
+
+- Batch knowledge-source audience reads by resource type so the Builder does
+  not make one grant query per private skill, context file or connection.
+
+- Prepare chat grouping, turn usage and request context in linear time per
+  stream update, and skip rendering unchanged message items between deltas.
+
+- Report truncated host workspace trees in the flat Documents listing.
+
+- Retain conversations with unfinished runs and purge one locked batch of
+  conversation rows and files. Commit durable file-cleanup jobs with retention
+  deletes, and isolate each retention class so a SQL failure cannot abort
+  the remaining classes or unlink files whose row deletion rolled back.
+
+- Erase mem0 memory using the SDK's supported user identifier. Include draft
+  and retained version destinations, clear all owners when clearing an agent,
+  and report unavailable credentials or incomplete erasure as failures.
+
+- Keep trigger histories in separate conversation-specific cache entries,
+  ignore stale admin-user search responses and own file-preview blob URLs
+  through committed subscriptions so Strict Mode cannot revoke a live preview.
+
+- Reap partially started worker pools on failure or cancellation. Keep job
+  deadlines and memory watchdogs active while writing to a child's stdin,
+  and stop a child that closes its pipes without exiting.
+
+- Run synchronous RAG embedding calls on the bounded I/O pool so retrieval
+  and ingestion leave the event loop responsive. Preserve the caller's spend
+  context and settle an in-flight response before propagating cancellation.
+
+- Keep voice-history summaries and image generation under the host agent's
+  tracing policy. Refuse new image requests after a run exhausts its budget,
+  meter image retries individually and price nested fallback requests using
+  the model that actually answered, including streamed responses.
+
+- Update FastMCP to 4.1.2, filelock to 4.2.1, virtualenv to 21.14.13 and
+  Pydantic AI harness to 0.59.0 to address the dependency audit advisories.
+  Pydantic AI and its graph package resolve to 2.59.0 for the harness and the
+  web-fetch security fix.
+  Update the frontend tooling lock to zod 4.6.6 and undici 8.12.2 for its
+  validation and HTTP decoding advisories.
+
+- **Session cookies no longer overwrite another app's login cookies on the same
+  hostname.** The console uses `agenticos_access_token` and
+  `agenticos_refresh_token` for sign-in, refresh and logout. **After upgrading,
+  sign in again once:** existing cookies with the generic names are ignored and
+  left untouched. Migration `0173_revoke_cookie_sessions.py` revokes
+  existing login sessions, including refresh chains and impersonations;
+  session-based API clients must also sign in again. API keys and HTTP API token
+  fields are unchanged. Downgrading does not reactivate sessions. Use separate hostnames
+  for unrelated apps to keep authentication cookies from reaching another app's
+  server; different ports and cookie names do not provide that isolation.
+
+- Sandbox launchers use Docker Desktop's VM socket group on macOS, retain the
+  socket group on Linux and respect explicit `DOCKER_GID` overrides (#2296).
+
+- Return to sign-in when refreshed session cookies are still refused, including
+  when another tab recently refreshed, instead of leaving agent pages loading (#2269).
+
+- Connect the worker wake-up listener with PostgreSQL TLS settings and cap its
+  reconnect delay without overflowing during a long database outage (#2453).
+
+- End live chat traces even when setup is cancelled before the model starts,
+  discard dead writers and show completed replayed answers from the transcript
+  without typing them out again when a conversation is reopened (#2454).
+
+- Organization usage reports open the organization Dashboard for the report
+  window and tenant; the shared email button accurately says Open console (#2455).
+
+- Keep Stop available while chat waits on a question, approval or account
+  connection, including reloaded parked runs. Cancelling a parked run closes
+  pending calls without continuing the model and preserves its recorded spend.
+
+- Treat OAuth grants with `expires_in=0` as already expired so they can be refreshed instead of reused indefinitely.
+
 ## [1.16.0] - 2026-10-23
 
 ### Added

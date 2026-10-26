@@ -129,7 +129,7 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
         AsyncMock(side_effect=lambda _db, **_kw: state.connection),
     )
     monkeypatch.setattr(
-        node, "resolve_auth_headers", AsyncMock(side_effect=lambda _db, _c: state.headers)
+        node, "resolve_auth_headers", AsyncMock(side_effect=lambda _c: state.headers)
     )
     monkeypatch.setattr(
         node.approval_repo,

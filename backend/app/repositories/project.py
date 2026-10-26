@@ -23,6 +23,20 @@ async def get(db: AsyncSession, project_id: UUID, *, organization_id: UUID) -> P
     return result.scalar_one_or_none()
 
 
+async def get_many(
+    db: AsyncSession, project_ids: Sequence[UUID], *, organization_id: UUID
+) -> list[Project]:
+    """Resolve a batch inside one tenant before resource authorization."""
+    if not project_ids:
+        return []
+    result = await db.execute(
+        select(Project).where(
+            Project.organization_id == organization_id, Project.id.in_(project_ids)
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_visible(
     db: AsyncSession,
     *,

@@ -1935,7 +1935,7 @@ class TestAWatchedConnection:
         conn = _connection(catalog_key="github", label="Work", allowed_tools=["list_prs"])
         conn.auth_token = _seal_into(conn, "secret-token")
 
-        spec = await watched_connection_spec(AsyncMock(), conn)
+        spec = await watched_connection_spec(conn)
 
         assert spec is not None
         assert spec.name == "github" and spec.account == "Work"
@@ -1944,23 +1944,21 @@ class TestAWatchedConnection:
 
     @pytest.mark.anyio
     async def test_a_custom_server_goes_by_its_name_and_a_dead_credential_by_nothing(self):
-        assert (await watched_connection_spec(AsyncMock(), _connection())).name == "github"
+        assert (await watched_connection_spec(_connection())).name == "github"
         dead = _connection(auth_token="enc:not-valid-ciphertext")
-        assert await watched_connection_spec(AsyncMock(), dead) is None
+        assert await watched_connection_spec(dead) is None
 
 
 class TestAuthHeaders:
     @pytest.mark.anyio
     async def test_no_token_no_headers(self):
-        assert await resolve_auth_headers(AsyncMock(), _connection()) == {}
+        assert await resolve_auth_headers(_connection()) == {}
 
     @pytest.mark.anyio
     async def test_token_is_decrypted_into_bearer_header(self):
         conn = _connection()
         conn.auth_token = _seal_into(conn, "secret-token")
-        assert await resolve_auth_headers(AsyncMock(), conn) == {
-            "Authorization": "Bearer secret-token"
-        }
+        assert await resolve_auth_headers(conn) == {"Authorization": "Bearer secret-token"}
 
     @pytest.mark.anyio
     async def test_another_members_envelope_does_not_open(self):
@@ -1973,7 +1971,7 @@ class TestAuthHeaders:
         """
         mine = _connection()
         stolen = _connection(auth_token=_seal_into(mine, "secret-token"))
-        assert await resolve_auth_headers(AsyncMock(), stolen) is None
+        assert await resolve_auth_headers(stolen) is None
 
     @pytest.mark.anyio
     async def test_a_personal_row_without_an_owner_is_refused_not_guessed(self):
@@ -1986,7 +1984,7 @@ class TestAuthHeaders:
     @pytest.mark.anyio
     async def test_undecryptable_token_yields_none(self):
         conn = _connection(auth_token="enc:not-valid-ciphertext")
-        assert await resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(conn) is None
 
     @pytest.mark.anyio
     async def test_an_organization_token_is_opened_with_the_organizations_envelope(self):
@@ -1999,9 +1997,7 @@ class TestAuthHeaders:
             auth_token=sealed.ciphertext,
             secret_key_version=sealed.key_version,
         )
-        assert await resolve_auth_headers(AsyncMock(), conn) == {
-            "Authorization": "Bearer org-token"
-        }
+        assert await resolve_auth_headers(conn) == {"Authorization": "Bearer org-token"}
 
     @pytest.mark.anyio
     async def test_another_organizations_envelope_does_not_open(self):
@@ -2016,7 +2012,7 @@ class TestAuthHeaders:
             auth_token=sealed.ciphertext,
             secret_key_version=sealed.key_version,
         )
-        assert await resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(conn) is None
 
     @pytest.mark.anyio
     async def test_an_organization_row_without_an_organization_is_refused_not_guessed(self):
@@ -2059,7 +2055,7 @@ class TestAccountAuthorized:
     @pytest.mark.anyio
     async def test_resolve_auth_headers_refuses_a_token_whose_key_is_gone(self):
         conn = _connection(auth_token="sealed", secret_key_version=999)
-        assert await resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(conn) is None
 
     def test_the_read_carries_the_server_decided_authorized(self):
         usable = _connection()
@@ -2090,6 +2086,23 @@ class TestAccountAuthorized:
         assert McpConnectionRead.from_model(
             _connection(include_instructions=True)
         ).include_instructions
+
+
+@pytest.fixture(autouse=True)
+def refresh_transaction_context(monkeypatch):
+    @contextlib.asynccontextmanager
+    async def context():
+        db = MagicMock()
+        db.commit = AsyncMock()
+        db.rollback = AsyncMock()
+        try:
+            yield db
+            await db.commit()
+        except BaseException:
+            await db.rollback()
+            raise
+
+    monkeypatch.setattr(mcp_connection_service, "get_worker_db_context", context)
 
 
 def _oauth_connection(payload: McpOAuthPayload, **overrides) -> McpConnection:
@@ -2134,6 +2147,15 @@ class TestOAuthTokens:
         assert result.refresh_token.get_secret_value() == "keep-me"
         assert result.expires_at is None
 
+    def test_a_zero_lifetime_grant_is_not_treated_as_non_expiring(self, monkeypatch):
+        monkeypatch.setattr(mcp_connection_service, "_now_epoch", lambda: 1000.0)
+        payload = _apply_token(
+            _base_payload(refresh_token="rotate"),
+            OAuthToken(access_token="already-expired", expires_in=0),
+        )
+        assert payload.expires_at == 1000.0
+        assert not mcp_connection_service._token_is_fresh(payload)
+
     def test_an_oauth_payload_does_not_print_its_tokens(self):
         """The one reader that could log a payload whole catches `Exception` and
         names only the connection; masking the credentials makes the guarantee
@@ -2158,15 +2180,13 @@ class TestOAuthTokens:
     async def test_unauthorized_oauth_yields_none(self):
         # No access_token yet (consent not completed).
         conn = _oauth_connection(_base_payload(code_verifier="v"), oauth_state="state123")
-        assert await resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(conn) is None
 
     @pytest.mark.anyio
     async def test_valid_oauth_token_becomes_bearer(self):
         payload = _base_payload(access_token="live-token", expires_at=None)
         conn = _oauth_connection(payload)
-        assert await resolve_auth_headers(AsyncMock(), conn) == {
-            "Authorization": "Bearer live-token"
-        }
+        assert await resolve_auth_headers(conn) == {"Authorization": "Bearer live-token"}
 
     @pytest.mark.anyio
     async def test_expired_token_is_refreshed_and_persisted(self, monkeypatch):
@@ -2179,12 +2199,12 @@ class TestOAuthTokens:
         monkeypatch.setattr(mcp_oauth, "refresh_tokens", refresh_mock)
         lock_mock = AsyncMock(return_value=conn)
         monkeypatch.setattr(
-            mcp_connection_service.mcp_connection_repo, "get_by_id_for_update", lock_mock
+            mcp_connection_service.mcp_connection_repo, "get_for_token_refresh", lock_mock
         )
         update_mock = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update_mock)
 
-        headers = await resolve_auth_headers(AsyncMock(), conn)
+        headers = await resolve_auth_headers(conn)
         assert headers == {"Authorization": "Bearer fresh-token"}
         refresh_mock.assert_awaited_once()
         # The stored address, never the stored token endpoint, scopes the refresh.
@@ -2212,19 +2232,21 @@ class TestOAuthTokens:
                 access_token="fresh-token",
                 refresh_token="rt2",
                 expires_at=datetime.now(UTC).timestamp() + 3600,
-            )
+            ),
+            id=stale.id,
+            user_id=stale.user_id,
         )
         refresh_mock = AsyncMock()
         monkeypatch.setattr(mcp_oauth, "refresh_tokens", refresh_mock)
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_by_id_for_update",
+            "get_for_token_refresh",
             AsyncMock(return_value=refreshed),
         )
         update_mock = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update_mock)
 
-        headers = await resolve_auth_headers(AsyncMock(), stale)
+        headers = await resolve_auth_headers(stale)
 
         assert headers == {"Authorization": "Bearer fresh-token"}
         refresh_mock.assert_not_awaited()
@@ -2234,7 +2256,7 @@ class TestOAuthTokens:
     async def test_expired_token_without_refresh_yields_none(self):
         payload = _base_payload(access_token="stale", refresh_token=None, expires_at=0.0)
         conn = _oauth_connection(payload)
-        assert await resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(conn) is None
 
     @pytest.mark.anyio
     async def test_a_connection_awaiting_first_consent_has_no_payload_to_read(self):
@@ -2243,7 +2265,7 @@ class TestOAuthTokens:
         a licence to reach the server anonymously - the plugin is simply not
         usable until the callback lands."""
         conn = _connection(auth_type="oauth", oauth_payload=None, oauth_state="pending")
-        assert await resolve_auth_headers(AsyncMock(), conn) is None
+        assert await resolve_auth_headers(conn) is None
 
 
 class TestRefreshUnderLock:
@@ -2256,11 +2278,16 @@ class TestRefreshUnderLock:
     read before the lock, the locked row is the one that is true.
     """
 
-    @staticmethod
-    def _expired() -> McpConnection:
+    _id = uuid4()
+    _user_id = uuid4()
+
+    @classmethod
+    def _expired(cls) -> McpConnection:
         """The pre-lock copy: expired access token, refresh token still there."""
         return _oauth_connection(
-            _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0)
+            _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0),
+            id=cls._id,
+            user_id=cls._user_id,
         )
 
     @staticmethod
@@ -2268,12 +2295,56 @@ class TestRefreshUnderLock:
         """What `SELECT ... FOR UPDATE` finds once the lock is granted."""
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_by_id_for_update",
+            "get_for_token_refresh",
             AsyncMock(return_value=row),
         )
         refresh = AsyncMock()
         monkeypatch.setattr(mcp_oauth, "refresh_tokens", refresh)
         return refresh
+
+    @pytest.mark.anyio
+    async def test_a_token_the_provider_rejected_is_refreshed_whatever_its_expiry_says(
+        self, monkeypatch
+    ):
+        """Codex on #2195: a 401 for a token whose recorded expiry is still ahead.
+        While the row holds that same token it is refreshed; one another caller
+        has already replaced is handed back without spending the refresh token."""
+        fresh = _oauth_connection(
+            _base_payload(access_token="held", refresh_token="rt", expires_at=9e12)
+        )
+        refresh = self._locked(monkeypatch, fresh)
+        refresh.return_value = OAuthToken(access_token="renewed", refresh_token="rt2")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "update", AsyncMock(return_value=fresh)
+        )
+
+        assert (
+            await mcp_connection_service._refresh_under_lock(fresh, rejected="someone-elses")
+            == "held"
+        )
+        refresh.assert_not_awaited()
+        assert await mcp_connection_service._refresh_under_lock(fresh, rejected="held") == "renewed"
+        refresh.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_revocation_committed_elsewhere_updates_the_callers_view_without_a_write(
+        self, monkeypatch
+    ):
+        from sqlalchemy import inspect
+
+        original = self._expired()
+        locked = self._expired()
+        refresh = self._locked(monkeypatch, locked)
+        refresh.side_effect = mcp_oauth.OAuthGrantRevoked("invalid_grant")
+
+        async def store(_db, *, db_connection, update_data):
+            db_connection.oauth_payload = update_data["oauth_payload"]
+            return db_connection
+
+        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", store)
+        assert await mcp_connection_service._refresh_under_lock(original) is None
+        assert mcp_connection_service.grant_needs_consent(original)
+        assert not inspect(original).attrs.oauth_payload.history.has_changes()
 
     @pytest.mark.anyio
     async def test_a_connection_deleted_while_the_turn_waited_is_not_refreshed(self, monkeypatch):
@@ -2282,7 +2353,7 @@ class TestRefreshUnderLock:
         provider a credential the user has just withdrawn."""
         refresh = self._locked(monkeypatch, None)
 
-        assert await resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await resolve_auth_headers(self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2292,9 +2363,12 @@ class TestRefreshUnderLock:
         """Moving a connection's URL wipes `oauth_payload`, because tokens
         belong to the host that issued them. A turn holding the pre-lock copy
         must not resurrect them against the new host."""
-        refresh = self._locked(monkeypatch, _connection(auth_type="oauth", oauth_payload=None))
+        refresh = self._locked(
+            monkeypatch,
+            _connection(auth_type="oauth", oauth_payload=None, id=self._id, user_id=self._user_id),
+        )
 
-        assert await resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await resolve_auth_headers(self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2306,11 +2380,13 @@ class TestRefreshUnderLock:
         refresh = self._locked(
             monkeypatch,
             _oauth_connection(
-                _base_payload(access_token="stale", refresh_token=None, expires_at=0.0)
+                _base_payload(access_token="stale", refresh_token=None, expires_at=0.0),
+                id=self._id,
+                user_id=self._user_id,
             ),
         )
 
-        assert await resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await resolve_auth_headers(self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2322,7 +2398,7 @@ class TestRefreshUnderLock:
         the record of what the user needs to re-authorize."""
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_by_id_for_update",
+            "get_for_token_refresh",
             AsyncMock(return_value=self._expired()),
         )
         monkeypatch.setattr(
@@ -2333,8 +2409,124 @@ class TestRefreshUnderLock:
         update = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update)
 
-        assert await resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await resolve_auth_headers(self._expired()) is None
         update.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_refresh_token_refused_as_invalid_grant_is_dropped(self, monkeypatch):
+        """Dead for good, so it is not spent again every minute - and without it
+        the row reads as needing a new consent, which is what it needs (#1984)."""
+        row = self._expired()
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_for_token_refresh",
+            AsyncMock(return_value=row),
+        )
+        monkeypatch.setattr(
+            mcp_oauth,
+            "refresh_tokens",
+            AsyncMock(side_effect=mcp_oauth.OAuthGrantRevoked("invalid_grant")),
+        )
+
+        async def store(_db, *, db_connection, update_data):
+            db_connection.oauth_payload = update_data["oauth_payload"]
+            return db_connection
+
+        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", store)
+
+        assert await resolve_auth_headers(row) is None
+        stored = McpOAuthPayload.model_validate_json(_open_from(row, row.oauth_payload))
+        assert stored.refresh_token is None
+        assert stored.access_token.get_secret_value() == "stale"
+        assert mcp_connection_service.grant_needs_consent(row)
+
+    @pytest.mark.anyio
+    async def test_a_microsoft_refresh_leaves_out_the_resource_it_refuses(self, monkeypatch):
+        """Microsoft's v2.0 token endpoint answers RFC 8707's `resource` with an
+        error, so an Outlook grant that carried it would never renew."""
+        row = _oauth_connection(
+            _base_payload(
+                provider="microsoft", access_token="stale", refresh_token="rt", expires_at=0.0
+            )
+        )
+        refresh = self._locked(monkeypatch, row)
+        refresh.return_value = OAuthToken(access_token="AT", expires_in=3600)
+        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", AsyncMock())
+
+        await resolve_auth_headers(row)
+
+        assert refresh.await_args.kwargs["resource"] is None
+
+
+class TestGrantNeedsConsent:
+    """Whether only a new consent can make a polled grant usable again (#1984)."""
+
+    def test_an_unreadable_or_empty_grant_does(self):
+        assert mcp_connection_service.grant_needs_consent(_connection(auth_type="oauth"))
+        assert mcp_connection_service.grant_needs_consent(
+            _oauth_connection(_base_payload(access_token=None))
+        )
+
+    def test_an_expired_token_with_nothing_to_renew_it_does(self):
+        assert mcp_connection_service.grant_needs_consent(
+            _oauth_connection(_base_payload(access_token="a", refresh_token=None, expires_at=0.0))
+        )
+
+    def test_a_fresh_token_or_a_renewable_one_does_not(self):
+        fresh = _base_payload(access_token="a", refresh_token=None, expires_at=None)
+        renewable = _base_payload(access_token="a", refresh_token="r", expires_at=0.0)
+        assert not mcp_connection_service.grant_needs_consent(_oauth_connection(fresh))
+        assert not mcp_connection_service.grant_needs_consent(_oauth_connection(renewable))
+
+
+class TestTheTokenEndpointsRefusals:
+    """`invalid_grant` told apart from every other refusal (#1984)."""
+
+    @staticmethod
+    def _answering(monkeypatch, response_kwargs):
+        async def fake_send(client, request):
+            return httpx2.Response(request=request, **response_kwargs)
+
+        monkeypatch.setattr(mcp_oauth, "_send", fake_send)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("code", ["invalid_grant", "interaction_required", "consent_required"])
+    async def test_an_answer_only_a_new_consent_fixes_is_a_revoked_grant(self, monkeypatch, code):
+        """Microsoft answers a refresh with `interaction_required` when a new MFA or
+        Conditional Access policy applies; retried every minute, it never heals."""
+        self._answering(monkeypatch, {"status_code": 400, "json": {"error": code}})
+        with pytest.raises(mcp_oauth.OAuthGrantRevoked):
+            await mcp_oauth._token_request("https://93.184.216.34/token", {"grant_type": "x"})
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "body", [{"error": "invalid_client"}, ["invalid_grant"], {"error": 400}]
+    )
+    async def test_any_other_refusal_is_not(self, monkeypatch, body):
+        self._answering(monkeypatch, {"status_code": 400, "json": body})
+        with pytest.raises(mcp_oauth.OAuthError) as raised:
+            await mcp_oauth._token_request("https://93.184.216.34/token", {"grant_type": "x"})
+        assert not isinstance(raised.value, mcp_oauth.OAuthGrantRevoked)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(("resource", "sent"), [("https://srv/mcp", True), (None, False)])
+    async def test_a_refresh_sends_a_resource_only_when_there_is_one(
+        self, monkeypatch, resource, sent
+    ):
+        request = AsyncMock(return_value=OAuthToken(access_token="AT"))
+        monkeypatch.setattr(mcp_oauth, "_token_request", request)
+
+        await mcp_oauth.refresh_tokens(
+            token_endpoint="https://srv/token",
+            client_id="cid",
+            client_secret=None,
+            refresh_token="rt",
+            resource=resource,
+            scope=None,
+            server_url="https://srv/mcp",
+        )
+
+        assert ("resource" in request.await_args.args[1]) is sent
 
 
 class TestOAuthSweep:
@@ -2353,7 +2545,7 @@ class TestOAuthSweep:
     def repo(self, monkeypatch):
         mock_repo = MagicMock()
         mock_repo.list_oauth_connections = AsyncMock(return_value=[])
-        mock_repo.get_by_id_for_update = AsyncMock()
+        mock_repo.get_for_token_refresh = AsyncMock()
         mock_repo.update = AsyncMock()
         monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
         return mock_repo
@@ -2408,7 +2600,7 @@ class TestOAuthSweep:
             _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0)
         )
         repo.list_oauth_connections.return_value = [expiring]
-        repo.get_by_id_for_update.return_value = expiring
+        repo.get_for_token_refresh.return_value = expiring
         monkeypatch.setattr(
             mcp_oauth,
             "refresh_tokens",
@@ -2434,7 +2626,7 @@ class TestOAuthSweep:
             _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0)
         )
         repo.list_oauth_connections.return_value = [revoked]
-        repo.get_by_id_for_update.return_value = revoked
+        repo.get_for_token_refresh.return_value = revoked
         monkeypatch.setattr(
             mcp_oauth,
             "refresh_tokens",
@@ -2465,7 +2657,7 @@ class TestOAuthSweep:
         counts = await mcp_connection_service.sweep_oauth_connections(AsyncMock())
 
         assert counts == {"checked": 1, "refreshed": 0, "needs_authorization": 1, "skipped": 0}
-        repo.get_by_id_for_update.assert_not_awaited()
+        repo.get_for_token_refresh.assert_not_awaited()
         refresh.assert_not_awaited()
         assert self._written(repo)["last_status"] == "error"
 
@@ -3521,6 +3713,59 @@ class TestMcpConnectionService:
         assert update_data["last_status"] == "ok"
 
     @pytest.mark.anyio
+    async def test_a_microsoft_grant_is_completed_through_microsofts_own_flow(
+        self, service, repo, monkeypatch
+    ):
+        """The Outlook portal's grant (#1984), exchanged at the tenant's token
+        endpoint the start fixed - with the scopes it asked for, which Microsoft
+        wants repeated on the exchange."""
+        from app.services.portals import microsoft_oauth
+
+        pending = _connection(
+            auth_type="oauth", url="https://graph.microsoft.com", oauth_state="state-microsoft"
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending,
+            _base_payload(
+                provider="microsoft",
+                server_url="https://graph.microsoft.com",
+                token_endpoint="https://login.microsoftonline.com/contoso/oauth2/v2.0/token",
+                scope="https://graph.microsoft.com/Mail.Read offline_access",
+                code_verifier="the-verifier",
+            ).model_dump_json(),
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        exchange = AsyncMock(
+            return_value=microsoft_oauth.MicrosoftToken(
+                access_token="AT",
+                refresh_token="RT",
+                expires_in=3600,
+                granted_scopes=["https://graph.microsoft.com/Mail.Read"],
+            )
+        )
+        monkeypatch.setattr(microsoft_oauth, "exchange_code", exchange)
+        monkeypatch.setattr(mcp_connection_service, "_reach", AsyncMock(return_value=([], None)))
+
+        await service.oauth_callback(state="state-microsoft", code="the-code")
+
+        assert exchange.await_args.kwargs["token_endpoint"].startswith(
+            "https://login.microsoftonline.com/contoso/"
+        )
+        assert exchange.await_args.kwargs["scopes"] == [
+            "https://graph.microsoft.com/Mail.Read",
+            "offline_access",
+        ]
+        assert exchange.await_args.kwargs["code_verifier"] == "the-verifier"
+        update_data = repo.update.call_args_list[0].kwargs["update_data"]
+        stored = McpOAuthPayload.model_validate_json(
+            _open_from(pending, update_data["oauth_payload"])
+        )
+        assert stored.refresh_token.get_secret_value() == "RT"
+        assert stored.expires_at is not None
+        assert update_data["granted_scopes"] == ["https://graph.microsoft.com/Mail.Read"]
+
+    @pytest.mark.anyio
     async def test_a_reconsent_that_omits_the_refresh_token_keeps_the_live_one(
         self, service, repo, monkeypatch
     ):
@@ -3649,11 +3894,18 @@ class TestMcpConnectionService:
         assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] == {"history_id": "500"}
 
     @pytest.mark.anyio
-    async def test_a_reconsent_leaves_an_established_cursor_where_it_is(
-        self, service, repo, monkeypatch
+    @pytest.mark.parametrize(
+        ("fresh_account", "kept"),
+        [("me@corp.test", True), ("someone-else@corp.test", False)],
+        ids=["same-account", "switched-account"],
+    )
+    async def test_a_reconsent_keeps_the_cursor_only_for_the_same_account(
+        self, service, repo, monkeypatch, fresh_account, kept
     ):
         """Re-authorizing a mailbox already being read must not move its position -
-        a snapshot here would skip everything between the last poll and now."""
+        a snapshot would skip everything between the last poll and now. But the
+        consent screen asks which account to use, and another account's position
+        is polled against the new one and never advances (Codex on #2195)."""
         from app.services.portals import google_oauth
 
         pending = _connection(
@@ -3661,7 +3913,7 @@ class TestMcpConnectionService:
         )
         pending.purpose = "portal"
         pending.portal_key = "google"
-        pending.poll_cursor = {"history_id": "400"}
+        pending.poll_cursor = {"history_id": "400", "account": "me@corp.test"}
         pending.oauth_pending_payload = _seal_into(
             pending, _base_payload(provider="google").model_dump_json()
         )
@@ -3676,15 +3928,16 @@ class TestMcpConnectionService:
                 )
             ),
         )
-        adapter = MagicMock(poll=AsyncMock())
+        fresh = {"history_id": "900", "account": fresh_account}
+        adapter = MagicMock(poll=AsyncMock(return_value=MagicMock(cursor=fresh)))
         monkeypatch.setattr(
             mcp_connection_service.portals, "get_adapter", MagicMock(return_value=adapter)
         )
 
         await service.oauth_callback(state="state-google", code="the-code")
 
-        adapter.poll.assert_not_awaited()
-        assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] == {"history_id": "400"}
+        stored = repo.update.call_args.kwargs["update_data"]["poll_cursor"]
+        assert stored == (pending.poll_cursor if kept else fresh)
 
     @pytest.mark.anyio
     async def test_a_portal_with_no_adapter_establishes_no_cursor(self, service, repo, monkeypatch):
@@ -5932,6 +6185,138 @@ class TestCompletingGooglesFlow:
 
         with pytest.raises(mcp_oauth.OAuthError):
             await _complete_google_flow(_base_payload(provider="google"), "code")
+
+
+class TestStartingOutlooksConsent:
+    """The Outlook portal's consent (#1984): the organization's app registration,
+    at its own tenant's endpoints, for delegated mail scopes only."""
+
+    pytestmark = pytest.mark.anyio
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.fixture
+    def service(self, monkeypatch):
+        from app.core.secret_kinds import MicrosoftOAuthAppSecret
+        from app.services import mcp_connection as service_module
+
+        creds = MicrosoftOAuthAppSecret(
+            tenant_id="contoso.onmicrosoft.com",
+            client_id="11111111-2222-3333-4444-555555555555",
+            client_secret="org-secret",
+        )
+        monkeypatch.setattr(
+            service_module.OrganizationSecretService, "oauth_app", AsyncMock(return_value=creds)
+        )
+        repo = MagicMock()
+        repo.get_portal_grant = AsyncMock(return_value=None)
+        monkeypatch.setattr(service_module, "mcp_connection_repo", repo)
+        service = McpConnectionService(db=AsyncMock())
+        service._stage_pending_oauth = AsyncMock()  # type: ignore[method-assign]
+        return service
+
+    async def test_the_consent_url_is_the_tenants_and_asks_for_mail_only(self, service, ctx):
+        from app.core.secret_kinds import SecretKind
+        from app.services import mcp_connection as service_module
+
+        url = await service.oauth_start_for_polled_portal(ctx, portal_key="microsoft")
+
+        assert url.startswith(
+            "https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/authorize?"
+        )
+        assert "Mail.Read" in url
+        assert "offline_access" in url
+        assert "org-secret" not in url
+        asked = service_module.OrganizationSecretService.oauth_app.await_args
+        assert asked.kwargs["kind"] is SecretKind.MICROSOFT_OAUTH_APP
+
+    async def test_the_staged_grant_carries_the_tenants_token_endpoint(self, service, ctx):
+        """The callback has no secret to read the tenant from again; the payload
+        it completes is all it has."""
+        await service.oauth_start_for_polled_portal(ctx, portal_key="microsoft")
+
+        staged = service._stage_pending_oauth.await_args.kwargs
+        assert staged["payload"].provider == "microsoft"
+        assert staged["payload"].token_endpoint == (
+            "https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token"
+        )
+        assert staged["url"] == "https://graph.microsoft.com"
+
+    async def test_the_consent_is_bound_to_its_flow_with_pkce(self, service, ctx):
+        """The challenge in the URL is the verifier staged for the callback, hashed."""
+        import base64
+        import hashlib
+
+        url = await service.oauth_start_for_polled_portal(ctx, portal_key="microsoft")
+
+        verifier = service._stage_pending_oauth.await_args.kwargs["payload"].code_verifier
+        challenge = httpx2.URL(url).params["code_challenge"]
+        assert httpx2.URL(url).params["code_challenge_method"] == "S256"
+        expected = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+        assert challenge == expected.decode().rstrip("=")
+
+    async def test_a_polled_portal_with_no_client_kind_is_refused(self, service, ctx, monkeypatch):
+        from dataclasses import replace
+
+        from app.services import portal_catalog
+
+        bare = replace(portal_catalog.get_portal("microsoft"), oauth_app_kind=None)
+        monkeypatch.setattr(portal_catalog, "get_portal", lambda _key: bare)
+
+        with pytest.raises(BadRequestError):
+            await service.oauth_start_for_polled_portal(ctx, portal_key="microsoft")
+
+
+class TestCompletingMicrosoftsFlow:
+    pytestmark = pytest.mark.anyio
+
+    async def test_a_grant_with_no_refresh_token_is_stored_as_it_came(self, monkeypatch):
+        from app.services.mcp_connection import _complete_microsoft_flow
+        from app.services.portals import microsoft_oauth
+
+        monkeypatch.setattr(
+            microsoft_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=microsoft_oauth.MicrosoftToken(
+                    access_token="at", refresh_token=None, expires_in=None, granted_scopes=[]
+                )
+            ),
+        )
+
+        completed, granted = await _complete_microsoft_flow(
+            _base_payload(provider="microsoft", scope=None, code_verifier="v"), "code"
+        )
+
+        assert completed.access_token.get_secret_value() == "at"
+        assert completed.refresh_token is None
+        assert completed.expires_at is None
+        assert granted is None
+
+    async def test_a_session_without_its_verifier_is_started_again(self):
+        """A pending payload from before PKCE, or one whose verifier could not be
+        read back, cannot complete; it is refused before anything reaches Microsoft."""
+        from app.services.mcp_connection import _complete_microsoft_flow
+
+        with pytest.raises(mcp_oauth.OAuthError, match="start again"):
+            await _complete_microsoft_flow(_base_payload(provider="microsoft"), "code")
+
+    async def test_a_refused_exchange_becomes_the_shared_oauth_error(self, monkeypatch):
+        from app.services.mcp_connection import _complete_microsoft_flow
+        from app.services.portals import microsoft_oauth
+
+        monkeypatch.setattr(
+            microsoft_oauth,
+            "exchange_code",
+            AsyncMock(side_effect=microsoft_oauth.MicrosoftOAuthError("Microsoft refused")),
+        )
+
+        with pytest.raises(mcp_oauth.OAuthError, match="Microsoft refused"):
+            await _complete_microsoft_flow(
+                _base_payload(provider="microsoft", code_verifier="v"), "code"
+            )
 
 
 class TestDiscoveredScopes:

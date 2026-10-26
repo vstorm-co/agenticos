@@ -21,6 +21,7 @@ export type SecretKind =
   | "git_token"
   | "entra_app"
   | "http_credential"
+  | "microsoft_oauth_app"
   | "openai_codex";
 
 /**
@@ -174,6 +175,8 @@ export interface SecretPurposeList {
 export type SecretVisibility = "private" | "team" | "org";
 
 export interface Secret {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string | null;

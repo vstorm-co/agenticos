@@ -8,7 +8,7 @@ import { Activity, KeyRound } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Button,
   Card,
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui";
 import { CacheBustsCard } from "@/components/runs/cache-busts-card";
 import { ExportMenu } from "@/components/runs/export-menu";
+import { SpendSkeleton } from "@/components/runs/spend-skeleton";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { usePermissions, useSpend } from "@/hooks";
@@ -172,7 +173,7 @@ export function SpendTab({
       />
     );
   }
-  if (isLoading) return <LoadingState variant="stats" rows={2} />;
+  if (isLoading) return <SpendSkeleton />;
   // One guard for both absences: a failed request, and the body react-query
   // itself refuses (`undefined` data is an error there, so past this line the
   // answer exists - which is also what narrows the type for everything below).

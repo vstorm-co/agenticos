@@ -32,7 +32,7 @@ const BACKEND = "http://localhost:8000";
 function request(url: string, init: RequestInit & { token?: string } = {}) {
   const { token = "tok", ...rest } = init;
   const req = new NextRequest(new Request(`http://localhost:3000${url}`, rest));
-  if (token) req.cookies.set("access_token", token);
+  if (token) req.cookies.set("agenticos_access_token", token);
   return req;
 }
 
@@ -79,6 +79,17 @@ describe("platformProxy", () => {
     const backend = backendReplies("{}");
 
     const response = await platformProxy().GET(request("/api/agents", { token: "" }));
+
+    expect(response.status).toBe(401);
+    expect(backend.calls()).toBe(0);
+  });
+
+  it("does not use another app's generic access-token cookie", async () => {
+    const backend = backendReplies("{}");
+    const req = request("/api/agents", { token: "" });
+    req.cookies.set("access_token", "other-app-token");
+
+    const response = await platformProxy().GET(req);
 
     expect(response.status).toBe(401);
     expect(backend.calls()).toBe(0);

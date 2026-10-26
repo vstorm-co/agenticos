@@ -76,13 +76,19 @@ The spec keeps two rules, and they are what make it useful.
 
 **A frozen spec.**
 
-Publishing copies the draft into a version and points the agent at it. Runs record
-which version executed.
+Publishing copies the draft into a version. Environments decide which version
+serves each surface, and runs record which version executed.
 
 This is why *what did this agent do last Tuesday* stays answerable after a dozen
 edits. It is also why a rollback publishes a **new** version copied from the old
 one rather than deleting history — the timeline shows that a rollback happened,
 instead of pretending the bad version never existed.
+
+Draft saves, publications, rollbacks and environment changes are serialized for
+one agent. A save that waits behind a publication remains the draft afterwards;
+it is not overwritten by the publication. Concurrent publications get distinct
+version numbers, and promoting the default environment keeps the agent's serving
+version aligned with it. New runs can still start while a publication validates.
 
 ### Environments
 

@@ -27,7 +27,7 @@ from app.schemas.context import (
     ContextFileUpdate,
     ContextModeLiteral,
 )
-from app.services.access import CONTEXT, resolve_access, visible_resource_ids
+from app.services.access import CONTEXT, accessible_ids, resolve_access, visible_resource_ids
 from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
 from app.services.sharing import SharingService
 
@@ -147,10 +147,17 @@ class ContextService:
         groups = await groups_sharing(
             self.db, ctx, resource_type=CONTEXT, resource_ids=[file.id for file in items]
         )
+        editable = await accessible_ids(
+            self.db, ctx, items, Perm.CONTEXT_EDIT, resource_type=CONTEXT
+        )
         return ContextFileList(
             items=[
                 _summary(file).model_copy(
-                    update={"used_by": used[file.id], "shared_groups": groups[file.id]}
+                    update={
+                        "used_by": used[file.id],
+                        "shared_groups": groups[file.id],
+                        "can_edit": file.id in editable,
+                    }
                 )
                 for file in items
             ],

@@ -138,14 +138,11 @@ export function ToolCallCard({
   const [showRaw, setShowRaw] = useState(false);
 
   const resultText = useMemo(() => {
-    if (!expanded && !showRaw) return "";
-    const result = toolCall.result;
-    return result === undefined
-      ? ""
-      : typeof result === "string"
-        ? result
-        : JSON.stringify(result, null, 2);
-  }, [toolCall.result, expanded, showRaw]);
+    if (!expanded || toolCall.result === undefined) return "";
+    return typeof toolCall.result === "string"
+      ? toolCall.result
+      : JSON.stringify(toolCall.result, null, 2);
+  }, [expanded, toolCall.result]);
 
   const isRAGSearch =
     renderer === "rag" && toolCall.status === "completed" && typeof toolCall.result === "string";

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -553,157 +552,140 @@ describe("sending", () => {
   });
 });
 
-describe("bounded chat replay batches (#2469)", () => {
-  it("delivers a burst in order on the next animation frame", () => {
-    const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
-    );
-    act(() => result.current.connect());
-    for (let index = 0; index < 100; index++)
-      act(() => latest().onmessage!(new MessageEvent("message", { data: String(index) })));
-    expect(onMessage).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersToNextFrame());
-    expect(onMessage.mock.calls.map(([event]) => event.data)).toEqual(
-      Array.from({ length: 100 }, (_, index) => String(index)),
-    );
-  });
+describe("buffered socket delivery", () => {
+  const event = (data = "delta") => new MessageEvent("message", { data });
 
-  it("flushes before a close so completion precedes interruption", () => {
-    const order: string[] = [];
-    const { result } = renderHook(() =>
-      useWebSocket({
-        url: "wss://api/chat",
-        batchMessages: true,
-        onMessage: (event) => order.push(event.data),
-        onClose: () => order.push("closed"),
-      }),
+  it("refuses the old account's frames even before the replacement socket opens", () => {
+    const consume = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ identity }) =>
+        useWebSocket({
+          url: "wss://api/chat",
+          identity,
+          onMessageBatch: consume,
+        }),
+      { initialProps: { identity: "account-a" } },
     );
     act(() => result.current.connect());
-    act(() => {
-      latest().onmessage!(new MessageEvent("message", { data: "complete" }));
-      latest().drop(1000);
-    });
-    expect(order).toEqual(["complete", "closed"]);
-    act(() => vi.advanceTimersByTime(100));
-    expect(order).toEqual(["complete", "closed"]);
-  });
-
-  it("bounds suspended-tab delay and the number of retained frames", () => {
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      vi.fn(() => 1),
-    );
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
-    );
-    act(() => result.current.connect());
-    act(() => latest().onmessage!(new MessageEvent("message", { data: "one" })));
+    act(() => latest().onmessage?.(event("buffered")));
+    rerender({ identity: "account-b" });
+    act(() => latest().onmessage?.(event("arrived before reconnect")));
     act(() => vi.advanceTimersByTime(50));
-    expect(onMessage).toHaveBeenCalledTimes(1);
-    act(() => {
-      for (let index = 0; index < 256; index++)
-        latest().onmessage!(new MessageEvent("message", { data: String(index) }));
-    });
-    expect(onMessage).toHaveBeenCalledTimes(257);
+    expect(consume).not.toHaveBeenCalled();
   });
 
-  it("discards queued frames when the chat socket is replaced", () => {
-    const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+  it("batches messages on a paint and reads the current consumer", () => {
+    const first = vi.fn();
+    const next = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ consume }) => useWebSocket({ url: "wss://api/chat", onMessageBatch: consume }),
+      { initialProps: { consume: first } },
     );
     act(() => result.current.connect());
-    act(() => latest().onmessage!(new MessageEvent("message", { data: "old" })));
-    act(() => result.current.reopen());
-    act(() => vi.advanceTimersByTime(100));
-    expect(onMessage).not.toHaveBeenCalled();
-  });
-});
-
-describe("a batch whose socket is gone before it flushes", () => {
-  it("drops the batch when the connection was deliberately ended", () => {
-    const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
-    );
-    act(() => result.current.connect());
-    const socket = latest();
-    // Closing while frames wait must not hand them to a consumer that has left:
-    // the close handler flushes first, and the flush finds reconnecting disabled.
+    const one = event("one");
+    const two = event("two");
     act(() => {
-      socket.onmessage!(new MessageEvent("message", { data: "late" }));
-      result.current.disconnect();
-      socket.drop(1000);
+      latest().onmessage?.(one);
+      latest().onmessage?.(two);
     });
-    act(() => vi.advanceTimersByTime(200));
-    expect(onMessage).not.toHaveBeenCalled();
-  });
-
-  it("stops delivering mid-batch when the consumer disconnects from a frame", () => {
-    const seen: string[] = [];
-    const { result } = renderHook(() =>
-      useWebSocket({
-        url: "wss://api/chat",
-        batchMessages: true,
-        onMessage: (event) => {
-          seen.push(event.data);
-          result.current.disconnect();
-        },
-      }),
-    );
-    act(() => result.current.connect());
-    act(() => {
-      latest().onmessage!(new MessageEvent("message", { data: "one" }));
-      latest().onmessage!(new MessageEvent("message", { data: "two" }));
-    });
+    expect(first).not.toHaveBeenCalled();
+    rerender({ consume: next });
     act(() => vi.advanceTimersToNextFrame());
-    expect(seen).toEqual(["one"]);
+    expect(first).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledExactlyOnceWith([one, two]);
   });
-});
 
-it("counts a binary frame as large, so it is delivered without waiting", () => {
-  const onMessage = vi.fn();
-  const { result } = renderHook(() =>
-    useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+  it.each(["close", "error"] as const)(
+    "flushes buffered frames before reporting a socket %s",
+    (kind) => {
+      const order: string[] = [];
+      const { result } = renderHook(() =>
+        useWebSocket({
+          url: "wss://api/chat",
+          onMessageBatch: () => order.push("frames"),
+          onClose: () => order.push("close"),
+          onError: () => order.push("error"),
+        }),
+      );
+      act(() => result.current.connect());
+      act(() => latest().onmessage?.(event()));
+      act(() => {
+        if (kind === "close") latest().drop(1000);
+        else latest().onerror?.(new Event("error"));
+      });
+      expect(order).toEqual(["frames", kind]);
+    },
   );
-  act(() => result.current.connect());
-  act(() => latest().onmessage!(new MessageEvent("message", { data: new ArrayBuffer(8) })));
-  expect(onMessage).toHaveBeenCalledTimes(1);
-});
 
-it("renders one consumer update for a replay frame burst (#2469)", () => {
-  let renders = 0;
-  const { result } = renderHook(() => {
-    const [text, setText] = useState("");
-    renders++;
-    const socket = useWebSocket({
-      url: "wss://api/chat",
-      batchMessages: true,
-      onMessage: (event) => setText((previous) => previous + event.data),
-    });
-    return { ...socket, text };
+  it("discards buffered messages when its conversation scope changes", () => {
+    const consume = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ scope }) =>
+        useWebSocket({
+          url: "wss://api/chat",
+          messageScope: scope,
+          onMessageBatch: consume,
+        }),
+      { initialProps: { scope: "conversation-a" } },
+    );
+    act(() => result.current.connect());
+    act(() => latest().onmessage?.(event("old")));
+    rerender({ scope: "conversation-b" });
+    act(() => vi.advanceTimersByTime(50));
+    expect(consume).not.toHaveBeenCalled();
+    act(() => latest().onmessage?.(event("new")));
+    act(() => vi.advanceTimersToNextFrame());
+    expect(consume.mock.calls[0]![0][0].data).toBe("new");
   });
-  act(() => result.current.connect());
-  const before = renders;
-  for (let index = 0; index < 100; index++)
-    act(() => latest().onmessage!(new MessageEvent("message", { data: "x" })));
-  expect(renders).toBe(before);
-  act(() => vi.advanceTimersToNextFrame());
-  expect(result.current.text).toBe("x".repeat(100));
-  expect(renders).toBe(before + 1);
-});
 
-it("flushes large replay payloads without retaining a frame-sized backlog", () => {
-  const onMessage = vi.fn();
-  const { result } = renderHook(() =>
-    useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+  it.each(["disconnect", "reopen", "replace", "unmount"] as const)(
+    "discards pending frames on %s",
+    (operation) => {
+      const consume = vi.fn();
+      const { result, rerender, unmount } = renderHook(
+        ({ url }) =>
+          useWebSocket({
+            url,
+            onMessageBatch: consume,
+          }),
+        { initialProps: { url: "wss://api/old" } },
+      );
+      act(() => result.current.connect());
+      const stale = latest().onmessage!;
+      act(() => stale(event("old")));
+      act(() => {
+        if (operation === "disconnect") result.current.disconnect();
+        else if (operation === "reopen") result.current.reopen();
+        else if (operation === "unmount") unmount();
+      });
+      if (operation === "replace") {
+        rerender({ url: "wss://api/new" });
+        act(() => result.current.connect());
+      }
+      // Even a callback already queued by the browser cannot cross a replaced
+      // socket, nor deliver after an intentional disconnect.
+      act(() => stale(event("late old")));
+      act(() => vi.advanceTimersByTime(50));
+      expect(consume).not.toHaveBeenCalled();
+    },
   );
-  act(() => result.current.connect());
-  act(() => latest().onmessage!(new MessageEvent("message", { data: "x".repeat(524288) })));
-  expect(onMessage).toHaveBeenCalledTimes(1);
-  act(() => vi.advanceTimersByTime(100));
-  expect(onMessage).toHaveBeenCalledTimes(1);
+
+  it("does not lose buffered frames when the consumer returns to immediate delivery", () => {
+    const consume = vi.fn();
+    const immediate = vi.fn();
+    const initialProps: { batch: ((events: readonly MessageEvent[]) => void) | undefined } = {
+      batch: consume,
+    };
+    const { result, rerender } = renderHook(
+      ({ batch }: { batch: ((events: readonly MessageEvent[]) => void) | undefined }) =>
+        useWebSocket({ url: "wss://api/chat", onMessageBatch: batch, onMessage: immediate }),
+      { initialProps },
+    );
+    act(() => result.current.connect());
+    const one = event();
+    act(() => latest().onmessage?.(one));
+    rerender({ batch: undefined });
+    act(() => vi.advanceTimersToNextFrame());
+    expect(immediate).toHaveBeenCalledExactlyOnceWith(one);
+  });
 });

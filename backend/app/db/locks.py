@@ -93,6 +93,10 @@ class LockScope(IntEnum):
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.
     GENERATED_MEDIA_PER_ORG = 11
+    #: First-account admission and deployment-administrator bootstrap.
+    ACCOUNT_BOOTSTRAP = 12
+    #: One mailbox poll, independent of its separately committed OAuth refresh.
+    PORTAL_POLL = 13
 
 
 def _key(subject: UUID) -> int:

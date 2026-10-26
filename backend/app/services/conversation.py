@@ -1243,7 +1243,7 @@ class ConversationService:
         skip: int = 0,
         limit: int = 100,
         latest: bool = False,
-        before_message_id: UUID | None = None,
+        before: UUID | None = None,
         organization_id: UUID,
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
@@ -1282,7 +1282,7 @@ class ConversationService:
             limit=limit,
             include_tool_calls=include_tool_calls,
             latest=latest,
-            before_message_id=before_message_id,
+            before=before,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
         await self._attach_senders(items, conversation)
@@ -1397,6 +1397,7 @@ class ConversationService:
             conversation_id=conversation_id,
             role=data.role,
             content=data.content,
+            client_message_id=data.client_message_id,
             thinking=data.thinking,
             # Dumped without its empty fields, so a text part is `{"type": "text",
             # "text": ...}` rather than that plus a null `tool_call_id`. What comes

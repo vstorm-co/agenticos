@@ -1,5 +1,5 @@
 ---
-source_sha: "fb944d937e24"
+source_sha: "446414abede5"
 ---
 
 # Seguridad { #security }
@@ -30,7 +30,7 @@ de camino a los datos.
 
 | Frontera | Qué la cruza | ¿De confianza al otro lado? |
 |---|---|---|
-| Navegador → BFF (los route handlers de Next.js) | Una cookie de sesión, la cabecera de organización, la entrada del formulario | No — pero el BFF no verifica la cookie: lee el `access_token` `httpOnly` y lo reenvía como cabecera bearer (`frontend/src/lib/platform-proxy.ts`). Es una frontera que reenvía una credencial; la verificación es trabajo de la API |
+| Navegador → BFF (los route handlers de Next.js) | Una cookie de sesión, la cabecera de organización, la entrada del formulario | No — pero el BFF no verifica la cookie: lee el `agenticos_access_token` `httpOnly` y lo reenvía como cabecera bearer (`frontend/src/lib/platform-proxy.ts`). Es una frontera que reenvía una credencial; la verificación es trabajo de la API |
 | BFF → API (FastAPI) | Un JWT ligado a una sesión en la base de datos, la cabecera `X-Organization-Id` | No — el token se verifica en cada petición, la sesión se comprueba por si fue revocada y la organización se resuelve desde el token |
 | API → PostgreSQL / Redis | Consultas y lecturas de caché, sobre TLS cuando está configurado | Sí — el almacén es del operador; lo que protege en reposo está bajo «Qué se cifra y dónde» |
 | API / worker → proveedores de modelos, canales, servidores MCP, proveedores de búsqueda, Logfire | Prompts, llamadas a herramientas, consultas, respuestas, trazas | No — son terceros; lo que les llega es una decisión por agent, salvo el tracing a nivel de deployment (abajo) |

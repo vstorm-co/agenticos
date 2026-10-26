@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { FrameInbox } from "@/lib/frame-inbox";
 
 interface UseWebSocketOptions {
   url: string;
@@ -25,8 +26,9 @@ interface UseWebSocketOptions {
    *  principal does not. */
   identity?: string;
   onMessage?: (event: MessageEvent) => void;
-  /** Coalesce replay bursts into one render tick, preserving frame order. */
-  batchMessages?: boolean;
+  onMessageBatch?: (events: readonly MessageEvent[]) => void;
+  /** Discard buffered messages when a consumer switches conversations. */
+  messageScope?: string;
   onOpen?: () => void;
   onClose?: (event: CloseEvent) => void;
   onError?: (error: Event) => void;
@@ -72,7 +74,8 @@ export function useWebSocket({
   protocols,
   identity,
   onMessage,
-  batchMessages = false,
+  onMessageBatch,
+  messageScope,
   onOpen,
   onClose,
   onError,
@@ -82,7 +85,8 @@ export function useWebSocket({
 }: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const cancelMessagesRef = useRef<() => void>(() => {});
+  const inboxRef = useRef<FrameInbox | null>(null);
+  const wantedSigRef = useRef(sigOf(url, identity));
   // Params the live socket was opened with - lets connect() tell a StrictMode
   // remount / quick nav-back (same params → reuse the socket) apart from a real
   // change like switching organization (different params → swap the socket).
@@ -101,7 +105,7 @@ export function useWebSocket({
 
   // Use refs for callbacks to avoid recreating connect function
   const onMessageRef = useRef(onMessage);
-  const batchMessagesRef = useRef(batchMessages);
+  const onMessageBatchRef = useRef(onMessageBatch);
   const onOpenRef = useRef(onOpen);
   const onCloseRef = useRef(onClose);
   const onErrorRef = useRef(onError);
@@ -112,14 +116,19 @@ export function useWebSocket({
   // first `connect()` can run before this effect has flushed.
   const protocolsRef = useRef(protocols);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onMessageRef.current = onMessage;
-    batchMessagesRef.current = batchMessages;
+    onMessageBatchRef.current = onMessageBatch;
     onOpenRef.current = onOpen;
     onCloseRef.current = onClose;
     onErrorRef.current = onError;
     protocolsRef.current = protocols;
-  }, [onMessage, onOpen, onClose, onError, protocols, batchMessages]);
+  }, [onMessage, onMessageBatch, onOpen, onClose, onError, protocols]);
+
+  useLayoutEffect(() => {
+    wantedSigRef.current = sigOf(url, identity);
+    inboxRef.current?.clear();
+  }, [url, identity, messageScope]);
 
   // `connect` reconnects by calling itself from a timeout, and a `useCallback`
   // cannot reference its own binding before it exists. Held in a ref, kept
@@ -156,7 +165,7 @@ export function useWebSocket({
     // The address changed (an organization switch), or a stale socket lingers →
     // discard it silently before opening the replacement.
     if (live) {
-      cancelMessagesRef.current();
+      inboxRef.current?.clear();
       silentClose(live);
       wsRef.current = null;
     }
@@ -169,6 +178,13 @@ export function useWebSocket({
     const ws = opening && opening.length > 0 ? new WebSocket(url, opening) : new WebSocket(url);
     wsRef.current = ws;
     wsSigRef.current = sig;
+    const inbox = new FrameInbox((events) => {
+      if (wsRef.current !== ws || !shouldReconnectRef.current) return;
+      const batch = onMessageBatchRef.current;
+      if (batch) batch(events);
+      else events.forEach((event) => onMessageRef.current?.(event));
+    });
+    inboxRef.current = inbox;
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -176,53 +192,14 @@ export function useWebSocket({
       onOpenRef.current?.();
     };
 
-    let queued: MessageEvent[] = [];
-    let queuedBytes = 0;
-    let animation: number | null = null;
-    let deadline: ReturnType<typeof setTimeout> | null = null;
-    const clearSchedule = () => {
-      if (animation !== null) cancelAnimationFrame(animation);
-      if (deadline !== null) clearTimeout(deadline);
-      animation = null;
-      deadline = null;
-    };
-    const flushMessages = () => {
-      clearSchedule();
-      const batch = queued;
-      queued = [];
-      queuedBytes = 0;
-      if (wsRef.current !== ws || !shouldReconnectRef.current) return;
-      for (const event of batch) {
-        if (wsRef.current !== ws || !shouldReconnectRef.current) break;
-        onMessageRef.current?.(event);
-      }
-    };
-    cancelMessagesRef.current = () => {
-      clearSchedule();
-      queued = [];
-      queuedBytes = 0;
-    };
     ws.onmessage = (event) => {
-      if (!batchMessagesRef.current) {
-        flushMessages();
-        onMessageRef.current?.(event);
-        return;
-      }
-      const data: unknown = event.data;
-      queuedBytes += typeof data === "string" ? data.length * 2 : 1_048_576;
-      queued.push(event);
-      // A background tab may suspend animation frames; bound delay and queue size.
-      if (queued.length >= 256 || queuedBytes >= 1_048_576) {
-        flushMessages();
-        return;
-      }
-      if (deadline !== null) return;
-      animation = requestAnimationFrame(flushMessages);
-      deadline = setTimeout(flushMessages, 50);
+      if (wantedSigRef.current !== sig) return;
+      if (onMessageBatchRef.current) inbox.push(event);
+      else onMessageRef.current?.(event);
     };
 
     ws.onclose = (event) => {
-      flushMessages();
+      inbox.flush();
       setIsConnected(false);
 
       // A deliberate disconnect() (unmount, logout, token swap) is not a failure
@@ -247,6 +224,7 @@ export function useWebSocket({
     };
 
     ws.onerror = (error) => {
+      inbox.flush();
       onErrorRef.current?.(error);
     };
   }, [url, identity, reconnect, reconnectInterval, maxReconnectAttempts]);
@@ -256,7 +234,7 @@ export function useWebSocket({
   }, [connect]);
 
   const disconnect = useCallback(() => {
-    cancelMessagesRef.current();
+    inboxRef.current?.clear();
     shouldReconnectRef.current = false;
     reconnectAttemptsRef.current = 0;
     if (reconnectTimeoutRef.current) {
@@ -292,10 +270,9 @@ export function useWebSocket({
    * than going into a socket that is not open yet.
    */
   const reopen = useCallback(() => {
-    cancelMessagesRef.current();
+    inboxRef.current?.clear();
     const live = wsRef.current;
     if (live) {
-      cancelMessagesRef.current();
       silentClose(live);
       wsRef.current = null;
       wsSigRef.current = null;

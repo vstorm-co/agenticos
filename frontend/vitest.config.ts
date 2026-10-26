@@ -221,6 +221,7 @@ export default defineConfig({
         "src/components/chat/shared-visuals.tsx",
         "src/components/chat/visual-actions.ts",
         "src/components/chat/visual-frame.tsx",
+        "src/components/chat/viewport-visual-frame.tsx",
         "src/components/chat/visual-panel.tsx",
         "src/components/chat/visual-save-dialog.tsx",
         "src/components/chat/work-fold.tsx",

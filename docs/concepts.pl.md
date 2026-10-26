@@ -1,5 +1,5 @@
 ---
-source_sha: "58c831c0926b"
+source_sha: "934f449b312e"
 ---
 
 # Koncepcje { #concepts }
@@ -79,13 +79,19 @@ Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
 
 **Zamrożony spec.**
 
-Publikacja kopiuje draft do wersji i wskazuje na nią agenta. Runy zapisują,
-która wersja została wykonana.
+Publikacja kopiuje draft do wersji. Środowiska decydują, która wersja obsługuje
+daną powierzchnię, a runy zapisują, która została wykonana.
 
 Dlatego *co ten agent zrobił w zeszły wtorek* pozostaje pytaniem, na które da się
 odpowiedzieć po kilkunastu edycjach. Dlatego też rollback publikuje **nową**
 wersję skopiowaną ze starej, zamiast kasować historię — oś czasu pokazuje, że
 rollback się wydarzył, zamiast udawać, że zła wersja nigdy nie istniała.
+
+Zapisy szkicu, publikacje, rollbacki i zmiany środowisk wykonują się kolejno dla
+jednego agenta. Zapis czekający na publikację pozostaje później szkicem i nie
+zostaje przez nią nadpisany. Równoczesne publikacje otrzymują odrębne numery wersji,
+a promocja domyślnego środowiska utrzymuje zgodność wersji obsługującej agenta.
+Nowe runy mogą startować podczas walidacji publikacji.
 
 ### Środowiska { #environments }
 

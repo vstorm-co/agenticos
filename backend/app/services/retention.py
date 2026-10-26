@@ -250,9 +250,9 @@ class RetentionService:
                 around a whole sweep holds every deleted row, and every
                 transaction-scoped audit lock, until the last tenant is done -
                 blocking production writes for the length of it and rolling every
-                database delete back if a late organization fails, after files and
-                vectors are already gone. A per-tenant boundary keeps what
-                succeeded.
+                database delete back if a late organization fails, after vectors
+                are already gone. File cleanup intents commit with the rows.
+                A per-tenant boundary keeps what succeeded.
 
         Returns:
             One result per organization that removed something or failed
@@ -295,9 +295,9 @@ class RetentionService:
             try:
                 await self._purge(name, result, cutoff=cutoff)
             except Exception:
-                # Named, not raised: a vector store that is down must not stop
-                # conversations being purged, and the next pass retries this
-                # class because a batch that removed nothing comes round again.
+                # Named, not raised: the failing batch's savepoint restored its rows
+                # and cleanup jobs, so later classes can still use the transaction
+                # after a SQL error, and the next pass retries this class.
                 logger.exception(
                     "retention_class_failed",
                     extra={"organization_id": str(organization_id), "retention_class": name},
@@ -405,20 +405,19 @@ class RetentionService:
     ) -> int:
         scope = {"organization_id": organization_id, "cutoff": cutoff, "limit": BATCH}
         if name == "conversations":
-            paths = await retention_repo.stored_paths_for_expiring_conversations(self.db, **scope)
-            # The bytes before the rows, and the rows only if the bytes went. The
-            # other order leaves an upload on disk with no row left to find it
-            # by - which is a retention policy whose files outlive it and which no
-            # later sweep can even name. A crash between the two leaves a row
-            # pointing at a file that is gone, which the next pass simply removes.
-            await self._unlink(paths)
-            # The paths include what the threads' agents generated (#2310), whose
-            # rows outlive the thread (`SET NULL`); gone with their bytes, they
-            # stop counting against the organization's quota.
+            expiring = await retention_repo.lock_expiring_conversations(self.db, **scope)
+            if not expiring:
+                return 0
+            paths = await retention_repo.stored_paths_for_expiring_conversations(
+                self.db, organization_id=organization_id, conversation_ids=expiring
+            )
+            await self._queue_unlink(paths, organization_id=organization_id)
             await generated_media_repo.delete_by_storage_paths(
                 self.db, organization_id=organization_id, storage_paths=paths
             )
-            return await retention_repo.delete_conversations(self.db, **scope)
+            return await retention_repo.delete_conversations(
+                self.db, organization_id=organization_id, conversation_ids=expiring
+            )
         if name == "runs":
             # The delete answers what it removed, in one statement: reading the
             # costs first lets two overlapping sweeps keep the same figure twice.
@@ -435,13 +434,13 @@ class RetentionService:
         if name == "workspaces":
             return await retention_repo.delete_workspaces(self.db, **scope)
         if name == "artifacts":
-            # Bytes before rows, for the reason conversations give above - and one
-            # locked set for both, so a publish between them cannot split them.
+            # One locked set for both paths and rows; a publish cannot split them.
             expiring = await retention_repo.lock_expiring_artifacts(self.db, **scope)
             if not expiring:
                 return 0
-            await self._unlink(
-                await retention_repo.stored_paths_for_artifacts(self.db, artifact_ids=expiring)
+            await self._queue_unlink(
+                await retention_repo.stored_paths_for_artifacts(self.db, artifact_ids=expiring),
+                organization_id=organization_id,
             )
             return await retention_repo.delete_artifacts(
                 self.db, organization_id=organization_id, artifact_ids=expiring
@@ -458,7 +457,7 @@ class RetentionService:
         return await self._purge_documents(organization_id=organization_id, cutoff=cutoff)
 
     async def _purge_documents(self, *, organization_id: UUID, cutoff: datetime) -> int:
-        """Uploaded documents, their vectors and their files - in that order.
+        """Remove vectors, queue file cleanup and delete the locked document rows.
 
         The vectors first and the row last, so a failure removing them leaves a
         row that still points at what is there. The other order leaves content
@@ -487,27 +486,26 @@ class RetentionService:
             # with no row left for a later sweep to retry (#992's shape again).
             if not await self.remove_vectors(collection, vector_document_id, tenant):
                 raise RuntimeError("the vector store did not confirm the removal")
-        await self._unlink([row[3] for row in expiring if row[3]])
+        await self._queue_unlink(
+            [row[3] for row in expiring if row[3]], organization_id=organization_id
+        )
         return await retention_repo.delete_documents(
             self.db, document_ids=[row[0] for row in expiring]
         )
 
-    async def _unlink(self, paths: list[str]) -> None:
-        """Remove stored bytes, and refuse to go on if any of them stayed.
+    async def _queue_unlink(self, paths: list[str], *, organization_id: UUID) -> None:
+        """Commit the file cleanup intent with the rows, or retain both on rollback.
 
-        Not `delete_files_best_effort`: it catches every storage failure and
-        returns normally, so a failed unlink followed by the row delete leaves the
-        upload past its retention with nothing left to discover it by. Raising
-        fails the class for this organization, which the sweep reports and the
-        next pass retries with the rows still there to retry from.
+        Required paths make storage errors fail the durable job and remain
+        visible for retries, rather than being lost after relational deletion.
         """
         if not paths:
             return
-        from app.services.file_storage import get_file_storage
+        from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-        storage = get_file_storage()
-        for path in paths:
-            await storage.delete(path)
+        await queue_external_state_cleanup(
+            self.db, [], [], required_paths=paths, organization_id=organization_id
+        )
 
     async def _record_sweep(self, result: SweepResult) -> None:
         """One entry per organization per sweep: classes and counts, no content."""

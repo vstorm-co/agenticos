@@ -27,11 +27,13 @@ import { OtherOrganizations } from "@/components/artifacts/other-organizations";
 import { ArtifactShareDialog } from "@/components/artifacts/artifact-share-dialog";
 import { ArtifactViewerBar } from "@/components/artifacts/artifact-viewer-bar";
 import { VersionPicker } from "@/components/artifacts/version-picker";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { useArtifactRequestActions, useArtifactRequests } from "@/hooks/use-artifact-requests";
 import { useArtifact } from "@/hooks/use-artifacts";
 import { ApiError } from "@/lib/api-error";
+import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores/auth-store";
 import type { ArtifactShareRequest } from "@/types/artifact";
@@ -66,6 +68,7 @@ export function ArtifactViewer({
   openRequests = false,
 }: ArtifactViewerProps) {
   const t = useTranslations("artifacts");
+  const ts = useTranslations("states");
   const tc = useTranslations("common");
   const router = useRouter();
   const pathname = usePathname();
@@ -164,9 +167,13 @@ export function ArtifactViewer({
     return (
       <div className={VIEWER}>
         <ArtifactViewerBar artifact={null} />
-        <div className="flex flex-1 items-center justify-center p-6">
+        <div className={cn("flex min-h-0 flex-1", !isLoading && "items-center justify-center p-6")}>
           {isLoading ? (
-            <LoadingState variant="skeleton-panel" rows={6} />
+            <Skeleton
+              role="status"
+              aria-label={ts("loading")}
+              className="h-full min-h-0 w-full flex-1 rounded-none"
+            />
           ) : requestable !== null ? (
             <RequestAccessScreen
               artifactId={artifactId}

@@ -29,7 +29,13 @@ export function ProjectApps({ project }: { project: Project }) {
     limit: PAGE_SIZE,
   });
 
-  if (isLoading) return <LoadingState variant="skeleton-cards" />;
+  if (isLoading)
+    return (
+      <LoadingState
+        variant="skeleton-cards"
+        className="grid-cols-1 sm:grid-cols-1 md:grid-cols-2"
+      />
+    );
   if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   if (artifacts.length === 0) {
     return (

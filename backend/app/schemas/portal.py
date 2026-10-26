@@ -8,7 +8,7 @@ create flow, never sent to the browser.
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from app.schemas.base import BaseSchema
 
@@ -19,6 +19,7 @@ class PortalPresetRead(BaseSchema):
     key: str
     label: str
     description: str
+    event_config: dict[str, JsonValue] = Field(default_factory=dict)
     target_required: bool = Field(
         description="Whether this preset needs a target (which repository) before it can be set up",
     )

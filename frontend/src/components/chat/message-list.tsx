@@ -82,75 +82,57 @@ export function endsTurn(messages: ChatMessage[], index: number): boolean {
   return !continuesTurn(messages, index + 1);
 }
 
-/**
- * What the turn cost, wherever in it that was recorded.
- *
- * The figure belongs to the turn and not to the segment that happened to carry
- * it: a run reports what it has spent when it parks, which is the *first*
- * segment, so a footer drawn from the message it sits on put the tokens and the
- * cost in the middle of the answer with nothing under the end of it.
- *
- * The last segment that recorded anything wins, because each figure is the run's
- * total as at that point rather than that segment's own share - summing them
- * would count the first segment twice.
- */
-export function turnUsage(messages: ChatMessage[], index: number): TurnUsage | undefined {
-  // The walk cannot run off the start: `continuesTurn` is false at index 0, which
-  // is what stops it, so no bound is needed and none is written - a guard that
-  // cannot fail is a line no test can reach.
-  let at = index;
-  while (messages[at]?.usage === undefined && continuesTurn(messages, at)) at--;
-  return messages[at]?.usage;
+interface MessageLayout {
+  message: ChatMessage;
+  groupPosition?: "first" | "middle" | "last" | "single";
+  continuesTurn: boolean;
+  endsTurn: boolean;
+  turnUsage?: TurnUsage;
+  request?: string;
 }
 
-/**
- * What the person asked for, when the message at `index` is the answer that ends a turn.
- *
- * The nearest of their messages above it: a turn that parked on an approval is
- * several assistant segments under one request, and only the last carries the
- * "make a skill of this" shortcut, so the request it hands over is the one the
- * whole turn answered.
+/** Prepare transcript-wide relationships once per update, in linear time.
+ * Usage is a run's latest cumulative figure, and the nearest user message owns
+ * the request even when it contains only a file. Group positions also include
+ * nonadjacent segments, while turn continuation still requires adjacency.
  */
-export function requestOf(messages: ChatMessage[], index: number): string | undefined {
-  if (messages[index]?.role !== "assistant" || !endsTurn(messages, index)) return undefined;
-  for (let at = index - 1; at >= 0; at--) {
-    const message = messages[at];
-    if (message?.role === "user") return message.content || undefined;
-  }
-  return undefined;
-}
-
-/** Linear transcript layout; long segmented turns never rescan earlier rows. */
-export function messagePresentation(messages: ChatMessage[]) {
-  const groups = new Map<string, { count: number; first: number; last: number }>();
+export function layoutMessages(messages: ChatMessage[]): MessageLayout[] {
+  const groups = new Map<string, number[]>();
   messages.forEach((message, index) => {
     if (!message.groupId) return;
-    const group = groups.get(message.groupId);
-    if (group) {
-      group.count++;
-      group.last = index;
-    } else groups.set(message.groupId, { count: 1, first: index, last: index });
+    const indices = groups.get(message.groupId);
+    if (indices) indices.push(index);
+    else groups.set(message.groupId, [index]);
   });
-  let request: string | undefined;
+  const positions = new Map<number, MessageLayout["groupPosition"]>();
+  groups.forEach((indices) => {
+    indices.forEach((index, position) => {
+      positions.set(
+        index,
+        indices.length === 1
+          ? "single"
+          : position === 0
+            ? "first"
+            : position === indices.length - 1
+              ? "last"
+              : "middle",
+      );
+    });
+  });
   let usage: TurnUsage | undefined;
+  let request: string | undefined;
   return messages.map((message, index) => {
+    const continues = continuesTurn(messages, index);
+    const ends = endsTurn(messages, index);
+    usage = message.usage ?? (continues ? usage : undefined);
     if (message.role === "user") request = message.content || undefined;
-    if (!continuesTurn(messages, index)) usage = undefined;
-    if (message.usage !== undefined) usage = message.usage;
-    const group = message.groupId ? groups.get(message.groupId) : undefined;
-    const groupPosition: "first" | "middle" | "last" | "single" | undefined = !group
-      ? undefined
-      : group.count === 1
-        ? "single"
-        : group.first === index
-          ? "first"
-          : group.last === index
-            ? "last"
-            : "middle";
     return {
-      groupPosition,
-      usage,
-      request: message.role === "assistant" && endsTurn(messages, index) ? request : undefined,
+      message,
+      groupPosition: positions.get(index),
+      continuesTurn: continues,
+      endsTurn: ends,
+      turnUsage: usage,
+      request: message.role === "assistant" && ends ? request : undefined,
     };
   });
 }
@@ -165,7 +147,7 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
   const byId = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
   const router = useRouter();
 
-  const presentation = messagePresentation(messages);
+  const layout = useMemo(() => layoutMessages(messages), [messages]);
 
   // Only allow regenerating the most recent assistant message - older ones
   // would diverge the transcript in a confusing way.
@@ -175,6 +157,11 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
     }
     return -1;
   })();
+  const lastAssistantId = messages[lastAssistantIndex]?.id;
+  const regenerateLast = useMemo(() => {
+    if (onRegenerate === undefined || lastAssistantId === undefined) return undefined;
+    return () => onRegenerate(lastAssistantId);
+  }, [onRegenerate, lastAssistantId]);
   const openStepsAt = lastToolTurnIndex(messages);
   const timestamps = messages.map((message) => message.timestamp);
   const now = new Date();
@@ -193,26 +180,26 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
 
   return (
     <div className="space-y-0" onClickCapture={onClickCapture}>
-      {messages.map((message, index) => (
+      {layout.map(({ message, ...row }, index) => (
         <Fragment key={message.renderKey ?? message.id}>
           {/* Never inside a turn: a run that crossed midnight is still one answer. */}
-          {!continuesTurn(messages, index) && startsADay(timestamps, index, now) && (
+          {!row.continuesTurn && startsADay(timestamps, index, now) && (
             <DaySeparator at={message.timestamp} now={now} />
           )}
           <MessageItem
             message={message}
             agent={message.agentId ? byId.get(message.agentId) : undefined}
-            groupPosition={presentation[index]?.groupPosition}
-            continuesTurn={continuesTurn(messages, index)}
-            endsTurn={endsTurn(messages, index)}
-            turnUsage={presentation[index]?.usage}
+            groupPosition={row.groupPosition}
+            continuesTurn={row.continuesTurn}
+            endsTurn={row.endsTurn}
+            turnUsage={row.turnUsage}
             openLastStep={index === openStepsAt}
             pins={pins}
             agents={agents}
-            request={pins ? undefined : presentation[index]?.request}
+            request={pins ? undefined : row.request}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
-                ? () => onRegenerate(message.id)
+                ? regenerateLast
                 : undefined
             }
           />

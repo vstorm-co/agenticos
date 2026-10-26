@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+
 import { MentionChip } from "./mention-chip";
 import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -103,7 +104,7 @@ interface MessageItemProps {
   request?: string;
 }
 
-function MessageItemView({
+export const MessageItem = memo(function MessageItem({
   message,
   agent,
   groupPosition,
@@ -492,7 +493,7 @@ function MessageItemView({
       </div>
     </div>
   );
-}
+});
 
 /**
  * One turn's content: the "Thinking…" placeholder, then either the ordered
@@ -672,5 +673,3 @@ function PinButton({ pins, prompt }: { pins: PinnedPrompts; prompt: string }) {
     </button>
   );
 }
-
-export const MessageItem = memo(MessageItemView);

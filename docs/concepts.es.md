@@ -1,5 +1,5 @@
 ---
-source_sha: "58c831c0926b"
+source_sha: "934f449b312e"
 ---
 
 # Conceptos { #concepts }
@@ -82,13 +82,19 @@ El spec cumple dos reglas, y son las que lo hacen útil.
 
 **Un spec congelado.**
 
-Publicar copia el borrador en una versión y apunta el agent a ella. Los runs
-registran qué versión se ejecutó.
+Publicar copia el borrador en una versión. Los entornos deciden qué versión
+atiende cada superficie, y los runs registran cuál se ejecutó.
 
 Por eso *qué hizo este agent el martes pasado* sigue teniendo respuesta después
 de una docena de ediciones. Y también por eso un rollback publica una **nueva**
 versión copiada de la antigua en lugar de borrar historial — la línea de tiempo
 muestra que hubo un rollback, en vez de fingir que la versión mala nunca existió.
+
+Los cambios de borrador, publicaciones, rollbacks y cambios de entorno se
+ejecutan en orden para cada agente. Un guardado que espera a una publicación
+permanece después como borrador. Las publicaciones concurrentes reciben números
+de versión distintos. Promover el entorno predeterminado mantiene alineada la
+versión que sirve el agente. Los nuevos runs pueden comenzar durante la validación.
 
 ### Entornos { #environments }
 

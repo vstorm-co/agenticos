@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   cadenceText,
+  defaultTimeZone,
   intervalToUnit,
   parseCron,
   triggerSummary,
   unitToSeconds,
   weekdayKey,
 } from "./trigger-format";
-import type { Trigger } from "@/types/triggers";
+import type { EventSource, Trigger } from "@/types/triggers";
 
 function trigger(overrides: Partial<Trigger> = {}): Trigger {
   return {
@@ -25,6 +26,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: 300,
     cron_expression: null,
+    time_zone: null,
     overlap: "skip",
     event_source: null,
     event_config: {},
@@ -152,7 +154,7 @@ describe("triggerSummary", () => {
           provider_target: "acme/repo",
         }),
       ),
-    ).toEqual({ kind: "preset", portalKey: "github", target: "acme/repo" });
+    ).toEqual({ kind: "preset", portalKey: "github", target: "acme/repo", githubEvent: "issues" });
   });
 
   it("falls back to the generic event label when a preset has no target yet", () => {
@@ -162,7 +164,7 @@ describe("triggerSummary", () => {
       triggerSummary(
         trigger({ trigger_type: "event", event_source: "github", portal_key: "github" }),
       ),
-    ).toEqual({ kind: "event", source: "github" });
+    ).toEqual({ kind: "event", source: "github", githubEvent: "issues" });
   });
 
   it("names an event trigger by its source", () => {
@@ -170,7 +172,7 @@ describe("triggerSummary", () => {
       triggerSummary(
         trigger({ trigger_type: "event", schedule_kind: "interval", event_source: "gmail" }),
       ),
-    ).toEqual({ kind: "event", source: "gmail" });
+    ).toEqual({ kind: "event", source: "gmail", githubEvent: "issues" });
   });
 
   it("falls back to a sensible default when a discriminant's own field is null", () => {
@@ -179,6 +181,7 @@ describe("triggerSummary", () => {
     expect(triggerSummary(trigger({ trigger_type: "event", event_source: null }))).toEqual({
       kind: "event",
       source: "github",
+      githubEvent: "issues",
     });
     expect(
       triggerSummary(
@@ -190,6 +193,13 @@ describe("triggerSummary", () => {
       unit: "minutes",
       count: 1,
     });
+  });
+});
+
+describe("defaultTimeZone", () => {
+  it("takes the account's zone, and this browser's when the account has none", () => {
+    expect(defaultTimeZone("Asia/Tokyo")).toBe("Asia/Tokyo");
+    expect(defaultTimeZone(null)).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
   });
 });
 
@@ -216,33 +226,79 @@ describe("cadenceText", () => {
 
   it("reads a builder-made cron in the language the builder showed", () => {
     const cron = (expression: string) =>
-      cadenceText(trigger({ schedule_kind: "cron", cron_expression: expression }), t);
+      cadenceText(
+        trigger({ schedule_kind: "cron", cron_expression: expression, time_zone: "Asia/Tokyo" }),
+        t,
+      );
 
-    expect(cron("0 9 * * *")).toBe('cadence.cronDaily({"time":"09:00"})');
+    // Each line names the zone its hour is read in.
+    expect(cron("0 9 * * *")).toBe('cadence.cronDaily({"time":"09:00","zone":"Asia/Tokyo"})');
     // The weekday names are themselves keys, resolved by the same translator -
     // Monday-first, the order the picker shows, not cron's Sunday-zero order.
     expect(cron("0 9 * * 1,2")).toBe(
-      'cadence.cronWeekly({"time":"09:00","days":"weekdayMon, weekdayTue"})',
+      'cadence.cronWeekly({"time":"09:00","zone":"Asia/Tokyo","days":"weekdayMon, weekdayTue"})',
     );
-    expect(cron("0 9 3 * *")).toBe('cadence.cronMonthly({"day":3,"time":"09:00"})');
+    expect(cron("0 9 3 * *")).toBe(
+      'cadence.cronMonthly({"day":3,"time":"09:00","zone":"Asia/Tokyo"})',
+    );
     // Monday to Friday is said as weekdays, not as five day names.
-    expect(cron("0 8 * * 1-5")).toBe('cadence.cronWeekdays({"time":"08:00"})');
+    expect(cron("0 8 * * 1-5")).toBe('cadence.cronWeekdays({"time":"08:00","zone":"Asia/Tokyo"})');
     expect(cron("0 9 */3 * *")).toBe('cadence.everyDays({"count":3})');
   });
 
   it("shows raw notation only for an expression somebody typed themselves", () => {
+    // A row saved before schedules had zones names none, and was read in UTC.
     expect(cadenceText(trigger({ schedule_kind: "cron", cron_expression: "*/7 * * * *" }), t)).toBe(
-      'cadence.cron({"expression":"*/7 * * * *"})',
+      'cadence.cron({"expression":"*/7 * * * *","zone":"UTC"})',
     );
   });
 
   it("names each event source", () => {
-    const event = (source: "github" | "gmail" | "webhook") =>
+    const event = (source: EventSource) =>
       cadenceText(trigger({ trigger_type: "event", event_source: source }), t);
 
     expect(event("github")).toBe("event.github");
     expect(event("gmail")).toBe("event.gmail");
+    expect(event("outlook")).toBe("event.outlook");
     expect(event("webhook")).toBe("event.webhook");
+    expect(event("hubspot")).toBe("event.hubspot");
+    expect(event("zendesk")).toBe("event.zendesk");
+    expect(event("google_drive")).toBe("event.google_drive");
+    expect(event("microsoft_files")).toBe("event.microsoft_files");
+    expect(event("google_calendar")).toBe("event.google_calendar");
+    expect(event("outlook_calendar")).toBe("event.outlook_calendar");
+  });
+
+  it("names a GitHub trigger by the webhook it fires on, bare or as a preset", () => {
+    const github = (event: string, target?: string) =>
+      cadenceText(
+        trigger({
+          trigger_type: "event",
+          event_source: "github",
+          event_config: { event },
+          ...(target ? { portal_key: "github_app", provider_target: target } : {}),
+        }),
+        t,
+      );
+
+    expect(github("issues")).toBe("event.github");
+    expect(github("pull_request")).toBe("event.githubPullRequest");
+    expect(github("issue_comment")).toBe("event.githubComment");
+    expect(github("workflow_run")).toBe("event.githubWorkflow");
+    expect(github("release")).toBe("event.githubRelease");
+    expect(github("push")).toBe("event.githubPush");
+    for (const [event, key] of <const>[
+      ["issues", "presetGithub"],
+      ["pull_request", "presetGithubPullRequest"],
+      ["issue_comment", "presetGithubComment"],
+      ["workflow_run", "presetGithubWorkflow"],
+      ["release", "presetGithubRelease"],
+      ["push", "presetGithubPush"],
+    ]) {
+      expect(github(event, "a/b")).toBe(
+        `event.presetSummary({"event":"event.${key}","target":"a/b"})`,
+      );
+    }
   });
 
   it("reads a preset as one sentence, with the portal's own phrase in it", () => {
@@ -265,6 +321,9 @@ describe("cadenceText", () => {
     );
     expect(preset("google")).toBe(
       'event.presetSummary({"event":"event.presetGmail","target":"acme/repo"})',
+    );
+    expect(preset("microsoft")).toBe(
+      'event.presetSummary({"event":"event.presetOutlook","target":"acme/repo"})',
     );
     // A portal added to the catalog tomorrow has no phrase of its own and takes
     // the generic one, rather than rendering a missing key.

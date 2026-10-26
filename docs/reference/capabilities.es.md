@@ -1,5 +1,5 @@
 ---
-source_sha: "715d4fbf0ade"
+source_sha: "baa7f5cbaccc"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -437,6 +437,12 @@ de mem0 responde a qué coincide con una *pregunta*, no a qué contiene un almac
 Esos agentes se **nombran** en la página en vez de omitirse, porque una lista de
 notas nativas presentada como un inventario completo sería peor que una que dice
 lo que le falta. El borrado sí llega a mem0; la lectura no.
+
+El borrado de memoria comprueba los borradores y todas las versiones conservadas
+del agente, incluidos los endpoints anteriores de mem0. Vaciar un agente también
+elimina sus espacios de mem0 para todos los propietarios. Si faltan credenciales,
+falla el proveedor o la lista está incompleta, se devuelve un error. Restablece el
+acceso y repite la operación para completar el borrado.
 
 ## Memoria (mem0) { #memory-mem0 }
 

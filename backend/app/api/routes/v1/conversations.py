@@ -177,6 +177,28 @@ async def get_conversation(
     return conversation if include_messages else ConversationRead.model_validate(conversation)
 
 
+@router.get("/{conversation_id}/metadata", response_model=ConversationRead)
+async def get_conversation_metadata(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """Read conversation metadata without loading its transcript or model summary.
+
+    Uses the same tenant and reader access as the full conversation read.
+    Transcript consumers should page `/conversations/{id}/messages` separately.
+    """
+    return await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
+
+
 @router.post(
     "/{conversation_id}/visuals/{visual_id}/publish",
     response_model=VisualPublished,
@@ -362,16 +384,14 @@ async def list_messages(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    latest: bool = Query(False),
-    before_message_id: UUID | None = Query(None),
+    latest: bool = False,
+    before: UUID | None = None,
 ) -> Any:
     """List messages in a conversation, always scoped to the caller.
 
-    `latest=true` selects the newest page, returned in chronological order.
-    `before_message_id` selects the preceding page without shifting when new
-    messages arrive. Its cursor must belong to this conversation. By default,
-    offset pagination starts at the oldest message. Total and cost cover the
-    whole conversation, including when a cursor selects an older page.
+    `latest=true` selects the newest page, still returned chronologically.
+    `before` selects messages older than this conversation's named message;
+    combine both to page backwards without concurrent appends shifting offsets.
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
@@ -386,7 +406,7 @@ async def list_messages(
         skip=skip,
         limit=limit,
         latest=latest,
-        before_message_id=before_message_id,
+        before=before,
         include_tool_calls=True,
         organization_id=active_org.id,
         user_id=current_user.id,

@@ -12,6 +12,34 @@ import {
 import type { ChatMessage, ToolCall } from "@/types";
 
 const frames: VisualFrameProps[] = [];
+const observerConstructor = globalThis.IntersectionObserver;
+class VisibleObserver extends observerConstructor {
+  constructor(
+    private readonly notify: IntersectionObserverCallback,
+    options?: IntersectionObserverInit,
+  ) {
+    super(notify, options);
+  }
+  observe = (target: Element) => {
+    const rect = target.getBoundingClientRect();
+    this.notify(
+      [
+        {
+          target,
+          isIntersecting: true,
+          intersectionRatio: 1,
+          boundingClientRect: rect,
+          intersectionRect: rect,
+          rootBounds: null,
+          time: 0,
+        },
+      ],
+      this,
+    );
+  };
+}
+beforeEach(() => vi.stubGlobal("IntersectionObserver", VisibleObserver));
+afterEach(() => vi.unstubAllGlobals());
 vi.mock("./visual-frame", () => ({
   VisualFrame: (props: VisualFrameProps) => {
     frames.push(props);
@@ -107,18 +135,13 @@ function show(
   );
 }
 
-class VisibleObserver {
-  constructor(private readonly report: (entries: { isIntersecting: boolean }[]) => void) {}
-  observe() {
-    this.report([{ isIntersecting: true }]);
-  }
-  disconnect() {}
-  unobserve() {}
-}
-beforeEach(() => vi.stubGlobal("IntersectionObserver", VisibleObserver));
-afterEach(() => vi.unstubAllGlobals());
-
 describe("TurnVisuals", () => {
+  it("does not start completed drawings in history before they approach the viewport", () => {
+    vi.stubGlobal("IntersectionObserver", observerConstructor);
+    show([call()]);
+    expect(screen.queryByTestId("frame")).toBeNull();
+    expect(screen.getByText("Flow")).toBeInTheDocument();
+  });
   beforeEach(() => {
     frames.length = 0;
     useVisualStreamStore.setState({ args: {} });
@@ -490,16 +513,11 @@ describe("inside another site's frame", () => {
 });
 
 describe("on the server", () => {
-  it("renders a measured placeholder until the history enters the viewport", () => {
+  it("renders the framed panel, since no server page is inside another site", () => {
     const html = renderToString(<TurnVisuals calls={[call()]} />);
-    expect(html).toContain("min-height");
+    expect(html).toContain("Flow");
     expect(html).not.toContain('data-testid="frame"');
-  });
-
-  it("renders a drawing still being written, as not framed elsewhere", () => {
-    const html = renderToString(<TurnVisuals calls={[call({ args: {}, status: "pending" })]} />);
-    expect(html).toContain("Drawing…");
-    expect(html).not.toContain("min-height");
+    expect(html).toContain("height:400px");
   });
 
   it("lets go of the page when the panel goes", () => {
@@ -627,159 +645,5 @@ describe("follow-ups", () => {
 
     expect(screen.queryByTestId("full-frame")).toBeNull();
     expect(screen.getByText("Plan this stop")).toBeInTheDocument();
-  });
-});
-
-describe("viewport-bound historical drawings (#2469)", () => {
-  it("mounts only on visibility, removes an offscreen frame and restores it", () => {
-    frames.length = 0;
-    let visibility: (visible: boolean) => void = () => {};
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        constructor(report: (entries: { isIntersecting: boolean }[]) => void) {
-          visibility = (visible) => report([{ isIntersecting: visible }]);
-        }
-        observe() {}
-        disconnect() {}
-        unobserve() {}
-      },
-    );
-    show([call()]);
-    expect(screen.queryByTestId("frame")).toBeNull();
-    act(() => visibility(true));
-    expect(screen.getByTestId("frame")).toBeInTheDocument();
-    act(() => visibility(false));
-    expect(screen.queryByTestId("frame")).toBeNull();
-    act(() => visibility(true));
-    expect(screen.getByTestId("frame")).toBeInTheDocument();
-  });
-
-  it("keeps a running offscreen drawing alive so the tool receives its render report", () => {
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        observe() {}
-        disconnect() {}
-        unobserve() {}
-      },
-    );
-    const onReport = vi.fn();
-    show([call({ status: "running" })], { onReport });
-    expect(screen.getByTestId("frame")).toBeInTheDocument();
-    act(() => lastFrame().onRendered?.());
-    expect(onReport).toHaveBeenCalledWith("d1", []);
-  });
-});
-
-describe("a historical drawing's placeholder", () => {
-  /** An observer pair the test drives: visibility and the measured height. */
-  function drive() {
-    const control = {
-      see: (_visible: boolean) => {},
-      measure: (_entries: { contentRect: { height: number } }[]) => {},
-    };
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        constructor(report: (entries: { isIntersecting: boolean }[]) => void) {
-          control.see = (visible) => report([{ isIntersecting: visible }]);
-        }
-        observe() {}
-        disconnect() {}
-        unobserve() {}
-      },
-    );
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        constructor(report: (entries: { contentRect: { height: number } }[]) => void) {
-          control.measure = report;
-        }
-        observe() {}
-        disconnect() {}
-        unobserve() {}
-      },
-    );
-    return control;
-  }
-
-  it("keeps the height the drawing was last seen at once it scrolls away", () => {
-    const control = drive();
-    const { container } = show([call()]);
-    act(() => control.see(true));
-    act(() => control.measure([{ contentRect: { height: 321 } }]));
-    act(() => control.see(false));
-
-    expect(screen.queryByTestId("frame")).toBeNull();
-    expect(container.querySelector<HTMLElement>("[style*='min-height']")?.style.minHeight).toBe(
-      "321px",
-    );
-  });
-
-  it("ignores a measurement of nothing, which is what a hidden element reports", () => {
-    const control = drive();
-    const { container } = show([call()]);
-    act(() => control.see(true));
-    act(() => control.measure([{ contentRect: { height: 321 } }]));
-    act(() => control.measure([{ contentRect: { height: 0 } }]));
-    act(() => control.measure([]));
-    act(() => control.see(false));
-
-    expect(container.querySelector<HTMLElement>("[style*='min-height']")?.style.minHeight).toBe(
-      "321px",
-    );
-  });
-
-  it("ignores an observer report with no entries", () => {
-    let report: (entries: { isIntersecting: boolean }[]) => void = () => {};
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        constructor(callback: typeof report) {
-          report = callback;
-        }
-        observe() {}
-        disconnect() {}
-        unobserve() {}
-      },
-    );
-    show([call()]);
-    act(() => report([]));
-    expect(screen.queryByTestId("frame")).toBeNull();
-  });
-
-  it("measures nothing, and still draws, where ResizeObserver is missing", () => {
-    vi.stubGlobal("ResizeObserver", undefined);
-    show([call()]);
-    expect(screen.getByTestId("frame")).toBeInTheDocument();
-  });
-
-  it("stops observing when the drawing goes", () => {
-    const disconnected = vi.fn();
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        observe() {}
-        disconnect = disconnected;
-        unobserve() {}
-      },
-    );
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        observe() {}
-        disconnect = disconnected;
-        unobserve() {}
-      },
-    );
-    show([call()]).unmount();
-    expect(disconnected).toHaveBeenCalledTimes(2);
-  });
-
-  it("draws at once where IntersectionObserver is missing", async () => {
-    vi.stubGlobal("IntersectionObserver", undefined);
-    show([call()]);
-    expect(await screen.findByTestId("frame")).toBeInTheDocument();
   });
 });

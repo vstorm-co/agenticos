@@ -5,7 +5,8 @@ import { FileX } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ArtifactRunDialog } from "@/components/artifacts/artifact-run-dialog";
-import { EmptyState, LoadingState } from "@/components/states";
+import { EmptyState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui";
 import {
   useArtifactActions,
@@ -377,6 +378,7 @@ export function ArtifactFrame({
   fetchReasons = false,
 }: ArtifactFrameProps) {
   const t = useTranslations("artifacts");
+  const ts = useTranslations("states");
   const frame = useRef<HTMLIFrameElement>(null);
   const asking = useAskingGate();
   // Only the page the viewer is served is opened with its data; a version picked from
@@ -482,7 +484,14 @@ export function ArtifactFrame({
     report.current?.(bridge);
   }, [bridge]);
 
-  if (view.isLoading) return <LoadingState variant="skeleton-panel" rows={4} />;
+  if (view.isLoading)
+    return (
+      <Skeleton
+        role="status"
+        aria-label={ts("loading")}
+        className={cn("h-full min-h-[32rem] w-full rounded-lg border", className)}
+      />
+    );
   if (view.data === undefined) {
     return (
       <EmptyState

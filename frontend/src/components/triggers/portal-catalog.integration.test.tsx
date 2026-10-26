@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -596,4 +597,43 @@ describe("PortalCatalog", () => {
 
     expect(await screen.findByText("boom")).toBeInTheDocument();
   });
+});
+
+describe("GitHub App installation", () => {
+  it.each([false, true])(
+    "binds an installation and reports a provider failure: %s",
+    async (fails) => {
+      vi.clearAllMocks();
+      const entry = {
+        ...portalsFor([]).items[0]!,
+        key: "github_app",
+        name: "GitHub (App)",
+        delivery: "app_webhook",
+        oauth_app_kind: "github_app",
+      };
+      vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+        path === "/trigger-portals" ? { items: [entry], total: 1 } : { items: [], total: 0 },
+      );
+      if (fails) vi.mocked(apiClient.post).mockRejectedValue(new Error("Installation denied"));
+      else vi.mocked(apiClient.post).mockResolvedValue({ id: "installation-grant" });
+      render(<PortalCatalog canRun canManageConnections />, { wrapper });
+      const card = within(await screen.findByRole("group", { name: "GitHub (App)" }));
+      await userEvent.click(card.getByRole("button", { name: "Connect account" }));
+      const dialog = within(await screen.findByRole("dialog"));
+      await userEvent.type(dialog.getByLabelText("Installation ID"), "12345");
+      await userEvent.click(dialog.getByRole("button", { name: "Connect account" }));
+      await waitFor(() =>
+        expect(apiClient.post).toHaveBeenCalledWith("/mcp-connections/portals/github-app", {
+          installation_id: "12345",
+        }),
+      );
+      expect(startGithubOrgOAuth).not.toHaveBeenCalled();
+      if (fails) {
+        await waitFor(() => expect(toast.error).toHaveBeenCalled());
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      }
+    },
+  );
 });

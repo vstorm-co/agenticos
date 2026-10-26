@@ -80,6 +80,18 @@ class OAuthError(Exception):
     """A recoverable failure in the OAuth flow (surfaced to the user)."""
 
 
+class OAuthGrantRevoked(OAuthError):
+    """The token endpoint said only a new consent will do: the refresh token is dead.
+
+    RFC 6749 section 5.2 reserves `invalid_grant` for a grant that is "invalid,
+    expired, revoked" - nothing a retry fixes, unlike a timeout or a 5xx. Microsoft
+    also answers a refresh with `interaction_required` (a new MFA or Conditional
+    Access policy the person has to satisfy) and `consent_required`, which a retry
+    fixes no better. Told apart so a caller can stop spending the token and ask
+    for a new consent instead.
+    """
+
+
 def _unusable_url(exc: httpx2.InvalidURL, what: str) -> OAuthError:
     """The refusal for an endpoint no request can be built for.
 
@@ -503,26 +515,48 @@ async def refresh_tokens(
     client_id: str,
     client_secret: str | None,
     refresh_token: str,
-    resource: str,
+    resource: str | None,
     scope: str | None,
     server_url: str,
 ) -> OAuthToken:
     """Refresh an expired access token using the stored refresh token.
 
-    `server_url` as in :func:`exchange_code`. Read at every refresh, so a host
-    taken off the list stops being reached here too.
+    `resource` is RFC 8707's, which an MCP server's authorization server expects;
+    `None` leaves it out for a provider that refuses it - Microsoft's v2.0
+    endpoint answers a request carrying one with an error. `server_url` as in
+    :func:`exchange_code`. Read at every refresh, so a host taken off the list
+    stops being reached here too.
+
+    Raises:
+        OAuthGrantRevoked: The provider answered `invalid_grant`.
+        OAuthError: Any other failure.
     """
     data = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
         "client_id": client_id,
-        "resource": resource,
     }
+    if resource:
+        data["resource"] = resource
     if client_secret:
         data["client_secret"] = client_secret
     if scope:
         data["scope"] = scope
     return await _token_request(token_endpoint, data, trusted_hosts=trusted_hosts_for(server_url))
+
+
+# The token endpoint's answers that only the person signing in again can fix.
+_NEEDS_CONSENT = frozenset({"invalid_grant", "interaction_required", "consent_required"})
+
+
+def _error_code(response: httpx2.Response) -> str | None:
+    """The OAuth `error` code of a refusal, or None when the body names none."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    code = body.get("error") if isinstance(body, dict) else None
+    return code if isinstance(code, str) else None
 
 
 async def _token_request(
@@ -558,6 +592,10 @@ async def _token_request(
             response.status_code,
             response.text[:200],
         )
+        if _error_code(response) in _NEEDS_CONSENT:
+            raise OAuthGrantRevoked(
+                f"Token endpoint returned {response.status_code}: the grant is no longer valid."
+            )
         raise OAuthError(f"Token endpoint returned {response.status_code}.")
     try:
         return OAuthToken.model_validate_json(response.content)

@@ -1,6 +1,6 @@
 {
   "name": "agenticos-frontend",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -109,7 +109,9 @@
   "overrides": {
     "nanoid": "^3.3.18",
     "js-yaml": "^4.3.2",
-    "vite": "~8.2.4"
+    "vite": "~8.2.4",
+    "zod": "~4.6.7",
+    "undici": "~8.12.2"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx,mdx}": [

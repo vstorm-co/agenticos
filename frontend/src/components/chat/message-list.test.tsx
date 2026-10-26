@@ -2,13 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  messagePresentation,
   MessageList,
   continuesTurn,
   endsTurn,
   lastToolTurnIndex,
-  requestOf,
-  turnUsage,
+  layoutMessages,
 } from "./message-list";
 import type { ChatMessage } from "@/types";
 
@@ -447,7 +445,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9" }),
     ];
 
-    expect(turnUsage(messages, 1)).toBe(USAGE);
+    expect(layoutMessages(messages)[1]?.turnUsage).toBe(USAGE);
   });
 
   it("prefers the last figure in the turn, which is the run's total by then", () => {
@@ -457,7 +455,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9", usage: later }),
     ];
 
-    expect(turnUsage(messages, 1)).toBe(later);
+    expect(layoutMessages(messages)[1]?.turnUsage).toBe(later);
   });
 
   it("never reaches back past the turn it belongs to", () => {
@@ -467,7 +465,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9" }),
     ];
 
-    expect(turnUsage(messages, 1)).toBeUndefined();
+    expect(layoutMessages(messages)[1]?.turnUsage).toBeUndefined();
   });
 });
 
@@ -565,7 +563,7 @@ describe("the request a skill can be made of", () => {
       message({ id: "b", runId: "r-1" }),
     ];
 
-    expect([0, 1, 2].map((i) => requestOf(messages, i))).toEqual([
+    expect([0, 1, 2].map((i) => layoutMessages(messages)[i]?.request)).toEqual([
       undefined,
       undefined,
       "Compare the vendors",
@@ -573,13 +571,13 @@ describe("the request a skill can be made of", () => {
   });
 
   it("has nothing to hand an answer with no request above it", () => {
-    expect(requestOf([message({ id: "a" })], 0)).toBeUndefined();
+    expect(layoutMessages([message({ id: "a" })])[0]?.request).toBeUndefined();
   });
 
   it("has nothing to hand when the request was only a file", () => {
     const messages = [message({ id: "q", role: "user", content: "" }), message({ id: "a" })];
 
-    expect(requestOf(messages, 1)).toBeUndefined();
+    expect(layoutMessages(messages)[1]?.request).toBeUndefined();
   });
 
   it("offers it in a chat but not in the test panel", () => {
@@ -593,81 +591,16 @@ describe("the request a skill can be made of", () => {
   });
 });
 
-it("lays out a long segmented answer in linear work (#2469)", () => {
-  let reads = 0;
-  const messages = Array.from({ length: 1000 }, (_, index) => ({
-    id: `m-${index}`,
-    role: "assistant" as const,
-    content: "answer",
-    timestamp: new Date(),
-    get runId() {
-      reads++;
-      return "one-run";
-    },
-    groupId: "one-group",
-  }));
-  const result = messagePresentation(messages);
-  expect(result[0]?.groupPosition).toBe("first");
-  expect(result.at(-1)?.groupPosition).toBe("last");
-  expect(reads).toBeLessThan(10_000);
-});
-
-describe("what each row is handed by messagePresentation", () => {
-  const USAGE = {
-    input_tokens: 10,
-    output_tokens: 5,
-    cost_usd: "0.0010",
-    cost_is_partial: false,
-    budget_percent: null,
-    agent_budget_percent: null,
-    sandbox: null,
-    context: null,
-  };
-
-  it("carries a turn's figure to its last segment and forgets it at the next turn", () => {
-    const messages = [
-      message({ id: "q1", role: "user", content: "first" }),
-      message({ id: "a1", runId: "r-1", usage: USAGE }),
-      message({ id: "a2", runId: "r-1" }),
-      message({ id: "q2", role: "user", content: "second" }),
-      message({ id: "a3", runId: "r-2" }),
-    ];
-    const rows = messagePresentation(messages);
-
-    expect(rows.map((row) => row.usage)).toEqual([undefined, USAGE, USAGE, undefined, undefined]);
-    expect(rows.map((row) => row.request)).toEqual([
-      undefined,
-      undefined,
-      "first",
-      undefined,
-      "second",
-    ]);
+it("reads group identities linearly even for one long segmented turn", () => {
+  const reads = vi.fn(() => "one-group");
+  const messages = Array.from({ length: 1000 }, (_, index) => {
+    const row = message({ id: String(index), runId: "one-run" });
+    Object.defineProperty(row, "groupId", { get: reads });
+    return row;
   });
-
-  it("has no request for an answer whose person sent only a file", () => {
-    const rows = messagePresentation([
-      message({ id: "q", role: "user", content: "" }),
-      message({ id: "a" }),
-    ]);
-
-    expect(rows[1]?.request).toBeUndefined();
-  });
-
-  it("places a grouped message first, middle, last or single in its group", () => {
-    const rows = messagePresentation([
-      message({ id: "a", groupId: "g1" }),
-      message({ id: "b", groupId: "g1" }),
-      message({ id: "c", groupId: "g1" }),
-      message({ id: "d", groupId: "g2" }),
-      message({ id: "e" }),
-    ]);
-
-    expect(rows.map((row) => row.groupPosition)).toEqual([
-      "first",
-      "middle",
-      "last",
-      "single",
-      undefined,
-    ]);
-  });
+  const layout = layoutMessages(messages);
+  expect(reads.mock.calls.length).toBeLessThan(10000);
+  expect(layout[0]?.groupPosition).toBe("first");
+  expect(layout[500]?.groupPosition).toBe("middle");
+  expect(layout[999]?.groupPosition).toBe("last");
 });

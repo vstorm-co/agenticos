@@ -15,6 +15,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
@@ -164,3 +165,38 @@ class TestWhatTheThreadCost:
         totals = await conversation_repo.conversation_cost(db, conversation.id)
 
         assert totals == (1_000, 100, Decimal("0.010000"), None)
+
+
+async def test_newest_transcript_pages_keep_the_last_turn_and_page_back_past_concurrent_appends(
+    db: AsyncSession,
+) -> None:
+    conversation = await _conversation(db)
+    messages = [
+        Message(
+            id=uuid.uuid4(),
+            conversation_id=conversation.id,
+            role="user" if index % 2 == 0 else "assistant",
+            content=f"m-{index}",
+        )
+        for index in range(102)
+    ]
+    db.add_all(messages)
+    await db.flush()
+    recent = await conversation_repo.get_messages_by_conversation(
+        db, conversation.id, latest=True, limit=100
+    )
+    assert [message.content for message in recent] == [f"m-{index}" for index in range(2, 102)]
+    db.add(
+        Message(id=uuid.uuid4(), conversation_id=conversation.id, role="user", content="concurrent")
+    )
+    await db.flush()
+    earlier = await conversation_repo.get_messages_by_conversation(
+        db, conversation.id, latest=True, before=recent[0].id, limit=100
+    )
+    assert [message.content for message in earlier] == ["m-0", "m-1"]
+    assert (
+        await conversation_repo.get_messages_by_conversation(
+            db, conversation.id, latest=True, before=uuid.uuid4()
+        )
+        == []
+    )

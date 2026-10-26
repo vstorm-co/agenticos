@@ -100,7 +100,7 @@ class AgentEnvironmentService:
                 mean yet.
             AlreadyExistsError: If the name is taken on this agent.
         """
-        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         if agent.current_version_id is None:
             raise BadRequestError(
                 message=f"Publish '{agent.name}' before adding environments - "
@@ -302,7 +302,7 @@ class AgentEnvironmentService:
         agent - even the caller's own - resolving here would let one agent's
         routes act on another's state.
         """
-        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         environment = await agent_environment_repo.get(
             self.db, environment_id, organization_id=ctx.organization_id
         )

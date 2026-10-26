@@ -1,5 +1,5 @@
 ---
-source_sha: "6b3fe7395da4"
+source_sha: "3530a3aa9612"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -9,11 +9,14 @@ Un **trigger de evento** dispara un agent cuando pasa algo en otro sitio.
 Hay dos maneras de que eso nos llegue, y cuál usa una fuente es asunto de la
 fuente y no tuyo:
 
-- **Por envío (push).** Un provider hace POST de una carga firmada — una issue de
-  GitHub, o cualquier cosa que pueda enviar JSON firmado (la fuente **API**).
+- **Por envío (push).** Un provider hace POST de una carga firmada: **GitHub**,
+  **HubSpot**, **Zendesk**, o cualquier cosa que pueda enviar JSON firmado (la
+  fuente **API**).
 - **Por sondeo (polling).** La plataforma lee una cuenta conectada con una
-  cadencia. **Gmail** es así: no se nos envía nada, así que no hay URL que
-  configurar ni secreto que guardar. Conectas el buzón y ese es todo el montaje.
+  cadencia: los buzones (**Gmail**, **Outlook**), los archivos (**Google Drive**,
+  **OneDrive & SharePoint**) y los calendarios (**Google Calendar**, **Outlook
+  Calendar**). No se nos envía nada, así que no hay URL que configurar ni secreto
+  que guardar. Conectas la cuenta y ese es todo el montaje.
 
 [Conceptos](concepts.md#trigger) cuenta qué *es* un trigger y cómo se comporta un
 run disparado; [Gobernanza](governance.md) cuenta lo que gasta y cómo se trata un
@@ -33,6 +36,19 @@ qué tiene que contener la entrega, y cómo probarlo todo desde un portátil.
     issue», «redacta una respuesta al correo» — rellena de antemano el prompt en
     el paso de mensaje de su propia fuente. Ninguna de las dos parte de una caja
     en blanco.
+
+## La zona horaria de una programación { #a-schedules-time-zone }
+
+Una programación a una hora del día - cada día a las 09:00, los laborables a las
+08:30 - se lee en una **zona horaria**, un nombre IANA como `Europe/Warsaw`. Una
+nueva toma la tuya, la zona horaria de tu cuenta, salvo que el formulario o la API
+indiquen otra (`time_zone`).
+
+Mantiene su hora con el cambio de horario: «cada día a
+las 09:00» en Varsovia son las 08:00 UTC en invierno y las 07:00 UTC en verano, y
+el run se mueve con ella. Una programación guardada antes de que las
+programaciones tuvieran zona se lee en UTC, como siempre, hasta que alguien le
+elija una. Una programación por intervalo no tiene hora del día ni zona.
 
 ## Una programación cuyo último run sigue en marcha { #a-schedule-whose-last-run-is-still-going }
 
@@ -99,34 +115,34 @@ flowchart TD
 
 - **La URL** se construye sobre la única dirección pública del despliegue
   (`PUBLIC_BASE_URL`), no sobre el origen del dashboard - el webhook lo sirve el
-  host de la API, que suele ser un origen distinto al de la interfaz. Su forma
-  es:
+  host de la API, que suele ser un origen distinto del de la UI. Su forma es:
 
   ```
   {PUBLIC_BASE_URL}/api/v1/webhooks/triggers/{source}/{trigger_id}
   ```
 
-  `source` es `github` o `webhook` (el nombre de cable de la fuente API);
-  `trigger_id` es un UUID imposible de adivinar. El diálogo la rellena por ti -
-  cópiala, no la construyas a mano. **`gmail` no tiene URL**: una fuente sondeada
-  no tiene puerta de entrada, y un POST que nombre una se responde como cualquier
-  entrega que no tiene nada que hacer.
+  `source` es `github`, `hubspot`, `zendesk` o `webhook` (el nombre en el cable de
+  la fuente API); `trigger_id` es un UUID imposible de adivinar. El diálogo la
+  rellena por ti - cópiala, no la construyas a mano. **Una fuente por sondeo no
+  tiene URL**: no tiene puerta de entrada, y un POST que la nombre recibe la
+  respuesta de cualquier entrega sin nada que hacer.
 
-- **La firma** es `HMAC-SHA256` sobre los **bytes crudos exactos de la
-  petición**, con el secreto de firma como clave, codificada en hexadecimal y con
-  el prefijo `sha256=`. Viaja en una cabecera que depende de la fuente:
+- **La firma** es un `HMAC-SHA256` con el secreto de firma como clave, en el
+  esquema de cada provider:
 
-  | Fuente | Cabecera |
-  |---|---|
-  | `github` | `X-Hub-Signature-256` |
-  | `webhook` | `X-Signature-256` |
+  | Fuente | Cabecera | Qué se firma |
+  |---|---|---|
+  | `github` | `X-Hub-Signature-256` | El cuerpo crudo, `sha256=<hex>` |
+  | `webhook` | `X-Signature-256` | El cuerpo crudo, `sha256=<hex>` - o la hora y el cuerpo, ver [abajo](#signing-a-delivery-yourself) |
+  | `hubspot` | `X-HubSpot-Signature-v3` | El método, la URL, el cuerpo y `X-HubSpot-Request-Timestamp`, base64 |
+  | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` y el cuerpo, base64 |
 
-  GitHub firma sus entregas de forma nativa bajo su propia cabecera
-  `X-Hub-Signature-256`, así que le das el secreto a GitHub y él firma. La fuente
-  API reutiliza el esquema idéntico bajo `X-Signature-256`, que tiene que poner
-  por su cuenta lo que sea que apuntes a la URL. Una fuente **sondeada** no firma
-  nada y no guarda ningún secreto: no se le envió nada, se la leyó, y el propio
-  grant de OAuth de la cuenta es lo que autorizó esa lectura.
+  GitHub, HubSpot y Zendesk firman sus propias entregas, así que le das al
+  provider el secreto - o, en HubSpot y Zendesk, tomas el que él emitió - y él
+  firma. La fuente API reutiliza el esquema de GitHub bajo `X-Signature-256`, que
+  tiene que poner por sí mismo lo que apuntes a la URL. Una fuente **por sondeo**
+  no firma nada ni guarda secreto: no se le envió nada, se leyó, y lo que autorizó
+  leerla es el consentimiento OAuth de la propia cuenta.
 
 !!! danger "La firma no es un adorno"
 
@@ -152,6 +168,18 @@ Una entrega verificada que no tiene nada que hacer - un trigger inactivo, o una
 carga que el filtro no hace coincidir - responde `202` exactamente igual que una
 que dispara, así que tener el secreto no te dice nada sobre qué triggers existen.
 Un cuerpo que no es un objeto JSON es un `400`.
+
+**Un trigger se dispara como mucho 60 veces por minuto.** Una entrega verificada
+por encima de eso se rechaza con `429` y `Retry-After`, y el reintento del
+provider la dispara cuando pasa el minuto. Solo cuenta cuando la firma es
+correcta, así que nadie sin el secreto puede agotarlo - y es lo que impide que un
+secreto filtrado o un relé en bucle gaste el budget en una tarde.
+
+**Lo que llegó son datos, nunca instrucciones.** El mensaje del run es tu prompt,
+y después el evento dentro de un bloque `<event_content>` que le dice al modelo
+que lo lea como datos. Una issue, un correo o un nombre de archivo lo escribe
+quien lo envió, y una frase dentro que suene a orden sigue siendo parte del
+evento.
 
 ## Rotar el secreto y editar el filtro { #rotating-the-secret-and-editing-the-filter }
 
@@ -192,7 +220,9 @@ Gmail se sondea, así que el montaje es una pantalla de consentimiento y nada m�
    otra cuenta conectada.
 2. **Elige qué lo dispara**: cualquier mensaje nuevo, solo la bandeja de entrada,
    o marcado como importante. Afina más con un remitente o un fragmento del
-   asunto, o con una etiqueta de Gmail.
+   asunto, o con una etiqueta de Gmail. Un filtro de remitente solo se dispara con
+   correo que firmó el dominio del remitente - ver
+   [Quién lo envió](#who-sent-it-a-sender-filter-is-a-trust-decision).
 3. **Escribe el prompt**, o parte de la plantilla «redacta una respuesta».
 
 No hay URL que pegar ni secreto que guardar, porque nadie nos envía nada. Lo que
@@ -209,23 +239,245 @@ conviene saber sobre cómo lee:
   el agent una vez por cada mensaje que ya estuviera ahí, y el correo que llegue
   entre el consentimiento y el primer latido aterriza igualmente después de esa
   posición y dispara.
-- **Una ráfaga está acotada.** Un tic lee como mucho 25 mensajes nuevos enteros.
-  El volcado de una lista de correo no se convierte en 400 runs de agent; la
-  posición avanza igualmente, así que el atasco no se relee para siempre.
+- **Una ráfaga se pone en cola.** Un tic lee como mucho 25 mensajes completos.
+  Los IDs pendientes permanecen en el cursor y se procesan del más antiguo al
+  más reciente en los siguientes tics, incluso sin cambios nuevos en el historial.
+  Los mensajes enviados y el spam no desplazan permanentemente el correo entrante.
 - **Un mensaje puede disparar varios triggers.** A diferencia de un webhook, cuya
   URL nombra exactamente uno - «cualquier mensaje» y «marcado como importante»
   sobre el mismo buzón disparan los dos.
+- **Solo lo que llegó.** El historial de Gmail también informa como añadidos los
+  mensajes enviados por la cuenta, los borradores, el spam y la papelera. Ninguno
+  dispara un trigger - un agent que responde por correo se dispararía a sí mismo,
+  y el spam le daría un run a cualquiera con una dirección - salvo que el `label`
+  del trigger nombre uno de ellos (`SENT`, `DRAFT`, `SPAM` o `TRASH`).
 - **Una semana perdida se repara sola.** Google guarda alrededor de una semana de
   historial. Un cursor más antiguo que eso se resincroniza con el ahora en vez de
   dejar el buzón aparcado para siempre.
+- **Un consentimiento retirado detiene los triggers.** Cuando Google rechaza el
+  grant para siempre - el refresh token se revocó o la cuenta quitó la
+  aplicación -, los triggers del buzón se apagan, la tarjeta pide volver a
+  conectar y el registro de auditoría anota el motivo (`mailbox_access_revoked`).
+  Vuelve a conectar y luego enciéndelos otra vez. Una caída de Google no es esto:
+  el sondeo se repite un minuto después.
 
-El despliegue necesita un cliente OAuth de Google (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - el mismo par que usa el inicio de sesión con Google) con
-la API de Gmail habilitada. Sin él la tarjeta lo dice en vez de ofrecer un botón
-Connect que solo podría fallar. A diferencia de GitHub, el cliente es del
-*despliegue* y no de cada organización: la pantalla de consentimiento de Google
-para un scope de buzón necesita un proyecto verificado, que un operador registra
-una vez y que ninguno de sus inquilinos puede registrar en absoluto.
+La organización necesita su propio cliente OAuth de Google, guardado en Vault como
+secreto **Google OAuth client** (`google_oauth_app`), con la API de Gmail
+habilitada en su proyecto de Google. Sin él la tarjeta lo dice en vez de ofrecer
+un botón Connect que solo podría fallar. No es el `GOOGLE_CLIENT_ID` del
+despliegue, que sirve para iniciar sesión.
+
+## Outlook (~1 minuto, y sin ningún secreto) { #outlook-1-minute-and-no-secret-anywhere }
+
+Un buzón de Outlook - Microsoft 365 o Exchange Online - se sondea como Gmail, así
+que el montaje vuelve a ser una pantalla de consentimiento.
+
+1. **Registra una aplicación** en el centro de administración de Microsoft Entra:
+   un URI de redirección web `{FRONTEND_URL}/api/me/mcp-connections/oauth/callback`,
+   un secreto de cliente y los permisos delegados de Microsoft Graph `Mail.Read`,
+   `Mail.Read.Shared` y `offline_access`. Ninguno necesita el consentimiento de un
+   administrador.
+2. **Guárdala en Vault** como secreto **Microsoft OAuth app**
+   (`microsoft_oauth_app`): el id o dominio del inquilino, el client id y el valor
+   del secreto. Usa `organizations` como inquilino solo para una aplicación
+   registrada como multiinquilino. Debe ser visible para la organización y debe
+   haber exactamente uno.
+3. **Conecta la cuenta.** *Routines → New event trigger → Outlook → Connect
+   account*, con `mcp:manage`. Microsoft pregunta qué cuenta usar, para que un
+   navegador con una cuenta personal abierta no conecte el buzón equivocado.
+4. **Elige qué lo dispara**: cualquier mensaje nuevo, solo uno con adjuntos o solo
+   uno marcado con importancia alta. Acótalo con un fragmento del remitente o del
+   asunto.
+
+En qué se diferencia de Gmail:
+
+- **Lee carpetas, no un buzón.** Microsoft Graph informa del correo nuevo carpeta
+  a carpeta, así que un trigger nombra la carpeta que vigila - la bandeja de
+  entrada salvo que diga otra - y el sondeador lee exactamente las carpetas que
+  nombran los triggers de Outlook de la organización. `folder` es un nombre
+  conocido (`inbox`, `archive`, `junkemail`) o una ruta de nombres de carpeta, como
+  `Inbox/Invoices` para la carpeta donde una regla de correo archiva las facturas.
+  `mailbox` lee, en lugar del propio, un buzón compartido que la cuenta conectada
+  puede abrir; nombrarlo requiere `mcp:manage`, el permiso con el que se conectó
+  la cuenta, porque usa el alcance de esa cuenta.
+- **El filtro tiene los campos propios de Outlook**: `has_attachments`,
+  `importance` (`low`, `normal`, `high`) y `category`, junto a `subject_contains` y
+  `sender_contains`, que tiene Gmail. Se fijan en el `event_config` del trigger; el
+  diálogo ofrece los presets y los dos fragmentos.
+- **Un trigger nuevo ve lo que llegó desde que se creó.** Una carpeta se lee por
+  primera vez desde el momento en que se creó su trigger más antiguo, nunca desde
+  antes de conectar el buzón, así que ni conectar ni añadir un trigger dispara con
+  correo que ya estaba ahí.
+- **Un cambio no es una llegada.** Graph informa de un mensaje que alguien marcó
+  como leído con la misma facilidad que de uno que acaba de llegar; solo dispara el
+  correo recibido desde la última lectura de la carpeta.
+- **El run lee texto.** El cuerpo llega como texto plano - Exchange convierte él
+  mismo un mensaje HTML - con los nombres, tipos y tamaños de los adjuntos. Los
+  adjuntos en sí no se descargan.
+- **Una carpeta que no se puede leer detiene sus triggers.** Una carpeta borrada y
+  creada de nuevo en la misma ruta se vuelve a buscar y se sigue leyendo. Una que
+  ya no existe, o un buzón compartido que dejó de estarlo, apaga los triggers que
+  la vigilan, con `mailbox_folder_unreadable` en el registro de auditoría, mientras
+  el resto del buzón se lee como siempre. Un consentimiento retirado los detiene
+  todos, como con Gmail.
+- **Un estado de sincronización perdido empieza de nuevo desde la última
+  lectura.** Graph conserva el seguimiento de cambios de una carpeta sin un plazo
+  fijo y responde a uno descartado con `syncStateNotFound`; la carpeta se vuelve a
+  leer desde justo antes de su última lectura, así que nada se dispara dos veces y
+  nada se pierde.
+
+Los ids de entrega son los ids de mensaje inmutables de Outlook, así que un
+mensaje leído dos veces - un tick repetido, un sondeo lento que se solapa con el
+siguiente - dispara cada trigger una vez.
+
+## Quién lo envió: un filtro de remitente es una decisión de confianza { #who-sent-it-a-sender-filter-is-a-trust-decision }
+
+`sender_contains` lee la cabecera `From`, que escribe el remitente: un mensaje que
+dice venir de `ceo@acme.com` no cuesta nada. Por eso un trigger de Gmail o de
+Outlook que filtra por remitente solo se dispara con correo **avalado** por el
+dominio del remitente: DMARC pasó, o una firma DKIM pasó para ese dominio o uno
+superior.
+
+El veredicto es el que escribió tu proveedor de correo cuando llegó el
+mensaje - la cabecera `Authentication-Results` más alta -, así que una copia que
+el remitente pegó en el mensaje no cuenta. SPF solo no basta: comprueba el
+remitente del sobre, que nadie ve. En Outlook, el correo entre dos buzones de tu
+propio tenant cuenta como avalado, porque Exchange lo marca como interno.
+
+| `authenticated_only` | Qué dispara |
+|---|---|
+| sin definir (por defecto) | Solo correo avalado cuando el trigger filtra por remitente; cualquiera cuando no |
+| `true` | Solo correo avalado, con o sin filtro de remitente |
+| `false` | Lo que dejen pasar los demás filtros |
+
+Un relé propio que no firma nada - un escáner interno, una pasarela de correo
+antigua - queda rechazado por un filtro de remitente. El rechazo se registra
+(`trigger_mail_unauthenticated`, con el dominio del remitente), y poner
+`authenticated_only` a `false` en el `event_config` del trigger deja pasar a ese
+remitente.
+
+El filtro de remitente compara la dirección analizada, nunca el nombre visible.
+Una dirección completa o un filtro `@dominio` requiere coincidencia exacta; otro
+texto se busca dentro de la dirección. DMARC no autentica el nombre visible.
+
+## HubSpot { #hubspot }
+
+HubSpot envía webhooks desde una app - basta una private app en tu cuenta de
+HubSpot - y los firma con el **client secret** de esa app.
+
+1. **Crea el trigger** con la fuente **Webhook de HubSpot** y pega el client
+   secret de la app (*Settings → Integrations → Private Apps → tu app → Auth*). No
+   hay botón Generate: HubSpot firma con su propio secreto, no con uno que
+   podamos crear.
+2. **Suscribe los webhooks de la app** a los eventos que quieras -
+   `contact.creation`, `deal.propertyChange`, `ticket.creation` - con la URL del
+   trigger como destino.
+
+HubSpot envía hasta cien eventos en una entrega, y el trigger se dispara una vez
+por ella cuando algún evento pasa el filtro: `subscription_types` se queda con los
+tipos de evento nombrados, `property_names` con un cambio de propiedad en las
+propiedades nombradas. El run recibe cada evento del lote, hasta veinte.
+
+Una entrega se verifica con la firma v3 de HubSpot, sobre el método, la URL que
+llamó HubSpot, el cuerpo y una marca de tiempo que tiene que estar dentro de cinco
+minutos. HubSpot sigue firmando las suscripciones a objetos del CRM con su
+esquema v1, sin hora, y también se aceptan: un lote se reconoce por sus eventos,
+así que una entrega v1 repetida más tarde no dispara nada. La URL de la firma es
+la que te dio el diálogo, así que un despliegue detrás de un proxy también
+verifica.
+
+## Zendesk { #zendesk }
+
+Zendesk emite para cada webhook su propio **secreto de firma**.
+
+1. **Crea un webhook en Zendesk** (*Admin Center → Apps and integrations →
+   Webhooks*) que apunte a la URL de un trigger - crea primero el trigger con la
+   fuente **Webhook de Zendesk**, pega un secreto provisional y vuelve.
+2. **Revela el secreto del webhook** en su página y pégalo en el trigger como su
+   secreto de firma.
+3. **Decide cuándo se llama.** Un webhook suscrito a eventos de Zendesk -
+   `zen:event-type:ticket.created` y similares - lleva el tipo de su evento, y el
+   `event_types` del trigger se queda con los nombrados. Un webhook que llama un
+   trigger o una automatización de Zendesk lleva el JSON que escribió su admin y
+   ningún tipo, así que dispara un trigger que no nombra ninguno: cuándo, ya lo
+   decidió la regla de Zendesk.
+
+Una entrega se verifica sobre su marca de tiempo y su cuerpo y tiene que estar a
+menos de cinco minutos de nuestro reloj; el id de invocación de Zendesk reconoce
+una repetida.
+
+## Archivos: Google Drive, OneDrive y SharePoint { #files-google-drive-onedrive-and-sharepoint }
+
+Dos portales por sondeo, cada uno con su propio consentimiento para que ninguno
+pida más que archivos:
+
+| | Google Drive | OneDrive & SharePoint |
+|---|---|---|
+| Secreto en el vault | El cliente Google OAuth que usa Gmail, con la Drive API activada | La app Microsoft OAuth que usa Outlook |
+| Permiso | `drive.metadata.readonly` | `Files.Read.All`, `Sites.Read.All`, `User.Read`, `offline_access` (sin consentimiento de administrador) |
+| Dónde mira | Cada archivo que ve la cuenta, unidades compartidas incluidas | El OneDrive propio de la cuenta, o la biblioteca de documentos de un sitio de SharePoint por `site_url` |
+| Afina por | `folder_id` (el enlace o el id de la carpeta), `name_contains` | `folder_path` (una carpeta y todo lo que hay debajo), `name_contains` |
+
+Ambos se disparan con `change`: `created`, `modified` o `any` (por defecto); los
+presets ofrecen **New files** y **New or changed files**.
+
+- **Un archivo en edición es un run, no uno por minuto.** Google Docs guarda
+  mientras alguien escribe y OneDrive informa de cada guardado, así que un cambio
+  en un archivo que ya se disparó queda retenido media hora.
+- **Las ediciones de la propia cuenta no disparan nada** salvo que se defina
+  `include_own_changes`: un agent que escribe con el mismo consentimiento se
+  dispararía a sí mismo.
+- **Conectar no dispara nada.** Ambos leen desde ahora - una biblioteca de
+  SharePoint nueva, desde el momento de su primer trigger -, nunca desde el
+  historial de la unidad. Una ráfaga - una carpeta sincronizada en bloque - se
+  limita a los 25 archivos cambiados más recientes por tick.
+- **El run sabe qué archivo, no lo que contiene.** Solo se leen metadatos: el
+  nombre, el tipo, el enlace, quién lo cambió y dónde está. Un agent que deba leer
+  el archivo lo hace con sus propias herramientas.
+- **Un sitio que no se puede leer detiene sus triggers**, con el motivo en el log
+  de auditoría, mientras los demás lugares de la cuenta se siguen leyendo.
+
+Elegir o cambiar una `site_url` de SharePoint requiere `mcp:manage`, también
+por API. El acceso de la cuenta conectada no autoriza al creador del trigger a
+elegir otro sitio. Lo mismo se aplica a buzones compartidos. La consulta de
+identidad usa `User.Read`; SharePoint no requiere un OneDrive personal.
+Vuelve a conectar las cuentas existentes de Microsoft Files y Google Calendar
+para aprobar los permisos adicionales.
+
+El editor permite cambiar filtros de archivos y calendarios, incluir cambios
+propios y elegir una antelación de 5 a 120 minutos. Los presets de GitHub permiten
+editar la frase de mención y las ramas separadas por comas. Los triggers por
+sondeo no tienen rotación del secreto. La supresión de repeticiones se aplica
+por trigger coincidente: un cambio propio ignorado no bloquea otro cambio ajeno.
+Ambos calendarios siguen las páginas hasta un límite; superarlo informa de un
+error del proveedor en lugar de aceptar resultados incompletos.
+
+## Reuniones: Google Calendar y Outlook Calendar { #meetings-google-calendar-and-outlook-calendar }
+
+Un trigger de calendario se dispara **antes** de una reunión, no cuando algo
+cambió: 15 minutos antes por defecto, entre 5 y 120 (`minutes_before`). Los
+presets son **Before each meeting**, **Before meetings with outsiders** y **An
+hour before**; el run recibe el asunto, la hora, el organizador, quién viene,
+quiénes son de fuera de tu dominio, el enlace para unirse y la descripción -
+suficiente para preparar un brief.
+
+| | Google Calendar | Outlook Calendar |
+|---|---|---|
+| Secreto en el vault | El cliente Google OAuth, con la Calendar API activada | La app Microsoft OAuth |
+| Permiso | `calendar.events.readonly`, `calendar.calendars.readonly` | `Calendars.Read`, `offline_access` |
+| Calendario que lee | El calendario principal de la cuenta | El calendario predeterminado de la cuenta |
+
+- **Solo una reunión.** Una sin nadie más, una que rechazaste, una cancelada y un
+  evento de todo el día nunca se disparan. Las salas no cuentan como personas.
+- **Una vez por reunión.** Cada reunión se anuncia una vez por cada antelación que
+  vigila algún trigger, y el anuncio se guarda con la posición de la cuenta, así
+  que un tick lento o un reinicio no la disparan dos veces. Una reunión reservada
+  dentro de la antelación - a las 10:50 para las 11:00, con un trigger de 15
+  minutos - se dispara al momento; una movida a otra hora se dispara de nuevo para
+  su nueva hora.
+- **`external_only`** se queda con las reuniones con alguien de fuera del dominio
+  de la cuenta; `subject_contains` y `attendee_contains` afinan por asunto y por la
+  dirección de un asistente (`@client.com`).
 
 ## Dos maneras de conectar GitHub, y cómo saber cuál tienes { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
 
@@ -256,9 +508,12 @@ plataforma al crearlo.
      despliegue es aquí un requisito de configuración y no un valor de ejecución.
    - **Webhook secret**: genéralo. Firma cada entrega de cada instalación de esta
      App.
-   - **Permisos**: `Issues: Read-only` y `Metadata: Read-only`. No se lee nada
-     más, y cualquier cosa por encima es acceso que nadie necesita.
-   - **Suscríbete a eventos**: `Issues`.
+   - **Permisos**: `Metadata: Read-only`, más acceso de solo lectura a lo que
+     disparan tus triggers - `Issues` para las issues y sus comentarios,
+     `Pull requests`, `Actions` para los runs de workflow, `Contents` para las
+     releases y los pushes. No se lee nada más.
+   - **Suscríbete a eventos**: los que usan tus triggers - `Issues`,
+     `Issue comment`, `Pull request`, `Workflow run`, `Release`, `Push`.
 2. **Genera una clave privada** en la misma página y descarga el PEM.
 3. **Guarda las tres en el vault** como un secreto **GitHub App**: el App ID, la
    clave privada y el webhook secret. Uno por organización y visible para la
@@ -325,14 +580,31 @@ secreto de firma, y después:
    envía GitHub, y la codificación de formulario los cambia, así que una entrega
    codificada como formulario no verifica contra nada y vuelve como `403`.
 4. **Secret** - pega el secreto de firma.
-5. **Which events?** - elige *Let me select individual events*, marca **Issues**
-   y desmarca todo lo demás. Solo los webhooks de `issues` llegan siquiera al
-   camino del disparo (el tipo de evento se lee de la cabecera `X-GitHub-Event`);
-   cualquier otra cosa se descarta. Afina *qué* acciones de una issue disparan
-   con el filtro del trigger - por defecto es la creación de una issue
-   (`opened`).
-6. **Add webhook.** GitHub envía un `ping`, que no es un evento `issues`, así que
-   no disparará el agent - eso es lo esperado.
+5. **Which events?** - elige *Let me select individual events* y marca el que nombra
+   el `event` del trigger; la entrega de cualquier otro evento (leído de la
+   cabecera `X-GitHub-Event`) se descarta. Afina *qué* acciones disparan con el
+   filtro del trigger.
+6. **Add webhook.** GitHub envía un `ping`, que no es el evento de ningún trigger,
+   así que no disparará el agent - eso es lo esperado.
+
+**Con qué puede dispararse un trigger de GitHub**, su `event`, con lo que dispara por defecto:
+
+| `event` | Se dispara con, salvo que `actions` diga otra cosa | Afina también por |
+|---|---|---|
+| `issues` (por defecto) | Una issue nueva (`opened`) | |
+| `pull_request` | `opened`, `ready_for_review`, `review_requested` | `branches` (la base) |
+| `issue_comment` | Un comentario nuevo (`created`) | `mention`, una frase que debe contener, como `@agent` |
+| `workflow_run` | Un run terminado (`completed`) que falló | `conclusions`, `branches` |
+| `release` | Una release publicada | |
+| `push` | Un push a una rama | `branches` |
+
+**De quién son las issues que lo disparan.** En un repositorio público cualquiera
+puede abrir una issue, y cada una sería un run y una página de texto ajeno en el
+prompt. Por eso una issue, una pull request o un comentario solo dispara cuando
+GitHub considera a su autor `OWNER`, `MEMBER` o `COLLABORATOR` del repositorio -
+pon `authors` en `anyone` para dejar pasar a todos. Un bot nunca lo dispara, ni
+tampoco la cuenta con la que se conectó el trigger, así que un agent que comenta
+a través de ella no puede dispararse a sí mismo.
 
 Cuando una entrega se rechaza, diagnostícala en la pestaña **Recent Deliveries**
 del webhook en GitHub: muestra la petición exacta y la respuesta. Un `403` ahí es
@@ -342,8 +614,8 @@ es `application/json`.
 ## El contrato de la carga para las fuentes entregadas por relé { #the-payload-contract-for-relay-delivered-sources }
 
 GitHub es el dueño de la forma de su carga, y la de una fuente sondeada la lee el
-adaptador que la lee - los filtros de un trigger de Gmail se contrastan con el
-propio mensaje, así que no hay contrato que tú tengas que cumplir.
+adaptador que la lee - los filtros de un trigger de Gmail o de Outlook se
+contrastan con el propio mensaje, así que no hay contrato que tú tengas que cumplir.
 
 El que sí es tuyo es la fuente comodín `webhook` - **API** en los diálogos. **No
 tiene filtro**: una entrega verificada dispara, y todo el cuerpo JSON se añade al
@@ -371,7 +643,7 @@ agent lo lee. Si lo que quieres es el *filtrado*, conecta el buzón en su lugar.
 
 ## Firmar una entrega tú mismo { #signing-a-delivery-yourself }
 
-Para la fuente genérica `webhook` (y para probar a mano cualquier fuente), la
+Para la fuente genérica `webhook` (y para probar a mano la fuente de GitHub), la
 petición la firmas tú. Dos trampas deciden si la firma verifica, porque las dos
 cambian los bytes:
 
@@ -422,6 +694,21 @@ cambian los bytes:
 
 Para la fuente `github` el algoritmo es idéntico; solo cambia el nombre de la
 cabecera, que pasa a ser `X-Hub-Signature-256`.
+
+**Firma también la hora, contra repeticiones.** Una firma solo del cuerpo no lleva
+hora, así que una entrega capturada se podría reenviar para siempre. Envía
+`X-Signature-Timestamp` (segundos Unix) y firma en su lugar
+`{timestamp}.{body}`: una entrega a más de cinco minutos de nuestro reloj se
+rechaza, y quitar la cabecera para repetirla también falla, porque la firma ya no
+cubre el cuerpo solo. Un remitente que no envía marca de tiempo se verifica como
+antes.
+
+```bash
+TS="$(date +%s)"
+SIG="sha256=$(printf '%s.%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
+curl -sS -X POST "$URL" -H 'Content-Type: application/json' \
+  -H "X-Signature-Timestamp: $TS" -H "X-Signature-256: $SIG" --data-raw "$BODY"
+```
 
 ## Zapier y Make no pueden hacer esto sin un code step { #zapier-and-make-cannot-do-this-without-a-code-step }
 
@@ -481,9 +768,13 @@ cualquier relé alojado - no pueden ver tu máquina. Dos maneras de salvarlo:
 
 - Un trigger te entrega una **URL** y un **secreto de firma**. La URL es su
   identidad y nunca cambia; el secreto es una credencial y se puede rotar.
-- La firma es `HMAC-SHA256` sobre los **bytes crudos exactos**, y es lo que hace
-  que una entrega sea auténtica y no solo esté bien dirigida.
+- La firma es un `HMAC-SHA256` sobre los **bytes crudos exactos**, en el esquema
+  de cada provider, y es lo que hace que una entrega sea auténtica y no solo esté
+  bien dirigida. Los secretos de HubSpot y Zendesk los emite el provider.
 - Un `202` significa **aceptado**, no terminado. Lee el run en Activity.
-- **Gmail se sondea**, así que no tiene URL ni secreto alguno — conecta el buzón
-  y ese es todo el montaje.
+- **Los buzones, los archivos y los calendarios se sondean**, así que no tienen
+  URL ni secreto alguno - conecta la cuenta y ese es todo el montaje.
+- Un filtro de remitente solo se dispara con correo que firmó el dominio del
+  remitente.
+- La hora de una programación se lee en su zona horaria, la tuya por defecto.
 - En un portátil, echa mano de **Run now** antes que de un túnel.

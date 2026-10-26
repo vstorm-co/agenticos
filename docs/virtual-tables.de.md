@@ -1,5 +1,5 @@
 ---
-source_sha: "bac6fa739491"
+source_sha: "2251aaa4f1e1"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -553,7 +553,7 @@ Ansicht, die für eine Seite zu teilen wäre.
 
 Kanban-Spalten laden jeweils 25 Karten. **Weitere laden** behält vorhandene Karten; nach einem Seitenfehler ist ein erneuter Versuch möglich. Eine geänderte Gruppierung kann in der aktiven Ansicht gespeichert werden. Werden Spaltentypen durch ein anderes Mitglied geändert, entfernt das Lesen einer privaten Ansicht inkompatible Filter, Sortierung und Gruppierung aus der Antwort, ohne die gespeicherte Ansicht ihres Eigentümers zu überschreiben. Eine Seitenabfrage, die einen Filter verliert, erfordert erneute Zustimmung.
 
-Tabellenereignisse verwenden beim Einfügen nach der Änderungssperre die Echtzeituhr, passend zur Trigger-Aktivierung. Eine vor der Aktivierung begonnene Transaktion kann daher ein späteres berechtigtes Ereignis erzeugen. Die Migration `0221_table_event_wall_clock.py` ändert künftige Zeitstempel; sie spielt zuvor übersprungene Ereignisse nicht erneut ab, um doppelte Auswirkungen zu vermeiden.
+Tabellenereignisse verwenden beim Einfügen nach der Änderungssperre die Echtzeituhr, passend zur Trigger-Aktivierung. Eine vor der Aktivierung begonnene Transaktion kann daher ein späteres berechtigtes Ereignis erzeugen. Die Migration `0229_table_event_wall_clock.py` ändert künftige Zeitstempel; sie spielt zuvor übersprungene Ereignisse nicht erneut ab, um doppelte Auswirkungen zu vermeiden.
 
 
 Ein [Workflow](workflows.md#when-a-table-record-is-added), dessen Trigger-Knoten

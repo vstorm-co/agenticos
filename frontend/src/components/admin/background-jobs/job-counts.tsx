@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { JOB_STATUSES, type JobStatus } from "@/types/background-jobs";
 
@@ -19,7 +20,7 @@ export function JobCounts({
   selected,
   onSelect,
 }: {
-  counts: Record<JobStatus, number>;
+  counts: Record<JobStatus, number> | undefined;
   selected: JobStatus | undefined;
   onSelect: (status: JobStatus | undefined) => void;
 }) {
@@ -30,6 +31,7 @@ export function JobCounts({
         <button
           key={status}
           type="button"
+          disabled={counts === undefined}
           aria-pressed={selected === status}
           onClick={() => onSelect(selected === status ? undefined : status)}
           className={cn(
@@ -42,7 +44,7 @@ export function JobCounts({
             {t(`status.${status}`)}
           </span>
           <span className="text-foreground mt-1 block text-2xl font-semibold tabular-nums">
-            {counts[status]}
+            {counts === undefined ? <Skeleton className="h-8 w-12" /> : counts[status]}
           </span>
         </button>
       ))}

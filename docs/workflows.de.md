@@ -1,5 +1,5 @@
 ---
-source_sha: "6d97552555ab"
+source_sha: "8576230541cd"
 ---
 
 # Workflows { #workflows }
@@ -531,9 +531,9 @@ Ein fortgesetzter Agent behält die engere Grenze: sein beim Pausieren gespeiche
 
 Angeheftete Ausgaben importieren verschachtelte Dateireferenzen nach aktueller Zugriffsprüfung. Aufnahme und Aufbewahrung teilen die Dateisperre: ein bestätigter Import schützt seinen Erzeuger, und die Bereinigung prüft Referenzen nach dem Warten erneut. Editorbeispiele behalten die neuesten Ausführungsdaten trotz verspäteter älterer Antworten; Einfügen erhält Notizen, gemischte Notiz- und Schrittänderungen werden gemeinsam angewendet.
 
-Die Migration `0223_workflow_result_bytes.py` füllt Zähler aus vorhandenem unkomprimiertem JSON-Text, konservativ gegenüber neuen kompakten Reservierungen. API- und Worker-Schreibzugriffe müssen währenddessen gestoppt sein. Bereits übergroße Verläufe bleiben erhalten, blockieren aber weitere große Ergebnisse bis zur Bereinigung oder Anhebung des Limits. Bereits gelöschte Inhalte werden nicht wiederhergestellt.
+Die Migration `0231_workflow_result_bytes.py` füllt Zähler aus vorhandenem unkomprimiertem JSON-Text, konservativ gegenüber neuen kompakten Reservierungen. API- und Worker-Schreibzugriffe müssen währenddessen gestoppt sein. Bereits übergroße Verläufe bleiben erhalten, blockieren aber weitere große Ergebnisse bis zur Bereinigung oder Anhebung des Limits. Bereits gelöschte Inhalte werden nicht wiederhergestellt.
 
-Reservierungen umfassen auch die ursprüngliche Eingabe, den Entwurfssnapshot im Testmodus und jedes gespeicherte Wait-Fortsetzungspayload. Admission und Resume reservieren vor Schreiben oder Aufwecken; eine Ablehnung liefert `WORKFLOW_INLINE_STORAGE_LIMIT` (429). Resume-Links authentifizieren vor dem Lesen des Bodys. Migration `0224_workflow_input_bytes.py` ergänzt bestehende Payloads in den Zählern, ohne Ergebnisse oder Gebühren zu entfernen. API und Worker während des Backfills anhalten; überschreitet eine Organisation bereits das Limit, muss sie Verlauf bereinigen oder das Limit erhöhen.
+Reservierungen umfassen auch die ursprüngliche Eingabe, den Entwurfssnapshot im Testmodus und jedes gespeicherte Wait-Fortsetzungspayload. Admission und Resume reservieren vor Schreiben oder Aufwecken; eine Ablehnung liefert `WORKFLOW_INLINE_STORAGE_LIMIT` (429). Resume-Links authentifizieren vor dem Lesen des Bodys. Migration `0232_workflow_input_bytes.py` ergänzt bestehende Payloads in den Zählern, ohne Ergebnisse oder Gebühren zu entfernen. API und Worker während des Backfills anhalten; überschreitet eine Organisation bereits das Limit, muss sie Verlauf bereinigen oder das Limit erhöhen.
 
 Entwürfe, veröffentlichte Versionen und aufbewahrte Importe schützen referenzierte Dateien vor Bereinigung. Ein erzeugender Workflow kann nicht gelöscht werden, solange ein anderer seine Dateien referenziert; Referenzen entfernen oder archivieren. Änderungen, Admission, Importe und Bereinigung teilen die Lebenszyklussperre der Organisation. Löschen prüft Run-Abhängigkeiten vor dem Entfernen der Trigger und versucht GitHub-Hooks über die Kontointegration abzumelden; Anbieterfehler bleiben im Log sichtbar.
 

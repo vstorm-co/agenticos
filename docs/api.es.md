@@ -1,5 +1,5 @@
 ---
-source_sha: "79a6161b4bee"
+source_sha: "2d73006bce11"
 ---
 
 # La API HTTP { #the-http-api }
@@ -56,6 +56,13 @@ búsqueda en sus conversaciones anteriores, ni los sitios en los que el navegado
 guarda sus inicios de sesión, ni el espacio de trabajo del sandbox ligado al
 usuario. Quien tiene la clave es un script, no esa persona, así que el run
 responde como en un widget público.
+
+La consulta de conexiones también es pública y de solo lectura:
+`GET /sandbox-connections`, `GET /sandbox-connections/runtimes` y
+`GET /sandbox-connections/{id}/policy` requieren `connections:view`;
+`GET /mcp-connections` requiere `mcp:manage`. Siguen vigentes la organización
+y los permisos de la clave. Las escrituras de conexiones y las operaciones
+con credenciales siguen requiriendo una sesión.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \
@@ -355,7 +362,7 @@ minuto que `POST /workflow-runs`, y pasada esta recibe `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks y programaciones { #workflow-webhooks-and-schedules }
 
-Los ID de entregas de webhook y GitHub sobreviven a la retención del contenido como registros mínimos pertenecientes a la exposición y organización. Un duplicado sigue devolviendo el UUID original tras borrar el contenido; el estado y la respuesta anterior pueden dejar de estar disponibles. Eliminar la exposición u organización termina la deduplicación. La migración `0222_webhook_delivery_tombstones.py` no recupera registros ya borrados; al revertirla se eliminan registros huérfanos antes de restaurar la clave externa con borrado en cascada.
+Los ID de entregas de webhook y GitHub sobreviven a la retención del contenido como registros mínimos pertenecientes a la exposición y organización. Un duplicado sigue devolviendo el UUID original tras borrar el contenido; el estado y la respuesta anterior pueden dejar de estar disponibles. Eliminar la exposición u organización termina la deduplicación. La migración `0230_webhook_delivery_tombstones.py` no recupera registros ya borrados; al revertirla se eliminan registros huérfanos antes de restaurar la clave externa con borrado en cascada.
 
 Publicar disparadores automáticos y cambiar su autoridad de ejecución requiere una sesión de miembro (`403` para claves API de organización). Las claves pueden publicar workflows manuales, iniciar ejecuciones dentro de sus ámbitos y pausar exposiciones, pero no activarlas, rotar secretos/enlaces de formularios, cambiar programaciones ni elegir una nueva identidad para el workflow de errores. Estas operaciones conservan la autoridad de un usuario para eventos futuros.
 

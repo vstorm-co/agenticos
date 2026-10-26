@@ -5,7 +5,8 @@ import { MessageSquareWarning } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { ErrorState, LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/states";
 import { Figure, ListCard } from "@/components/ui";
 import { useAgents, useGroupQuality, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
@@ -24,6 +25,7 @@ import { Perm } from "@/types/permissions";
  */
 export function DepartmentQuality({ orgId, group }: { orgId: string; group: Group }) {
   const t = useTranslations("groups.quality");
+  const ts = useTranslations("states");
   const tErrors = useTranslations("errors");
   const { quality, isLoading, error } = useGroupQuality(orgId, group.id);
   const { agents } = useAgents();
@@ -38,7 +40,18 @@ export function DepartmentQuality({ orgId, group }: { orgId: string; group: Grou
       {error ? (
         <ErrorState description={getErrorMessage(error, tErrors)} />
       ) : isLoading || !quality ? (
-        <LoadingState variant="skeleton-panel" rows={2} />
+        <div className="space-y-5" role="status" aria-label={ts("loading")}>
+          <div className="space-y-2" aria-hidden>
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          {[0, 1].map((section) => (
+            <section key={section} className="space-y-2" aria-hidden>
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-12 w-full" />
+            </section>
+          ))}
+        </div>
       ) : total === 0 && quality.top_agents.length === 0 ? (
         // The same figure the budget card beside it opens on, not a full-height
         // empty state: a page-sized "nothing yet" stretched both cards to its

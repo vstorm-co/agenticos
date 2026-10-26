@@ -141,6 +141,13 @@ class ConsentRequiredError(ConflictError):
     code = "CONSENT_REQUIRED"
 
 
+class WorkspaceCapacityError(AppException):
+    """Concurrent workspace writes could not be merged within the storage cap."""
+
+    code = "WORKSPACE_CAPACITY_CONFLICT"
+    status_code = 409
+
+
 class BadRequestError(AppException):
     """Bad request (400)."""
 

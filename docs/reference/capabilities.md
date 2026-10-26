@@ -404,6 +404,11 @@ API answers what a *question* matches, not what a store holds. Those agents are
 presented as a complete inventory would be worse than one that says what it
 misses. Erasure does reach mem0; reading does not.
 
+Memory erasure checks drafts and every retained agent version, including former
+mem0 endpoints. Clearing an agent also removes all its owners' mem0 namespaces.
+A missing credential, provider failure or incomplete namespace listing returns an
+error; restore access and retry rather than treating a partial wipe as complete.
+
 ## Memory (mem0)
 
 `remember`, `recall`

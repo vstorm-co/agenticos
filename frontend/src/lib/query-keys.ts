@@ -252,6 +252,8 @@ export const qk = {
   },
   runs: {
     all: () => ["runs"] as const,
+    canStop: (orgId: string | null, accountId: string | null, runId: string) =>
+      ["runs", "can-stop", orgId, accountId, runId] as const,
     // The AI Architect's bubble: approvals waiting, no agents yet, the reader's
     // failed run. Under `runs` because two of the three are run events.
     assistantSignals: (orgId: string) => ["runs", "assistant-signals", orgId] as const,
@@ -294,6 +296,7 @@ export const qk = {
         opts.modality ?? "any-modality",
         opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
+        opts.conversationId ?? "any-conversation",
         opts.agentVersionId ?? "any-version",
         opts.isTest ?? "tests-included",
         opts.skip ?? 0,

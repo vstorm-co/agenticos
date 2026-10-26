@@ -19,12 +19,16 @@ nobody looked at it for eight days.
 """
 
 import logging
+from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
-from app.services.portals.base import PolledEvent, PolledEvents, PortalAdapter
+from app.services.portals.base import NOWHERE, PolledEvent, PolledEvents, PortalAdapter
 from app.services.portals.exceptions import PortalUnreachable
+from app.services.portals.mail_auth import authenticated
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +36,8 @@ _API_BASE = "https://gmail.googleapis.com/gmail/v1"
 _TIMEOUT = httpx.Timeout(15.0)
 # How many messages one tick will read in full. A mailbox that took a mailing-list
 # dump between two ticks must not turn one poll into four hundred `messages.get`
-# calls and four hundred agent runs; past this the newest are taken and the cursor
-# still advances, because the alternative is reading the same backlog for ever.
+# calls and four hundred agent runs. The unread tail stays in the cursor for
+# subsequent ticks, oldest first, so irrelevant mail cannot displace an arrival.
 _MAX_MESSAGES_PER_POLL = 25
 # Which parts of a message are read. `metadata` is headers only and cheap; the body
 # needs `full`, and the body is the whole point of "draft a reply to this".
@@ -68,71 +72,84 @@ def _header(message: dict[str, Any], name: str) -> str:
     return ""
 
 
-def _body_text(part: dict[str, Any], depth: int = 0) -> str:
-    """The plain-text body of a message, walking the MIME tree for it.
-
-    `text/plain` is preferred and HTML is the fallback, because what reaches the
-    agent should be what a person would read rather than markup it has to strip.
-    Bounded by depth: a MIME tree is attacker-shaped input - anybody who can email
-    this mailbox chooses it - and a deeply nested one is a stack, not a message.
-    """
-    if depth > 8:
-        return ""
+def _body_text(part: dict[str, Any]) -> str:
+    """Decode the inline bytes of one textual MIME part."""
     mime = str(part.get("mimeType") or "")
     data = _nested(part, "body").get("data")
-    if isinstance(data, str) and data and mime.startswith("text/"):
-        import base64
+    if not isinstance(data, str) or not data or not mime.startswith("text/"):
+        return ""
+    import base64
 
-        try:
-            decoded = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode(
-                "utf-8", "replace"
-            )
-        except ValueError, TypeError:
-            return ""
-        return decoded
-    plain = ""
-    html = ""
-    for child in part.get("parts") or []:
-        found = _body_text(child, depth + 1)
-        if not found:
-            continue
-        if str(child.get("mimeType") or "").startswith("text/plain"):
-            plain = plain or found
-        else:
-            html = html or found
-    return plain or html
+    try:
+        return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8", "replace")
+    except ValueError, TypeError:
+        return ""
 
 
 class GooglePortalAdapter(PortalAdapter):
     portal_key = "google"
 
-    async def poll(self, *, access_token: str, cursor: dict[str, Any] | None) -> PolledEvents:
+    async def poll(
+        self,
+        *,
+        access_token: str,
+        cursor: dict[str, Any] | None,
+        places: Mapping[str, datetime] = NOWHERE,
+    ) -> PolledEvents:
         """New messages since the stored `historyId`, and the id to resume from.
 
         With no cursor this establishes the position and returns nothing: firing an
         agent once per message already sitting in a mailbox, the moment somebody
-        connects it, is not what connecting means.
+        connects it, is not what connecting means. `places` is ignored: the history
+        covers the whole mailbox, and a trigger narrows by label instead.
+
+        The cursor also names the account it was read from, the address Gmail's
+        profile gives, so a consent that switches account can tell this position
+        is not the new account's.
         """
         async with httpx.AsyncClient(base_url=_API_BASE, timeout=_TIMEOUT) as client:
             latest = cursor.get("history_id") if cursor else None
             if not isinstance(latest, str) or not latest:
+                profile = await self._get(client, access_token, "/users/me/profile", params=None)
                 return PolledEvents(
-                    events=(), cursor={"history_id": await self._now(client, access_token)}
+                    events=(),
+                    cursor=_with_account(
+                        {"history_id": str(profile.get("historyId") or "")},
+                        profile.get("emailAddress"),
+                    ),
                 )
+            account = cursor.get("account") if cursor else None
             added, resume = await self._added_since(client, access_token, latest)
-            if not added:
-                return PolledEvents(events=(), cursor={"history_id": resume})
+            if not added and not (cursor or {}).get("pending_message_ids"):
+                return PolledEvents(
+                    events=(), cursor=_with_account({"history_id": resume}, account)
+                )
+            pending = cursor.get("pending_message_ids") if cursor else None
+            backlog = (
+                [one for one in pending if isinstance(one, str)]
+                if isinstance(pending, list)
+                else []
+            )
+            backlog = list(dict.fromkeys([*backlog, *added]))
             events = [
                 event
-                for message_id in added[-_MAX_MESSAGES_PER_POLL:]
+                for message_id in backlog[:_MAX_MESSAGES_PER_POLL]
                 if (event := await self._message(client, access_token, message_id)) is not None
             ]
-            if len(added) > _MAX_MESSAGES_PER_POLL:
-                logger.warning(
-                    "gmail_poll_truncated",
-                    extra={"found": len(added), "read": _MAX_MESSAGES_PER_POLL},
-                )
-            return PolledEvents(events=tuple(events), cursor={"history_id": resume})
+            return PolledEvents(
+                events=tuple(events),
+                cursor=_with_account(
+                    {
+                        "history_id": resume,
+                        **(
+                            {"pending_message_ids": backlog[_MAX_MESSAGES_PER_POLL:]}
+                            if len(backlog) > _MAX_MESSAGES_PER_POLL
+                            else {}
+                        ),
+                    },
+                    account,
+                ),
+            )
 
     async def _now(self, client: httpx.AsyncClient, access_token: str) -> str:
         """The mailbox's current `historyId` - where a first poll starts from."""
@@ -156,6 +173,7 @@ class GooglePortalAdapter(PortalAdapter):
         added: list[str] = []
         page: str | None = None
         newest = history_id
+        consumed = history_id
         for _ in range(10):
             params: dict[str, str] = {
                 "startHistoryId": history_id,
@@ -173,6 +191,7 @@ class GooglePortalAdapter(PortalAdapter):
                 return [], await self._now(client, access_token)
             newest = str(body.get("historyId") or newest)
             for record in body.get("history") or []:
+                consumed = str(record.get("id") or consumed)
                 for entry in record.get("messagesAdded") or []:
                     identifier = _nested(entry, "message").get("id")
                     if isinstance(identifier, str) and identifier:
@@ -180,7 +199,7 @@ class GooglePortalAdapter(PortalAdapter):
             page = body.get("nextPageToken")
             if not page:
                 break
-        return added, newest
+        return added, consumed if page else newest
 
     async def _message(
         self, client: httpx.AsyncClient, access_token: str, message_id: str
@@ -204,14 +223,26 @@ class GooglePortalAdapter(PortalAdapter):
             if (exc.details or {}).get("status") == 404:
                 return None
             raise
-        text = _body_text(body.get("payload") or {})
+        payload = body.get("payload")
+        text = await self._body(
+            client, access_token, message_id, payload if isinstance(payload, dict) else {}
+        )
+        sender = _header(body, "From")
+        headers = [
+            (str(entry.get("name") or ""), str(entry.get("value") or ""))
+            for entry in _nested(body, "payload").get("headers") or []
+            if isinstance(entry, dict)
+        ]
         return PolledEvent(
             # Gmail's own id for the message: stable across polls, so the
             # idempotency claim recognises a message a retried tick reads twice.
             delivery_id=f"gmail:{message_id}",
             payload={
                 "subject": _header(body, "Subject"),
-                "from": _header(body, "From"),
+                "from": sender,
+                # Whether the sender's domain vouched for the `From`, so a filter
+                # on the sender cannot be satisfied by an address anybody can type.
+                "authenticated": authenticated(headers, sender),
                 "to": _header(body, "To"),
                 "labels": [str(one) for one in body.get("labelIds") or []],
                 "text": text[:_MAX_BODY_CHARS],
@@ -219,6 +250,42 @@ class GooglePortalAdapter(PortalAdapter):
                 "message_id": message_id,
             },
         )
+
+    async def _body(
+        self,
+        client: httpx.AsyncClient,
+        access_token: str,
+        message_id: str,
+        part: dict[str, Any],
+        depth: int = 0,
+    ) -> str:
+        """Read textual MIME parts even when Gmail stores their bytes separately."""
+        if depth > 8 or part.get("filename"):
+            return ""
+        mime = str(part.get("mimeType") or "")
+        body = _nested(part, "body")
+        attachment_id = body.get("attachmentId")
+        if mime in {"text/plain", "text/html"} and isinstance(attachment_id, str):
+            attachment = await self._get(
+                client,
+                access_token,
+                f"/users/me/messages/{quote(message_id, safe='')}/attachments/{quote(attachment_id, safe='')}",
+                params=None,
+            )
+            return _body_text({**part, "body": attachment})[:_MAX_BODY_CHARS]
+        if mime.startswith("text/"):
+            return _body_text(part)[:_MAX_BODY_CHARS]
+        plain = ""
+        fallback = ""
+        for child in part.get("parts") or []:
+            if not isinstance(child, dict):
+                continue
+            found = await self._body(client, access_token, message_id, child, depth + 1)
+            if str(child.get("mimeType") or "") == "text/plain":
+                plain = plain or found
+            else:
+                fallback = fallback or found
+        return plain or fallback
 
     async def _get(
         self,
@@ -259,3 +326,12 @@ class GooglePortalAdapter(PortalAdapter):
                 details={"portal_key": self.portal_key},
             ) from exc
         return parsed if isinstance(parsed, dict) else {}
+
+
+def _with_account(cursor: dict[str, Any], account: Any) -> dict[str, Any]:
+    """`cursor`, naming the account it was read from when that is known."""
+    return (
+        {**cursor, "account": account.casefold()}
+        if isinstance(account, str) and account
+        else cursor
+    )

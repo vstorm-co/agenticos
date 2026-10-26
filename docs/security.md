@@ -23,7 +23,7 @@ boundaries that matter are the ones a request crosses on its way to the data.
 
 | Boundary | What crosses it | Trusted on the far side? |
 |---|---|---|
-| Browser → BFF (the Next.js route handlers) | A session cookie, the organization header, form input | No — but the BFF does not verify the cookie: it reads the `httpOnly` `access_token` and forwards it as a bearer header (`frontend/src/lib/platform-proxy.ts`). It is a credential-forwarding boundary; verification is the API's job |
+| Browser → BFF (the Next.js route handlers) | A session cookie, the organization header, form input | No — but the BFF does not verify the cookie: it reads the `httpOnly` `agenticos_access_token` and forwards it as a bearer header (`frontend/src/lib/platform-proxy.ts`). It is a credential-forwarding boundary; verification is the API's job |
 | BFF → API (FastAPI) | A JWT bound to a DB session, the `X-Organization-Id` header | No — the token is verified per request, the session is checked for revocation, and the org is resolved from the token |
 | API → PostgreSQL / Redis | Queries and cache reads, over TLS when configured | Yes — the store is the operator's; what it protects at rest is under "What is encrypted where" |
 | API / worker → model providers, channels, MCP servers, search vendors, Logfire | Prompts, tool calls, queries, replies, traces | No — these are third parties; what reaches them is a per-agent decision, except deployment-wide tracing (below) |

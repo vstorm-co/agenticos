@@ -7,6 +7,8 @@ import { Inbox, Pencil, Radar, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/states";
 import { Badge, Button, ListCard, ListCardEmpty, Switch } from "@/components/ui";
 import { useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatches } from "@/hooks/use-watches";
@@ -36,11 +38,13 @@ export function useCanWatch(): boolean {
  */
 export function WatchesCard({ onNew }: { onNew: () => void }) {
   const t = useTranslations("watches");
+  const tc = useTranslations("common");
+  const ts = useTranslations("states");
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const { activeOrg } = useOrganizations();
   const { connections } = useMcpConnections();
-  const { watches, isLoading, update, remove } = useWatches();
+  const { watches, isLoading, error, refetch, update, remove } = useWatches();
   // A connection whose sign-in lapsed is still "on", and a look through it reads
   // nothing - so the row says so rather than looking as if it were working.
   const lapsed = new Set(connections.filter((each) => !each.authorized).map((each) => each.id));
@@ -59,7 +63,7 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
   return (
     <ListCard
       title={t("title")}
-      counted={isLoading ? null : t("count", { count: watches.length })}
+      counted={isLoading || error ? null : t("count", { count: watches.length })}
       contentClassName="p-0"
       headerTour="routines-watches"
       controls={
@@ -73,7 +77,25 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
         )
       }
     >
-      {watches.length > 0 ? (
+      {error ? (
+        <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
+      ) : isLoading ? (
+        <ul className="divide-border divide-y" role="status" aria-label={ts("loading")}>
+          {[0, 1].map((watch) => (
+            <li
+              key={watch}
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5"
+              aria-hidden
+            >
+              <div className="min-w-0 flex-1 space-y-1">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+              <Skeleton className="h-8 w-24" />
+            </li>
+          ))}
+        </ul>
+      ) : watches.length > 0 ? (
         <ul className="divide-border divide-y">
           {watches.map((watch) => (
             <WatchRow

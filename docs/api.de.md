@@ -1,5 +1,5 @@
 ---
-source_sha: "79a6161b4bee"
+source_sha: "2d73006bce11"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -59,6 +59,12 @@ Suche in ihren früheren Unterhaltungen, keine Seiten, auf denen der Browser ihr
 Anmeldungen hält, und keinen benutzerbezogenen Sandbox-Arbeitsbereich. Wer den
 Schlüssel hält, ist ein Skript, nicht diese Person, also antwortet der Run wie
 auf einem öffentlichen Widget.
+
+Auch die Verbindungssuche ist lesend öffentlich: `GET /sandbox-connections`,
+`GET /sandbox-connections/runtimes` und `GET /sandbox-connections/{id}/policy`
+erfordern `connections:view`; `GET /mcp-connections` erfordert `mcp:manage`.
+Organisations- und Schlüsselberechtigungen gelten weiterhin. Schreibzugriffe auf
+Verbindungen und Zugangsdatenoperationen bleiben Sitzungen vorbehalten.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \
@@ -369,7 +375,7 @@ bekommt darüber hinaus `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks und Zeitpläne { #workflow-webhooks-and-schedules }
 
-Webhook- und GitHub-Zustellungs-IDs überleben die Aufbewahrung von Ausführungsinhalten als minimale, zur Exposition und Organisation gehörende Tombstones. Ein Duplikat liefert weiterhin die ursprüngliche Ausführungs-UUID; Status und frühere Webhook-Antwort können bereits gelöscht sein. Das Löschen der Exposition oder Organisation beendet diese Deduplizierung. Die Migration `0222_webhook_delivery_tombstones.py` stellt bereits gelöschte Claims nicht wieder her; ein Downgrade entfernt verwaiste Tombstones vor Wiederherstellung des alten kaskadierenden Fremdschlüssels.
+Webhook- und GitHub-Zustellungs-IDs überleben die Aufbewahrung von Ausführungsinhalten als minimale, zur Exposition und Organisation gehörende Tombstones. Ein Duplikat liefert weiterhin die ursprüngliche Ausführungs-UUID; Status und frühere Webhook-Antwort können bereits gelöscht sein. Das Löschen der Exposition oder Organisation beendet diese Deduplizierung. Die Migration `0230_webhook_delivery_tombstones.py` stellt bereits gelöschte Claims nicht wieder her; ein Downgrade entfernt verwaiste Tombstones vor Wiederherstellung des alten kaskadierenden Fremdschlüssels.
 
 Die Veröffentlichung automatischer Trigger und Änderungen ihrer Ausführungsrechte erfordern eine Mitgliedssitzung (`403` für Organisations-API-Schlüssel). Schlüssel dürfen manuelle Workflows veröffentlichen, Ausführungen innerhalb ihrer Scopes starten und Expositionen pausieren, aber nicht aktivieren, Geheimnisse/Formularlinks rotieren, Zeitpläne ändern oder eine neue Fehler-Workflow-Identität wählen. Diese Vorgänge hinterlegen Benutzerrechte für spätere Ereignisse.
 

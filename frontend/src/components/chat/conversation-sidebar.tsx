@@ -840,7 +840,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   });
 
   useEffect(() => {
-    fetchConversations();
+    const controller = new AbortController();
+    void fetchConversations(controller.signal);
+    return () => controller.abort();
   }, [fetchConversations]);
 
   // A link to another thread followed from this page - the inbox's "answered

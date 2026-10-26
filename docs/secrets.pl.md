@@ -1,5 +1,5 @@
 ---
-source_sha: "f2e711e95f59"
+source_sha: "4d3610509a70"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -99,6 +99,7 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
 | `http_credential` | Token wysyłany przez krok HTTP workflowu, opcjonalna nazwa użytkownika i originy, do których wolno go wysłać |
+| `microsoft_oauth_app` | Te same trzy pola, dla rejestracji aplikacji, przez którą ludzie się logują |
 | `openai_codex` | Logowanie do ChatGPT: token dostępu, refresh token i id konta |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
 
@@ -138,6 +139,13 @@ witrynie, którą czyta źródło — zobacz [Konfiguracja SharePoint i
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Jego
 podpowiedź (hint) to ostatnie cztery znaki client id, który jest publiczny, a nie
 sekretu.
+
+`microsoft_oauth_app` ma te same pola i jest wydawany inaczej: flow podłączania
+triggera Outlook loguje przez niego osobę, z delegowanym `Mail.Read` tego, kto
+wyraża zgodę - jego własna skrzynka i współdzielone, które już może otworzyć -
+podczas gdy `entra_app` działa z uprawnieniami aplikacji przyznanymi dla całego
+tenanta. Jak `github_oauth_app` musi być widoczny dla organizacji i musi być
+dokładnie jeden. Zobacz [Outlook](triggers.md#outlook-1-minute-and-no-secret-anywhere).
 
 `openai_codex` to jedyny rodzaj, którego nikt nie wpisuje. Zapisuje się go przez
 [zalogowanie do ChatGPT](models.md#running-on-a-chatgpt-subscription) i zmienia

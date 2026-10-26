@@ -1141,7 +1141,9 @@ class NotificationService:
         total = await organization_spend_since(self.db, organization_id, since, until=window_start)
         organization = await organization_repo.get_by_id(self.db, organization_id)
         organization_name = organization.name if organization else "your organization"
-        dashboard_path = self._link("/agents", organization_id)
+        last_day = (window_start - timedelta(microseconds=1)).date()
+        report_period = f"{since.date().isoformat()}..{last_day.isoformat()}"
+        dashboard_path = self._link(f"/dashboard?view=org&period={report_period}", organization_id)
         render_context = {
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,

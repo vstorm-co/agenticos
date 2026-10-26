@@ -1,5 +1,5 @@
 ---
-source_sha: "04b0a766eb58"
+source_sha: "670c69913316"
 ---
 
 # Uprawnienia { #permissions }
@@ -372,6 +372,12 @@ wierszu listowania — `AgentRead.can_run`, podłogę dla zaoferowania „new tr
 na karcie — więc Viewer z przyznanym runem na jednym agencie widzi tę kontrolkę
 tam i nigdzie indziej. Kontekst bez podmiotu oraz puste wejście rozwiązują się
 oba do pustego zbioru przed jakimkolwiek zapytaniem.
+
+Listy kontekstów, skilli i sekretów zwracają `can_edit` dla każdego zasobu.
+Konsola używa tego efektywnego dostępu do edycji, usuwania, udostępniania i rotacji
+kluczy. Viewer z grantem edycji dostaje kontrolki; Builder z samym odczytem cudzego
+prywatnego zasobu ich nie dostaje. Tworzenie nadal zależy od uprawnienia roli.
+Serwer ponownie sprawdza dostęp przy każdym zapisie.
 
 Listowania agentów, skilli i kb przyjmują też `?shared_with_me=true`: tylko
 wiersze celowo udostępnione wywołującemu — widoczne dla organizacji albo jawnie

@@ -418,3 +418,10 @@ describe("a replayed turn spoken in a call (#54)", () => {
     expect(typed.interrupted).toBeUndefined();
   });
 });
+
+it("keeps the persisted submission correlation for reconnect reconciliation", () => {
+  expect(
+    conversationMessageToChatMessage(raw({ role: "user", client_message_id: "nonce" }))
+      .clientMessageId,
+  ).toBe("nonce");
+});

@@ -16,6 +16,7 @@ import uuid
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import InvalidRequestError
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
@@ -185,10 +186,10 @@ class TestConsoleTranscriptPagination:
             db, conversation_id=conversation.id, role="assistant", content="new arrival"
         )
         older = await conversation_repo.get_messages_by_conversation(
-            db, conversation.id, before_message_id=newest[0].id, limit=100
+            db, conversation.id, latest=True, before=newest[0].id, limit=100
         )
         first = await conversation_repo.get_messages_by_conversation(
-            db, conversation.id, before_message_id=older[0].id, limit=100
+            db, conversation.id, latest=True, before=older[0].id, limit=100
         )
         assert [message.id for message in first + older + newest] == [
             message.id for message in messages
@@ -204,7 +205,7 @@ class TestConsoleTranscriptPagination:
         )
         assert (
             await conversation_repo.get_messages_by_conversation(
-                db, conversation.id, before_message_id=cursor.id
+                db, conversation.id, before=cursor.id
             )
             == []
         )
@@ -221,10 +222,11 @@ class TestConversationMetadataReads:
         )
         identifier = conversation.id
         await db.flush()
-        db.expire_all()
+        db.expunge_all()
         metadata = await conversation_repo.get_conversation_by_id(db, identifier)
         assert metadata is not None
-        assert "summary_messages" in inspect(metadata).unloaded
+        with pytest.raises(InvalidRequestError):
+            _ = metadata.summary_messages
         assert "messages" in inspect(metadata).unloaded
         context = await conversation_repo.get_conversation_by_id(
             db, identifier, include_summary=True

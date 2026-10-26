@@ -70,6 +70,12 @@ class McpConnection(Base, TimestampMixin):
 
     __tablename__ = "mcp_connections"
     __table_args__ = (
+        Index(
+            "mcp_connections_health_queue_idx",
+            "health_checked_at",
+            "id",
+            postgresql_where=text("scope = 'org' AND purpose = 'mcp' AND is_enabled IS true"),
+        ),
         UniqueConstraint("user_id", "name", name="uq_mcp_connections_user_name"),
         # Names identify a server to whoever is configuring an agent and become
         # its tool prefix, so they have to be unambiguous inside an
@@ -269,6 +275,16 @@ class McpConnection(Base, TimestampMixin):
     last_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    health_checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("'1970-01-01 00:00:00+00'::timestamptz"),
+    )
+    """Health queue clock, independent of OAuth renewal or mailbox polling.
+
+    Epoch means never checked. A non-null clock keeps oldest-first admission
+    indexable without mixing authorization activity into probe fairness.
+    """
     # When the current outage began: set by the first check or run that found
     # the server not answering, cleared by the first that found it answering
     # again (#2100). Its own column rather than read off `last_status`, which

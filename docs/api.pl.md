@@ -1,5 +1,5 @@
 ---
-source_sha: "79a6161b4bee"
+source_sha: "2d73006bce11"
 ---
 
 # API HTTP { #the-http-api }
@@ -55,6 +55,12 @@ wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzym
 jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
 Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
 na publicznym widgecie.
+
+Odczyt połączeń jest też publiczny: `GET /sandbox-connections`,
+`GET /sandbox-connections/runtimes` i `GET /sandbox-connections/{id}/policy`
+wymagają `connections:view`; `GET /mcp-connections` wymaga `mcp:manage`.
+Nadal obowiązują organizacja i zakresy klucza. Zapisy połączeń oraz operacje
+na poświadczeniach pozostają dostępne tylko w sesji.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \
@@ -338,7 +344,7 @@ sam limit na minutę co `POST /workflow-runs`, a po jego przekroczeniu dostaje
 
 ### Webhooki i harmonogramy { #workflow-webhooks-and-schedules }
 
-Identyfikatory dostaw webhooka i GitHub przeżywają retencję treści runa jako minimalne tombstone należące do ekspozycji i organizacji. Duplikat nadal zwraca pierwotny UUID runa po usunięciu treści; status i dawna odpowiedź webhooka mogą być już niedostępne. Usunięcie ekspozycji lub organizacji kończy ten okres deduplikacji. Migracja `0222_webhook_delivery_tombstones.py` nie odtworzy wcześniej usuniętych claims; downgrade usuwa osierocone tombstone przed przywróceniem dawnego klucza z kaskadą.
+Identyfikatory dostaw webhooka i GitHub przeżywają retencję treści runa jako minimalne tombstone należące do ekspozycji i organizacji. Duplikat nadal zwraca pierwotny UUID runa po usunięciu treści; status i dawna odpowiedź webhooka mogą być już niedostępne. Usunięcie ekspozycji lub organizacji kończy ten okres deduplikacji. Migracja `0230_webhook_delivery_tombstones.py` nie odtworzy wcześniej usuniętych claims; downgrade usuwa osierocone tombstone przed przywróceniem dawnego klucza z kaskadą.
 
 Publikacja triggerów automatycznych i zmiany uprawnień ich wykonania wymagają sesji członka (`403` dla klucza API organizacji). Klucze mogą publikować ręczne workflow, rozpoczynać przebiegi w granicach scope i wstrzymywać ekspozycje, ale nie mogą ich włączać, rotować sekretów/linków formularzy, zmieniać harmonogramów ani wybierać nowej tożsamości workflow obsługi błędów. Te operacje zachowują uprawnienia użytkownika dla przyszłych zdarzeń.
 

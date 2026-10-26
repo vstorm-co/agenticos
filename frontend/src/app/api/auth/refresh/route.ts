@@ -8,12 +8,12 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 import type { RefreshTokenResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
-    const refreshToken = request.cookies.get("refresh_token")?.value;
+    const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
 
     if (!refreshToken) {
       return bffRefusal("NO_REFRESH_TOKEN", 401);
@@ -25,10 +25,10 @@ export async function POST(request: NextRequest) {
     // would then replay that request as them (#1044). So a refused impersonation
     // is over, whichever way it ended: the cookie goes, the client is told, and
     // the administrator comes back deliberately through `/api/auth/me`.
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (accessToken && isImpersonation(accessToken)) {
       const response = bffRefusal("IMPERSONATION_ENDED", 401);
-      response.cookies.set("access_token", "", {
+      response.cookies.set(ACCESS_TOKEN_COOKIE, "", {
         httpOnly: true,
         secure: secureCookies(request),
         sameSite: "lax",
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       access_token: data.access_token,
     });
 
-    response.cookies.set("access_token", data.access_token, {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // Rotate refresh token if backend returns a new one
     if (data.refresh_token) {
-      response.cookies.set("refresh_token", data.refresh_token, {
+      response.cookies.set(REFRESH_TOKEN_COOKIE, data.refresh_token, {
         httpOnly: true,
         secure: secureCookies(request),
         sameSite: "lax",
@@ -82,14 +82,14 @@ export async function POST(request: NextRequest) {
 
       const response = bffRefusal("SESSION_EXPIRED", 401);
 
-      response.cookies.set("access_token", "", {
+      response.cookies.set(ACCESS_TOKEN_COOKIE, "", {
         httpOnly: true,
         secure: secureCookies(request),
         sameSite: "lax",
         maxAge: 0,
         path: "/",
       });
-      response.cookies.set("refresh_token", "", {
+      response.cookies.set(REFRESH_TOKEN_COOKIE, "", {
         httpOnly: true,
         secure: secureCookies(request),
         sameSite: "lax",

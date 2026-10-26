@@ -6,12 +6,22 @@ their background runs, and the nightly sweep reaches only organizations whose
 starter agent is published.
 """
 
+import asyncio
 import uuid
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.toolsets import FunctionToolset
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger
@@ -690,3 +700,97 @@ class TestTheMorningBriefing:
             candidate.user_id != person.id
             for candidate in await member_repo.briefing_candidates(db)
         )
+
+
+async def test_proactive_heartbeat_and_cancelled_usage_survive_the_job_rollback(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import run_heartbeat as heartbeat
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user = await _person(db)
+    organization = await _organization(db, user)
+    agent = await _agent(db, organization)
+    await db.commit()
+    ctx = AuthContext(user_id=user.id, organization_id=organization.id, role="owner")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    @asynccontextmanager
+    async def context() -> AsyncGenerator[AsyncSession]:
+        async with factory() as held:
+            yield held
+            await held.commit()
+
+    monkeypatch.setattr(heartbeat, "get_db_context", context)
+    monkeypatch.setattr(heartbeat.settings, "RUN_HEARTBEAT_SECONDS", 0.01)
+    entered = asyncio.Event()
+
+    async def read_account() -> str:
+        entered.set()
+        await asyncio.Event().wait()
+        return "unreachable"
+
+    request = SimpleNamespace(
+        build=lambda: TestModel(), label="Test", model="test", provider="test", secret_id=None
+    )
+    with (
+        patch.object(ProactiveThinker, "allowance", AsyncMock(return_value=uuid.uuid4())),
+        patch(
+            "app.services.proactive._thinker.ModelProfileService.resolve",
+            AsyncMock(return_value=request),
+        ),
+    ):
+        task = asyncio.create_task(
+            ProactiveThinker(db).think(
+                ctx,
+                feature="watches",
+                output_type=str,
+                instructions="Read.",
+                prompt="Read.",
+                toolsets=[FunctionToolset([read_account])],
+            )
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), 10)
+            async with context() as observer:
+                run_id = (
+                    await observer.scalars(select(AgentRun.id).where(AgentRun.agent_id == agent.id))
+                ).one()
+                old = datetime.now(UTC) - timedelta(minutes=10)
+                await observer.execute(
+                    update(AgentRun)
+                    .where(AgentRun.id == run_id)
+                    .values(started_at=old, updated_at=old, heartbeat_at=None)
+                )
+            async with asyncio.timeout(10):
+                while True:
+                    async with context() as observer:
+                        beat = await observer.scalar(
+                            select(AgentRun.heartbeat_at).where(AgentRun.id == run_id)
+                        )
+                    if beat is not None:
+                        break
+                    await asyncio.sleep(0.01)
+            async with context() as observer:
+                assert (
+                    await agent_run_repo.fail_stale_runs(
+                        observer,
+                        older_than=datetime.now(UTC) - timedelta(seconds=120),
+                        ended_at=datetime.now(UTC),
+                        error="stale",
+                    )
+                    == []
+                )
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            await db.rollback()
+            async with context() as observer:
+                run = await observer.get(AgentRun, run_id)
+                assert run is not None and run.status == RunStatus.CANCELLED.value
+                assert run.input_tokens > 0 and run.output_tokens > 0
+                assert run.ended_at is not None
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)

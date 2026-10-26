@@ -99,6 +99,8 @@ logger = logging.getLogger(__name__)
 
 # The signed-delivery schemes a workflow webhook accepts: a relay signing with
 # the generic headers, or GitHub's own. Both are HMAC-SHA256 over the raw body.
+# Their delivery ids are in a header, so neither needs the payload `delivery_id` reads
+# for HubSpot's batches.
 _SIGNED_SOURCES = ("webhook", "github")
 
 # The portal whose connected account registers a GitHub trigger's hook.
@@ -168,7 +170,7 @@ def _next_tick(exposure: WorkflowExposure, *, now: datetime) -> datetime:
         interval_seconds=exposure.interval_seconds,
         cron_expression=exposure.cron_expression,
         now=now,
-        timezone=exposure.timezone,
+        time_zone=exposure.timezone,
     )
 
 
@@ -476,7 +478,7 @@ class WorkflowExposureService:
                 interval_seconds=interval,
                 cron_expression=cron,
                 now=now,
-                timezone=timezone,
+                time_zone=timezone,
             )
         if exposure is not None:
             exposure = await workflow_exposure_repo.update(
@@ -561,7 +563,7 @@ class WorkflowExposureService:
                 interval_seconds=exposure.interval_seconds,
                 cron_expression=exposure.cron_expression,
                 now=datetime.now(UTC),
-                timezone=timezone,
+                time_zone=timezone,
             )
         exposure = await workflow_exposure_repo.update(
             self.db, exposure=exposure, update_data=changes
@@ -903,7 +905,7 @@ class WorkflowExposureService:
                 message="Webhook signature did not verify",
                 details={"exposure_id": str(exposure_id)},
             )
-        delivery_id = trigger_events.delivery_id("github", headers)
+        delivery_id = trigger_events.delivery_id("github", headers, {})
         if delivery_id is None or len(delivery_id) > 255:
             raise BadRequestError(
                 message="A GitHub delivery names itself in X-GitHub-Delivery",
@@ -1017,7 +1019,7 @@ class WorkflowExposureService:
             (
                 found
                 for source in _SIGNED_SOURCES
-                if (found := trigger_events.delivery_id(source, headers)) is not None
+                if (found := trigger_events.delivery_id(source, headers, {})) is not None
             ),
             None,
         )

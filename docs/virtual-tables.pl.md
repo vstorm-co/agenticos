@@ -1,5 +1,5 @@
 ---
-source_sha: "bac6fa739491"
+source_sha: "2251aaa4f1e1"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -509,7 +509,7 @@ nie ma prywatnego widoku do udostępnienia.
 
 Kolumny Kanbana wczytują po 25 kart. **Wczytaj więcej** zachowuje dotychczasowe karty; po błędzie strony dostępne jest ponowienie. Zmianę grupowania można zapisać w aktywnym widoku. Odczyt prywatnego widoku po zmianie typów kolumn przez innego członka usuwa niezgodne filtry, sortowanie i grupowanie ze zwracanej konfiguracji, bez nadpisywania zapisanego widoku właściciela. Zapytanie strony tracące filtr wymaga ponownej zgody.
 
-Zdarzenia tabel używają zegara ściennego przy wstawianiu po blokadzie mutacji, zgodnego z aktywacją triggera. Transakcja rozpoczęta przed aktywacją może nadal utworzyć późniejsze, kwalifikujące się zdarzenie. Migracja `0221_table_event_wall_clock.py` zmienia przyszłe znaczniki czasu; nie odtwarza wcześniej pominiętych zdarzeń, co mogłoby powielić efekty.
+Zdarzenia tabel używają zegara ściennego przy wstawianiu po blokadzie mutacji, zgodnego z aktywacją triggera. Transakcja rozpoczęta przed aktywacją może nadal utworzyć późniejsze, kwalifikujące się zdarzenie. Migracja `0229_table_event_wall_clock.py` zmienia przyszłe znaczniki czasu; nie odtwarza wcześniej pominiętych zdarzeń, co mogłoby powielić efekty.
 
 
 [Workflow](workflows.md#when-a-table-record-is-added), którego węzłem wyzwalacza jest

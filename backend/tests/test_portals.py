@@ -92,6 +92,9 @@ class TestTheBaseIsManualByDefault:
     async def test_listing_targets_is_empty(self) -> None:
         assert await PortalAdapter().list_preset_targets(access_token="t") == []
 
+    async def test_the_account_is_unknown(self) -> None:
+        assert await PortalAdapter().account_login(access_token="t") is None
+
 
 class TestTheRegistry:
     def test_github_resolves_and_the_unknown_does_not(self) -> None:
@@ -100,6 +103,26 @@ class TestTheRegistry:
 
 
 class TestTheGithubAdapter:
+    async def test_the_account_is_the_login_the_token_speaks_as(self) -> None:
+        """What a trigger ignores as an author, so an agent answering through the
+        same connection cannot set its own trigger off."""
+        calls: list[tuple[str, str]] = []
+        with _patch_client(_Resp(200, {"login": "octo-agent"}), calls):
+            assert await GitHubPortalAdapter().account_login(access_token="t") == "octo-agent"
+        assert calls == [("GET", "/user")]
+
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            _Resp(401, {"message": "Bad credentials"}),
+            _Resp(200, {"login": ""}),
+            httpx.ConnectError("down"),
+        ],
+    )
+    async def test_an_account_github_will_not_name_is_unknown(self, answer) -> None:
+        with _patch_client(answer, []):
+            assert await GitHubPortalAdapter().account_login(access_token="t") is None
+
     async def test_only_repos_the_account_can_admin_are_offered(self) -> None:
         calls: list[tuple[str, str]] = []
         payload = [

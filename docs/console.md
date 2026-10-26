@@ -257,16 +257,6 @@ going; one with an answer you have not seen since you last had it open carries a
 dot, which opening it clears - for you only, since a shared thread is read by each
 of its readers separately.
 
-Reopening a conversation shows its newest 100 messages. **Load older messages**
-at the top adds the preceding page without moving the passage you are reading.
-New answers and the conversation cost still cover the current thread.
-
-Opening chat reads conversation metadata without downloading the full history or
-its model summary. Streaming updates reuse unchanged message components and
-coalesce replay frames per animation frame, with a 50 ms background-tab fallback
-and bounded queues. Historical drawings activate near the viewport and release
-their frames outside it; running drawings still render to report tool errors.
-
 Three things in the composer worth knowing.
 
 **Your own accounts.** An agent bound to
@@ -349,6 +339,8 @@ made again. Nothing runs when nothing new happened, and what this may spend is
 routine they propose lands inside your day. Nothing waits on them: they are
 knowledge for the agent, not a schedule.
 
+Reopening a conversation shows its newest messages first. Use **Load earlier messages** above the transcript to read older turns. Live answers and unsaved results stay visible while stored history refreshes.
+
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into
@@ -417,6 +409,13 @@ next browse start signed out. **Sign in to a site** there opens a browser on any
 you alone, before an agent needs it: sign in, hand it back with the box ticked, and it
 is kept the same way. It needs the deployment's sign-in browser
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Stopping a waiting run.** The composer keeps **Stop** available while the agent waits
+for your answer, an approval or an account connection. It also works after you reload a
+parked question or approval. Stopping a parked run closes its pending calls without
+asking the model to continue and preserves the cost already recorded. You can stop your
+own run; approval deciders can also stop a run awaiting approval. If a temporary error
+prevents stopping, the card stays available for retry.
 
 ### Dictation
 

@@ -150,7 +150,7 @@ class TestTheTimezone:
     def test_a_cron_expression_is_read_in_the_timezone(self):
         now = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
         assert _cron_next("0 9 * * *", now=now) == datetime(2026, 1, 16, 9, 0, tzinfo=UTC)
-        assert _cron_next("0 9 * * *", now=now, timezone="Europe/Warsaw") == datetime(
+        assert _cron_next("0 9 * * *", now=now, time_zone="Europe/Warsaw") == datetime(
             2026, 1, 16, 8, 0, tzinfo=UTC
         )
 

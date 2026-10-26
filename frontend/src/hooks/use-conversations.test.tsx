@@ -6,6 +6,8 @@ import { toast } from "sonner";
 
 import { useConversations, type ConversationQuery } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
+import * as invalidation from "@/lib/coalesced-invalidation";
+import { qk } from "@/lib/query-keys";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -23,6 +25,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryDefaults(qk.organizations.list(), { staleTime: Infinity });
+  client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -210,6 +214,8 @@ describe("the conversation list", () => {
     // One key for two lists is the search box answering with the previous
     // search's rows, which is what putting the parameters in the key prevents.
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryDefaults(qk.organizations.list(), { staleTime: Infinity });
+    client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
     const shared = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
@@ -381,6 +387,123 @@ describe("the conversation list", () => {
 });
 
 describe("the conversation named in the address bar", () => {
+  it("does nothing for a refresh already cancelled", async () => {
+    const result = await hook();
+    const controller = new AbortController();
+    controller.abort();
+    vi.mocked(apiClient.get).mockClear();
+    await result.current.fetchConversations(controller.signal);
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it.each(["account", "organization"])(
+    "does not open a link after the %s changes during invalidation",
+    async (changed) => {
+      window.history.replaceState({}, "", "/chat?id=c-9");
+      const result = await hook();
+      let finish = () => {};
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
+      try {
+        const fetching = result.current.fetchConversations();
+        if (changed === "account")
+          useAuthStore.setState({
+            user: {
+              id: "next-account",
+              email: "next@example.com",
+              is_active: true,
+              created_at: "2026-10-24T00:00:00Z",
+            },
+          });
+        else await act(async () => useOrgStore.getState().setActiveOrgId("next-org"));
+        await act(async () => {
+          finish();
+          await fetching;
+        });
+        expect(useConversationStore.getState().currentConversationId).toBeNull();
+      } finally {
+        invalidate.mockRestore();
+      }
+    },
+  );
+
+  it.each(["answer", "refusal"])("ignores a message %s after cancellation", async (outcome) => {
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    const result = await hook();
+    let answer: (value: unknown) => void = () => {};
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("/messages"))
+        return new Promise((resolve, reject) => {
+          answer = resolve;
+          refuse = reject;
+        });
+      return { items: [], total: 0 };
+    });
+    const controller = new AbortController();
+    const fetching = result.current.fetchConversations(controller.signal);
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "/conversations/c-9/messages?latest=true&limit=101",
+        {
+          signal: controller.signal,
+        },
+      ),
+    );
+    controller.abort();
+    useConversationStore.getState().setCurrentConversationId("c-current");
+    await act(async () => {
+      if (outcome === "answer") answer({ items: [{ id: "m-late" }], cost: null });
+      else refuse(new DOMException("cancelled", "AbortError"));
+      await fetching;
+    });
+    expect(useConversationStore.getState().currentConversationId).toBe("c-current");
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+  });
+
+  it.each(["new chat", "A to C to A"])(
+    "does not reopen a delayed deep link after choosing %s",
+    async (choice) => {
+      window.history.replaceState({}, "", "/chat?id=c-9");
+      if (choice !== "new chat") useConversationStore.getState().setCurrentConversationId("c-1");
+      const result = await hook();
+      let finish!: (value: unknown) => void;
+      const pending = new Promise((resolve) => {
+        finish = resolve;
+      });
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path === "/conversations/c-9/messages?latest=true&limit=101") return pending;
+        return { items: [], total: 0, cost: null };
+      });
+      const fetching = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith(
+          "/conversations/c-9/messages?latest=true&limit=101",
+          {
+            signal: undefined,
+          },
+        ),
+      );
+      await act(async () => {
+        if (choice === "new chat") await result.current.startNewChat();
+        else {
+          await result.current.selectConversation("c-2");
+          await result.current.selectConversation("c-1");
+        }
+      });
+      await act(async () => {
+        finish({ items: [{ id: "late" }], cost: null });
+        await fetching;
+      });
+      expect(useConversationStore.getState().currentConversationId).toBe(
+        choice === "new chat" ? null : "c-1",
+      );
+      expect(useConversationStore.getState().currentMessages).toEqual([]);
+    },
+  );
+
   it("opens the one the link points at, and its messages", async () => {
     // A shared link has to win over whatever the store remembered.
     window.history.replaceState({}, "", "/chat?id=c-9");
@@ -390,7 +513,12 @@ describe("the conversation named in the address bar", () => {
       await result.current.fetchConversations();
     });
 
-    expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages?latest=true&limit=100");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/conversations/c-9/messages?latest=true&limit=101",
+      {
+        signal: undefined,
+      },
+    );
     expect(useConversationStore.getState().currentConversationId).toBe("c-9");
     expect(useConversationStore.getState().currentMessages).toHaveLength(1);
   });
@@ -399,6 +527,11 @@ describe("the conversation named in the address bar", () => {
     // A deleted conversation, or one belonging to somebody else.
     window.history.replaceState({}, "", "/chat?id=c-gone");
     const result = await hook();
+    await act(async () => result.current.selectConversation("c-old"));
+    window.history.replaceState({}, "", "/chat?id=c-gone");
+    useConversationStore.setState({
+      currentCost: { input_tokens: 1, output_tokens: 2, cost_usd: "4.00", cost_is_partial: false },
+    });
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
       if (path.includes("/messages")) throw new Error("404");
       return { items: [], total: 0 };
@@ -409,6 +542,8 @@ describe("the conversation named in the address bar", () => {
     });
 
     expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+    expect(useConversationStore.getState().currentCost).toBeNull();
   });
 
   it("drops a linked thread that arrives after somebody else has signed in", async () => {
@@ -428,7 +563,10 @@ describe("the conversation named in the address bar", () => {
       fetching = result.current.fetchConversations();
       await waitFor(() =>
         expect(apiClient.get).toHaveBeenCalledWith(
-          "/conversations/c-9/messages?latest=true&limit=100",
+          "/conversations/c-9/messages?latest=true&limit=101",
+          {
+            signal: undefined,
+          },
         ),
       );
     });
@@ -459,7 +597,10 @@ describe("the conversation named in the address bar", () => {
       fetching = result.current.fetchConversations();
       await waitFor(() =>
         expect(apiClient.get).toHaveBeenCalledWith(
-          "/conversations/c-9/messages?latest=true&limit=100",
+          "/conversations/c-9/messages?latest=true&limit=101",
+          {
+            signal: undefined,
+          },
         ),
       );
     });
@@ -484,7 +625,7 @@ describe("the conversation named in the address bar", () => {
     });
 
     expect(apiClient.get).not.toHaveBeenCalledWith(
-      "/conversations/c-1/messages?latest=true&limit=100",
+      "/conversations/c-1/messages?latest=true&limit=101",
     );
   });
 });
@@ -499,7 +640,7 @@ describe("opening a conversation", () => {
     });
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/conversations/c-1/messages?latest=true&limit=100",
+      "/conversations/c-1/messages?latest=true&limit=101",
       {
         signal: expect.any(AbortSignal),
       },
@@ -548,11 +689,11 @@ describe("opening a conversation", () => {
 
     await act(async () => {
       // The superseded request answers last, with the wrong thread's messages.
-      pending.get("/conversations/c-2/messages?latest=true&limit=100")!({
+      pending.get("/conversations/c-2/messages?latest=true&limit=101")!({
         items: [{ id: "m-2" }],
         total: 1,
       });
-      pending.get("/conversations/c-1/messages?latest=true&limit=100")!({
+      pending.get("/conversations/c-1/messages?latest=true&limit=101")!({
         items: [{ id: "m-1" }],
         total: 1,
       });
@@ -1465,130 +1606,124 @@ describe("reading an open conversation again (#54)", () => {
   });
 });
 
-describe("paging a long transcript (#2468)", () => {
-  it("opens the newest page, prepends older messages, and retains them on refresh", async () => {
-    const latest = Array.from({ length: 100 }, (_, index) => ({
-      id: `m-${index + 105}`,
-      role: "user",
-      content: String(index + 105),
-    }));
-    const older = Array.from({ length: 100 }, (_, index) => ({
-      id: `m-${index + 5}`,
-      role: "user",
-      content: String(index + 5),
-    }));
-    let page = latest;
-    vi.mocked(apiClient.get).mockImplementation(async (path) => {
-      if (path.includes("before_message_id=m-105")) return { items: older, total: 205, cost: null };
-      if (path.includes("before_message_id=m-5"))
-        return { items: [{ id: "m-0", role: "user", content: "oldest" }], total: 205, cost: null };
-      if (path.includes("/messages")) return { items: page, total: 205, cost: null };
-      return { items: [], total: 0 };
-    });
-    const result = await hook();
-    await act(() => result.current.selectConversation("c-1"));
-    expect(result.current.hasOlderMessages).toBe(true);
-    expect(result.current.currentMessages.at(-1)?.id).toBe("m-204");
-    await act(() => result.current.loadOlderMessages());
-    expect(result.current.currentMessages).toHaveLength(200);
-    page = [...latest.slice(1), { id: "m-205", role: "assistant", content: "newest" }];
-    await act(() => result.current.rereadConversation("c-1"));
-    expect(result.current.currentMessages).toHaveLength(201);
-    expect(result.current.currentMessages[0]?.id).toBe("m-5");
-    expect(result.current.currentMessages.at(-1)?.id).toBe("m-205");
-    await act(() => result.current.loadOlderMessages());
-    expect(result.current.hasOlderMessages).toBe(false);
-    expect(result.current.currentMessages[0]?.id).toBe("m-0");
-  });
-
-  it("keeps the page and offers retry when older messages fail to load", async () => {
-    const result = await hook();
-    await act(() => result.current.selectConversation("c-1"));
-    act(() => useConversationStore.setState({ hasOlderMessages: true }));
-    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("offline"));
-    await act(() => result.current.loadOlderMessages());
-    expect(result.current.currentMessages).toHaveLength(1);
-    expect(result.current.hasOlderMessages).toBe(true);
-    expect(result.current.loadingOlderMessages).toBe(false);
-    expect(toast.error).toHaveBeenCalled();
-  });
-
-  it("drops a delayed older page after another conversation was selected", async () => {
-    const result = await hook();
-    await act(() => result.current.selectConversation("c-1"));
-    act(() => useConversationStore.setState({ hasOlderMessages: true }));
-    let resolvePage: (value: unknown) => void = () => {};
-    vi.mocked(apiClient.get).mockImplementation(async (path) => {
-      if (path.includes("before_message_id"))
-        return new Promise((resolve) => {
-          resolvePage = resolve;
-        });
-      return { items: [{ id: "new-thread", role: "user", content: "new" }], total: 1 };
-    });
-    let pending: Promise<void>;
-    act(() => {
-      pending = result.current.loadOlderMessages();
-    });
-    await act(() => result.current.selectConversation("c-2"));
-    await act(async () => {
-      resolvePage({ items: [{ id: "private-old" }], total: 2 });
-      await pending!;
-    });
-    expect(result.current.currentMessages.map((message) => message.id)).toEqual(["new-thread"]);
-    expect(result.current.loadingOlderMessages).toBe(false);
-  });
+describe("transcript request ownership", () => {
+  it.each(["organization", "selection"])(
+    "drops a late select after the %s changes",
+    async (changed) => {
+      const result = await hook();
+      let finish!: (value: unknown) => void;
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path.includes("/messages"))
+          return new Promise((resolve) => {
+            finish = resolve;
+          });
+        return { items: [], total: 0 };
+      });
+      let reading!: Promise<void>;
+      act(() => {
+        reading = result.current.selectConversation("old");
+      });
+      act(() => {
+        if (changed === "organization") useOrgStore.setState({ activeOrgId: "new-org" });
+        useConversationStore.getState().reset();
+        if (changed === "selection")
+          useConversationStore.setState({ currentConversationId: "new" });
+      });
+      await act(async () => {
+        finish({ items: [{ id: "old-message" }], total: 1 });
+        await reading;
+      });
+      expect(useConversationStore.getState().currentMessages).toEqual([]);
+      expect(useConversationStore.getState().error).toBeNull();
+    },
+  );
 });
 
-describe("ownership of older-message requests", () => {
-  it.each(["account", "organization"])("drops an older page after changing %s", async (scope) => {
-    const result = await hook();
-    await act(() => result.current.selectConversation("c-1"));
-    act(() => useConversationStore.setState({ hasOlderMessages: true }));
-    let answer: (value: unknown) => void = () => {};
-    vi.mocked(apiClient.get).mockImplementation(
-      async () =>
-        new Promise((resolve) => {
-          answer = resolve;
-        }),
-    );
-    let pending: Promise<void>;
-    act(() => {
-      pending = result.current.loadOlderMessages();
-    });
-    await act(async () => {
-      if (scope === "account") useAuthStore.setState({ user: { id: "another-account" } as never });
-      else useOrgStore.setState({ activeOrgId: "another-org" });
-      answer({ items: [{ id: "must-not-appear" }], total: 2 });
-      await pending!;
-    });
-    expect(result.current.currentMessages.map((message) => message.id)).toEqual(["m-1"]);
+it("opens the newest transcript page and prepends older messages without losing the last turn", async () => {
+  const all = Array.from({ length: 102 }, (_, index) => ({
+    id: `m-${index}`,
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: `message ${index}`,
+  }));
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (!path.includes("/messages")) return { items: [conversation("long")], total: 1 };
+    const params = new URL(path, "http://localhost").searchParams;
+    const before = params.get("before");
+    const available = before
+      ? all.slice(
+          0,
+          all.findIndex((message) => message.id === before),
+        )
+      : all;
+    return {
+      items:
+        params.get("latest") === "true"
+          ? available.slice(-Number(params.get("limit")))
+          : available.slice(0, 100),
+      total: all.length,
+      cost: null,
+    };
   });
+  const result = await hook();
+  await act(async () => result.current.selectConversation("long"));
+  expect(result.current.currentMessages.map((message) => message.id)).toEqual(
+    all.slice(2).map((message) => message.id),
+  );
+  expect(result.current.hasEarlierMessages).toBe(true);
+  await act(async () => result.current.loadEarlierMessages());
+  expect(result.current.currentMessages.map((message) => message.id)).toEqual(
+    all.map((message) => message.id),
+  );
+  expect(result.current.hasEarlierMessages).toBe(false);
+});
 
-  it("deduplicates concurrent load-older clicks across hook instances", async () => {
-    const first = await hook();
-    const second = await hook();
-    await act(() => first.current.selectConversation("c-1"));
-    act(() => useConversationStore.setState({ hasOlderMessages: true }));
-    let answer: (value: unknown) => void = () => {};
-    vi.mocked(apiClient.get)
-      .mockClear()
-      .mockImplementation(
-        async () =>
-          new Promise((resolve) => {
-            answer = resolve;
-          }),
-      );
-    let loading: Promise<void>;
-    act(() => {
-      loading = first.current.loadOlderMessages();
-    });
-    await act(() => second.current.loadOlderMessages());
-    expect(apiClient.get).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      answer({ items: [], total: 1 });
-      await loading!;
-    });
-    expect(first.current.hasOlderMessages).toBe(false);
-    expect(second.current.loadingOlderMessages).toBe(false);
+it("leaves the loaded transcript intact when loading earlier messages fails, and permits retry", async () => {
+  const result = await hook();
+  const rows = Array.from({ length: 101 }, (_, index) => ({
+    id: `m-${index}`,
+    role: "user",
+    content: `${index}`,
+  }));
+  vi.mocked(apiClient.get).mockResolvedValue({ items: rows, total: 201, cost: null });
+  await act(async () => result.current.selectConversation("paged"));
+  vi.mocked(apiClient.get).mockRejectedValue(new Error("earlier unavailable"));
+  await act(async () => result.current.loadEarlierMessages());
+  expect(result.current.currentMessages).toHaveLength(100);
+  expect(result.current.error).toBeTruthy();
+  expect(result.current.isLoadingEarlier).toBe(false);
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 201, cost: null });
+  await act(async () => result.current.loadEarlierMessages());
+  expect(result.current.hasEarlierMessages).toBe(false);
+  const called = vi.mocked(apiClient.get).mock.calls.length;
+  await act(async () => result.current.loadEarlierMessages());
+  expect(apiClient.get).toHaveBeenCalledTimes(called);
+});
+
+it("drops an earlier page that arrives after another conversation was selected", async () => {
+  const result = await hook();
+  const rows = Array.from({ length: 101 }, (_, index) => ({
+    id: `m-${index}`,
+    role: "user",
+    content: `${index}`,
+  }));
+  vi.mocked(apiClient.get).mockResolvedValue({ items: rows, total: 201, cost: null });
+  await act(async () => result.current.selectConversation("paged"));
+  let finish!: (value: unknown) => void;
+  vi.mocked(apiClient.get).mockImplementation(
+    async () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  let request!: Promise<void>;
+  act(() => {
+    request = result.current.loadEarlierMessages();
   });
+  await act(async () => result.current.loadEarlierMessages());
+  act(() => useConversationStore.getState().reset());
+  await act(async () => {
+    finish({ items: rows, total: 201 });
+    await request;
+  });
+  expect(result.current.currentMessages).toEqual([]);
 });

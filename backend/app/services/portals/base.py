@@ -8,8 +8,10 @@ delete. The base methods raise `WebhookRegistrationUnavailable`, so a portal is
 at a time - the same shape `app/services/channels/base.py` uses.
 """
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from datetime import datetime
+from types import MappingProxyType
 from typing import Any
 
 from app.services.portals.exceptions import WebhookRegistrationUnavailable
@@ -41,12 +43,23 @@ class PolledEvent:
     payload: dict[str, Any]
 
 
+NOWHERE: Mapping[str, datetime] = MappingProxyType({})
+"""No places: what a poll of an adapter that reads the whole account is given."""
+
+
 @dataclass(frozen=True)
 class PolledEvents:
-    """What one poll found, and where to resume."""
+    """What one poll found, and where to resume.
+
+    `unreadable` names the places (see `PortalAdapter.poll`) the account could not
+    read - a folder that was renamed, a shared mailbox no longer shared - so the
+    triggers watching them can be turned off with a reason rather than wait on mail
+    that will never be read.
+    """
 
     events: tuple[PolledEvent, ...]
     cursor: dict[str, Any]
+    unreadable: frozenset[str] = field(default_factory=frozenset)
 
 
 @dataclass(frozen=True)
@@ -83,10 +96,12 @@ class PortalAdapter:
         target: str | None,
         webhook_url: str,
         secret: str,
-        events: Sequence[str] | None = None,
+        events: Sequence[str] = (),
     ) -> RegisteredWebhook:
-        """Register `webhook_url` at the provider, signed with `secret`, for `events` -
-        the provider's own event names, or the ones its presets need when `None`.
+        """Register `webhook_url` at the provider, signed with `secret`.
+
+        `events` are the provider's own event names the trigger fires on; empty
+        leaves the adapter's default.
 
         Raises:
             WebhookRegistrationUnavailable: The default - a portal with no
@@ -97,13 +112,27 @@ class PortalAdapter:
             details={"portal_key": self.portal_key},
         )
 
+    async def account_login(self, *, access_token: str) -> str | None:
+        """The connected account's own handle at the provider, or `None` - the default.
+
+        What a trigger ignores as an author, so an agent acting through the same
+        account cannot set its own trigger off.
+        """
+        return None
+
     async def delete_webhook(
         self, *, access_token: str, target: str | None, provider_webhook_id: str
     ) -> None:
         """Remove a previously registered webhook. Best-effort; default is a no-op."""
         return
 
-    async def poll(self, *, access_token: str, cursor: dict[str, Any] | None) -> PolledEvents:
+    async def poll(
+        self,
+        *,
+        access_token: str,
+        cursor: dict[str, Any] | None,
+        places: Mapping[str, datetime] = NOWHERE,
+    ) -> PolledEvents:
         """What has happened at the provider since `cursor`, and the new cursor.
 
         For a portal whose provider pushes nothing: the heartbeat asks, once a
@@ -121,6 +150,12 @@ class PortalAdapter:
         the alternative is firing an agent once per message already in the mailbox
         the moment somebody connects it. So the first call establishes the position
         and answers empty.
+
+        **`places` is where to look, for a provider that cannot be read whole.**
+        Gmail's history covers a mailbox; Outlook reports a folder at a time, so its
+        adapter reads exactly the places the organization's triggers name, each
+        keyed to the moment from which mail there is news. An adapter that reads
+        the whole account ignores it.
 
         Raises:
             PortalUnreachable: The provider could not be asked. The caller leaves

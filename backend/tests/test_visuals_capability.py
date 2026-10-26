@@ -360,7 +360,7 @@ class TestPictures:
     @pytest.mark.parametrize(
         ("data", "said"),
         [(b"<html>not a picture</html>", "is not an image"), (PNG * 200_000, "over the")],
-        ids=["not-an-image", "oversized-image"],
+        ids=["html", "oversized-png"],
     )
     async def test_what_is_not_a_small_picture_is_refused(self, data: bytes, said: str) -> None:
         with (

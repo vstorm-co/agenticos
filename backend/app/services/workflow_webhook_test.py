@@ -124,7 +124,7 @@ class WorkflowWebhookTestService:
             (
                 found
                 for source in ("webhook", "github")
-                if (found := trigger_events.delivery_id(source, headers)) is not None
+                if (found := trigger_events.delivery_id(source, headers, {})) is not None
             ),
             f"test-{secrets.token_hex(6)}",
         )

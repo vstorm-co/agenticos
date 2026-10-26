@@ -90,6 +90,7 @@ from pydantic_ai.workspaces import Workspace
 from pydantic_ai_harness.ask_user import DECLINED, AskUserRequest, ask_user_result
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.guardrails import GuardrailResult
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
@@ -217,7 +218,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
-from app.core.audit import current_impersonator
+from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -300,6 +301,7 @@ from app.services.sandbox_workspace import (
     OpenWorkspace,
     SandboxWaitSink,
     SandboxWorkspaceService,
+    WorkspaceFlushFailure,
     project_sandbox,
 )
 from app.services.skill_proposal import SkillProposalService
@@ -308,6 +310,7 @@ from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.transcript import (
+    STOPPED_TOOL_RESULT,
     RecordedToolCall,
     TranscriptService,
     settled_calls_in,
@@ -4543,7 +4546,7 @@ class AgentRunnerService:
                     extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
 
-    async def _write_approvals(self, prepared: PreparedRun) -> None:
+    async def _write_approvals(self, prepared: PreparedRun, *, include_pending: bool) -> None:
         """Write the approval rows the run parked, once, off the shared session.
 
         The rows are *described* while the run runs and written here, from the
@@ -4579,11 +4582,14 @@ class AgentRunnerService:
         and this does nothing.
         """
         channel = prepared.approvals
-        named = {p.subagent_agent_id for p in channel.requested if p.subagent_agent_id is not None}
+        # A workspace failure can turn a parked run into a terminal failure.
+        # Keep standing-consent audit records, but never enqueue an impossible decision.
+        requested = [p for p in channel.requested if include_pending or p.standing]
+        named = {p.subagent_agent_id for p in requested if p.subagent_agent_id is not None}
         present = await agent_repo.existing_ids_locked(
             self.db, named, organization_id=channel.organization_id
         )
-        for parked in channel.requested:
+        for parked in requested:
             await self.approvals.request(
                 approval_id=parked.approval_id,
                 organization_id=channel.organization_id,
@@ -4719,20 +4725,33 @@ class AgentRunnerService:
 
         # Before the run row is written, so a workspace flush that fails cannot
         # leave the run un-finished, and after the run has certainly stopped
-        # using it. `close` never raises; it logs.
+        # using it. `close` reports a typed failure without replacing accounting.
         # A parked run keeps its spills: the history it resumes from names them -
         # parked on an approval or on a question to the person alike.
-        await self.workspaces.close(
+        workspace_result = await self.workspaces.close(
             prepared.workspace,
             keep_spills=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
         )
+
+        if isinstance(workspace_result, WorkspaceFlushFailure):
+            error = "; ".join(part for part in (error, workspace_result.error.message) if part)
+            if status in (
+                RunStatus.COMPLETED,
+                RunStatus.AWAITING_APPROVAL,
+                RunStatus.AWAITING_ANSWER,
+            ):
+                status = RunStatus.FAILED
+                paused_state = None
 
         # The approval rows the run parked, written here rather than while it ran:
         # parking on the channel is deferred off the shared session so two gated
         # calls in one model step cannot race two inserts (agenticos#169), and this
         # is where the deferral is paid back. Before the parent's terminal write,
         # so the rows the `paused_state` names exist by the time it is stored.
-        await self._write_approvals(prepared)
+        await self._write_approvals(
+            prepared,
+            include_pending=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
+        )
 
         parked = (
             None
@@ -5186,9 +5205,10 @@ class AgentRunnerService:
                 stream=stream,
             )
         except Exception as exc:
-            # A refusal of ours already says what it means; only a failure the
-            # run recorded as one is renamed.
-            if not reports_failure or isinstance(exc, AppException):
+            # Failed SQL can expire the row and leave the transaction unusable.
+            # Preserve the database error (including pool exhaustion's 503)
+            # without loading attributes from that failed transaction.
+            if not reports_failure or isinstance(exc, (AppException, SQLAlchemyError)):
                 raise
             raise failed_run_error(prepared.run, exc) from exc
         if outbound is not None:
@@ -5498,6 +5518,153 @@ class AgentRunnerService:
                 ),
                 details={"run_id": str(run.id), "status": run.status},
             ) from exc
+
+    async def can_stop_parked(self, ctx: AuthContext, run_id: UUID) -> bool:
+        """Whether this session may stop a parked run, without exposing its data."""
+        if ctx.api_key_id is not None:
+            return False
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        return (
+            run is not None
+            and run.status in (RunStatus.AWAITING_ANSWER.value, RunStatus.AWAITING_APPROVAL.value)
+            and (
+                run.user_id == ctx.user_id
+                or (
+                    run.status == RunStatus.AWAITING_APPROVAL.value
+                    and ctx.has(Perm.APPROVALS_DECIDE)
+                )
+            )
+        )
+
+    async def cancel_parked(self, ctx: AuthContext, run_id: UUID) -> str | None:
+        """Stop a parked run without executing its continuation or losing its spend.
+
+        The person who started it may stop it. An approval decider may also stop
+        a run waiting on approval. Keys cannot use this console operation.
+        The same row lock as resume serializes stopping against a continuation;
+        a second stop is idempotent, while a run already resumed is refused.
+        """
+        if ctx.api_key_id is not None:
+            raise AuthorizationError(
+                message="Stop this run from a signed-in session", details={"run_id": run_id}
+            )
+        run = await agent_run_repo.claim_parked_run(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": run_id})
+        decider = ctx.has(Perm.APPROVALS_DECIDE) and run.status in (
+            RunStatus.AWAITING_APPROVAL.value,
+            RunStatus.CANCELLED.value,
+        )
+        if run.user_id != ctx.user_id and not decider:
+            raise AuthorizationError(
+                message="Only the person who started this run may stop it",
+                details={"run_id": run_id},
+            )
+        if run.status == RunStatus.CANCELLED.value:
+            return None
+        if run.status not in (RunStatus.AWAITING_ANSWER.value, RunStatus.AWAITING_APPROVAL.value):
+            raise BadRequestError(
+                message="This run is not waiting for a response",
+                details={"run_id": run_id, "status": run.status},
+            )
+        previous_status = run.status
+        state = (
+            PausedRunState.model_validate(run.paused_state)
+            if run.paused_state is not None
+            else None
+        )
+        at = datetime.now(UTC)
+        frames = [] if state is None else list(state.delegations)
+        for frame in frames:
+            frames.extend(frame.delegations)
+        calls = [] if state is None else [*state.questions, *state.tool_call_ids.values()]
+        calls.extend(frame.tool_call_id for frame in frames)
+        await self._cancel_delegations(run, frames, at=at)
+        if state is not None and state.plan and run.conversation_id is not None:
+            await ConversationService(self.db).keep_plan(run.conversation_id, put_down(state.plan))
+        await self.transcript.record(
+            run,
+            prompt=None,
+            answer="",
+            settled=dict.fromkeys(calls, STOPPED_TOOL_RESULT),
+        )
+        await agent_run_repo.expire_pending_approvals(self.db, run_id=run.id, decided_at=at)
+        await agent_run_repo.finish_run(
+            self.db,
+            run=run,
+            status=RunStatus.CANCELLED.value,
+            input_tokens=run.input_tokens,
+            output_tokens=run.output_tokens,
+            cost_usd=run.cost_usd,
+            cost_is_partial=run.cost_is_partial,
+            ended_at=at,
+            error="Stopped by user",
+            paused_state=None,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="run.cancelled",
+            target_type="agent_run",
+            target_id=str(run.id),
+            details={"previous_status": previous_status},
+        )
+        return STOPPED_TOOL_RESULT
+
+    async def _cancel_delegations(
+        self, run: AgentRun, frames: Sequence[DelegationFrame], *, at: datetime
+    ) -> None:
+        """Attribute the spend already incurred by suspended published delegates.
+
+        Inline specialists bill to their published ancestor. Deleted delegates
+        retain their cost on the parent, as in the ordinary terminal write.
+        No model is built: provider attribution was not kept in a parked frame.
+        """
+        named = {frame.agent_id for frame in frames if frame.agent_id is not None}
+        if not named:
+            return
+        present = await agent_repo.existing_ids_locked(
+            self.db, named, organization_id=run.organization_id
+        )
+        for frame in frames:
+            if (
+                frame.agent_id is None
+                or frame.agent_id not in present
+                or frame.agent_version_id is None
+            ):
+                continue
+            legacy = "billed_cost_usd" not in frame.model_fields_set
+            await agent_run_repo.record_delegated_run(
+                self.db,
+                run_id=uuid4(),
+                organization_id=run.organization_id,
+                agent_id=frame.agent_id,
+                agent_version_id=frame.agent_version_id,
+                parent_run_id=run.id,
+                subagent_task_id=frame.task_id,
+                user_id=run.user_id,
+                initiated_by_publisher_fallback=run.initiated_by_publisher_fallback,
+                channel_identity_id=run.channel_identity_id,
+                conversation_id=run.conversation_id,
+                exposure_id=run.exposure_id,
+                surface=run.surface,
+                model_label=None,
+                provider=None,
+                secret_id=None,
+                status=RunStatus.CANCELLED.value,
+                input_tokens=frame.input_tokens if legacy else frame.billed_input_tokens,
+                output_tokens=frame.output_tokens if legacy else frame.billed_output_tokens,
+                cache_read_tokens=frame.billed_cache_read_tokens,
+                cache_write_tokens=frame.billed_cache_write_tokens,
+                cost_usd=frame.cost_usd if legacy else frame.billed_cost_usd,
+                cost_is_partial=frame.cost_is_partial if legacy else frame.billed_cost_is_partial,
+                started_at=frame.started_at or at,
+                ended_at=at,
+                error="Stopped by user",
+            )
 
     async def answer(
         self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[Any]]
@@ -5900,6 +6067,9 @@ class AgentRunnerService:
                     paused_state=paused,
                     budget_scope=budget_scope,
                 )
+                if prepared.run.status == RunStatus.FAILED.value:
+                    status = RunStatus.FAILED
+                    paused = None
                 # So a run that failed, parked or was stopped still says what was
                 # asked and what it managed to do.
                 await self.transcript.record(

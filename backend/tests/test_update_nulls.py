@@ -177,6 +177,10 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
 # `voice/transport` serializes a call's server frame for the socket, so a field the
 # frame was not built with stays off the wire; there is no row and no `over`.
 _DUMP_EXEMPT = {
+    # MCP merges capability bindings inside a JSONB spec, not nullable row
+    # columns. Explicit null clears a secret reference; omitted fields must
+    # preserve it. The draft API owns validation and persistence of the spec.
+    "app/services/platform_mcp/_tools.py",
     "app/services/ingestion_config.py",
     "app/services/rag_document.py",
     "app/services/voice/transport.py",

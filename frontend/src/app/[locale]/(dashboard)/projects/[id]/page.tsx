@@ -8,6 +8,8 @@ import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProjectApps } from "@/components/projects/project-apps";
 import { ProjectChats } from "@/components/projects/project-chats";
+import { FileExplorer } from "@/components/sandboxes/workspace-explorer";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectFiles } from "@/components/projects/project-files";
 import { ProjectSettings } from "@/components/projects/project-settings";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
@@ -37,8 +39,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [tabParam, setTabParam] = useUrlState("tab");
   const tab: Tab = TABS.find((entry) => entry === tabParam) ?? "files";
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" />;
-  if (error || project === null) {
+  if (error || (project === null && !isLoading)) {
     return <ErrorState description={getErrorMessage(error, tErrors)} />;
   }
 
@@ -46,34 +47,52 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     <div className="flex min-h-0 flex-1 flex-col gap-6">
       <PageHeader
         className="mb-0 md:mb-0"
-        breadcrumbs={[{ label: t("title"), href: ROUTES.PROJECTS }, { label: project.name }]}
+        breadcrumbs={[
+          { label: t("title"), href: ROUTES.PROJECTS },
+          { label: project?.name ?? t("title") },
+        ]}
         title={
           <span className="flex items-center gap-3">
             <span className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
               <FolderKanban className="h-5 w-5" aria-hidden />
             </span>
-            {project.name}
+            {project?.name ?? (
+              <span
+                aria-hidden
+                className="bg-muted inline-block h-7 w-48 animate-pulse rounded-md"
+              />
+            )}
           </span>
         }
-        description={project.description ?? undefined}
-        badges={<AudienceChip visibility={project.visibility} groups={project.shared_groups} />}
+        description={project?.description ?? undefined}
+        badges={
+          project ? (
+            <AudienceChip visibility={project.visibility} groups={project.shared_groups} />
+          ) : (
+            <Skeleton className="h-5 w-20" />
+          )
+        }
         actions={
-          <>
-            <ShareResourceButton
-              resourceType="project"
-              resourceId={project.id}
-              name={project.name}
-              canManage={project.can_edit}
-            />
-            {project.can_use && (
-              <Button asChild>
-                <Link href={ROUTES.PROJECT_CHAT(project.id)}>
-                  <Plus className="h-4 w-4" />
-                  {t("newChat")}
-                </Link>
-              </Button>
-            )}
-          </>
+          project ? (
+            <>
+              <ShareResourceButton
+                resourceType="project"
+                resourceId={project.id}
+                name={project.name}
+                canManage={project.can_edit}
+              />
+              {project.can_use && (
+                <Button asChild>
+                  <Link href={ROUTES.PROJECT_CHAT(project.id)}>
+                    <Plus className="h-4 w-4" />
+                    {t("newChat")}
+                  </Link>
+                </Button>
+              )}
+            </>
+          ) : (
+            <Skeleton className="h-9 w-28" />
+          )
         }
       />
 
@@ -83,23 +102,53 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         className="flex min-h-0 flex-1 flex-col"
       >
         <TabsList data-tour="project-tabs">
-          <TabsTrigger value="files">{t("files")}</TabsTrigger>
-          <TabsTrigger value="chats">{t("chats")}</TabsTrigger>
-          <TabsTrigger value="apps">{t("apps")}</TabsTrigger>
-          <TabsTrigger value="instructions">{t("instructions")}</TabsTrigger>
+          <TabsTrigger disabled={isLoading} value="files">
+            {t("files")}
+          </TabsTrigger>
+          <TabsTrigger disabled={isLoading} value="chats">
+            {t("chats")}
+          </TabsTrigger>
+          <TabsTrigger disabled={isLoading} value="apps">
+            {t("apps")}
+          </TabsTrigger>
+          <TabsTrigger disabled={isLoading} value="instructions">
+            {t("instructions")}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="files" className="flex min-h-0 flex-1 flex-col">
-          <ProjectFiles project={project} />
+          {project ? (
+            <ProjectFiles project={project} />
+          ) : (
+            <FileExplorer source={{ kind: "project", id }} files={null} isLoading error={null} />
+          )}
         </TabsContent>
         <TabsContent value="chats">
-          <ProjectChats project={project} />
+          {project ? (
+            <ProjectChats project={project} />
+          ) : (
+            <LoadingState variant="skeleton-list" rows={3} />
+          )}
         </TabsContent>
         <TabsContent value="apps">
-          <ProjectApps project={project} />
+          {project ? (
+            <ProjectApps project={project} />
+          ) : (
+            <LoadingState
+              variant="skeleton-cards"
+              className="grid-cols-1 sm:grid-cols-1 md:grid-cols-2"
+            />
+          )}
         </TabsContent>
         <TabsContent value="instructions">
           {/* Keyed on the saved row, so a save that comes back re-seeds the form. */}
-          <ProjectSettings key={project.updated_at ?? project.id} project={project} />
+          {project ? (
+            <ProjectSettings key={project.updated_at ?? project.id} project={project} />
+          ) : (
+            <div className="space-y-6">
+              <Skeleton className="h-80 w-full rounded-2xl" />
+              <Skeleton className="h-64 w-full rounded-2xl" />
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

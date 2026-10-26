@@ -49,7 +49,11 @@ EXEMPT: dict[str, str] = {
     "tests/test_logging.py::TestSecretPaths::test_an_address_with_nothing_secret_in_it_is_left_alone": "an address with no credential segment is left alone, the redaction's complement",
     "tests/integration/test_workflow_error_foreach.py::test_an_approval_inside_an_iteration_resumes_that_iteration": "an approval resuming a loop iteration, not a refusal",
     "tests/test_workflow_node_guards.py::TestHttpConfig::test_a_step_without_a_credential_has_no_secret_to_check": "no credential configured means nothing to check, not a refusal",
+    "tests/test_platform_mcp_tools.py::TestConfiguredDrafts::test_an_explicit_null_clears_a_binding_secret_reference": "serializes a nullable UUID reference in a JSONB spec, no credential read or authorization refusal",
     "tests/test_generated_media.py::TestTheRetentionSweep::test_no_batch_starts_once_the_time_budget_is_spent": "the sweep's time budget, not a spending budget, no refusal",
+    "tests/test_mcp_connections.py::TestStartingOutlooksConsent::test_the_consent_url_is_the_tenants_and_asks_for_mail_only": "'tenant' is the Azure tenant whose endpoints Outlook's consent uses, not tenancy",
+    "tests/test_mcp_connections.py::TestStartingOutlooksConsent::test_the_staged_grant_carries_the_tenants_token_endpoint": "'tenant' is the Azure tenant whose token endpoint is staged, not tenancy",
+    "tests/test_microsoft_oauth.py::test_the_endpoints_are_the_tenants": "'tenant' is the Azure tenant in Microsoft's endpoint URLs, not tenancy",
     "tests/test_teams_channel.py::TestRegisteringABot::test_a_teams_bot_carries_its_app_and_tenant_and_is_a_webhook_bot": (
         "'tenant' is the Azure tenant id a Teams bot is registered with, not tenancy"
     ),

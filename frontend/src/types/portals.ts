@@ -16,10 +16,11 @@
  */
 
 /** How a portal's webhook reaches the platform. Mirrors the backend's `DeliveryMode`. */
-export type PortalDelivery = "auto_webhook" | "manual" | "polling";
+export type PortalDelivery = "auto_webhook" | "app_webhook" | "manual" | "polling";
 
 /** One ready-made event a portal can fire on. */
 export interface PortalPreset {
+  event_config?: Record<string, unknown>;
   key: string;
   label: string;
   description: string;

@@ -1,5 +1,5 @@
 ---
-source_sha: "c74cc1214d3a"
+source_sha: "074e13eaf243"
 ---
 
 # Konsola { #the-console }
@@ -268,16 +268,6 @@ Wątek, którego run wciąż pracuje, ma kręcący się wskaźnik i czas trwania
 z odpowiedzią, której nie widziałeś od ostatniego otwarcia, ma kropkę, a otwarcie
 go ją gasi - tylko dla ciebie, bo udostępniony wątek każdy czytelnik czyta osobno.
 
-Po ponownym otwarciu rozmowy zobaczysz jej 100 najnowszych wiadomości.
-**Wczytaj starsze wiadomości** u góry dodaje poprzednią stronę, zachowując pozycję
-czytanego fragmentu. Nowe odpowiedzi i koszt nadal dotyczą bieżącej rozmowy.
-
-Otwarcie czatu pobiera metadane rozmowy bez całej historii i podsumowania modelu.
-Streaming zachowuje komponenty niezmienionych wiadomości i grupuje ramki według
-klatek animacji, z limitem kolejki i zastępczym terminem 50 ms w karcie w tle.
-Historyczne rysunki działają blisko widocznego obszaru, a poza nim zwalniają ramki;
-rysunki trwającego wywołania nadal renderują się, aby raportować błędy narzędziu.
-
 Trzy rzeczy w kompozytorze, które warto znać.
 
 **Twoje własne konta.** Agent powiązany z
@@ -361,6 +351,8 @@ kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
 rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wiedza
 dla agenta, nie harmonogram.
 
+Po ponownym otwarciu rozmowy widzisz najnowsze wiadomości. Wybierz **Wczytaj wcześniejsze wiadomości** nad historią, aby przeczytać starsze tury. Trwające odpowiedzi i niezapisane wyniki pozostają widoczne podczas odświeżania zapisanej historii.
+
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
 Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kolejność.
@@ -433,6 +425,14 @@ przeglądarkę na dowolnej stronie tylko dla Ciebie, zanim agent będzie jej pot
 zaloguj się, oddaj ją z zaznaczonym polem, a logowanie zostanie zapamiętane tak samo.
 Wymaga przeglądarki wdrożenia do logowania
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Zatrzymanie oczekującego uruchomienia.** Przycisk **Stop** pozostaje dostępny, gdy
+agent czeka na odpowiedź, zatwierdzenie lub połączenie konta. Działa również po
+odświeżeniu strony z oczekującym pytaniem lub zatwierdzeniem. Zatrzymanie zamyka
+oczekujące wywołania bez wznawiania modelu i zachowuje zapisany koszt. Możesz zatrzymać
+własne uruchomienie; osoby uprawnione do zatwierdzania mogą też zatrzymać uruchomienie
+oczekujące na zatwierdzenie. Jeśli tymczasowy błąd uniemożliwi zatrzymanie, karta
+pozostaje dostępna do ponownej próby.
 
 ### Dyktowanie { #dictation }
 

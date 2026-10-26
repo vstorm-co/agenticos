@@ -1,5 +1,5 @@
 ---
-source_sha: "f9514b7d3481"
+source_sha: "65de499462fe"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -174,11 +174,11 @@ i ją zaprasza.
 
 Jeszcze trzy rzeczy, które łatwo tu pomylić — i które pomylono:
 
-**Pierwszy użytkownik zawsze zostaje wpuszczony.** Świeża instalacja nie ma kont,
-więc jej administrator jeszcze nie istnieje; zamknięte wdrożenie, które odrzuca
-także osobę, która miałaby je otworzyć, to wdrożenie, do którego nikt nie wejdzie
-i którego nie ma z czego naprawić. `register` i tak podnosi to pierwsze konto do
-`is_app_admin`, a polityka opiera się na tym samym fakcie.
+**Pierwszy użytkownik jest zawsze przyjmowany.** Nowa instalacja nie ma kont.
+Pierwsze zatwierdzone konto zostaje administratorem wdrożenia (`is_app_admin`),
+niezależnie od rejestracji hasłem lub przez OAuth. Blokada transakcyjna przyznaje ten
+wyjątek tylko jednej równoczesnej rejestracji. Kolejne muszą spełniać politykę
+wdrożenia; jeśli pierwsza zostanie wycofana, inna może przejąć uprawnienia startowe.
 
 **`invite_only` istnieje dlatego, że zamknięcie rejestracji zepsułoby inaczej
 zaproszenia.** `InvitationService.accept` wymaga istniejącego, zalogowanego

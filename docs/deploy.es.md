@@ -1,5 +1,5 @@
 ---
-source_sha: "45deb395f4bf"
+source_sha: "4fd707e919ce"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -430,10 +430,10 @@ sudo chown 10001:10001 /var/lib/agenticos/sandbox-workspaces
 
 Después un despliegue la levanta: `scripts/deploy.sh` pasa `--profile sandbox`
 cuando `SANDBOXD_TOKEN` en `backend/.env` tiene valor, así que es el propio host
-quien dice si ejecuta una. También exporta `DOCKER_GID` leído del socket — todos
-los archivos de compose de aquí lo interpolan en el `group_add` de la sandbox, y
-su valor por defecto `0` es el propietario del socket en casi ninguna
-distribución de Linux. No hace falta nada más en `.env`: el backend llega al
+quien dice si ejecuta una. Como `make` y quickstart, exporta `DOCKER_GID` al
+`group_add` de la sandbox: el grupo del socket en Linux (siguiendo enlaces simbólicos)
+o `0` en Docker Desktop, donde el socket montado pertenece a la VM. Un `DOCKER_GID`
+explícito en el entorno o en la línea de comandos de `make` tiene prioridad. No hace falta nada más en `.env`: el backend llega al
 demonio a través de una *conexión* de sandbox que alguien crea en la consola, y
 `http://sandboxd:8080` se reconoce como propio de este despliegue.
 

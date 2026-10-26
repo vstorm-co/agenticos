@@ -156,7 +156,30 @@ class TestReadingWhatArrived:
         # The plain-text part, not the HTML one: what reaches the agent should be
         # what a person would read rather than markup it has to strip.
         assert event.payload["text"] == "Please pay this."
+        # No verdict from Gmail, so nothing vouches for the sender.
+        assert event.payload["authenticated"] is False
         assert read.cursor == {"history_id": "510"}
+
+    async def test_gmails_own_verdict_on_the_sender_rides_in_the_payload(self, monkeypatch):
+        """A sender filter fires only on mail the sender's domain signed; the
+        adapter reads Gmail's topmost `Authentication-Results` to say so."""
+        message = _message(
+            "m1", subject="s", sender="Billing <billing@acme.test>", body="b", labels=["INBOX"]
+        )
+        message["payload"]["headers"].insert(
+            0,
+            {
+                "name": "Authentication-Results",
+                "value": "mx.google.com; dmarc=pass header.from=acme.test",
+            },
+        )
+        gmail = _Gmail(history_id="510", added=["m1"], messages={"m1": message})
+
+        read = await _adapter(gmail, monkeypatch).poll(
+            access_token="t", cursor={"history_id": "500"}
+        )
+
+        assert read.events[0].payload["authenticated"] is True
 
     async def test_the_delivery_id_is_gmails_own_so_a_reread_dedups(self, monkeypatch):
         """A crash after dispatch and before the cursor advances re-reads the same
@@ -252,10 +275,10 @@ class TestTheWaysAPollerLosesWork:
         )
 
         assert len(read.events) == _MAX_MESSAGES_PER_POLL
-        # The newest, not the oldest: a bounded read should lose the backlog rather
-        # than the message that just arrived.
-        assert read.events[-1].payload["message_id"] == many[-1]
-        assert read.cursor == {"history_id": "600"}
+        # The unread tail stays durable in the cursor for the next tick.
+        assert read.events[-1].payload["message_id"] == many[24]
+        assert read.cursor["pending_message_ids"] == many[25:]
+        assert read.cursor["history_id"] == "600"
 
     async def test_it_follows_the_history_pages(self, monkeypatch):
         gmail = _Gmail(
@@ -318,13 +341,12 @@ class TestTheBodyItReads:
     async def test_a_mime_tree_deeper_than_the_bound_answers_empty(self, monkeypatch):
         """A MIME tree is attacker-shaped input - anybody who can email this mailbox
         chooses it - so a deeply nested one is a stack, not a message."""
-        from app.services.portals.google import _body_text
-
         deep: dict[str, Any] = {"mimeType": "text/plain", "body": {"data": _b64("deep")}}
         for _ in range(12):
             deep = {"mimeType": "multipart/mixed", "parts": [deep]}
 
-        assert _body_text(deep) == ""
+        async with httpx.AsyncClient() as client:
+            assert await GooglePortalAdapter()._body(client, "t", "m", deep) == ""
 
     async def test_an_undecodable_body_is_empty_rather_than_an_error(self, monkeypatch):
         from app.services.portals.google import _body_text
@@ -350,3 +372,133 @@ class TestTheBodyItReads:
         assert _body_text({"mimeType": "text/plain", "body": None}) == ""
         # And a part list whose entries are the wrong shape does not raise either.
         assert _body_text({"mimeType": "multipart/mixed", "parts": [{"body": None}]}) == ""
+
+
+class TestMailboxReviewRegressions:
+    async def test_body_bytes_referenced_by_attachment_id_are_read(self, monkeypatch) -> None:
+        gmail = _Gmail(
+            history_id="600",
+            added=["m1"],
+            messages={
+                "m1": {
+                    "labelIds": ["INBOX"],
+                    "payload": {"mimeType": "text/plain", "body": {"attachmentId": "body"}},
+                }
+            },
+        )
+        original = gmail.handler
+
+        def answer(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/attachments/body"):
+                return httpx.Response(200, json={"data": _b64("The full body")})
+            return original(request)
+
+        gmail.handler = answer
+        read = await _adapter(gmail, monkeypatch).poll(
+            access_token="t", cursor={"history_id": "500"}
+        )
+        assert read.events[0].payload["text"] == "The full body"
+
+    async def test_an_overflow_is_retained_and_read_on_the_next_tick(self, monkeypatch) -> None:
+        many = [f"m{n}" for n in range(30)]
+        gmail = _Gmail(
+            history_id="600",
+            added=many,
+            messages={
+                one: _message(one, subject="s", sender="f", body="b", labels=["INBOX"])
+                for one in many
+            },
+        )
+        adapter = _adapter(gmail, monkeypatch)
+        first = await adapter.poll(access_token="t", cursor={"history_id": "500"})
+        gmail.added = []
+        second = await adapter.poll(access_token="t", cursor=first.cursor)
+        assert {event.payload["message_id"] for event in (*first.events, *second.events)} == set(
+            many
+        )
+
+
+async def test_a_bounded_history_read_resumes_after_the_last_consumed_record(monkeypatch) -> None:
+    gmail = _Gmail()
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        page = int(request.url.params.get("pageToken", "0"))
+        return httpx.Response(
+            200,
+            json={
+                "historyId": "9000",
+                "history": [
+                    {"id": str(501 + page), "messagesAdded": [{"message": {"id": f"m{page}"}}]}
+                ],
+                "nextPageToken": str(page + 1),
+            },
+        )
+
+    gmail.handler = answer
+    adapter = _adapter(gmail, monkeypatch)
+    async with httpx.AsyncClient(base_url="https://gmail.googleapis.com") as client:
+        added, resume = await adapter._added_since(client, "t", "500")
+    assert added == [f"m{page}" for page in range(10)]
+    assert resume == "510"
+
+
+async def test_the_async_body_reader_ignores_attachments_and_malformed_parts() -> None:
+    adapter = GooglePortalAdapter()
+    deep: dict[str, Any] = {"mimeType": "text/plain", "body": {"data": _b64("too deep")}}
+    for _ in range(10):
+        deep = {"mimeType": "multipart/mixed", "parts": [deep]}
+    async with httpx.AsyncClient() as client:
+        text = await adapter._body(
+            client,
+            "t",
+            "m",
+            {
+                "parts": [
+                    None,
+                    {
+                        "filename": "attachment.txt",
+                        "mimeType": "text/plain",
+                        "body": {"data": _b64("attachment")},
+                    },
+                    deep,
+                    {"mimeType": "text/plain", "body": {"data": _b64("body")}},
+                ]
+            },
+        )
+    assert text == "body"
+
+
+async def test_a_message_read_failure_keeps_the_batch_retryable(monkeypatch) -> None:
+    gmail = _Gmail(history_id="600", added=["m1"])
+    original = gmail.handler
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        if "/messages/" in request.url.path:
+            return httpx.Response(503, json={})
+        return original(request)
+
+    gmail.handler = answer
+    with pytest.raises(PortalUnreachable):
+        await _adapter(gmail, monkeypatch).poll(access_token="t", cursor={"history_id": "500"})
+
+
+async def test_a_gmail_transport_failure_is_a_provider_error(monkeypatch) -> None:
+    gmail = _Gmail()
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("unreachable", request=request)
+
+    gmail.handler = answer
+    with pytest.raises(PortalUnreachable):
+        await _adapter(gmail, monkeypatch).poll(access_token="t", cursor=None)
+
+
+async def test_history_records_without_a_message_identifier_are_ignored(monkeypatch) -> None:
+    gmail = _Gmail()
+    gmail.handler = lambda request: httpx.Response(
+        200,
+        json={"historyId": "600", "history": [{"id": "599", "messagesAdded": [{"message": {}}]}]},
+    )
+    read = await _adapter(gmail, monkeypatch).poll(access_token="t", cursor={"history_id": "500"})
+    assert read.events == ()
+    assert read.cursor["history_id"] == "600"

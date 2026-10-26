@@ -72,7 +72,8 @@ class ChannelToolsConfig(BaseModel):
         "is answering in, what the channel is for, and what was said in it. "
         "Chosen per bound bot under 'Where this agent is available', not here."
     ),
-    # Not offered in the Toolbox, and publishing refuses a spec that carries it.
+    # Not offered in the Toolbox; `_without_unselectable` in agent_registry
+    # drops this binding when an agent is created or its draft is saved.
     # An agent bound to two Mattermost servers and three Slack workspaces has
     # five answers to "may it read what was said here", and a switch in the spec
     # has one. See `README.md`.

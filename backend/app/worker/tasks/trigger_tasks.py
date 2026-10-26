@@ -15,7 +15,7 @@ Two halves (see `docs/design/heartbeat-triggers-plan.md`, sections 3 and 4):
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.db.session import get_worker_db_context
@@ -51,21 +51,54 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     fires were queued.
     """
     from app.services.agent_trigger import AgentTriggerService
-    from app.services.mcp_connection import McpConnectionService
+    from app.services.mcp_connection import McpConnectionService, RevokedGrant
     from app.services.workflow_exposure import WorkflowExposureService
 
-    read = await McpConnectionService(db).poll_grant(grant)
+    assert grant.organization_id is not None, "a portal grant is always created org-scoped"
+    triggers = AgentTriggerService(db)
+    places = await triggers.polled_places(
+        organization_id=grant.organization_id, event_source=source
+    )
+    read = await McpConnectionService(db).poll_grant(grant, places=places)
+    if isinstance(read, RevokedGrant):
+        # Retrying a refused grant every minute fires nothing and says nothing; off,
+        # the triggers show they stopped, and the card says to reconnect (#1984).
+        await triggers.disable_polled(
+            organization_id=grant.organization_id,
+            event_source=source,
+            reason="mailbox_access_revoked",
+        )
+        return 0
     if read is None:
         return 0
-    assert grant.organization_id is not None, "a portal grant is always created org-scoped"
-    decisions = await AgentTriggerService(db).prepare_polled_fires(
+    if read.unreadable:
+        await triggers.disable_polled(
+            organization_id=grant.organization_id,
+            event_source=source,
+            reason="mailbox_folder_unreadable",
+            places=read.unreadable,
+        )
+    stored = (grant.poll_cursor or {}).get("trigger_announced")
+    cutoff = datetime.now(UTC) - timedelta(minutes=30)
+    announced: dict[str, str] = {}
+    if isinstance(stored, dict):
+        for key, value in stored.items():
+            if isinstance(key, str) and isinstance(value, str):
+                try:
+                    stamp = datetime.fromisoformat(value)
+                except ValueError:
+                    continue
+                if stamp.tzinfo is not None and stamp >= cutoff:
+                    announced[key] = value
+    decisions = await triggers.prepare_polled_fires(
         organization_id=grant.organization_id,
         event_source=source,
         events=read.events,
+        announced=announced,
     )
-    service = AgentTriggerService(db)
+    read.cursor["trigger_announced"] = announced
     for decision in decisions:
-        await service.queue_fire(
+        await triggers.queue_fire(
             decision.trigger_id,
             organization_id=grant.organization_id,
             event_context=decision.event_context,
@@ -73,9 +106,10 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     # The workflows listening to this mailbox, in the same transaction as the fires
     # and the cursor: a run is admitted and its message recorded, or neither, and a
     # run the organization had no room for keeps the cursor where it was.
-    admitted_every_run = await WorkflowExposureService(db).receive_polled_email(
-        organization_id=grant.organization_id, events=read.events
-    )
+    # Only Gmail's: workflows have a Gmail trigger, not one for the other polled sources.
+    admitted_every_run = source != "gmail" or await WorkflowExposureService(
+        db
+    ).receive_polled_email(organization_id=grant.organization_id, events=read.events)
     # In the fires' own transaction: the cursor moves exactly when the fires for
     # what it read are queued, so a crash re-reads the window - which the
     # delivery-id claim then dedups - rather than dropping a polled message that,
@@ -98,11 +132,10 @@ async def poll_portal_grants() -> None:
     minute, one request per connected mailbox - and hands whatever it finds to the
     same match-then-fire path a webhook delivery takes.
 
-    The shape is the sibling heartbeat's, for the same reasons: grants are claimed
-    `FOR UPDATE SKIP LOCKED` with `polled_at` advanced under the lock, so a tick
-    that outruns its own minute cannot be double-claimed by the next; and each
-    fire is queued as a job rather than run, so one slow agent run never holds the
-    tick open.
+    Each mailbox owns a transaction advisory lock until its cursor and queued
+    fires commit. Its credential row remains available to independent OAuth
+    refreshes. A failed mailbox rolls back its partial work in a savepoint and
+    advances its retry timestamp without preventing other tenants from polling.
 
     **The cursor advances in the transaction that queues the fires.** In any
     other order a crash between the two either loses every message the poll
@@ -122,27 +155,30 @@ async def poll_portal_grants() -> None:
     await _ensure_trigger_dedupe()
     queued = 0
     async with get_worker_db_context() as db:
-        grants = await McpConnectionService(db).claim_grants_to_poll(portal_keys=polled_keys)
-        for grant in grants:
-            source = _polled_source(grant.portal_key)
+        candidates = await McpConnectionService(db).portal_poll_candidates(portal_keys=polled_keys)
+    for connection_id in candidates:
+        async with get_worker_db_context() as db:
+            connections = McpConnectionService(db)
+            grant = await connections.claim_grant_to_poll(
+                connection_id=connection_id, portal_keys=polled_keys
+            )
+            if grant is None:
+                continue
+            portal_key = grant.portal_key
+            source = _polled_source(portal_key)
             if source is None:
+                await connections.record_poll_processing_failure(connection_id)
                 continue
             try:
-                queued += await _poll_one_grant(db, grant, source)
+                async with db.begin_nested():
+                    took = await _poll_one_grant(db, grant, source)
+                queued += took
             except Exception:
-                # One mailbox is one tenant. `poll_grant` already answers `None` for
-                # every recoverable provider failure, so anything arriving here is a
-                # shape nobody anticipated - a MIME tree from an attacker-chosen
-                # email, a payload field that is null where the API documents an
-                # object. Without this the tick dies on it, and dies again every
-                # minute: a single malformed message in one organization's mailbox
-                # would stop polling for every other organization on the deployment.
-                # A database failure still fails the rest of the tick with it, since
-                # the session is shared - that one is not a provider's to cause.
                 logger.exception(
                     "portal_poll_grant_failed",
-                    extra={"portal_key": grant.portal_key, "connection_id": str(grant.id)},
+                    extra={"portal_key": portal_key, "connection_id": str(connection_id)},
                 )
+                await connections.record_poll_processing_failure(connection_id)
     logger.info("portal_poll", extra={"queued": queued})
 
 
@@ -188,7 +224,8 @@ def _polled_source(portal_key: str | None) -> str | None:
     """The `event_source` a portal's presets fire through, or `None` for no portal.
 
     Read off the catalog rather than assumed from the key, because they are not the
-    same word: the portal is `google` and the source is `gmail`.
+    same word: the portal is `google` and the source is `gmail`, the portal
+    `microsoft` and the source `outlook`.
     """
     from app.services.portal_catalog import get_portal
 

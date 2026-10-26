@@ -1,5 +1,5 @@
 ---
-source_sha: "45deb395f4bf"
+source_sha: "4fd707e919ce"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -412,9 +412,10 @@ sudo chown 10001:10001 /var/lib/agenticos/sandbox-workspaces
 
 Potem wdrożenie go podnosi: `scripts/deploy.sh` przekazuje `--profile sandbox`,
 gdy `SANDBOXD_TOKEN` w `backend/.env` ma wartość, więc to sam host mówi, czy go
-uruchamia. Eksportuje też `DOCKER_GID` odczytane z socketu — każdy plik Compose
-tutaj wstawia je do `group_add` sandboksa, a jego domyślne `0` jest właścicielem
-socketu w prawie żadnej dystrybucji Linuksa. Nic więcej w `.env` nie jest
+uruchamia. Tak jak `make` i quickstart, eksportuje `DOCKER_GID` do `group_add`
+sandboksa: grupę socketu na Linuksie (po rozwiązaniu dowiązań) lub `0` na Docker
+Desktop, gdzie zamontowany socket należy do maszyny wirtualnej. Jawne `DOCKER_GID`
+w środowisku lub w wierszu polecenia `make` ma pierwszeństwo. Nic więcej w `.env` nie jest
 potrzebne: backend sięga do demona przez *połączenie* sandboksa, które ktoś tworzy
 w konsoli, a `http://sandboxd:8080` jest rozpoznawane jako własne tego
 deploymentu.

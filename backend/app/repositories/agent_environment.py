@@ -26,7 +26,9 @@ async def get(
     db: AsyncSession, environment_id: UUID, *, organization_id: UUID
 ) -> AgentEnvironment | None:
     result = await db.execute(
-        select(AgentEnvironment).where(
+        select(AgentEnvironment)
+        .execution_options(populate_existing=True)
+        .where(
             AgentEnvironment.id == environment_id,
             AgentEnvironment.organization_id == organization_id,
         )
@@ -49,6 +51,7 @@ async def list_for_agent(
             AgentEnvironment.organization_id == organization_id,
         )
         .order_by(AgentEnvironment.is_default.desc(), AgentEnvironment.name)
+        .execution_options(populate_existing=True)
     )
     return list(result.scalars().all())
 
@@ -61,7 +64,9 @@ async def get_default_for_agent(db: AsyncSession, *, agent_id: UUID) -> AgentEnv
     one row can match.
     """
     result = await db.execute(
-        select(AgentEnvironment).where(
+        select(AgentEnvironment)
+        .execution_options(populate_existing=True)
+        .where(
             AgentEnvironment.agent_id == agent_id,
             AgentEnvironment.is_default.is_(True),
         )
@@ -130,7 +135,9 @@ async def following_latest(
     whatever mode it was in, which made "publish" and "deploy" one word.
     """
     result = await db.execute(
-        select(AgentEnvironment).where(
+        select(AgentEnvironment)
+        .execution_options(populate_existing=True)
+        .where(
             AgentEnvironment.agent_id == agent_id,
             AgentEnvironment.organization_id == organization_id,
             AgentEnvironment.tracks_latest.is_(True),

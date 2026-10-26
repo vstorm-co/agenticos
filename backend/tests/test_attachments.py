@@ -814,7 +814,7 @@ class TestLoadingTheRows:
         caller = uuid4()
         service = SimpleNamespace(list_attached_files=AsyncMock(return_value=["row"]))
         monkeypatch.setattr(
-            "app.api.deps.get_conversation_service", lambda db: service, raising=True
+            "app.services.conversation.ConversationService", lambda db: service, raising=True
         )
 
         assert await module.load_attached_files(object(), [uuid4()], user_id=caller) == ["row"]
@@ -828,7 +828,7 @@ class TestLoadingTheRows:
         caller = uuid4()
         service = SimpleNamespace(list_turn_attachments=AsyncMock(return_value=["row"]))
         monkeypatch.setattr(
-            "app.api.deps.get_conversation_service", lambda db: service, raising=True
+            "app.services.conversation.ConversationService", lambda db: service, raising=True
         )
 
         assert await module.load_turn_attachments(object(), message_id, ["f1"], user_id=caller) == [

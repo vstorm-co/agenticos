@@ -353,7 +353,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 "This tool is not allowed on this MCP connection",
                 tool=config.tool,
             )
-        headers = await resolve_auth_headers(db, connection)
+        headers = await resolve_auth_headers(connection)
         if headers is None:
             return _failed(
                 "MCP_SERVER_UNAUTHORIZED",

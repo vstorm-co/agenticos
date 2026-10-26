@@ -136,7 +136,7 @@ or external model is started. Its assertions record these outcomes:
   145 passed.
 - Seven table UI test files covering grid, inline cells, column menus, new rows,
   CSV import, kanban and list views: 85 passed.
-- Migration 0217_workflow_api_key_authority: upgrade, downgrade, upgrade and
+- Migration 0225_workflow_api_key_authority: upgrade, downgrade, upgrade and
   `alembic check` on a disposable database; no schema drift.
 - No application startup, local full backend/frontend suite, e2e or load test.
 - These code-based demonstrations do not establish real-provider latency, sandbox
@@ -163,9 +163,9 @@ milestone's initial happy paths:
 - A deferred table delete retains its original organization. Version comparison
   stacks its canvas and summary in a narrow panel using existing design tokens.
 
-New schema changes are `0217_workflow_api_key_authority.py`,
-`0218_workflow_child_cost.py`, `0219_workflow_node_spend.py` and
-`0220_workflow_retained_spend.py`. Content-free retained accounting preserves the
+New schema changes are `0225_workflow_api_key_authority.py`,
+`0226_workflow_child_cost.py`, `0227_workflow_node_spend.py` and
+`0228_workflow_retained_spend.py`. Content-free retained accounting preserves the
 workflow monthly limit when run history is cleaned up. These changes cannot
 reconstruct historical fees that were never recorded or were already deleted.
 
@@ -195,7 +195,7 @@ member sessions when configuring unattended authority. Keys can publish manual
 workflows, run within their scopes and pause automation. Public forms enforce byte
 limits before parsing; DOCX uses bounded streaming XML. Private saved-view clauses
 are projected against current column types; Kanban saves grouping and pages lanes.
-`0221_table_event_wall_clock.py` aligns new outbox events with trigger activation;
+`0229_table_event_wall_clock.py` aligns new outbox events with trigger activation;
 existing skipped events are not replayed. Regression evidence lives in
 `test_mcp_connection_audience.py`, `test_workflow_exposures.py`,
 `test_workflow_conversion_limits.py`, `test_table_views.py`,
@@ -205,7 +205,7 @@ fields, as confirmed by the maintainer; edits to a source view cannot expand con
 
 The next review adds shared, fail-closed email delivery reservations across runs
 and workers (`test_workflow_email_send.py`, `test_workflow_email_allowance.py`),
-retained webhook tombstones (`0222_webhook_delivery_tombstones.py`), deterministic
+retained webhook tombstones (`0230_webhook_delivery_tombstones.py`), deterministic
 datetime-range failures and public-token cutoff at link expiry. Duplicate delivery
 IDs return the original run UUID even after its content has been retained away;
 old response bodies are not reconstructed.
@@ -213,7 +213,7 @@ old response bodies are not reconstructed.
 Further review verifies nested pinned file imports and admission/retention locking,
 per-case eval admission and narrowed agent continuation budgets. Canvas paste keeps
 notes, mixed gestures apply both object kinds, and examples reject older run data.
-`0223_workflow_result_bytes.py` backfills compact-result reservation counters:
+`0231_workflow_result_bytes.py` backfills compact-result reservation counters:
 64 MiB per run and 1 GiB per organization by default, including synthetic loop
 results. Reservations are released with deleted runs; small terminal control
 records remain writable at the ceiling. The broader deployment storage policy

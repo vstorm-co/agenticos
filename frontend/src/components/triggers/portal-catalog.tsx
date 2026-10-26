@@ -15,6 +15,14 @@ import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   Badge,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  FormField,
+  Input,
   Button,
   Card,
   CardContent,
@@ -33,6 +41,7 @@ import { usePortals, useSecrets, type PortalWithState } from "@/hooks";
 import type { PortalCatalogEntry } from "@/types/portals";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
+import { connectGithubApp } from "@/lib/mcp-connections-api";
 import { portalConnectUrl } from "@/lib/portal-connect";
 import { getErrorMessage } from "@/lib/api-error";
 
@@ -108,6 +117,8 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   const { items, isLoading, error } = usePortals();
 
   const [category, setCategory] = useState("all");
+  const [installing, setInstalling] = useState<PortalWithState | null>(null);
+  const [installationId, setInstallationId] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<PortalWithState | null>(null);
   const [advanced, setAdvanced] = useState(false);
@@ -139,6 +150,11 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   });
 
   async function connect(item: PortalWithState) {
+    if (item.portal.delivery === "app_webhook") {
+      setInstallationId("");
+      setInstalling(item);
+      return;
+    }
     setBusyKey(item.portal.key);
     try {
       const authorization_url = await portalConnectUrl(item);
@@ -159,6 +175,47 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
 
   return (
     <>
+      <Dialog
+        open={installing !== null}
+        onOpenChange={(open) => {
+          if (!open) setInstalling(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("githubAppInstallTitle")}</DialogTitle>
+            <DialogDescription>{t("githubAppInstallHelp")}</DialogDescription>
+          </DialogHeader>
+          <FormField label={t("installationIdLabel")} htmlFor="github-installation-id">
+            <Input
+              id="github-installation-id"
+              inputMode="numeric"
+              value={installationId}
+              onChange={(event) => setInstallationId(event.target.value)}
+            />
+          </FormField>
+          <DialogFooter>
+            <Button
+              disabled={!/^\d+$/.test(installationId) || busyKey !== null}
+              onClick={async () => {
+                if (!installing) return;
+                setBusyKey(installing.portal.key);
+                try {
+                  await connectGithubApp(installationId);
+                  await queryClient.invalidateQueries({ queryKey: qk.portals.catalog() });
+                  setInstalling(null);
+                } catch (error) {
+                  toast.error(getErrorMessage(error, tErrors, t("couldNotConnect")));
+                } finally {
+                  setBusyKey(null);
+                }
+              }}
+            >
+              {t("connectAction")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ListCard
         title={t("title")}
         counted={t("portalCount", { count: items.length })}

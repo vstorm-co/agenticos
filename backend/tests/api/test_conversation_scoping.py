@@ -172,13 +172,13 @@ class TestListingItsMessages:
         async with _client(user_id=caller, service=service, organization_id=org) as client:
             response = await client.get(
                 f"{settings.API_V1_STR}/conversations/{conversation}/messages",
-                params={"latest": "true", "before_message_id": str(cursor), "limit": 100},
+                params={"latest": "true", "before": str(cursor), "limit": 100},
             )
         assert response.status_code == 200
         assert response.json()["total"] == 250
         kwargs = service.transcript.await_args.kwargs
         assert kwargs["latest"] is True
-        assert kwargs["before_message_id"] == cursor
+        assert kwargs["before"] == cursor
         assert kwargs["organization_id"] == org
         assert kwargs["user_id"] == caller
 
@@ -187,7 +187,7 @@ class TestListingItsMessages:
         async with _client(user_id=uuid4(), service=service) as client:
             response = await client.get(
                 f"{settings.API_V1_STR}/conversations/{uuid4()}/messages",
-                params={"before_message_id": "invalid"},
+                params={"before": "invalid"},
             )
         assert response.status_code == 422
         service.transcript.assert_not_awaited()

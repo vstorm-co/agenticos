@@ -30,8 +30,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_artifact_consent_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0206_approval_capability_tool"
-_TARGET_REVISION = "0207_artifact_consent"
+_BASE_REVISION = "0214_approval_capability_tool"
+_TARGET_REVISION = "0215_artifact_consent"
 _TABLE, _STAGE = uuid.uuid4(), uuid.uuid4()
 _BINDING = ArtifactBinding(
     name="deals",

@@ -1,14 +1,14 @@
 """Whether this deployment lets a given address create an account.
 
-Three rules and one invariant, applied in `UserService.register` - the single
-place an account is minted from an unauthenticated request.
+Three rules and one invariant, applied to password and OAuth account creation
+by `UserService`.
 
 The invariant first, because it is the one that ends a deployment if it is wrong:
 **the first user is always admitted.** A fresh installation has no accounts, so
 its administrator does not exist yet; a closed deployment that also refuses the
 person who would open it is a deployment nobody can enter, with no console to fix
-it from. `register` already promotes that first account to `is_app_admin`, and
-this defers to the same fact.
+it from. Both creation paths claim bootstrap authority under the same lock,
+promote the first account to `is_app_admin`, and defer to that fact here.
 
 Then the mode:
 

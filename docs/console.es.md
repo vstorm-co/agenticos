@@ -1,5 +1,5 @@
 ---
-source_sha: "c74cc1214d3a"
+source_sha: "074e13eaf243"
 ---
 
 # La consola { #the-console }
@@ -276,18 +276,6 @@ lleva; uno con una respuesta que no has visto desde la última vez que lo abrist
 lleva un punto, que abrirlo borra - solo para ti, porque cada lector de un hilo
 compartido lo lee por separado.
 
-Al volver a abrir una conversación se muestran sus 100 mensajes más recientes.
-**Cargar mensajes anteriores** añade la página anterior arriba y conserva la
-posición del pasaje que estás leyendo. Las respuestas nuevas y el coste siguen
-correspondiendo a la conversación actual.
-
-Al abrir el chat se leen metadatos sin descargar todo el historial ni el resumen
-del modelo. El streaming reutiliza componentes de mensajes sin cambios y agrupa
-el replay por fotograma de animación, con colas limitadas y un plazo alternativo
-de 50 ms en segundo plano. Los dibujos históricos se activan cerca del área visible
-y liberan sus marcos fuera de ella; los dibujos en curso siguen renderizándose
-para informar de errores a la herramienta.
-
 Tres cosas del compositor que conviene saber.
 
 **Tus propias cuentas.** Un agent ligado a
@@ -374,6 +362,8 @@ Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.
 trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera
 por él: es conocimiento para el agent, no un calendario.
 
+Al volver a abrir una conversación, ves los mensajes más recientes. Usa **Load earlier messages** encima del historial para leer turnos más antiguos. Las respuestas en curso y los resultados sin guardar siguen visibles mientras se actualiza el historial guardado.
+
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina
 el run. Arrastra un mensaje de la cola, o usa sus flechas, para cambiar el orden.
@@ -448,6 +438,14 @@ un navegador en cualquier sitio solo para ti, antes de que un agent lo necesite:
 sesión, devuélvelo con la casilla marcada y la sesión se guarda igual. Necesita el
 navegador de inicio de sesión del despliegue
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Detener una ejecución en espera.** El botón **Stop** sigue disponible mientras el
+agente espera una respuesta, una aprobación o la conexión de una cuenta. También
+funciona al recargar una pregunta o aprobación pendiente. Detenerla cierra las llamadas
+pendientes sin reanudar el modelo y conserva el coste registrado. Puedes detener tus
+propias ejecuciones; quienes pueden aprobar también pueden detener una ejecución
+pendiente de aprobación. Si un error temporal impide detenerla, la tarjeta sigue
+disponible para volver a intentarlo.
 
 ### Dictado { #dictation }
 

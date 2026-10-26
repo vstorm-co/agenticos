@@ -22,7 +22,7 @@ from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
+from sqlalchemy.orm import defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
@@ -198,27 +198,26 @@ async def get_conversation_by_id(
     takes the active organization and enforces it. Grep for this function when
     auditing cross-tenant reads.
 
-    Summary messages are run context, excluded unless explicitly requested.
-    Metadata and transcript authorization must not decode the entire summary.
+    The large model summary is excluded and refuses implicit loading unless
+    `include_summary` is requested. Only model-history reconstruction needs it.
     """
-    options = [] if include_summary else [defer(Conversation.summary_messages, raiseload=True)]
-    if not include_messages:
-        return await db.get(Conversation, conversation_id, options=options, populate_existing=True)
-    query = (
-        select(Conversation)
-        .where(Conversation.id == conversation_id)
-        .options(
-            *options,
-            selectinload(Conversation.messages).selectinload(Message.tool_calls),
-            selectinload(Conversation.messages)
-            .selectinload(Message.files)
-            .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
-        )
+    summary_options = (
+        () if include_summary else (defer(Conversation.summary_messages, raiseload=True),)
     )
-    if include_summary:
-        query = query.execution_options(populate_existing=True)
-    result = await db.execute(query)
-    return result.scalar_one_or_none()
+    if include_messages or include_summary:
+        query = (
+            select(Conversation).options(*summary_options).where(Conversation.id == conversation_id)
+        )
+        if include_messages:
+            query = query.options(
+                selectinload(Conversation.messages).selectinload(Message.tool_calls),
+                selectinload(Conversation.messages)
+                .selectinload(Message.files)
+                .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
+            )
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+    return await db.get(Conversation, conversation_id, options=summary_options)
 
 
 def _list_filters(
@@ -1071,13 +1070,14 @@ async def get_messages_by_conversation(
     limit: int = 100,
     include_tool_calls: bool = False,
     latest: bool = False,
-    before_message_id: UUID | None = None,
+    before: UUID | None = None,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
-    `latest` selects the newest page; `before_message_id` selects its preceding
-    page using a conversation-scoped ordinal cursor. Results remain oldest first.
-    The default retains ascending offset pagination for existing callers.
+    `latest` selects the newest page, still returned oldest first; `before` selects
+    messages older than that message of this conversation (a conversation-scoped
+    ordinal cursor). Combine both to page backwards without concurrent appends
+    shifting offsets. The default is ascending offset pagination.
 
     Ordered by `ordinal` rather than `created_at`: one turn writes the question
     and the answer in a single transaction, and `func.now()` gives both the same
@@ -1090,20 +1090,18 @@ async def get_messages_by_conversation(
     query = query.options(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
     )
-    backwards = latest or before_message_id is not None
-    if before_message_id is not None:
-        anchor = aliased(Message)
-        cursor = (
-            select(anchor.ordinal)
-            .where(anchor.id == before_message_id, anchor.conversation_id == conversation_id)
+    if before is not None:
+        boundary = (
+            select(Message.ordinal)
+            .where(Message.id == before, Message.conversation_id == conversation_id)
             .scalar_subquery()
         )
-        query = query.where(Message.ordinal < cursor)
-    order = Message.ordinal.desc() if backwards else Message.ordinal.asc()
+        query = query.where(Message.ordinal < boundary)
+    order = Message.ordinal.desc() if latest else Message.ordinal.asc()
     query = query.order_by(order).offset(skip).limit(limit)
     result = await db.execute(query)
-    messages = list(result.scalars().all())
-    return list(reversed(messages)) if backwards else messages
+    items = list(result.scalars().all())
+    return list(reversed(items)) if latest else items
 
 
 async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
@@ -1386,6 +1384,7 @@ async def create_message(
     conversation_id: UUID,
     role: str,
     content: str,
+    client_message_id: str | None = None,
     thinking: str | None = None,
     parts: list[dict[str, object]] | None = None,
     model_name: str | None = None,
@@ -1410,6 +1409,7 @@ async def create_message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        client_message_id=client_message_id,
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
         author_user_id=author_user_id,

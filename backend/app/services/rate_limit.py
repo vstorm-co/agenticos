@@ -49,6 +49,7 @@ import time
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from uuid import UUID
 
 from starlette.requests import HTTPConnection
 
@@ -556,6 +557,28 @@ async def embed_generated_media_allowed(token: str) -> Decision:
         surface="embed_generated_media",
         caller=f"token:{hashlib.sha256(token.encode()).hexdigest()}",
         limit=Limit(attempts=EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE),
+    )
+
+
+TRIGGER_DELIVERIES_PER_MINUTE = 60
+"""How many verified deliveries one event trigger fires in a minute.
+
+Each is an agent run. A provider sending a burst of real events stays well under
+it; what it bounds is a signing secret that leaked, or a relay misconfigured into
+a loop, firing runs until the organization's budget is gone.
+"""
+
+
+async def trigger_delivery_allowed(trigger_id: UUID) -> Decision:
+    """Whether this event trigger may fire on one more verified delivery right now.
+
+    Keyed on the trigger and counted only after the signature holds, so nobody
+    without the secret can spend the allowance and starve the real integration.
+    """
+    return await consume(
+        surface="trigger_delivery",
+        caller=f"trigger:{trigger_id}",
+        limit=Limit(attempts=TRIGGER_DELIVERIES_PER_MINUTE),
     )
 
 

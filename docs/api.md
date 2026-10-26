@@ -49,6 +49,12 @@ of their past conversations, no sites they kept signed in for the browser, and
 no user-scoped sandbox workspace. Whoever holds the key is a script, not the
 person, so the run answers as it would on a public widget.
 
+Read-only connection discovery is also public: `GET /sandbox-connections`,
+`GET /sandbox-connections/runtimes` and `GET /sandbox-connections/{id}/policy`
+require `connections:view`; `GET /mcp-connections` requires `mcp:manage`.
+Organization and key scopes still apply. Connection writes and credential
+operations remain session-only.
+
 ```bash
 curl "$BASE/api/v1/me/permissions" \
   -H "Authorization: Bearer $AGENTICOS_KEY"
@@ -330,7 +336,7 @@ allowance `POST /workflow-runs` does, and past it gets `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks and schedules { #workflow-webhooks-and-schedules }
 
-Webhook and GitHub delivery IDs survive run-content retention as minimal tombstones owned by the exposure and organization. A duplicate still returns the original run UUID after its content is deleted; its status and previous webhook response may no longer be available. Deleting the exposure or organization ends that deduplication lifetime. Migration `0222_webhook_delivery_tombstones.py` cannot restore claims already deleted by older retention; downgrading removes orphan tombstones before restoring the old cascading foreign key.
+Webhook and GitHub delivery IDs survive run-content retention as minimal tombstones owned by the exposure and organization. A duplicate still returns the original run UUID after its content is deleted; its status and previous webhook response may no longer be available. Deleting the exposure or organization ends that deduplication lifetime. Migration `0230_webhook_delivery_tombstones.py` cannot restore claims already deleted by older retention; downgrading removes orphan tombstones before restoring the old cascading foreign key.
 
 Unattended trigger publication and authority changes require a member session (`403` for an organization API key). Keys may publish manual workflows, start runs within their scopes and pause exposures, but cannot enable them, rotate secrets/form links, retime schedules or choose a new error-workflow identity. These operations retain a user's authority for future events.
 

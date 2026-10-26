@@ -313,15 +313,69 @@ class TestKeepingATurn:
         ]
         assert frames[-1] == (live_turn.END, {"conversation_id": CONVERSATION})
 
-    async def test_a_trace_already_ended_stops_at_its_end(self, store: _Store) -> None:
+    async def test_a_writer_that_died_without_a_terminal_frame_is_not_waited_on(
+        self, store: _Store
+    ) -> None:
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "partial"})
+        if turn.beat is not None:
+            turn.beat.cancel()
+            await asyncio.gather(turn.beat, return_exceptions=True)
+            turn.beat = None
+        await store.delete(turn.key("alive"))
+
+        frames = [frame async for frame in live_turn.follow(CONVERSATION, turn.token)]
+        assert [(frame["type"], frame["data"]) for frame in frames] == [
+            ("text_delta", {"content": "partial"})
+        ]
+        assert await live_turn.live_token(CONVERSATION) is None
+
+    async def test_a_trace_ended_while_subscribing_is_refetched_without_replay(
+        self, store: _Store
+    ) -> None:
         turn = await _begin()
         await live_turn.publish(turn, "text_delta", {"content": "1"})
+
+        await live_turn.publish(turn, "message_saved", {"message_id": "saved"})
 
         async def ended_while_subscribing() -> None:
             await live_turn.end(turn)
 
         store.on_subscribe = ended_while_subscribing
-        assert [kind for kind, _ in await _followed()] == ["text_delta", live_turn.END]
+        assert [kind for kind, _ in await _followed()] == [live_turn.END]
+
+    async def test_a_completed_trace_is_refetched_without_replaying_its_answer(
+        self, store: _Store
+    ) -> None:
+        turn = await _begin()
+        try:
+            await live_turn.publish(turn, "model_request_start", {})
+            await live_turn.publish(turn, "text_delta", {"content": "Already answered"})
+            await live_turn.publish(turn, "message_saved", {"message_id": "saved"})
+            await live_turn.publish(turn, "complete", {"conversation_id": CONVERSATION})
+            assert [kind for kind, _ in await _followed()] == [live_turn.END]
+            assert await live_turn.live_token(CONVERSATION) is None
+        finally:
+            await live_turn.end(turn)
+
+    @pytest.mark.parametrize("terminal", ["error", "complete"])
+    async def test_an_unsaved_outcome_remains_available_to_a_follower(
+        self, store: _Store, terminal: str
+    ) -> None:
+        turn = await _begin()
+        try:
+            await live_turn.publish(turn, "text_delta", {"content": "Not yet saved"})
+            await live_turn.publish(turn, terminal, {"message": "The request was refused"})
+
+            async def end_after_subscribing() -> None:
+                await live_turn.end(turn)
+
+            store.on_subscribe = end_after_subscribing
+            frames = await _followed()
+            assert [kind for kind, _ in frames] == ["text_delta", terminal, live_turn.END]
+            assert frames[0][1]["content"] == "Not yet saved"
+        finally:
+            await live_turn.end(turn)
 
     async def test_a_channel_that_closes_ends_the_follow(self, store: _Store) -> None:
         turn = await _begin()
@@ -396,6 +450,21 @@ class TestKeepingATurn:
         assert frames == ["text_delta"]
         assert await live_turn.live_token(CONVERSATION) is None
 
+    async def test_a_dead_newer_writer_does_not_hide_an_older_live_turn(
+        self, store: _Store
+    ) -> None:
+        older = await _begin()
+        newer = await _begin()
+        assert newer.beat is not None
+        newer.beat.cancel()
+        await store.delete(newer.key("alive"))
+        try:
+            assert await live_turn.live_token(CONVERSATION) == older.token
+            assert newer.token not in store.lists[f"turn:{CONVERSATION}:live"]
+        finally:
+            await live_turn.end(older)
+            await live_turn.end(newer)
+
     async def test_a_turn_found_with_its_writer_gone_is_not_waited_on(self, store: _Store) -> None:
         turn = await _begin()
         await live_turn.publish(turn, "text_delta", {"content": "1"})
@@ -403,10 +472,10 @@ class TestKeepingATurn:
         turn.beat.cancel()
         await store.delete(turn.key("alive"))
 
-        assert [kind for kind, _ in await _followed()] == ["text_delta"]
+        assert await _followed() == []
         assert await live_turn.live_token(CONVERSATION) is None
 
-    async def test_an_ended_turn_left_listed_is_taken_off_by_whoever_reads_its_end(
+    async def test_an_ended_turn_left_listed_is_taken_off_when_its_writer_is_checked(
         self, store: _Store
     ) -> None:
         """`end` timing out on its removal but keeping its end left the turn listed,
@@ -415,10 +484,8 @@ class TestKeepingATurn:
         newer = await _begin()
         with patch.object(store, "lrem", side_effect=ConnectionError("timed out")):
             await live_turn.end(newer)
-        assert await live_turn.live_token(CONVERSATION) == newer.token
-
-        assert [kind for kind, _ in await _followed()] == [live_turn.END]
-
+        assert await live_turn.live_token(CONVERSATION) == older.token
+        assert newer.token not in store.lists[f"turn:{CONVERSATION}:live"]
         assert await live_turn.live_token(CONVERSATION) == older.token
         await live_turn.end(older)
 
@@ -690,7 +757,10 @@ class TestFollowingFromAnotherSocket:
             chat.prompt.return_value = PersistedPrompt(
                 conversation_id=_CONVERSATION, newly_created=False, reply=quote
             )
-            await session.process_message(_message("yes, do that"))
+            await session.process_message(
+                {**_message("yes, do that"), "client_message_id": "local-prompt"}
+            )
+            assert chat.prompt.await_args.kwargs["client_message_id"] == "local-prompt"
 
         (trace,) = [
             key
@@ -699,6 +769,43 @@ class TestFollowingFromAnotherSocket:
         ]
         prompt = json.loads(store.lists[trace][0])["data"]
         assert prompt["reply_to"]["excerpt"] == "Plan: A, B"
+        assert prompt["client_message_id"] == "local-prompt"
+
+    @pytest.mark.parametrize("stage", ["_enter_room", "publish", "turn_begun"])
+    async def test_cancelling_before_the_model_still_ends_the_trace(
+        self, store: _Store, stage: str
+    ) -> None:
+        session = _session()
+        begun: list[live_turn.Turn] = []
+
+        async def cancelled(*_args: object, **_kwargs: object) -> None:
+            assert session._live_turn is not None
+            begun.append(session._live_turn)
+            raise asyncio.CancelledError
+
+        target = (
+            patch.object(session, stage, side_effect=cancelled)
+            if stage == "_enter_room"
+            else patch(
+                "app.services.agent_session."
+                + ("live_turn.publish" if stage == "publish" else "chat_room.turn_begun"),
+                side_effect=cancelled,
+            )
+        )
+        try:
+            with (
+                _chat(AsyncMock(return_value=_finished_turn())),
+                target,
+                pytest.raises(asyncio.CancelledError),
+            ):
+                await session.process_message(_message())
+            assert await live_turn.live_token(_CONVERSATION) is None
+            assert session._live_turn is None
+            assert begun[0].beat is None
+        finally:
+            for turn in begun:
+                await live_turn.end(turn)
+            await session.shutdown()
 
     async def test_a_turn_this_socket_writes_is_kept_for_whoever_comes_back(
         self, store: _Store
@@ -1229,3 +1336,19 @@ class TestStillReading:
 
         websocket.close.assert_awaited_once()
         member.assert_not_awaited()
+
+
+async def test_a_full_trace_keeps_save_and_completion_markers_without_replaying_a_saved_answer(
+    store: _Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    turn = await _begin()
+    await live_turn.publish(turn, "text_delta", {"content": "already saved"})
+    monkeypatch.setattr(live_turn, "MAX_TRACE_BYTES", 0)
+    await live_turn.publish(turn, "text_delta", {"content": "over the content budget"})
+    await live_turn.publish(turn, "message_saved", {"message_id": "saved"})
+    await live_turn.publish(turn, "complete", {})
+    await live_turn.end(turn)
+    frames = [frame async for frame in live_turn.follow(CONVERSATION, turn.token)]
+    assert [frame["type"] for frame in frames] == [live_turn.END]
+    kept = [json.loads(raw)["type"] for raw in store.lists[turn.key("trace")]]
+    assert kept == ["text_delta", "message_saved", "complete", live_turn.END]

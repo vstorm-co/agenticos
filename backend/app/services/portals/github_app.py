@@ -236,7 +236,7 @@ class GitHubAppPortalAdapter(PortalAdapter):
         target: str | None,
         webhook_url: str,
         secret: str,
-        events: Sequence[str] | None = None,
+        events: Sequence[str] = (),
     ) -> RegisteredWebhook:
         """Register nothing, and say so by answering rather than raising.
 

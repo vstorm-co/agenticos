@@ -16,6 +16,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { AgentFace } from "@/components/dashboard/agent-face";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddToGroupDialog } from "@/components/groups/add-to-group-dialog";
 import { DepartmentBudget } from "@/components/groups/department-budget";
@@ -23,7 +24,7 @@ import { DepartmentQuality } from "@/components/groups/department-quality";
 import { GroupIcon } from "@/components/groups/group-icon";
 import { GroupFormDialog } from "@/components/orgs/group-form-dialog";
 import { GroupMembersDialog } from "@/components/orgs/group-members-dialog";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { Button, ListCard, ListCardEmpty } from "@/components/ui";
 import { useGroupMembers, useGroupResources, useGroups, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
@@ -61,6 +62,7 @@ const KINDS: readonly {
 export default function GroupPage({ params }: PageProps) {
   const t = useTranslations("groups");
   const tErrors = useTranslations("errors");
+  const ts = useTranslations("states");
   const { id } = use(params);
   const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const { can } = usePermissions();
@@ -77,7 +79,24 @@ export default function GroupPage({ params }: PageProps) {
   const [adding, setAdding] = useState(false);
   const group = groups.find((entry) => entry.id === id);
 
-  if (groupsLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (groupsLoading)
+    return (
+      <div className="space-y-6" role="status" aria-label={ts("loading")}>
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-9 w-64" />
+        </div>
+        {(seesRuns || leads) && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton className="h-64 w-full rounded-2xl" />
+            <Skeleton className="h-64 w-full rounded-2xl" />
+          </div>
+        )}
+        <ListCard title={t("whatItHas")} counted={null}>
+          <ResourceSkeleton />
+        </ListCard>
+      </div>
+    );
   if (!group) {
     return <ErrorState title={t("groupNotFound")} description={t("groupNotFoundWhy")} />;
   }
@@ -127,7 +146,7 @@ export default function GroupPage({ params }: PageProps) {
         {error ? (
           <ErrorState description={getErrorMessage(error, tErrors)} />
         ) : isLoading ? (
-          <LoadingState variant="skeleton-panel" rows={2} />
+          <ResourceSkeleton />
         ) : resources.length === 0 ? (
           <ListCardEmpty
             icon={Users}
@@ -190,6 +209,21 @@ export default function GroupPage({ params }: PageProps) {
           onClose={() => setMembers(false)}
         />
       )}
+    </div>
+  );
+}
+
+function ResourceSkeleton() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2" aria-hidden>
+      {[0, 1].map((kind) => (
+        <section key={kind} className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          {[0, 1, 2].map((row) => (
+            <Skeleton key={row} className="h-7 w-full" />
+          ))}
+        </section>
+      ))}
     </div>
   );
 }

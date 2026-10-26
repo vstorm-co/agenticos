@@ -34,7 +34,7 @@ import logging
 import re
 import secrets
 from collections import Counter
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -44,6 +44,7 @@ from mcp.shared.auth import OAuthToken
 from pydantic import SecretStr, TypeAdapter
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.agents import mcp_oauth
 from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
@@ -78,12 +79,12 @@ from app.core.exceptions import (
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.core.sanitize import UrlRefusedError
-from app.core.secret_kinds import GithubAppSecret, SecretKind
+from app.core.secret_kinds import GithubAppSecret, MicrosoftOAuthAppSecret, SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.locks import LockScope, hold_name
 from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.db.models.resource_grant import Visibility
-from app.db.session import get_db_context
+from app.db.session import get_db_context, get_worker_db_context
 from app.db.updates import writable
 from app.repositories import (
     conversation_repo,
@@ -107,7 +108,7 @@ from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.notifications import NotificationService
 from app.services.organization_secret import OrganizationSecretService
-from app.services.portals import github_app, github_oauth, google_oauth
+from app.services.portals import github_app, github_oauth, google_oauth, microsoft_oauth
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.resource_usage import agents_using_mcp
 from app.services.sharing import SharingService
@@ -209,7 +210,9 @@ def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload
             "refresh_token": (
                 SecretStr(token.refresh_token) if token.refresh_token else payload.refresh_token
             ),
-            "expires_at": (_now_epoch() + token.expires_in) if token.expires_in else None,
+            "expires_at": (
+                _now_epoch() + token.expires_in if token.expires_in is not None else None
+            ),
             "scope": token.scope or payload.scope,
             "code_verifier": None,
         }
@@ -239,6 +242,19 @@ async def _complete_mcp_flow(
     )
     payload = _apply_token(payload, token)
     return payload, (payload.scope.split() if payload.scope else None)
+
+
+def _same_account(kept: dict[str, Any] | None, fresh: dict[str, Any] | None) -> bool:
+    """Whether a kept poll cursor was read from the account a fresh snapshot names.
+
+    Unknown counts as different - an older cursor naming no account, or a
+    snapshot the provider could not answer: starting from now costs minutes of
+    mail, keeping another account's position costs the grant.
+    """
+    if kept is None or fresh is None:
+        return False
+    account = kept.get("account")
+    return isinstance(account, str) and bool(account) and account == fresh.get("account")
 
 
 async def _initial_poll_cursor(*, portal_key: str, access_token: str) -> dict[str, Any] | None:
@@ -293,6 +309,44 @@ async def _complete_google_flow(
             # nothing to say why - which is why the consent URL asks for it. A
             # re-consent that omits one falls back to the live payload's, in the
             # callback, where that payload is in hand.
+            "refresh_token": SecretStr(token.refresh_token) if token.refresh_token else None,
+            "expires_at": (
+                None if token.expires_in is None else _now_epoch() + float(token.expires_in)
+            ),
+            "code_verifier": None,
+        }
+    )
+    return payload, (token.granted_scopes or None)
+
+
+async def _complete_microsoft_flow(
+    payload: McpOAuthPayload, code: str
+) -> tuple[McpOAuthPayload, list[str] | None]:
+    """Exchange a code through Microsoft's OAuth flow and fold the token in.
+
+    Google's shape: an access token that expires in about an hour, a refresh token
+    `offline_access` asked for, and the scopes the account actually consented to.
+    The tenant's token endpoint was fixed when the flow started, from the app
+    registration in the vault, and travels in the pending payload, with the PKCE
+    verifier the consent URL was built from.
+    """
+    if not payload.code_verifier:
+        raise OAuthError("This authorization session is no longer valid - start again.")
+    try:
+        token = await microsoft_oauth.exchange_code(
+            token_endpoint=payload.token_endpoint,
+            client_id=payload.client_id,
+            client_secret=_revealed(payload.client_secret) or "",
+            code=code,
+            redirect_uri=payload.redirect_uri,
+            scopes=(payload.scope or "").split(),
+            code_verifier=payload.code_verifier,
+        )
+    except microsoft_oauth.MicrosoftOAuthError as exc:
+        raise OAuthError(str(exc)) from exc
+    payload = payload.model_copy(
+        update={
+            "access_token": SecretStr(token.access_token),
             "refresh_token": SecretStr(token.refresh_token) if token.refresh_token else None,
             "expires_at": (
                 None if token.expires_in is None else _now_epoch() + float(token.expires_in)
@@ -387,7 +441,14 @@ def _decode_payload(connection: McpConnection, encrypted: str | None) -> McpOAut
 # point at". A portal added here needs a row; one absent from it cannot be polled,
 # and `oauth_start_for_polled_portal` would raise a `KeyError` before writing
 # anything, which is the loud failure a silent empty string would not be.
-_POLLED_PORTAL_URL = {"google": "https://gmail.googleapis.com"}
+_POLLED_PORTAL_URL = {
+    "google": "https://gmail.googleapis.com",
+    "google_calendar": "https://www.googleapis.com/calendar",
+    "google_drive": "https://www.googleapis.com/drive",
+    "microsoft": "https://graph.microsoft.com",
+    "microsoft_files": "https://graph.microsoft.com",
+    "outlook_calendar": "https://graph.microsoft.com",
+}
 
 _GITHUB_APP_GRANT_URL = "https://api.github.com"
 """What a GitHub App grant records as its address.
@@ -407,6 +468,30 @@ _POLL_INTERVAL = timedelta(seconds=55)
 _POLL_BATCH = 50
 
 
+GRANT_REVOKED = (
+    "The account no longer grants access - reconnect it, then turn its triggers back on."
+)
+"""What a polled grant's card says once the provider has refused it for good."""
+
+
+@dataclass(frozen=True)
+class RevokedGrant:
+    """A polled grant the provider no longer honours: it needs a new consent."""
+
+
+def grant_needs_consent(connection: McpConnection) -> bool:
+    """True when nothing but a new consent can make this grant usable again.
+
+    No readable payload, no access token, or one that has expired with no refresh
+    token left to renew it - which is also what a refresh refused as
+    `invalid_grant` leaves behind, since that token is dropped.
+    """
+    payload = _decode_payload(connection, connection.oauth_payload)
+    if payload is None or not payload.access_token:
+        return True
+    return not _token_is_fresh(payload) and payload.refresh_token is None
+
+
 def _token_is_fresh(payload: McpOAuthPayload) -> bool:
     """True when the stored access token is good for at least the skew window."""
     return (
@@ -415,27 +500,75 @@ def _token_is_fresh(payload: McpOAuthPayload) -> bool:
     )
 
 
-async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> str | None:
-    """Spend the refresh token for *connection* while holding its row lock.
+def _same_refresh_target(expected: McpConnection, live: McpConnection) -> bool:
+    """Never send a newly rotated credential through a stale binding."""
+    return (
+        connection_scope(expected) == connection_scope(live)
+        and expected.url == live.url
+        and expected.auth_type == live.auth_type
+        and expected.is_enabled == live.is_enabled
+        and expected.purpose == live.purpose
+        and set(expected.granted_scopes or []) == set(live.granted_scopes or [])
+    )
 
-    Two chat turns for the same user can reach an expired token at the same
-    moment. Providers that rotate refresh tokens invalidate whichever copy is
-    redeemed second, and the connection then stops working with no visible
-    cause. The lock makes the loser wait, re-read the row, and find the token
-    the winner already stored.
 
-    A turn can end up holding several of these at once; they're always taken in
-    `list_for_user` order (created_at ascending), so two turns can't deadlock
-    by grabbing the same pair of rows in opposite orders.
-    """
-    locked = await mcp_connection_repo.get_by_id_for_update(db, connection.id)
-    if locked is None:
-        return None
+async def _refresh_under_lock(
+    connection: McpConnection, *, rejected: str | None = None
+) -> str | None:
+    """Finish provider rotation and its commit even if the requesting run stops."""
+    task = asyncio.create_task(
+        _refresh_transaction(connection, rejected=rejected), name="mcp-oauth-refresh"
+    )
+    try:
+        await asyncio.wait({task})
+        return task.result()
+    except asyncio.CancelledError:
+        while not task.done():
+            try:
+                await asyncio.wait({task})
+            except asyncio.CancelledError:
+                continue
+        if not task.cancelled() and task.exception() is not None:
+            logger.error(
+                "mcp_refresh_settlement_failed",
+                extra={"error_type": type(task.exception()).__name__},
+            )
+        raise
+
+
+async def _refresh_transaction(
+    connection: McpConnection, *, rejected: str | None = None
+) -> str | None:
+    # A separate NullPool connection cannot be starved by requesting runs holding
+    # all API-pool connections while they wait for their credential's commit.
+    try:
+        async with get_worker_db_context() as db:
+            locked = await mcp_connection_repo.get_for_token_refresh(db, connection.id)
+            if locked is None or not _same_refresh_target(connection, locked):
+                return None
+            token = await _rotate_token(db, locked, rejected=rejected)
+    except Exception as exc:
+        logger.error(
+            "mcp_refresh_persistence_uncertain",
+            extra={"connection_id": str(connection.id), "error_type": type(exc).__name__},
+        )
+        raise
+    # The independent transaction already committed. Synchronize the caller's
+    # view without scheduling an UPDATE that could overwrite a later rotation.
+    set_committed_value(connection, "oauth_payload", locked.oauth_payload)
+    return token
+
+
+async def _rotate_token(
+    db: AsyncSession, locked: McpConnection, *, rejected: str | None = None
+) -> str | None:
+    """Refresh under the independently owned transaction's row lock."""
     payload = _decode_payload(locked, locked.oauth_payload)
     if payload is None or not payload.access_token:
         return None
-    if _token_is_fresh(payload):
-        return _revealed(payload.access_token)  # another turn refreshed while we waited
+    held = _revealed(payload.access_token)
+    if _token_is_fresh(payload) and held != rejected:
+        return held  # another turn refreshed while we waited
     if not payload.refresh_token:
         return None
     try:
@@ -444,12 +577,29 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
             client_id=payload.client_id,
             client_secret=_revealed(payload.client_secret),
             refresh_token=payload.refresh_token.get_secret_value(),
-            resource=payload.resource,
+            # Microsoft's v2.0 endpoint refuses RFC 8707's `resource`; the scopes
+            # already say which API the token is for.
+            resource=None if payload.provider == microsoft_oauth.PROVIDER else payload.resource,
             scope=payload.scope,
             server_url=payload.server_url,
         )
+    except mcp_oauth.OAuthGrantRevoked:
+        # Dead for good, so it is dropped rather than spent again every minute:
+        # with no refresh token the row reads as needing a new consent, which is
+        # what it needs (`grant_needs_consent`).
+        logger.warning("OAuth grant revoked for %r", locked.name)
+        await mcp_connection_repo.update(
+            db,
+            db_connection=locked,
+            update_data={
+                "oauth_payload": _seal_for(
+                    locked, payload.model_copy(update={"refresh_token": None}).model_dump_json()
+                ).ciphertext
+            },
+        )
+        return None
     except OAuthError as exc:
-        logger.warning("OAuth token refresh failed for %r: %s", connection.name, exc)
+        logger.warning("OAuth token refresh failed for %r: %s", locked.name, exc)
         return None
     payload = _apply_token(payload, token)
     await mcp_connection_repo.update(
@@ -460,7 +610,7 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
     return _revealed(payload.access_token)
 
 
-async def _oauth_access_token(db: AsyncSession, connection: McpConnection) -> str | None:
+async def _oauth_access_token(connection: McpConnection) -> str | None:
     """A currently-valid access token for an OAuth connection, refreshing and
     persisting if needed. None when the connection isn't authorized yet, its
     token expired with no refresh path, or the payload can't be decrypted."""
@@ -471,7 +621,7 @@ async def _oauth_access_token(db: AsyncSession, connection: McpConnection) -> st
         return _revealed(payload.access_token)
     if not payload.refresh_token:
         return None  # expired, no refresh token → user must re-authorize
-    return await _refresh_under_lock(db, connection)
+    return await _refresh_under_lock(connection)
 
 
 async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
@@ -494,6 +644,7 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
     connections = await mcp_connection_repo.list_oauth_connections(db)
     counts = {"checked": 0, "refreshed": 0, "needs_authorization": 0, "skipped": 0}
 
+    outcomes: list[tuple[McpConnection, bool]] = []
     for connection in connections:
         payload = _decode_payload(connection, connection.oauth_payload)
         if payload is None or not payload.access_token:
@@ -507,8 +658,11 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
             counts["skipped"] += 1
             continue
 
-        token = await _refresh_under_lock(db, connection) if payload.refresh_token else None
+        token = await _refresh_under_lock(connection) if payload.refresh_token else None
         healthy = token is not None
+        outcomes.append((connection, healthy))
+
+    for connection, healthy in sorted(outcomes, key=lambda item: item[0].id):
         await mcp_connection_repo.update(
             db,
             db_connection=connection,
@@ -535,13 +689,15 @@ async def _record_check(
     db: AsyncSession, connection: McpConnection, tools: list[McpToolInfo], error: str | None
 ) -> McpConnection:
     """Write one check's outcome where the console reads it."""
+    checked_at = datetime.now(UTC)
     return await mcp_connection_repo.update(
         db,
         db_connection=connection,
         update_data={
             "last_status": "error" if error else "ok",
             "last_error": error,
-            "last_checked_at": datetime.now(UTC),
+            "last_checked_at": checked_at,
+            "health_checked_at": checked_at,
             # Only on a probe that answered. A failed one says nothing about
             # what the server offers, and blanking the list would leave an
             # agent author with nothing to choose from because the server
@@ -582,26 +738,49 @@ async def record_reachability(
         )
 
 
-async def check_organization_servers(db: AsyncSession) -> dict[str, int]:
-    """Dial every enabled organization server and record whether it answered (#2100).
+_HEALTH_CHECK_BATCH = 64
+_HEALTH_CHECK_CONCURRENCY = 8
 
-    The scheduled half of the outage notice. A run finds a dead server only
-    when somebody uses an agent bound to it; this finds it within one sweep
-    either way, so whoever manages it can hear before a person does. Servers
-    are dialled concurrently and written one at a time - the session is not
-    shared across tasks. A server whose credential is not usable is skipped:
-    renewing grants is the OAuth sweep's business, not an outage.
+
+async def check_organization_servers(db: AsyncSession) -> dict[str, int]:
+    """Probe an oldest-first batch with bounded network concurrency.
+
+    Resolve credentials before writing rows. Session writes remain sequential;
+    unusable credentials advance the check time without declaring an outage.
     """
     counts = {"answered": 0, "unreachable": 0, "skipped": 0}
     targets: list[tuple[McpConnection, dict[str, str]]] = []
-    for connection in await mcp_connection_repo.list_org_servers_to_check(db):
-        headers = await resolve_auth_headers(db, connection)
+    skipped: list[McpConnection] = []
+    for connection in await mcp_connection_repo.list_org_servers_to_check(
+        db, limit=_HEALTH_CHECK_BATCH
+    ):
+        headers = await resolve_auth_headers(connection)
         if headers is None:
             counts["skipped"] += 1
+            skipped.append(connection)
             continue
         targets.append((connection, headers))
-    outcomes = await asyncio.gather(*(_reach(c.url, headers) for c, headers in targets))
-    for (connection, _), (tools, error) in zip(targets, outcomes, strict=True):
+    outcomes: list[tuple[list[McpToolInfo], str | None]] = []
+    for offset in range(0, len(targets), _HEALTH_CHECK_CONCURRENCY):
+        batch = targets[offset : offset + _HEALTH_CHECK_CONCURRENCY]
+        outcomes.extend(await asyncio.gather(*(_reach(c.url, headers) for c, headers in batch)))
+    writes = sorted(
+        [(c, outcome) for (c, _), outcome in zip(targets, outcomes, strict=True)]
+        + [(c, None) for c in skipped],
+        key=lambda item: item[0].id,
+    )
+    for connection, outcome in writes:
+        if outcome is None:
+            await mcp_connection_repo.update(
+                db,
+                db_connection=connection,
+                update_data={
+                    "last_checked_at": datetime.now(UTC),
+                    "health_checked_at": datetime.now(UTC),
+                },
+            )
+            continue
+        tools, error = outcome
         connection = await _record_check(db, connection, tools, error)
         await record_reachability(db, connection, reachable=error is None)
         counts["answered" if error is None else "unreachable"] += 1
@@ -622,13 +801,11 @@ async def _record_run_reachability(observed: list[tuple[UUID, bool]]) -> None:
                 await record_reachability(db, connection, reachable=reachable)
 
 
-async def resolve_auth_headers(
-    db: AsyncSession, connection: McpConnection
-) -> dict[str, str] | None:
+async def resolve_auth_headers(connection: McpConnection) -> dict[str, str] | None:
     """Auth headers to reach *connection*, or None if it can't be used right now
     (OAuth not authorized / expired, or an undecryptable bearer token)."""
     if connection.auth_type == "oauth":
-        token = await _oauth_access_token(db, connection)
+        token = await _oauth_access_token(connection)
         return {"Authorization": f"Bearer {token}"} if token else None
     if connection.auth_token is None:
         return {}
@@ -842,10 +1019,12 @@ class McpConnectionService:
         return await self._probe(db_connection)
 
     async def _probe(
-        self, db_connection: McpConnection
+        self, db_connection: McpConnection, *, auth_headers: dict[str, str] | None = None
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Talk to the server, record what happened, and report its tools."""
-        headers = await resolve_auth_headers(self.db, db_connection)
+        headers = (
+            auth_headers if auth_headers is not None else await resolve_auth_headers(db_connection)
+        )
         if headers is None:
             # A grant to renew, not a server that stopped answering: no outage
             # is opened or closed by it.
@@ -1247,50 +1426,90 @@ class McpConnectionService:
             state=state,
         )
 
-    async def claim_grants_to_poll(self, *, portal_keys: list[str]) -> list[McpConnection]:
-        """The portal grants this tick should read, claimed so no other tick does.
-
-        No `AuthContext`: the poller is the deployment's own work, not a member's
-        request, and it crosses organizations by design - one tick reads every
-        connected mailbox. Every later step is scoped by the grant's own
-        `organization_id`, which is what authorized reading that account.
-
-        Claimed with `polled_at` advanced under the row lock, the protocol the
-        trigger heartbeat already uses: a tick that outruns its minute cannot be
-        double-claimed by the next, and a worker that dies mid-poll frees its lock
-        without parking the mailbox - the next tick finds `polled_at` old again.
-        """
-        return await mcp_connection_repo.claim_portal_grants_to_poll(
+    async def portal_poll_candidates(self, *, portal_keys: list[str]) -> list[UUID]:
+        """Discover a bounded oldest-first deployment batch without row locks."""
+        return await mcp_connection_repo.portal_poll_candidates(
             self.db,
             portal_keys=portal_keys,
             not_polled_since=datetime.now(UTC) - _POLL_INTERVAL,
             limit=_POLL_BATCH,
         )
 
-    async def poll_grant(self, grant: McpConnection) -> portals.PolledEvents | None:
-        """Read one connected account, or `None` when it cannot be read now.
+    async def claim_grant_to_poll(
+        self, *, connection_id: UUID, portal_keys: list[str]
+    ) -> McpConnection | None:
+        """Claim one mailbox for this transaction, then recheck its eligibility."""
+        return await mcp_connection_repo.claim_portal_grant_to_poll(
+            self.db,
+            connection_id=connection_id,
+            portal_keys=portal_keys,
+            not_polled_since=datetime.now(UTC) - _POLL_INTERVAL,
+        )
 
-        `None` rather than an exception for every recoverable case - no adapter, a
-        token that will not refresh, a provider that is down - because a poll is a
-        heartbeat's work: the tick moves on to the next mailbox and this one is
-        tried again in a minute. The grant's own status records what happened, so a
-        mailbox that has stopped working says so on the card rather than only in a
-        log.
+    async def record_poll_processing_failure(self, connection_id: UUID) -> None:
+        """Advance a malformed mailbox after its partial work has rolled back."""
+        grant = await mcp_connection_repo.get_by_id(self.db, connection_id)
+        if grant is not None:
+            await self._record_poll_failure(grant, "The mailbox response could not be processed")
 
-        A revoked grant is marked `error` and left enabled: re-consenting repairs
-        it, and disabling it would take it out of the claim and out of the card's
-        reach at the same time.
+    async def poll_grant(
+        self, grant: McpConnection, *, places: Mapping[str, datetime] = portals.NOWHERE
+    ) -> portals.PolledEvents | RevokedGrant | None:
+        """Read one connected account, or say why it cannot be read.
+
+        `None` for every transient case - no adapter, a token endpoint or provider
+        that is down - because a poll is a heartbeat's work: the tick moves on to
+        the next mailbox and this one is tried again in a minute. The grant's own
+        status records what happened, so a mailbox that has stopped working says so
+        on the card rather than only in a log.
+
+        `RevokedGrant` when retrying cannot help: the refresh token was refused as
+        `invalid_grant`, or the provider refused a token this side still held to be
+        good. The caller turns the triggers reading this account off, and the
+        grant itself is marked `error` and left enabled: re-consenting repairs it,
+        and disabling it would take it out of the claim and out of the card's reach
+        at the same time.
+
+        `places` is passed through to the adapter - see `PortalAdapter.poll`.
         """
         adapter = portals.get_adapter(grant.portal_key or "")
         if adapter is None:
+            await self._record_poll_failure(grant, "No mailbox reader is available")
             return None
-        token = await _oauth_access_token(self.db, grant)
+        token = await _oauth_access_token(grant)
         if token is None:
+            if grant_needs_consent(grant):
+                return await self._revoked(grant)
             await self._record_poll_failure(grant, "The connected account could not be renewed")
             return None
         try:
-            read = await adapter.poll(access_token=token, cursor=grant.poll_cursor)
+            try:
+                read = await adapter.poll(
+                    access_token=token, cursor=grant.poll_cursor, places=places
+                )
+            except portals.PortalError as exc:
+                if (exc.details or {}).get("status") != 401:
+                    raise
+                # A 401 from the API proves only that this access token is unusable
+                # - it expired early, or was revoked on its own - not that the grant
+                # is: that is the token endpoint's to say. One refresh, one retry.
+                renewed = await _refresh_under_lock(grant, rejected=token)
+                if renewed is None:
+                    # No refresh token left - refused and dropped, or never issued -
+                    # means the rejected access token was the last of the grant.
+                    payload = _decode_payload(grant, grant.oauth_payload)
+                    if payload is None or payload.refresh_token is None:
+                        return await self._revoked(grant)
+                    await self._record_poll_failure(
+                        grant, "The connected account could not be renewed"
+                    )
+                    return None
+                read = await adapter.poll(
+                    access_token=renewed, cursor=grant.poll_cursor, places=places
+                )
         except portals.PortalError as exc:
+            if (exc.details or {}).get("status") == 401:
+                return await self._revoked(grant)
             # The provider's own words are not carried: a portal's error body echoes
             # the request, and the request carries a bearer token (#423).
             logger.warning(
@@ -1319,8 +1538,18 @@ class McpConnectionService:
         await mcp_connection_repo.update(
             self.db,
             db_connection=grant,
-            update_data={"poll_cursor": cursor, "last_checked_at": datetime.now(UTC)},
+            update_data={
+                "poll_cursor": cursor,
+                "last_checked_at": datetime.now(UTC),
+                "polled_at": datetime.now(UTC),
+            },
         )
+
+    async def _revoked(self, grant: McpConnection) -> RevokedGrant:
+        """Record on the grant that it needs a new consent, and say so to the caller."""
+        logger.warning("portal_grant_revoked", extra={"portal_key": grant.portal_key})
+        await self._record_poll_failure(grant, GRANT_REVOKED)
+        return RevokedGrant()
 
     async def _record_poll_failure(self, grant: McpConnection, reason: str) -> None:
         """Say on the row why a mailbox could not be read.
@@ -1336,6 +1565,7 @@ class McpConnectionService:
                 "last_status": "error",
                 "last_error": reason,
                 "last_checked_at": datetime.now(UTC),
+                "polled_at": datetime.now(UTC),
             },
         )
 
@@ -1343,10 +1573,12 @@ class McpConnectionService:
         """Begin the consent flow for a portal this platform *reads* rather than
         registers a webhook at.
 
-        Gmail is the case: the grant is spent by the heartbeat's poller, not by a
-        provider posting to us, so there is nothing to register and the only thing
-        the flow has to produce is a refreshable token with the portal's read
-        scopes on it.
+        Gmail and Outlook are the cases: the grant is spent by the heartbeat's
+        poller, not by a provider posting to us, so there is nothing to register
+        and the only thing the flow has to produce is a refreshable token with the
+        portal's read scopes on it. Which provider's consent it is follows from
+        the portal's `oauth_app_kind`; Microsoft's endpoints are the tenant's,
+        read off the app registration.
 
         **The client is the organization's, from the vault** - the same shape as
         GitHub's, and for the reason that outranks any argument about who owns a
@@ -1363,9 +1595,10 @@ class McpConnectionService:
         Raises:
             BadRequestError: If `portal_key` names no portal, or one that is not
                 polled - a webhook portal connects through its own flow.
-            NotFoundError: If the organization has stored no org-visible
-                `google_oauth_app` secret - a 4xx the card shows as a prerequisite,
-                the same way a missing GitHub OAuth App is, never a 500.
+            NotFoundError: If the organization has stored no org-visible secret
+                of the portal's `oauth_app_kind` - a 4xx the card shows as a
+                prerequisite, the same way a missing GitHub OAuth App is, never a
+                500.
             BadRequestError: If more than one is stored, or `portal_key` names no
                 polled portal.
             AuthorizationError: When the request runs under an impersonation - the
@@ -1378,26 +1611,57 @@ class McpConnectionService:
                 message="This portal is not one the platform polls",
                 details={"portal_key": portal_key},
             )
+        if portal.oauth_app_kind is None:
+            raise BadRequestError(
+                message="This portal declares no OAuth client to connect with",
+                details={"portal_key": portal_key},
+            )
         creds = await OrganizationSecretService(self.db).oauth_app(
-            ctx, kind=SecretKind.GOOGLE_OAUTH_APP
+            ctx, kind=SecretKind(portal.oauth_app_kind)
         )
         redirect_uri = _oauth_redirect_uri()
         state = secrets.token_urlsafe(32)
         scopes = list(portal.read_scopes)
+        code_verifier: str | None = None
+        if isinstance(creds, MicrosoftOAuthAppSecret):
+            pkce = mcp_oauth.new_pkce()
+            code_verifier = pkce.code_verifier
+            provider = microsoft_oauth.PROVIDER
+            authorization_endpoint = microsoft_oauth.authorize_endpoint_for(creds.tenant_id)
+            token_endpoint = microsoft_oauth.token_endpoint_for(creds.tenant_id)
+            consent_url = microsoft_oauth.authorization_url(
+                tenant_id=creds.tenant_id,
+                client_id=creds.client_id,
+                redirect_uri=redirect_uri,
+                scopes=scopes,
+                state=state,
+                code_challenge=pkce.code_challenge,
+            )
+        else:
+            provider = google_oauth.PROVIDER
+            authorization_endpoint = google_oauth.AUTHORIZE_ENDPOINT
+            token_endpoint = google_oauth.TOKEN_ENDPOINT
+            consent_url = google_oauth.authorization_url(
+                client_id=creds.client_id,
+                redirect_uri=redirect_uri,
+                scopes=scopes,
+                state=state,
+            )
         payload = McpOAuthPayload(
             # A portal grant points at the API it reads rather than at an MCP
             # server. The column is not nullable and the value is not a lie: it is
             # where the token is spent.
             server_url=_POLLED_PORTAL_URL[portal_key],
             started_at=_now_epoch(),
-            authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
-            token_endpoint=google_oauth.TOKEN_ENDPOINT,
+            authorization_endpoint=authorization_endpoint,
+            token_endpoint=token_endpoint,
             client_id=creds.client_id,
             client_secret=creds.client_secret,
             scope=" ".join(scopes),
             resource=_POLLED_PORTAL_URL[portal_key],
             redirect_uri=redirect_uri,
-            provider=google_oauth.PROVIDER,
+            provider=provider,
+            code_verifier=code_verifier,
         )
         existing = await mcp_connection_repo.get_portal_grant(
             self.db, organization_id=ctx.organization_id, portal_key=portal_key
@@ -1421,11 +1685,21 @@ class McpConnectionService:
             payload=payload,
             state=state,
         )
-        return google_oauth.authorization_url(
-            client_id=creds.client_id,
-            redirect_uri=redirect_uri,
-            scopes=scopes,
-            state=state,
+        return consent_url
+
+    async def github_app_access_token(self, grant: McpConnection) -> str:
+        """Mint a token for a resolved organization's installed GitHub App."""
+        if grant.organization_id is None or grant.portal_key != GitHubAppPortalAdapter.portal_key:
+            raise BadRequestError(message="This connection is not a GitHub App installation")
+        secret = TypeAdapter(GithubAppSecret).validate_python(
+            await OrganizationSecretService(self.db).app_secret(
+                grant.organization_id, kind=SecretKind.GITHUB_APP
+            )
+        )
+        return await github_app.installation_token(
+            app_id=secret.app_id,
+            private_key=secret.private_key.get_secret_value(),
+            installation_id=grant.portal_account_id or "",
         )
 
     async def connect_github_app(self, ctx: AuthContext, *, installation_id: str) -> McpConnection:
@@ -1549,8 +1823,13 @@ class McpConnectionService:
             raise OAuthError("This authorization session has expired - start again.")
         if payload.provider == github_oauth.PROVIDER:
             payload, granted_scopes = await _complete_github_flow(payload, code)
-        elif payload.provider == google_oauth.PROVIDER:
-            payload, granted_scopes = await _complete_google_flow(payload, code)
+        elif payload.provider in {google_oauth.PROVIDER, microsoft_oauth.PROVIDER}:
+            complete = (
+                _complete_google_flow
+                if payload.provider == google_oauth.PROVIDER
+                else _complete_microsoft_flow
+            )
+            payload, granted_scopes = await complete(payload, code)
             # Google may omit the refresh token on a re-consent for a grant it
             # already holds - the previous one stays valid, so it is carried
             # forward from the live payload rather than overwritten with None,
@@ -1569,17 +1848,26 @@ class McpConnectionService:
         # predated the connection. Best-effort: a provider that cannot answer
         # right now leaves the cursor to the first poll, which is the old window
         # rather than a broken flow.
+        #
+        # On a re-consent the position already reached is kept - a snapshot would
+        # skip everything between the last poll and now - but only for the same
+        # account. The consent screen asks which account to use, and a cursor
+        # (Gmail's history id, Outlook's folder ids and delta links) belongs to
+        # the one it was read from: kept across a switch, it is polled against the
+        # new account and never advances again (Codex on #2195). Each cursor
+        # names its account, so the fresh snapshot is what tells them apart.
         poll_cursor = connection.poll_cursor
         access_token = _revealed(payload.access_token)
-        if (
-            connection.purpose == "portal"
-            and connection.portal_key is not None
-            and poll_cursor is None
-            and access_token
-        ):
-            poll_cursor = await _initial_poll_cursor(
-                portal_key=connection.portal_key, access_token=access_token
+        if connection.purpose == "portal" and connection.portal_key is not None:
+            fresh = (
+                await _initial_poll_cursor(
+                    portal_key=connection.portal_key, access_token=access_token
+                )
+                if access_token
+                else None
             )
+            if not _same_account(poll_cursor, fresh):
+                poll_cursor = fresh
         connection = await mcp_connection_repo.update(
             self.db,
             db_connection=connection,
@@ -1612,7 +1900,10 @@ class McpConnectionService:
         # first click of Check: a server connected from the Builder or a chat
         # has its tools to choose from by the time the person is back there.
         # `_probe` records a server that will not answer as the error it is.
-        connection, _, _ = await self._probe(connection)
+        connection, _, _ = await self._probe(
+            connection,
+            auth_headers={"Authorization": f"Bearer {access_token}"} if access_token else {},
+        )
         return connection
 
     async def _get_owned(
@@ -1924,7 +2215,7 @@ class McpConnectionService:
             return None
         if not set(required_scopes).issubset(connection.granted_scopes or ()):
             return None
-        return await _oauth_access_token(self.db, connection)
+        return await _oauth_access_token(connection)
 
     async def get_org_portal_grant(self, ctx: AuthContext, portal_key: str) -> McpConnection | None:
         """The organization's grant for one polled portal, or `None`.
@@ -2264,7 +2555,7 @@ async def build_toolsets_for_agent(
                 organization_id,
             )
             continue
-        headers = await resolve_auth_headers(db, connection)
+        headers = await resolve_auth_headers(connection)
         if headers is None:
             # OAuth not authorized / expired, or an undecryptable bearer token.
             # Warning rather than info: this server was bound on purpose, so
@@ -2417,7 +2708,7 @@ async def _own_specs(
     accounts: list[_OwnAccount] = []
     taken: set[str] = set()
     for account in [primary, *(other for other in owned if other is not primary)]:
-        headers = await resolve_auth_headers(db, account)
+        headers = await resolve_auth_headers(account)
         if headers is None:
             logger.info(
                 "Skipping one of the sender's own %r connections for this run: "
@@ -2446,16 +2737,14 @@ async def _own_specs(
     return accounts or "unauthorized"
 
 
-async def watched_connection_spec(
-    db: AsyncSession, connection: McpConnection
-) -> McpServerSpec | None:
+async def watched_connection_spec(connection: McpConnection) -> McpServerSpec | None:
     """One of a person's own connections as a server a watch reads (#2301), or `None`.
 
     `None` where its credential no longer works. Everything it offers is
     listed; the watch keeps only the tools the server marks read-only, so the
     approval policy here never comes into play.
     """
-    headers = await resolve_auth_headers(db, connection)
+    headers = await resolve_auth_headers(connection)
     if headers is None:
         return None
     return McpServerSpec(

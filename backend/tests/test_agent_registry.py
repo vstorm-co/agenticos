@@ -4672,8 +4672,11 @@ class TestUndoingADraft:
         agent = _agent(ctx)
         agent.current_version_id = uuid.uuid4()
         db = _db()
-        db.refresh = AsyncMock()
-        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=agent))
+        before = _agent(ctx)
+        before.id = agent.id
+        before.current_version_id = None
+        lookup = AsyncMock(side_effect=[before, agent])
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.get", lookup)
         monkeypatch.setattr(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True))
         delete = AsyncMock()
         monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.delete", delete)
@@ -4681,7 +4684,8 @@ class TestUndoingADraft:
         with pytest.raises(BadRequestError, match="never-published draft"):
             await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
 
-        db.refresh.assert_awaited_once_with(agent, with_for_update=True)
+        assert lookup.await_args.kwargs["for_update"] is True
+        assert lookup.await_count == 2
         delete.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -4892,3 +4896,22 @@ class TestAskingTheOwnerForACapability:
             await AgentRegistryService(_db()).ask_for_capability(
                 ctx, uuid.uuid4(), "web_research", reason="r"
             )
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("deleted", [False, True])
+async def test_mutation_rechecks_the_resource_after_waiting_for_its_lock(deleted: bool) -> None:
+    ctx = _ctx()
+    agent = _agent(ctx)
+    with (
+        patch(
+            f"{REGISTRY_PATH}.agent_repo.get",
+            AsyncMock(side_effect=[agent, None if deleted else agent]),
+        ) as lookup,
+        patch(f"{REGISTRY_PATH}.resolve_access", AsyncMock(side_effect=[True, False])) as access,
+        pytest.raises(NotFoundError),
+    ):
+        await AgentRegistryService(_db()).get(ctx, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
+    assert lookup.await_args.kwargs["for_update"] is True
+    assert access.await_count == (1 if deleted else 2)
