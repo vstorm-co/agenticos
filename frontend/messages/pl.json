@@ -8207,7 +8207,6 @@
     "draftSources": "Na czym się opiera",
     "openDraftRun": "Otwórz run",
     "editDrafter": "Edytuj instrukcje autora szkiców luk",
-    "downloadDraft": "Pobierz .md",
     "hasDraft": "Szkic",
     "draftLabel": "Szkic — sprawdź przed dodaniem",
     "draftUnverified": "{count, plural, one {Jednego wskazanego źródła nie udało się zweryfikować i zostało pominięte.} few {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} many {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} other {# wskazanego źródła nie udało się zweryfikować i zostały pominięte.}}",

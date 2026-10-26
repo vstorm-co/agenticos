@@ -212,9 +212,8 @@ another tool returned for the same words. It is also shown the
 versions, those you may read, so the draft follows the rules the agents
 already follow.
 
-The draft fills the topic's editor, with a link to its run. You can copy it or
-download it as Markdown, and it reaches the knowledge base only when somebody
-adds it. The drafter does not know your company's facts: where an answer needs
+The draft fills the topic's editor, with a link to its run. You can copy it as
+Markdown, and it reaches the knowledge base only when somebody adds it. The drafter does not know your company's facts: where an answer needs
 a number, a date or a rule, it writes `{{what to fill in}}`, and the editor
 lists each one until it is replaced.
 

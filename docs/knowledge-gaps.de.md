@@ -1,5 +1,5 @@
 ---
-source_sha: "0b891b628550"
+source_sha: "2af2a153e11d"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -231,8 +231,8 @@ veröffentlichten Versionen lesen, soweit du sie lesen darfst, damit der Entwurf
 den Regeln folgt, denen die Agents schon folgen.
 
 Der Entwurf füllt den Editor des Themas, mit einem Link zu seinem Run. Du
-kannst ihn kopieren oder als Markdown herunterladen, und in die
-Wissensdatenbank kommt er erst, wenn ihn jemand hinzufügt. Der Entwerfer kennt
+kannst ihn als Markdown kopieren, und in die Wissensdatenbank kommt er erst,
+wenn ihn jemand hinzufügt. Der Entwerfer kennt
 die Fakten deines Unternehmens nicht: Wo eine Antwort eine Zahl, ein Datum oder
 eine Regel braucht, schreibt er `{{what to fill in}}`, und der Editor listet
 jede solche Stelle auf, bis sie ersetzt ist.

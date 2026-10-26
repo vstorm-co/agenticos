@@ -8434,7 +8434,6 @@
     "draftSources": "What it rests on",
     "openDraftRun": "Open the run",
     "editDrafter": "Edit the drafter's instructions",
-    "downloadDraft": "Download .md",
     "hasDraft": "Draft",
     "draftLabel": "Draft — verify before adding",
     "draftUnverified": "{count, plural, =1 {One source it named could not be verified and was left out.} other {# sources it named could not be verified and were left out.}}",

@@ -1,5 +1,5 @@
 ---
-source_sha: "0b891b628550"
+source_sha: "2af2a153e11d"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -218,8 +218,8 @@ opublikowanych wersjach, te, które możesz czytać, żeby szkic trzymał się r
 których agenci już się trzymają.
 
 Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Możesz go
-skopiować albo pobrać jako Markdown, a do bazy wiedzy trafia dopiero wtedy, gdy
-ktoś go doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
+skopiować jako Markdown, a do bazy wiedzy trafia dopiero wtedy, gdy ktoś go
+doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
 liczby, daty albo reguły, wpisuje `{{what to fill in}}`, a edytor wymienia każde
 takie miejsce, dopóki nie zostanie zastąpione.
 

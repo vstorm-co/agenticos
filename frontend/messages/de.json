@@ -8317,7 +8317,6 @@
     "draftSources": "Worauf er sich stützt",
     "openDraftRun": "Run öffnen",
     "editDrafter": "Anweisungen des Lücken-Entwerfers bearbeiten",
-    "downloadDraft": ".md herunterladen",
     "hasDraft": "Entwurf",
     "draftLabel": "Entwurf — vor dem Hinzufügen prüfen",
     "draftUnverified": "{count, plural, =1 {Eine genannte Quelle ließ sich nicht prüfen und wurde weggelassen.} other {# genannte Quellen ließen sich nicht prüfen und wurden weggelassen.}}",

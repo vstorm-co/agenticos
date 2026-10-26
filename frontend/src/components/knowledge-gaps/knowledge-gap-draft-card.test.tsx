@@ -1,18 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { KnowledgeGapDraft } from "@/types/knowledge-gaps";
 import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
 
 const state = vi.hoisted(() => ({
-  saved: [] as { blob: Blob; name: string }[],
   perms: new Set<string>(),
   drafters: [] as { id: string; system_key: string | null; can_edit: boolean }[],
   enabled: [] as boolean[],
-}));
-vi.mock("@/lib/file-access", () => ({
-  saveBlob: (blob: Blob, name: string) => state.saved.push({ blob, name }),
 }));
 vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content, inertImages }: { content: string; inertImages?: boolean }) => (
@@ -48,7 +43,6 @@ const DRAFT: KnowledgeGapDraft = {
 
 describe("KnowledgeGapDraftCard", () => {
   beforeEach(() => {
-    state.saved = [];
     state.perms = new Set(["agents:view"]);
     state.drafters = [];
     state.enabled = [];
@@ -99,15 +93,6 @@ describe("KnowledgeGapDraftCard", () => {
     expect(screen.getByRole("link", { name: "Open the run" })).toHaveAttribute(
       "href",
       "/runs?run=r9",
-    );
-  });
-
-  it("downloads it as Markdown", async () => {
-    render(<KnowledgeGapDraftCard draft={DRAFT} />);
-    await userEvent.click(screen.getByRole("button", { name: "Download .md" }));
-    expect(state.saved[0]?.name).toBe("knowledge-gap-draft.md");
-    expect(await state.saved[0]?.blob.text()).toBe(
-      "# Parental leave\n\nParents may take [weeks] weeks.\n",
     );
   });
 

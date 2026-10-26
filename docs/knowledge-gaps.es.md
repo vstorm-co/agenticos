@@ -1,5 +1,5 @@
 ---
-source_sha: "0b891b628550"
+source_sha: "2af2a153e11d"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -232,8 +232,7 @@ versiones publicadas, los que tú puedes leer, para que el borrador siga las
 reglas que los agents ya siguen.
 
 El borrador rellena el editor del tema, con un enlace a su run. Puedes copiarlo
-o descargarlo como Markdown, y solo llega a la base de conocimiento cuando
-alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
+como Markdown, y solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
 respuesta necesita una cifra, una fecha o una regla, escribe
 `{{what to fill in}}`, y el editor enumera cada uno hasta que se sustituye.
 

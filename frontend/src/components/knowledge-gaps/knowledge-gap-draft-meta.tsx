@@ -1,16 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { BookText, Download, FileText, MessageSquare } from "lucide-react";
+import { BookText, FileText, MessageSquare } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useInImproveWizard } from "./wizard-mode";
 
 import { CopyButton } from "@/components/chat/copy-button";
 import { useAgentsOfKind } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Badge, Button } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { saveBlob } from "@/lib/file-access";
 import { timeAgo } from "@/lib/utils";
 import type { KnowledgeGapDraft, KnowledgeGapSource } from "@/types/knowledge-gaps";
 import { Perm } from "@/types/permissions";
@@ -30,7 +29,7 @@ function asMarkdown(title: string, content: string): string {
 
 /**
  * What a draft rests on and where it came from: its verified sources, when and by
- * which run it was written, and copying or downloading it. Somebody who may edit
+ * which run it was written, and copying it. Somebody who may edit
  * the drafter is pointed at its instructions, which decide how the next draft reads.
  */
 export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
@@ -76,17 +75,6 @@ export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
           </Link>
         )}
         <CopyButton text={markdown} className="opacity-100" />
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2"
-          onClick={() =>
-            saveBlob(new Blob([markdown], { type: "text/markdown" }), "knowledge-gap-draft.md")
-          }
-        >
-          <Download className="h-3.5 w-3.5" aria-hidden />
-          {t("downloadDraft")}
-        </Button>
       </div>
     </div>
   );
