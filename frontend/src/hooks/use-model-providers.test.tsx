@@ -12,6 +12,7 @@ import {
   useSpeechToTextProviders,
 } from "./use-model-providers";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
@@ -167,6 +168,68 @@ describe("useModelProviders", () => {
           .mocked(apiClient.get)
           .mock.calls.filter(([path]) => path === "/providers/openrouter/models"),
       ).toHaveLength(1);
+    },
+  );
+
+  it.each([false, true])(
+    "can refetch an observed listing once, including on failure: %s",
+    async (fails) => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      function localWrapper({ children }: { children: ReactNode }) {
+        return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+      }
+      let listingCalls = 0;
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path === "/providers/model-profiles") {
+          return {
+            items: [
+              {
+                id: "p1",
+                label: "Chat",
+                provider: "openrouter",
+                model: "acme/chat",
+                secret_id: "s1",
+                params: {},
+                fallback_profile_ids: [],
+              },
+            ],
+            total: 1,
+          };
+        }
+        if (path === "/providers/openrouter/models") {
+          listingCalls += 1;
+          if (fails && listingCalls > 1) throw new Error("listing unavailable");
+          return {
+            items: [{ id: "acme/chat", name: "Chat", chat_capable: true }],
+            total: 1,
+            source: "live",
+          };
+        }
+        return { items: [], total: 0 };
+      });
+      const { result } = renderHook(
+        () => {
+          const listing = useProviderModels("openrouter");
+          const profiles = useModelProviders();
+          return { listing, profiles };
+        },
+        { wrapper: localWrapper },
+      );
+      await waitFor(() => expect(result.current.profiles.profilesStatus).toBe("loaded"));
+      await waitFor(() => expect(result.current.listing.models).toHaveLength(1));
+
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: qk.providers.models("openrouter") });
+      });
+
+      expect(
+        vi
+          .mocked(apiClient.get)
+          .mock.calls.filter(([path]) => path === "/providers/openrouter/models"),
+      ).toHaveLength(2);
+      expect(client.getQueryState(qk.providers.models("openrouter"))?.status).toBe(
+        fails ? "error" : "success",
+      );
     },
   );
 

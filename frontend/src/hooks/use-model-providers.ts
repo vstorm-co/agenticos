@@ -3,7 +3,6 @@
 import { useCallback, useMemo } from "react";
 import {
   queryOptions,
-  skipToken,
   useMutation,
   useQueries,
   useQuery,
@@ -100,12 +99,8 @@ export function useModelProviders() {
   // A profile may have arrived before its listing, or from another API replica
   // that has not cached it; saved-model pickers must still honor the answer.
   const listings = useQueries({
-    queries: providerIds.map((provider) =>
-      queryOptions<ProviderModelList>({
-        queryKey: qk.providers.models(provider),
-        queryFn: skipToken,
-      }),
-    ),
+    // Disabled subscriptions share the active form's fetcher and retry policy.
+    queries: providerIds.map((provider) => ({ ...providerModelsQuery(provider), enabled: false })),
     combine: (queries) => queries.map((query) => query.data),
   });
   const classifiedProfiles = useMemo(
@@ -196,6 +191,17 @@ interface ProviderModelList {
   source: "live" | "curated" | "unlisted";
 }
 
+function providerModelsQuery(providerId: string) {
+  return queryOptions({
+    queryKey: qk.providers.models(providerId),
+    queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models`),
+    staleTime: 60 * 60 * 1000,
+    // An empty dropdown is the fallback the field is built for, so a provider
+    // that cannot be reached must not retry three times behind an open form.
+    retry: false,
+  });
+}
+
 /**
  * The models one provider offers, for the field where a model id is typed.
  *
@@ -210,13 +216,8 @@ interface ProviderModelList {
  */
 export function useProviderModels(providerId: string) {
   const { data, isLoading } = useQuery({
-    queryKey: qk.providers.models(providerId),
-    queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models`),
+    ...providerModelsQuery(providerId),
     enabled: providerId !== "",
-    staleTime: 60 * 60 * 1000,
-    // An empty dropdown is the fallback the field is built for, so a provider
-    // that cannot be reached must not retry three times behind an open form.
-    retry: false,
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding
