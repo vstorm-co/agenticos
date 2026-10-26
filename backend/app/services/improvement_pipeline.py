@@ -1472,6 +1472,30 @@ class ImprovementPipelineService:
         if run is not None and Status(run.status).active:
             await self._queue(run)
 
+    async def drafts_written(
+        self, run_id: UUID, *, organization_id: UUID, drafted: int, too_few_askers: int
+    ) -> None:
+        """Put on the session's timeline what its drafting step wrote, and why it left topics.
+
+        A topic too few different people asked about is never drafted on its own,
+        so a session can end with missing knowledge and no draft; the timeline says
+        that was the reason rather than leaving an empty column unexplained.
+        """
+        run = await improvement_repo.get_run(self.db, run_id, organization_id=organization_id)
+        assert run is not None, "the drafting job read its session a moment ago"
+        await self._audit(
+            run,
+            "drafting_finished",
+            decided={
+                "drafted": str(drafted),
+                **(
+                    {"reason": "too_few_askers", "undrafted": str(too_few_askers)}
+                    if too_few_askers
+                    else {}
+                ),
+            },
+        )
+
     async def _queue(self, run: ImprovementRun) -> None:
         # State is part of dedupe: the current job may enqueue its successor.
         children = await improvement_repo.get_iteration(

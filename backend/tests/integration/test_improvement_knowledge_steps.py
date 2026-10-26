@@ -114,7 +114,7 @@ def _providers(db, ctx, *, fail_draft=False):
         yield model
 
 
-async def _world(db):
+async def _world(db, *, askers=2):
     ctx, agent, original = await _setup(db)
     kb = await _knowledge_base(db, ctx)
     agent.draft_spec = {**agent.draft_spec, "collection_ids": [str(kb.id)]}
@@ -130,7 +130,8 @@ async def _world(db):
             system_key=definition.key,
         )
     source_ids = [original.id]
-    for actor in (ctx, await _member(db, ctx, OrgRoleName.MEMBER)):
+    actors = [ctx] + [await _member(db, ctx, OrgRoleName.MEMBER) for _ in range(askers - 1)]
+    for actor in actors:
         run, answer = await _asked(
             db,
             actor,
@@ -510,3 +511,19 @@ async def test_examples_group_by_topic_and_a_persons_triage_reaches_later_rounds
         item = next(item for item in undone.items if item.run_id == sources[1])
         assert item.branch == "missing_knowledge" and item.decision is None
         assert stored.evidence_decisions == {str(sources[0]): "ignored"}
+
+
+@pytest.mark.parametrize(("askers", "drafted", "reason"), [(1, 0, "too_few_askers"), (2, 1, None)])
+async def test_drafting_says_why_a_topic_one_person_asked_about_is_left_undrafted(
+    db, askers, drafted, reason
+):
+    ctx, agent, _, dataset, _ = await _world(db, askers=askers)
+    with _providers(db, ctx):
+        read = await _start(db, ctx, agent, dataset)
+        stored, _ = await _classify(db, ctx, agent, read)
+        assert stored.stage == "drafting"
+        _, payload = await _job(db, stored, draft=True)
+        assert await draft_knowledge_gaps(payload) == drafted
+    timeline = (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).timeline
+    [finished] = [e for e in timeline if e.action == "improvement.drafting_finished"]
+    assert finished.reason == reason

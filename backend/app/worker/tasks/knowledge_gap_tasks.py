@@ -321,13 +321,15 @@ async def _record_session_embeddings(ledger: SpendLedger, job: DraftGaps) -> Non
 
 
 async def _draft_session(job: DraftGaps) -> int:
+    session_id = job.improvement_run_id
+    assert session_id is not None
     await change_feed.connect_in_worker()
     async with get_worker_db_context() as db:
         source = await _session_sources(db, job, ImprovementStage.DRAFTING)
         if not await _session_affords(db, job, source, "draft"):
             return 0
     ledger = SpendLedger(organization_id=job.organization_id)
-    drafted = 0
+    drafted = too_few_askers = 0
     try:
         with metered_by(ledger):
             for kb_id in source.knowledge_base_ids:
@@ -361,9 +363,17 @@ async def _draft_session(job: DraftGaps) -> int:
                 except BadRequestError as refused:
                     if not {"askers", "draft_author"} & set(refused.details or {}):
                         raise
+                    too_few_askers += "askers" in (refused.details or {})
                     continue
                 drafted += 1
     finally:
         await _record_session_embeddings(ledger, job)
+    async with get_worker_db_context() as db:
+        await ImprovementPipelineService(db).drafts_written(
+            session_id,
+            organization_id=job.organization_id,
+            drafted=drafted,
+            too_few_askers=too_few_askers,
+        )
     await change_feed.publish_knowledge_gaps_grouped(job.organization_id)
     return drafted
