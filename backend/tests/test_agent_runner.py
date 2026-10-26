@@ -7,7 +7,6 @@ it was parked on, with the spend it had already booked.
 """
 
 import asyncio
-import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -53,14 +52,13 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
-from app.agents.capabilities.follow_ups import FOLLOW_UPS_MODEL_RESOURCE
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WORKSPACE_SHARED_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
-from app.agents.deps import AgentDeps, WrittenNextSteps
+from app.agents.deps import AgentDeps
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import (
     AgentSpec,
@@ -101,7 +99,6 @@ from app.services.agent_runner import (
     _start_turn_on_first_use,
     _with_account_notes,
     _with_personal_service_gaps,
-    _written_next_steps,
     month_start,
     run_failure_summary,
 )
@@ -4787,9 +4784,13 @@ class TestTheBrowsersStepModel:
     """A fast model for `browse_web`'s steps reaches the capability built, not the run."""
 
     @staticmethod
-    async def _built(spec: AgentSpec) -> tuple[dict[str, Any], AsyncMock]:
+    async def _built(
+        spec: AgentSpec, *, source_run=None, source_spec=None
+    ) -> tuple[dict[str, Any], AsyncMock]:
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(
+            id=source_run.agent_id if source_run else uuid.uuid4(), current_version_id=uuid.uuid4()
+        )
         step_model = MagicMock(name="fast-model")
         resolve = AsyncMock(
             side_effect=lambda ctx, profile_id=None: MagicMock(
@@ -4808,9 +4809,22 @@ class TestTheBrowsersStepModel:
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
+            patch.object(service, "_parked_spec", AsyncMock(return_value=(agent, source_spec))),
             patch("app.services.agent_runner.build_agent") as build,
         ):
-            await service.prepare(_ctx(), agent.id)
+            await service.prepare(
+                AuthContext(
+                    user_id=uuid.uuid4(),
+                    organization_id=source_run.organization_id,
+                    role=OrgRoleName.OWNER,
+                )
+                if source_run
+                else _ctx(),
+                agent.id,
+                source_run=source_run,
+            )
+            if source_spec is not None:
+                assert build.call_args.args[0].trace_content == source_spec.trace_content
         return build.call_args.kwargs["resources"], resolve
 
     async def _built_call(self, spec: AgentSpec, *, resolve: Any = None) -> tuple[Any, AsyncMock]:
@@ -4920,70 +4934,40 @@ class TestTheBrowsersStepModel:
         assert BROWSER_STEP_MODEL_RESOURCE not in resources
 
     @pytest.mark.anyio
-    async def test_a_named_model_writes_the_next_steps(self):
-        """A small model of its own writes the steps after the answer (#2301)."""
+    async def test_a_follow_up_profile_is_not_resolved_on_the_main_turn(self):
         profile = uuid.uuid4()
-        spec = AgentSpec(
-            name="Helper",
-            capabilities=[{"id": "follow_ups", "config": {"model_profile_id": str(profile)}}],
+        resources, resolve = await self._built(
+            AgentSpec(
+                name="Helper",
+                capabilities=[{"id": "follow_ups", "config": {"model_profile_id": str(profile)}}],
+            )
         )
-
-        resources, resolve = await self._built(spec)
-
-        assert FOLLOW_UPS_MODEL_RESOURCE in resources
-        assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
+        assert "follow_ups_model" not in resources
+        assert all(call.kwargs.get("profile_id") != profile for call in resolve.await_args_list)
 
     @pytest.mark.anyio
-    async def test_a_next_steps_model_that_no_longer_resolves_leaves_them_to_the_agent(self):
-        gone = uuid.uuid4()
-        spec = AgentSpec(
-            name="Helper",
-            capabilities=[{"id": "follow_ups", "config": {"model_profile_id": str(gone)}}],
+    async def test_an_auxiliary_run_uses_the_frozen_trace_policy(self):
+        old = AgentSpec(name="Helper", observability={"content": "none"})
+        current = AgentSpec(name="Helper", observability={"content": "full"})
+        ctx = _ctx()
+        source = MagicMock(
+            agent_id=uuid.uuid4(),
+            organization_id=ctx.organization_id,
+            agent_version_id=uuid.uuid4(),
+            test_spec=None,
         )
-
-        def resolve(ctx, profile_id=None):
-            if profile_id == gone:
-                raise NotFoundError(message="Model profile not found")
-            return MagicMock(label="m", build=MagicMock())
-
-        built, _ = await self._built_call(spec, resolve=resolve)
-
-        assert FOLLOW_UPS_MODEL_RESOURCE not in built.kwargs["resources"]
+        await self._built(current, source_run=source, source_spec=old)
 
     @pytest.mark.anyio
-    @pytest.mark.parametrize(
-        "capabilities",
-        [
-            [{"id": "follow_ups"}],
-            [
-                {
-                    "id": "follow_ups",
-                    "enabled": False,
-                    "config": {"model_profile_id": str(uuid.uuid4())},
-                }
-            ],
-        ],
-    )
-    async def test_without_one_the_agent_offers_the_next_steps_itself(self, capabilities):
-        resources, _ = await self._built(AgentSpec(name="Helper", capabilities=capabilities))
-
-        assert FOLLOW_UPS_MODEL_RESOURCE not in resources
-
-
-class TestNextStepsWrittenAfterTheAnswer:
-    """Recorded as the agent's own `suggest_next_steps` call would be (#2301)."""
-
-    def test_they_are_recorded_as_the_call_a_channel_reads(self):
-        deps = AgentDeps(next_steps=WrittenNextSteps(call_id="next_steps_1", steps=["Again"]))
-
-        (call,) = _written_next_steps(deps)
-
-        assert call.tool_name == "suggest_next_steps"
-        assert call.tool_call_id == "next_steps_1"
-        assert json.loads(call.result or "") == {"steps": ["Again"]}
-
-    def test_none_written_records_nothing(self):
-        assert _written_next_steps(AgentDeps()) == []
+    @pytest.mark.security
+    async def test_an_auxiliary_source_cannot_point_to_another_agent_or_tenant(self):
+        service = AgentRunnerService(_db())
+        ctx = _ctx()
+        agent_id = uuid.uuid4()
+        for organization, agent in [(uuid.uuid4(), agent_id), (ctx.organization_id, uuid.uuid4())]:
+            source = MagicMock(organization_id=organization, agent_id=agent)
+            with pytest.raises(BadRequestError, match="source run"):
+                await service.prepare(ctx, agent_id, source_run=source)
 
 
 class TestTheDownRatedMarker:

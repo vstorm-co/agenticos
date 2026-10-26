@@ -1,5 +1,5 @@
 ---
-source_sha: "c6da76bc5fe8"
+source_sha: "616e87592f7b"
 ---
 
 # Aplikacje { #artifacts }
@@ -14,6 +14,19 @@ Aplikacja nie jest plikiem. Wykres, wygenerowany PDF i plik w workspace'ie mają
 swoje miejsce w czacie i w [workspace'ie](sandbox.md). Aplikacja to rzecz, która
 jest *serwowana*: ma właściciela, widoczność i granty, tak jak agent czy skill, i
 można jej nadać publiczny link dla kogoś bez konta.
+
+## Wygląd aplikacji { #app-appearance }
+
+Widok aplikacji po zalogowaniu i jej publiczny link mają niezależne przyciski
+motywu **jasnego** i **ciemnego**. Aplikacje otwierają się z jasną preferencją,
+niezależnie od motywu konsoli lub systemu. Przełączenie zmienia wyłącznie
+preferencję `prefers-color-scheme` osadzonej strony: nie przeładowuje aplikacji
+ani nie przepisuje jej HTML, CSS lub zapisanych wersji. Aplikacja ze stałymi
+kolorami zachowuje je; aplikacje obsługujące oba motywy mogą reagować na wybór.
+
+Za kontrast nadal odpowiada strona. W dołączonych stylach `--ao-muted` jest
+kolorem tła; tekst pomocniczy używa `--ao-muted-fg` lub klasy `.ao-muted`.
+Użycie zmiennej tła jako koloru tekstu może uniemożliwić odczyt w obu motywach.
 
 ## Publikowanie aplikacji { #publishing-one }
 

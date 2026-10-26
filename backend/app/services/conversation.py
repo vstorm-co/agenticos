@@ -1392,7 +1392,7 @@ class ConversationService:
                 raise refused_field(
                     "reply_to_message_id", "Reply to a message in this conversation"
                 )
-        return await conversation_repo.create_message(
+        message = await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,
             role=data.role,
@@ -1431,6 +1431,14 @@ class ConversationService:
             author_user_id=user_id if data.role == "user" else None,
             reply_to_message_id=data.reply_to_message_id,
         )
+
+        if data.role == "assistant" and run_id is not None and data.content.strip():
+            # Only IDs cross the commit boundary; a failed transcript write must
+            # not start a paid suggestion request for an answer nobody can read.
+            from app.services.follow_ups import queue_next_steps
+
+            queue_next_steps(self.db, message.id, organization_id)
+        return message
 
     async def delete_message(self, message_id: UUID) -> bool:
         deleted = await conversation_repo.delete_message(self.db, message_id)

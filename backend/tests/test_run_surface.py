@@ -48,6 +48,7 @@ class TestEveryMemberIsAssignedBySomething:
             "teams",
             "schedule",
             "proactive",
+            "follow_ups",
         }
 
     def test_playground_is_absent_but_schedule_now_has_a_writer(self):

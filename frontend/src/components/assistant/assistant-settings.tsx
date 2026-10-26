@@ -108,7 +108,7 @@ function WhereTheRestLives({ agentId }: { agentId: string }) {
         </Button>
         {orgId && (
           <Button variant="outline" size="sm" asChild>
-            <Link href={ROUTES.ORG_MEMBERS(orgId)}>
+            <Link href={`${ROUTES.ORG_MEMBERS(orgId)}?tab=assistant`}>
               <Building2 className="h-4 w-4" />
               {t("openOrganization")}
             </Link>

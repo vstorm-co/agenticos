@@ -23,9 +23,10 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import all_capabilities
+from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.agent_run import AgentRun, ApprovalStatus
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION, ChannelPrompt
 from app.repositories import (
@@ -47,6 +48,7 @@ from app.services.channels.base import (
     press_value,
     read_press,
 )
+from app.services.channels.next_steps import offer_after_resume
 
 logger = logging.getLogger(__name__)
 
@@ -341,6 +343,7 @@ class ChannelPrompts:
                 platform_chat_id=prompt.platform_chat_id,
                 run_id=prompt.run_id,
             )
+            self._follow_ups(bot, segment, prompt.platform_chat_id)
         else:
             await adapter.settle_prompt(token, press, self._chosen(prompt))
 
@@ -394,7 +397,18 @@ class ChannelPrompts:
         await self.offer(
             bot, platform=platform, platform_chat_id=platform_chat_id, run_id=prompt.run_id
         )
+        self._follow_ups(bot, segment, platform_chat_id)
         return True
+
+    def _follow_ups(self, bot: ChannelBot, segment: RunSegment, platform_chat_id: str) -> None:
+        run = segment.run
+        if run.status != RunStatus.COMPLETED.value or run.channel_identity_id is None:
+            return
+        spawn_after_commit(
+            self.db,
+            offer_after_resume(bot.organization_id, run.id, bot.id, platform_chat_id),
+            name=f"channel-next-steps:{run.id}",
+        )
 
     async def _settle(
         self,
