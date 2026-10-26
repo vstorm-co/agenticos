@@ -25,6 +25,7 @@ import {
   type OrgState,
 } from "@/lib/onboarding/flows";
 import { pageKey } from "@/lib/onboarding/tour";
+import { Perm } from "@/types/permissions";
 import { useOnboardingStore, useOrgStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 import { useChatStore } from "@/stores/chat-store";
@@ -111,7 +112,9 @@ function useOrgSnapshot(): {
   liveState: OrgState | null;
 } {
   const agents = useAgents();
-  const agentCeiling = useAgentCeiling();
+  const { can } = usePermissions();
+  // The ceiling route needs `agents:edit`; without it there is no create to gate.
+  const agentCeiling = useAgentCeiling({ enabled: can(Perm.agentsEdit) });
   const models = useModelProviders();
   const skills = useSkills();
   const kb = useKnowledgeBases();

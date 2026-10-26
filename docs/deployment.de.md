@@ -1,5 +1,5 @@
 ---
-source_sha: "98512ec0bcf4"
+source_sha: "9b53018f30fe"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -581,14 +581,18 @@ Antwort beantwortet und nicht vom Gedächtnis eines Administrators. Sie wird in 
 Service ausgelöst, der die Sache anlegt, und nicht an der Route, denn die Route
 ist nicht der einzige Weg hinein.
 
-Die Konsole wartet nicht auf diese Ablehnung. `GET /agents` liefert dasselbe Paar
-als `ceiling` — null, wo kein Limit gesetzt ist, und für einen Aufrufer ohne
-`agents:edit`, da die Zählung Agenten umfasst, die er nicht sieht —, und am Limit
-deaktiviert die Seite Agenten **Neuer Agent (New agent)** und das Installieren von
-Vorlagen und sagt, warum, bevor jemand ein Formular ausfüllt. **Duplizieren
-(Duplicate)** und **Wiederherstellen (Restore)** werden weiterhin erst beim Versuch
-abgelehnt. Die Garantie bleibt
-die Ablehnung: Die Zählung ist eine Vorhersage, gelesen ohne die Sperre.
+Die Konsole wartet nicht auf diese Ablehnung. `GET /agents/ceiling`, offen für
+einen Aufrufer mit `agents:edit`, liefert das Limit (`limit`, null, wo keines
+gesetzt ist) und ob eine Erstellung daran scheitern würde (`at_limit`), und am
+Limit deaktiviert die Seite Agenten **Neuer Agent (New agent)** und das
+Installieren von Vorlagen und sagt, warum, bevor jemand ein Formular ausfüllt.
+
+Die Zählung selbst (`held`) erhält nur ein Aufrufer, dessen `agents:view` jeden Agenten
+der Organisation erreicht: Sie umfasst Agenten, die ein Mitglied (Member) nicht
+sieht, und neben seiner eigenen Liste würde sie verraten, wie viele vor ihm
+verborgen sind. **Duplizieren (Duplicate)** und **Wiederherstellen (Restore)**
+werden weiterhin erst beim Versuch abgelehnt. Die Garantie bleibt die Ablehnung:
+Die Zählung ist eine Vorhersage, gelesen ohne die Sperre.
 
 Null wird vom Schema abgelehnt: ein Konto, das keine Organisation besitzen darf,
 ist ein Konto, das nicht angelegt werden kann, denn die Anmeldung gibt jedem von

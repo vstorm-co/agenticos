@@ -52,6 +52,7 @@ from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
     AgentA2ARequest,
     AgentAvatarColorRequest,
+    AgentCeiling,
     AgentClone,
     AgentCreate,
     AgentDetail,
@@ -289,10 +290,6 @@ async def list_agents(
     `category`/`tag` are repeatable discovery filters: OR within a facet, AND
     across facets, matched case-insensitively (query values are folded the same
     way stored ones are). The service folds and bounds them.
-
-    `ceiling` is the deployment's agents-per-organization limit and the
-    organization's count against it - the pair a create is refused on. Null when
-    the deployment sets no limit, or the caller holds no `agents:edit`.
     """
     items, total = await service.list_agents(
         ctx,
@@ -306,13 +303,25 @@ async def list_agents(
     categories, tags = await service.list_labels(
         ctx, shared_with_me=shared_with_me, include_archived=include_archived
     )
-    return AgentList(
-        items=items,
-        total=total,
-        categories=categories,
-        tags=tags,
-        ceiling=await service.ceiling(ctx),
-    )
+    return AgentList(items=items, total=total, categories=categories, tags=tags)
+
+
+@router.get(
+    "/ceiling",
+    response_model=AgentCeiling,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def get_agent_ceiling(service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """The deployment's agents-per-organization limit, and whether a create would hit it.
+
+    So a console can say a create would be refused before a form is filled in;
+    the create itself stays the guarantee. `limit` is null where the deployment
+    sets no limit. `held`, the organization's count of agents that are not
+    archived, is given only to a caller whose `agents:view` reaches every agent
+    in the organization - to anyone else it would reveal how many are hidden
+    from them - and `at_limit` to every caller.
+    """
+    return await service.ceiling(ctx)
 
 
 @router.post(

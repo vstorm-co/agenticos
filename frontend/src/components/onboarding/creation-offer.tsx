@@ -7,6 +7,7 @@ import { isAtAgentLimit } from "@/components/agents/agent-limit-notice";
 import { ConfirmDialog } from "@/components/ui";
 import { useAgentCeiling } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
 import { canOfferFlow, FLOWS } from "@/lib/onboarding/flows";
 import { qk } from "@/lib/query-keys";
 import type { AgentList } from "@/types/agents";
@@ -48,7 +49,9 @@ export function CreationOffer() {
     queryKey: qk.agents.anyRunnable(),
     queryFn: skipToken,
   });
-  const { ceiling, known: ceilingKnown } = useAgentCeiling({ enabled: offer === "create-agent" });
+  const { ceiling, known: ceilingKnown } = useAgentCeiling({
+    enabled: offer === "create-agent" && can(Perm.agentsEdit),
+  });
 
   if (offer === null || !canOfferFlow(FLOWS[offer], can)) return null;
   // The MCP catalog is compiled into the deployment; empty, there is nothing to

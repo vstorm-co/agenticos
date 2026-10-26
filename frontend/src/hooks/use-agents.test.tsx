@@ -20,7 +20,7 @@ import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import type { AgentSpec } from "@/types/agents";
+import type { AgentSpec, SpecialistSpec } from "@/types/agents";
 
 const SPEC: AgentSpec = {
   spec_version: 3,
@@ -619,6 +619,20 @@ describe("useAgents mutations", () => {
   });
 });
 
+const SPECIALIST: SpecialistSpec = {
+  name: "invoice-parser",
+  description: "Pulls line items out of an invoice",
+  instructions: "Read the invoice.",
+  model_profile_id: null,
+  model_settings: {},
+  capabilities: [],
+  collection_ids: [],
+  skill_ids: [],
+  context_ids: [],
+  max_steps: null,
+  preferred_mode: null,
+};
+
 describe("the agent ceiling", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -630,7 +644,7 @@ describe("the agent ceiling", () => {
     return { client, wrapper: Wrapper };
   }
 
-  it("reads the ceiling from one row of the list, and is unknown until it lands", async () => {
+  it("reads the ceiling from its own route, and is unknown until it lands", async () => {
     let answer: (value: unknown) => void = () => {};
     vi.mocked(apiClient.get).mockReturnValue(
       new Promise((resolve) => {
@@ -640,10 +654,16 @@ describe("the agent ceiling", () => {
     const { result } = renderHook(() => useAgentCeiling(), { wrapper });
     expect(result.current).toEqual({ ceiling: null, known: false });
 
-    answer({ items: [], total: 3, ceiling: { limit: 3, held: 3 } });
+    answer({ limit: 3, held: 3, at_limit: true });
     await waitFor(() => expect(result.current.known).toBe(true));
-    expect(result.current.ceiling).toEqual({ limit: 3, held: 3 });
-    expect(apiClient.get).toHaveBeenCalledWith("/agents", { params: { limit: "1" } });
+    expect(result.current.ceiling).toEqual({ limit: 3, held: 3, at_limit: true });
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/ceiling");
+  });
+
+  it("is known without asking when disabled, for a caller with no create to gate", () => {
+    const { result } = renderHook(() => useAgentCeiling({ enabled: false }), { wrapper });
+    expect(result.current).toEqual({ ceiling: null, known: true });
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 
   it("counts a failed read as known, leaving the refusal to the server", async () => {
@@ -656,7 +676,7 @@ describe("the agent ceiling", () => {
   it("is kept fresher than the list and refetched on focus", async () => {
     // Another member's archive or a raised limit reaches this caller through no
     // event of theirs.
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, ceiling: null });
+    vi.mocked(apiClient.get).mockResolvedValue({ limit: null, held: null, at_limit: false });
     const { client, wrapper: Wrapper } = shared();
     renderHook(() => useAgentCeiling(), { wrapper: Wrapper });
     await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
@@ -668,11 +688,16 @@ describe("the agent ceiling", () => {
     ["create", (r: ReturnType<typeof useAgents>) => r.create.mutateAsync({ spec: SPEC })],
     ["clone", (r: ReturnType<typeof useAgents>) => r.clone.mutateAsync("a1")],
     ["unarchive", (r: ReturnType<typeof useAgents>) => r.unarchive.mutateAsync("a1")],
+    [
+      "promote",
+      (r: ReturnType<typeof useAgents>) =>
+        r.promote.mutateAsync({ specialist: SPECIALIST, fallbackModelProfileId: null }),
+    ],
   ])("recounts after a refused %s", async (_name, run) => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(apiClient.post).mockRejectedValue(new Error("at the limit"));
     const { client, wrapper: Wrapper } = shared();
-    client.setQueryData(qk.agents.ceiling(), { limit: 5, held: 4 });
+    client.setQueryData(qk.agents.ceiling(), { limit: 5, held: 4, at_limit: false });
     const { result } = renderHook(() => useAgents(), { wrapper: Wrapper });
 
     await expect(run(result.current)).rejects.toThrow("at the limit");
@@ -687,7 +712,7 @@ describe("the agent ceiling", () => {
       reads += 1;
       // The first ceiling read answers; the recount after the refusal never does.
       return reads === 1
-        ? Promise.resolve({ items: [], total: 0, ceiling: { limit: 5, held: 1 } })
+        ? Promise.resolve({ limit: 5, held: 1, at_limit: false })
         : new Promise(() => {});
     });
     const { wrapper: Wrapper } = shared();

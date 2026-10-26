@@ -68,7 +68,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import field_problems, refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
@@ -2967,21 +2967,29 @@ class AgentRegistryService:
             walk.pins[cache_key] = await self._resolve_pin(ctx, ref)
         return walk.pins[cache_key]
 
-    async def ceiling(self, ctx: AuthContext) -> AgentCeiling | None:
-        """The organization's agent limit and its count against it, or None.
+    async def ceiling(self, ctx: AuthContext) -> AgentCeiling:
+        """The organization's agent limit, and whether a create would be refused for it.
 
-        None when the deployment sets no limit, and for a caller who cannot
-        create agents: the count includes agents they cannot see, and they have
-        no create for it to forecast. Counted as `_refuse_past_the_ceiling`
-        counts, but without its lock - a forecast; the refusal stays the guarantee.
+        Counted as `_refuse_past_the_ceiling` counts, but without its lock - a
+        forecast; the refusal stays the guarantee. The route gates this on
+        `agents:edit`: a caller with no create has nothing to forecast.
+
+        The count is of every agent in the organization, so `held` goes only to
+        a caller whose `agents:view` already reaches all of them. Given to a
+        Member, who sees their own and what was shared, it minus their listing's
+        `total` would be how many agents are hidden from them, and polling it
+        would show when somebody else creates one. They get `at_limit` alone,
+        which a refused create would tell them anyway: at the limit the count is
+        the limit.
         """
-        if not ctx.has(Perm.AGENTS_EDIT):
-            return None
         limit = (await DeploymentSettingsService(self.db).limits()).agents_per_organization
         if limit is None:
-            return None
+            return AgentCeiling(limit=None, held=None, at_limit=False)
         held = await agent_repo.count_for_organization(self.db, organization_id=ctx.organization_id)
-        return AgentCeiling(limit=limit, held=held)
+        sees_every_agent = ctx.scope_for(Perm.AGENTS_VIEW) is Scope.ALL
+        return AgentCeiling(
+            limit=limit, held=held if sees_every_agent else None, at_limit=held >= limit
+        )
 
     async def _refuse_past_the_ceiling(self, ctx: AuthContext) -> None:
         """Refuse a transition that would put this organization over the limit.

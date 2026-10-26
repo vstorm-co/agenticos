@@ -126,9 +126,16 @@ describe("AgentTemplateDialog", () => {
 
   it("says the organization is at its agent limit instead of offering a refused install", async () => {
     // Installing creates an agent, so at the limit every install is refused (#2488).
-    render(<AgentTemplateDialog open onOpenChange={vi.fn()} ceiling={{ limit: 5, held: 5 }} />, {
-      wrapper,
-    });
+    render(
+      <AgentTemplateDialog
+        open
+        onOpenChange={vi.fn()}
+        ceiling={{ limit: 5, held: 5, at_limit: true }}
+      />,
+      {
+        wrapper,
+      },
+    );
     await userEvent.click(await screen.findByText("Healthcare"));
 
     expect(screen.getByText("This organization is at its agent limit")).toBeInTheDocument();
@@ -142,9 +149,16 @@ describe("AgentTemplateDialog", () => {
   });
 
   it("offers installs below the limit", async () => {
-    render(<AgentTemplateDialog open onOpenChange={vi.fn()} ceiling={{ limit: 5, held: 4 }} />, {
-      wrapper,
-    });
+    render(
+      <AgentTemplateDialog
+        open
+        onOpenChange={vi.fn()}
+        ceiling={{ limit: 5, held: 4, at_limit: false }}
+      />,
+      {
+        wrapper,
+      },
+    );
     await userEvent.click(await screen.findByText("Healthcare"));
 
     expect(screen.queryByText("This organization is at its agent limit")).not.toBeInTheDocument();

@@ -192,14 +192,16 @@ class TestAgentsPerOrganization:
 
 
 class TestTheCeilingTheConsoleReads:
-    """`GET /agents` carries the limit and the count, so **New agent** can say it
-    would be refused before the form is filled in (#2488)."""
+    """`GET /agents/ceiling` carries the limit and the count, so **New agent** can
+    say it would be refused before the form is filled in (#2488)."""
 
-    async def test_an_uncapped_deployment_has_no_ceiling(self, db) -> None:
+    async def test_an_uncapped_deployment_has_no_limit(self, db) -> None:
         owner = await _user(db)
         org = await _org(db, owner)
 
-        assert await AgentRegistryService(db).ceiling(_ctx(org, owner)) is None
+        ceiling = await AgentRegistryService(db).ceiling(_ctx(org, owner))
+
+        assert (ceiling.limit, ceiling.held, ceiling.at_limit) == (None, None, False)
 
     async def test_the_count_is_the_one_a_create_is_refused_on(self, db) -> None:
         """Archived agents free their place, so they are not counted here either."""
@@ -213,8 +215,29 @@ class TestTheCeilingTheConsoleReads:
 
         ceiling = await registry.ceiling(_ctx(org, owner))
 
-        assert ceiling is not None
-        assert (ceiling.limit, ceiling.held) == (2, 1)
+        assert (ceiling.limit, ceiling.held, ceiling.at_limit) == (2, 1, False)
+
+    async def test_a_member_learns_the_limit_is_reached_and_not_what_they_cannot_see(
+        self, db
+    ) -> None:
+        """The owner's private agents count against the limit and stay uncounted to a Member."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _user(db)
+        member_ctx = AuthContext(
+            user_id=member.id, organization_id=org.id, role=OrgRoleName.MEMBER.value
+        )
+        await _limits(db, max_agents_per_organization=3)
+        registry = AgentRegistryService(db)
+        await registry.create(_ctx(org, owner), AgentSpec(name="Private one"))
+        await registry.create(_ctx(org, owner), AgentSpec(name="Private two"))
+
+        below = await registry.ceiling(member_ctx)
+        await registry.create(member_ctx, AgentSpec(name="Mine"))
+        at = await registry.ceiling(member_ctx)
+
+        assert below.model_dump() == {"limit": 3, "held": None, "at_limit": False}
+        assert at.model_dump() == {"limit": 3, "held": None, "at_limit": True}
 
 
 class TestATransitionIntoOwnership:

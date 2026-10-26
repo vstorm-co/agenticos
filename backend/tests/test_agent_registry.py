@@ -4918,44 +4918,67 @@ async def test_mutation_rechecks_the_resource_after_waiting_for_its_lock(deleted
 class TestCeiling:
     """What the agents page reads to say a create would be refused (#2488)."""
 
+    @staticmethod
+    def _limited(limit: int, held: int):
+        return (
+            patch(
+                f"{REGISTRY_PATH}.DeploymentSettingsService.limits",
+                new=AsyncMock(return_value=DeploymentLimits(agents_per_organization=limit)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.count_for_organization",
+                new=AsyncMock(return_value=held),
+            ),
+        )
+
     @pytest.mark.anyio
     async def test_no_limit_is_no_ceiling_and_counts_nothing(self):
         with patch(f"{REGISTRY_PATH}.agent_repo.count_for_organization", new=AsyncMock()) as count:
             ceiling = await AgentRegistryService(_db()).ceiling(_ctx())
 
-        assert ceiling is None
+        assert (ceiling.limit, ceiling.held, ceiling.at_limit) == (None, None, False)
         count.assert_not_awaited()
 
     @pytest.mark.anyio
-    async def test_a_caller_who_cannot_create_gets_no_ceiling(self):
-        """The count includes agents a Viewer cannot see, and they have no create."""
-        limits = AsyncMock(return_value=DeploymentLimits(agents_per_organization=5))
-        with (
-            patch(f"{REGISTRY_PATH}.DeploymentSettingsService.limits", new=limits),
-            patch(f"{REGISTRY_PATH}.agent_repo.count_for_organization", new=AsyncMock()) as count,
-        ):
-            ceiling = await AgentRegistryService(_db()).ceiling(_ctx(OrgRoleName.VIEWER))
+    @pytest.mark.parametrize("role", [OrgRoleName.OWNER, OrgRoleName.ADMIN, OrgRoleName.BUILDER])
+    async def test_a_caller_who_sees_every_agent_gets_the_count(self, role):
+        ctx = _ctx(role)
+        limits, counted = self._limited(5, 5)
 
-        assert ceiling is None
-        limits.assert_not_awaited()
-        count.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_a_limit_comes_with_the_organization_count(self):
-        ctx = _ctx()
-
-        with (
-            patch(
-                f"{REGISTRY_PATH}.DeploymentSettingsService.limits",
-                new=AsyncMock(return_value=DeploymentLimits(agents_per_organization=5)),
-            ),
-            patch(
-                f"{REGISTRY_PATH}.agent_repo.count_for_organization",
-                new=AsyncMock(return_value=5),
-            ) as count,
-        ):
+        with limits, counted as count:
             ceiling = await AgentRegistryService(_db()).ceiling(ctx)
 
-        assert ceiling is not None
-        assert (ceiling.limit, ceiling.held) == (5, 5)
+        assert (ceiling.limit, ceiling.held, ceiling.at_limit) == (5, 5, True)
         assert count.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(("held", "at_limit"), [(4, False), (5, True), (7, True)])
+    async def test_a_scoped_creator_gets_whether_not_how_many(self, held, at_limit):
+        """A Member sees their own agents and what was shared with them.
+
+        The organization's count minus their listing's total would be how many
+        agents are hidden from them, so they get only the yes or no a refused
+        create would give them.
+        """
+        limits, counted = self._limited(5, held)
+
+        with limits, counted:
+            ceiling = await AgentRegistryService(_db()).ceiling(_ctx(OrgRoleName.MEMBER))
+
+        assert ceiling.model_dump() == {"limit": 5, "held": None, "at_limit": at_limit}
+
+    @pytest.mark.anyio
+    async def test_a_key_without_the_view_scope_gets_no_count(self):
+        """The narrowed permissions decide, not the issuer's role alone."""
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            key_scopes=frozenset({Perm.AGENTS_EDIT}),
+        )
+        limits, counted = self._limited(5, 2)
+
+        with limits, counted:
+            ceiling = await AgentRegistryService(_db()).ceiling(ctx)
+
+        assert (ceiling.held, ceiling.at_limit) == (None, False)

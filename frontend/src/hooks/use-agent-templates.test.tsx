@@ -16,7 +16,7 @@ describe("useAgentTemplates", () => {
     // A refused install may be the agent limit the cached ceiling did not know.
     vi.mocked(apiClient.post).mockRejectedValue(new Error("at the limit"));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    client.setQueryData(qk.agents.ceiling(), { limit: 5, held: 4 });
+    client.setQueryData(qk.agents.ceiling(), { limit: 5, held: 4, at_limit: false });
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );

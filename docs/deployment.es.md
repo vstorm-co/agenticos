@@ -1,5 +1,5 @@
 ---
-source_sha: "98512ec0bcf4"
+source_sha: "9b53018f30fe"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -549,12 +549,17 @@ El rechazo nombra el techo y el recuento contra el que se midió
 no la memoria de un administrador. Se lanza en el servicio que crea la cosa, no en
 la ruta, porque la ruta no es la única entrada.
 
-La consola no espera a ese rechazo. `GET /agents` devuelve el mismo par como
-`ceiling` — null donde no hay límite, y para quien llama sin `agents:edit`, ya que
-el recuento incluye agentes que no ve — y, en el límite, la página Agentes
+La consola no espera a ese rechazo. `GET /agents/ceiling`, abierto a quien llama
+con `agents:edit`, devuelve el límite (`limit`, null donde no hay ninguno) y si
+una creación chocaría con él (`at_limit`), y, en el límite, la página Agentes
 desactiva **New agent** y la instalación de plantillas y dice por qué, antes de
-que nadie rellene un formulario. **Duplicate** y **Restore** se siguen rechazando
-solo al intentarlo. La garantía sigue siendo el rechazo: el recuento es una previsión,
+que nadie rellene un formulario.
+
+El recuento en sí (`held`) solo lo recibe quien
+llama con un `agents:view` que alcanza a todos los agentes de la organización:
+incluye agentes que un miembro (Member) no ve, y comparado con su propio listado
+diría cuántos se le ocultan. **Duplicate** y **Restore** se siguen rechazando solo
+al intentarlo. La garantía sigue siendo el rechazo: el recuento es una previsión,
 leída sin el bloqueo.
 
 El schema rechaza el cero: una cuenta que no puede poseer ninguna organización es

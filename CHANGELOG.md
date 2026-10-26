@@ -21,10 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- `GET /agents` carries `ceiling`: the deployment's agents-per-organization
-  limit and the organization's count against it. It is null when there is no
-  limit, and for a caller without `agents:edit`, since the count includes agents
-  they cannot see (#2488).
+- `GET /agents/ceiling`, for a caller with `agents:edit`: the deployment's
+  agents-per-organization limit (`limit`, null for none) and whether a create
+  would hit it (`at_limit`). The organization's count against it (`held`) is
+  given only to a caller whose `agents:view` reaches every agent, since it
+  includes agents others cannot see (#2488).
 
 ### Fixed
 

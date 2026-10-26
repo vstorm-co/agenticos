@@ -66,20 +66,21 @@ async function everyAgent(params: ReturnType<typeof agentListParams>): Promise<A
   return { ...first, items };
 }
 
-/** Fetch only the ceiling: one row is the smallest page the route serves. */
-async function fetchAgentCeiling(): Promise<AgentCeiling | null> {
-  const page = await apiClient.get<AgentList>("/agents", { params: { limit: "1" } });
-  return page.ceiling ?? null;
+/** The ceiling has its own route, so paging through the list never recounts it. */
+function fetchAgentCeiling(): Promise<AgentCeiling> {
+  return apiClient.get<AgentCeiling>("/agents/ceiling");
 }
 
 /**
- * The organization's agent limit and its count, or null for no limit.
+ * The organization's agent limit and whether it is reached, or null until read.
  *
  * `known` is false until the server has answered: an unknown ceiling is not
  * "below the limit", so a create control waits for it. A failed read counts as
- * known - the server still refuses past the limit. Kept fresher than the list,
- * because another member's archive or an administrator's new limit reaches
- * this caller through no event of theirs.
+ * known - the server still refuses past the limit - and so does a disabled one:
+ * the route needs `agents:edit`, so a caller without it is never asked and has
+ * no create to wait on. Kept fresher than the list, because another member's
+ * archive or an administrator's new limit reaches this caller through no event
+ * of theirs.
  */
 export function useAgentCeiling({ enabled = true }: { enabled?: boolean } = {}) {
   const { data, isSuccess, isError } = useQuery({
@@ -89,7 +90,7 @@ export function useAgentCeiling({ enabled = true }: { enabled?: boolean } = {}) 
     refetchOnWindowFocus: true,
     enabled,
   });
-  return { ceiling: data ?? null, known: isSuccess || isError };
+  return { ceiling: data ?? null, known: !enabled || isSuccess || isError };
 }
 
 export function useAgents({
@@ -214,6 +215,10 @@ export function useAgents({
       }),
     onSuccess: async () => {
       await invalidate();
+    },
+    // A promotion is a create, refused at the limit like any other.
+    onError: () => {
+      void recount();
     },
   });
 

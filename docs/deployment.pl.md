@@ -1,5 +1,5 @@
 ---
-source_sha: "98512ec0bcf4"
+source_sha: "9b53018f30fe"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -540,12 +540,18 @@ Odrzucenie nazywa pułap i liczbę, względem której go zmierzono
 a nie pamięć administratora. Jest podnoszone w serwisie, który tworzy daną rzecz,
 a nie na trasie, bo trasa nie jest jedyną drogą do środka.
 
-Konsola nie czeka na tę odmowę. `GET /agents` zwraca tę samą parę jako `ceiling` —
-null, gdy limit nie jest ustawiony, oraz dla wywołującego bez `agents:edit`, bo
-licznik obejmuje agentów, których ten nie widzi — a na limicie strona Agenci
+Konsola nie czeka na tę odmowę. `GET /agents/ceiling`, dostępne dla wywołującego
+z `agents:edit`, zwraca limit (`limit`, null, gdy nie jest ustawiony) oraz to, czy
+utworzenie agenta by go przekroczyło (`at_limit`), a na limicie strona Agenci
 wyłącza **Nowy agent (New agent)** i instalowanie szablonów i mówi dlaczego, zanim
-ktokolwiek wypełni formularz. **Duplikuj (Duplicate)** i **Przywróć (Restore)** są
-nadal odrzucane dopiero przy próbie. Gwarancją pozostaje odmowa: licznik jest prognozą, czytaną bez blokady.
+ktokolwiek wypełni formularz.
+
+Sam licznik (`held`) dostaje tylko wywołujący,
+którego `agents:view` obejmuje wszystkich agentów organizacji: licznik obejmuje
+agentów, których Członek (Member) nie widzi, a zestawiony z jego własną listą
+mówiłby, ilu przed nim ukryto. **Duplikuj (Duplicate)** i **Przywróć (Restore)**
+są nadal odrzucane dopiero przy próbie. Gwarancją pozostaje odmowa: licznik jest
+prognozą, czytaną bez blokady.
 
 Zero jest odrzucane przez schemat: konto, które nie może posiadać żadnej
 organizacji, to konto, którego nie da się utworzyć, skoro rejestracja daje każdemu

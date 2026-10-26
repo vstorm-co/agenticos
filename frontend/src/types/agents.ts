@@ -531,20 +531,25 @@ export interface AgentDetail extends Agent {
 }
 
 /**
- * The deployment's agents-per-organization limit and this organization's count
- * against it - every agent not archived, including ones the caller cannot see.
- * Mirrors the backend `AgentCeiling`.
+ * The deployment's agents-per-organization limit, and whether this organization
+ * is at it - from `GET /agents/ceiling`. Mirrors the backend `AgentCeiling`.
  */
 export interface AgentCeiling {
-  limit: number;
-  held: number;
+  /** Agents the deployment allows per organization; null is no limit. */
+  limit: number | null;
+  /**
+   * Agents the organization holds, archived ones excluded - including ones the
+   * caller cannot see, which is why it is null unless the caller sees every
+   * agent in the organization. Null too when there is no limit.
+   */
+  held: number | null;
+  /** Whether a new agent would be refused for the limit. */
+  at_limit: boolean;
 }
 
 export interface AgentList {
   items: Agent[];
   total: number;
-  /** Null when the deployment sets no limit, or the caller cannot create agents. */
-  ceiling?: AgentCeiling | null;
   /** Every distinct category on the agents the caller may list - the filter's choices. */
   categories: string[];
   /** Every distinct tag on the agents the caller may list. */

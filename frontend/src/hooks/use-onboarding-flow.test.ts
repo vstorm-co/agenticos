@@ -6,6 +6,7 @@ import { useOnboardingStore, useOrgStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
+import type { AgentCeiling } from "@/types/agents";
 import { Perm, type Permission } from "@/types/permissions";
 
 // The pathname the arrived-signal reads; a test moves it to fake a navigation.
@@ -34,8 +35,9 @@ const rig = vi.hoisted(() => ({
   anyRunnable: true,
   anyRunnableLoading: false,
   anyRunnableFetching: false,
-  ceiling: null as { limit: number; held: number } | null,
+  ceiling: null as AgentCeiling | null,
   ceilingKnown: true,
+  ceilingEnabled: true,
   can: (_permission: Permission): boolean => true,
 }));
 
@@ -46,7 +48,10 @@ vi.mock("@/hooks/use-agents", () => ({
     isLoading: rig.agentsLoading,
     isFetching: rig.agentsLoading,
   }),
-  useAgentCeiling: () => ({ ceiling: rig.ceiling, known: rig.ceilingKnown }),
+  useAgentCeiling: (options?: { enabled?: boolean }) => {
+    rig.ceilingEnabled = options?.enabled ?? true;
+    return { ceiling: rig.ceiling, known: rig.ceilingKnown };
+  },
   // Disabled when no id is captured, mirroring `enabled: !!agentId` in the real hook.
   useAgent: (id: string | null) => ({ agent: id ? rig.agentDetail : undefined }),
 }));
@@ -213,7 +218,7 @@ describe("useOnboardingFlow", () => {
     // The fork hands off to create-agent, whose first target - New agent - is
     // disabled at the limit; a coach waiting on it would have no way forward.
     rig.ceilingKnown = false;
-    rig.ceiling = { limit: 1, held: 1 };
+    rig.ceiling = { limit: 1, held: 1, at_limit: true };
     const { result, rerender } = renderHook(() => useOnboardingFlow());
     act(() => useOnboardingStore.getState().openFlow("explore-chat"));
     expect(result.current.isActive).toBe(false);
@@ -224,8 +229,19 @@ describe("useOnboardingFlow", () => {
     expect(result.current.steps.map((step) => step.id)).not.toContain("flow-chat-needs-agent");
   });
 
+  it("asks for the agent limit only of a caller who may create agents", () => {
+    // The route refuses a caller without `agents:edit`; they have no create to gate.
+    rig.can = (permission) => permission !== Perm.agentsEdit;
+    renderHook(() => useOnboardingFlow());
+    expect(rig.ceilingEnabled).toBe(false);
+
+    rig.can = () => true;
+    renderHook(() => useOnboardingFlow());
+    expect(rig.ceilingEnabled).toBe(true);
+  });
+
   it("offers the build-an-agent fork below the limit", () => {
-    rig.ceiling = { limit: 2, held: 1 };
+    rig.ceiling = { limit: 2, held: 1, at_limit: false };
     const { result } = renderHook(() => useOnboardingFlow());
     act(() => useOnboardingStore.getState().openFlow("explore-chat"));
     expect(result.current.step?.id).toBe("flow-chat-needs-agent");

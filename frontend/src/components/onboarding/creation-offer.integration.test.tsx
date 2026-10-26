@@ -25,11 +25,14 @@ function renderOffer(
     catalog?: { items: unknown[] };
     agents?: number;
     anyRunnable?: boolean;
-    ceiling?: AgentCeiling | null;
+    ceiling?: AgentCeiling;
   } = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(qk.agents.ceiling(), seed.ceiling ?? null);
+  client.setQueryData(
+    qk.agents.ceiling(),
+    seed.ceiling ?? { limit: null, held: null, at_limit: false },
+  );
   if (seed.catalog) client.setQueryData(qk.mcpServers.catalog(), seed.catalog);
   if (seed.anyRunnable !== undefined) {
     client.setQueryData(qk.agents.anyRunnable(), seed.anyRunnable);
@@ -132,13 +135,13 @@ describe("CreationOffer", () => {
     // The flow's first target is New agent, disabled at the limit, and the coach
     // would wait on it with no way forward.
     useOnboardingStore.setState({ offer: "create-agent", offerFromTour: false });
-    renderOffer(<CreationOffer />, { agents: 6, ceiling: { limit: 6, held: 6 } });
+    renderOffer(<CreationOffer />, { agents: 6, ceiling: { limit: 6, held: 6, at_limit: true } });
     expect(screen.queryByText("Create your first agent?")).toBeNull();
   });
 
   it("offers it below the limit", () => {
     useOnboardingStore.setState({ offer: "create-agent", offerFromTour: false });
-    renderOffer(<CreationOffer />, { agents: 5, ceiling: { limit: 6, held: 5 } });
+    renderOffer(<CreationOffer />, { agents: 5, ceiling: { limit: 6, held: 5, at_limit: false } });
     expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
   });
 
