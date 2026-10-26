@@ -732,7 +732,7 @@ class DatasetService:
             source = case.source_conversation_id
             if source is not None and source not in accessible:
                 allowed = False
-                if ctx.subject_id is not None:
+                if ctx.user_id is not None:
                     try:
                         await conversations.get_conversation(
                             source,
@@ -764,7 +764,7 @@ class DatasetService:
         unless the caller may read the conversation or its recorded runs.
         """
         message = await conversation_repo.get_message_by_id(self.db, message_id)
-        if message is None or (not ctx.has(Perm.RUNS_VIEW) and ctx.subject_id is None):
+        if message is None or (not ctx.has(Perm.RUNS_VIEW) and ctx.user_id is None):
             raise NotFoundError(message="Message not found")
         conversation = await ConversationService(self.db).get_conversation(
             message.conversation_id,
@@ -1020,7 +1020,7 @@ class DatasetService:
         asked_by: UUID | None = None
         if case.source_message_id is not None:
             message = await conversation_repo.get_message_by_id(self.db, case.source_message_id)
-            if message is not None:
+            if message is not None:  # pragma: no branch - a gone message fails the insert's FK
                 conversation = await conversation_repo.get_conversation_by_id(
                     self.db, message.conversation_id
                 )

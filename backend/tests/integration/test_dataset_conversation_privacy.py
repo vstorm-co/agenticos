@@ -1,22 +1,29 @@
 """A dataset grant does not grant access to the private conversations copied into it."""
 
+import uuid
 from dataclasses import replace
 from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import OrgRoleName
+from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.resource_grant import ResourceGrant
 from app.db.models.user import User
 from app.main import app
-from app.schemas.dataset import DatasetCaseFromMessage, DatasetCaseUpdate, DatasetCreate
-from app.services.dataset import DatasetService
+from app.schemas.dataset import (
+    DatasetCaseContent,
+    DatasetCaseFromMessage,
+    DatasetCaseUpdate,
+    DatasetCreate,
+)
+from app.services.dataset import DatasetService, GeneratedCase
 from tests.integration.test_datasets import _rated_down_turn
 from tests.integration.test_eval_suites import (
     Model,
@@ -140,6 +147,93 @@ async def test_private_source_warning_names_somebody_else_but_not_the_conversati
     assert other.private_to_other and other.owner_name == "Pat"
     with pytest.raises(NotFoundError):
         await service.source_privacy(viewer, answer.id)
+
+
+async def _held(db, dataset_id) -> list[DatasetCase]:
+    return list(
+        await db.scalars(
+            select(DatasetCase)
+            .where(DatasetCase.dataset_id == dataset_id, DatasetCase.removed_in.is_(None))
+            .order_by(DatasetCase.position)
+            .execution_options(populate_existing=True)
+        )
+    )
+
+
+async def test_a_source_check_without_a_person_or_for_an_unknown_message_finds_nothing(
+    db,
+) -> None:
+    owner = await _owner(db)
+    _, answer = await _rated_down_turn(db, owner)
+    service = DatasetService(db)
+
+    with pytest.raises(NotFoundError, match="Message not found"):
+        await service.source_privacy(owner, uuid.uuid4())
+    with pytest.raises(NotFoundError, match="Message not found"):
+        await service.source_privacy(replace(owner, user_id=None), answer.id)
+
+
+async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_gone(db) -> None:
+    """Cases sharing a conversation are shown or hidden by one access check; nobody, and
+    then everybody once the conversation is deleted, reads a conversation case masked."""
+    owner = await _owner(db)
+    as_viewer = replace(owner, role=OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="one conversation"))
+    _, answer = await _rated_down_turn(db, owner)
+    copied = await service.add_from_message(
+        owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+    drafted = GeneratedCase(
+        content=DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
+        source_conversation_id=answer.conversation_id,
+    )
+    await service.add_generated(owner, await service.lock_for_edit(owner, dataset.id), [drafted])
+
+    shown = (await service.list_cases(as_viewer, dataset.id)).items
+    hidden = await service.case_reads(replace(owner, user_id=None), await _held(db, dataset.id))
+    await db.execute(delete(Conversation).where(Conversation.id == answer.conversation_id))
+    gone = {
+        read.case_id: read
+        for read in await service.case_reads(as_viewer, await _held(db, dataset.id))
+    }
+
+    assert [read.masked for read in shown] == [False, False]
+    assert [read.input for read in shown] == [copied.input, "Can I return a kettle?"]
+    assert [read.masked for read in hidden] == [True, True]
+    assert copied.input not in {read.input for read in hidden}
+    assert gone[copied.case_id].masked
+    assert gone[copied.case_id].input != copied.input
+
+
+async def test_a_draft_from_another_organizations_message_is_attributed_to_nobody(db) -> None:
+    owner = await _owner(db)
+    stranger = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="attribution"))
+    questions = []
+    for ctx in (owner, stranger):
+        _, answer = await _rated_down_turn(db, ctx)
+        question = await db.scalar(
+            select(Message).where(
+                Message.conversation_id == answer.conversation_id,
+                Message.content == "How long do I have to return it?",
+            )
+        )
+        assert question is not None
+        questions.append(question)
+    drafts = [
+        GeneratedCase(
+            content=DatasetCaseContent(input=f"Drafted {index}?", reference_answer="Yes."),
+            source_message_id=question.id,
+        )
+        for index, question in enumerate(questions)
+    ]
+
+    await service.add_generated(owner, await service.lock_for_edit(owner, dataset.id), drafts)
+
+    held = await _held(db, dataset.id)
+    assert [case.asked_by_user_id for case in held] == [owner.user_id, None]
 
 
 async def test_review_hides_answers_notes_and_judge_evidence_without_runs_view(db) -> None:

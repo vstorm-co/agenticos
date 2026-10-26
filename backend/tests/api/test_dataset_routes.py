@@ -28,6 +28,7 @@ from app.schemas.dataset import (
     DatasetCaseRead,
     DatasetList,
     DatasetRead,
+    DatasetSourcePrivacy,
     DatasetVersionList,
     DatasetVersionRead,
 )
@@ -234,3 +235,24 @@ async def test_one_case_is_read_at_the_version_asked(
     assert read.json()["case_id"] == str(_CASE.case_id)
     _, kwargs = service.read_case.call_args
     assert kwargs == {"version": 2}
+
+
+async def test_a_messages_source_check_is_not_read_as_a_dataset(
+    client: OpenClient, service: MagicMock
+) -> None:
+    message_id = uuid.uuid4()
+    service.source_privacy = AsyncMock(
+        side_effect=[
+            DatasetSourcePrivacy(private_to_other=True, owner_name="Pat"),
+            NotFoundError(message="Message not found", details={}),
+        ]
+    )
+    async with client() as http:
+        private = await http.get(_url(f"/messages/{message_id}/source"))
+        unknown = await http.get(_url(f"/messages/{uuid.uuid4()}/source"))
+
+    assert private.status_code == 200
+    assert private.json() == {"private_to_other": True, "owner_name": "Pat"}
+    assert service.source_privacy.await_args_list[0].args[1] == message_id
+    assert unknown.status_code == 404
+    service.read.assert_not_called()
