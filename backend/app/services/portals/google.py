@@ -72,39 +72,18 @@ def _header(message: dict[str, Any], name: str) -> str:
     return ""
 
 
-def _body_text(part: dict[str, Any], depth: int = 0) -> str:
-    """The plain-text body of a message, walking the MIME tree for it.
-
-    `text/plain` is preferred and HTML is the fallback, because what reaches the
-    agent should be what a person would read rather than markup it has to strip.
-    Bounded by depth: a MIME tree is attacker-shaped input - anybody who can email
-    this mailbox chooses it - and a deeply nested one is a stack, not a message.
-    """
-    if depth > 8:
-        return ""
+def _body_text(part: dict[str, Any]) -> str:
+    """Decode the inline bytes of one textual MIME part."""
     mime = str(part.get("mimeType") or "")
     data = _nested(part, "body").get("data")
-    if isinstance(data, str) and data and mime.startswith("text/"):
-        import base64
+    if not isinstance(data, str) or not data or not mime.startswith("text/"):
+        return ""
+    import base64
 
-        try:
-            decoded = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode(
-                "utf-8", "replace"
-            )
-        except ValueError, TypeError:
-            return ""
-        return decoded
-    plain = ""
-    html = ""
-    for child in part.get("parts") or []:
-        found = _body_text(child, depth + 1)
-        if not found:
-            continue
-        if str(child.get("mimeType") or "").startswith("text/plain"):
-            plain = plain or found
-        else:
-            html = html or found
-    return plain or html
+    try:
+        return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8", "replace")
+    except ValueError, TypeError:
+        return ""
 
 
 class GooglePortalAdapter(PortalAdapter):

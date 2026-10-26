@@ -5,8 +5,8 @@ A cron expression was evaluated in UTC, so somebody in Warsaw wanting "daily at
 a year. `time_zone` holds the IANA zone the expression means; existing rows are
 left null, which keeps reading them in UTC exactly as before.
 
-Revision ID: 0172_trigger_time_zone
-Revises: 0171_outlook_event_source
+Revision ID: 0176_trigger_time_zone
+Revises: 0175_outlook_event_source
 Create Date: 2026-10-23
 """
 
@@ -16,8 +16,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0172_trigger_time_zone"
-down_revision: str | None = "0171_outlook_event_source"
+revision: str = "0176_trigger_time_zone"
+down_revision: str | None = "0175_outlook_event_source"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

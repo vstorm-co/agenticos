@@ -1064,3 +1064,12 @@ async def test_repeated_lost_sync_never_advances_the_drive_cursor(monkeypatch) -
             places={_SITE: _NOW},
         )
     assert len(api.asked) == 10
+
+
+@pytest.mark.parametrize("identifier", [None, "", 0])
+async def test_a_missing_account_identity_does_not_establish_a_file_cursor(
+    identifier, monkeypatch
+) -> None:
+    _install(_Api({"/v1.0/me": {"id": identifier}}), monkeypatch)
+    with pytest.raises(PortalUnreachable):
+        await MicrosoftFilesPortalAdapter().poll(access_token="t", cursor=None)

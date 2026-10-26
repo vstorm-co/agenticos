@@ -1,7 +1,7 @@
 """Outlook joins Gmail as a polled mail source
 
-Revision ID: 0171_outlook_event_source
-Revises: 0170_generated_media
+Revision ID: 0175_outlook_event_source
+Revises: 0174_message_client_id
 Create Date: 2026-10-17
 
 `outlook` is a Microsoft 365 mailbox read through the organization's Microsoft
@@ -12,8 +12,8 @@ sources widen to it; no existing row changes.
 
 from alembic import op
 
-revision = "0171_outlook_event_source"
-down_revision = "0170_generated_media"
+revision = "0175_outlook_event_source"
+down_revision = "0174_message_client_id"
 branch_labels = None
 depends_on = None
 

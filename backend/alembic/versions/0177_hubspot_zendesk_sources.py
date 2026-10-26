@@ -1,7 +1,7 @@
 """HubSpot and Zendesk join the signed webhook sources (#2195).
 
-Revision ID: 0173_hubspot_zendesk_sources
-Revises: 0172_trigger_time_zone
+Revision ID: 0177_hubspot_zendesk_sources
+Revises: 0176_trigger_time_zone
 Create Date: 2026-10-23
 
 Both POST to the trigger's own URL and are verified by their provider's
@@ -14,8 +14,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0173_hubspot_zendesk_sources"
-down_revision: str | None = "0172_trigger_time_zone"
+revision: str = "0177_hubspot_zendesk_sources"
+down_revision: str | None = "0176_trigger_time_zone"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

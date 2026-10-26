@@ -688,3 +688,16 @@ def test_unfinished_workflows_do_not_require_a_final_conclusion(action: str) -> 
         payload={"action": action, "workflow_run": {"conclusion": None, "head_branch": "main"}},
         config={"event": "workflow_run", "actions": [action]},
     )
+
+
+@pytest.mark.parametrize("source", ["gmail", "outlook"])
+@pytest.mark.parametrize("fragment,matches", [("billing", True), ("sales", False)])
+def test_a_plain_sender_fragment_narrows_the_address(source, fragment, matches):
+    payload = _outlook() if source == "outlook" else {"labels": ["INBOX"]}
+    payload.update({"from": "Sales team <billing@acme.test>", "authenticated": True})
+    assert (
+        trigger_events.event_matches(
+            source, headers={}, payload=payload, config={"sender_contains": fragment}
+        )
+        is matches
+    )

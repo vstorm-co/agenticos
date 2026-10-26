@@ -63,10 +63,12 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             if not cursor or not isinstance(cursor.get("account"), str):
                 user = await self._get(client, access_token, f"{_API_BASE}/me", {"$select": "id"})
-                fresh: dict[str, Any] = {"account": str(user.get("id") or ""), "places": {}}
-                if isinstance(user.get("id"), str):
-                    fresh["user_id"] = user["id"]
-                return PolledEvents(events=(), cursor=fresh)
+                identifier = user.get("id")
+                if not isinstance(identifier, str) or not identifier:
+                    raise PortalUnreachable(message="Microsoft Graph did not identify the account")
+                return PolledEvents(
+                    events=(), cursor={"account": identifier, "user_id": identifier, "places": {}}
+                )
             previous = cursor.get("places")
             states: dict[str, Any] = previous if isinstance(previous, dict) else {}
             next_states: dict[str, Any] = {}

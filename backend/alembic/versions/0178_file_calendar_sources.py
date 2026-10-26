@@ -1,7 +1,7 @@
 """Files and calendars join the polled sources (#2195).
 
-Revision ID: 0174_file_calendar_sources
-Revises: 0173_hubspot_zendesk_sources
+Revision ID: 0178_file_calendar_sources
+Revises: 0177_hubspot_zendesk_sources
 Create Date: 2026-10-23
 
 Google Drive, OneDrive/SharePoint, Google Calendar and Outlook Calendar are read
@@ -14,8 +14,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0174_file_calendar_sources"
-down_revision: str | None = "0173_hubspot_zendesk_sources"
+revision: str = "0178_file_calendar_sources"
+down_revision: str | None = "0177_hubspot_zendesk_sources"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
