@@ -342,7 +342,12 @@ export function BrowserWindow({
           page's lock and whether it is live, then what a person can do. A tab
           strip above it held one tab that could not be switched, and read as a
           second address bar. */}
-      <div className="bg-background border-border flex h-12 shrink-0 items-center gap-1 border-b px-2">
+      <div
+        className={cn(
+          "bg-background border-border flex shrink-0 items-center gap-1 border-b px-2",
+          browse.navigable && canDrive ? "min-h-12 flex-wrap py-1.5" : "h-12",
+        )}
+      >
         {browse.navigable && canDrive ? (
           <BrowserNavigation url={browse.url} holding={hold.holding} send={control.send} />
         ) : (

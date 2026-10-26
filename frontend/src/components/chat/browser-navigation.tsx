@@ -37,7 +37,7 @@ export function BrowserNavigation({
   const [invalid, setInvalid] = useState(false);
   return (
     <form
-      className="flex min-w-0 flex-1 items-center gap-1"
+      className="flex min-w-0 flex-1 basis-full items-center gap-1 md:basis-auto"
       title={!holding ? t("browserNavigationHint") : undefined}
       onSubmit={(event) => {
         event.preventDefault();
