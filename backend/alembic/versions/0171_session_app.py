@@ -1,7 +1,7 @@
 """Which AgenticOS app a session is signed in through, and its version (#2305, #2097).
 
 Revision ID: 0171_session_app
-Revises: 0170_generated_media
+Revises: 0174_message_client_id
 Create Date: 2026-10-22
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0171_session_app"
-down_revision: str | None = "0170_generated_media"
+down_revision: str | None = "0174_message_client_id"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
