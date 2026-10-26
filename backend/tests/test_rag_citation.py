@@ -103,6 +103,15 @@ class TestCitedHeading:
         """The recursive splitter can start a chunk mid-fence, on a shell comment."""
         assert cited_heading("# install deps\npip install x\n```\nAfter.") is None
 
+    @pytest.mark.parametrize("fence", ["```", "~~~", "````", "~~~~~"])
+    def test_any_bare_fence_run_closes_the_block_a_chunk_was_cut_inside(self, fence):
+        """A four-or-more-marker fence is closed by a line of that run (#2501 review)."""
+        assert cited_heading(f"# install deps\npip install x\n{fence}\nAfter.") is None
+
+    @pytest.mark.parametrize("fence", ["````bash", "~~~~ python"])
+    def test_a_long_fence_with_an_info_string_opens_a_block(self, fence):
+        assert cited_heading(f"## Setup\n{fence}\n# install deps\nDone.") == "Setup"
+
     def test_a_section_holding_a_whole_code_block_keeps_its_heading(self):
         assert cited_heading("## Setup\n```bash\n# install deps\n```\nDone.") == "Setup"
         assert cited_heading("# \x07\nx") is None

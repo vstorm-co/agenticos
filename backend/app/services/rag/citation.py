@@ -104,7 +104,9 @@ def _opens_inside_a_fence(content: str) -> bool:
         for line in (raw.strip() for raw in content.splitlines())
         if line.startswith(("```", "~~~"))
     ]
-    return len(fences) % 2 == 1 and fences[0] in ("```", "~~~")
+    # A bare fence is a run of one marker and nothing else: a block opened with
+    # four or more markers closes on a line of at least as many.
+    return len(fences) % 2 == 1 and len(set(fences[0])) == 1
 
 
 def cited_heading(content: str) -> str | None:
