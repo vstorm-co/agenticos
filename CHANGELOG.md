@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-10-26
+
 ### Added
 
 - Independent light and dark controls in signed-in and public app viewers.
