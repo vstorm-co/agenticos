@@ -299,6 +299,26 @@ class TestReadingWhatAnInheritedCallReturned:
 
 
 class TestWritingTheTranscript:
+    @pytest.fixture(autouse=True)
+    def steps(self):
+        # This class verifies persistence, not a paid post-commit model call.
+        with patch("app.services.follow_ups.queue_next_steps") as queued:
+            yield queued
+
+    async def test_non_socket_answers_defer_suggestions_after_their_saved_message(
+        self, conversations, files, steps
+    ):
+        db = _session()
+        run = _run()
+        run.organization_id = uuid.uuid4()
+        prompt_id, answer_id = uuid.uuid4(), uuid.uuid4()
+        conversations.create_message.side_effect = [
+            MagicMock(id=prompt_id),
+            MagicMock(id=answer_id),
+        ]
+        await TranscriptService(db).record(run, prompt="Question", answer="Answer")
+        steps.assert_called_once_with(db, answer_id, run.organization_id)
+
     @pytest.fixture
     def conversations(self):
         """The repository boundary, which is where the assertions belong."""

@@ -13,6 +13,7 @@ import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
+import { nextStepEvent, withNextSteps, type NextStepEvent } from "@/lib/next-step-events";
 import { coalesceChatFrames } from "@/lib/chat-frame-batch";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
@@ -254,6 +255,17 @@ export function useChat(options: UseChatOptions = {}) {
   // cost still belongs to what is on screen - and three copies of the fallback chain
   // is three chances for them to disagree.
   const activeConversationId = currentConversationIdFromStore || conversationId || null;
+  const pendingNextSteps = useRef(new Map<string, NextStepEvent>());
+  useEffect(() => {
+    for (const [id, event] of pendingNextSteps.current) {
+      if (event.conversation_id !== activeConversationId) {
+        pendingNextSteps.current.delete(id);
+      } else if (messages.some((message) => message.id === id)) {
+        pendingNextSteps.current.delete(id);
+        updateMessage(id, (message) => withNextSteps(message, event));
+      }
+    }
+  }, [messages, activeConversationId, updateMessage]);
 
   const [isStopping, setIsStopping] = useState(false);
   const stoppingRef = useRef<object | null>(null);
@@ -437,12 +449,19 @@ export function useChat(options: UseChatOptions = {}) {
     // same handler, and the closure still holds `null`.
     const id = conversationApi.getState().currentConversationId ?? activeConversationId;
     if (id === null) return;
+    const account = useAuthStore.getState().user?.id;
+    const organization = useOrgStore.getState().activeOrgId;
     try {
       const page = await apiClient.get<{ cost: ConversationCost | null }>(
         `/conversations/${id}/messages?skip=0&limit=1`,
       );
       // Only if the reader is still looking at the thread it was asked about.
-      if (conversationApi.getState().currentConversationId === id) setCurrentCost(page.cost);
+      if (
+        conversationApi.getState().currentConversationId === id &&
+        useAuthStore.getState().user?.id === account &&
+        useOrgStore.getState().activeOrgId === organization
+      )
+        setCurrentCost(page.cost);
     } catch {
       // Deliberately silent: see above.
     }
@@ -652,6 +671,22 @@ export function useChat(options: UseChatOptions = {}) {
             (msg) => ({ ...msg, conversationId: conversation_id }),
           );
           onConversationCreated?.(conversation_id);
+          break;
+        }
+
+        case "next_steps": {
+          const data = nextStepEvent(wsEvent.data);
+          const current = conversationApi.getState().currentConversationId ?? activeConversationId;
+          if (!data || data.conversation_id !== current) break;
+          void refreshConversationCost();
+          if (data.steps.length === 0) break;
+          if (chatApi.getState().messages.some((message) => message.id === data.message_id)) {
+            updateMessage(data.message_id, (message) => withNextSteps(message, data));
+          } else {
+            // A very fast helper may finish before message_saved renames the bubble.
+            if (pendingNextSteps.current.size >= 20) pendingNextSteps.current.clear();
+            pendingNextSteps.current.set(data.message_id, data);
+          }
           break;
         }
 
@@ -1179,6 +1214,9 @@ export function useChat(options: UseChatOptions = {}) {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const tenantId = useTenantId();
   const queueAccountId = useAuthStore((state) => state.user?.id);
+  useLayoutEffect(() => {
+    pendingNextSteps.current.clear();
+  }, [queueAccountId, tenantId, activeOrgId]);
   const { wsUrl: wsOrigin } = usePublicConfig();
   const wsUrl = useMemo(() => {
     const base = `${wsOrigin}/api/v1/ws/agent`;

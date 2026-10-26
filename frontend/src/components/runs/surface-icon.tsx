@@ -1,4 +1,14 @@
-import { CalendarClock, Code2, Globe, MessageSquare, Mic, Network, Zap } from "lucide-react";
+import {
+  BellRing,
+  CalendarClock,
+  Code2,
+  Globe,
+  MessageSquare,
+  Mic,
+  Network,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { brandMark } from "@/components/icons/brand-icon";
@@ -23,6 +33,7 @@ const MARKS = {
   web: MessageSquare,
   embed: Globe,
   api: Code2,
+  follow_ups: Sparkles,
   slack: brandMark("slack"),
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
@@ -36,6 +47,7 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  proactive: BellRing,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -43,6 +55,7 @@ const LABEL_KEYS = {
   web: "surfaceWeb",
   embed: "surfaceEmbed",
   api: "surfaceApi",
+  follow_ups: "surfaceFollowUps",
   slack: "surfaceSlack",
   telegram: "surfaceTelegram",
   mattermost: "surfaceMattermost",
@@ -50,6 +63,7 @@ const LABEL_KEYS = {
   teams: "surfaceTeams",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  proactive: "surfaceProactive",
 } as const;
 
 /**

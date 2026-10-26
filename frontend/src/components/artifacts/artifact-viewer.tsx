@@ -5,6 +5,8 @@ import { Bell, BellOff, FileX, History } from "lucide-react";
 import { useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
+import { ArtifactThemeToggle } from "@/components/artifacts/artifact-theme-toggle";
+import type { ArtifactTheme } from "@/types/artifact";
 import { ArtifactFrame } from "@/components/artifacts/artifact-frame";
 import { OtherOrganizations } from "@/components/artifacts/other-organizations";
 import { ArtifactShareDialog } from "@/components/artifacts/artifact-share-dialog";
@@ -45,6 +47,7 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
   const ts = useTranslations("states");
   const tc = useTranslations("common");
   const router = useRouter();
+  const [theme, setTheme] = useState<ArtifactTheme>("light");
   const [versionId, setVersionId] = useState(initialVersionId);
   const [sharing, setSharing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -101,6 +104,7 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
         onShare={() => setSharing(true)}
         onDelete={() => setConfirming(true)}
       >
+        <ArtifactThemeToggle theme={theme} onChange={setTheme} />
         <VersionPicker versions={versions} value={versionId} onChange={setVersionId} />
         <Button
           size="sm"
@@ -135,6 +139,7 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
       <div className="flex min-h-0 flex-1 flex-col">
         <ArtifactFrame
           artifactId={artifact.id}
+          theme={theme}
           versionId={versionId}
           title={artifact.title}
           className="min-h-0 rounded-none border-0"

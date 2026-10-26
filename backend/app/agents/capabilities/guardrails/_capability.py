@@ -572,6 +572,17 @@ def output_screen(config: GuardrailsConfig) -> ScreenedStream | None:
     )
 
 
+def tool_args_screen(config: GuardrailsConfig) -> TextDetector | None:
+    """Screen structured arguments, including native structured helper outputs."""
+    return _edge_detector(
+        redact_secrets_on=config.redact_secrets_args,
+        redact_pii_on=config.redact_pii_args,
+        phone_regions=parse_phone_regions(config.phone_regions),
+        keywords=_keywords(config.blocked_keywords_args),
+        edge="tool_args",
+    )
+
+
 def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:
     """The harness capabilities this configuration asks for, combined into one.
 
@@ -607,13 +618,7 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
             ToolGuardrail(result_guard=for_tool_result_text(tool_detector, on_other="allow"))
         )
 
-    args_detector = _edge_detector(
-        redact_secrets_on=config.redact_secrets_args,
-        redact_pii_on=config.redact_pii_args,
-        phone_regions=phone_regions,
-        keywords=_keywords(config.blocked_keywords_args),
-        edge="tool_args",
-    )
+    args_detector = tool_args_screen(config)
     if args_detector is not None:
         edges.append(ScreenedToolArgs(screen=args_detector))
 

@@ -1,3 +1,6 @@
+/** The independent display preference for an app frame. */
+export type ArtifactTheme = "light" | "dark";
+
 /**
  * Types for published artifacts, mirroring `app/schemas/artifact.py`.
  *

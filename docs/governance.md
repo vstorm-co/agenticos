@@ -469,6 +469,17 @@ heartbeat recorded, unlike a text run, whose spend dies with its process.
 
 ### Proactive work { #proactive-work }
 
+Proactive runs are attributed to the organization's published **AgenticOS**
+starter agent (`agenticos` slug). This association is fixed by the platform;
+it does not select the model or run the starter's instructions. Choose the
+separate proactivity model and limits on **Organizations → Members →
+Proactivity**. Activity shows the **Proactive** icon and filter, the model
+requests and their costs, and the recorded exchange including tool results and
+the final structured answer. Failed checks retain the exchange available before
+the failure. These records require `runs:view`, like other Activity records,
+and do not create conversations in Chat. Older runs cannot recover exchanges
+that were never recorded; oversized records explicitly say they were trimmed.
+
 The platform can do a little on its own initiative, and does nothing of the kind
 until an organization turns it on: the **Proactivity** card on its members page
 (`budgets:manage`). Turned on, a background job looks at each person's recent
