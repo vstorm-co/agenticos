@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
+import {
+  AGENT_LIMIT_NOTICE_ID,
+  AgentLimitNotice,
+  isAtAgentLimit,
+} from "@/components/agents/agent-limit-notice";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
@@ -96,6 +101,7 @@ export default function AgentsPage() {
     total,
     categoryOptions,
     tagOptions,
+    ceiling,
     isLoading,
     clone,
     archive,
@@ -108,6 +114,9 @@ export default function AgentsPage() {
   });
   const { can } = usePermissions();
   const canEdit = can(Perm.agentsEdit);
+  // At the deployment's agents-per-organization limit a create is refused, so
+  // New agent says so up front rather than after the form is filled in (#2488).
+  const atLimit = isAtAgentLimit(ceiling);
 
   // Any narrowing at all - the client status/text filters and the server facet.
   // A zero-match facet returns an empty page, so this is what tells "no agent
@@ -200,7 +209,12 @@ export default function AgentsPage() {
                 <Library className="h-4 w-4" />
                 {tTemplates("browse")}
               </Button>
-              <Button data-tour="agents-new" onClick={() => setCreateOpen(true)}>
+              <Button
+                data-tour="agents-new"
+                disabled={atLimit}
+                aria-describedby={atLimit ? AGENT_LIMIT_NOTICE_ID : undefined}
+                onClick={() => setCreateOpen(true)}
+              >
                 <Plus className="h-4 w-4" />
                 {t("newAgent")}
               </Button>
@@ -208,6 +222,10 @@ export default function AgentsPage() {
           ) : undefined
         }
       />
+
+      {canEdit && atLimit ? (
+        <AgentLimitNotice ceiling={ceiling} id={AGENT_LIMIT_NOTICE_ID} />
+      ) : null}
 
       {/* The header and the controls are static, so they stay put while the
           list loads rather than being replaced by a placeholder of themselves.
@@ -249,7 +267,7 @@ export default function AgentsPage() {
                       label: t("clearFilters"),
                       onClick: clearFilters,
                     }
-                  : canEdit
+                  : canEdit && !atLimit
                     ? {
                         label: (
                           <>
@@ -286,7 +304,11 @@ export default function AgentsPage() {
         </AgentsCard>
       )}
 
-      <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
+      <AgentTemplateDialog
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        ceiling={atLimit ? ceiling : null}
+      />
       <CreateAgentDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

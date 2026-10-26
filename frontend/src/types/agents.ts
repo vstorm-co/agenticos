@@ -530,9 +530,21 @@ export interface AgentDetail extends Agent {
   draft_spec: AgentSpec;
 }
 
+/**
+ * The deployment's agents-per-organization limit and this organization's count
+ * against it - every agent not archived, including ones the caller cannot see.
+ * Mirrors the backend `AgentCeiling`.
+ */
+export interface AgentCeiling {
+  limit: number;
+  held: number;
+}
+
 export interface AgentList {
   items: Agent[];
   total: number;
+  /** Null when the deployment sets no limit. */
+  ceiling?: AgentCeiling | null;
   /** Every distinct category on the agents the caller may list - the filter's choices. */
   categories: string[];
   /** Every distinct tag on the agents the caller may list. */

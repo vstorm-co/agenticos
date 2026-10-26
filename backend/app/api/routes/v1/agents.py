@@ -289,6 +289,10 @@ async def list_agents(
     `category`/`tag` are repeatable discovery filters: OR within a facet, AND
     across facets, matched case-insensitively (query values are folded the same
     way stored ones are). The service folds and bounds them.
+
+    `ceiling` is the deployment's agents-per-organization limit and the count
+    against it, null when there is none - so **New agent** can say it would be
+    refused rather than finding out from the create (#2488).
     """
     items, total = await service.list_agents(
         ctx,
@@ -302,7 +306,13 @@ async def list_agents(
     categories, tags = await service.list_labels(
         ctx, shared_with_me=shared_with_me, include_archived=include_archived
     )
-    return AgentList(items=items, total=total, categories=categories, tags=tags)
+    return AgentList(
+        items=items,
+        total=total,
+        categories=categories,
+        tags=tags,
+        ceiling=await service.ceiling(ctx),
+    )
 
 
 @router.post(

@@ -73,7 +73,7 @@ const INSTALLED = {
 };
 
 function open() {
-  return render(<AgentTemplateDialog open onOpenChange={vi.fn()} />, { wrapper });
+  return render(<AgentTemplateDialog open onOpenChange={vi.fn()} ceiling={null} />, { wrapper });
 }
 
 describe("AgentTemplateDialog", () => {
@@ -86,7 +86,7 @@ describe("AgentTemplateDialog", () => {
   });
 
   it("does not fetch the catalog until the dialog is open", () => {
-    render(<AgentTemplateDialog open={false} onOpenChange={vi.fn()} />, { wrapper });
+    render(<AgentTemplateDialog open={false} onOpenChange={vi.fn()} ceiling={null} />, { wrapper });
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
@@ -124,9 +124,26 @@ describe("AgentTemplateDialog", () => {
     expect(screen.getAllByRole("button", { name: "Use this" })).toHaveLength(1);
   });
 
+  it("says the organization is at its agent limit instead of offering a refused install", async () => {
+    // Installing creates an agent, so at the limit every install is refused (#2488).
+    render(<AgentTemplateDialog open onOpenChange={vi.fn()} ceiling={{ limit: 5, held: 5 }} />, {
+      wrapper,
+    });
+    await userEvent.click(await screen.findByText("Healthcare"));
+
+    expect(screen.getByText("This organization is at its agent limit")).toBeInTheDocument();
+    expect(
+      screen.getByText(/allows 5 agents per organization, and this one has 5/),
+    ).toBeInTheDocument();
+    const use = screen.getByRole("button", { name: "Use this" });
+    expect(use).toBeDisabled();
+    await userEvent.click(use);
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
   it("installs a template and opens the draft in the Builder", async () => {
     const onOpenChange = vi.fn();
-    render(<AgentTemplateDialog open onOpenChange={onOpenChange} />, { wrapper });
+    render(<AgentTemplateDialog open onOpenChange={onOpenChange} ceiling={null} />, { wrapper });
     await userEvent.click(await screen.findByText("Healthcare"));
     await userEvent.click(screen.getByRole("button", { name: "Use this" }));
 
@@ -186,7 +203,7 @@ describe("AgentTemplateDialog", () => {
 
   it("forgets which industry was open when the dialog closes", async () => {
     const onOpenChange = vi.fn();
-    render(<AgentTemplateDialog open onOpenChange={onOpenChange} />, { wrapper });
+    render(<AgentTemplateDialog open onOpenChange={onOpenChange} ceiling={null} />, { wrapper });
     await userEvent.click(await screen.findByText("Healthcare"));
 
     await userEvent.keyboard("{Escape}");

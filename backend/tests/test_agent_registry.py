@@ -4913,3 +4913,35 @@ async def test_mutation_rechecks_the_resource_after_waiting_for_its_lock(deleted
         await AgentRegistryService(_db()).get(ctx, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
     assert lookup.await_args.kwargs["for_update"] is True
     assert access.await_count == (1 if deleted else 2)
+
+
+class TestCeiling:
+    """What the agents page reads to say a create would be refused (#2488)."""
+
+    @pytest.mark.anyio
+    async def test_no_limit_is_no_ceiling_and_counts_nothing(self):
+        with patch(f"{REGISTRY_PATH}.agent_repo.count_for_organization", new=AsyncMock()) as count:
+            ceiling = await AgentRegistryService(_db()).ceiling(_ctx())
+
+        assert ceiling is None
+        count.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_limit_comes_with_the_organization_count(self):
+        ctx = _ctx()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.DeploymentSettingsService.limits",
+                new=AsyncMock(return_value=DeploymentLimits(agents_per_organization=5)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.count_for_organization",
+                new=AsyncMock(return_value=5),
+            ) as count,
+        ):
+            ceiling = await AgentRegistryService(_db()).ceiling(ctx)
+
+        assert ceiling is not None
+        assert (ceiling.limit, ceiling.held) == (5, 5)
+        assert count.await_args.kwargs["organization_id"] == ctx.organization_id

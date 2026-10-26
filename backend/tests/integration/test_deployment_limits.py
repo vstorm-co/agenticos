@@ -191,6 +191,32 @@ class TestAgentsPerOrganization:
         assert restored.status != AgentStatus.ARCHIVED.value
 
 
+class TestTheCeilingTheConsoleReads:
+    """`GET /agents` carries the limit and the count, so **New agent** can say it
+    would be refused before the form is filled in (#2488)."""
+
+    async def test_an_uncapped_deployment_has_no_ceiling(self, db) -> None:
+        owner = await _user(db)
+        org = await _org(db, owner)
+
+        assert await AgentRegistryService(db).ceiling(_ctx(org, owner)) is None
+
+    async def test_the_count_is_the_one_a_create_is_refused_on(self, db) -> None:
+        """Archived agents free their place, so they are not counted here either."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        await _limits(db, max_agents_per_organization=2)
+        registry = AgentRegistryService(db)
+        first = await registry.create(_ctx(org, owner), AgentSpec(name="First"))
+        await registry.create(_ctx(org, owner), AgentSpec(name="Second"))
+        await registry.archive(_ctx(org, owner), first.id)
+
+        ceiling = await registry.ceiling(_ctx(org, owner))
+
+        assert ceiling is not None
+        assert (ceiling.limit, ceiling.held) == (2, 1)
+
+
 class TestATransitionIntoOwnership:
     """A ceiling on new rows alone is one an account walks past sideways.
 

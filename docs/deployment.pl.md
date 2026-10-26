@@ -1,5 +1,5 @@
 ---
-source_sha: "e579b46ddb5c"
+source_sha: "da0e1b21f408"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -539,6 +539,11 @@ Odrzucenie nazywa pułap i liczbę, względem której go zmierzono
 (`{"limit": 5, "held": 5}`), więc na „dlaczego nie mogę” odpowiada odpowiedź,
 a nie pamięć administratora. Jest podnoszone w serwisie, który tworzy daną rzecz,
 a nie na trasie, bo trasa nie jest jedyną drogą do środka.
+
+Konsola nie czeka na tę odmowę. `GET /agents` zwraca tę samą parę jako `ceiling` —
+null, gdy limit nie jest ustawiony — a na limicie strona Agenci wyłącza **Nowy
+agent** i instalowanie szablonów i mówi dlaczego, zanim ktokolwiek wypełni
+formularz. Gwarancją pozostaje odmowa: licznik jest prognozą, czytaną bez blokady.
 
 Zero jest odrzucane przez schemat: konto, które nie może posiadać żadnej
 organizacji, to konto, którego nie da się utworzyć, skoro rejestracja daje każdemu

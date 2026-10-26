@@ -216,6 +216,9 @@ export function useAgents({
     // unnarrowed by the filter itself.
     categoryOptions: data?.categories ?? [],
     tagOptions: data?.tags ?? [],
+    // The agents-per-organization limit and the count against it, so New agent
+    // can say a create would be refused before the form is filled in (#2488).
+    ceiling: data?.ceiling ?? null,
     isLoading,
     error,
     refetch,

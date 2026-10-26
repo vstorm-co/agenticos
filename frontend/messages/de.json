@@ -6932,6 +6932,10 @@
       "general": "Allgemeiner Einsatz"
     }
   },
+  "agentLimit": {
+    "title": "Diese Organisation hat ihr Agenten-Limit erreicht",
+    "body": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat {held}. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen."
+  },
   "notifications": {
     "markAllRead": "Alle als gelesen markieren",
     "loadMore": "Mehr laden",

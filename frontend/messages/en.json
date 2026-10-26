@@ -7049,6 +7049,10 @@
       "general": "General purpose"
     }
   },
+  "agentLimit": {
+    "title": "This organization is at its agent limit",
+    "body": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has {held}. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit."
+  },
   "notifications": {
     "markAllRead": "Mark all read",
     "loadMore": "Load more",

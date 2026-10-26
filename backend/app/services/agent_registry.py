@@ -96,6 +96,7 @@ from app.repositories import (
 from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
+    AgentCeiling,
     AgentRead,
     AgentTemplateCatalog,
     AgentTemplateRead,
@@ -2965,6 +2966,19 @@ class AgentRegistryService:
         if cache_key not in walk.pins:
             walk.pins[cache_key] = await self._resolve_pin(ctx, ref)
         return walk.pins[cache_key]
+
+    async def ceiling(self, ctx: AuthContext) -> AgentCeiling | None:
+        """The organization's agent limit and its count against it, or None for no limit.
+
+        What the console reads to say a create would be refused before the form
+        is filled in (#2488). Counted as `_refuse_past_the_ceiling` counts, but
+        without its lock: this is a forecast, and the refusal stays the guarantee.
+        """
+        limit = (await DeploymentSettingsService(self.db).limits()).agents_per_organization
+        if limit is None:
+            return None
+        held = await agent_repo.count_for_organization(self.db, organization_id=ctx.organization_id)
+        return AgentCeiling(limit=limit, held=held)
 
     async def _refuse_past_the_ceiling(self, ctx: AuthContext) -> None:
         """Refuse a transition that would put this organization over the limit.

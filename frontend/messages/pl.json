@@ -6824,6 +6824,10 @@
       "general": "Ogólnego przeznaczenia"
     }
   },
+  "agentLimit": {
+    "title": "Ta organizacja osiągnęła limit agentów",
+    "body": "To wdrożenie pozwala na {limit, plural, one {# agenta} few {# agentów} many {# agentów} other {# agenta}} w organizacji, a ta ma {held}. Zarchiwizuj agenta, którego już nie używasz, żeby zrobić miejsce na nowego, albo poproś administratora o podniesienie limitu."
+  },
   "notifications": {
     "markAllRead": "Oznacz wszystkie jako przeczytane",
     "loadMore": "Wczytaj więcej",

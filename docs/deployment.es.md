@@ -1,5 +1,5 @@
 ---
-source_sha: "e579b46ddb5c"
+source_sha: "da0e1b21f408"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -548,6 +548,12 @@ El rechazo nombra el techo y el recuento contra el que se midió
 (`{"limit": 5, "held": 5}`), así que «por qué no puedo» lo responde la respuesta y
 no la memoria de un administrador. Se lanza en el servicio que crea la cosa, no en
 la ruta, porque la ruta no es la única entrada.
+
+La consola no espera a ese rechazo. `GET /agents` devuelve el mismo par como
+`ceiling` — null donde no hay límite — y, en el límite, la página Agentes desactiva
+**New agent** y la instalación de plantillas y dice por qué, antes de que nadie
+rellene un formulario. La garantía sigue siendo el rechazo: el recuento es una
+previsión, leída sin el bloqueo.
 
 El schema rechaza el cero: una cuenta que no puede poseer ninguna organización es
 una cuenta que no se puede crear, ya que el registro da a cada una su propia

@@ -1,5 +1,5 @@
 ---
-source_sha: "e579b46ddb5c"
+source_sha: "da0e1b21f408"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -580,6 +580,12 @@ wurde (`{"limit": 5, "held": 5}`), „warum kann ich nicht" wird also von der
 Antwort beantwortet und nicht vom Gedächtnis eines Administrators. Sie wird in dem
 Service ausgelöst, der die Sache anlegt, und nicht an der Route, denn die Route
 ist nicht der einzige Weg hinein.
+
+Die Konsole wartet nicht auf diese Ablehnung. `GET /agents` liefert dasselbe Paar
+als `ceiling` — null, wo kein Limit gesetzt ist —, und am Limit deaktiviert die
+Seite Agenten **Neuer Agent** und das Installieren von Vorlagen und sagt, warum,
+bevor jemand ein Formular ausfüllt. Die Garantie bleibt die Ablehnung: Die Zählung
+ist eine Vorhersage, gelesen ohne die Sperre.
 
 Null wird vom Schema abgelehnt: ein Konto, das keine Organisation besitzen darf,
 ist ein Konto, das nicht angelegt werden kann, denn die Anmeldung gibt jedem von

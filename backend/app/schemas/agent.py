@@ -243,9 +243,28 @@ class AgentDetail(AgentRead):
     draft_spec: AgentSpec
 
 
+class AgentCeiling(BaseSchema):
+    """How many agents the deployment lets this organization hold, and how many it does.
+
+    `held` counts every agent in the organization that is not archived - the
+    same count a create is refused on - so it can exceed what the caller sees.
+    """
+
+    limit: int
+    held: int
+
+
 class AgentList(BaseSchema):
     items: list[AgentRead]
     total: int
+    ceiling: AgentCeiling | None = Field(
+        default=None,
+        description=(
+            "The deployment's agents-per-organization limit and this organization's "
+            "count against it, so a console can say a create would be refused before "
+            "it is attempted. Null when the deployment sets no limit"
+        ),
+    )
     categories: list[str] = Field(
         default_factory=list,
         description=(
