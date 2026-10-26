@@ -152,6 +152,66 @@ async def test_ready_proposal_survives_repeated_transitions_without_changing_the
     await _ready_proposal(db)
 
 
+async def _queued_advances(db: AsyncSession, run_id: UUID) -> int:
+    from app.db.models.background_job import BackgroundJob
+
+    return await db.scalar(
+        select(func.count())
+        .select_from(BackgroundJob)
+        .where(
+            BackgroundJob.kind == "advance-improvement",
+            BackgroundJob.status == "queued",
+            BackgroundJob.payload["run_id"].astext == str(run_id),
+        )
+    )
+
+
+async def _settle_queued_jobs(db: AsyncSession) -> None:
+    from sqlalchemy import update
+
+    from app.db.models.background_job import BackgroundJob
+
+    await db.execute(
+        update(BackgroundJob).where(BackgroundJob.status == "queued").values(status="succeeded")
+    )
+
+
+async def test_an_ended_step_wakes_its_session_instead_of_waiting_for_the_sweep(db):
+    from app.db.models.eval_run import EvalRun as EvalRunRow
+    from app.services.notifications import NotificationService
+
+    ctx, agent, _, read = await _started(db)
+    await _until_child(db, ctx, read.id)
+    proposing = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
+    request = await db.get(AuthoringRequest, proposing.iterations[0].authoring_request_id)
+    await _settle_queued_jobs(db)
+    await AuthoringWorker._fail(db, request, "The improver could not answer.")
+    assert await _queued_advances(db, read.id) == 1
+
+    await _settle_queued_jobs(db)
+    check = EvalRunRow(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        status="completed",
+        purpose="gate",
+        created_by_user_id=ctx.user_id,
+        proposal_check={"improvement_run_id": str(read.id)},
+    )
+    with patch(
+        "app.services.notifications.spawn_after_commit",
+        side_effect=lambda _db, coro, *, name: coro.close(),
+    ):
+        await NotificationService(db).eval_run_finished(check)
+    assert await _queued_advances(db, read.id) == 1
+
+    await ImprovementPipelineService(db).cancel(ctx, agent.id, read.id)
+    await _settle_queued_jobs(db)
+    await ImprovementPipelineService(db).wake(read.id, organization_id=ctx.organization_id)
+    await ImprovementPipelineService(db).wake(read.id, organization_id=uuid4())
+    assert await _queued_advances(db, read.id) == 0
+
+
 async def test_failed_paid_attempt_does_not_spend_the_confirming_measurement(db):
     ctx, _, read = await _ready_proposal(db)
     ids = read.iterations[0].eval_run_ids

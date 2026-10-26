@@ -1240,6 +1240,15 @@ class ImprovementPipelineService:
                         now=datetime.now(UTC),
                     )
 
+    async def wake(self, run_id: UUID, *, organization_id: UUID) -> None:
+        """Advance a session as soon as a step it waits on has ended, not at the next sweep.
+
+        Called in the transaction that ends the step, so the advance runs on what it wrote.
+        """
+        run = await improvement_repo.get_run(self.db, run_id, organization_id=organization_id)
+        if run is not None and Status(run.status).active:
+            await self._queue(run)
+
     async def _queue(self, run: ImprovementRun) -> None:
         # State is part of dedupe: the current job may enqueue its successor.
         children = await improvement_repo.get_iteration(
