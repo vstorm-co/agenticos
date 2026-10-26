@@ -19,94 +19,149 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-- New test-question identities use SHA-256 for their train/holdout allocation; existing stored assignments remain unchanged across edits and versions.
+Agents can now be measured and improved from evidence: datasets of test
+questions, eval runs and suites, guarded promotions, knowledge gaps and the
+Improve wizard. Nothing in it changes an agent, a knowledge base or an
+environment without a person's decision.
 
-- The improvement wizard keeps its publication link when reopened, names the next version, offers the first automatic check only when needed, and distinguishes failed or replaced suggestions from loading.
+### Upgrading
+
+- **Serve the `eval` worker pool.** `WORKER_POOLS` now defaults to
+  `agent,eval,ingest,system`. A deployment that sets it explicitly must add
+  `eval` to one worker, or eval runs stay queued until they fail a day later.
+  `WORKER_EVAL_CONCURRENCY` (default `4`) sizes that pool, and
+  `agenticos cmd doctor` names a pool no live worker serves.
+- **AI assistance is off until an organization turns it on.** The judge, the
+  case generator, the authoring assistant and the knowledge gap classifier and
+  drafter run only after someone with `org:settings` switches **AI assistance**
+  on in the organization's settings; every change of the switch is audited.
+  While it is off, grading uses checks and expected tool calls only and the
+  model-assisted actions are refused with a link to the switch.
+- **Every organization gets system agents.** The Eval judge, Case generator,
+  Knowledge gap classifier, Knowledge gap drafter and Authoring assistant are
+  created with a new organization, and in an existing one the first time
+  something needs them. An untouched one publishes itself on the organization's
+  first model, each with a $5 monthly budget. They are listed under
+  **System agents** on the Agents page, are left out of agent pickers and of
+  `GET /agents`, and count toward the deployment's agents-per-organization
+  limit: an organization at that limit cannot get them until it is raised.
+- **Knowledge searches made during runs are recorded.** Each search an agent
+  makes in a run that answers a person is kept (the first 1,000 characters of
+  the query, what came back and how close it was) to find knowledge gaps. It is
+  deleted with its run and when the person is erased; data exports and erasure
+  also cover dataset cases, eval results and drafts taken from a person's
+  conversations. See [Data protection](docs/data-protection.md).
+- **New permissions.** `datasets:view`, `datasets:edit`, `datasets:run` and
+  `promotions:override` join the catalog with defaults for every built-in role.
+  Starting or estimating an eval also needs `runs:view`.
+- **Migrations `0160_datasets.py` to `0209_knowledge_draft_askers.py`** add
+  the dataset, eval, suite, knowledge gap and improvement tables and new
+  columns on agents, agent runs, MCP connections, knowledge-base documents, API
+  keys and background jobs, and extend the agent kind and notification event
+  checks. No existing data is rewritten; a downgrade drops these tables with
+  everything in them.
+- **New settings**, all optional: the `EVAL_*` settings in
+  [Eval runs](docs/evals.md#settings), `KNOWLEDGE_GAP_MIN_SIMILARITY`,
+  `KNOWLEDGE_GAP_TOPIC_SIMILARITY` and `DATASET_MAX_VERSION_ROWS_PER_ORG`.
+
+### Added
+
+- **Datasets.** Versioned test questions with expected tool calls, checks, a
+  reference answer and tags. Cases are written in the console, imported from
+  CSV or JSONL, added from a rated chat answer with **Add to dataset**, or
+  drafted by the case generator from the agent, its knowledge, real chats and
+  red teaming and accepted under **Generated**. Each agent can build its own
+  test set from its rated answers. Every edit makes a new version, and a
+  warning appears before a second case asks the same question.
+- **Grading.** A dataset is graded by checks, expected tool calls and a judge
+  with criteria, a scale and a pass mark. A dataset can have a judge of its
+  own; criteria can be scoped to case tags. The judge quotes the answer for
+  every grade, and unverified quotes are kept apart. **Review** lets a person
+  confirm or overrule a score, with notes that can become judge criteria, and
+  shows how often people agree with each judge.
+- **Eval runs.** An agent's published version or draft answers every case of a
+  dataset version, optionally on several models and beside a baseline version
+  in the same run. The estimate comes first and the run starts on a second
+  click. Flipped cases are re-asked before a regression counts, and results
+  are compared on quality first, then cost, tokens and latency. **Evals** lists
+  every run in the organization.
+- **Isolated runs and test connections.** An eval runs the agent without
+  touching the outside world: tools that write are held and answered from
+  recorded calls, and capabilities declare which tools only read. A named
+  environment can swap an organization MCP server or a capability's vault key
+  for a test one, or switch a binding off, for every run in it.
+- **Eval suites.** A dataset an agent is held to, run on a schedule, on
+  publish, on promotion, when a skill, context file or knowledge base it uses
+  changes, or by hand, with a threshold each result must meet. The owner is
+  notified when a result fails, is inconclusive or does not run.
+- **Guarded promotions.** An environment can name suites that must pass on a
+  version before it takes it; a promotion that has not passed is refused and
+  names each guard. A guard is pinned to its dataset version, grading and judge
+  publication until **Move the pin**. **Override**, with
+  `promotions:override` and a reason, promotes past the guards and is audited.
+- **Knowledge gaps.** Questions a knowledge base could not answer, grouped into
+  topics on the knowledge base's and the agent's **Knowledge gaps** tab. The
+  classifier sorts rated-down answers by cause; the drafter writes the missing
+  passage with its sources and `{{what to fill in}}` placeholders. A person
+  reviews and adds every document, and can turn a topic into dataset cases.
+- **Authoring assistant.** **Improve** suggests changes to an agent's
+  instructions, tool descriptions, configuration, skills and context files from
+  rated-down and failed runs; **Verify** reviews your own draft. Each
+  suggestion is accepted, edited or dismissed on its own and lands in the draft.
+  A suggestion that widens access is marked **Adds access** and keeps writing
+  tools behind approval, and a model change is accepted only after a check with
+  evals. The assistant can also propose a new skill from repeated answers.
+- **The Improve wizard.** A resumable session at `/agents/<agent>/improve/<session>`
+  that analyses evidence, proposes changes, tests them on held-out questions,
+  and stops at a result for a person to accept and publish. It shows the
+  estimate and expected time before anything is spent, separates problems with
+  the agent from missing knowledge, makes up to three rounds within a spending
+  limit, can test a knowledge draft in context or through search, and offers
+  more test questions when too few remain. Open it from the agent header, the
+  **Needs attention** badge, the dashboard or the **Knowledge gaps** tab; a
+  first improvement has a guided tour. Background sessions are also available
+  through `/agents/{agent_id}/improvements`.
+- **System agents** can be created from **New agent** → **System agent**, and
+  each place that uses one (dataset grading, Generate cases, a knowledge base's
+  gaps tab, Improve) can choose a published one instead of the default.
+- **Notifications** for a failed or re-evaluated suite, an override, an applied
+  shared change, a finished improvement session, eval run and case generation,
+  each with a preference under **Settings → Notifications**.
+- **Dashboard.** Widgets for datasets, eval runs, eval suites, the review
+  queue, knowledge gaps, suggestions waiting by agent, skill and file, and the
+  agents that need attention, with **Improve**. The greeting counts everything
+  waiting on the reader, and spend on improvements is shown apart from evals.
 
 ### Changed
 
-- Show pinned source examples, recorded causes, question versions and completed baseline results in the improvement wizard, with explicit loading and refusal states.
-
-- Notify requesters when manual tests or test-question generation finish, including failed jobs, and refresh open eval pages through the live change feed.
-
-- Measure a knowledge draft separately from agent changes using run-only context or retrieval,
-  independently selected holdout questions and explicit cost consent; invalidate
-  changed drafts and remove derived content when source data is erased.
-
-- Propose reusable skills from three verified evidence answers, test them as
-  temporary candidate resources, and create and bind them only after an
-  authorized human accepts.
-
-- Open resumable improvement sessions, compare rounds, confirm per-change
-  attribution costs, retry failed steps explicitly, and accept or publish checked
-  changes in one human-confirmed transaction.
-- Recompute eval, suite and promotion evidence after human review or undo, with
-  reviewer annotations and notifications, while requiring manual promotion.
-
-- Choose published system agents where they run: case generation, Improve and
-  each knowledge base’s gap classifier and drafter. Create every selectable
-  kind from New agent.
-
-- Add durable background improvement sessions with paired candidate checks, an
-  audit timeline, cancellation, creator notifications and actual child costs.
-- Check eval and suite spend limits against confirming reruns and both sides;
-  treat a positive cost or latency increase from zero as exceeding every
-  percentage ceiling.
+- The agent page's tabs are reordered, with an **Evals** tab that shows results
+  first, and **Improve** becomes the header's primary action when the agent had
+  rated-down or failed answers in the last 30 days.
+- A publish refusal offers the one-click fixes it names beside it.
+- Open eval, dataset, suite and improvement pages refresh from live change
+  events instead of polling.
 
 ### Fixed
 
-- Human review and undo refresh the improvement wizard’s current verdict, without new paid work, publication or replacing the selected round with an archived check.
+- Price embedding models OpenRouter serves by their bare OpenAI names, so
+  knowledge searches through OpenRouter are no longer booked at $0.
+- Recommend a workspace the organization can publish when creating an agent,
+  and ask again when sandbox connections change.
+- Show an agent page's controls from the reader's access to that agent,
+  including edit grants, and stop an agent page of another organization from
+  loading forever.
 
-- **Dataset access no longer exposes private source conversations.** Case reads,
-  historical versions and exports mask inaccessible conversation text. Review
-  answers and evidence require run-reading access, hidden text cannot be
-  edited, and copying another person’s private conversation shows a warning
-  before adding it. Eval execution keeps the full stored text (#2372).
+### Security
 
-- **Eval refusals explain what needs changing.** Unknown environments return
-  404, concurrent suite-name conflicts return 409, and visible datasets name
-  missing permissions. Draft validation talks about evaluation. Agent and
-  dataset links show a no-access view; Evals deep links explain `runs:view`,
-  and read-only grading controls are visibly disabled (#2367).
-
-- **Judge criteria can be scoped to case tags.** Unmatched criteria are omitted,
-  the rubric editor shows coverage without double counting, and Review notes
-  can target a case tag. Existing unscoped criteria and their hashes remain
-  unchanged (#2377).
-
-- **Promotion guards pin their judge publication.** A new judge publication cannot
-  relax a guard; changing it requires an audited pin move. Guard runs and
-  rescoring use the held version, and old unpinned passes do not open the gate
-  after upgrade (#2413).
-
-- **Eval runs distinguish refusals and waiting from crashes.** Guardrail blocks
-  are graded as refusals; parked or cancelled runs stay incomplete. Broken
-  runs, loops and step limits still fail the suite and have a red chip in the
-  run list, even when later attempts pass (#2412).
-
-- **A first suite measurement without a minimum cannot pass by default.** It
-  establishes a baseline for later comparisons and leaves guarded environments
-  in place. Existing unqualified passes are reclassified on upgrade (#2401).
-
-- **Publishing explains guarded environments accurately.** Followers move only
-  after their named guard suites pass. A draft whose last test broke cases
-  offers testing first and an explicit secondary Publish anyway action. Suite
-  forms name environments and their served versions, and regression notices
-  use the correct singular or plural (#2366).
-
-- **Eval results redact recognized secrets before storage.** Answers, nested
-  tool-call evidence and errors use the same detector as Review. Existing
-  results are redacted on upgrade; grading still reads the original answer in
-  memory before it is stored (#2375).
-
-- **Queued case generation retains API key permissions.** Workers recheck the
-  original key's current scopes and membership before reading sources, and stop
-  explicitly if it was revoked, expired or deleted (#2429).
-- **Eval results are easier to scan.** Failing scorers appear first, with icons,
-  scores and expandable evidence; each case shows one unverified-grade warning.
-  Execution status stays neutral beside the verdict. Single-version progress
-  avoids comparison promises, identical drafts cannot start a comparison, and
-  a single broken case opens automatically (#2362).
+- Recognised secrets are redacted from dataset cases, eval answers, tool-call
+  evidence and errors before they are stored.
+- A dataset case copied from a conversation shows its text only to readers who
+  may read runs or that conversation; review answers and evidence need
+  `runs:view` and access to the agent.
+- Queued case generation and improvement work runs with the original API key
+  and rechecks its current scopes and membership before each paid step.
+- A suite and a promotion override can be set up only by a person signed in as
+  themselves, not through an API key or impersonation.
 
 ## [1.17.0] - 2026-10-25
 
