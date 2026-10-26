@@ -4121,6 +4121,10 @@
         "title": "Jede Version, aufbewahrt",
         "body": "Jede Veröffentlichung friert den Spec als Version ein, die Sie in eine Umgebung heben, auf die Sie zurückrollen oder gegen die Sie die Run-Historie lesen können."
       },
+      "agent-improvement-history": {
+        "title": "Jede Verbesserung festgehalten",
+        "body": "Jede Improve-Sitzung des Agenten: was sie gemessen hat, was entschieden wurde und was sie gekostet hat. Eine abgeschlossene öffnet sich nur zum Lesen."
+      },
       "agent-test-connections": {
         "title": "Testverbindungen",
         "body": "Eine benannte Umgebung kann die MCP-Server und Vault-Schlüssel des Agents durch Testversionen ersetzen - ein Sandbox-CRM, ein Testpostfach. Dort laufen Evals, und ein schreibendes Tool ohne Testverbindung wird angehalten und aufgezeichnet statt ausgeführt."
@@ -10973,9 +10977,7 @@
     "discardBody": "Nur ausstehende Vorschläge dieser Sitzung werden verworfen. Angewendete Änderungen und andere ausstehende Vorschläge bleiben erhalten.",
     "confirmDiscard": "Ausstehende Vorschläge verwerfen",
     "changesReplaced": "Diese Vorschläge sind nicht mehr verfügbar. Öffnen Sie den Agenten, um den aktuellen Entwurf zu prüfen.",
-    "donePublished": "Version {version} ist veröffentlicht.",
     "openVersion": "Version {version} öffnen",
-    "doneDraft": "Fertig. Die ausgewählten Änderungen sind im Entwurf gespeichert. Veröffentlichen Sie ihn beim Agenten, sobald Sie bereit sind.",
     "publishVersion": "Version {version} veröffentlichen",
     "problemsFound": "Wir haben {total, plural, one {# Problem} other {# Probleme}} gefunden: {agent} können wir im Agent beheben, bei {knowledge} fehlen Informationen in der Wissensdatenbank.",
     "sortingBody": "Wenn ein Beispiel nicht zählen soll, ignorieren Sie es. Der nächste Versuch lässt es aus; bereits vorgeschlagene Änderungen bleiben unverändert.",
@@ -11010,8 +11012,6 @@
     "notNow": "Nicht jetzt",
     "acceptAgent": "Im Agent: {version, plural, =0 {die neue Version} other {Version #}} behebt {fixed, plural, one {# Frage} other {# Fragen}}, verschlechtert {broken}{costKnown, select, yes {, kostet {cost} pro Antwort} other {}}. Getestet mit {total, plural, one {# Frage} other {# Fragen}}, davon {heldOut} nicht zum Schreiben der Änderungen verwendet.",
     "guardedSwitch": "{environment} wechselt zu Version {version}, sobald die automatische Prüfung bestanden ist, meist innerhalb weniger Minuten.",
-    "doneTitle": "Fertig",
-    "doneWatching": "Wir sagen Ihnen Bescheid, wenn sich später etwas verschlechtert.",
     "noChangesFound": "Wir haben keine Änderung gefunden, die zu den aktuellen Anweisungen passt. Das haben wir versucht:",
     "triedAttempt": "Versuch {number}: {verdict, select, better {die Änderungen haben es verbessert} regression {die Änderungen haben funktionierende Fragen verschlechtert} no_change {keine messbare Änderung} inconclusive {das Ergebnis ließ sich nicht messen} unmeasured {Änderungen vorgeschlagen, noch nicht getestet} other {keine Änderung vorgeschlagen}}{dropped, plural, =0 {} one {; # Änderung passte nicht zu den aktuellen Anweisungen} other {; # Änderungen passten nicht zu den aktuellen Anweisungen}}.",
     "knowledgeCheckDetails": "Einen Wissensentwurf testen",
@@ -11051,8 +11051,6 @@
     "publishNeedsPermission": "Zum Veröffentlichen brauchen Sie die Berechtigung, diesen Agent zu veröffentlichen; fragen Sie einen Owner oder Admin. Sie können die Änderungen als Entwurf behalten.",
     "environmentSwitches": "{environment} wechselt sofort zu Version {version}.",
     "environmentStays": "{environment} bleibt bei Version {version}.",
-    "doneUnwatched": "Noch keine automatische Prüfung überwacht diesen Agent, eine spätere Verschlechterung bliebe also unbemerkt.",
-    "setUpAutomaticCheck": "Automatische Prüfung einrichten",
     "changeKind": {
       "instructions": "Anweisungen",
       "tool": "Tool-Beschreibung: {tool}",
@@ -11119,7 +11117,50 @@
     },
     "sessionLine": "Sitzung",
     "budgetUsed": "Genutztes Ausgabenlimit",
-    "numbersExplained": "Die Balken zählen jede gut beantwortete Frage, bestätigt oder nicht. Als neu behoben ({fixed}) oder neu verschlechtert ({broken}) zählt nur eine Änderung, die erneutes Fragen bestätigt hat; {pending, plural, =0 {keine wartet} one {# Änderung ist noch nicht bestätigt} other {# Änderungen sind noch nicht bestätigt}}."
+    "numbersExplained": "Die Balken zählen jede gut beantwortete Frage, bestätigt oder nicht. Als neu behoben ({fixed}) oder neu verschlechtert ({broken}) zählt nur eine Änderung, die erneutes Fragen bestätigt hat; {pending, plural, =0 {keine wartet} one {# Änderung ist noch nicht bestätigt} other {# Änderungen sind noch nicht bestätigt}}.",
+    "readOnly": {
+      "finished": "Diese Verbesserung ist abgeschlossen. Sie bleibt hier als Aufzeichnung, und nichts daran lässt sich ändern.",
+      "viewOnly": "Du kannst diese Verbesserung lesen. Zum Ändern brauchst du Bearbeitungsrechte für den Agenten."
+    },
+    "decision": {
+      "title": "Was entschieden wurde",
+      "publishedVersion": "Als Version {version} veröffentlicht",
+      "outcome": {
+        "accepted": "Als Entwurf behalten. Veröffentliche ihn über den Agenten, wenn du so weit bist.",
+        "published": "Veröffentlicht",
+        "rejected": "Verworfen. Von den Vorschlägen wurde nichts behalten.",
+        "cancelled": "Angehalten, bevor etwas entschieden wurde.",
+        "stale": "Zurückgestellt: Der Agent, sein Entwurf oder die Testfragen haben sich während des Laufs geändert."
+      },
+      "by": "Von {name}, {at}",
+      "at": "Am {at}",
+      "openVersion": "Version {version} öffnen",
+      "changes": "{count, plural, =0 {Änderungen} =1 {Die gemessene Änderung} other {Die # gemessenen Änderungen}}",
+      "noChanges": "In dieser Verbesserung wurde keine Änderung gewählt.",
+      "changeState": {
+        "accepted": "Behalten",
+        "dismissed": "Ausgelassen",
+        "pending": "Nicht entschieden"
+      },
+      "knowledge": "Wissensdokumente",
+      "knowledgeState": {
+        "added": "Zur Wissensbasis hinzugefügt",
+        "later": "Zurückgestellt",
+        "notAdded": "Nicht hinzugefügt"
+      },
+      "checkMade": "Mit dieser Verbesserung wurde eine automatische Prüfung eingerichtet: Ihre Fragen laufen vor jeder Veröffentlichung.",
+      "checkKept": "Die automatische Prüfung des Agenten führt ihre Fragen vor jeder Veröffentlichung aus.",
+      "checkNone": "Vor einer Veröffentlichung läuft keine automatische Prüfung."
+    },
+    "history": {
+      "title": "Verbesserungsverlauf",
+      "description": "Jede Improve-Sitzung: was sie gemessen hat, was entschieden wurde und was sie gekostet hat.",
+      "empty": "Noch keine Verbesserungssitzungen.",
+      "notMeasured": "Nichts gemessen",
+      "publishedVersion": "Als Version {version} veröffentlicht",
+      "startedBy": "Gestartet von {name} · {cost}",
+      "cost": "Kosten {cost}"
+    }
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

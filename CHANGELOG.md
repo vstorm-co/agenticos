@@ -150,9 +150,13 @@ environment without a person's decision.
   charts, with full answers, quotes and reasons folded into cards. **Improve**,
   an outline button with a trending-up icon in the agent header, on the Build
   tab's assistant strip, the **Needs attention** badge, the dashboard and the
-  **Knowledge gaps** tab, opens the agent's session still in progress or a new
-  one; a dot on it says when the agent needs attention. A first improvement
-  has a guided tour. Background sessions and a one-off Improve request are
+  **Knowledge gaps** tab, opens the agent's session still in progress or
+  waiting for a decision, and a new one once that session is kept as a draft,
+  published, discarded, stopped or failed; a dot on it says when the agent
+  needs attention. The agent's **History** tab lists every session as an
+  **Improvement history**; a finished one opens read-only, its last step saying
+  what was decided, by whom, with which changes and knowledge documents. A
+  first improvement has a guided tour. Background sessions and a one-off Improve request are
   also available through the API.
 - **System agents** can be created from **New agent** → **System agent**, and
   each place that uses one (dataset grading, Generate cases, a knowledge base's

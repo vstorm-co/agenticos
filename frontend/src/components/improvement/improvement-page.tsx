@@ -25,12 +25,15 @@ import { Understand } from "./understand";
 import { CheckProgress } from "./check-progress";
 import { StepDecisions } from "./step-decisions";
 import { Details } from "./widgets";
-import { AcceptSummary, DoneScreen, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
+import { AcceptSummary, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
+import { ReadOnlyNote, ReadOnlyProvider, type ReadOnlyReason } from "./read-only";
+import { SessionDecision } from "./session-decision";
 
 import {
   IMPROVEMENT_STEPS as STEPS,
   currentImprovementStep,
   improvementStepStates,
+  isClosed,
   type ImprovementStep as Step,
 } from "@/lib/improvement-steps";
 export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessionId: string }) {
@@ -41,7 +44,9 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   const { can } = usePermissions();
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
   if (error || !agent) return <ErrorState description={getErrorMessage(error, tErrors)} />;
-  if (!agent.can_edit || !can(Perm.runsView))
+  // Reading a session needs the agent and its runs; starting one, or changing
+  // one, needs edit access too, and without it the session is only read.
+  if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))
     return (
       <div className="mx-auto max-w-5xl space-y-6 pb-16">
         <PageHeader
@@ -68,6 +73,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
           agentId={agentId}
           sessionId={sessionId}
           canPublish={agent.can_publish === true}
+          canEdit={agent.can_edit === true}
         />
       )}
     </div>
@@ -77,10 +83,12 @@ function Session({
   agentId,
   sessionId,
   canPublish,
+  canEdit,
 }: {
   agentId: string;
   sessionId: string;
   canPublish: boolean;
+  canEdit: boolean;
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
@@ -120,6 +128,11 @@ function Session({
         cta={{ label: t("retryRead"), onClick: () => void actions.refetch() }}
       />
     );
+  const readOnly: ReadOnlyReason | null = isClosed(session)
+    ? "finished"
+    : canEdit
+      ? null
+      : "viewOnly";
   const current = currentImprovementStep(session);
   const states = improvementStepStates(session);
   const step = selected ?? current;
@@ -152,180 +165,162 @@ function Session({
     </section>
   );
   return (
-    <div className="space-y-6">
-      <SessionLine session={session} active={active} />
-      <nav data-tour="improvement-steps" aria-label={t("stepsLabel")}>
-        <WizardSteps
-          responsive
-          steps={STEPS.map((id) => ({
-            id,
-            label: t(`steps.${id}`),
-            status: states[id],
-            statusLabel: t(`stepState.${states[id]}`),
-            tourId: `improvement-step-${id}`,
-          }))}
-          current={step}
-          onSelect={(id) => {
-            const target = STEPS.find((item) => item === id);
-            if (target) setSelected(target);
-          }}
-        />
-      </nav>
-      {session.stop_reason && (
-        <p role={session.status === "failed" ? "alert" : undefined} className="text-sm">
-          {session.stop_reason === "no_data" && missingHeldOut > 0
-            ? t("tooFewHeldOut", { needed: missingHeldOut })
-            : t(`stop.${session.stop_reason}`)}
-        </p>
-      )}
-      {session.error && (
-        <details className="text-muted-foreground text-sm">
-          <summary className="cursor-pointer">{t("technicalDetails")}</summary>
-          <p className="mt-2 break-words">{session.error}</p>
-        </details>
-      )}
-      <div ref={content} className="space-y-6">
-        {step === "understand" && <Understand session={session} />}
-        {step === "testSet" && <TestQuestions session={session} />}
-        {step === "today" && <Today session={session} />}
-        {step === "changes" && (
-          <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
-            {chosen && selectedBatch?.hunks.length ? (
-              <ChangeSelection
-                session={session}
-                round={chosen}
-                hunks={selectedBatch.hunks}
-                included={included}
-                onChange={(ids) => setDraftSelection({ roundId: chosen.id, ids })}
-                onStarted={() => {
-                  setDraftSelection(null);
-                  setSelected(null);
-                  setConfirm(false);
-                }}
-              />
-            ) : active ? (
-              <p className="rounded-xl border p-6 text-sm">{t("changesWorking")}</p>
-            ) : (
-              <section className="space-y-3 rounded-xl border p-6 text-sm">
-                <p>{t("noChangesFound")}</p>
-                <ul className="list-disc space-y-1 pl-5">
-                  {session.iterations.map((round) => (
-                    <li key={round.id}>
-                      {round.number > session.max_iterations
-                        ? t("heldBack")
-                        : t("triedAttempt", {
-                            number: round.number,
-                            verdict: round.verdict ?? (round.batch_id ? "unmeasured" : "none"),
-                            dropped: round.dropped.length,
-                          })}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            <KnowledgeDocuments session={session} />
-          </section>
+    <ReadOnlyProvider value={readOnly}>
+      <div className="space-y-6">
+        <SessionLine session={session} active={active} />
+        <nav data-tour="improvement-steps" aria-label={t("stepsLabel")}>
+          <WizardSteps
+            responsive
+            steps={STEPS.map((id) => ({
+              id,
+              label: t(`steps.${id}`),
+              status: states[id],
+              statusLabel: t(`stepState.${states[id]}`),
+              tourId: `improvement-step-${id}`,
+            }))}
+            current={step}
+            onSelect={(id) => {
+              const target = STEPS.find((item) => item === id);
+              if (target) setSelected(target);
+            }}
+          />
+        </nav>
+        <ReadOnlyNote />
+        {session.stop_reason && (
+          <p role={session.status === "failed" ? "alert" : undefined} className="text-sm">
+            {session.stop_reason === "no_data" && missingHeldOut > 0
+              ? t("tooFewHeldOut", { needed: missingHeldOut })
+              : t(`stop.${session.stop_reason}`)}
+          </p>
         )}
-        {step === "check" && (
-          <CheckProgress session={session} onShowResult={() => setSelected("result")} />
+        {session.error && (
+          <details className="text-muted-foreground text-sm">
+            <summary className="cursor-pointer">{t("technicalDetails")}</summary>
+            <p className="mt-2 break-words">{session.error}</p>
+          </details>
         )}
-        {step === "result" && (
-          <section className="space-y-4" data-tour="improvement-results">
-            <ResultSummary session={session} round={chosen} />
-            {session.iterations.map((round) =>
-              round.id === session.best_iteration_id || !session.best_iteration_id ? (
-                <RoundResults
-                  key={round.id}
+        <div ref={content} className="space-y-6">
+          {step === "understand" && <Understand session={session} />}
+          {step === "testSet" && <TestQuestions session={session} />}
+          {step === "today" && <Today session={session} />}
+          {step === "changes" && (
+            <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
+              {chosen && selectedBatch?.hunks.length ? (
+                <ChangeSelection
                   session={session}
-                  round={round}
-                  extra={round.id === knowledgeHost?.id ? knowledgeCheck : undefined}
+                  round={chosen}
+                  hunks={selectedBatch.hunks}
+                  included={included}
+                  onChange={(ids) => setDraftSelection({ roundId: chosen.id, ids })}
+                  onStarted={() => {
+                    setDraftSelection(null);
+                    setSelected(null);
+                    setConfirm(false);
+                  }}
                 />
+              ) : active ? (
+                <p className="rounded-xl border p-6 text-sm">{t("changesWorking")}</p>
               ) : (
-                <RoundHistory key={round.id} session={session} round={round} />
-              ),
-            )}
-            {!knowledgeHost && <Details summary={t("showDetails")}>{knowledgeCheck}</Details>}
-          </section>
-        )}
-        {step === "accept" && (session.status === "published" || session.status === "accepted") && (
-          <DoneScreen session={session} />
-        )}
-        {step === "accept" && session.status !== "published" && session.status !== "accepted" && (
-          <section className="space-y-4 rounded-xl border p-6" data-tour="improvement-accept">
-            <h2 className="font-medium">{t("steps.accept")}</h2>
-            <AcceptSummary session={session} round={chosen} />
-            {session.status === "ready" && <KnowledgeDocuments session={session} accept />}
-            {session.status === "ready" && (
-              <>
-                {missingBatch &&
-                  (authoringQuery.error ? (
-                    <ErrorState
-                      description={getErrorMessage(authoringQuery.error, tErrors)}
-                      cta={{ label: t("retryRead"), onClick: () => void authoringQuery.refetch() }}
-                    />
-                  ) : (
-                    <p role="status" className="text-sm">
-                      {t(authoringQuery.isLoading ? "changesPending" : "changesReplaced")}
+                <section className="space-y-3 rounded-xl border p-6 text-sm">
+                  <p>{t("noChangesFound")}</p>
+                  <ul className="list-disc space-y-1 pl-5">
+                    {session.iterations.map((round) => (
+                      <li key={round.id}>
+                        {round.number > session.max_iterations
+                          ? t("heldBack")
+                          : t("triedAttempt", {
+                              number: round.number,
+                              verdict: round.verdict ?? (round.batch_id ? "unmeasured" : "none"),
+                              dropped: round.dropped.length,
+                            })}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              <KnowledgeDocuments session={session} />
+            </section>
+          )}
+          {step === "check" && (
+            <CheckProgress session={session} onShowResult={() => setSelected("result")} />
+          )}
+          {step === "result" && (
+            <section className="space-y-4" data-tour="improvement-results">
+              <ResultSummary session={session} round={chosen} />
+              {session.iterations.map((round) =>
+                round.id === session.best_iteration_id || !session.best_iteration_id ? (
+                  <RoundResults
+                    key={round.id}
+                    session={session}
+                    round={round}
+                    extra={round.id === knowledgeHost?.id ? knowledgeCheck : undefined}
+                  />
+                ) : (
+                  <RoundHistory key={round.id} session={session} round={round} />
+                ),
+              )}
+              {!knowledgeHost && <Details summary={t("showDetails")}>{knowledgeCheck}</Details>}
+            </section>
+          )}
+          {step === "accept" && isClosed(session) && <SessionDecision session={session} />}
+          {step === "accept" && !isClosed(session) && (
+            <section className="space-y-4 rounded-xl border p-6" data-tour="improvement-accept">
+              <h2 className="font-medium">{t("steps.accept")}</h2>
+              <AcceptSummary session={session} round={chosen} />
+              {session.status === "ready" && <KnowledgeDocuments session={session} accept />}
+              {session.status === "ready" && readOnly === null && (
+                <>
+                  {missingBatch &&
+                    (authoringQuery.error ? (
+                      <ErrorState
+                        description={getErrorMessage(authoringQuery.error, tErrors)}
+                        cta={{
+                          label: t("retryRead"),
+                          onClick: () => void authoringQuery.refetch(),
+                        }}
+                      />
+                    ) : (
+                      <p role="status" className="text-sm">
+                        {t(authoringQuery.isLoading ? "changesPending" : "changesReplaced")}
+                      </p>
+                    ))}
+                  {blockedChanges && (
+                    <p role="alert" className="text-warning text-sm">
+                      {t("blockedChanges")}
                     </p>
-                  ))}
-                {blockedChanges && (
-                  <p role="alert" className="text-warning text-sm">
-                    {t("blockedChanges")}
-                  </p>
-                )}
-                {session.offer_automatic_check && (
-                  <label
-                    className="flex items-start gap-2 text-sm"
-                    data-tour="improvement-automatic-check"
-                  >
+                  )}
+                  {session.offer_automatic_check && (
+                    <label
+                      className="flex items-start gap-2 text-sm"
+                      data-tour="improvement-automatic-check"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={automatic}
+                        onChange={(e) => setAutomatic(e.target.checked)}
+                      />
+                      {t("automatic")}
+                    </label>
+                  )}
+                  {canPublish && session.next_version != null && (
+                    <div className="space-y-1" data-tour="improvement-guard">
+                      <GuardNote agentId={agentId} version={session.next_version} />
+                    </div>
+                  )}
+                  {!canPublish && (
+                    <p className="text-muted-foreground text-sm">{t("publishNeedsPermission")}</p>
+                  )}
+                  <label className="flex items-start gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={automatic}
-                      onChange={(e) => setAutomatic(e.target.checked)}
+                      checked={confirm}
+                      onChange={(e) => setConfirm(e.target.checked)}
                     />
-                    {t("automatic")}
+                    {t("confirmation")}
                   </label>
-                )}
-                {canPublish && session.next_version != null && (
-                  <div className="space-y-1" data-tour="improvement-guard">
-                    <GuardNote agentId={agentId} version={session.next_version} />
-                  </div>
-                )}
-                {!canPublish && (
-                  <p className="text-muted-foreground text-sm">{t("publishNeedsPermission")}</p>
-                )}
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={confirm}
-                    onChange={(e) => setConfirm(e.target.checked)}
-                  />
-                  {t("confirmation")}
-                </label>
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    variant="outline"
-                    disabled={
-                      !confirm ||
-                      missingBatch ||
-                      selectionDirty ||
-                      blockedChanges ||
-                      actions.finish.isPending
-                    }
-                    onClick={() =>
-                      void act(async () => {
-                        await actions.finish.mutateAsync({
-                          confirmed: true,
-                          publish: false,
-                          automatic_check: session.offer_automatic_check === true && automatic,
-                        });
-                      })
-                    }
-                  >
-                    {t("keepDraft")}
-                  </Button>
-                  {canPublish && (
+                  <div className="flex flex-wrap gap-3">
                     <Button
+                      variant="outline"
                       disabled={
                         !confirm ||
                         missingBatch ||
@@ -337,94 +332,119 @@ function Session({
                         void act(async () => {
                           await actions.finish.mutateAsync({
                             confirmed: true,
-                            publish: true,
+                            publish: false,
                             automatic_check: session.offer_automatic_check === true && automatic,
                           });
                         })
                       }
                     >
-                      {session.next_version == null
-                        ? t("publish")
-                        : t("publishVersion", { version: session.next_version })}
+                      {t("keepDraft")}
                     </Button>
-                  )}
-                </div>
-              </>
-            )}
-            <Link className="block text-sm underline" href={`/agents/${agentId}`}>
-              {t("openAgent")}
-            </Link>
-          </section>
+                    {canPublish && (
+                      <Button
+                        disabled={
+                          !confirm ||
+                          missingBatch ||
+                          selectionDirty ||
+                          blockedChanges ||
+                          actions.finish.isPending
+                        }
+                        onClick={() =>
+                          void act(async () => {
+                            await actions.finish.mutateAsync({
+                              confirmed: true,
+                              publish: true,
+                              automatic_check: session.offer_automatic_check === true && automatic,
+                            });
+                          })
+                        }
+                      >
+                        {session.next_version == null
+                          ? t("publish")
+                          : t("publishVersion", { version: session.next_version })}
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
+              <Link className="block text-sm underline" href={`/agents/${agentId}`}>
+                {t("openAgent")}
+              </Link>
+            </section>
+          )}
+          <StepDecisions session={session} step={step} />
+        </div>
+        {selectionDirty && readOnly === null && (
+          <p role="alert" className="text-sm">
+            {t("selectionNeedsCheck")}
+          </p>
         )}
-        <StepDecisions session={session} step={step} />
+        {readOnly === null &&
+          (step === "result" ||
+            session.status === "failed" ||
+            session.stop_reason === "budget") && (
+            <ContinueSession
+              session={session}
+              lead={
+                step === "result" &&
+                session.status === "ready" && (
+                  <Button
+                    variant={acceptable ? "default" : "outline"}
+                    disabled={selectionDirty || missingBatch}
+                    onClick={() => setSelected("accept")}
+                  >
+                    {t("accept")}
+                  </Button>
+                )
+              }
+              onStarted={() => {
+                setSelected(null);
+                setDraftSelection(null);
+                setConfirm(false);
+              }}
+            />
+          )}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          {STEPS.indexOf(step) > 0 ? (
+            <Button variant="outline" onClick={() => setSelected(STEPS[STEPS.indexOf(step) - 1]!)}>
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              {t("previousStep")}
+            </Button>
+          ) : (
+            <span />
+          )}
+          {step !== "result" && step !== "accept" && (
+            <Button variant="outline" onClick={() => setSelected(STEPS[STEPS.indexOf(step) + 1]!)}>
+              {t("nextStep")}
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {active && readOnly === null && (
+            <Button
+              variant="outline"
+              disabled={actions.cancel.isPending}
+              onClick={() =>
+                void act(async () => {
+                  await actions.cancel.mutateAsync();
+                })
+              }
+            >
+              {t("stopAction")}
+            </Button>
+          )}
+          <Link className="text-sm underline" href={`/agents/${agentId}`}>
+            {t("close")}
+          </Link>
+        </div>
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
       </div>
-      {selectionDirty && (
-        <p role="alert" className="text-sm">
-          {t("selectionNeedsCheck")}
-        </p>
-      )}
-      {(step === "result" || session.status === "failed" || session.stop_reason === "budget") && (
-        <ContinueSession
-          session={session}
-          lead={
-            step === "result" &&
-            session.status === "ready" && (
-              <Button
-                variant={acceptable ? "default" : "outline"}
-                disabled={selectionDirty || missingBatch}
-                onClick={() => setSelected("accept")}
-              >
-                {t("accept")}
-              </Button>
-            )
-          }
-          onStarted={() => {
-            setSelected(null);
-            setDraftSelection(null);
-            setConfirm(false);
-          }}
-        />
-      )}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-        {STEPS.indexOf(step) > 0 ? (
-          <Button variant="outline" onClick={() => setSelected(STEPS[STEPS.indexOf(step) - 1]!)}>
-            <ChevronLeft className="h-4 w-4" aria-hidden />
-            {t("previousStep")}
-          </Button>
-        ) : (
-          <span />
-        )}
-        {step !== "result" && step !== "accept" && (
-          <Button variant="outline" onClick={() => setSelected(STEPS[STEPS.indexOf(step) + 1]!)}>
-            {t("nextStep")}
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          </Button>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        {active && (
-          <Button
-            variant="outline"
-            disabled={actions.cancel.isPending}
-            onClick={() =>
-              void act(async () => {
-                await actions.cancel.mutateAsync();
-              })
-            }
-          >
-            {t("stopAction")}
-          </Button>
-        )}
-        <Link className="text-sm underline" href={`/agents/${agentId}`}>
-          {t("close")}
-        </Link>
-      </div>
-      {error && (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      )}
-    </div>
+    </ReadOnlyProvider>
   );
 }
 

@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from app.api.deps import Auth, ImprovementSvc
+from app.schemas.authoring import HunkRead
 from app.schemas.eval_run import EvalRunRead
 from app.schemas.improvement import (
     AttributionConsent,
@@ -119,6 +120,17 @@ async def defer_improvement_topic(
 ) -> Any:
     """Set a knowledge document aside for this session (Not now), or bring it back."""
     return await service.defer_topic(ctx, agent_id, run_id, topic_id, data)
+
+
+@router.get("/{run_id}/changes", response_model=list[HunkRead])
+async def read_improvement_changes(
+    agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """The changes the session's chosen round measured, as they were decided.
+
+    Readable by whoever may read the agent and its runs, for the session's history.
+    """
+    return await service.changes(ctx, agent_id, run_id)
 
 
 @router.get("/{run_id}", response_model=ImprovementRead)

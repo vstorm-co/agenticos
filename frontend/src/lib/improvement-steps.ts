@@ -77,11 +77,25 @@ export function improvementStepStates(
   };
 }
 
-const CLOSED = ["accepted", "published", "rejected", "cancelled", "stale"];
+/** Still working, or waiting for a person's decision before Accept. */
+const OPEN: readonly string[] = ["queued", "running", "ready"];
 
-/** The newest session still in progress or waiting for a decision, if the agent has one. */
+/** Over for good: the API refuses any change, so the session is read as a record. */
+const CLOSED: readonly string[] = ["accepted", "published", "rejected", "cancelled", "stale"];
+
+/**
+ * The newest session Improve should take somebody back to, if the agent has one.
+ *
+ * Only an open one: a session that stopped, failed or was decided is in the
+ * agent's improvement history, and Improve starts the next session instead.
+ */
 export function openImprovement(sessions: Improvement[]): Improvement | undefined {
   return sessions
-    .filter((session) => !CLOSED.includes(session.status))
+    .filter((session) => OPEN.includes(session.status))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+}
+
+/** Whether nothing can change the session any more. */
+export function isClosed(session: Pick<Improvement, "status">): boolean {
+  return CLOSED.includes(session.status);
 }

@@ -170,7 +170,7 @@ async def test_training_preview_preserves_the_run_reader_boundary(db):
 
 
 async def test_ignoring_an_example_is_refused_outside_its_open_session(db):
-    from app.core.exceptions import BadRequestError
+    from app.core.exceptions import ConcurrentChangeError
     from app.core.permissions import OrgRoleName
     from app.db.models.improvement import ImprovementRun
     from app.schemas.improvement import EvidenceDecisionUpdate
@@ -195,7 +195,7 @@ async def test_ignoring_an_example_is_refused_outside_its_open_session(db):
     stored = await db.get(ImprovementRun, session.id)
     stored.status = "published"
     await db.flush()
-    with pytest.raises(BadRequestError, match="decided"):
+    with pytest.raises(ConcurrentChangeError, match="finished"):
         await service.decide_evidence(ctx, agent.id, session.id, item.run_id, ignore)
 
 

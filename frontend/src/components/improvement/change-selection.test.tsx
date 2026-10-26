@@ -7,6 +7,7 @@ import { SESSION } from "@/test-utils/improvement";
 import type { Hunk } from "@/types/authoring";
 import type { Improvement } from "@/types/improvement";
 import { ChangeSelection } from "./change-selection";
+import { ReadOnlyProvider } from "./read-only";
 const actions = vi.hoisted(() => ({
   estimateSelection: { mutateAsync: vi.fn(), isPending: false },
   checkSelection: { mutateAsync: vi.fn(), isPending: false },
@@ -196,4 +197,16 @@ it("names a new skill, and a tool by its id when it has no name", () => {
   );
   expect(screen.getByText("New skill")).toBeInTheDocument();
   expect(screen.getByText("Tool description: lookup")).toBeInTheDocument();
+});
+
+it("shows the changes but none of the choosing once the wizard is only read", () => {
+  render(
+    <ReadOnlyProvider value="finished">
+      <Form />
+    </ReadOnlyProvider>,
+  );
+  for (const box of screen.getAllByRole("checkbox")) expect(box).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: "Estimate checking selected changes" }),
+  ).not.toBeInTheDocument();
 });

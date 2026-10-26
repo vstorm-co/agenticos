@@ -15,6 +15,7 @@ import type { DatasetCase } from "@/types/datasets";
 import { WriteQuestions } from "./write-questions";
 import { StepError } from "./step-error";
 import { Details, Handled, Proportion, StateBadge, Tiles } from "./widgets";
+import { useReadOnly } from "./read-only";
 
 export function StartSignals({ agentId, datasetId }: { agentId: string; datasetId: string }) {
   const t = useTranslations("improvement");
@@ -100,6 +101,7 @@ export function TestQuestions({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const [skip, setSkip] = useState(0);
   const [writtenTo, setWrittenTo] = useState<string | null>(null);
+  const readOnly = useReadOnly();
   const more = questionsToWrite(session);
   const questions = useDatasetCases(session.dataset_id, {
     version: session.dataset_version,
@@ -168,7 +170,9 @@ export function TestQuestions({ session }: { session: Improvement }) {
               {t("startWithNewQuestions")}
             </Link>
           ) : (
-            <WriteQuestions agentId={session.agent_id} more={more} onReady={setWrittenTo} />
+            !readOnly && (
+              <WriteQuestions agentId={session.agent_id} more={more} onReady={setWrittenTo} />
+            )
           )}
         </div>
       )}

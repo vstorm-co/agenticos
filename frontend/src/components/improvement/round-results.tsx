@@ -13,6 +13,7 @@ import { useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { EvalComparison } from "@/types/eval-runs";
 import type { AttributionEstimate, Improvement, ImprovementIteration } from "@/types/improvement";
+import { useReadOnly } from "./read-only";
 
 export function RoundResults({
   session,
@@ -38,7 +39,7 @@ export function RoundResults({
       setError(getErrorMessage(e, tErrors));
     }
   }
-  const selectable = ["ready", "stopped"].includes(session.status);
+  const selectable = !useReadOnly() && ["ready", "stopped"].includes(session.status);
   const latestCheck = round.eval_run_ids.at(-1);
   const fixed = round.verdict_detail?.fixed;
   const broken = round.verdict_detail?.broken;

@@ -44,6 +44,7 @@ _HASH = "a" * 64
         ("PUT", f"{_ONE}/evidence/{_CASE}", "decide_evidence", {"decision": "ignored"}, False),
         ("PUT", f"{_ONE}/topics/{_TOPIC}/later", "defer_topic", {"later": True}, False),
         ("GET", _ONE, "read", None, False),
+        ("GET", f"{_ONE}/changes", "changes", None, False),
         ("POST", f"{_ONE}/cancel", "cancel", None, False),
         (
             "POST",

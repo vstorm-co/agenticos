@@ -1,5 +1,5 @@
 ---
-source_sha: "ba5f85fd6e9a"
+source_sha: "e1ff41f78543"
 ---
 
 # Konsola { #the-console }
@@ -681,6 +681,12 @@ Każdy filtr to menu etykiet z agentów, które widzisz; zaznacz kilka, żeby go
 poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
+
+Zakładka **Historia** agenta zawiera jego opublikowane wersje i nazwane
+środowiska, a dla każdego, kto może czytać jego runy, także **Historię usprawnień**:
+każdą sesję Popraw, co zmierzyła, co postanowiono i ile kosztowała. Zakończona
+sesja otwiera kreator tylko do odczytu, z decyzją w ostatnim kroku; zobacz
+[Historię usprawnień](authoring.md#improvement-history).
 
 Szczegóły organizacji są podzielone na zakładki: **Członkowie**, **Profil**, **Budżet i
 zgody**, **Proaktywność**, **Głos** i **AI Architect**. Zakładki administracyjne zależą

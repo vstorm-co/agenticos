@@ -10,6 +10,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { EvidenceDecision, Improvement, ImprovementEvidenceItem } from "@/types/improvement";
 import { StepError } from "./step-error";
 import { Details, Proportion } from "./widgets";
+import { useReadOnly } from "./read-only";
 
 type Column = "agent" | "missing_knowledge" | "not_a_problem";
 
@@ -32,6 +33,7 @@ function byTopic(items: ImprovementEvidenceItem[]): ImprovementEvidenceItem[][] 
 export function Understand({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
+  const readOnly = useReadOnly();
   const sources = useImprovementEvidence(session.agent_id, {
     sessionId: session.id,
     live: session.status === "running" || session.status === "queued",
@@ -47,7 +49,7 @@ export function Understand({ session }: { session: Improvement }) {
     missing_knowledge: byTopic(kept.filter((item) => columnOf(item) === "missing_knowledge")),
     not_a_problem: byTopic(kept.filter((item) => columnOf(item) === "not_a_problem")),
   };
-  const canSort = !["accepted", "published", "rejected"].includes(session.status);
+  const canSort = !readOnly;
   async function decide(group: ImprovementEvidenceItem[], decision: EvidenceDecision | null) {
     setError(null);
     try {

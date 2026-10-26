@@ -274,42 +274,20 @@ async def test_a_status_write_outside_the_state_table_is_refused_as_a_conflict(d
     assert run.status == "published"
 
 
-async def test_a_kept_draft_is_published_later_from_the_wizard(db):
+async def test_a_kept_draft_takes_no_more_decisions_in_its_session(db):
+    """Keeping the draft ends the session: it is published with the agent's own Publish."""
     from app.core.exceptions import ConcurrentChangeError
-    from app.schemas.authoring import HunkDecision
-    from app.services.authoring import AuthoringService
 
     ctx, agent, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)
     await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
-    hunk, *_ = await authoring_repo.list_hunks(
-        db, organization_id=ctx.organization_id, batch_id=ready.iterations[0].batch_id
-    )
-    publish = ImprovementFinish(confirmed=True, publish=True)
 
-    await AuthoringService(db).decide(ctx, agent.id, hunk.id, HunkDecision(action="undo"))
-    with pytest.raises(ConcurrentChangeError, match="no longer accepted"):
-        await service.finish(ctx, agent.id, ready.id, publish)
-    await AuthoringService(db).decide(ctx, agent.id, hunk.id, HunkDecision(action="accept"))
-    instructions = agent.draft_spec["instructions"]
-    agent.draft_spec = {**agent.draft_spec, "instructions": instructions + " Edited later."}
-    await db.flush()
-    with pytest.raises(ConcurrentChangeError, match="draft changed"):
-        await service.finish(ctx, agent.id, ready.id, publish)
-    agent.draft_spec = {**agent.draft_spec, "instructions": instructions}
-    await db.flush()
-
-    with (
-        patch(
-            "app.services.improvement_pipeline.improvement_repo.has_active_check",
-            return_value=True,
-        ),
-        pytest.raises(ConcurrentChangeError, match="checks to finish"),
-    ):
-        await service.finish(ctx, agent.id, ready.id, publish)
-    finished = await service.finish(ctx, agent.id, ready.id, publish)
-    assert finished.session.status == "published"
-    assert finished.session.published_version == finished.version is not None
+    with pytest.raises(ConcurrentChangeError, match="finished") as refused:
+        await service.finish(
+            ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True)
+        )
+    assert refused.value.details == {"status": "accepted"}
+    assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
 
 
 @pytest.mark.parametrize("edited", [False, True])
@@ -324,7 +302,7 @@ async def test_a_kept_draft_published_elsewhere_names_its_version_when_it_was_me
         agent.draft_spec = {**agent.draft_spec, "instructions": "Other."}
         await db.flush()
     version = await AgentRegistryService(db).publish(ctx, agent.id)
-    with pytest.raises(ConcurrentChangeError, match="replaced"):
+    with pytest.raises(ConcurrentChangeError, match="finished"):
         await service.finish(
             ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True)
         )

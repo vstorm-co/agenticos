@@ -69,6 +69,12 @@ vi.mock("@/hooks/use-improvements", () => ({
     evidence: { items: state.topics.map((topic) => ({ run_id: topic.id, topic_id: topic.id })) },
     refetch: vi.fn(),
   }),
+  useImprovementChanges: () => ({
+    changes: state.hunks,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("./knowledge-drafts", () => ({ KnowledgeDrafts: () => null }));
@@ -307,13 +313,36 @@ it("reopens the publication link without offering another publish", () => {
   );
   expect(screen.queryByRole("button", { name: "Accept and publish" })).not.toBeInTheDocument();
 });
-it("ends on a Done screen that says a later break will be reported", () => {
+it("ends on what was decided, and offers nothing that would change the session", () => {
   state.session!.status = "published";
   state.session!.published_version = 4;
+  state.session!.timeline = [
+    {
+      action: "improvement.published",
+      at: "2026-10-24T13:00:00Z",
+      stage: null,
+      status: "published",
+      reason: null,
+      actor_name: "Ada",
+    },
+  ];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByRole("region", { name: "Done" })).toHaveTextContent(
-    "No automatic check watches this agent yet",
-  );
+  const decided = screen.getByRole("region", { name: "What was decided" });
+  expect(decided).toHaveTextContent("Published as version 4");
+  expect(decided).toHaveTextContent(/By Ada/);
+  expect(screen.getByText(/This improvement is finished/)).toBeInTheDocument();
+  for (const name of ["Stop the session", "Keep as draft", "Discard", /Improve again/]) {
+    expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+  }
+  // The step bar still opens every step; only the decision is gone.
+  expect(screen.getAllByRole("button", { name: "Accept" })).toHaveLength(1);
+});
+it("lets a reader of the agent and its runs read an open session without changing it", () => {
+  state.edit = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText(/Changing it needs edit access to the agent/)).toBeInTheDocument();
+  expect(screen.queryByText(/This improvement is finished/)).not.toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "Accept" })).toHaveLength(1);
 });
 it("says where a guarded environment switches only for a publisher", async () => {
   state.session!.next_version = 4;
@@ -383,7 +412,8 @@ it("shows saved draft completion and the exact next version before publishing", 
   });
   state.session!.status = "accepted";
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByText(/selected changes are saved in the draft/)).toBeInTheDocument();
+  expect(screen.getByText(/Kept as a draft\. Publish it from the agent/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Keep as draft" })).not.toBeInTheDocument();
 });
 it("reports unavailable suggestions and allows retrying a failed read", async () => {
   state.session!.iterations[0]!.batch_id = "replaced";

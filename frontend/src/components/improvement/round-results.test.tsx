@@ -5,6 +5,7 @@ import { arm, comparison, evalRun, FLIP, SUMMARY } from "@/test-utils/eval-runs"
 import { SESSION } from "@/test-utils/improvement";
 import type { EvalRun, EvalComparison } from "@/types/eval-runs";
 import { RoundResults, RoundHistory } from "./round-results";
+import { ReadOnlyProvider } from "./read-only";
 const state = vi.hoisted(() => ({
   run: null as EvalRun | null,
   compared: null as EvalComparison | null,
@@ -350,4 +351,16 @@ it("waits for an attribution comparison and does not credit unchanged questions"
   state.childCompared = comparison({ cases: [{ ...FLIP, flip: "unchanged" }] });
   view.rerender(<RoundResults {...props} />);
   expect(screen.getAllByText(/No changed questions/)).toHaveLength(2);
+});
+
+it("offers neither another attempt nor a paid check once the wizard is only read", () => {
+  render(
+    <ReadOnlyProvider value="finished">
+      <RoundResults session={{ ...SESSION, status: "stopped" }} round={ROUND} />
+    </ReadOnlyProvider>,
+  );
+  expect(screen.queryByRole("button", { name: "Use this attempt" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Estimate individual checks" }),
+  ).not.toBeInTheDocument();
 });

@@ -3,7 +3,12 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
-import { useImprovement, useImprovements, useImprovementEvidence } from "./use-improvements";
+import {
+  useImprovement,
+  useImprovementChanges,
+  useImprovements,
+  useImprovementEvidence,
+} from "./use-improvements";
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
 let client: QueryClient;
 function wrapper({ children }: { children: ReactNode }) {
@@ -184,4 +189,12 @@ it("sets a knowledge document aside for the session and brings it back", async (
   expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/improvements/s1/topics/t1/later", {
     later: true,
   });
+});
+it("reads the changes a session measured from the session's own address", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue([{ id: "h1", status: "accepted" }]);
+  const { result } = renderHook(() => useImprovementChanges("a1", "s1"), { wrapper });
+  expect(result.current.isLoading).toBe(true);
+  await waitFor(() => expect(result.current.changes).toHaveLength(1));
+  expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/improvements/s1/changes");
+  expect(result.current.error).toBeNull();
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "ba5f85fd6e9a"
+source_sha: "e1ff41f78543"
 ---
 
 # Die Konsole { #the-console }
@@ -744,6 +744,13 @@ erscheinen. Jeder Filter ist ein Menü der Labels auf den Agents, die Sie sehen;
 kreuzen Sie mehrere an, um ihn zu erweitern. Die Categories und Tags eines Agents pflegen Sie auf seiner
 Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
+
+Der Tab **Historie** eines Agents enthält seine veröffentlichten Versionen und
+benannten Umgebungen und für alle, die seine Runs lesen dürfen, seinen
+**Verbesserungsverlauf**: jede Verbessern-Sitzung, was sie gemessen hat, was
+entschieden wurde und was sie gekostet hat. Eine abgeschlossene Sitzung öffnet
+ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
+[Verbesserungsverlauf](authoring.md#improvement-history).
 
 Die Organisationsdetails sind in Registerkarten gegliedert: **Mitglieder**, **Profil**,
 **Budget und Freigaben**, **Proaktivität**, **Sprache** und **AI Architect**.
