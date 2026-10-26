@@ -147,11 +147,12 @@ export interface TourStep {
    */
   optional?: boolean;
   /**
-   * Which builder the target renders on, where only one kind of agent's page has
-   * it. A system agent's holds no tools, exposure, evals, voice or test panel, and
-   * an ordinary agent's neither of a system agent's context and knowledge cards, so
-   * the walk leaves the stop out rather than waiting for a target that never mounts.
-   * Omitted means both.
+   * Which builder the stop belongs to, where only one kind of agent's page has its
+   * target or its copy is true of one kind only. A system agent's holds no MCP
+   * servers, exposure, evals, voice or test panel, and its Toolbox offers only what
+   * it reads, so the walk leaves an ordinary agent's stops out rather than waiting
+   * for a target that never mounts or describing tools it cannot have. Omitted
+   * means both.
    */
   agentKind?: "ordinary" | "system";
 }
@@ -365,25 +366,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     agentKind: "ordinary",
   },
-  // Where a system agent's context files and skills are picked: its page has no
-  // Toolbox to pick them in.
-  {
-    id: "agent-system-resources",
-    page: AGENT_BUILDER,
-    target: "agent-system-resources",
-    activate: "agent-tab-build",
-    permission: Perm.agentsView,
-    agentKind: "system",
-  },
-  // Whether it searches the knowledge bases the platform hands each of its runs.
-  {
-    id: "agent-system-knowledge",
-    page: AGENT_BUILDER,
-    target: "agent-system-knowledge",
-    activate: "agent-tab-build",
-    permission: Perm.agentsView,
-    agentKind: "system",
-  },
   {
     id: "agent-identity",
     page: AGENT_BUILDER,
@@ -401,6 +383,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
     agentKind: "ordinary",
+  },
+  {
+    id: "agent-system-toolbox",
+    page: AGENT_BUILDER,
+    target: "agent-capabilities-header",
+    activate: "agent-tab-toolbox",
+    permission: Perm.agentsView,
+    agentKind: "system",
   },
   {
     id: "agent-mcp",
@@ -427,6 +417,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
     agentKind: "ordinary",
   },
+  // A system agent's search picks no collection: the platform hands each run the
+  // knowledge bases it is about, and the panel sets how many steps it takes.
+  {
+    id: "agent-system-knowledge",
+    page: AGENT_BUILDER,
+    target: "capability-knowledge",
+    activate: "agent-tab-toolbox",
+    permission: Perm.agentsView,
+    agentKind: "system",
+  },
+  // Optional because a classifier's Toolbox offers no skills.
   {
     id: "agent-skills",
     page: AGENT_BUILDER,
@@ -434,7 +435,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
-    agentKind: "ordinary",
+    optional: true,
   },
   {
     id: "agent-limits",

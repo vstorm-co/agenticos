@@ -13,6 +13,7 @@ import {
   type AgentResources,
 } from "@/components/agents/capability-resources";
 import { SubagentsSection } from "@/components/agents/subagents-section";
+import type { SystemAgentSearch } from "@/components/agents/system-agent-knowledge";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput } from "@/components/ui";
 import { CapabilityGallery } from "@/components/agents/capability-art/capability-gallery";
@@ -102,6 +103,16 @@ interface CapabilityWorkbenchProps {
    * reason `validate_spec` reports fields as well as sentences (#882).
    */
   configProblems?: readonly FieldProblem[];
+  /**
+   * Set when the agent is a system agent, which only the platform runs.
+   *
+   * Nobody is there to approve anything while it works, so no capability here
+   * offers an approval; and the platform picks the knowledge bases of each run,
+   * so the Knowledge panel sets how many steps a search takes in place of a
+   * collections picker. The catalog it is handed is already narrowed to what a
+   * system agent may bind.
+   */
+  system?: SystemAgentSearch;
 }
 
 /**
@@ -141,6 +152,7 @@ export function CapabilityWorkbench({
   modelProfileId,
   disabled,
   configProblems,
+  system,
 }: CapabilityWorkbenchProps) {
   const t = useTranslations("agents");
   const tc = useTranslations("capabilityCategories");
@@ -265,14 +277,16 @@ export function CapabilityWorkbench({
               // What this capability reads of the organization's, where it
               // reads anything: the files, the collections, the skills. It gets
               // the first tab and the panel opens on it.
-              resources={panelResources(focused.id, t, () => (
+              resources={panelResources(focused.id, system !== undefined, t, () => (
                 <CapabilityResources
                   capabilityId={focused.id}
                   enabled={isOn}
                   resources={resources}
                   disabled={disabled || !isOn}
+                  system={system}
                 />
               ))}
+              approvals={system === undefined}
               // The one action on this panel that is not configuration: the
               // agent's notes are emptied from inside the capability that keeps
               // them, because nothing anywhere else in the console reads or
@@ -349,9 +363,10 @@ export function CapabilityWorkbench({
  */
 function panelResources(
   capabilityId: string,
+  system: boolean,
   t: (key: string) => string,
   content: () => ReactNode,
 ): { label: string; content: ReactNode } | undefined {
-  const key = resourceTabKey(capabilityId);
+  const key = resourceTabKey(capabilityId, system);
   return key === undefined ? undefined : { label: t(key), content: content() };
 }

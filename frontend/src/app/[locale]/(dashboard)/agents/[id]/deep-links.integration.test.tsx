@@ -307,7 +307,7 @@ describe("the detail page's way into Improve", () => {
 });
 
 describe("a system agent's page", () => {
-  it("holds what changes how it works, and nothing else", async () => {
+  it("opens Build for a link naming a tab it has not", async () => {
     allowed = new Set([Perm.runsView, Perm.agentsEdit]);
     page.kind = "drafter";
     page.params = "tab=gaps";
@@ -317,13 +317,25 @@ describe("a system agent's page", () => {
       "aria-selected",
       "true",
     );
-    for (const name of ["Toolbox", "Availability", "Evals", "Knowledge gaps"]) {
+    for (const name of ["MCP servers", "Availability", "Evals", "Knowledge gaps"]) {
       expect(screen.queryByRole("tab", { name })).toBeNull();
     }
   });
 
+  it("opens its Toolbox when a link names it", async () => {
+    allowed = new Set([Perm.agentsEdit]);
+    page.kind = "judge";
+    page.params = "tab=toolbox";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Toolbox" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
   it.each(["judge", "generator"] as const)(
-    "offers a %s neither tools, exposure nor evals",
+    "offers a %s the same tabs as an ordinary agent, without MCP servers, exposure or evals",
     async (kind) => {
       allowed = new Set([Perm.runsView, Perm.agentsEdit]);
       page.kind = kind;
@@ -331,10 +343,11 @@ describe("a system agent's page", () => {
 
       await screen.findByRole("tab", { name: "History" });
       const tabs = screen.getAllByRole("tab").map((tab) => tab.getAttribute("data-tour"));
-      expect(tabs).not.toContain("agent-tab-toolbox");
+      expect(tabs).toContain("agent-tab-toolbox");
       expect(tabs).not.toContain("agent-tab-mcp");
       expect(tabs).not.toContain("agent-tab-availability");
       expect(tabs).not.toContain("agent-tab-evals");
+      expect(tabs).not.toContain("agent-tab-gaps");
       expect(screen.queryByRole("tab", { name: "Datasets" }) !== null).toBe(kind === "judge");
     },
   );

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { forSystemAgent, isSystemAgent, SYSTEM_AGENT_KINDS, verdictKind } from "./system-agents";
+import {
+  forSystemAgent,
+  isSystemAgent,
+  sharedWithOrganization,
+  SYSTEM_AGENT_KINDS,
+  systemAgentOffers,
+  verdictKind,
+} from "./system-agents";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 
 describe("isSystemAgent", () => {
@@ -24,6 +31,51 @@ describe("verdictKind", () => {
     for (const kind of ["drafter", "generator", "improver", "agent", undefined] as const) {
       expect(verdictKind(kind)).toBeUndefined();
     }
+  });
+});
+
+describe("systemAgentOffers", () => {
+  it.each(SYSTEM_AGENT_KINDS.filter((kind) => kind !== "classifier"))(
+    "offers a %s how it reasons, its context, its skills and a knowledge search",
+    (kind) => {
+      for (const id of ["thinking", "context", "skills", "knowledge"]) {
+        expect(systemAgentOffers(kind, id)).toBe(true);
+      }
+    },
+  );
+
+  it("offers a classifier no skills", () => {
+    expect(systemAgentOffers("classifier", "skills")).toBe(false);
+    expect(systemAgentOffers("classifier", "context")).toBe(true);
+    expect(systemAgentOffers("classifier", "knowledge")).toBe(true);
+  });
+
+  it("offers no capability that reaches past the prompt", () => {
+    for (const id of ["web_search", "sandbox", "subagents", "memory_files"]) {
+      expect(systemAgentOffers("judge", id)).toBe(false);
+    }
+  });
+});
+
+describe("sharedWithOrganization", () => {
+  const ORG = { id: "f1", visibility: "org" };
+  const NARROW = { id: "f2", visibility: "private" };
+
+  it("keeps only what the whole organization shares", () => {
+    expect(sharedWithOrganization([ORG, NARROW], 2, [])).toEqual({ items: [ORG], total: 1 });
+  });
+
+  it("keeps a narrower pick the agent already holds, so it can be taken off", () => {
+    expect(sharedWithOrganization([ORG, NARROW], 2, ["f2"])).toEqual({
+      items: [ORG, NARROW],
+      total: 2,
+    });
+  });
+
+  it("keeps the total of a set it holds only part of", () => {
+    // A gallery names a chosen id it does not list as deleted only once it holds
+    // every row, which a narrowed page of forty is not.
+    expect(sharedWithOrganization([ORG, NARROW], 40, [])).toEqual({ items: [ORG], total: 40 });
   });
 });
 

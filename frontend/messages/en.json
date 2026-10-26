@@ -1049,14 +1049,12 @@
     "publishedSpec": "Published specification",
     "systemAgentBadge": "{kind, select, judge {System agent · Judge} drafter {System agent · Gap drafter} generator {System agent · Case generator} classifier {System agent · Gap classifier} improver {System agent · Authoring assistant} other {System agent}}",
     "systemAgentBadgeHint": "The platform runs it for the whole organization; nobody chats with it.",
-    "systemAgentResources": "{skills, select, false {Context files} other {Context files and skills}}",
-    "systemAgentResourcesHelp": "The standing text this agent knows while it works. Only what is shared with the whole organization is offered: the platform runs it for everyone.",
+    "systemAgentSharedOnly": "Only what is shared with the whole organization is offered: the platform runs this agent for everyone.",
     "systemAgentRouteTitle": "{name} is a system agent",
     "systemAgentRouteBody": "The platform runs it for the whole organization and nobody chats with it, so it is never tested in an eval or improved here. Change how it works on its own page.",
     "systemAgentRouteBack": "Open its page",
     "systemAgentKnowledge": "Knowledge base",
     "systemAgentKnowledgeHelp": "{kind, select, judge {Checks facts in an answer against the knowledge bases of the agent it grades, where no reference answer states them.} generator {Searches the knowledge bases you draft cases from, so questions follow what they really say.} classifier {Checks whether the knowledge base already answers a question before calling it a gap.} drafter {Searches the gap's knowledge base, so a draft does not repeat what a document already says.} improver {Reads the knowledge bases of the agent it improves, so its changes fit what they hold.} other {Searches the knowledge bases the platform picks for each run.}}",
-    "systemAgentKnowledgeSwitch": "Use the knowledge base",
     "systemAgentMaxSteps": "Max steps",
     "systemAgentMaxStepsHint": "Each step is a paid request on every answer it reads. At most {max}; left empty, {fallback}.",
     "temperatureVariesVerdict": "{kind, select, judge {Above 0, the same answer can be graded differently twice. 0 keeps grades repeatable.} other {Above 0, the same answer can be labelled differently twice. 0 keeps labels repeatable.}}"
@@ -5056,9 +5054,9 @@
         "title": "Show details",
         "body": "Choose other test questions, change the spending limit or the helper, or test how the agent answers today."
       },
-      "agent-system-resources": {
-        "title": "Context files and skills",
-        "body": "This is where a system agent gets standing knowledge: context files added to its prompt, and skills it loads when one is relevant. Only what is shared with the whole organization is offered."
+      "agent-system-toolbox": {
+        "title": "What it reads",
+        "body": "A system agent reaches nothing past its prompt, so its Toolbox holds only what it reads while it works. Files and skills are offered only when shared with the whole organization, because the platform runs it for everyone."
       },
       "agent-system-knowledge": {
         "title": "Knowledge base",

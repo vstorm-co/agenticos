@@ -55,8 +55,6 @@ import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import type { AgentResources } from "@/components/agents/capability-resources";
 import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
-import { SystemAgentKnowledge } from "@/components/agents/system-agent-knowledge";
-import { SystemAgentResources } from "@/components/agents/system-agent-resources";
 import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -158,7 +156,6 @@ import {
   useUrlState,
 } from "@/hooks";
 import {
-  KNOWLEDGE_ID,
   readSubagentsConfig,
   PERSONAL_CAPABILITIES,
   SANDBOX_ID,
@@ -180,7 +177,13 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { forSystemAgent, isSystemAgent, verdictKind } from "@/lib/system-agents";
+import {
+  forSystemAgent,
+  isSystemAgent,
+  sharedWithOrganization,
+  systemAgentOffers,
+  verdictKind,
+} from "@/lib/system-agents";
 // The module, not the `@/stores` barrel, which this page's tests stub in part.
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { Perm } from "@/types/permissions";
@@ -423,13 +426,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
       environments.some((environment) => environment.guard_suite_ids.length > 0),
   });
   // The Builder's tabs, as `?tab=` names them, for this caller and this agent; a
-  // link naming one they lack - Evals without runs:view, a judge's Toolbox -
+  // link naming one they lack - Evals without runs:view, a judge's MCP servers -
   // opens the first.
   const tabs = [
     "build",
-    ...(isJudge ? ["datasets"] : []),
-    ...(isSystem ? [] : ["toolbox", "mcp", "availability"]),
+    "toolbox",
+    ...(isSystem ? [] : ["mcp", "availability"]),
     "limits",
+    ...(isJudge ? ["datasets"] : []),
     ...(!isSystem ? ["evals"] : []),
     ...(canViewRuns && !isSystem ? ["gaps"] : []),
     "history",
@@ -851,9 +855,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // halves of the decision. That tab is gone: the gallery is in this capability's
   // panel, so switching it off is exactly what unpicking every skill already did,
   // and there was no way to grant the tools without picking one first.
+  //
+  // A system agent's save refuses every capability but the few it may bind, so
+  // its Toolbox offers only those.
+  const kind = agent?.kind;
   const grantable = useMemo(
-    () => capabilities.filter((entry) => entry.id !== THINKING_ID),
-    [capabilities],
+    () =>
+      capabilities.filter(
+        (entry) =>
+          entry.id !== THINKING_ID && (!isSystemAgent(kind) || systemAgentOffers(kind, entry.id)),
+      ),
+    [capabilities, kind],
   );
 
   // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
@@ -910,17 +922,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // What the agent is *given*, picked in the panel of the capability that reads
   // it. Each setter switches that capability on with the first pick, because bound
   // without it the resources are resolved and then discarded.
+  const offeredContext = isSystem
+    ? sharedWithOrganization(contextFiles, contextCount, spec.context_ids)
+    : { items: contextFiles, total: contextCount };
+  const offeredSkills = isSystem
+    ? sharedWithOrganization(skills, skillCount, spec.skill_ids)
+    : { items: skills, total: skillCount };
   const resources: AgentResources = {
-    contextFiles,
-    contextTotal: contextCount,
+    contextFiles: offeredContext.items,
+    contextTotal: offeredContext.total,
     contextIds: spec.context_ids,
     onContextToggle: (fileId: string) => setContext(toggleId(spec.context_ids, fileId)),
     collections,
     collectionIds: spec.collection_ids,
     onCollectionToggle: (collectionId: string) =>
       update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-    skills,
-    skillTotal: skillCount,
+    skills: offeredSkills.items,
+    skillTotal: offeredSkills.total,
     skillIds: spec.skill_ids,
     onSkillToggle: (skillId: string) => setSkills(toggleId(spec.skill_ids, skillId)),
   };
@@ -1503,15 +1521,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <TabsTrigger value="build" data-tour="agent-tab-build">
               {t("build")}
             </TabsTrigger>
+            <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
+              {t("toolbox")}
+            </TabsTrigger>
             {!isSystem && (
-              <>
-                <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
-                  {t("toolbox")}
-                </TabsTrigger>
-                <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
-                  {t("mcpServers")}
-                </TabsTrigger>
-              </>
+              <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+                {t("mcpServers")}
+              </TabsTrigger>
             )}
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
               {t("limits")}
@@ -1648,24 +1664,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {isSystemAgent(agent.kind) ? (
-              <>
-                <SystemAgentResources
-                  kind={agent.kind}
-                  capabilities={spec.capabilities}
-                  resources={resources}
-                  disabled={!canEdit}
-                />
-                <SystemAgentKnowledge
-                  kind={agent.kind}
-                  capabilities={spec.capabilities}
-                  maxSteps={spec.max_steps}
-                  onToggle={() => toggleCapability(KNOWLEDGE_ID)}
-                  onMaxSteps={(max_steps) => update({ max_steps })}
-                  disabled={!canEdit}
-                />
-              </>
-            ) : (
+            {!isSystem && (
               <VoiceCard
                 value={spec.speech_to_text}
                 onChange={(speech_to_text) => update({ speech_to_text })}
@@ -1743,7 +1742,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="toolbox" className="mt-6 space-y-6" hidden={isSystem}>
+          <TabsContent value="toolbox" className="mt-6 space-y-6">
             <Card data-tour="agent-capabilities">
               <CardHeader data-tour="agent-capabilities-header">
                 <CardTitle>{t("capabilities")}</CardTitle>
@@ -1769,6 +1768,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   modelProfileId={spec.model_profile_id ?? null}
                   disabled={!canEdit}
                   configProblems={configProblems}
+                  system={
+                    isSystemAgent(agent.kind)
+                      ? {
+                          kind: agent.kind,
+                          maxSteps: spec.max_steps,
+                          onMaxSteps: (max_steps) => update({ max_steps }),
+                        }
+                      : undefined
+                  }
                 />
               </CardContent>
             </Card>
@@ -1916,8 +1924,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </p>
                 </div>
                 {/* A system agent calls no tool but its knowledge search, whose
-                  steps are set beside it on Build, so loops and scripts are not
-                  limits it can reach. */}
+                  steps are set in that capability's panel, so loops and scripts
+                  are not limits it can reach. */}
                 {!isSystem && (
                   <>
                     <div className="space-y-2">

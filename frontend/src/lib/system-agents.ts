@@ -32,6 +32,33 @@ const SYSTEM_AGENT_CAPABILITIES: readonly string[] = [
   KNOWLEDGE_ID,
 ];
 
+/**
+ * Whether a system agent of `kind` is offered the capability `capabilityId`: any
+ * of the four it may bind, except skills for a classifier.
+ */
+export function systemAgentOffers(kind: SystemAgentKind, capabilityId: string): boolean {
+  if (kind === "classifier" && capabilityId === SKILLS_ID) return false;
+  return SYSTEM_AGENT_CAPABILITIES.includes(capabilityId);
+}
+
+/**
+ * What a system agent may be given out of `items`: only what is shared with the
+ * whole organization, since its publish refuses anything narrower - plus what it
+ * already holds, so a pick made before that can still be taken off.
+ *
+ * `total` follows: a gallery names a chosen id it does not list as deleted only
+ * while it holds the whole set, which the narrowed list still is when nothing was
+ * left unfetched.
+ */
+export function sharedWithOrganization<T extends { id: string; visibility: string }>(
+  items: T[],
+  total: number,
+  chosen: string[],
+): { items: T[]; total: number } {
+  const kept = items.filter((item) => item.visibility === "org" || chosen.includes(item.id));
+  return { items: kept, total: items.length >= total ? kept.length : total };
+}
+
 /** The model requests a system agent that searches makes when `max_steps` is unset. */
 export const SYSTEM_AGENT_SEARCH_STEPS = 3;
 

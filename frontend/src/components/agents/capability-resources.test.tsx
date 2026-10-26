@@ -82,6 +82,12 @@ describe("the tab a capability's resources get", () => {
   it("gives no tab to a capability that reads nothing of the organization's", () => {
     expect(resourceTabKey("charts")).toBeUndefined();
   });
+
+  it("names a system agent's Knowledge tab for its search, which picks no collection", () => {
+    expect(resourceTabKey("knowledge", true)).toBe("systemAgentKnowledge");
+    expect(resourceTabKey("context", true)).toBe("contextFilesHeading");
+    expect(resourceTabKey("skills", true)).toBe("skillsHeading");
+  });
 });
 
 describe("what a capability reads of the organization's", () => {
@@ -217,5 +223,60 @@ describe("what the context capability will actually attach", () => {
     mount("context", { contextIds: ["f9"] });
 
     expect(screen.queryByText(/read tools/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * A system agent is run by the platform, which hands each run the knowledge bases
+ * it is about, and its publish refuses any file or skill narrower than the whole
+ * organization - the page narrows the lists, and the panels say so.
+ */
+describe("what a system agent's capability panels offer", () => {
+  function mountSystem(capabilityId: string, enabled = true) {
+    const onMaxSteps = vi.fn();
+    render(
+      <CapabilityResources
+        capabilityId={capabilityId}
+        enabled={enabled}
+        resources={RESOURCES}
+        disabled={!enabled}
+        system={{ kind: "classifier", maxSteps: 2, onMaxSteps }}
+      />,
+    );
+    return onMaxSteps;
+  }
+
+  it("sets how a search runs in place of the collections it would pick", () => {
+    mountSystem("knowledge");
+
+    expect(screen.queryByText("Handbook")).toBeNull();
+    expect(screen.getByText(/already answers a question before calling it a gap/)).toBeVisible();
+    expect(screen.getByRole("spinbutton", { name: "Max steps" })).toHaveValue(2);
+  });
+
+  it("leaves the steps inert until the search is switched on", () => {
+    mountSystem("knowledge", false);
+
+    expect(screen.getByRole("spinbutton", { name: "Max steps" })).toBeDisabled();
+  });
+
+  it.each([
+    ["context", "glossary"],
+    ["skills", "refund-policy"],
+  ])("says the %s it offers are what the whole organization shares", (id, offered) => {
+    mountSystem(id);
+
+    expect(screen.getByText(offered)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Only what is shared with the whole organization is offered: the platform runs this agent for everyone.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing of it on an ordinary agent's panel", () => {
+    mount("context");
+
+    expect(screen.queryByText(/Only what is shared with the whole organization/)).toBeNull();
   });
 });

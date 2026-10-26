@@ -47,6 +47,13 @@ export const SEEDED_SKILL_CONTENT = "## When a customer asks for a refund\n\nChe
 /** A knowledge base, so /rag has a row rather than only an empty state. */
 export const SEEDED_KB_NAME = "E2E Handbook";
 
+/**
+ * The judge every organization is created with: a system agent, seeded by the
+ * backend rather than by this suite, and found by its key, which no rename moves.
+ */
+export const SEEDED_JUDGE_KEY = "eval_judge";
+export const SEEDED_JUDGE_NAME = "Eval judge";
+
 /** A draft agent: the only thing that can prove an unpublished agent will not run. */
 export const DRAFT_AGENT_NAME = "E2E Draft";
 export const DRAFT_AGENT_SLUG = "e2e-draft";

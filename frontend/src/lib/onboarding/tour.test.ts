@@ -246,13 +246,15 @@ describe("stepsForPage", () => {
 
   it("walks a system agent's builder without the stops its page never renders", () => {
     // Each left out would wait for a target that never mounts on a system agent's
-    // page; its context and knowledge cards sit after the model instead.
+    // page. Its Toolbox is walked by its own words: it offers no tools, and its
+    // search picks no collection.
     expect(stepsForPage("/agents/some-id", () => true, true).map((step) => step.id)).toEqual([
       "agent-instructions",
       "agent-model",
-      "agent-system-resources",
-      "agent-system-knowledge",
       "agent-identity",
+      "agent-system-toolbox",
+      "agent-system-knowledge",
+      "agent-skills",
       "agent-limits",
       "agent-history",
       "agent-share",
@@ -260,8 +262,22 @@ describe("stepsForPage", () => {
     ]);
   });
 
-  it.each(["agent-system-resources", "agent-system-knowledge"])(
-    "never stops at the system agent's %s card on an ordinary agent's walk",
+  it("walks a system agent's Toolbox on the anchors an ordinary agent's walk uses", () => {
+    const anchors = (id: string) => {
+      const step = TOUR_STEPS.find((entry) => entry.id === id);
+      return [step?.target, step?.activate];
+    };
+
+    expect(anchors("agent-system-toolbox")).toEqual(anchors("agent-toolbox"));
+    expect(anchors("agent-system-knowledge")).toEqual(anchors("agent-knowledge"));
+  });
+
+  it("passes over the skills stop where a Toolbox offers none, as a classifier's does", () => {
+    expect(TOUR_STEPS.find((step) => step.id === "agent-skills")?.optional).toBe(true);
+  });
+
+  it.each(["agent-system-toolbox", "agent-system-knowledge"])(
+    "never stops at the system agent's %s on an ordinary agent's walk",
     (id) => {
       expect(TOUR_STEPS.some((step) => step.id === id)).toBe(true);
       expect(stepsForPage("/agents/some-id", () => true).map((step) => step.id)).not.toContain(id);

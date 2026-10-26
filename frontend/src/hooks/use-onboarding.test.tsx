@@ -223,10 +223,11 @@ describe("useOnboardingTour", () => {
 
     act(() => useOnboardingStore.getState().openPage());
     await waitFor(() =>
-      expect(result.current.steps.map((s) => s.id)).toContain("agent-system-resources"),
+      expect(result.current.steps.map((s) => s.id)).toContain("agent-system-toolbox"),
     );
     const ids = result.current.steps.map((s) => s.id);
     expect(ids).not.toContain("agent-toolbox");
+    expect(ids).not.toContain("agent-mcp");
     expect(ids).not.toContain("agent-voice");
   });
 

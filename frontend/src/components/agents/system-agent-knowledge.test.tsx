@@ -1,91 +1,66 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { SystemAgentKnowledge } from "./system-agent-knowledge";
-import { withCapability } from "@/lib/agent-spec";
 import type { SystemAgentKind } from "@/types/agents";
 
 function mount({
   kind = "judge" as SystemAgentKind,
-  on = false,
   maxSteps = undefined as number | null | undefined,
   disabled = false,
 } = {}) {
-  const onToggle = vi.fn();
   const onMaxSteps = vi.fn();
-  const capabilities = withCapability(withCapability([], "thinking", true), "knowledge", on);
-  render(
-    <SystemAgentKnowledge
-      kind={kind}
-      capabilities={capabilities}
-      maxSteps={maxSteps}
-      onToggle={onToggle}
-      onMaxSteps={onMaxSteps}
-      disabled={disabled}
-    />,
-  );
-  return { onToggle, onMaxSteps };
+  render(<SystemAgentKnowledge search={{ kind, maxSteps, onMaxSteps }} disabled={disabled} />);
+  return { onMaxSteps };
 }
 
-const steps = () => screen.queryByRole("spinbutton", { name: "Max steps" });
+const steps = () => screen.getByRole("spinbutton", { name: "Max steps" }) as HTMLInputElement;
 
-describe("a system agent's knowledge base search", () => {
+describe("how a system agent searches a knowledge base", () => {
   it.each([
     ["judge", /against the knowledge bases of the agent it grades/],
     ["generator", /the knowledge bases you draft cases from/],
     ["classifier", /already answers a question before calling it a gap/],
     ["drafter", /Searches the gap's knowledge base/],
     ["improver", /the knowledge bases of the agent it improves/],
-  ] as const)("says what it gives a %s", (kind, sentence) => {
+  ] as const)("says what a search gives a %s", (kind, sentence) => {
     mount({ kind });
 
     expect(screen.getByText(sentence)).toBeInTheDocument();
   });
 
-  it("asks to switch the search on, and offers no collection to pick", async () => {
-    const { onToggle } = mount();
-
-    expect(screen.getByRole("switch", { name: "Use the knowledge base" })).not.toBeChecked();
-    await userEvent.click(screen.getByRole("switch", { name: "Use the knowledge base" }));
-    expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("checkbox")).toBeNull();
-  });
-
-  it("shows how many steps a search may take only while it is on", () => {
+  it("offers no collection to pick and no switch of its own", () => {
     mount();
-    expect(steps()).toBeNull();
+
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
   });
 
   it("offers the steps a search takes, with the runner's own default in the empty box", () => {
-    mount({ on: true });
+    mount();
 
-    expect(screen.getByRole("switch", { name: "Use the knowledge base" })).toBeChecked();
-    const field = steps() as HTMLInputElement;
-    expect(field.value).toBe("");
-    expect(field).toHaveAttribute("placeholder", "3");
-    expect(field).toHaveAttribute("max", "5");
-    expect(field).toHaveAccessibleDescription(
+    expect(steps().value).toBe("");
+    expect(steps()).toHaveAttribute("placeholder", "3");
+    expect(steps()).toHaveAttribute("min", "1");
+    expect(steps()).toHaveAttribute("max", "5");
+    expect(steps()).toHaveAccessibleDescription(
       "Each step is a paid request on every answer it reads. At most 5; left empty, 3.",
     );
   });
 
   it("writes a step count, and clears it back to unset", () => {
-    const { onMaxSteps } = mount({ on: true, maxSteps: 4 });
+    const { onMaxSteps } = mount({ maxSteps: 4 });
 
-    expect((steps() as HTMLInputElement).value).toBe("4");
-    fireEvent.change(steps() as HTMLElement, { target: { value: "2" } });
+    expect(steps().value).toBe("4");
+    fireEvent.change(steps(), { target: { value: "2" } });
     expect(onMaxSteps).toHaveBeenLastCalledWith(2);
-    fireEvent.change(steps() as HTMLElement, { target: { value: "" } });
+    fireEvent.change(steps(), { target: { value: "" } });
     expect(onMaxSteps).toHaveBeenLastCalledWith(null);
   });
 
-  it("takes nothing from somebody who may not change the agent", async () => {
-    const { onToggle } = mount({ on: true, disabled: true });
+  it("takes nothing while disabled", () => {
+    mount({ maxSteps: 2, disabled: true });
 
-    expect(screen.getByRole("switch", { name: "Use the knowledge base" })).toBeDisabled();
     expect(steps()).toBeDisabled();
-    await userEvent.click(screen.getByRole("switch", { name: "Use the knowledge base" }));
-    expect(onToggle).not.toHaveBeenCalled();
   });
 });

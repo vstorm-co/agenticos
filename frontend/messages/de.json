@@ -1049,14 +1049,12 @@
     "publishedSpec": "Veröffentlichte Spec",
     "systemAgentBadge": "{kind, select, judge {Systemagent · Bewerter} drafter {Systemagent · Lücken-Entwerfer} generator {Systemagent · Fallgenerator} classifier {Systemagent · Lücken-Klassifizierer} improver {Systemagent · Authoring-Assistent} other {Systemagent}}",
     "systemAgentBadgeHint": "Die Plattform führt ihn für die ganze Organisation aus; niemand chattet mit ihm.",
-    "systemAgentResources": "{skills, select, false {Kontextdateien} other {Kontextdateien und Skills}}",
-    "systemAgentResourcesHelp": "Der feste Text, den dieser Agent bei der Arbeit kennt. Angeboten wird nur, was mit der ganzen Organisation geteilt ist: Die Plattform führt ihn für alle aus.",
+    "systemAgentSharedOnly": "Angeboten wird nur, was mit der ganzen Organisation geteilt ist: Die Plattform führt diesen Agent für alle aus.",
     "systemAgentRouteTitle": "{name} ist ein Systemagent",
     "systemAgentRouteBody": "Die Plattform führt ihn für die ganze Organisation aus, und niemand chattet mit ihm. Deshalb wird er weder in einem Eval getestet noch hier verbessert. Wie er arbeitet, ändern Sie auf seiner eigenen Seite.",
     "systemAgentRouteBack": "Seine Seite öffnen",
     "systemAgentKnowledge": "Wissensdatenbank",
     "systemAgentKnowledgeHelp": "{kind, select, judge {Prüft Fakten in einer Antwort anhand der Wissensdatenbanken des bewerteten Agents, wo keine Referenzantwort sie nennt.} generator {Durchsucht die Wissensdatenbanken, aus denen Sie Fälle entwerfen, damit Fragen dem folgen, was dort wirklich steht.} classifier {Prüft, ob die Wissensdatenbank eine Frage schon beantwortet, bevor er sie zur Lücke erklärt.} drafter {Durchsucht die Wissensdatenbank der Lücke, damit ein Entwurf nicht wiederholt, was ein Dokument schon sagt.} improver {Liest die Wissensdatenbanken des Agents, den er verbessert, damit seine Änderungen zu ihrem Inhalt passen.} other {Durchsucht die Wissensdatenbanken, die die Plattform für jeden Run auswählt.}}",
-    "systemAgentKnowledgeSwitch": "Wissensdatenbank nutzen",
     "systemAgentMaxSteps": "Max. Schritte",
     "systemAgentMaxStepsHint": "Jeder Schritt ist eine bezahlte Anfrage bei jeder Antwort, die er liest. Höchstens {max}; leer bedeutet {fallback}.",
     "temperatureVariesVerdict": "{kind, select, judge {Über 0 kann dieselbe Antwort beim zweiten Mal anders bewertet werden. 0 hält Bewertungen wiederholbar.} other {Über 0 kann dieselbe Antwort beim zweiten Mal anders eingeordnet werden. 0 hält die Einordnung wiederholbar.}}"
@@ -4938,9 +4936,9 @@
         "title": "Details anzeigen",
         "body": "Wählen Sie andere Testfragen, ändern Sie das Ausgabenlimit oder den Hilfsagenten, oder testen Sie, wie der Agent heute antwortet."
       },
-      "agent-system-resources": {
-        "title": "Kontextdateien und Skills",
-        "body": "Hier bekommt ein Systemagent sein festes Wissen: Kontextdateien, die seinem Prompt hinzugefügt werden, und Skills, die er lädt, wenn einer passt. Angeboten wird nur, was mit der ganzen Organisation geteilt ist."
+      "agent-system-toolbox": {
+        "title": "Was er liest",
+        "body": "Ein Systemagent reicht nicht über seinen Prompt hinaus, darum enthält seine Toolbox nur, was er bei der Arbeit liest. Dateien und Skills werden nur angeboten, wenn sie mit der ganzen Organisation geteilt sind, denn die Plattform führt ihn für alle aus."
       },
       "agent-system-knowledge": {
         "title": "Wissensdatenbank",
