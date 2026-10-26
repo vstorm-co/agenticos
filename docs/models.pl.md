@@ -1,5 +1,5 @@
 ---
-source_sha: "839fb6dd9f06"
+source_sha: "0f38b8baa60e"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -44,26 +44,34 @@ Spec agenta wskazuje jeden przez `model_profile_id`, a run go rozwiązuje.
 
 Profil może wskazywać model, który nie prowadzi rozmowy: model zamiany tekstu na
 mowę, taki jak `gpt-4o-mini-tts`, model transkrypcji, model obrazów, model wideo
-albo model embeddingów. Zamiana tekstu na mowę, transkrypcja i generowanie obrazów
-działają na takim profilu, więc zostaje on na liście organizacji. Agent nie może
-na nim działać.
+albo model embeddingów. Agent na takim modelu zawodzi już przy pierwszej turze.
+Zamiana tekstu na mowę, generowanie obrazów i transkrypcja nie korzystają z
+profili: każda z tych funkcji wskazuje własnego providera i model.
 
 Platforma zna te modele z własnych katalogów (list modeli zamiany tekstu na mowę,
-transkrypcji, obrazów, wideo i embeddingów) oraz z listingu providera, który
-podaje, co emituje każdy model (robią to OpenRouter i router Hugging Face).
-`GET /providers/model-profiles` oznacza każdy profil polami `chat_capable` i
-`output_modalities`, a `GET /providers/{provider}/models` oznacza każdą sugestię
-polem `chat_capable`. Wtedy:
+transkrypcji, obrazów, wideo i embeddingów). `GET /providers/model-profiles`
+oznacza każdy profil polami `chat_capable` i `output_modalities`, a
+`GET /providers/{provider}/models` oznacza każdą sugestię polem `chat_capable`.
+Te dwa pola czytają też listing providera, który podaje, co emituje każdy model
+(robią to OpenRouter i router Hugging Face), jeśli proces API już go pobrał. Ten
+listing zmienia tylko to, co oferuje picker. Nigdy nie odrzuca publikacji, bo inny
+proces API mógł go nie pobrać. Wtedy:
 
-- Panel modelu w Builderze i picker modelu w czacie nie oferują takiego modelu.
-  Jeśli agent już go wskazuje, Builder nadal go pokazuje, oznaczony jako model,
-  który nie jest modelem czatu.
-- Publikacja odrzuca agenta, recenzenta albo specjalistę na takim modelu i podaje
-  nazwę modelu. Z tego samego powodu odrzucony jest powrót do wersji na takim
-  modelu.
-- Model, którego platforma nie potrafi sklasyfikować, taki jak własny endpoint,
-  model w Ollamie albo model wydany dziś rano, jest dozwolony. Nieznany model nie
-  jest odmową.
+- Panel modelu w Builderze, pickery recenzenta i specjalisty oraz picker modelu do
+  opisywania obrazów w bazie wiedzy nie oferują takiego modelu. Jeśli agent już go
+  wskazuje, Builder nadal go pokazuje, oznaczony jako model, który nie jest modelem
+  czatu. Builder wymienia też pozostałe takie modele, oznaczone i bez możliwości
+  wyboru, żeby dało się je usunąć.
+- Picker modelu w czacie nie podpowiada takiego modelu i odrzuca wpisany ręcznie.
+- Publikacja odrzuca taki model jako model agenta, recenzenta, specjalisty, model
+  kroków przeglądarki albo model kolejnych kroków i podaje jego nazwę. To samo
+  sprawdzenie działa przy powrocie do wersji, przy sprawdzaniu szkicu, przy
+  testowym uruchomieniu w Builderze i przy włączaniu capability z czatu. Zapisana
+  wersja na takim modelu nadal się wczytuje, ale nie można jej przywrócić, dopóki
+  nie wskazuje modelu czatu.
+- Model, którego katalogi nie klasyfikują, taki jak własny endpoint, model w
+  Ollamie albo model wydany dziś rano, jest dozwolony. Nieznany model nie jest
+  odmową.
 
 ### Fallbacki { #fallbacks }
 

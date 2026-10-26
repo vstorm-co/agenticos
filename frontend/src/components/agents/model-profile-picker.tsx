@@ -110,11 +110,14 @@ export function ModelProfilePicker({
   const tc = useTranslations("common");
   const { deleteProfile, refetchProfiles } = useModelProviders();
   const selected = profiles.find((profile) => profile.id === value);
-  // The models an agent can run on. A text-to-speech or embedding profile is for
-  // the features that use one, and an agent on it fails on its first turn
-  // (#2487) - but the one this agent already names stays, marked, because a
-  // choice that vanished from the list would read as no choice at all.
-  const offered = profiles.filter((profile) => runsAgents(profile) || profile.id === value);
+  // The models an agent can run on: one on a text-to-speech or embedding model
+  // fails on its first turn (#2487). The one this agent already names stays,
+  // marked, because a choice that vanished would read as no choice at all; and
+  // where models are managed the rest stay too, marked and not selectable, since
+  // this is the only place in the console that deletes one.
+  const offered = profiles.filter(
+    (profile) => runsAgents(profile) || profile.id === value || allowRemove,
+  );
   // Generated rather than a constant: the Builder and a dialog can both have a
   // picker mounted, and two elements answering to one id makes the second group's
   // accessible name the first one's caption.
@@ -138,6 +141,7 @@ export function ModelProfilePicker({
           // no key.
           noKey={!profile.secret_id}
           notChat={!runsAgents(profile)}
+          selectable={runsAgents(profile) || profile.id === value}
           disabled={disabled}
           onRemove={allowRemove ? () => deleteProfile.mutate(profile.id) : undefined}
         />
@@ -284,6 +288,7 @@ function ProfileRow({
   provider,
   noKey,
   notChat,
+  selectable = true,
   disabled,
   onRemove,
 }: {
@@ -294,8 +299,9 @@ function ProfileRow({
   subtitle: string | null;
   provider: string;
   noKey?: boolean;
-  /** Only ever the selected row: the rest of the non-chat models are not listed. */
   notChat?: boolean;
+  /** False for a non-chat model listed only so it can be removed. */
+  selectable?: boolean;
   disabled?: boolean;
   /** Offered only where models are managed. */
   onRemove?: () => void;
@@ -311,12 +317,12 @@ function ProfileRow({
         role="radio"
         aria-checked={selected}
         aria-label={title}
-        disabled={disabled}
+        disabled={disabled || !selectable}
         onClick={onSelect}
         className={cn(
           "flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
           selected ? "border-brand bg-brand/5" : "border-border hover:border-foreground/20",
-          disabled && "cursor-not-allowed opacity-60",
+          (disabled || !selectable) && "cursor-not-allowed opacity-60",
         )}
       >
         <ProviderIcon provider={provider} />

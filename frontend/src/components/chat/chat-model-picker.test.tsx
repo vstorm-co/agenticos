@@ -165,6 +165,29 @@ describe("the chat's two-step model picker", () => {
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
+  it("will not run the conversation on a speech model it has just added either", async () => {
+    // The suggestions leave it out, but the field is free text: the server
+    // classifies the profile it creates, and that answer is checked too.
+    listedSecrets.mockReturnValue([{ id: "s1", purpose: "openai" }]);
+    mutateAsync.mockResolvedValue({
+      ...profile("tts", "openai", "gpt-4o-mini-tts"),
+      chat_capable: false,
+    });
+    const onChange = vi.fn();
+    render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+
+    await pickProvider("OpenAI");
+    await typeModel("gpt-4o-mini-tts");
+    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+
+    expect(
+      await screen.findByText(
+        "gpt-4o-mini-tts is not a chat model, so this conversation cannot run on it. Choose another model.",
+      ),
+    ).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("creates a profile on the provider's vault key for a new model id", async () => {
     listedSecrets.mockReturnValue([{ id: "s-openai", purpose: "openai" }]);
     mutateAsync.mockResolvedValue(profile("p-new", "openai", "gpt-6"));

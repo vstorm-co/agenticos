@@ -134,6 +134,12 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
         model: modelId,
         secret_id: key.id,
       });
+      // A typed id the suggestions left out still reaches here: the server
+      // classifies the new profile, and a conversation cannot run on it either.
+      if (!runsAgents(profile)) {
+        setFailure(t("notAChatModel", { model: modelId }));
+        return;
+      }
       onChange(profile.id);
     } catch (error) {
       // Caught, not left to reject: every refusal this endpoint gives is about

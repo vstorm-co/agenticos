@@ -1775,6 +1775,75 @@ class TestValidateSpec:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
+        "where",
+        ["reviewer", "specialist", "browser step model", "follow-ups model"],
+    )
+    async def test_every_model_a_spec_names_is_refused_on_a_text_to_speech_model(
+        self, where: str, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Each runs a conversation, so each fails on a speech model as the agent's
+        own would (#2487) - and a stored spec reaches this check on republish."""
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+        speech_id = str(uuid.uuid4())
+        named = {
+            "reviewer": {
+                "reviewers": [
+                    {"name": "sources", "model_profile_id": speech_id, "instructions": "x"}
+                ]
+            },
+            "specialist": {
+                "capabilities": [
+                    {
+                        "id": "subagents",
+                        "config": {
+                            "inline": [
+                                {
+                                    "name": "researcher",
+                                    "description": "Looks things up.",
+                                    "instructions": "Research things.",
+                                    "model_profile_id": speech_id,
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+            "browser step model": {
+                "capabilities": [
+                    {
+                        "id": "browser_use",
+                        "config": {
+                            "cdp_url": "http://browser:9222",
+                            "step_model_profile_id": speech_id,
+                        },
+                    }
+                ]
+            },
+            "follow-ups model": {
+                "capabilities": [{"id": "follow_ups", "config": {"model_profile_id": speech_id}}]
+            },
+        }[where]
+        spec = _spec(model_profile_id=uuid.uuid4(), **named)
+        chat = MagicMock(label="Chat", provider="openai", model="gpt-4.1")
+        speech = MagicMock(label="Voice", provider="openai", model="gpt-4o-mini-tts")
+
+        async def get_profile(_db, profile_id, **_):
+            return speech if str(profile_id) == speech_id else chat
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=get_profile),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert [
+            problem
+            for problem in refused.value.details["problems"]
+            if "Model 'Voice' (gpt-4o-mini-tts) is a text-to-speech model" in problem
+        ]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
         ("provider", "model"),
         [
             ("openai", "gpt-4.1"),
@@ -2932,6 +3001,35 @@ class TestRollback:
             await AgentRegistryService(_db()).rollback(ctx, agent.id, to_version_id=source.id)
 
         assert create_version.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_a_stored_version_on_a_text_to_speech_model_loads_but_is_not_restored(self):
+        """Tightening publish (#2487) leaves stored specs loadable - the history
+        still renders - and refuses only putting one back: an agent on a speech
+        model failed on every turn, so restoring it would restore that."""
+        ctx = _ctx()
+        agent = _agent(ctx)
+        source = _version(agent.id, spec=_spec(model_profile_id=uuid.uuid4()))
+        speech = MagicMock(label="Voice", provider="openai", model="gpt-4o-mini-tts")
+
+        assert AgentSpec.model_validate(source.spec).model_profile_id is not None
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{REGISTRY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=source)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=speech),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.create_version", new=AsyncMock()) as create_version,
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).rollback(ctx, agent.id, to_version_id=source.id)
+
+        assert create_version.await_count == 0
+        assert refused.value.details["problems"] == [
+            "Model 'Voice' (gpt-4o-mini-tts) is a text-to-speech model, not a chat model - "
+            "an agent cannot run on it. Pick a chat model"
+        ]
 
 
 class TestArchiveAndDelete:

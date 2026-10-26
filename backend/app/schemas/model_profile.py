@@ -18,7 +18,7 @@ from pydantic import Field, computed_field
 from app.agents.model_resolver import ModelApi
 from app.core.secret_kinds import SecretKind
 from app.schemas.base import BaseSchema, TimestampSchema
-from app.services.model_outputs import model_outputs
+from app.services.model_outputs import listed_model_outputs
 
 
 class ProviderInfo(BaseSchema):
@@ -131,7 +131,7 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
         Empty means not known, which is every custom endpoint and most models:
         absent is *not* text-only, the same rule as a provider listing's field.
         """
-        return list(model_outputs(self.provider, self.model).modalities)
+        return list(listed_model_outputs(self.provider, self.model).modalities)
 
     @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
     @property
@@ -140,11 +140,10 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
 
         False only for a model the platform knows is something else - a
         text-to-speech, transcription, image, video or embedding model. Agent and
-        chat model pickers leave those out, and publish refuses a spec naming one;
-        they stay listed here because text to speech, transcription and image
-        generation run on them. A model it cannot classify is true.
+        chat model pickers leave those out; the profile stays listed so it can be
+        removed. A model it cannot classify is true.
         """
-        return model_outputs(self.provider, self.model).chat
+        return listed_model_outputs(self.provider, self.model).chat
 
 
 class ModelProfileList(BaseSchema):

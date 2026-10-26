@@ -45,7 +45,7 @@ from app.schemas.model_profile import (
 from app.services import realtime_models
 from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
-from app.services.model_outputs import model_outputs
+from app.services.model_outputs import stated_outputs
 from app.services.model_profile import provider_catalog
 from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
@@ -377,7 +377,7 @@ async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> 
                 name=entry.name,
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
-                chat_capable=model_outputs(provider, entry.id).chat,
+                chat_capable=stated_outputs(provider, entry.id, entry.output_modalities).chat,
             )
             for entry in models
         ],

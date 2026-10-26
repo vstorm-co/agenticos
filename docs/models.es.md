@@ -1,5 +1,5 @@
 ---
-source_sha: "839fb6dd9f06"
+source_sha: "0f38b8baa60e"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -44,26 +44,37 @@ El spec de un agent nombra uno con `model_profile_id`, y el run lo resuelve.
 
 Un perfil puede nombrar un modelo que no mantiene una conversación: un modelo de
 texto a voz como `gpt-4o-mini-tts`, un modelo de transcripción, un modelo de
-imágenes, un modelo de vídeo o un modelo de embeddings. El texto a voz, la
-transcripción y la generación de imágenes se ejecutan en un perfil así, por eso
-sigue en la lista de la organización. Un agent no puede ejecutarse en él.
+imágenes, un modelo de vídeo o un modelo de embeddings. Un agent en uno de ellos
+falla en su primer turno. El texto a voz, la generación de imágenes y la
+transcripción no usan perfiles: cada función nombra su propio provider y su propio
+modelo.
 
 La plataforma conoce estos modelos por sus propios catálogos (las listas de texto
-a voz, transcripción, imágenes, vídeo y embeddings) y por el listado de un
-provider que indica qué emite cada modelo (OpenRouter y el router de Hugging Face
-lo hacen). `GET /providers/model-profiles` marca cada perfil con `chat_capable` y
+a voz, transcripción, imágenes, vídeo y embeddings).
+`GET /providers/model-profiles` marca cada perfil con `chat_capable` y
 `output_modalities`, y `GET /providers/{provider}/models` marca cada sugerencia
-con `chat_capable`. Entonces:
+con `chat_capable`. Esos dos campos también leen el listado de un provider que
+indica qué emite cada modelo (OpenRouter y el router de Hugging Face lo hacen),
+cuando el proceso de la API ya lo ha obtenido. Ese listado solo cambia lo que
+ofrece un selector. Nunca rechaza una publicación, porque otro proceso de la API
+puede no haberlo obtenido. Entonces:
 
-- El panel de modelo del Builder y el selector de modelo del chat no ofrecen un
-  modelo así. Si un agent ya nombra uno, el Builder lo sigue mostrando, marcado
-  como un modelo que no es de chat.
-- La publicación rechaza un agent, un revisor o un especialista en un modelo así,
-  y nombra el modelo. Volver a una versión en uno de ellos se rechaza por el mismo
-  motivo.
-- Un modelo que la plataforma no puede clasificar, como un endpoint propio, un
-  modelo de Ollama o un modelo publicado esta mañana, está permitido. Un modelo
-  desconocido no es un rechazo.
+- El panel de modelo del Builder, los selectores de revisor y de especialista y el
+  selector del modelo que describe imágenes en la base de conocimiento no ofrecen
+  un modelo así. Si un agent ya nombra uno, el Builder lo sigue mostrando, marcado
+  como un modelo que no es de chat. El Builder también lista los demás, marcados y
+  sin poder elegirse, para que se puedan eliminar.
+- El selector de modelo del chat no sugiere un modelo así y rechaza uno escrito a
+  mano.
+- La publicación rechaza un modelo así como modelo del agent, de un revisor o de
+  un especialista, como modelo de pasos del navegador o como modelo de los pasos
+  siguientes, y lo nombra. La misma comprobación se ejecuta al volver a una
+  versión, en la comprobación del borrador, en la prueba del Builder y al activar
+  una capability desde el chat. Una versión guardada en un modelo así sigue
+  cargándose, pero no se puede restaurar hasta que nombre un modelo de chat.
+- Un modelo que los catálogos no clasifican, como un endpoint propio, un modelo de
+  Ollama o un modelo publicado esta mañana, está permitido. Un modelo desconocido
+  no es un rechazo.
 
 ### Fallbacks { #fallbacks }
 

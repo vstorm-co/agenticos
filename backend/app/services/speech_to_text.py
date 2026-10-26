@@ -72,6 +72,12 @@ class SpeechToTextModel:
     name: str
     description: str
     language_field: LanguageField = "language"
+    chat: bool = False
+    """Whether the same id also holds a conversation on the provider's chat API.
+
+    Mistral serves `voxtral-mini-latest` both ways, so an agent may run on it and
+    it is not refused as a transcription-only model (#2487).
+    """
 
 
 @dataclass(frozen=True)

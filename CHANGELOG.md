@@ -22,17 +22,21 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Keep text-to-speech, transcription, image, video and embedding models out of the
-  Builder's model panel, the chat's model picker and the models a run may invent a
-  specialist on. A model profile now reports `chat_capable` and `output_modalities`,
-  and a provider's model suggestions report `chat_capable`. Both come from the
-  platform's model catalogs and from a cached provider listing that states
-  modalities. A model the platform cannot classify, such as a custom endpoint, is
-  still allowed. An agent that already names such a model still shows it in the
-  Builder, marked as not a chat model. Publish, the draft check and rollback now
-  refuse an agent, reviewer or specialist on one of these models and name the
-  model. Stored specs still load, but an agent published on one of these models
-  must move to a chat model before it can be republished or rolled back to that
-  version. The Architect no longer publishes itself on such a profile (#2487).
+  model pickers for agents, reviewers, specialists, knowledge-base image
+  description and chat, and out of the models a run may invent a specialist on. A
+  model profile now reports `chat_capable` and `output_modalities`, and a
+  provider's model suggestions report `chat_capable`. Refusals come from the
+  platform's model catalogs only; a cached provider listing that states modalities
+  only narrows what a picker offers. A model the platform cannot classify, such as
+  a custom endpoint, is still allowed. The Builder still shows such a model where
+  an agent names it, and lists the rest, marked, so they can be removed. The chat
+  picker refuses one typed in. Publish, rollback, the draft check, the Builder's
+  test run and enabling a capability from chat now refuse such a model as the
+  agent's, a reviewer's or a specialist's model, the browser step model or the
+  follow-ups model, and name it. Stored specs still load, but a version on one of
+  these models must move to a chat model before it is republished or restored.
+  These agents already failed on their first turn. The Architect no longer
+  publishes itself on such a profile (#2487).
 
 ## [1.18.0] - 2026-10-26
 

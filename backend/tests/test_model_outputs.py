@@ -9,7 +9,12 @@ import pytest
 from app.schemas.model_profile import ModelProfileList, ModelProfileRead
 from app.services import model_catalog
 from app.services.model_catalog import CatalogModel
-from app.services.model_outputs import ModelOutputs, model_outputs
+from app.services.model_outputs import (
+    ModelOutputs,
+    _from_catalogs,
+    listed_model_outputs,
+    model_outputs,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -73,7 +78,7 @@ def test_a_cached_listing_that_states_text_is_a_chat_model():
         CatalogModel(id="acme/painter", name="Painter", output_modalities=("image", "text")),
     )
 
-    assert model_outputs("openrouter", "acme/painter") == ModelOutputs(
+    assert listed_model_outputs("openrouter", "acme/painter") == ModelOutputs(
         modalities=("image", "text"), chat=True
     )
 
@@ -84,17 +89,52 @@ def test_a_cached_listing_that_states_no_text_is_not_a_chat_model():
         CatalogModel(id="acme/painter", name="Painter", output_modalities=("image",)),
     )
 
-    outputs = model_outputs("openrouter", "acme/painter")
+    outputs = listed_model_outputs("openrouter", "acme/painter")
 
     assert outputs == ModelOutputs(
         modalities=("image",), chat=False, kind="a model that emits only image"
     )
 
 
+def test_a_refusal_never_rests_on_a_listing_this_process_happens_to_hold():
+    # The cache is per process: publish on another replica, or after a restart,
+    # must give the same answer, so only the catalogs decide it.
+    _listed(
+        "openrouter",
+        CatalogModel(id="acme/painter", name="Painter", output_modalities=("image",)),
+    )
+
+    assert model_outputs("openrouter", "acme/painter") == ModelOutputs(modalities=(), chat=True)
+
+
+def test_a_catalog_answer_wins_over_what_a_listing_states():
+    _listed(
+        "openrouter",
+        CatalogModel(id="openai/gpt-4o-mini-tts", name="TTS", output_modalities=("text",)),
+    )
+
+    assert not listed_model_outputs("openrouter", "openai/gpt-4o-mini-tts").chat
+
+
+def test_a_transcription_model_that_also_chats_is_a_chat_model():
+    # Mistral serves voxtral-mini-latest on its chat API as well.
+    assert model_outputs("mistral", "voxtral-mini-latest").chat
+
+
+def test_no_model_the_catalogs_refuse_is_one_they_also_offer_for_chat():
+    curated = {
+        (provider, model.id)
+        for provider in model_catalog.CURATED
+        for model in model_catalog.curated_models(provider)
+    }
+
+    assert curated.isdisjoint(_from_catalogs())
+
+
 def test_a_listed_model_that_states_nothing_is_unknown():
     _listed("openrouter", CatalogModel(id="acme/quiet", name="Quiet"))
 
-    assert model_outputs("openrouter", "acme/quiet").chat
+    assert listed_model_outputs("openrouter", "acme/quiet").chat
 
 
 def test_the_cached_listing_is_read_however_old_and_never_fetched():
@@ -120,8 +160,8 @@ def _read(model: str) -> ModelProfileRead:
 
 
 def test_a_profile_says_whether_an_agent_can_run_on_it():
-    # Listed either way - text to speech runs on the speech profile - and marked,
-    # so agent and chat pickers can leave it out without another call.
+    # Listed either way, so it can still be removed, and marked, so agent and
+    # chat pickers can leave it out without another call.
     body = ModelProfileList(items=[_read("gpt-4.1"), _read("gpt-4o-mini-tts")], total=2).model_dump(
         mode="json"
     )

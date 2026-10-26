@@ -1620,9 +1620,9 @@ class AgentRegistryService:
         """Whether a named model profile is still this organization's to run on.
 
         And whether it is a model anything can run *on*: a profile can name a
-        text-to-speech or embedding model, for the features that use one, and an
-        agent on it fails on its first turn (#2487). Refused only where the
-        catalog knows what the model is - an unknown model is allowed.
+        text-to-speech or embedding model, and an agent on it fails on its first
+        turn (#2487). Refused only where the catalogs know what the model is - an
+        unknown model is allowed.
         """
         profile = await credential_repo.get_profile(
             self.db, profile_id, organization_id=ctx.organization_id

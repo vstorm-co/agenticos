@@ -1,5 +1,5 @@
 ---
-source_sha: "839fb6dd9f06"
+source_sha: "0f38b8baa60e"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -47,25 +47,36 @@ auf.
 
 Ein Profil kann ein Modell benennen, das kein Gespräch führen kann: ein
 Sprachausgabe-Modell wie `gpt-4o-mini-tts`, ein Transkriptionsmodell, ein
-Bildmodell, ein Videomodell oder ein Embedding-Modell. Sprachausgabe, Transkription
-und Bildgenerierung laufen auf einem solchen Profil, deshalb bleibt es in der Liste
-der Organisation. Ein Agent kann nicht darauf laufen.
+Bildmodell, ein Videomodell oder ein Embedding-Modell. Ein Agent darauf scheitert
+schon an seinem ersten Zug. Sprachausgabe, Bildgenerierung und Transkription
+nutzen keine Profile: Jede dieser Funktionen benennt ihren eigenen Provider und ihr
+eigenes Modell.
 
 Die Plattform kennt diese Modelle aus ihren eigenen Katalogen (den Listen für
-Sprachausgabe, Transkription, Bilder, Video und Embeddings) und aus dem Listing
-eines Providers, das angibt, was jedes Modell ausgibt (OpenRouter und der Hugging
-Face Router tun das). `GET /providers/model-profiles` markiert jedes Profil mit
-`chat_capable` und `output_modalities`, und `GET /providers/{provider}/models`
-markiert jeden Vorschlag mit `chat_capable`. Dann gilt:
+Sprachausgabe, Transkription, Bilder, Video und Embeddings).
+`GET /providers/model-profiles` markiert jedes Profil mit `chat_capable` und
+`output_modalities`, und `GET /providers/{provider}/models` markiert jeden
+Vorschlag mit `chat_capable`. Diese beiden Felder lesen auch das Listing eines
+Providers, das angibt, was jedes Modell ausgibt (OpenRouter und der Hugging Face
+Router tun das), sofern der API-Prozess es bereits abgerufen hat. Dieses Listing
+ändert nur, was eine Auswahl anbietet. Es lehnt nie eine Veröffentlichung ab, weil
+ein anderer API-Prozess es vielleicht nicht abgerufen hat. Dann gilt:
 
-- Das Modell-Panel im Builder und die Modellauswahl im Chat bieten ein solches
+- Das Modell-Panel im Builder, die Auswahl für Reviewer und Spezialisten und die
+  Modellauswahl für Bildbeschreibungen in der Wissensdatenbank bieten ein solches
   Modell nicht an. Benennt ein Agent bereits eines, zeigt der Builder es weiterhin
-  an, markiert als kein Chat-Modell.
-- Die Veröffentlichung lehnt einen Agent, einen Reviewer oder einen Spezialisten
-  auf einem solchen Modell ab und nennt das Modell. Ein Rollback auf eine Version
-  mit einem solchen Modell wird aus demselben Grund abgelehnt.
-- Ein Modell, das die Plattform nicht einordnen kann, etwa ein eigener Endpoint,
-  ein Ollama-Modell oder ein heute Morgen veröffentlichtes Modell, ist erlaubt. Ein
+  an, markiert als kein Chat-Modell. Der Builder listet auch die übrigen solchen
+  Modelle, markiert und nicht wählbar, damit sie entfernt werden können.
+- Die Modellauswahl im Chat schlägt ein solches Modell nicht vor und lehnt ein
+  eingetipptes ab.
+- Die Veröffentlichung lehnt ein solches Modell als Modell des Agents, eines
+  Reviewers oder eines Spezialisten, als Schrittmodell des Browsers oder als Modell
+  für Folgeschritte ab und nennt es. Dieselbe Prüfung läuft beim Rollback, bei der
+  Entwurfsprüfung, beim Testlauf im Builder und beim Aktivieren einer Capability
+  aus dem Chat. Eine gespeicherte Version auf einem solchen Modell lädt weiterhin,
+  lässt sich aber erst wiederherstellen, wenn sie ein Chat-Modell benennt.
+- Ein Modell, das die Kataloge nicht einordnen, etwa ein eigener Endpoint, ein
+  Ollama-Modell oder ein heute Morgen veröffentlichtes Modell, ist erlaubt. Ein
   unbekanntes Modell ist keine Ablehnung.
 
 ### Fallbacks { #fallbacks }

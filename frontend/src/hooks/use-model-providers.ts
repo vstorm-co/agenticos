@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
+import { runsAgents } from "@/lib/model-profiles";
 import { qk } from "@/lib/query-keys";
 import type { ModelApi, ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
 export interface NewModelProfile {
@@ -183,10 +184,9 @@ export function useProviderModels(providerId: string) {
     retry: false,
   });
 
-  // Both fields this fills choose a model to talk to - an agent's, a
-  // conversation's - so a speech or embedding model is not a suggestion (#2487).
-  // The field stays free text; publish is what refuses one typed in.
-  const models = (data?.items ?? []).filter((entry) => entry.chat_capable !== false);
+  // Both fields this fills choose a model to talk to, so a speech or embedding
+  // model is not a suggestion (#2487). The field stays free text.
+  const models = (data?.items ?? []).filter(runsAgents);
   return { models, source: data?.source ?? null, isLoading };
 }
 

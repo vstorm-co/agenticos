@@ -38,22 +38,32 @@ An agent's spec names one by `model_profile_id`, and the run resolves it.
 
 A profile can name a model that cannot hold a conversation: a text-to-speech model
 such as `gpt-4o-mini-tts`, a transcription model, an image model, a video model or
-an embedding model. Text to speech, transcription and image generation run on such
-a profile, so it stays in the organization's list. An agent cannot run on it.
+an embedding model. An agent on one fails on its first turn. Text to speech, image
+generation and transcription do not use profiles: each feature names its own
+provider and model.
 
 The platform knows these models from its own catalogs (the text-to-speech,
-transcription, image, video and embedding lists) and from a provider listing that
-states what each model emits (OpenRouter and the Hugging Face router do).
-`GET /providers/model-profiles` marks each profile with `chat_capable` and
-`output_modalities`, and `GET /providers/{provider}/models` marks each suggestion
-with `chat_capable`. Then:
+transcription, image, video and embedding lists). `GET /providers/model-profiles`
+marks each profile with `chat_capable` and `output_modalities`, and
+`GET /providers/{provider}/models` marks each suggestion with `chat_capable`.
+Those two fields also read a provider listing that states what each model emits
+(OpenRouter and the Hugging Face router do), when the API process has already
+fetched it. That listing only changes what a picker offers. It never refuses a
+publish, because another API process may not have fetched it. Then:
 
-- The Builder's model panel and the chat's model picker do not offer such a model.
-  If an agent already names one, the Builder still shows it, marked as not a chat
-  model.
-- Publish refuses an agent, a reviewer or a specialist on such a model, and names
-  the model. Rolling back to a version on one is refused for the same reason.
-- A model that the platform cannot classify, such as a custom endpoint, an Ollama
+- The Builder's model panel, the reviewer and specialist pickers and the
+  knowledge-base image-description picker do not offer such a model. If an agent
+  already names one, the Builder still shows it, marked as not a chat model. The
+  Builder also lists the others, marked and not selectable, so they can be
+  removed.
+- The chat's model picker does not suggest such a model, and refuses one that is
+  typed in.
+- Publish refuses such a model as the agent's model, a reviewer's, a specialist's,
+  the browser step model or the follow-ups model, and names it. The same check
+  runs on rollback, on the draft check, on the Builder's test run and when a
+  capability is enabled from chat. A stored version on such a model still loads,
+  but it cannot be restored until it names a chat model.
+- A model that the catalogs do not classify, such as a custom endpoint, an Ollama
   model or a model released this morning, is allowed. An unknown model is not a
   refusal.
 

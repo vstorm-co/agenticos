@@ -3735,8 +3735,8 @@ class AgentRunnerService:
         """
         if not delegation.profiles:
             for profile in await self.models.list_profiles(delegation.ctx):
-                # A speech or embedding model is a profile for the features that
-                # use one, not a model a specialist can be invented on (#2487).
+                # A specialist on a speech or embedding model would fail on its
+                # first turn (#2487).
                 if not model_outputs(profile.provider, profile.model).chat:
                     continue
                 try:

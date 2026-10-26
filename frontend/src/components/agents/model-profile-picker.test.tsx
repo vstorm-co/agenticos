@@ -436,6 +436,22 @@ describe("a model an agent cannot run on (#2487)", () => {
     expect(screen.getAllByText("not a chat model")).toHaveLength(2);
   });
 
+  it("stays listed where models are managed, so it can be removed but not chosen", async () => {
+    // The Builder is the only place the console deletes a profile; hiding one
+    // there would leave it removable through the API alone.
+    const onChange = vi.fn();
+    mount({ allowAdd: true, allowRemove: true, onChange, profiles: [profile(), speech] });
+
+    const row = screen.getByRole("radio", { name: "OpenAI · gpt-4o-mini-tts" });
+    expect(row).toBeDisabled();
+    expect(screen.getByText("Use a saved model (2)")).toBeInTheDocument();
+    await userEvent.click(row);
+    expect(onChange).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove OpenAI · gpt-4o-mini-tts" }));
+    expect(deleteProfile.mutate).toHaveBeenCalledWith("tts");
+  });
+
   it("marks nothing for a model the server did not classify", () => {
     mount({ value: "p1", profiles: [profile({ chat_capable: undefined })] });
 

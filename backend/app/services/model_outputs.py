@@ -2,20 +2,22 @@
 
 A model profile names any model a provider serves, and some of those cannot hold
 a conversation: `gpt-4o-mini-tts` speaks, `gpt-image-1` draws,
-`text-embedding-3-small` answers with vectors, `whisper-1` transcribes. They are
-profiles for a reason - text to speech, image generation and transcription run
-on them - but an agent on one fails on its first turn.
+`text-embedding-3-small` answers with vectors, `whisper-1` transcribes. An agent
+on one fails on its first turn.
 
 Two sources say which is which, and neither is asked over the network here:
 
 **The catalog files.** The text-to-speech, transcription, video and embedding
 catalogs, and the image catalog's entries whose model is drawn *with* rather than
 talked to (OpenAI's, where a separate `caller` invokes the tool). A model listed
-there is known to be one of those and nothing else.
+there is known to be one of those and nothing else. They are the same in every
+process, so they alone decide a refusal: :func:`model_outputs`.
 
 **A provider listing already cached.** OpenRouter and the Hugging Face router
 state `output_modalities` per model; when :mod:`app.services.model_catalog` has
-fetched one, a model it lists without `text` is not a chat model.
+fetched one, a model it lists without `text` is not a chat model. That cache is
+per process and empties on a restart, so it only marks what a picker offers -
+:func:`listed_model_outputs` - and never refuses a publish.
 
 Everything else is unknown, and unknown is allowed. A custom endpoint, an Ollama
 on this network, a model shipped this morning: the platform cannot see what they
@@ -82,7 +84,8 @@ def _from_catalogs() -> dict[tuple[str, str], ModelOutputs]:
     transcription = ModelOutputs(modalities=("text",), chat=False, kind="a transcription model")
     for entry in speech_to_text.CATALOG:
         for model in entry.models:
-            record(entry.provider, model.id, transcription)
+            if not model.chat:
+                record(entry.provider, model.id, transcription)
 
     vectors = ModelOutputs(modalities=("embedding",), chat=False, kind="an embedding model")
     for entry in embedding_providers.CATALOG:
@@ -93,10 +96,11 @@ def _from_catalogs() -> dict[tuple[str, str], ModelOutputs]:
 
 
 def model_outputs(provider: str, model: str) -> ModelOutputs:
-    """What this model emits and whether an agent can run on it.
+    """What the catalogs say this model emits, and whether an agent can run on it.
 
-    An OpenRouter id is `<provider>/<model>`, so it is also looked up as the
-    upstream model it routes to: `openai/gpt-4o-mini-tts` is the same speech
+    The answer publish, rollback and the runner act on: the same on every
+    replica. An OpenRouter id is `<provider>/<model>`, so it is also looked up as
+    the upstream model it routes to: `openai/gpt-4o-mini-tts` is the same speech
     model under another name.
     """
     known = _from_catalogs()
@@ -104,13 +108,14 @@ def model_outputs(provider: str, model: str) -> ModelOutputs:
     if found is None and provider == "openrouter" and "/" in model:
         upstream, _, bare = model.partition("/")
         found = known.get((upstream, bare))
-    if found is not None:
-        return found
+    return _UNKNOWN if found is None else found
 
-    listed = next((entry for entry in cached_listing(provider) if entry.id == model), None)
-    if listed is None or not listed.output_modalities:
-        return _UNKNOWN
-    modalities = listed.output_modalities
+
+def stated_outputs(provider: str, model: str, modalities: tuple[str, ...]) -> ModelOutputs:
+    """The catalogs' answer, or else what a provider listing states the model emits."""
+    found = model_outputs(provider, model)
+    if not found.chat or not modalities:
+        return found
     if "text" in modalities:
         return ModelOutputs(modalities=modalities, chat=True)
     return ModelOutputs(
@@ -118,3 +123,13 @@ def model_outputs(provider: str, model: str) -> ModelOutputs:
         chat=False,
         kind=f"a model that emits only {', '.join(modalities)}",
     )
+
+
+def listed_model_outputs(provider: str, model: str) -> ModelOutputs:
+    """:func:`model_outputs`, completed from this process's cached listing.
+
+    For what a picker offers only: another replica, or this one after a restart,
+    may not hold the listing and answers unknown.
+    """
+    listed = next((entry for entry in cached_listing(provider) if entry.id == model), None)
+    return stated_outputs(provider, model, () if listed is None else listed.output_modalities)
