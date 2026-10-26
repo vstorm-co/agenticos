@@ -81,6 +81,20 @@ class ImprovementStatus(StrEnum):
     def terminal(self) -> bool:
         return not self.active and not self.waiting
 
+    @property
+    def closed(self) -> bool:
+        """Over for good - decided, discarded, cancelled or outdated - so nothing may change it.
+
+        Stopped and failed sessions are not: they can still be continued or retried.
+        """
+        return self in {
+            ImprovementStatus.ACCEPTED,
+            ImprovementStatus.PUBLISHED,
+            ImprovementStatus.REJECTED,
+            ImprovementStatus.CANCELLED,
+            ImprovementStatus.STALE,
+        }
+
 
 class ImprovementStage(StrEnum):
     """The step a session is on, or was on when it stopped."""

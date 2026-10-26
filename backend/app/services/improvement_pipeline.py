@@ -79,7 +79,7 @@ from app.repositories import (
     background_job as background_job_repo,
 )
 from app.repositories.agent_run import RunFilter
-from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
+from app.schemas.authoring import AuthoringStart, HunkDecision, HunkRead, ProposalCheck
 from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_run import (
     EvalComparisonRead,
@@ -635,13 +635,27 @@ class ImprovementPipelineService:
         )
 
     async def _row(
-        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, *, lock: bool = False
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        run_id: UUID,
+        *,
+        lock: bool = False,
+        settled: Status | None = None,
     ) -> ImprovementRun:
+        """The session; locked, it is about to change, which a closed session refuses.
+
+        `settled` is the status repeating this same action finds, answered as before.
+        """
         row = await improvement_repo.get_run(
             self.db, run_id, organization_id=ctx.organization_id, lock=lock
         )
         if row is None or row.agent_id != agent_id:
             raise NotFoundError(message="Improvement session not found")
+        if lock and Status(row.status).closed and row.status != settled:
+            raise ConcurrentChangeError(
+                message="This improvement is finished", details={"status": row.status}
+            )
         return row
 
     async def evidence(
@@ -746,10 +760,6 @@ class ImprovementPipelineService:
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
         run = await self._row(ctx, agent_id, run_id, lock=True)
-        if run.status in {Status.ACCEPTED, Status.PUBLISHED, Status.REJECTED}:
-            raise BadRequestError(
-                message="This session is decided; start a new one to sort its examples again"
-            )
         if evidence_run_id not in (run.chat_evidence_run_ids or []):
             raise NotFoundError(
                 message="This conversation is not one of the session's examples",
@@ -806,6 +816,21 @@ class ImprovementPipelineService:
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         await self.registry.get(ctx, agent_id)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
+
+    async def changes(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> list[HunkRead]:
+        """The changes the session's chosen round measured, wherever their batch is now."""
+        agent = await self.registry.get(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        run = await self._row(ctx, agent_id, run_id)
+        rounds = await improvement_repo.list_iterations(
+            self.db, organization_id=ctx.organization_id, run_id=run.id
+        )
+        chosen = next((item for item in rounds if item.id == run.best_iteration_id), None)
+        if chosen is None or chosen.batch_id is None:
+            return []
+        return await self.authoring.changes_of(
+            ctx, agent, chosen.batch_id, chosen.included_hunk_ids
+        )
 
     async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[ImprovementRead]:
         await self.registry.get(ctx, agent_id)
@@ -880,7 +905,7 @@ class ImprovementPipelineService:
         return value if isinstance(value, str) else None
 
     async def cancel(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
-        run = await self._row(ctx, agent_id, run_id, lock=True)
+        run = await self._row(ctx, agent_id, run_id, lock=True, settled=Status.CANCELLED)
         if ctx.subject_id != run.created_by_user_id and not ctx.has(Perm.ORG_SETTINGS):
             raise AuthorizationError(
                 message="Only the creator or an organization administrator can stop this session"
@@ -908,11 +933,6 @@ class ImprovementPipelineService:
         if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
             raise NotFoundError(message="Agent not found")
         run = await self._row(ctx, agent_id, run_id, lock=True)
-        if run.status == Status.PUBLISHED:
-            raise ConcurrentChangeError(message="This session was already published")
-        if run.status == Status.ACCEPTED and data.publish:
-            await self._kept_as_measured(ctx, agent_id, run)
-            return await self._conclude(ctx, agent_id, run, data)
         if run.status != Status.READY:
             raise BadRequestError(message="Select a checked round before accepting it")
         await self.ensure_current(ctx, run.id, allow_finished=True)
@@ -939,30 +959,6 @@ class ImprovementPipelineService:
             if hunk.status == HunkStatus.PENDING:
                 await self.authoring.decide(ctx, agent_id, hunk.id, HunkDecision(action="accept"))
         return await self._conclude(ctx, agent_id, run, data)
-
-    async def _kept_as_measured(
-        self, ctx: AuthContext, agent_id: UUID, run: ImprovementRun
-    ) -> None:
-        """Refuse to publish a kept draft that is no longer the candidate this session measured."""
-        if await improvement_repo.has_active_check(
-            self.db, run.id, organization_id=ctx.organization_id
-        ):
-            raise ConcurrentChangeError(
-                message="Wait for this session's checks to finish, or stop the session"
-            )
-        selected, hunks = await self._measured_selection(run)
-        if any(hunk.status != HunkStatus.ACCEPTED for hunk in hunks):
-            raise ConcurrentChangeError(
-                message="Some of the checked changes are no longer accepted; check them again"
-            )
-        agent = await self.authoring._editable(ctx, agent_id)
-        draft, skills = authoring_hunks.as_measured(
-            AgentSpec.model_validate(agent.draft_spec), hunks
-        )
-        if spec_hash(draft, skills) != selected.candidate_spec_hash:
-            raise ConcurrentChangeError(
-                message="The draft changed after these changes were kept; check it again"
-            )
 
     async def _measured_selection(
         self, run: ImprovementRun
@@ -1380,17 +1376,15 @@ class ImprovementPipelineService:
         self.authoring._require_runs_view(ctx)
         if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
             raise NotFoundError(message="Agent not found")
-        run = await self._row(ctx, agent_id, run_id, lock=True)
+        run = await self._row(ctx, agent_id, run_id, lock=True, settled=Status.REJECTED)
         if ctx.user_id != run.created_by_user_id and not ctx.has(Perm.ORG_SETTINGS):
             raise AuthorizationError(
                 message="Only the creator or an organization administrator can discard this session"
             )
         if run.status == Status.REJECTED:
             return await self._read(ctx, run)
-        if Status(run.status).active or run.status in {Status.ACCEPTED, Status.PUBLISHED}:
-            raise BadRequestError(
-                message="Stop running work first; applied changes need the normal undo or version history"
-            )
+        if Status(run.status).active:
+            raise BadRequestError(message="Stop running work first")
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )

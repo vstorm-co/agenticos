@@ -773,6 +773,24 @@ class AuthoringService:
             created_at=batch.created_at,
         )
 
+    async def changes_of(
+        self, ctx: AuthContext, agent: Agent, batch_id: UUID, hunk_ids: list[UUID] | None
+    ) -> list[HunkRead]:
+        """Some of one batch's changes as the Builder reads them, open or long closed."""
+        hunks = [
+            hunk
+            for hunk in await authoring_repo.list_hunks(
+                self.db, organization_id=ctx.organization_id, batch_id=batch_id
+            )
+            if hunk_ids is None or hunk.id in hunk_ids
+        ]
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        names = await ConfigurationService(self.db).names(ctx, hunks)
+        return [
+            self._hunk(spec, hunk, quotes=ctx.has(Perm.RUNS_VIEW), names=names, blocked=None)
+            for hunk in hunks
+        ]
+
     async def _model_gate(
         self,
         ctx: AuthContext,
