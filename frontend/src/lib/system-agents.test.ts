@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { isSystemAgent, SYSTEM_AGENT_KINDS } from "./system-agents";
+import { forSystemAgent, isSystemAgent, SYSTEM_AGENT_KINDS } from "./system-agents";
+import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 
 describe("isSystemAgent", () => {
   it("is every kind but the agents people use", () => {
@@ -10,5 +11,123 @@ describe("isSystemAgent", () => {
 
   it("treats an agent whose kind is not known yet as an ordinary one", () => {
     expect(isSystemAgent(undefined)).toBe(false);
+  });
+});
+
+function binding(
+  id: string,
+  overrides: Partial<CapabilityBindingSpec> = {},
+): CapabilityBindingSpec {
+  return {
+    id,
+    config: {},
+    approval: "default",
+    tool_approval: {},
+    tool_overrides: {},
+    secret_id: null,
+    enabled: true,
+    ...overrides,
+  };
+}
+
+/** What a judge's draft can still hold from before its save refused all this. */
+const STORED: AgentSpec = {
+  name: "Refunds judge",
+  instructions: "Grade the answer.",
+  starters: ["Grade this"],
+  model_profile_id: "p1",
+  model_settings: { temperature: 0 },
+  capabilities: [
+    binding("thinking", { config: { effort: "high" } }),
+    binding("web_search"),
+    binding("context", { approval: "required", tool_approval: { read_context: "required" } }),
+    binding("memory_files", { enabled: false }),
+    binding("skills"),
+  ],
+  collection_ids: ["kb1"],
+  skill_ids: ["s1"],
+  context_ids: ["c1"],
+  mcp_servers: [
+    { account: "organization", connection_id: "m1", allowed_tools: null, approval: "none" },
+  ],
+  subagents: [{ agent_id: "a2", agent_version_id: "v2" }],
+  external_agents: [{ external_agent_id: "x1" }],
+  max_steps: 20,
+  reviewers: [
+    { name: "Tone", model_profile_id: "p2", instructions: "Be kind", every: 5, window: 5 },
+  ],
+  code_mode: { enabled: true, max_tool_calls: 30 },
+  budget: { monthly_usd: 5 },
+  speech_to_text: {
+    provider: "openai",
+    model: "whisper-1",
+    language: null,
+    secret_id: "k1",
+    dictation: true,
+  },
+  voice: {
+    provider: "openai",
+    model: "gpt-realtime",
+    deployment: null,
+    base_model: null,
+    secret_id: "k1",
+    voice: null,
+    language: null,
+    max_call_seconds: null,
+    voice_note: null,
+  },
+};
+
+describe("forSystemAgent", () => {
+  it("drops every part a system agent's save refuses", () => {
+    const stripped = forSystemAgent(STORED);
+
+    expect(stripped.capabilities).toEqual([
+      binding("thinking", { config: { effort: "high" } }),
+      binding("context"),
+      binding("skills"),
+    ]);
+    expect(stripped).toMatchObject({
+      collection_ids: [],
+      mcp_servers: [],
+      subagents: [],
+      external_agents: [],
+      starters: [],
+      reviewers: [],
+      voice: null,
+      speech_to_text: null,
+      code_mode: { enabled: false, max_tool_calls: 30 },
+    });
+  });
+
+  it("keeps what a system agent works by", () => {
+    const stripped = forSystemAgent(STORED);
+
+    expect(stripped).toMatchObject({
+      name: "Refunds judge",
+      instructions: "Grade the answer.",
+      model_profile_id: "p1",
+      model_settings: { temperature: 0 },
+      skill_ids: ["s1"],
+      context_ids: ["c1"],
+      max_steps: 20,
+      budget: { monthly_usd: 5 },
+    });
+    expect(STORED.starters).toEqual(["Grade this"]);
+  });
+
+  it("adds no field the spec left out, so a clean one serializes as it came", () => {
+    const clean: AgentSpec = {
+      name: "Judge",
+      instructions: "Grade.",
+      model_settings: {},
+      capabilities: [binding("thinking")],
+      collection_ids: [],
+      skill_ids: [],
+      context_ids: [],
+      mcp_servers: [],
+    };
+
+    expect(JSON.stringify(forSystemAgent(clean))).toBe(JSON.stringify(clean));
   });
 });

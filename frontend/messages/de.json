@@ -1046,7 +1046,14 @@
       "save": "Speichern",
       "cancel": "Abbrechen"
     },
-    "publishedSpec": "Veröffentlichte Spec"
+    "publishedSpec": "Veröffentlichte Spec",
+    "systemAgentBadge": "{kind, select, judge {Systemagent · Bewerter} drafter {Systemagent · Lücken-Entwerfer} generator {Systemagent · Fallgenerator} classifier {Systemagent · Lücken-Klassifizierer} improver {Systemagent · Authoring-Assistent} other {Systemagent}}",
+    "systemAgentBadgeHint": "Die Plattform führt ihn für die ganze Organisation aus; niemand chattet mit ihm.",
+    "systemAgentResources": "Kontextdateien und Skills",
+    "systemAgentResourcesHelp": "Der feste Text, den dieser Agent bei der Arbeit kennt. Mehr erreicht er nicht: keine Tools, keine Wissensdatenbanken, keine MCP-Server.",
+    "systemAgentRouteTitle": "{name} ist ein Systemagent",
+    "systemAgentRouteBody": "Die Plattform führt ihn für die ganze Organisation aus, und niemand chattet mit ihm. Deshalb wird er weder in einem Eval getestet noch hier verbessert. Wie er arbeitet, ändern Sie auf seiner eigenen Seite.",
+    "systemAgentRouteBack": "Seine Seite öffnen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -4918,6 +4925,10 @@
       "flow-improvement-details": {
         "title": "Details anzeigen",
         "body": "Wählen Sie andere Testfragen, ändern Sie das Ausgabenlimit oder den Hilfsagenten, oder testen Sie, wie der Agent heute antwortet."
+      },
+      "agent-system-resources": {
+        "title": "Kontextdateien und Skills",
+        "body": "Ein Systemagent erreicht nichts über seinen Prompt hinaus. Hier bekommt er sein festes Wissen: Kontextdateien, die seinem Prompt hinzugefügt werden, und Skills, die er lädt, wenn einer passt."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5317,7 +5328,9 @@
       "draftAsTested": "Entwurf, wie der Run ihn getestet hat",
       "improveSession": "Verbessern",
       "setBaseline": "Ausgangswert festlegen",
-      "improveFromGaps": "Diesen Agent anhand dieser Lücken verbessern"
+      "improveFromGaps": "Diesen Agent anhand dieser Lücken verbessern",
+      "systemAgentReadOnly": "Nur ein Administrator der Organisation kann einen Systemagent ändern. Hier können Sie nachlesen, wie er arbeitet.",
+      "systemAgentEnvironments": "Ein Systemagent läuft in seiner Standardumgebung, die jeder Veröffentlichung folgt. Um zurückzugehen, stellen Sie unten eine frühere Version wieder her."
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",

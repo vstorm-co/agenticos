@@ -107,8 +107,21 @@ function VersionPin({
  * The panel also owns the names: creating `dev` for a bot to bind to, renaming
  * it, removing an environment a client no longer has. The default keeps its
  * name - it is what a surface naming no environment resolves through.
+ *
+ * A system agent has none of that to decide: it runs on its default
+ * environment, which every publish moves, and the server refuses a new
+ * environment, a pin, a promotion and guards on one. Going back is restoring a
+ * version, which the history below does.
  */
-export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+export function EnvironmentsPanel({
+  agentId,
+  canManage,
+  system = false,
+}: {
+  agentId: string;
+  canManage: boolean;
+  system?: boolean;
+}) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const {
@@ -142,6 +155,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
     return null;
   }
 
+  const canRelease = canManage && !system;
   const nameOk = NAME_PATTERN.test(name.trim());
   const renameOk = renaming !== null && NAME_PATTERN.test(renaming.name.trim());
 
@@ -247,7 +261,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                 thing somebody needs to know when they publish. The switch is
                 "Pinned", on for the safe default, so a new production reads as
                 held rather than as a switch somebody forgot to turn on. */}
-              {canManage && (
+              {canRelease && (
                 <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
                   <Switch
                     checked={!environment.tracks_latest}
@@ -263,7 +277,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                   {environment.tracks_latest ? t("followsLatest") : t("pinned")}
                 </label>
               )}
-              {canManage && (
+              {canRelease && (
                 <VersionPin
                   environment={environment}
                   versions={versions}
@@ -283,7 +297,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                   <Pencil className="h-4 w-4" />
                 </Button>
               )}
-              {canManage && (
+              {canRelease && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -350,7 +364,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
         ))}
       </div>
 
-      {canManage && (
+      {canRelease && (
         <div className="flex items-end gap-3">
           <div className="flex-1 space-y-1">
             <Label htmlFor="env-name">{t("newEnvironment")}</Label>

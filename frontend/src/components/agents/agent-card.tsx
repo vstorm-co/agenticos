@@ -17,6 +17,7 @@ import {
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
+import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
 import { Beam } from "@/components/ui/beam";
 import {
   Badge,
@@ -161,15 +162,18 @@ export function AgentCard({
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <AccessChip agent={agent} />
                 {attention && <AttentionBadge agentId={agent.id} attention={attention} />}
-                {agent.system_key && agent.kind && isSystemAgent(agent.kind) && (
-                  <Badge
-                    variant="secondary"
-                    className="font-normal"
-                    title={t(`defaultBadge.${agent.kind}Hint`)}
-                  >
-                    {t(`defaultBadge.${agent.kind}`)}
-                  </Badge>
-                )}
+                {isSystemAgent(agent.kind) &&
+                  (agent.system_key ? (
+                    <Badge
+                      variant="secondary"
+                      className="font-normal"
+                      title={t(`defaultBadge.${agent.kind}Hint`)}
+                    >
+                      {t(`defaultBadge.${agent.kind}`)}
+                    </Badge>
+                  ) : (
+                    <SystemAgentBadge kind={agent.kind} />
+                  ))}
                 {(agent.channels ?? []).map((channel) => (
                   <Badge
                     key={channel}

@@ -108,6 +108,7 @@ export function OnboardingTour() {
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
+  const systemAgentPage = useOnboardingStore((state) => state.systemAgentPage);
   const needsDetail = useMemo(
     () => steps.some((s) => s.page !== undefined && FETCHED_DETAIL_PAGES.has(s.page)),
     [steps],
@@ -136,10 +137,10 @@ export function OnboardingTour() {
     if (mode === "tour") {
       openOffer("create-agent");
     } else if (mode === "page") {
-      const flow = flowForPage(pageKey(stripLocale(pathname)));
+      const flow = flowForPage(pageKey(stripLocale(pathname)), systemAgentPage);
       if (flow) openOffer(flow);
     }
-  }, [closeWalk, mode, openOffer, pathname]);
+  }, [closeWalk, mode, openOffer, pathname, systemAgentPage]);
 
   // The arrows walk the tour, which is what a reader who has already read the
   // caption reaches for rather than moving a mouse to a pinned button. Capture

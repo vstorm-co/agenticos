@@ -179,6 +179,16 @@ describe("AgentCard", () => {
     expect(screen.queryByText("Default judge")).toBeNull();
   });
 
+  it("names the kind of an organization's own system agent, which is nobody's default", () => {
+    mount({ system_key: null, name: "Refunds judge", kind: "judge" });
+
+    expect(screen.getByText("System agent · Judge")).toHaveAttribute(
+      "title",
+      "The platform runs it for the whole organization; nobody chats with it.",
+    );
+    expect(screen.queryByText("Default judge")).toBeNull();
+  });
+
   it("lets an editor open a card with no menu, as a judge's has none", () => {
     render(
       <AgentCard
@@ -197,6 +207,7 @@ describe("AgentCard", () => {
     mount();
 
     expect(screen.queryByText("Default judge")).toBeNull();
+    expect(screen.queryByText(/System agent/)).toBeNull();
   });
 
   it("opens the builder from anywhere on the card", () => {

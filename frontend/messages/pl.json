@@ -1046,7 +1046,14 @@
       "save": "Zapisz",
       "cancel": "Anuluj"
     },
-    "publishedSpec": "Opublikowany spec"
+    "publishedSpec": "Opublikowany spec",
+    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} other {Agent systemowy}}",
+    "systemAgentBadgeHint": "Uruchamia go platforma dla całej organizacji; nikt z nim nie rozmawia.",
+    "systemAgentResources": "Pliki kontekstu i skille",
+    "systemAgentResourcesHelp": "Stały tekst, który ten agent zna podczas pracy. Po nic więcej nie sięga: żadnych narzędzi, baz wiedzy ani serwerów MCP.",
+    "systemAgentRouteTitle": "{name} to agent systemowy",
+    "systemAgentRouteBody": "Uruchamia go platforma dla całej organizacji i nikt z nim nie rozmawia, więc nie jest testowany w ewaluacji ani ulepszany tutaj. Sposób jego działania zmienisz na jego stronie.",
+    "systemAgentRouteBack": "Otwórz jego stronę"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -4805,6 +4812,10 @@
       "flow-improvement-details": {
         "title": "Pokaż szczegóły",
         "body": "Wybierz inne pytania testowe, zmień limit wydatków albo agenta pomocniczego lub sprawdź, jak agent odpowiada dziś."
+      },
+      "agent-system-resources": {
+        "title": "Pliki kontekstu i skille",
+        "body": "Agent systemowy nie sięga po nic poza swoim promptem, więc tutaj dostaje stałą wiedzę: pliki kontekstu dodawane do promptu i skille, które wczytuje, gdy któryś się przydaje."
       }
     },
     "chooseLanguage": "Język",
@@ -5204,7 +5215,9 @@
       "judgeDatasets": "Datasety",
       "improveSession": "Popraw",
       "setBaseline": "Wyznacz punkt odniesienia",
-      "improveFromGaps": "Popraw tego agenta na podstawie tych braków"
+      "improveFromGaps": "Popraw tego agenta na podstawie tych braków",
+      "systemAgentReadOnly": "Agenta systemowego może zmienić tylko administrator organizacji. Tutaj możesz sprawdzić, jak działa.",
+      "systemAgentEnvironments": "Agent systemowy działa w swoim domyślnym środowisku, które idzie za każdą publikacją. Żeby wrócić, przywróć wcześniejszą wersję poniżej."
     },
     "auth": {
       "backSign": "Wróć do logowania",

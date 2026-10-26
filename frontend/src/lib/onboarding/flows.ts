@@ -1092,9 +1092,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
  * collection the same as the Knowledge list — which is why an Agents "?" that
  * walked into the builder still offers `create-agent`. Chat is the odd one: it
  * creates nothing, but its walk offers `explore-chat`, the guided run of the
- * surface itself.
+ * surface itself. A system agent's builder offers nothing: nobody tests a change
+ * to one against a dataset.
  */
-export function flowForPage(pageId: string): FlowId | null {
+export function flowForPage(pageId: string, systemAgent = false): FlowId | null {
   switch (pageId) {
     case IMPROVEMENT_START:
       return "first-improvement";
@@ -1105,7 +1106,7 @@ export function flowForPage(pageId: string): FlowId | null {
     case ROUTES.AGENTS:
       return "create-agent";
     case AGENT_BUILDER:
-      return "test-change";
+      return systemAgent ? null : "test-change";
     case ROUTES.SKILLS:
       return "create-skill";
     case ROUTES.RAG:

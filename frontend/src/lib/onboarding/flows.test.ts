@@ -272,6 +272,8 @@ describe("flowForPage", () => {
     // An Agents "?" that walked into the builder still offers the agent flow.
     // Already in an agent, the builder's walk ends on testing a change to it.
     expect(flowForPage(AGENT_BUILDER)).toBe("test-change");
+    // Nobody tests a change to a system agent against a dataset.
+    expect(flowForPage(AGENT_BUILDER, true)).toBeNull();
     expect(flowForPage(ROUTES.SKILLS)).toBe("create-skill");
     expect(flowForPage(ROUTES.RAG)).toBe("create-kb");
     expect(flowForPage(KB_DETAIL)).toBe("create-kb");

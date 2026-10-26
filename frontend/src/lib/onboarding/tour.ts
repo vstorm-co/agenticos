@@ -144,6 +144,14 @@ export interface TourStep {
    * page is not the same as an absent one.
    */
   optional?: boolean;
+  /**
+   * Which builder the target renders on, where only one kind of agent's page has
+   * it. A system agent's holds no tools, exposure, evals, voice or test panel, and
+   * an ordinary agent's no system agent's context and skills card, so the walk
+   * leaves the stop out rather than waiting for a target that never mounts.
+   * Omitted means both.
+   */
+  agentKind?: "ordinary" | "system";
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
@@ -316,6 +324,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-build",
     permission: Perm.agentsEdit,
     optional: true,
+    agentKind: "ordinary",
   },
   {
     id: "agent-instructions",
@@ -335,6 +344,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-starters",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
+    agentKind: "ordinary",
   },
   {
     id: "agent-model",
@@ -351,6 +361,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-voice",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
+    agentKind: "ordinary",
+  },
+  // Where a system agent's context files and skills are picked: its page has no
+  // Toolbox to pick them in.
+  {
+    id: "agent-system-resources",
+    page: AGENT_BUILDER,
+    target: "agent-system-resources",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+    agentKind: "system",
   },
   {
     id: "agent-identity",
@@ -368,6 +389,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
+    agentKind: "ordinary",
   },
   {
     id: "agent-mcp",
@@ -378,6 +400,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-mcp-intro",
     activate: "agent-tab-mcp",
     permission: Perm.agentsView,
+    agentKind: "ordinary",
   },
   // What the agent is *given* - collections, skills - is picked inside the panel
   // of the capability that reads it, so these point at the row that opens that
@@ -391,6 +414,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
+    agentKind: "ordinary",
   },
   {
     id: "agent-skills",
@@ -399,6 +423,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
+    agentKind: "ordinary",
   },
   {
     id: "agent-limits",
@@ -415,6 +440,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-availability",
     permission: Perm.agentsView,
     inTour: true,
+    agentKind: "ordinary",
   },
   // The Evals tab reads the agent's eval runs, which `runs:view` gates.
   {
@@ -423,6 +449,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-evals",
     activate: "agent-tab-evals",
     permission: Perm.runsView,
+    agentKind: "ordinary",
   },
   // The suites card sits on the same tab, so the stop needs the same permission.
   {
@@ -431,6 +458,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-eval-suites",
     activate: "agent-tab-evals",
     permission: Perm.runsView,
+    agentKind: "ordinary",
   },
   {
     id: "agent-gaps",
@@ -438,6 +466,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-gaps",
     activate: "agent-tab-gaps",
     permission: Perm.runsView,
+    agentKind: "ordinary",
   },
   {
     id: "agent-history",
@@ -456,6 +485,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-history",
     permission: Perm.agentsPublish,
     optional: true,
+    agentKind: "ordinary",
   },
   // On the first environment's guard toggle: which eval suites a version has to
   // pass before that environment takes it. Read by any publisher, changed only
@@ -467,6 +497,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-history",
     permission: Perm.agentsPublish,
     optional: true,
+    agentKind: "ordinary",
   },
   // Beside "Draft differs from vN", which only a changed draft shows. Gated as
   // the Evals tab is: the run it starts is read there.
@@ -476,6 +507,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-test-draft",
     permission: Perm.runsView,
     optional: true,
+    agentKind: "ordinary",
   },
   // Trying it beside the Builder before publishing (#2074).
   {
@@ -484,6 +516,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-test",
     permission: Perm.agentsEdit,
     inTour: true,
+    agentKind: "ordinary",
   },
   // Who reaches the agent, in one dialog (#2062). The page's "?" walk only: the
   // launch pass already takes one stop per Builder tab.
@@ -1098,19 +1131,27 @@ export function visibleTourSteps(can: (permission: Permission) => boolean): read
  * list. Richer than the launch pass — it returns a section's `inTour` stops *and*
  * its "?"-only ones. The interstitials (welcome, finish) have no page and never
  * appear here.
+ *
+ * `systemAgent` says the builder on screen is a system agent's, which a path
+ * cannot: it walks that page's own stops instead of an ordinary agent's. The
+ * Agents list never opens one - its example is an agent from a list system agents
+ * are left out of.
  */
 export function stepsForPage(
   path: string,
   can: (permission: Permission) => boolean,
+  systemAgent = false,
 ): readonly TourStep[] {
   const current = pageKey(path);
   const flow = flowFor(current);
   const reachable = new Set(flow.slice(flow.indexOf(current)));
+  const kind = systemAgent ? "system" : "ordinary";
   return TOUR_STEPS.filter(
     (step) =>
       step.page !== undefined &&
       reachable.has(step.page) &&
-      (!step.permission || can(step.permission)),
+      (!step.permission || can(step.permission)) &&
+      (step.agentKind === undefined || step.agentKind === kind),
   );
 }
 

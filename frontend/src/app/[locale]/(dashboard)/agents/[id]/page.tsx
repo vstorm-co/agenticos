@@ -11,6 +11,7 @@ import {
   FlaskConical,
   History,
   ImagePlus,
+  Lock,
   MessageSquare,
   MoreHorizontal,
   Network,
@@ -51,6 +52,9 @@ import { LoopGuardFields } from "@/components/agents/loop-guard-fields";
 import { ReviewersCard } from "@/components/agents/reviewers-card";
 import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
+import type { AgentResources } from "@/components/agents/capability-resources";
+import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
+import { SystemAgentResources } from "@/components/agents/system-agent-resources";
 import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -173,7 +177,9 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { isSystemAgent } from "@/lib/system-agents";
+import { forSystemAgent, isSystemAgent } from "@/lib/system-agents";
+// The module, not the `@/stores` barrel, which this page's tests stub in part.
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -357,6 +363,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [avatarVersion, setAvatarVersion] = useState(0);
   const avatarInput = useRef<HTMLInputElement>(null);
 
+  // A system agent's stored draft can hold what its save refuses and its page
+  // cannot show, so none of that is adopted, compared or sent.
+  const storedDraft = useMemo(
+    () =>
+      agent?.draft_spec && isSystemAgent(agent.kind)
+        ? forSystemAgent(agent.draft_spec)
+        : agent?.draft_spec,
+    [agent?.draft_spec, agent?.kind],
+  );
+
   // Adopt the server's draft whenever there is nothing local, and not
   // otherwise: every autosave invalidates the agent query, and re-adopting the
   // answer would overwrite whatever was typed while the save was in flight.
@@ -365,8 +381,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // draft. Rolling back to a version structurally equal to the current draft
   // leaves React Query holding the same reference, and gating on the reference
   // moving left the page on its skeleton with no way out.
-  if (agent?.draft_spec && spec === null) {
-    setSpec(agent.draft_spec);
+  if (storedDraft && spec === null) {
+    setSpec(storedDraft);
   }
 
   // This caller on this agent, not their role: a grant widens what the role
@@ -381,6 +397,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // Only the platform runs a system agent - nobody chats with it, gives it tools
   // or exposes it - so its page holds what changes how it works, and nothing else.
   const isSystem = isSystemAgent(agent?.kind);
+  // Its "?" walks the stops this page renders for a system agent, which its path
+  // cannot tell the walk.
+  const setSystemAgentPage = useOnboardingStore((state) => state.setSystemAgentPage);
+  useEffect(() => {
+    setSystemAgentPage(isSystem);
+    return () => setSystemAgentPage(false);
+  }, [isSystem, setSystemAgentPage]);
+  // Changing a system agent takes `org:settings`, so an editor of agents may still
+  // only read this one: the server answers `can_edit: false`, and this says why.
+  const systemReadOnly = isSystem && !canEdit && can(Perm.agentsEdit) && !can(Perm.orgSettings);
   const isJudge = agent?.kind === "judge";
   const canViewRuns = can(Perm.runsView);
   const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
@@ -451,8 +477,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // A draft differs from what is live the moment anything is edited. Showing
   // that difference is what stops someone testing a change that never shipped.
   const isDirty = useMemo(
-    () => JSON.stringify(spec) !== JSON.stringify(agent?.draft_spec),
-    [spec, agent?.draft_spec],
+    () => JSON.stringify(spec) !== JSON.stringify(storedDraft),
+    [spec, storedDraft],
   );
 
   // The draft stores itself. A Builder with a Save button is a Builder where
@@ -483,7 +509,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     resource: "agent",
     id,
     local: spec,
-    stored: agent?.draft_spec,
+    stored: storedDraft,
     fetchedAt,
     adopt: setSpec,
   });
@@ -494,7 +520,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     if (
       !canEdit ||
       !spec ||
-      !agent?.draft_spec ||
+      !storedDraft ||
       !isDirty ||
       storing ||
       remote.held ||
@@ -513,7 +539,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
       void storeDraft(spec).catch(() => null);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft, storing, remote.held]);
+  }, [spec, storedDraft, isDirty, canEdit, storeDraft, storing, remote.held]);
 
   // Asked once per visit, and only of someone who may publish: the dialog still
   // validates first and still asks before anything goes live.
@@ -878,6 +904,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const setSkills = (skillIds: string[]) => update(withSkills(spec, skillIds));
   const setContext = (contextIds: string[]) => update(withContextFiles(spec, contextIds));
+  // What the agent is *given*, picked in the panel of the capability that reads
+  // it. Each setter switches that capability on with the first pick, because bound
+  // without it the resources are resolved and then discarded.
+  const resources: AgentResources = {
+    contextFiles,
+    contextTotal: contextCount,
+    contextIds: spec.context_ids,
+    onContextToggle: (fileId: string) => setContext(toggleId(spec.context_ids, fileId)),
+    collections,
+    collectionIds: spec.collection_ids,
+    onCollectionToggle: (collectionId: string) =>
+      update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
+    skills,
+    skillTotal: skillCount,
+    skillIds: spec.skill_ids,
+    onSkillToggle: (skillId: string) => setSkills(toggleId(spec.skill_ids, skillId)),
+  };
 
   /**
    * Store the draft, and stop if it did not store.
@@ -1001,6 +1044,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           badges={
             <>
               <AgentStatusBadge status={agent.status} />
+              {isSystemAgent(agent.kind) && <SystemAgentBadge kind={agent.kind} />}
               {/* Two badges, two different questions. This one: is the stored
                 draft a published version, and which one production runs -
                 computed from the server's copies, so the autosave settling
@@ -1164,41 +1208,47 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         disabled={setColor.isPending}
                       />
                     </div>
-                    <DropdownMenuSeparator />
-                    {agent.status === "archived" ? (
-                      <DropdownMenuItem
-                        className={DESCRIBED_ITEM}
-                        onSelect={() => unarchive.mutate(id)}
-                      >
-                        <ArchiveRestore className="h-4 w-4" />
-                        <DropdownMenuItemText
-                          label={t("restore")}
-                          description={tMenu("menuRestoreHint")}
-                        />
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem
-                        className={DESCRIBED_ITEM}
-                        onSelect={() => setConfirming("archive")}
-                      >
-                        <Archive className="h-4 w-4" />
-                        <DropdownMenuItemText
-                          label={t("archive")}
-                          description={tMenu("menuArchiveHint")}
-                        />
-                      </DropdownMenuItem>
+                    {/* A seeded system agent is the platform's own: archiving or
+                      deleting it is refused, whatever the caller holds. */}
+                    {!agent.system_key && (
+                      <>
+                        <DropdownMenuSeparator />
+                        {agent.status === "archived" ? (
+                          <DropdownMenuItem
+                            className={DESCRIBED_ITEM}
+                            onSelect={() => unarchive.mutate(id)}
+                          >
+                            <ArchiveRestore className="h-4 w-4" />
+                            <DropdownMenuItemText
+                              label={t("restore")}
+                              description={tMenu("menuRestoreHint")}
+                            />
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            className={DESCRIBED_ITEM}
+                            onSelect={() => setConfirming("archive")}
+                          >
+                            <Archive className="h-4 w-4" />
+                            <DropdownMenuItemText
+                              label={t("archive")}
+                              description={tMenu("menuArchiveHint")}
+                            />
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
+                          onSelect={() => setConfirming("delete")}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <DropdownMenuItemText
+                            label={t("deletePermanently")}
+                            description={tMenu("menuDeleteHint")}
+                          />
+                        </DropdownMenuItem>
+                      </>
                     )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
-                      onSelect={() => setConfirming("delete")}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={t("deletePermanently")}
-                        description={tMenu("menuDeleteHint")}
-                      />
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -1219,6 +1269,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             onReload={remote.reload}
             onKeepMine={remote.keepMine}
           />
+        )}
+
+        {systemReadOnly && (
+          <div className="border-border bg-muted/40 flex items-center gap-3 rounded-xl border px-4 py-3">
+            <Lock className="text-muted-foreground size-4 shrink-0" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm">{t("systemAgentReadOnly")}</p>
+          </div>
         )}
 
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
@@ -1419,7 +1476,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           disabled={!canEdit}
         />
 
-        {firstPublished && (
+        {firstPublished && !isSystem && (
           <div className="border-border bg-muted/40 mb-6 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3">
             <Radio className="text-muted-foreground size-4 shrink-0" aria-hidden />
             <p className="min-w-0 flex-1 text-sm">{t("firstPublishNext")}</p>
@@ -1532,11 +1589,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
-            <StartersPanel
-              starters={spec.starters ?? []}
-              disabled={!canEdit}
-              onChange={(starters) => update({ starters })}
-            />
+            {!isSystem && (
+              <StartersPanel
+                starters={spec.starters ?? []}
+                disabled={!canEdit}
+                onChange={(starters) => update({ starters })}
+              />
+            )}
 
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
@@ -1585,19 +1644,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            <VoiceCard
-              value={spec.speech_to_text}
-              onChange={(speech_to_text) => update({ speech_to_text })}
-              conversation={{
-                agentId: id,
-                value: spec.voice,
-                onChange: (voice) => update({ voice }),
-                hasGuardrails: spec.capabilities.some(
-                  (binding) => binding.id === "guardrails" && binding.enabled !== false,
-                ),
-              }}
-              disabled={!canEdit}
-            />
+            {isSystem ? (
+              <SystemAgentResources
+                capabilities={spec.capabilities}
+                resources={resources}
+                disabled={!canEdit}
+              />
+            ) : (
+              <VoiceCard
+                value={spec.speech_to_text}
+                onChange={(speech_to_text) => update({ speech_to_text })}
+                conversation={{
+                  agentId: id,
+                  value: spec.voice,
+                  onChange: (voice) => update({ voice }),
+                  hasGuardrails: spec.capabilities.some(
+                    (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                  ),
+                }}
+                disabled={!canEdit}
+              />
+            )}
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
               avatar, so it hangs off the same `canEdit` every other editing
@@ -1681,26 +1748,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onSubagentsChange={(subagents) => update({ subagents })}
                   externalAgents={spec.external_agents ?? []}
                   onExternalAgentsChange={(external_agents) => update({ external_agents })}
-                  // What the agent is *given*, picked in the panel of the
-                  // capability that reads it. Each setter switches that capability
-                  // on with the first pick, because bound without it the resources
-                  // are resolved and then discarded.
-                  resources={{
-                    contextFiles,
-                    contextTotal: contextCount,
-                    contextIds: spec.context_ids,
-                    onContextToggle: (fileId: string) =>
-                      setContext(toggleId(spec.context_ids, fileId)),
-                    collections,
-                    collectionIds: spec.collection_ids,
-                    onCollectionToggle: (collectionId: string) =>
-                      update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-                    skills,
-                    skillTotal: skillCount,
-                    skillIds: spec.skill_ids,
-                    onSkillToggle: (skillId: string) =>
-                      setSkills(toggleId(spec.skill_ids, skillId)),
-                  }}
+                  resources={resources}
                   // So promoting a specialist that runs on the parent's model can
                   // resolve one for the standalone agent it becomes.
                   modelProfileId={spec.model_profile_id ?? null}
@@ -1852,51 +1900,62 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     {t("monthlyUsdHint")}
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
-                  <Input
-                    id="max-steps"
-                    type="number"
-                    step="1"
-                    min="1"
-                    max="200"
-                    value={spec.max_steps ?? ""}
-                    disabled={!canEdit}
-                    onChange={(event) =>
-                      update({ max_steps: event.target.value ? Number(event.target.value) : null })
-                    }
-                    placeholder={t("n100Default")}
-                    aria-describedby="max-steps-hint"
-                  />
-                  <p id="max-steps-hint" className="text-muted-foreground text-xs">
-                    {t("howManyModelRequests")}
-                  </p>
-                </div>
-                <LoopGuardFields
-                  value={spec.loop_guard}
-                  onChange={(loop_guard) => update({ loop_guard })}
-                  disabled={!canEdit}
-                />
-                <CodeModeField
-                  value={spec.code_mode}
-                  onChange={(code_mode) => update({ code_mode })}
-                  disabled={!canEdit}
-                />
+                {/* A system agent answers in one request and calls no tool, so
+                  steps, loops and scripts are not limits it can reach. */}
+                {!isSystem && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
+                      <Input
+                        id="max-steps"
+                        type="number"
+                        step="1"
+                        min="1"
+                        max="200"
+                        value={spec.max_steps ?? ""}
+                        disabled={!canEdit}
+                        onChange={(event) =>
+                          update({
+                            max_steps: event.target.value ? Number(event.target.value) : null,
+                          })
+                        }
+                        placeholder={t("n100Default")}
+                        aria-describedby="max-steps-hint"
+                      />
+                      <p id="max-steps-hint" className="text-muted-foreground text-xs">
+                        {t("howManyModelRequests")}
+                      </p>
+                    </div>
+                    <LoopGuardFields
+                      value={spec.loop_guard}
+                      onChange={(loop_guard) => update({ loop_guard })}
+                      disabled={!canEdit}
+                    />
+                    <CodeModeField
+                      value={spec.code_mode}
+                      onChange={(code_mode) => update({ code_mode })}
+                      disabled={!canEdit}
+                    />
+                  </>
+                )}
               </CardContent>
             </Card>
             {/* Beside the budget rather than in a settings page of its own: the two
               questions are "how much may this agent spend" and "who is told when
               it stops", and answering the first without the second is how a run
               stops quietly. */}
-            <ReviewersCard
-              value={spec.reviewers}
-              onChange={(reviewers) => update({ reviewers })}
-              disabled={!canEdit}
-            />
+            {!isSystem && (
+              <ReviewersCard
+                value={spec.reviewers}
+                onChange={(reviewers) => update({ reviewers })}
+                disabled={!canEdit}
+              />
+            )}
             <AlertsPanel
               value={spec.notifications}
               onChange={(notifications) => update({ notifications })}
               disabled={!canEdit}
+              approvals={!isSystem}
             />
             <ObservabilityCard
               value={spec.observability}
@@ -1943,10 +2002,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <Card>
                 <CardHeader>
                   <CardTitle>{t("environments")}</CardTitle>
-                  <CardDescription>{t("namedPointersAtPublished")}</CardDescription>
+                  <CardDescription>
+                    {isSystem ? t("systemAgentEnvironments") : t("namedPointersAtPublished")}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <EnvironmentsPanel agentId={id} canManage={canPublish} />
+                  <EnvironmentsPanel agentId={id} canManage={canPublish} system={isSystem} />
                 </CardContent>
               </Card>
             )}
@@ -1973,7 +2034,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   }
                   restoring={rollback.isPending}
                   environments={environments}
-                  onPromote={promotion.request}
+                  onPromote={isSystem ? undefined : promotion.request}
                   promoting={promotion.promoting}
                   compareFrom={compareFrom}
                   compareTo={compareTo}

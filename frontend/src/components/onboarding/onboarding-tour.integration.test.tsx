@@ -140,7 +140,14 @@ function shownStep(): DriveStep {
 beforeEach(() => {
   vi.clearAllMocks();
   nav.pathname = "/dashboard";
-  useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour", flowId: null, offer: null });
+  useOnboardingStore.setState({
+    isOpen: false,
+    index: 0,
+    mode: "tour",
+    flowId: null,
+    offer: null,
+    systemAgentPage: false,
+  });
   useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: false });
 });
 
@@ -299,6 +306,24 @@ describe("OnboardingTour", () => {
     act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
     expect(useOnboardingStore.getState().offer).toBe("create-skill");
   });
+
+  it.each([
+    [false, "test-change"],
+    [true, null],
+  ])(
+    "on an agent's page where it is a system agent's: %s, ends a '?' walk offering %s",
+    async (systemAgentPage, offered) => {
+      // Nobody tests a change to a system agent against a dataset.
+      servePermissions(OWNER);
+      nav.pathname = "/agents/agent-1";
+      useOnboardingStore.setState({ isOpen: true, index: 99, mode: "page", systemAgentPage });
+      render(<OnboardingTour />, { wrapper });
+      await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+      act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+      expect(useOnboardingStore.getState().offer).toBe(offered);
+    },
+  );
 
   it("a '?' walk closed early makes no create offer", async () => {
     // Leaving is not finishing, so an early close asks nothing.

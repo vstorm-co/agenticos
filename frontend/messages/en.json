@@ -1046,7 +1046,14 @@
       "save": "Save",
       "cancel": "Cancel"
     },
-    "publishedSpec": "Published specification"
+    "publishedSpec": "Published specification",
+    "systemAgentBadge": "{kind, select, judge {System agent · Judge} drafter {System agent · Gap drafter} generator {System agent · Case generator} classifier {System agent · Gap classifier} improver {System agent · Authoring assistant} other {System agent}}",
+    "systemAgentBadgeHint": "The platform runs it for the whole organization; nobody chats with it.",
+    "systemAgentResources": "Context files and skills",
+    "systemAgentResourcesHelp": "The standing text this agent knows while it works. It reaches nothing else: no tools, knowledge bases or MCP servers.",
+    "systemAgentRouteTitle": "{name} is a system agent",
+    "systemAgentRouteBody": "The platform runs it for the whole organization and nobody chats with it, so it is never tested in an eval or improved here. Change how it works on its own page.",
+    "systemAgentRouteBack": "Open its page"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -5036,6 +5043,10 @@
       "flow-improvement-details": {
         "title": "Show details",
         "body": "Choose other test questions, change the spending limit or the helper, or test how the agent answers today."
+      },
+      "agent-system-resources": {
+        "title": "Context files and skills",
+        "body": "A system agent reaches nothing beyond its prompt, so this is where it gets standing knowledge: context files added to its prompt, and skills it loads when one is relevant."
       }
     },
     "chooseLanguage": "Language",
@@ -5435,7 +5446,9 @@
       "draftAsTested": "Draft as the run tested it",
       "improveSession": "Improve",
       "setBaseline": "Set a baseline",
-      "improveFromGaps": "Improve this agent from these gaps"
+      "improveFromGaps": "Improve this agent from these gaps",
+      "systemAgentReadOnly": "Only an organization administrator can change a system agent. You can read how it works here.",
+      "systemAgentEnvironments": "A system agent runs on its default environment, which follows every publish. To go back, restore an earlier version below."
     },
     "auth": {
       "backSign": "Back to sign in",

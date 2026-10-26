@@ -69,7 +69,8 @@
         "except": [
           "agents.drafterKind",
           "agents.systemKind.drafter",
-          "agents.defaultBadge.drafter"
+          "agents.defaultBadge.drafter",
+          "agents.systemAgentBadge"
         ],
         "docs": false,
         "note": "Where \"szkic\" would name an unpublished version - an agent's spec, or a file that has none - which is \"wersja robocza\". A text written for somebody to accept - a knowledge gap's content, a generated case - stays \"szkic\", and German says \"Entwurf\" for both. A page cannot tell the two senses apart, so the docs check leaves it out."

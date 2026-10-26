@@ -192,6 +192,27 @@ describe("the environments panel", () => {
     expect(screen.queryByRole("button", { name: "Rename staging" })).toBeNull();
   });
 
+  it("offers a system agent's publisher no release decision to make", () => {
+    // Its default environment follows every publish, and the server refuses a
+    // new environment, a pin, a promotion and guards on one.
+    state.environments = [environment("production", 3, true, { tracks_latest: true })];
+    const controls = () => [
+      screen.queryByRole("switch", { name: "production is pinned" }),
+      screen.queryByRole("combobox", { name: "Pin a version for production" }),
+      screen.queryByRole("button", { name: "Eval suites guarding production" }),
+      screen.queryByLabelText("New environment"),
+    ];
+    const ordinary = render(<EnvironmentsPanel agentId="a1" canManage />);
+    expect(controls().every((control) => control !== null)).toBe(true);
+    ordinary.unmount();
+
+    render(<EnvironmentsPanel agentId="a1" canManage system />);
+
+    expect(screen.getByText(/serves v3/)).toBeInTheDocument();
+    expect(screen.getByText("default")).toBeInTheDocument();
+    expect(controls()).toEqual([null, null, null, null]);
+  });
+
   it("pins another version from the environment's own row", async () => {
     // "dev should serve v3" is answered on the row that states what dev
     // serves, not by scanning the version list for v3.
