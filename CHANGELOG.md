@@ -36,6 +36,14 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /kb/{kb_id}/ingestion` and keeps refreshing until the whole batch has
   settled (#2486).
 
+## [1.21.0] - 2026-10-26
+
+### Added
+
+- Independent light and dark controls in signed-in and public app viewers.
+  Start app frames with a light preference instead of inheriting the console
+  theme; preserve authored colors, page state and stored versions.
+
 ## [1.20.1] - 2026-10-26
 
 ### Fixed

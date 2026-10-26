@@ -7171,7 +7171,10 @@
     "follow": "Follow",
     "unfollow": "Unfollow",
     "followed": "You will be notified when a new version is published",
-    "unfollowed": "You will no longer be notified about this app"
+    "unfollowed": "You will no longer be notified about this app",
+    "appTheme": "App theme",
+    "lightTheme": "Use light app theme",
+    "darkTheme": "Use dark app theme"
   },
   "groups": {
     "title": "Groups",
