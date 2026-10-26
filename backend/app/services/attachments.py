@@ -22,7 +22,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic_ai.messages import BinaryContent
@@ -33,6 +33,9 @@ from app.core.config import settings
 from app.db.models.chat_file import ChatFile
 from app.services.file_storage import get_file_storage
 from app.services.file_upload import TiffConversion, cap_text, tiff_pages_to_png
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -658,20 +661,22 @@ class AttachmentRouter:
         return InlineResult(images=[BinaryContent(data=data, media_type=chat_file.mime_type)])
 
 
-async def load_attached_files(db: Any, file_ids: list[str], *, user_id: UUID) -> list[ChatFile]:
+async def load_attached_files(
+    db: AsyncSession, file_ids: list[str], *, user_id: UUID
+) -> list[ChatFile]:
     """The rows behind the ids a client sent with its message, scoped to the sender (#706)."""
-    from app.api.deps import get_conversation_service
+    from app.services.conversation import ConversationService
 
-    return await get_conversation_service(db).list_attached_files(file_ids, user_id=user_id)
+    return await ConversationService(db).list_attached_files(file_ids, user_id=user_id)
 
 
 async def load_turn_attachments(
-    db: Any, message_id: UUID | None, file_ids: list[str], *, user_id: UUID
+    db: AsyncSession, message_id: UUID | None, file_ids: list[str], *, user_id: UUID
 ) -> list[ChatFile]:
     """This turn's attachments: linked to its message or the caller's own still-
     unlinked uploads, read by id rather than by the frame's re-validated ids (#1756)."""
-    from app.api.deps import get_conversation_service
+    from app.services.conversation import ConversationService
 
-    return await get_conversation_service(db).list_turn_attachments(
+    return await ConversationService(db).list_turn_attachments(
         message_id, file_ids, user_id=user_id
     )

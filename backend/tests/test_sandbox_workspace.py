@@ -75,6 +75,19 @@ from tests.workspaces import document_workspace
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def no_project_recovery_copies(monkeypatch):
+    monkeypatch.setattr(workspace_repo, "project_recovery_candidates", AsyncMock(return_value=[]))
+
+
+@pytest.fixture
+def mock_db_session() -> AsyncMock:
+    session = AsyncMock()
+    session.info = {}
+    session.begin_nested = MagicMock(return_value=MagicMock())
+    return session
+
+
 def _ctx(organization_id: UUID | None = None) -> AuthContext:
     return AuthContext(
         user_id=uuid4(),
@@ -903,7 +916,7 @@ class TestOpeningAndClosing:
 
         assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
         # Held to the commit, so a second flush waits and merges onto this one.
-        assert mock_db_session.get.await_args.kwargs["with_for_update"] is True
+        assert mock_db_session.get.await_args.kwargs["with_for_update"] == {"key_share": True}
 
     async def test_a_turn_that_wrote_nothing_stores_nothing(self, monkeypatch, mock_db_session):
         """Storing it anyway rewrote the whole column, and its WAL, every message."""
@@ -1624,6 +1637,27 @@ class TestOneFlatListOfFiles:
             "/report.csv",
         ]
         assert listing.truncated is False
+
+    @pytest.mark.parametrize("truncated", [False, True])
+    async def test_host_tree_truncation_is_reported_in_the_flat_listing(
+        self, monkeypatch, mock_db_session, truncated: bool
+    ) -> None:
+        from app.repositories import agent as agent_repo
+
+        monkeypatch.setattr(
+            workspace_repo, "list_for_reader", AsyncMock(return_value=[_row(files={})])
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        monkeypatch.setattr(
+            service,
+            "_entries_of",
+            AsyncMock(return_value=[WorkspaceContents(entries=[], truncated=truncated)]),
+        )
+        listing = await service.flat_files(_ctx())
+        assert listing.truncated is truncated
+        assert listing.workspaces_read == 1
 
     async def test_directories_are_not_files(self, monkeypatch, mock_db_session):
         from app.repositories import agent as agent_repo

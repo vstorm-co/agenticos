@@ -8,6 +8,7 @@ gone for the rest of the worker's life.
 
 import asyncio
 import logging
+from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import asyncpg
@@ -16,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories import background_job as job_repo
+from app.worker import listener as module
 from app.worker.listener import _until_lost, asyncpg_dsn, listener
 
 pytestmark = pytest.mark.anyio
@@ -84,6 +86,44 @@ async def _until_listening(sessions: async_sessionmaker[AsyncSession], count: in
             if listening == count:
                 return
             await asyncio.sleep(0.05)
+
+
+async def test_a_connection_lost_before_listen_reconnects_and_delivers_notifications(
+    engine, schema_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    serve = module._serve
+    attempts = 0
+    first: asyncpg.Connection | None = None
+
+    async def lose_first(
+        connection: asyncpg.Connection, notify: Callable[[str], None], check_every: float
+    ) -> None:
+        nonlocal attempts, first
+        attempts += 1
+        if attempts == 1:
+            first = connection
+            connection.terminate()
+        await serve(connection, notify, check_every)
+
+    monkeypatch.setattr(module, "_serve", lose_first)
+    woken: asyncio.Queue[str] = asyncio.Queue()
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    serving = asyncio.create_task(
+        listener(asyncpg_dsn(schema_url), reconnect_cap=0.01)(woken.put_nowait)
+    )
+    try:
+        await _until_listening(sessions, 1)
+        async with sessions() as db, db.begin():
+            await job_repo.add(
+                db, kind="probe", pool="ingest", payload={}, max_attempts=1, priority=1
+            )
+        assert await asyncio.wait_for(woken.get(), timeout=5) == "ingest"
+        assert attempts == 2
+        assert first is not None and first.is_closed()
+    finally:
+        serving.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(serving, timeout=5)
 
 
 async def test_a_connection_that_stops_answering_counts_as_lost() -> None:

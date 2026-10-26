@@ -11,6 +11,7 @@ from uuid import UUID
 # answers invert silently: the listing reports the tracking table as a collection, and
 # a caller may drop it.
 import app.db.models  # noqa: F401
+from app.core.blocking import run_blocking_settled
 from app.db.base import Base
 from app.db.vector_tables import (
     RAG_SAFE_TO_DATE_FN,
@@ -798,7 +799,7 @@ class PgVectorStore(BaseVectorStore):
         # resolved the knowledge base; it is stamped on every chunk so the shared
         # runtime table can be scoped per tenant afterwards (#1684).
         embedder, _ = await self._for_collection(collection_name)
-        vectors = embedder.embed_document(document)
+        vectors = await run_blocking_settled(embedder.embed_document, document)
         statement = text(f"""
             INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata)
             VALUES (:id, :parent_doc_id, :content, :embedding, :metadata)
@@ -855,7 +856,7 @@ class PgVectorStore(BaseVectorStore):
         if not await self._collection_exists(collection_name):
             return []
         embedder, dim = await self._for_collection(collection_name, query_filter.organization_id)
-        query_vector = embedder.embed_query(query)
+        query_vector = await run_blocking_settled(embedder.embed_query, query)
 
         conjuncts, filter_params = _retrieval_conjuncts(query_filter)
         where_clause = f"WHERE {' AND '.join(conjuncts)}" if conjuncts else ""

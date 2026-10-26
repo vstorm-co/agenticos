@@ -123,7 +123,10 @@ describe("ApiReference", () => {
 
   it("draws a placeholder while the document loads", () => {
     renderReference({ document: null, isLoading: true });
-    expect(screen.queryByText("API reference")).not.toBeInTheDocument();
+    expect(screen.getByText("API reference")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /loading/i })).toBeInTheDocument();
+    expect(screen.queryByText("version 0.0.535", { exact: false })).not.toBeInTheDocument();
+    expect(document.querySelector(".lg\\:w-56")).toBeInTheDocument();
   });
 
   it("says the document could not be loaded, and retries", async () => {

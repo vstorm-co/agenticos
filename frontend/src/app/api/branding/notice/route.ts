@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 /**
  * The announcement banner, for a signed-in user.
@@ -11,7 +12,7 @@ import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server
  * it too; this is the cookie being turned into the bearer token that gate reads.
  */
 export async function GET(request: NextRequest) {
-  const accessToken = request.cookies.get("access_token")?.value;
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
   try {
     const data = await backendFetch<unknown>("/api/v1/branding/notice", {

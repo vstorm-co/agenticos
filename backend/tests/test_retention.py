@@ -301,6 +301,7 @@ class TestTheSweep:
         """Stub every delete, each answering how many rows one pass took."""
         mocks = {
             "delete_conversations": AsyncMock(return_value=counts.get("conversations", 0)),
+            "lock_expiring_conversations": AsyncMock(return_value=[uuid.uuid4()]),
             "delete_runs_keeping_their_spend": AsyncMock(return_value=(counts.get("runs", 0), [])),
             "delete_workspaces": AsyncMock(return_value=counts.get("workspaces", 0)),
             "delete_memory": AsyncMock(return_value=counts.get("memory", 0)),
@@ -358,7 +359,9 @@ class TestTheSweep:
 
         await service.sweep(now=NOW)
 
-        assert repo["delete_conversations"].await_args.kwargs["cutoff"] == NOW - timedelta(days=30)
+        assert repo["lock_expiring_conversations"].await_args.kwargs["cutoff"] == NOW - timedelta(
+            days=30
+        )
 
     async def test_it_keeps_taking_batches_until_a_pass_comes_back_short(
         self, monkeypatch: pytest.MonkeyPatch
@@ -413,16 +416,12 @@ class TestTheSweep:
         assert (kept["period_start"], kept["cost"], kept["runs"]) == (month, Decimal("4.25"), 2)
 
     @staticmethod
-    def _storage(monkeypatch: pytest.MonkeyPatch, *, fails: bool = False) -> MagicMock:
-        """The file storage, with a `delete` that answers or refuses."""
-        storage = MagicMock()
-        storage.delete = AsyncMock(side_effect=OSError("disk gone") if fails else None)
-        monkeypatch.setattr(
-            "app.services.file_storage.get_file_storage", lambda: storage, raising=False
-        )
-        return storage
+    def _cleanup(monkeypatch: pytest.MonkeyPatch, *, fails: bool = False) -> AsyncMock:
+        queued = AsyncMock(side_effect=RuntimeError("queue unavailable") if fails else None)
+        monkeypatch.setattr("app.worker.tasks.teardown_tasks.queue_external_state_cleanup", queued)
+        return queued
 
-    async def test_a_conversations_files_are_unlinked_with_it(
+    async def test_a_conversations_files_are_queued_for_cleanup_with_it(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The rows cascade and the bytes do not: a purge that left the upload on
@@ -432,12 +431,13 @@ class TestTheSweep:
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch, conversations=1)
         repo["stored_paths_for_expiring_conversations"].return_value = ["chat/a.pdf"]
-        storage = self._storage(monkeypatch)
+        queued = self._cleanup(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         await service.sweep(now=NOW)
 
-        storage.delete.assert_awaited_with("chat/a.pdf")
+        assert queued.await_args.kwargs["required_paths"] == ["chat/a.pdf"]
+        assert queued.await_args.args == (service.db, [], [])
 
     async def test_generated_media_unlinked_with_a_conversation_stops_counting(
         self, monkeypatch: pytest.MonkeyPatch
@@ -451,7 +451,7 @@ class TestTheSweep:
         repo = self._repo(monkeypatch, conversations=1)
         generated = f"generated_{organization_id}/abc_video.mp4"
         repo["stored_paths_for_expiring_conversations"].return_value = ["chat/a.pdf", generated]
-        self._storage(monkeypatch)
+        self._cleanup(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
         forgotten = AsyncMock(return_value=1)
         monkeypatch.setattr(f"{MODULE}.generated_media_repo.delete_by_storage_paths", forgotten)
@@ -462,19 +462,16 @@ class TestTheSweep:
             service.db, organization_id=organization_id, storage_paths=["chat/a.pdf", generated]
         )
 
-    async def test_a_file_that_could_not_be_unlinked_keeps_its_rows(
+    async def test_a_cleanup_that_cannot_be_queued_fails_the_class(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """`delete_files_best_effort` catches every storage failure and returns,
-        so deleting the rows after it leaves an upload past its retention with
-        nothing left to discover it by (#1420 review). The class fails instead,
-        and the next pass retries with the rows still there to retry from."""
+        """The delete and cleanup intent must succeed or roll back together."""
         service = _service()
         self._one_organization(monkeypatch, {"conversations": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch, conversations=1)
         repo["stored_paths_for_expiring_conversations"].return_value = ["chat/a.pdf"]
-        self._storage(monkeypatch, fails=True)
+        self._cleanup(monkeypatch, fails=True)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         results = await service.sweep(now=NOW)
@@ -598,7 +595,7 @@ class TestTheSweep:
         assert await service.sweep(now=NOW) == []
         audited.assert_not_awaited()
 
-    async def test_documents_lose_their_vectors_and_files_before_their_row(
+    async def test_documents_lose_vectors_and_queue_files_before_deleting_the_row(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The other order leaves content searchable with nothing left to find it
@@ -614,13 +611,13 @@ class TestTheSweep:
             [],
         ]
         repo["delete_documents"].return_value = 1
-        storage = self._storage(monkeypatch)
+        queued = self._cleanup(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         results = await service.sweep(now=NOW)
 
         remove_vectors.assert_awaited_once_with("kb_main", "vec-1", TENANT)
-        storage.delete.assert_awaited_with("uploads/a.pdf")
+        assert queued.await_args.kwargs["required_paths"] == ["uploads/a.pdf"]
         assert repo["delete_documents"].await_args.kwargs["document_ids"] == [document_id]
         assert results[0].removed["knowledge_documents"] == 1
 
@@ -645,7 +642,7 @@ class TestTheSweep:
             [],
         ]
         repo["delete_documents"].return_value = 2
-        self._storage(monkeypatch)
+        self._cleanup(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         await service.sweep(now=NOW)
@@ -667,13 +664,13 @@ class TestTheSweep:
         repo = self._repo(monkeypatch)
         repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb_main", None, None, TENANT)]
         repo["delete_documents"].return_value = 1
-        storage = self._storage(monkeypatch)
+        queued = self._cleanup(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         results = await service.sweep(now=NOW)
 
         remove_vectors.assert_not_awaited()
-        storage.delete.assert_not_awaited()
+        queued.assert_not_awaited()
         assert results[0].removed["knowledge_documents"] == 1
 
     async def test_a_document_class_with_nothing_expired_removes_nothing(
@@ -734,3 +731,17 @@ class TestTheDeploymentsOwnBounds:
     def test_an_audit_floor_outside_the_bounds_is_refused(self) -> None:
         with pytest.raises(ValueError):
             DeploymentSettingsUpdate(audit_retention_floor_days=0)
+
+
+async def test_retention_empty_locked_batch_never_reads_paths_or_deletes() -> None:
+    service = _service()
+    with (
+        patch(f"{MODULE}.retention_repo.lock_expiring_conversations", AsyncMock(return_value=[])),
+        patch(
+            f"{MODULE}.retention_repo.stored_paths_for_expiring_conversations", AsyncMock()
+        ) as paths,
+        patch(f"{MODULE}.retention_repo.delete_conversations", AsyncMock()) as delete,
+    ):
+        assert await service._purge_batch("conversations", organization_id=TENANT, cutoff=NOW) == 0
+    paths.assert_not_awaited()
+    delete.assert_not_awaited()

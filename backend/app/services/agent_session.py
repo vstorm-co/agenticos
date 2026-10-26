@@ -456,6 +456,11 @@ class AgentSession:
                 },
             )
             raise
+        finally:
+            # `complete` precedes persistence/trace cleanup. Free the slot before
+            # inviting another prompt, so receiving this frame is an admission guarantee.
+            self._turn_task = None
+            await self._emit("session_ready", {"conversation_id": self.current_conversation_id})
 
     async def _cancel_turn(self) -> None:
         """Cancel the in-flight turn task and wait for it to unwind."""
@@ -587,6 +592,7 @@ class AgentSession:
                 requested_conversation_id=data.get("conversation_id"),
                 current_conversation_id=self.current_conversation_id,
                 organization_id=self.organization_id,
+                client_message_id=data.get("client_message_id"),
                 # Read only when the turn starts a conversation: a chat is in
                 # the project it was started in, and stays there.
                 project_id=_wire_text(data.get("project_id")),
@@ -602,40 +608,6 @@ class AgentSession:
             await self._emit("error", {"message": e.message})
             return
         self.current_conversation_id = prompt.conversation_id
-        if self.current_conversation_id:
-            self._live = self.current_conversation_id
-            self._live_turn = await live_turn.begin(self._live)
-            await self._enter_room(self._live)
-            if self._live_turn is not None:
-                # Who asked, and what: the others in the room follow this turn
-                # from its trace, and have no other way to see the question.
-                await live_turn.publish(
-                    self._live_turn,
-                    "turn_prompt",
-                    {
-                        "conversation_id": self._live,
-                        "message_id": None if prompt.message_id is None else str(prompt.message_id),
-                        "content": user_message,
-                        "sender": ChatPerson.of(self.user).model_dump(mode="json"),
-                        # The message it answers: "yes, do that" means nothing to
-                        # a teammate without the quote above it.
-                        "reply_to": None
-                        if prompt.reply is None
-                        else prompt.reply.model_dump(mode="json"),
-                        # Which agent answers, so a follower draws its face and name
-                        # on the answer from the first word rather than at the end.
-                        "agent_id": str(agent_id),
-                    },
-                )
-            await chat_room.turn_begun(self._live, self.user.id)
-        if prompt.newly_created and self.current_conversation_id:
-            await self._emit(
-                "conversation_created",
-                {"conversation_id": self.current_conversation_id},
-            )
-
-        await self._emit("user_prompt", {"content": user_message})
-
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
         # the reasoning and where the tool calls sat between them. It is what gets
@@ -675,6 +647,49 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
+            if self.current_conversation_id:
+                self._live = self.current_conversation_id
+                self._live_turn = await live_turn.begin(self._live)
+                await self._enter_room(self._live)
+                if self._live_turn is not None:
+                    # Who asked, and what: the others in the room follow this turn
+                    # from its trace, and have no other way to see the question.
+                    await live_turn.publish(
+                        self._live_turn,
+                        "turn_prompt",
+                        {
+                            "conversation_id": self._live,
+                            "message_id": None
+                            if prompt.message_id is None
+                            else str(prompt.message_id),
+                            "content": user_message,
+                            "client_message_id": data.get("client_message_id"),
+                            "sender": ChatPerson.of(self.user).model_dump(mode="json"),
+                            # The message it answers: "yes, do that" means nothing to
+                            # a teammate without the quote above it.
+                            "reply_to": None
+                            if prompt.reply is None
+                            else prompt.reply.model_dump(mode="json"),
+                            # Which agent answers, so a follower draws its face and name
+                            # on the answer from the first word rather than at the end.
+                            "agent_id": str(agent_id),
+                        },
+                    )
+                await chat_room.turn_begun(self._live, self.user.id)
+            if prompt.newly_created and self.current_conversation_id:
+                await self._emit(
+                    "conversation_created",
+                    {"conversation_id": self.current_conversation_id},
+                )
+
+            await self._emit(
+                "user_prompt",
+                {
+                    "content": user_message,
+                    "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                },
+            )
+
             # One session for the whole turn: the history and the files it is
             # given, the run row, the approvals it parks and the cost it books.
             # The two reads had a transaction each before, ahead of the first

@@ -6,6 +6,50 @@ import { scopedStore } from "./chat-scope-context";
 import { clientId } from "@/lib/ids";
 import type { ChatMessage, MessagePart, MessageReply, ToolCall } from "@/types";
 
+/** A tab's correlation id is meaningful only for its author in this conversation. */
+function promptKey(message: ChatMessage): string | undefined {
+  if (
+    message.role !== "user" ||
+    !message.clientMessageId ||
+    !message.sender ||
+    !message.conversationId
+  )
+    return undefined;
+  return JSON.stringify([message.conversationId, message.sender.user_id, message.clientMessageId]);
+}
+
+function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<string, string> {
+  const aliases = new Map<string, string>();
+  const prompts = new Map<string, number | null>();
+  history.forEach((message, index) => {
+    const key = promptKey(message);
+    if (key !== undefined) prompts.set(key, prompts.has(key) ? null : index);
+  });
+  local.forEach((message, index) => {
+    if (!message.isTemporaryId || message.role !== "user") return;
+    const key = promptKey(message);
+    const savedIndex = key === undefined ? undefined : prompts.get(key);
+    if (typeof savedIndex !== "number") return;
+    const saved = history[savedIndex]!;
+    aliases.set(message.id, saved.id);
+    // Only this prompt's initial local answer, never a later turn or a resumed
+    // segment whose saved history contains several distinct assistant messages.
+    const answer = local[index + 1];
+    if (answer?.role !== "assistant" || !answer.isTemporaryId) return;
+    const suffix = history.slice(savedIndex + 1);
+    const boundary = suffix.findIndex((item) => item.role === "user");
+    const responses = answer.runId
+      ? history.filter((item) => item.role === "assistant" && item.runId === answer.runId)
+      : (boundary < 0 ? suffix : suffix.slice(0, boundary)).filter(
+          (item) => item.role === "assistant",
+        );
+    if (responses.length === 1) {
+      aliases.set(answer.id, responses[0]!.id);
+    }
+  });
+  return aliases;
+}
+
 export interface ChatState {
   messages: ChatMessage[];
   isStreaming: boolean;
@@ -30,8 +74,8 @@ export interface ChatState {
   updateToolCallPart: (messageId: string, toolCallId: string, update: Partial<ToolCall>) => void;
   setStreaming: (streaming: boolean) => void;
   clearMessages: () => void;
-  /** The same conversation read again: its messages go, a reply being written stays. */
-  rereadMessages: () => void;
+  /** Reconcile stored rows while retaining later turns and unsaved local outcomes. */
+  rereadMessages: (history?: ChatMessage[]) => void;
   /** The message the next turn replies to, chosen with Reply; null for none. */
   replyTo: MessageReply | null;
   setReplyTo: (reply: MessageReply | null) => void;
@@ -144,7 +188,47 @@ const chatState: StateCreator<ChatState> = (set) => ({
 
   // Another conversation opened: a reply chosen in this one goes with it.
   clearMessages: () => set({ messages: [], replyTo: null }),
-  rereadMessages: () => set({ messages: [] }),
+  rereadMessages: (history = []) =>
+    set((state) => {
+      if (history.length === 0) return { messages: [] };
+      const incoming = new Map(history.map((message) => [message.id, message]));
+      const aliases = persistedAliases(state.messages, history);
+      const savedId = (message: ChatMessage): string =>
+        aliases.get(message.id) ?? message.persistedId ?? message.id;
+      const anchor = state.messages.findLastIndex((message) => incoming.has(savedId(message)));
+      const before = new Map<string | undefined, ChatMessage[]>();
+      let nextPersisted: string | undefined;
+      // The server's ordinal order is authoritative, including tied timestamps.
+      // Local-only outcomes keep their place beside the nearest persisted row.
+      for (let index = state.messages.length - 1; index >= 0; index--) {
+        const message = state.messages[index]!;
+        const id = savedId(message);
+        const persisted = incoming.get(id);
+        if (persisted) {
+          nextPersisted = id;
+          incoming.set(
+            id,
+            message.isStreaming
+              ? { ...message, persistedId: id }
+              : { ...persisted, renderKey: message.renderKey ?? message.id },
+          );
+        } else if (
+          message.isStreaming ||
+          (message.role === "assistant" && message.isTemporaryId) ||
+          index > anchor
+        ) {
+          const group = before.get(nextPersisted) ?? [];
+          group.push(message);
+          before.set(nextPersisted, group);
+        }
+      }
+      const messages = [...incoming.entries()].flatMap(([id, message]) => [
+        ...(before.get(id) ?? []).reverse(),
+        message,
+      ]);
+      messages.push(...(before.get(undefined) ?? []).reverse());
+      return { messages };
+    }),
   setReplyTo: (replyTo) => set({ replyTo }),
 });
 

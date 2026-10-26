@@ -41,13 +41,15 @@ function request(
   { signedIn = true, form }: { signedIn?: boolean; form?: FormData } = {},
 ): NextRequest {
   if (!form) {
-    return new NextRequest(url, { headers: signedIn ? { cookie: "access_token=at" } : {} });
+    return new NextRequest(url, {
+      headers: signedIn ? { cookie: "agenticos_access_token=at" } : {},
+    });
   }
   // Built as a plain `Request` first so the multipart boundary lands in the
   // content type; a `formData()` call with no boundary never resolves.
   const withBody = new Request(url, { method: "POST", body: form });
   const headers = new Headers(withBody.headers);
-  if (signedIn) headers.set("cookie", "access_token=at");
+  if (signedIn) headers.set("cookie", "agenticos_access_token=at");
   return new NextRequest(new Request(withBody, { headers }));
 }
 
@@ -281,7 +283,7 @@ describe("reading a generated image back", () => {
       headers: { "content-type": "video/mp4", "content-range": "bytes 0-3/10" },
     });
     const ranged = new NextRequest("http://localhost:3000/api/generated/abc123_video.mp4", {
-      headers: { cookie: "access_token=at", range: "bytes=0-3" },
+      headers: { cookie: "agenticos_access_token=at", range: "bytes=0-3" },
     });
 
     const response = await readGeneratedImage(ranged, params);
@@ -313,7 +315,7 @@ describe("reading a generated image back", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     const ranged = new NextRequest("http://localhost:3000/api/generated/abc123_video.mp4", {
-      headers: { cookie: "access_token=at", range: "bytes=0-3" },
+      headers: { cookie: "agenticos_access_token=at", range: "bytes=0-3" },
     });
 
     const response = await readGeneratedImage(ranged, params);
@@ -344,7 +346,7 @@ describe("reading a generated image back", () => {
   it("passes a range the file cannot satisfy back as 416 with its length", async () => {
     serve(null, { status: 416, headers: { "content-range": "bytes */4" } });
     const ranged = new NextRequest("http://localhost:3000/api/generated/abc123_video.mp4", {
-      headers: { cookie: "access_token=at", range: "bytes=9-" },
+      headers: { cookie: "agenticos_access_token=at", range: "bytes=9-" },
     });
 
     const response = await readGeneratedImage(ranged, params);

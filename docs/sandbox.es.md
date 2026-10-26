@@ -1,5 +1,5 @@
 ---
-source_sha: "3a56d4c17513"
+source_sha: "6de4a5082694"
 ---
 
 # La sandbox { #the-sandbox }
@@ -626,3 +626,5 @@ registro de auditoría.
   lleva una ruta y nunca una carga útil, y sobrevive al agent.
 - **Los archivos se conservan indefinidamente** salvo que fijes
   `SANDBOXD_WORKSPACE_TTL`. El uso de disco solo crece.
+
+El backend `state` incluye archivos y directorios vacíos en el límite de almacenamiento, también al fusionar cambios simultáneos. Si los documentos aceptados por separado no caben juntos, el documento compartido no cambia y el estado posterior se confirma como copia de recuperación en **Documents**. La ejecución registra un error con el identificador de la copia; una modificación del proyecto devuelve un conflicto en lugar de éxito. Las copias de proyectos requieren permisos de visualización y uso. Una clave foránea elimina la copia junto con su origen, incluso durante una eliminación de datos simultánea. Reducir el límite por debajo del tamaño de un documento existente permite seguir reduciendo ese documento.

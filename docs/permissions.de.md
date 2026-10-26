@@ -1,5 +1,5 @@
 ---
-source_sha: "cf1f7216bba3"
+source_sha: "ce4a8d77ab46"
 ---
 
 # Berechtigungen { #permissions }
@@ -392,6 +392,12 @@ Untergrenze dafür, auf einer Karte "new trigger" anzubieten - sodass ein Viewer
 dem run auf einem Agent gewährt wurde, die Bedienung dort und sonst nirgends
 sieht. Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder
 Abfrage zur leeren Menge auf.
+
+Listen von Kontexten, Skills und Tresorschlüsseln liefern `can_edit` pro Ressource.
+Die Konsole verwendet diesen effektiven Zugriff zum Bearbeiten, Löschen, Teilen
+und Rotieren von Schlüsseln. Ein Viewer mit Edit-Grant erhält die Steuerelemente;
+ein Builder mit reinem Lesezugriff auf fremde private Ressourcen nicht. Erstellen
+folgt weiterhin der Rollenberechtigung. Der Server prüft jeden Schreibzugriff erneut.
 
 Die Auflistungen für Agents, Skills und die kb nehmen außerdem
 `?shared_with_me=true` entgegen: nur Zeilen, die bewusst mit dem Aufrufer geteilt

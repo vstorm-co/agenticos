@@ -354,6 +354,12 @@ reaches everything). It is what fills a listing's per-row capability flags -
 granted run on one agent sees the control there and nowhere else. A context with
 no subject, and an empty input, both resolve to the empty set before any query.
 
+Context, skill and vault listings carry `can_edit` for each resource. The console
+uses that effective access for editing, deletion and sharing, and for rotating a
+key. A Viewer with an edit grant gets those controls; a Builder with only read
+access to another person's private resource does not. Collection creation still
+uses the role's permission. The server checks access again on every write.
+
 The agents, skills and kb listings also take `?shared_with_me=true`: only rows
 deliberately shared with the caller - org-visible or explicitly granted, and
 never their own. The narrowing applies whatever the role's scope, which needs

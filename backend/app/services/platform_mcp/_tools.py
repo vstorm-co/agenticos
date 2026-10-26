@@ -17,6 +17,9 @@ from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
 
+from pydantic import JsonValue
+
+from app.agents.spec import CapabilityBindingSpec, McpServerRef
 from app.schemas.user import ConsoleLocale
 from app.services.platform_mcp._api import PlatformApi
 
@@ -72,6 +75,22 @@ class PlatformTool:
         return (self.function.__doc__ or "").strip().splitlines()[0]
 
 
+def _merge_capabilities(
+    current: list[CapabilityBindingSpec], additions: list[str | CapabilityBindingSpec]
+) -> list[dict[str, JsonValue]]:
+    """Upsert explicit fields; bare ids preserve an existing binding's settings."""
+    bindings: dict[str, dict[str, JsonValue]] = {
+        binding.id: binding.model_dump(mode="json", exclude_unset=True) for binding in current
+    }
+    for addition in additions:
+        binding = CapabilityBindingSpec(id=addition) if isinstance(addition, str) else addition
+        bindings[binding.id] = {
+            **bindings.get(binding.id, {}),
+            **binding.model_dump(mode="json", exclude_unset=True),
+        }
+    return list(bindings.values())
+
+
 def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     """Every operation, bound to `api`."""
 
@@ -91,14 +110,23 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         name: str,
         instructions: str,
         description: str | None = None,
-        capabilities: list[str] | None = None,
+        capabilities: list[str | CapabilityBindingSpec] | None = None,
         model_profile_id: UUID | None = None,
         starters: list[str] | None = None,
+        mcp_servers: list[McpServerRef] | None = None,
+        skill_ids: list[UUID] | None = None,
+        collection_ids: list[UUID] | None = None,
     ) -> dict[str, Any]:
         """Create an agent draft from a name and instructions. Needs `agents:edit`.
 
-        `capabilities` are ids from `list_capabilities` - web search, files and
-        code, charts - each switched on with its defaults. `model_profile_id` is
+        `capabilities` accepts ids from `list_capabilities` or objects with `id`,
+        `config`, approval settings and secret references. Read the catalog's
+        `config_schema` before choosing settings. For code execution use sandbox
+        config `backend: service`, `include_execute: true`; discover connections
+        with `list_sandbox_connections` and inspect `get_sandbox_policy` first.
+        `mcp_servers` binds organization connection ids or personal catalog keys,
+        never a personal connection id. `skill_ids` and `collection_ids` bind
+        existing skills and knowledge bases. `model_profile_id` is
         one of `list_models`; a draft needs one before it can be tested or
         published. `starters` are up to four first messages the chat offers
         whoever opens the agent. Nothing goes live: try it with
@@ -106,11 +134,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         console.
         """
         # Able to ask the person questions, like every agent the console creates.
-        wanted = ["ask_user", *(capabilities or [])]
         spec: dict[str, Any] = {
             "name": name,
             "instructions": instructions,
-            "capabilities": [{"id": capability} for capability in dict.fromkeys(wanted)],
+            "capabilities": _merge_capabilities([], ["ask_user", *(capabilities or [])]),
         }
         if description:
             spec["description"] = description
@@ -118,25 +145,38 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             spec["model_profile_id"] = str(model_profile_id)
         if starters:
             spec["starters"] = starters
+        if mcp_servers is not None:
+            spec["mcp_servers"] = [server.model_dump(mode="json") for server in mcp_servers]
+        if skill_ids is not None:
+            spec["skill_ids"] = [str(skill_id) for skill_id in skill_ids]
+        if collection_ids is not None:
+            spec["collection_ids"] = [str(collection_id) for collection_id in collection_ids]
         return await api.request("POST", "/agents", json={"spec": spec})
 
     async def update_agent_draft(
         agent_id: UUID,
         instructions: str | None = None,
         description: str | None = None,
-        add_capabilities: list[str] | None = None,
+        add_capabilities: list[str | CapabilityBindingSpec] | None = None,
         remove_capabilities: list[str] | None = None,
         model_profile_id: UUID | None = None,
         skill_ids: list[UUID] | None = None,
         collection_ids: list[UUID] | None = None,
         starters: list[str] | None = None,
+        mcp_servers: list[McpServerRef] | None = None,
     ) -> dict[str, Any]:
         """Change an agent's draft - what its next publish makes live. Needs `agents:edit` on it.
 
         Only what you pass changes. `instructions` replaces the whole prompt, so
         read the current one with `get_agent` and send the edited text.
-        `add_capabilities` switches capabilities on with their defaults (ids from
-        `list_capabilities`); `remove_capabilities` switches them off. `skill_ids`,
+        `add_capabilities` accepts ids or configured binding objects from
+        `list_capabilities`. Objects upsert only their supplied fields, preserving
+        other settings; a supplied `config` replaces the whole config object, so
+        read the draft first and retain settings you still need. A string leaves
+        existing settings intact. `remove_capabilities` switches them off.
+        `mcp_servers` replaces the whole MCP binding list; [] disconnects all.
+        Bind organization connection ids or personal catalog keys, never personal
+        connection ids. `skill_ids`,
         `collection_ids` (knowledge bases) and `starters` each replace their whole
         list. The published version keeps answering until `publish_agent`.
         """
@@ -152,13 +192,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             spec["model_profile_id"] = str(model_profile_id)
         removed = set(remove_capabilities or ())
         bindings = [binding for binding in spec["capabilities"] if binding["id"] not in removed]
-        bound = {binding["id"] for binding in bindings}
-        bindings += [
-            {"id": capability}
-            for capability in dict.fromkeys(add_capabilities or ())
-            if capability not in bound
-        ]
-        spec["capabilities"] = bindings
+        spec["capabilities"] = _merge_capabilities(
+            [CapabilityBindingSpec.model_validate(binding) for binding in bindings],
+            add_capabilities or [],
+        )
+        if mcp_servers is not None:
+            spec["mcp_servers"] = [server.model_dump(mode="json") for server in mcp_servers]
         if skill_ids is not None:
             spec["skill_ids"] = [str(skill_id) for skill_id in skill_ids]
         if collection_ids is not None:
@@ -327,7 +366,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def list_capabilities() -> dict[str, Any]:
         """Everything an agent can be given - each capability's id, what it does and its tools.
 
-        Read before drafting an agent, to switch on the right ones. Needs `agents:view`.
+        Includes `config_schema`, defaults and requirements for configuring bindings
+        in `create_agent_draft` or `update_agent_draft`. Needs `agents:view`.
         """
         return await api.request("GET", "/agents/capabilities")
 
@@ -445,6 +485,40 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `/mcp-servers`. Needs `agents:view`.
         """
         return await api.request("GET", "/agents/mcp-servers", params={"q": query, "limit": limit})
+
+    async def list_sandbox_connections() -> dict[str, Any]:
+        """Available sandbox hosts: ids, kind, default runtime and active/default flags.
+
+        Use active ids in sandbox `config.connection_id`, with `backend: service`
+        and `include_execute: true` for running code. No credentials are returned.
+        Needs `connections:view`. Returns the organization's connection listing.
+        """
+        return await api.request("GET", "/sandbox-connections")
+
+    async def list_sandbox_runtimes() -> dict[str, Any]:
+        """Sandbox runtime aliases and descriptions. Needs `connections:view`.
+
+        Returns the static runtime catalog; a host's `get_sandbox_policy` says
+        which aliases it actually permits. Do not invent runtime names.
+        """
+        return await api.request("GET", "/sandbox-connections/runtimes")
+
+    async def get_sandbox_policy(connection_id: UUID) -> dict[str, Any]:
+        """A sandbox host's allowed runtimes and resource ceilings. Needs `connections:view`.
+
+        Returns the host's policy, or the API's refusal if it cannot be read.
+        Read before selecting a runtime or resource limits in sandbox config.
+        """
+        return await api.request("GET", f"/sandbox-connections/{connection_id}/policy")
+
+    async def list_org_connections() -> dict[str, Any]:
+        """Organization MCP connections and their tools. Needs `mcp:manage`.
+
+        Returns the organization's listing without credentials. Use a connection's
+        id in an `account: organization` MCP binding; personal services instead
+        use `account: personal` and a catalog key from `search_mcp_servers`.
+        """
+        return await api.request("GET", "/mcp-connections")
 
     async def list_my_connections(include_tools: bool = False) -> dict[str, Any]:
         """The services the person asking has connected with their own account.
@@ -571,6 +645,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (invite_member, True),
         (search_mcp_servers, False),
         (list_my_connections, False),
+        (list_org_connections, False),
+        (list_sandbox_connections, False),
+        (list_sandbox_runtimes, False),
+        (get_sandbox_policy, False),
         (set_my_language, True),
         (set_my_profile, True),
     )

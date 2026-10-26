@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { SEGMENTED_CLASS, segment } from "@/components/dashboard/segmented";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ListCard } from "@/components/ui";
 import { useBackgroundJobsActivity } from "@/hooks/use-background-jobs";
 import type { ActivityWindow } from "@/types/background-jobs";
@@ -45,7 +46,18 @@ export function ActivityCards() {
         {activity.error ? (
           <p className="text-destructive text-sm">{t("activityCouldNotBeRead")}</p>
         ) : !activity.data ? (
-          <div className="bg-muted h-64 animate-pulse rounded-md" />
+          <div className="space-y-6" aria-hidden>
+            <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((figure) => (
+                <div key={figure} className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-20" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              ))}
+            </div>
+            <Skeleton className="h-56 w-full" />
+          </div>
         ) : (
           <div className="space-y-6">
             <ActivityFigures activity={activity.data} />
@@ -57,7 +69,15 @@ export function ActivityCards() {
         title={t("byKind")}
         counted={activity.data ? t("kindsCount", { count: activity.data.kinds.length }) : null}
       >
-        {activity.data && <KindActivityTable kinds={activity.data.kinds} />}
+        {activity.data ? (
+          <KindActivityTable kinds={activity.data.kinds} />
+        ) : !activity.error ? (
+          <div className="space-y-3" aria-hidden>
+            {[0, 1, 2].map((row) => (
+              <Skeleton key={row} className="h-8 w-full" />
+            ))}
+          </div>
+        ) : null}
       </ListCard>
     </div>
   );

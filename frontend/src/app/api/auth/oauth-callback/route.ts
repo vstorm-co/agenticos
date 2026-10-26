@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 
 interface OAuthCallbackBody {
   code: string;
@@ -32,14 +32,14 @@ export async function POST(request: NextRequest) {
       user,
       access_token: tokens.access_token,
     });
-    response.cookies.set("access_token", tokens.access_token, {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, tokens.access_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 15,
       path: "/",
     });
-    response.cookies.set("refresh_token", tokens.refresh_token, {
+    response.cookies.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",

@@ -55,7 +55,10 @@ class _Recorder:
 def _service(recorder: _Recorder, *, read: object, decisions: list):
     """A connection service and a trigger service that record their calls."""
     connections = MagicMock()
-    connections.claim_grants_to_poll = AsyncMock(return_value=[_grant()])
+    grant = _grant()
+    connections.portal_poll_candidates = AsyncMock(return_value=[grant.id])
+    connections.claim_grant_to_poll = AsyncMock(return_value=grant)
+    connections.record_poll_processing_failure = AsyncMock()
 
     async def poll_grant(grant, *, places):
         recorder.steps.append("poll")
@@ -235,7 +238,9 @@ class TestOneMailboxIsOneTenant:
         recorder = _Recorder()
         one, two = _grant(portal_key="google"), _grant(portal_key="google")
         connections = MagicMock()
-        connections.claim_grants_to_poll = AsyncMock(return_value=[one, two])
+        connections.portal_poll_candidates = AsyncMock(return_value=[one.id, two.id])
+        connections.claim_grant_to_poll = AsyncMock(side_effect=[one, two])
+        connections.record_poll_processing_failure = AsyncMock()
 
         async def poll_grant(grant, *, places):
             recorder.steps.append(f"poll:{grant.id}")
@@ -292,7 +297,7 @@ class TestWhichGrantsAreRead:
         from app.worker.tasks import trigger_tasks
 
         connections = MagicMock()
-        connections.claim_grants_to_poll = AsyncMock(return_value=[])
+        connections.portal_poll_candidates = AsyncMock(return_value=[])
         session = MagicMock()
 
         class _Ctx:
@@ -308,7 +313,7 @@ class TestWhichGrantsAreRead:
         ):
             await trigger_tasks.poll_portal_grants()
 
-        [call] = connections.claim_grants_to_poll.await_args_list
+        [call] = connections.portal_poll_candidates.await_args_list
         assert call.kwargs["portal_keys"] == [
             "google",
             "microsoft",
@@ -520,7 +525,11 @@ class TestReadingAGrant:
         from app.services.mcp_connection import McpConnectionService
 
         service = McpConnectionService(MagicMock())
-        with patch("app.services.mcp_connection.portals") as portals_module:
+        with (
+            patch("app.services.mcp_connection.portals") as portals_module,
+            patch("app.services.mcp_connection.mcp_connection_repo") as repo,
+        ):
+            repo.update = AsyncMock()
             portals_module.get_adapter.return_value = None
             assert await service.poll_grant(_grant()) is None
 
@@ -545,10 +554,10 @@ class TestClaimingGrants:
 
         service = McpConnectionService(MagicMock())
         with patch("app.services.mcp_connection.mcp_connection_repo") as repo:
-            repo.claim_portal_grants_to_poll = AsyncMock(return_value=[])
-            await service.claim_grants_to_poll(portal_keys=["google"])
+            repo.portal_poll_candidates = AsyncMock(return_value=[])
+            await service.portal_poll_candidates(portal_keys=["google"])
 
-        asked = repo.claim_portal_grants_to_poll.await_args.kwargs
+        asked = repo.portal_poll_candidates.await_args.kwargs
         assert asked["portal_keys"] == ["google"]
         assert asked["not_polled_since"] < datetime.now(UTC)
 
@@ -761,3 +770,49 @@ async def test_file_debounce_history_is_pruned_before_matching() -> None:
     ):
         assert await _poll_one_grant(MagicMock(), grant, "google_drive") == 0
     assert read.cursor["trigger_announced"] == {"good": now.isoformat()}
+
+
+@pytest.mark.parametrize("missing", [False, True])
+async def test_one_poll_claim_is_rechecked_and_processing_failure_is_recorded(monkeypatch, missing):
+    from app.services import mcp_connection as module
+
+    grant, db = _grant(), MagicMock()
+    expected = None if missing else grant
+    claim = AsyncMock(return_value=expected)
+    monkeypatch.setattr(module.mcp_connection_repo, "claim_portal_grant_to_poll", claim)
+    monkeypatch.setattr(module.mcp_connection_repo, "get_by_id", AsyncMock(return_value=expected))
+    connection_service = module.McpConnectionService(db)
+    failure = AsyncMock()
+    monkeypatch.setattr(connection_service, "_record_poll_failure", failure)
+    assert (
+        await connection_service.claim_grant_to_poll(connection_id=grant.id, portal_keys=["google"])
+        is expected
+    )
+    assert claim.await_args.kwargs["connection_id"] == grant.id
+    assert claim.await_args.kwargs["not_polled_since"] < datetime.now(UTC)
+    await connection_service.record_poll_processing_failure(grant.id)
+    assert failure.await_count == (0 if missing else 1)
+
+
+@pytest.mark.parametrize("missing", [False, True])
+async def test_a_claimed_candidate_without_a_pollable_source_is_skipped(monkeypatch, missing):
+    from contextlib import asynccontextmanager
+
+    from app.worker.tasks import trigger_tasks
+
+    grant = _grant(portal_key="unknown")
+    connections = MagicMock(
+        portal_poll_candidates=AsyncMock(return_value=[grant.id]),
+        claim_grant_to_poll=AsyncMock(return_value=None if missing else grant),
+        record_poll_processing_failure=AsyncMock(),
+    )
+
+    @asynccontextmanager
+    async def context():
+        yield MagicMock()
+
+    monkeypatch.setattr(trigger_tasks, "get_worker_db_context", context)
+    monkeypatch.setattr(trigger_tasks, "_ensure_trigger_dedupe", AsyncMock())
+    with patch("app.services.mcp_connection.McpConnectionService", return_value=connections):
+        await trigger_tasks.poll_portal_grants()
+    assert connections.record_poll_processing_failure.await_count == (0 if missing else 1)

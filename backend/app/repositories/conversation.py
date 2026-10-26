@@ -1062,6 +1062,8 @@ async def get_messages_by_conversation(
     skip: int = 0,
     limit: int = 100,
     include_tool_calls: bool = False,
+    latest: bool = False,
+    before: UUID | None = None,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
@@ -1076,9 +1078,18 @@ async def get_messages_by_conversation(
     query = query.options(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
     )
-    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
+    if before is not None:
+        boundary = (
+            select(Message.ordinal)
+            .where(Message.id == before, Message.conversation_id == conversation_id)
+            .scalar_subquery()
+        )
+        query = query.where(Message.ordinal < boundary)
+    order = Message.ordinal.desc() if latest else Message.ordinal.asc()
+    query = query.order_by(order).offset(skip).limit(limit)
     result = await db.execute(query)
-    return list(result.scalars().all())
+    items = list(result.scalars().all())
+    return list(reversed(items)) if latest else items
 
 
 async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
@@ -1361,6 +1372,7 @@ async def create_message(
     conversation_id: UUID,
     role: str,
     content: str,
+    client_message_id: str | None = None,
     thinking: str | None = None,
     parts: list[dict[str, object]] | None = None,
     model_name: str | None = None,
@@ -1385,6 +1397,7 @@ async def create_message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        client_message_id=client_message_id,
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
         author_user_id=author_user_id,

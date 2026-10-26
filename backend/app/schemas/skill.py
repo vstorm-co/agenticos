@@ -116,6 +116,9 @@ class SkillRead(BaseSchema):
 class SkillSummary(BaseSchema):
     """What the Builder's picker shows - the body is loaded on demand."""
 
+    can_edit: bool = Field(
+        default=False, description="Whether this caller may edit, delete or share this resource"
+    )
     id: UUID
     name: str
     description: str

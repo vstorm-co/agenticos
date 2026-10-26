@@ -40,6 +40,7 @@ async def create(
     owner_ref: str | None = None,
     connection_id: UUID | None = None,
     files: dict[str, Any] | None = None,
+    recovery_of_id: UUID | None = None,
 ) -> AgentWorkspace:
     """The workspace under this key - the one created here, or one created first.
 
@@ -61,6 +62,7 @@ async def create(
             backend=backend,
             connection_id=connection_id,
             files=files,
+            recovery_of_id=recovery_of_id,
             bytes_total=0,
             version=0,
             last_used_at=datetime.now(UTC),
@@ -148,6 +150,7 @@ async def get_for_project(
         .where(
             AgentWorkspace.organization_id == organization_id,
             AgentWorkspace.project_id == project_id,
+            AgentWorkspace.recovery_of_id.is_(None),
         )
         .order_by(AgentWorkspace.last_used_at.desc().nulls_last())
         .limit(1)
@@ -180,8 +183,9 @@ async def kept_for_conversation(
     rows = await list_for_conversation(
         db, organization_id=organization_id, conversation_id=conversation_id
     )
-    if rows:
-        return rows[0]
+    active = next((row for row in rows if row.recovery_of_id is None), None)
+    if active is not None:
+        return active
     project_id = await db.scalar(
         select(Conversation.project_id).where(
             Conversation.id == conversation_id, Conversation.organization_id == organization_id
@@ -226,6 +230,26 @@ async def list_for_organization(db: AsyncSession, *, organization_id: UUID) -> l
         select(AgentWorkspace)
         .where(AgentWorkspace.organization_id == organization_id)
         .order_by(AgentWorkspace.last_used_at.desc().nullslast())
+    )
+    return list(result.scalars().all())
+
+
+async def project_recovery_candidates(
+    db: AsyncSession, *, organization_id: UUID
+) -> list[AgentWorkspace]:
+    """Tenant-local recovery metadata; the service must authorize each project.
+
+    Ordinary project files stay on their project page. Recovery copies also
+    need a discoverable home in Documents when a project mutation returns 409.
+    """
+    result = await db.execute(
+        select(AgentWorkspace)
+        .where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.project_id.is_not(None),
+            AgentWorkspace.recovery_of_id.is_not(None),
+        )
+        .options(defer(AgentWorkspace.files, raiseload=True))
     )
     return list(result.scalars().all())
 

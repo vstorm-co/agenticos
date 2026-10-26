@@ -33,6 +33,10 @@ export interface MessageReply {
 }
 
 export interface ChatMessage {
+  /** Submission correlation, retained when the persistence frame was lost. */
+  clientMessageId?: string;
+  /** A saved bubble still addressed by its local id while deltas arrive. */
+  persistedId?: string;
   id: string;
   role: MessageRole;
   content: string;
@@ -224,6 +228,8 @@ export type WSEventType =
   // Read by `use-chat.ts`.
   | "conversation_created"
   | "message_saved"
+  | "user_prompt"
+  | "session_ready"
   | "model_request_start"
   | "text_delta"
   | "thinking_delta"
@@ -257,14 +263,13 @@ export type WSEventType =
   | "turn_followed_to_end"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
-  // message, so `user_prompt` and `user_prompt_processed` have nothing left to do,
+  // message, so `user_prompt_processed` has nothing left to do,
   // and `text_delta`/`tool_call` carry the content that `call_tools_start` and
   // `final_result_start` merely precede. Named anyway - they are on the wire, and a
   // union that omitted them would be as misleading in the other direction. A run
   // timeline is the surface that would read them. `part_start` and
   // `tool_call_delta` left this group once a tool call whose arguments took minutes
   // to stream showed that `tool_call` arrives too late to be the first sign of it.
-  | "user_prompt"
   | "user_prompt_processed"
   | "call_tools_start"
   | "final_result_start"

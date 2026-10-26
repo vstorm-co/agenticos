@@ -130,6 +130,7 @@ def _shared(prefix: str, resource: ChangeResource) -> _Feed:
 # First match wins, so a route that is not a change - or is a change to something
 # else - sits above the prefix that would otherwise claim it.
 _FEEDS = (
+    _Feed("/runs/{run_id}/cancel", "run", "run_id"),
     _Feed("/agents/{agent_id}/run", None),
     _Feed("/agents/{agent_id}/validate", None),
     _Feed("/agents/{agent_id}/clone", "agent"),

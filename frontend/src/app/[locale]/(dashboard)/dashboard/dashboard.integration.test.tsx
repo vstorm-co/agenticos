@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "./page";
@@ -50,10 +50,34 @@ vi.mock("@/hooks/use-permissions", () => ({
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => params,
+  useSearchParams: () => {
+    const query = useSyncExternalStore(
+      (listener) => {
+        window.addEventListener("dashboard:test-navigation", listener);
+        return () => window.removeEventListener("dashboard:test-navigation", listener);
+      },
+      () => params.toString(),
+    );
+    return new URLSearchParams(query);
+  },
   // The header's "?" reads the path to decide whether this page has tips.
   usePathname: () => "/dashboard",
 }));
+
+// Next.js makes native history writes observable through useSearchParams.
+// Keep that behavior in the mock so filter controls exercise the same contract.
+vi.mock("@/lib/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils")>();
+  return {
+    ...actual,
+    setUrlParam: (key: string, value: string | null) => {
+      actual.setUrlParam(key, value);
+      if (value === null) params.delete(key);
+      else params.set(key, value);
+      window.dispatchEvent(new Event("dashboard:test-navigation"));
+    },
+  };
+});
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -831,5 +855,79 @@ describe("the saved-dashboards switcher", () => {
     expect((body as { name: string }).name).toBe("Q3 review");
     // Still in edit mode - Save as… does not leave.
     expect(screen.getByText("dashboard.edit.saveAsPreset")).toBeInTheDocument();
+  });
+});
+
+describe("dashboard links while the page stays mounted", () => {
+  it("applies a report's view and exact period after navigation on the same page", async () => {
+    const page = render(<DashboardPage />, { wrapper });
+    expect(screen.getByText("dashboard.views.me.description")).toBeInTheDocument();
+
+    params.set("view", "org");
+    params.set("period", "2026-09-01..2026-09-07");
+    page.rerender(<DashboardPage />);
+
+    expect(screen.getByText("dashboard.views.org.description")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        callsTo("/stats/usage").some(([, options]) => {
+          const query = new URLSearchParams(options?.params);
+          return (
+            query.get("scope") === "org" &&
+            query.get("from") === "2026-09-01" &&
+            query.get("to") === "2026-09-07"
+          );
+        }),
+      ).toBe(true),
+    );
+    params.delete("period");
+    page.rerender(<DashboardPage />);
+    await userEvent.click(screen.getByRole("button", { name: "dashboard.period.label" }));
+    expect(
+      await screen.findByRole("menuitemradio", { name: "dashboard.period.30d" }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("updates group and section filters, then resets to defaults when the URL removes them", async () => {
+    groupList = {
+      items: [
+        { id: "g1", name: "Finance" },
+        { id: "g2", name: "Support" },
+      ],
+      total: 2,
+    };
+    params.set("view", "group");
+    params.set("group", "g1");
+    params.set("sections", "usage");
+    const page = render(<DashboardPage />, { wrapper });
+    await waitFor(() =>
+      expect(
+        callsTo("/stats/usage").some(
+          ([, options]) => new URLSearchParams(options?.params).get("group_id") === "g1",
+        ),
+      ).toBe(true),
+    );
+
+    params.set("group", "g2");
+    page.rerender(<DashboardPage />);
+    await waitFor(() =>
+      expect(
+        callsTo("/stats/usage").some(
+          ([, options]) => new URLSearchParams(options?.params).get("group_id") === "g2",
+        ),
+      ).toBe(true),
+    );
+
+    params.set("view", "org");
+    params.set("sections", "attention");
+    page.rerender(<DashboardPage />);
+    expect(screen.getByText("dashboard.sections.attention")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.sections.usage")).not.toBeInTheDocument();
+
+    params.delete("view");
+    params.delete("sections");
+    params.delete("group");
+    page.rerender(<DashboardPage />);
+    expect(screen.getByText("dashboard.views.me.description")).toBeInTheDocument();
   });
 });

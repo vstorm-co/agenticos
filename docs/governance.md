@@ -1664,10 +1664,10 @@ where the per-tenant periods are set.
 
 | Class | What leaves with it | Measured from |
 |---|---|---|
-| Conversations | Messages, tool calls, and the chat files attached to them - the stored bytes **before** the rows, so a file that could not be unlinked keeps its row for the next pass rather than outliving it unfindable | The thread's last activity, so one somebody is still returning to is not old |
+| Conversations | Messages, tool calls and attached files; a locked batch excludes conversations with unfinished runs, and file cleanup is committed as a durable job with the row deletion | The thread's last activity, so one somebody is still returning to is not old |
 | Runs | The run row, its manifest and its tool approvals | When the run started |
 | Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL. A project's are kept as long as the project is | Last use |
-| Apps | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
+| Apps | A [published page](artifacts.md), every version, grants and public link; file cleanup is queued in the same transaction | The last publication, so a report a schedule republishes is not old |
 | Memory | An agent's memory files | Last write, because a note is written once and read for months |
 | Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |
 | Audit | Entries on this organization's trail | When the entry was recorded |
@@ -1741,6 +1741,11 @@ Deletes go in batches of 500, up to forty passes per class per sweep. An
 organization arriving at a ninety-day policy after two years works its backlog
 off over several days rather than in one sweep that holds a lock for an hour
 with every other periodic flow queued behind it.
+
+Each class runs in a savepoint, so a SQL error rolls back that class and its
+cleanup intents without aborting later classes. Files are removed only after
+the delete commits, by durable jobs whose storage failures are visible and
+retryable in Background jobs. A rolled-back deletion leaves its files intact.
 
 ### What this does not reach
 

@@ -87,3 +87,23 @@ async def test_a_thread_the_caller_cannot_see_is_missing(service: AsyncMock) -> 
         response = await client.post(ENDPOINT)
 
     assert response.status_code == 404
+
+
+async def test_latest_messages_carry_the_cursor_and_the_same_reader_scope(
+    service: AsyncMock,
+) -> None:
+    before = uuid4()
+    service.transcript = AsyncMock(return_value=([], 102, None))
+    async with _client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/messages",
+            params={"latest": "true", "limit": 101, "before": str(before)},
+        )
+    assert response.status_code == 200
+    assert response.json()["total"] == 102
+    arguments = service.transcript.await_args.kwargs
+    assert arguments["latest"] is True
+    assert arguments["before"] == before
+    assert arguments["limit"] == 101
+    assert arguments["organization_id"] is not None
+    assert arguments["user_id"] is not None

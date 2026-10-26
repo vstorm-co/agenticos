@@ -45,6 +45,7 @@ from app.services.sandbox_workspace import (
     NOT_BROWSABLE,
     SandboxWorkspaceService,
     WorkspaceContents,
+    WorkspaceFlushFailure,
 )
 from app.services.sharing import SharingService
 
@@ -394,13 +395,17 @@ class ProjectService:
                 details={"path": target, "size": len(data)},
             )
         opened = await self.workspaces.open_project(ctx, project)
+        completed = False
         try:
             parent = posixpath.dirname(target)
             if parent:
                 await opened.workspace.make_dir(parent)
             await opened.workspace.write_bytes(target, data)
+            completed = True
         finally:
-            await self.workspaces.close(opened)
+            result = await self.workspaces.close(opened)
+            if completed and isinstance(result, WorkspaceFlushFailure):
+                raise result.error
         await self._touched(ctx, project, "project.file_added", target)
         return target
 
@@ -408,10 +413,14 @@ class ProjectService:
         project = await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
         target = project_path(path)
         opened = await self.workspaces.open_project(ctx, project)
+        completed = False
         try:
             await opened.workspace.make_dir(target)
+            completed = True
         finally:
-            await self.workspaces.close(opened)
+            result = await self.workspaces.close(opened)
+            if completed and isinstance(result, WorkspaceFlushFailure):
+                raise result.error
         await self._touched(ctx, project, "project.folder_added", target)
         return target
 
@@ -420,6 +429,7 @@ class ProjectService:
         project = await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
         target = project_path(path)
         opened = await self.workspaces.open_project(ctx, project)
+        completed = False
         try:
             if opened.kind == "state":
                 await opened.workspace.remove(target)
@@ -439,8 +449,11 @@ class ProjectService:
                         "an agent may have made it read-only",
                         details={"path": target},
                     )
+            completed = True
         finally:
-            await self.workspaces.close(opened)
+            result = await self.workspaces.close(opened)
+            if completed and isinstance(result, WorkspaceFlushFailure):
+                raise result.error
         await self._touched(ctx, project, "project.file_removed", target)
 
     async def _touched(self, ctx: AuthContext, project: Project, action: str, path: str) -> None:

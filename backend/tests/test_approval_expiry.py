@@ -87,6 +87,12 @@ class _Sweep:
     async def __aenter__(self) -> _Sweep:
         self._patches = {
             "list_stale_approvals": AsyncMock(return_value=self.stale),
+            "claim_parked_run": AsyncMock(),
+            "get_approval": AsyncMock(
+                side_effect=lambda _db, approval_id, **kwargs: next(
+                    (a for a in self.stale if a.id == approval_id), None
+                )
+            ),
             "decide_approval": AsyncMock(side_effect=self._decide),
             "get_run": AsyncMock(return_value=self.run),
             "list_approvals_for_run": AsyncMock(return_value=self.for_run),
@@ -424,3 +430,35 @@ class TestALiveCallsApproval:
             await ApprovalService(_db()).expire_now(uuid.uuid4(), organization_id=uuid.uuid4())
 
         decided.assert_not_awaited()
+
+
+@pytest.mark.parametrize("found", [False, True])
+async def test_the_sweep_locks_runs_first_and_rechecks_approvals_before_expiring(
+    found: bool,
+) -> None:
+    stale = [_approval(run_id=uuid.UUID(int=2)), _approval(run_id=uuid.UUID(int=1))]
+    events = []
+
+    async def claim(_db, run_id, **kwargs):
+        events.append(("run", run_id))
+
+    async def current(_db, approval_id, **kwargs):
+        events.append(("approval", approval_id))
+        assert kwargs["for_update"] is True
+        return _approval(status=ApprovalStatus.APPROVED.value) if found else None
+
+    with (
+        patch(
+            "app.services.approvals.agent_run_repo.list_stale_approvals",
+            AsyncMock(return_value=stale),
+        ),
+        patch(
+            "app.services.approvals.agent_run_repo.claim_parked_run", AsyncMock(side_effect=claim)
+        ),
+        patch("app.services.approvals.agent_run_repo.get_approval", AsyncMock(side_effect=current)),
+        patch("app.services.approvals.agent_run_repo.decide_approval", AsyncMock()) as decide,
+    ):
+        assert await ApprovalService(_db()).expire_stale() == 0
+    assert events[:2] == [("run", uuid.UUID(int=1)), ("run", uuid.UUID(int=2))]
+    assert all(kind == "approval" for kind, _ in events[2:])
+    decide.assert_not_awaited()

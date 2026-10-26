@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MessageItem } from "./message-item";
+import * as motion from "@/lib/motion";
 import { foldWork, mustShowEveryStep, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
@@ -1352,4 +1353,29 @@ describe("the work before an answer", () => {
 
     expect(screen.getByText("stopped")).toBeInTheDocument();
   });
+});
+
+it("keeps a settled message out of a sibling's streaming rerender", async () => {
+  const reduced = vi.spyOn(motion, "prefersReducedMotion").mockReturnValue(true);
+  const settled = message({ id: "settled" });
+  const content = vi.fn(() => "A settled answer");
+  Object.defineProperty(settled, "content", { get: content });
+  const streaming = message({ id: "live", content: "Starting", isStreaming: true });
+  const { rerender } = render(
+    <>
+      <MessageItem message={settled} />
+      <MessageItem message={streaming} />
+    </>,
+  );
+  expect(content).toHaveBeenCalled();
+  content.mockClear();
+  rerender(
+    <>
+      <MessageItem message={settled} />
+      <MessageItem message={{ ...streaming, content: "The next delta" }} />
+    </>,
+  );
+  expect(content).not.toHaveBeenCalled();
+  expect(await screen.findByText("The next delta")).toBeInTheDocument();
+  reduced.mockRestore();
 });

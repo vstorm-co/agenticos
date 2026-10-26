@@ -1,5 +1,5 @@
 ---
-source_sha: "75c53c320348"
+source_sha: "278c029caf3d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -451,6 +451,12 @@ von mem0 beantwortet, was zu einer *Frage* passt, nicht was ein Speicher enthäl
 Solche Agenten werden auf der Seite **genannt** statt weggelassen, denn eine Liste
 nativer Notizen, als vollständiges Inventar präsentiert, wäre schlimmer als eine,
 die sagt, was ihr fehlt. Das Löschen erreicht mem0; das Lesen nicht.
+
+Das Löschen des Speichers prüft Entwürfe und alle aufbewahrten Agentenversionen,
+auch frühere mem0-Endpunkte. Das Leeren eines Agenten entfernt außerdem seine
+mem0-Namensräume für alle Besitzer. Fehlende Zugangsdaten, Anbieterfehler oder
+unvollständige Listen führen zu einem Fehler. Stellen Sie den Zugriff wieder her
+und wiederholen Sie den Vorgang, um die Löschung abzuschließen.
 
 ## Gedächtnis (mem0) { #memory-mem0 }
 

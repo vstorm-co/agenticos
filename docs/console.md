@@ -339,6 +339,8 @@ made again. Nothing runs when nothing new happened, and what this may spend is
 routine they propose lands inside your day. Nothing waits on them: they are
 knowledge for the agent, not a schedule.
 
+Reopening a conversation shows its newest messages first. Use **Load earlier messages** above the transcript to read older turns. Live answers and unsaved results stay visible while stored history refreshes.
+
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into
@@ -407,6 +409,13 @@ next browse start signed out. **Sign in to a site** there opens a browser on any
 you alone, before an agent needs it: sign in, hand it back with the box ticked, and it
 is kept the same way. It needs the deployment's sign-in browser
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Stopping a waiting run.** The composer keeps **Stop** available while the agent waits
+for your answer, an approval or an account connection. It also works after you reload a
+parked question or approval. Stopping a parked run closes its pending calls without
+asking the model to continue and preserves the cost already recorded. You can stop your
+own run; approval deciders can also stop a run awaiting approval. If a temporary error
+prevents stopping, the card stays available for retry.
 
 ### Dictation
 

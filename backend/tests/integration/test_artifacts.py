@@ -21,6 +21,7 @@ from app.core.exceptions import AuthorizationError
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.background_job import BackgroundJob
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
@@ -575,7 +576,13 @@ class TestRetention:
 
         remaining = (await db.execute(select(Artifact.id))).scalars().all()
         assert list(remaining) == [recent.artifact_id]
-        assert not await storage.exists(old_path)
+        assert await storage.exists(old_path)
+        cleanup = (
+            await db.scalars(
+                select(BackgroundJob).where(BackgroundJob.kind == "cleanup-external-state")
+            )
+        ).one()
+        assert cleanup.payload["required_paths"] == [old_path]
         grants = await db.scalar(
             select(func.count())
             .select_from(ResourceGrant)

@@ -26,9 +26,10 @@ interface PageProps {
  */
 export default function RetentionPage({ params }: PageProps) {
   const t = useTranslations("pages.retention");
+  const tc = useTranslations("common");
   const { id: orgId } = use(params);
   const { can, isLoaded, error: permissionsError } = usePermissions();
-  const { policy, isLoading, isSaving, save } = useRetention(orgId);
+  const { policy, isLoading, error, refetch, isSaving, save } = useRetention(orgId);
   const [saved, setSaved] = useState(false);
 
   // The confirmation is a moment, not a state: it clears itself so a person who
@@ -88,7 +89,9 @@ export default function RetentionPage({ params }: PageProps) {
           <CardTitle className="text-sm">{t("howLongEachClassLives")}</CardTitle>
         </CardHeader>
         <CardContent className="p-5">
-          {isLoading || !policy ? (
+          {error ? (
+            <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
+          ) : isLoading || !policy ? (
             <LoadingState variant="skeleton-table" columns={3} rows={6} />
           ) : (
             <RetentionForm

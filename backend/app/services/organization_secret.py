@@ -41,8 +41,8 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.repositories import member_repo, organization_secret_repo, resource_grant_repo
 from app.schemas.resource_grant import as_visibility
-from app.schemas.secret import SecretRead, SecretUsage
-from app.services.access import SECRET, resolve_access, visible_resource_ids
+from app.schemas.secret import SecretSummary, SecretUsage
+from app.services.access import SECRET, accessible_ids, resolve_access, visible_resource_ids
 from app.services.notifications import NotificationService
 
 # The credentials a connect flow spends: separate kinds even where the fields are
@@ -78,7 +78,7 @@ class OrganizationSecretService:
 
     async def list_secrets(
         self, ctx: AuthContext, *, purposes: list[str] | None = None
-    ) -> list[SecretRead]:
+    ) -> list[SecretSummary]:
         """The secrets this caller may see, with who put each one there and what
         it is holding up.
 
@@ -139,7 +139,10 @@ class OrganizationSecretService:
             organization_id=ctx.organization_id,
             secret_ids=[secret.id for secret in secrets],
         )
-        rows: list[SecretRead] = []
+        editable = await accessible_ids(
+            self.db, ctx, secrets, Perm.SECRETS_EDIT, resource_type=SECRET
+        )
+        rows: list[SecretSummary] = []
         for secret in secrets:
             owner = people.get(secret.owner_user_id) if secret.owner_user_id else None
             author = people.get(secret.created_by_user_id) if secret.created_by_user_id else None
@@ -147,8 +150,9 @@ class OrganizationSecretService:
             author = author or member_repo.MemberIdentity(email=None, avatar_url=None)
             used = usage.get(secret.id, [])
             rows.append(
-                SecretRead(
+                SecretSummary(
                     id=secret.id,
+                    can_edit=secret.id in editable,
                     name=secret.name,
                     description=secret.description,
                     kind=SecretKind(secret.kind),

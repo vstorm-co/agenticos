@@ -1,5 +1,5 @@
 ---
-source_sha: "12eb1406746c"
+source_sha: "e579b46ddb5c"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -172,11 +172,11 @@ una persona más cambia a `invite_only` y la invita.
 
 Tres cosas más sobre esto que es fácil equivocar, y que se equivocaron:
 
-**El primer usuario siempre se admite.** Una instalación recién hecha no tiene
-cuentas, así que su administrador todavía no existe; un despliegue cerrado que
-además rechaza a la persona que lo abriría es uno en el que nadie puede entrar,
-sin consola desde la que arreglarlo. `register` ya promueve esa primera cuenta a
-`is_app_admin`, y la política se remite al mismo hecho.
+**El primer usuario siempre se admite.** Una instalación nueva no tiene cuentas.
+La primera cuenta confirmada obtiene la autoridad de administrador (`is_app_admin`),
+tanto con contraseña como por OAuth. Un bloqueo transaccional concede esta excepción
+a un solo registro concurrente. Los demás deben cumplir la política configurada;
+si el primero se revierte, otro puede obtener la autoridad inicial.
 
 **`invite_only` existe porque cerrar el registro rompería si no las
 invitaciones.** `InvitationService.accept` exige un usuario ya autenticado, así

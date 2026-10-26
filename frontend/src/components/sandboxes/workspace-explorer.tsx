@@ -178,6 +178,7 @@ export function FileExplorer({
 }: FileExplorerProps) {
   const t = useTranslations("sandboxes.workspaces");
   const tc = useTranslations("common");
+  const ts = useTranslations("states");
   // Which folders are open, by path. A set rather than a prefix: the tree shows
   // every level at once, so "where am I" is not a single place any more.
   const [query, setQuery] = useState("");
@@ -214,9 +215,7 @@ export function FileExplorer({
   const tree = useMemo(() => treeOf(all), [all]);
   const opened = open ?? initiallyOpen(tree);
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />;
-
-  if (error !== null)
+  if (!isLoading && error !== null)
     return (
       <div className="text-destructive flex items-start gap-2 text-sm">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -231,23 +230,32 @@ export function FileExplorer({
     // A column that fills what the page gives it: the two panes were 300 px tall
     // under 600 px of empty page, because `min-h-[24rem]` was the only height in
     // the chain and nothing above it passed one down.
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4" aria-busy={isLoading}>
+      {isLoading && (
+        <span role="status" className="sr-only">
+          {ts("loading")}
+        </span>
+      )}
       {/* Whose files these are and what holds them, on the page rather than only in
           the table that linked here. Under `agent` scope one workspace is shared by
           everybody who talks to that agent, so somebody opens this and finds a file
           they never created - and a tree of paths with no statement of who can see
           them is the wrong thing to hand somebody auditing it. */}
-      {files !== null && (
-        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-          {toolbar}
-          <Badge variant="outline">
-            {files.backend === "state" ? t("stored") : t("container")}
-          </Badge>
-          <span>{files.owner_label}</span>
-          {files.backend === "state" && files.bytes_total > 0 && (
-            <span>{t("bytesStored", { size: formatBytes(files.bytes_total) })}</span>
-          )}
-        </div>
+      {isLoading ? (
+        <Skeleton className="h-8 w-64 max-w-full" />
+      ) : (
+        files !== null && (
+          <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+            {toolbar}
+            <Badge variant="outline">
+              {files.backend === "state" ? t("stored") : t("container")}
+            </Badge>
+            <span>{files.owner_label}</span>
+            {files.backend === "state" && files.bytes_total > 0 && (
+              <span>{t("bytesStored", { size: formatBytes(files.bytes_total) })}</span>
+            )}
+          </div>
+        )
       )}
 
       {files?.unreadable_reason != null && (
@@ -280,6 +288,7 @@ export function FileExplorer({
               aria-hidden
             />
             <Input
+              disabled={isLoading}
               value={query}
               aria-label={t("searchLabel")}
               placeholder={t("searchPlaceholder")}
@@ -288,7 +297,13 @@ export function FileExplorer({
             />
           </div>
 
-          {searching ? (
+          {isLoading ? (
+            <div className="space-y-1" aria-hidden>
+              {[0, 1, 2, 3].map((row) => (
+                <Skeleton key={row} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : searching ? (
             matches.length === 0 ? (
               <p className="text-muted-foreground py-6 text-center text-xs">
                 {t("noMatches", { query: query.trim() })}
@@ -370,7 +385,12 @@ export function FileExplorer({
         </div>
 
         <div className="border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border">
-          {chosen === null || kind === null ? (
+          {isLoading ? (
+            <div className="m-auto space-y-4 p-6" aria-hidden>
+              <Skeleton className="h-24 w-32 rounded-xl" />
+              <Skeleton className="h-5 w-32" />
+            </div>
+          ) : chosen === null || kind === null ? (
             // An empty page on the desk, waiting - the same paper the file cards
             // draw, so the pane reads as "a document goes here".
             <div className="m-auto flex flex-col items-center gap-4 p-6 text-center">

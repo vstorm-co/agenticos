@@ -416,8 +416,15 @@ class TestControlFrames:
             release.set()
             await turn_task
 
-        assert _frame_types(session) == ["user_prompt", "message_saved", "complete"]
-        assert _sent_events(session)[0] == ("user_prompt", {"content": "first"})
+        assert _frame_types(session) == [
+            "user_prompt",
+            "message_saved",
+            "complete",
+            "session_ready",
+        ]
+        assert _sent_events(session)[0][0] == "user_prompt"
+        assert _sent_events(session)[0][1]["content"] == "first"
+        assert _sent_events(session)[0][1]["message_id"] is None
 
     async def test_a_message_arriving_after_the_previous_turn_ended_starts_a_new_one(self):
         """The slot is freed by a done callback, which runs a loop iteration after
@@ -1775,7 +1782,12 @@ class TestAttachedFiles:
                 {"message": "", "agent_id": str(uuid4()), "file_ids": ["f1", "f2"]}
             )
 
-        assert _frame_types(session) == ["user_prompt", "message_saved", "complete"]
+        assert _frame_types(session) == [
+            "user_prompt",
+            "message_saved",
+            "complete",
+        ]
+        assert _sent_events(session)[0][1]["message_id"] == str(prompt_message_id)
         assert run.await_args is not None
         assert run.await_args.kwargs["attachments"] == rows
         # Read against the message `persist_user_turn` just wrote and the caller's
@@ -2884,10 +2896,10 @@ class TestStoppingATurnMidDelegation:
         assert len(asyncio.all_tasks()) == alive_before
         assert session._turn_task is None
 
-        assert _sent_events(session)[-1] == (
-            "complete",
-            {"conversation_id": _CONVERSATION, "stopped": True},
-        )
+        assert _sent_events(session)[-2:] == [
+            ("complete", {"conversation_id": _CONVERSATION, "stopped": True}),
+            ("session_ready", {"conversation_id": _CONVERSATION}),
+        ]
         assert [
             event_type for event_type, _data in _sent_events(session) if "subagent" in event_type
         ] == ["subagent_start", "subagent_complete"]
@@ -2917,10 +2929,10 @@ class TestStoppingATurnMidDelegation:
         assert session._turn_task is None
 
         # The client is told the turn is over, or its composer never comes back.
-        assert _sent_events(session)[-1] == (
-            "complete",
-            {"conversation_id": _CONVERSATION, "stopped": True},
-        )
+        assert _sent_events(session)[-2:] == [
+            ("complete", {"conversation_id": _CONVERSATION, "stopped": True}),
+            ("session_ready", {"conversation_id": _CONVERSATION}),
+        ]
 
         # The delegation's share is attributed, and the run row carries it. A
         # cancelled run that spent two dollars and recorded zero is the whole
@@ -3603,3 +3615,30 @@ class TestVisualReports:
             "tool_call_id": "toolu_1",
             "images": {"logo": "data:image/png;base64,AA=="},
         }
+
+
+async def test_session_readiness_waits_for_cleanup_and_frees_the_admission_slot() -> None:
+    session = _session()
+    cleaning = asyncio.Event()
+    finish = asyncio.Event()
+
+    async def process(_data: dict[str, object]) -> None:
+        await session._emit("complete", {})
+        cleaning.set()
+        await finish.wait()
+
+    with patch.object(session, "process_message", side_effect=process):
+        await session.handle_frame(_message("first"))
+        task = session._turn_task
+        assert task is not None
+        await _wait(cleaning)
+        assert _frame_types(session) == ["complete"]
+        finish.set()
+        await task
+        assert session._turn_task is None
+        assert _frame_types(session) == ["complete", "session_ready"]
+        await session.handle_frame(_message("second"))
+        next_task = session._turn_task
+        assert next_task is not None
+        await next_task
+        assert _frame_types(session) == ["complete", "session_ready", "complete", "session_ready"]

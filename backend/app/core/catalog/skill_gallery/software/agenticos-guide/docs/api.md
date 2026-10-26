@@ -49,6 +49,12 @@ of their past conversations, no sites they kept signed in for the browser, and
 no user-scoped sandbox workspace. Whoever holds the key is a script, not the
 person, so the run answers as it would on a public widget.
 
+Read-only connection discovery is also public: `GET /sandbox-connections`,
+`GET /sandbox-connections/runtimes` and `GET /sandbox-connections/{id}/policy`
+require `connections:view`; `GET /mcp-connections` requires `mcp:manage`.
+Organization and key scopes still apply. Connection writes and credential
+operations remain session-only.
+
 ```bash
 curl "$BASE/api/v1/me/permissions" \
   -H "Authorization: Bearer $AGENTICOS_KEY"

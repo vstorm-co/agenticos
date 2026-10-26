@@ -28,6 +28,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from math import ceil, log2
 from pathlib import Path
 from uuid import UUID
 
@@ -113,8 +114,8 @@ class Worker:
         started: list[Executor] = []
         try:
             for executor in self.executors.values():
-                await executor.start()
                 started.append(executor)
+                await executor.start()
             async with asyncio.TaskGroup() as group:
                 upkeep = [
                     group.create_task(
@@ -429,7 +430,9 @@ class Worker:
         return base * random.uniform(0.9, 1.1)  # noqa: S311 - jitter, not a secret
 
     def _outage_pause(self, outages: int) -> float:
-        return min(2.0 ** (outages - 1), self.settings.outage_cap) * random.uniform(0.5, 1.0)  # noqa: S311
+        # Cap before exponentiation: min() cannot catch an overflow in its argument.
+        exponent = min(outages - 1, ceil(log2(max(1.0, self.settings.outage_cap))))
+        return min(2**exponent, self.settings.outage_cap) * random.uniform(0.5, 1.0)  # noqa: S311
 
 
 async def _first[T](work: Awaitable[T], stop: asyncio.Event) -> T | None:
