@@ -342,6 +342,45 @@ test("a first improvement offers the automatic check, and ticking it creates the
   expect(record(suite?.threshold).max_confirmed_regressions).toBe(0);
 });
 
+test("a session kept as a draft is history: Improve starts the next, and the history reads it", async ({
+  page,
+}) => {
+  test.setTimeout(420_000);
+  const { api, headers, agent, helper, dataset } = await seedImprovableAgent(page);
+  const session = await write(api, "post", `/agents/${id(agent)}/improvements`, headers, {
+    dataset_id: id(dataset),
+    improver_agent_id: id(helper),
+    max_iterations: 3,
+    budget_usd: "5",
+  });
+  await expect
+    .poll(
+      async () =>
+        (await read(api, `/agents/${id(agent)}/improvements/${id(session)}`, headers)).status,
+      { timeout: 180_000 },
+    )
+    .toBe("ready");
+  await page.goto(`/agents/${id(agent)}/improve/${id(session)}`);
+  await page.getByRole("button", { name: "Accept", exact: true }).click();
+  await page.getByLabel("I have reviewed the selected changes and want to apply them.").check();
+  await page.getByRole("button", { name: "Keep as draft" }).click();
+  const decided = page.getByRole("region", { name: "What was decided" });
+  await expect(decided).toContainText("Kept as a draft");
+
+  // Every Improve entry lands here; with nothing open it stays on a new session.
+  await page.goto(`/agents/${id(agent)}/improve/new?resume=1`);
+  await expect(page.getByRole("button", { name: "Start improving" })).toBeVisible();
+  await expect(page).toHaveURL(/\/improve\/new\?resume=1$/);
+
+  await page.goto(`/agents/${id(agent)}?tab=history`);
+  await page.getByRole("link", { name: /Kept as draft/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}$`));
+  await expect(page.getByText(/This improvement is finished/)).toBeVisible();
+  await expect(decided).toContainText("Kept as a draft");
+  await expect(page.getByRole("button", { name: "Keep as draft" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Publish version/ })).toHaveCount(0);
+});
+
 async function capture(page: Page, info: TestInfo, name: string) {
   for (const theme of ["light", "dark"]) {
     await page.evaluate((value) => {
