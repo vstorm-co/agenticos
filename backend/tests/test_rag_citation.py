@@ -95,13 +95,24 @@ class TestCitedHeading:
 
     def test_control_characters_are_dropped(self):
         assert cited_heading("# Ins\u202etall\x07\nx") == "Install"
+
+    def test_a_tab_or_no_break_space_still_parts_two_words(self):
+        assert cited_heading("# Install\xa0guide\tnow\nx") == "Install guide now"
+
+    def test_a_chunk_cut_inside_a_code_block_has_no_heading(self):
+        """The recursive splitter can start a chunk mid-fence, on a shell comment."""
+        assert cited_heading("# install deps\npip install x\n```\nAfter.") is None
+
+    def test_a_section_holding_a_whole_code_block_keeps_its_heading(self):
+        assert cited_heading("## Setup\n```bash\n# install deps\n```\nDone.") == "Setup"
         assert cited_heading("# \x07\nx") is None
 
     def test_a_long_whitespace_run_is_read_in_linear_time(self):
         """The heading line is bounded before it is scanned (#2489 review)."""
+        # Small enough that a quadratic scan fails this in seconds, not minutes.
         started = time.perf_counter()
-        cited_heading("# a" + " " * 200_000 + "b\nbody")
-        assert time.perf_counter() - started < 0.5
+        cited_heading("# a" + " " * 20_000 + "b\nbody")
+        assert time.perf_counter() - started < 0.1
 
 
 class TestCitationLocator:
@@ -112,13 +123,11 @@ class TestCitationLocator:
         locator = citation_locator({"filetype": "md", "page_num": 1}, "## Knowledge\ntext")
         assert locator == ', section "Knowledge"'
 
-    def test_a_text_hit_with_no_heading_names_the_document_alone(self):
-        assert citation_locator({"filetype": "txt", "page_num": 1}, "plain text") == ""
-
     def test_a_markdown_hit_mid_section_names_the_document_alone(self):
         assert citation_locator({"filetype": "md", "page_num": 1}, "the middle of a section") == ""
 
-    def test_a_hash_line_in_plain_text_is_not_a_section(self):
-        """A `.txt` file is read verbatim: `# Licensed under MIT` is its text."""
-        locator = citation_locator({"filetype": "txt", "page_num": 1}, "# Licensed under MIT\nx")
+    @pytest.mark.parametrize("filetype", ["txt", "docx"])
+    def test_a_hash_line_in_plain_text_is_not_a_section(self, filetype):
+        """A `.txt` or `.docx` file is read as text: `# Licensed under MIT` is its own."""
+        locator = citation_locator({"filetype": filetype, "page_num": 1}, "# Licensed under MIT\nx")
         assert locator == ""

@@ -1,5 +1,5 @@
 ---
-source_sha: "1b075bc0f314"
+source_sha: "2bfb4963d6ff"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -158,11 +158,11 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 
 Jedes Ergebnis nennt sein Dokument und die Stelle des Treffers darin. Ein PDF, eine
 Präsentation oder eine Textverarbeitungsdatei wie `.doc`, `.odt` oder `.rtf` nennt
-die Seite. Eine `.docx`-Datei, eine Tabelle oder eine Markdown-Datei hat keine
+die Seite. Eine Markdown-Datei, eine Tabelle, eine Webseite oder ein Bild hat keine
 Seite, die ein Leser öffnen kann. Sie nennt die Abschnittsüberschrift, mit der der
 getroffene Chunk beginnt, wenn er mit einer beginnt, oder nur den Dokumentnamen.
-Eine reine Textdatei nennt nur den Dokumentnamen, weil eine Zeile mit `#` am Anfang
-zu ihrem Text gehört.
+Eine reine Textdatei oder eine `.docx`-Datei nennt nur den Dokumentnamen, weil sie
+als Text ohne markierte Überschriften gelesen wird.
 
 Das entscheidet der Dokumenttyp, wenn das Ergebnis angezeigt wird, sodass eine
 früher ingestierte Collection keine erneute Ingestion braucht.

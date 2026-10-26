@@ -61,8 +61,9 @@ LITEPARSE_IMAGE_FORMATS: set[str] = {
 
 # Mirrors OFFICE_EXTENSIONS + PRESENTATION_EXTENSIONS, then SPREADSHEET_EXTENSIONS,
 # in liteparse's `conversion.rs`. Kept in that order so the two can be diffed.
-# Split in two because the first set has pages a citation can name and the
-# second does not (#2489).
+# Split in two because the first set is paginated when a PDF parser reads it
+# and the second is not, which is what a citation's page rests on (#2489);
+# `.docx` is in the first but always reaches the native parser instead.
 LITEPARSE_PAGED_OFFICE_FORMATS: set[str] = {
     ".doc",
     ".docx",

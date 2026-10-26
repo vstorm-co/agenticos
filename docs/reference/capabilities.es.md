@@ -1,5 +1,5 @@
 ---
-source_sha: "1b075bc0f314"
+source_sha: "2bfb4963d6ff"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -158,11 +158,11 @@ colección que nadie le conectó.
 
 Cada resultado nombra su documento y dónde está la coincidencia en él. Un PDF, una
 presentación o un archivo de procesador de textos como `.doc`, `.odt` o `.rtf` da la
-página. Un archivo `.docx`, una hoja de cálculo o un archivo Markdown no tiene una
-página que un lector pueda abrir. Da el encabezado de sección con el que empieza el
-chunk coincidente, si empieza con uno, o solo el nombre del documento. Un archivo de
-texto plano da solo el nombre del documento, porque una línea que empieza por `#` es
-parte de su texto.
+página. Un archivo Markdown, una hoja de cálculo, una página web o una imagen no
+tiene una página que un lector pueda abrir. Da el encabezado de sección con el que
+empieza el chunk coincidente, si empieza con uno, o solo el nombre del documento. Un
+archivo de texto plano o un archivo `.docx` da solo el nombre del documento, porque
+se lee como texto sin encabezados marcados.
 
 Lo decide el tipo del documento al mostrar el resultado, así que una colección
 ingerida antes no necesita volver a ingerirse.

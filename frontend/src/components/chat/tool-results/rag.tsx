@@ -152,7 +152,9 @@ function RAGSourceGroup({
                     <div className="text-muted-foreground mt-1 flex items-center gap-1.5 font-mono text-xs tracking-wider uppercase">
                       {chunk.page && <span>p.{chunk.page}</span>}
                       {chunk.section && (
-                        <span className="truncate normal-case">{chunk.section}</span>
+                        <span className="truncate normal-case" title={chunk.section}>
+                          {chunk.section}
+                        </span>
                       )}
                       {chunk.chunk && (
                         <>

@@ -1,5 +1,5 @@
 ---
-source_sha: "1b075bc0f314"
+source_sha: "2bfb4963d6ff"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -154,11 +154,12 @@ runem i przekazywane capability, więc agent nie sięgnie do kolekcji, której n
 do niego nie podłączył.
 
 Każdy wynik podaje swój dokument i miejsce dopasowania w nim. PDF, prezentacja lub
-plik edytora tekstu taki jak `.doc`, `.odt` czy `.rtf` podaje stronę. Plik `.docx`,
-arkusz kalkulacyjny lub plik Markdown nie ma strony, którą czytelnik może otworzyć.
-Podaje nagłówek sekcji, od którego zaczyna się dopasowany chunk, jeśli chunk się od
-niego zaczyna, albo tylko nazwę dokumentu. Plik tekstowy podaje tylko nazwę
-dokumentu, bo linia zaczynająca się od `#` jest częścią jego tekstu.
+plik edytora tekstu taki jak `.doc`, `.odt` czy `.rtf` podaje stronę. Plik Markdown,
+arkusz kalkulacyjny, strona internetowa lub obraz nie ma strony, którą czytelnik
+może otworzyć. Podaje nagłówek sekcji, od którego zaczyna się dopasowany chunk,
+jeśli chunk się od niego zaczyna, albo tylko nazwę dokumentu. Zwykły plik tekstowy
+(`.txt`) lub plik `.docx` podaje tylko nazwę dokumentu, bo jest czytany jako tekst
+bez oznaczonych nagłówków.
 
 O tym decyduje typ dokumentu w chwili pokazania wyniku, więc kolekcja zaindeksowana
 wcześniej nie wymaga ponownej ingestii.

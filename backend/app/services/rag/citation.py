@@ -17,14 +17,14 @@ from collections.abc import Mapping
 from pathlib import PurePosixPath
 
 from app.services.rag._splitters import header_level
-from app.services.rag.config import LITEPARSE_PAGED_OFFICE_FORMATS
+from app.services.rag.config import LITEPARSE_PAGED_OFFICE_FORMATS, NATIVE_FORMATS
 
 PAGED_FORMATS: frozenset[str] = frozenset(
     # A PDF, read page by page by every PDF parser, and the word-processing and
     # presentation formats LiteParse converts to PDF and LlamaParse paginates, so
     # a page or slide number is one a reader can open. `.docx` is not one: the
     # pipeline always reads it with the native parser, which returns one page.
-    {"pdf"} | {ext.lstrip(".") for ext in LITEPARSE_PAGED_OFFICE_FORMATS - {".docx"}}
+    {"pdf"} | {ext.lstrip(".") for ext in LITEPARSE_PAGED_OFFICE_FORMATS - NATIVE_FORMATS}
 )
 """Formats whose stored `page_num` names a real page.
 
@@ -34,12 +34,14 @@ image is a single page, so a number there would mislead as much as "page 1" of
 a Markdown file does.
 """
 
-PLAIN_TEXT_FORMATS: frozenset[str] = frozenset({"txt", "text"})
-"""Formats whose text is read verbatim, so a leading `#` is the file's own text.
+PLAIN_TEXT_FORMATS: frozenset[str] = frozenset(ext.lstrip(".") for ext in NATIVE_FORMATS - {".md"})
+"""Formats the native parsers read as plain text, so a leading `#` is the file's own.
 
-A licence banner or a shell comment in a `.txt` file is not a section. Every
-other unpaged format reaches the index as Markdown - a `.md` file as written,
-the rest through a parser that emits Markdown - so its `#` lines are headings.
+A licence banner in a `.txt` file is not a section, and a `.docx` file is read
+as its paragraphs' text with no headings marked. Markdown is taken as written,
+and the PDF parsers emit Markdown by default, so their `#` lines are headings.
+A deployment that sets a PDF parser to plain-text output can have a `#` line
+of its documents cited as a section.
 """
 
 # A heading longer than this is not one a citation can carry, and bounding the
@@ -88,6 +90,23 @@ def _heading_title(line: str) -> str:
     return title
 
 
+def _opens_inside_a_fence(content: str) -> bool:
+    """Whether the chunk was cut from inside a fenced code block.
+
+    A chunk whose fence lines are odd in number and whose first fence is a bare
+    one, with no language after it, most likely starts in a block that line
+    closes. A chunk that opens a bare block and is cut before closing it reads
+    the same and loses its heading too: naming the document alone is the safe
+    way to be wrong.
+    """
+    fences = [
+        line
+        for line in (raw.strip() for raw in content.splitlines())
+        if line.startswith(("```", "~~~"))
+    ]
+    return len(fences) % 2 == 1 and fences[0] in ("```", "~~~")
+
+
 def cited_heading(content: str) -> str | None:
     """The section heading a chunk opens with, or `None` when it does not open with one.
 
@@ -95,7 +114,8 @@ def cited_heading(content: str) -> str | None:
     space - so a `#hashtag` or a `#### aside` is text. Only the headings on the
     chunk's first lines count: one further down titles text after the match,
     not the match. Of a stack of them, `# Guide` then `## Install`, the last is
-    the section the text belongs to.
+    the section the text belongs to. A chunk cut from inside a fenced code
+    block has none: its `#` lines are comments.
 
     Args:
         content: The matched chunk's text.
@@ -105,9 +125,11 @@ def cited_heading(content: str) -> str | None:
         with `"` turned to `'` so it cannot close the quotes a citation puts
         round it, and cut to a length a citation can carry.
     """
+    if _opens_inside_a_fence(content):
+        return None
     heading: str | None = None
     for raw_line in content.splitlines():
-        line = raw_line[:_MAX_LINE_CHARS].strip()
+        line = raw_line.lstrip()[:_MAX_LINE_CHARS].rstrip()
         if not line:
             if heading is None:
                 continue
@@ -117,7 +139,10 @@ def cited_heading(content: str) -> str | None:
         heading = _heading_title(line) or heading
     if not heading:
         return None
-    title = "".join(filter(str.isprintable, heading)).replace('"', "'").strip()
+    # Any whitespace is one space, so a tab or a no-break space still parts two
+    # words; other characters that do not print are dropped.
+    printable = "".join(c if c.isprintable() else " " if c.isspace() else "" for c in heading)
+    title = " ".join(printable.split()).replace('"', "'")
     if not title:
         return None
     if len(title) > _MAX_HEADING_CHARS:

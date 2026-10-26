@@ -22,14 +22,14 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Cite a knowledge search result by page only when its document has pages (PDF,
-  presentations and word-processing files other than `.docx`). A Markdown, text or
-  `.docx` result was cited as "page 1"; it now names the section heading its chunk
-  starts with (never for plain text), or the document alone, and the chat's tool
-  card and Sources panel show that section. Already ingested collections cite
-  correctly without re-ingestion. `POST /rag/search`
-  results carry the same rule as a `page` field, null for a format without pages,
-  and the console's knowledge search shows that rather than `metadata.page_num`
-  (#2489).
+  presentations and word-processing files other than `.docx`). A Markdown, text,
+  `.docx`, spreadsheet, web page or image result was cited as "page 1"; it now
+  names the section heading its chunk starts with (never for plain text or
+  `.docx`), or the document alone, and the chat's tool card and Sources panel show
+  that section. Already ingested collections cite correctly without re-ingestion.
+  `POST /rag/search` results carry the same rule as a `page` field, null for a
+  format without pages, and the console's knowledge search shows that rather than
+  `metadata.page_num` (#2489).
 
 ## [1.18.0] - 2026-10-26
 

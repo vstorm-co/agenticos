@@ -142,11 +142,11 @@ before the run and handed to the capability, so an agent cannot reach a collecti
 nobody connected to it.
 
 Each result names its document and where in it the match is. A PDF, a presentation
-or a word-processing file such as `.doc`, `.odt` or `.rtf` gives the page. A `.docx`
-file, a spreadsheet or a Markdown file has no page a reader can open. It gives the
-section heading the matched chunk starts with, if the chunk starts with one, or only
-the document name. A plain-text file gives only the document name, because a line
-starting with `#` is part of its text.
+or a word-processing file such as `.doc`, `.odt` or `.rtf` gives the page. A
+Markdown file, a spreadsheet, a web page or an image has no page a reader can open.
+It gives the section heading the matched chunk starts with, if the chunk starts with
+one, or only the document name. A plain-text or `.docx` file gives only the document
+name, because it is read as text with no headings marked.
 
 This is decided from the document's type when the result is shown, so a collection
 ingested earlier needs no re-ingestion.
