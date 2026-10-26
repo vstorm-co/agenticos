@@ -2334,6 +2334,13 @@ the person did not answer in time.
 
 ## Follow-ups { #follow-ups }
 
+Buttons are supported in console chat and the messaging channels above.
+Public widgets, hosted pages and raw embed sockets do not consume suggestion
+cards, so they do not start a paid follow-up run. Channel writers recheck the
+recorded sender identity, bot binding, current access policy and room membership
+before generation and delivery; an admitted unlinked room sender remains distinct
+from the publisher used for accounting.
+
 Next-step buttons are written only by a separate model selected in **Model for
 next steps** (`model_profile_id`). An empty selection disables suggestions.
 After upgrading, select a profile in the Follow-ups capability to keep using

@@ -305,6 +305,8 @@ class TestTheBackgroundHandler:
         "disabled_later",
         "missing_later",
         "other_org_later",
+        "run_missing_later",
+        "access_revoked_later",
         "steps",
     ],
 )
@@ -363,12 +365,23 @@ async def test_post_answer_writer_reloads_the_bot_before_delivering(monkeypatch,
     )
     write = AsyncMock(return_value=[] if outcome == "empty" else ["Make a table"])
     monkeypatch.setattr(follow_ups.FollowUpService, "write", write)
+    from app.services.channels.router import ChannelMessageRouter
+
+    monkeypatch.setattr(
+        "app.repositories.agent_run_repo.get_run",
+        AsyncMock(return_value=None if outcome == "run_missing_later" else SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        ChannelMessageRouter,
+        "may_continue",
+        AsyncMock(return_value=outcome != "access_revoked_later"),
+    )
     offer = AsyncMock()
     monkeypatch.setattr(ChannelNextSteps, "offer", offer)
     await offer_after_answer(ORG, RUN, incoming)
     if outcome == "steps":
         offer.assert_awaited_once_with(second, incoming, run_id=RUN, steps=["Make a table"])
-        assert write.await_args.kwargs["channel"] is True
+        assert write.await_args.kwargs["channel"] is incoming
     else:
         offer.assert_not_awaited()
 

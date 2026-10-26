@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f1a3f61c15"
+source_sha: "f649913b244a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2498,6 +2498,14 @@ tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
 
 ## Follow-ups { #follow-ups }
+
+Los botones funcionan en el chat de la consola y los canales de mensajería
+indicados. Los widgets públicos, las páginas alojadas y los sockets embed
+no procesan tarjetas de sugerencias, por lo que no inician una ejecución de
+seguimiento de pago. Antes de generar y entregar, los canales vuelven a comprobar
+la identidad registrada del remitente, la vinculación del bot, la política de
+acceso actual y la pertenencia a la sala. Un remitente admitido sin cuenta
+vinculada sigue siendo distinto del publicador usado para contabilizar costes.
 
 Los botones de siguientes pasos los genera exclusivamente un modelo separado,
 elegido en **Modelo para siguientes pasos** (`model_profile_id`). Sin selección,

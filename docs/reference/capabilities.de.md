@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f1a3f61c15"
+source_sha: "f649913b244a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2622,6 +2622,14 @@ abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
 
 ## Nächste Schritte { #follow-ups }
+
+Schaltflächen werden im Konsolenchat und den genannten Nachrichtenkanälen
+unterstützt. Öffentliche Widgets, gehostete Seiten und reine Embed-Sockets
+verarbeiten keine Vorschlagskarten und starten daher keinen kostenpflichtigen
+Follow-up-Lauf. Vor Generierung und Zustellung prüfen Kanalaufgaben die
+aufgezeichnete Absenderidentität, Bot-Bindung, aktuelle Zugriffsrichtlinie und
+Raummitgliedschaft erneut. Zugelassene Raumteilnehmer ohne verknüpftes Konto
+bleiben vom Herausgeber getrennt, dem die Kosten zugerechnet werden.
 
 Die Schaltflächen für nächste Schritte erstellt ausschließlich ein separates
 Modell, ausgewählt unter **Modell für nächste Schritte** (`model_profile_id`).

@@ -17,3 +17,8 @@ can cost the buttons, never the answer. Writes and late room events target the
 saved assistant message; another turn remains independent. Stored calls retain
 `suggest_next_steps` as their historical identity without offering it to the
 main model. Selecting a step is an ordinary new message and grants no authority.
+
+Console chat and messaging channels consume the buttons. Public embed clients
+do not render suggestion cards and skip this paid work. Channel continuations
+recheck the recorded sender, current bot policy and room membership instead of
+treating an unlinked sender’s accounting publisher as the room participant.

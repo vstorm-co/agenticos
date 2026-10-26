@@ -36,6 +36,7 @@ from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo, user_repo
 from app.services import chat_room
 from app.services.agent_runner import AgentRunnerService, PreparedRun
+from app.services.channels.base import IncomingMessage
 from app.services.conversation import ConversationService
 from app.services.run_heartbeat import run_heartbeat
 
@@ -105,7 +106,7 @@ class FollowUpService:
         self.db = db
 
     async def write(
-        self, message_id: UUID, organization_id: UUID, *, channel: bool = False
+        self, message_id: UUID, organization_id: UUID, *, channel: IncomingMessage | None = None
     ) -> list[str]:
         message = await conversation_repo.get_message_by_id(self.db, message_id)
         if message is None or message.role != "assistant" or message.run_id is None:
@@ -123,9 +124,11 @@ class FollowUpService:
         if (
             parent.surface
             in {RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS}
-            and not channel
+            and channel is None
         ):
             # The channel router starts its copy only after posting the answer.
+            return []
+        if parent.surface == RunSurface.EMBED:
             return []
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, message.conversation_id
@@ -160,17 +163,23 @@ class FollowUpService:
             if parent.key_scopes is None
             else frozenset(Perm(scope) for scope in parent.key_scopes if scope in Perm),
         )
-        try:
-            await ConversationService(self.db).get_conversation(
-                message.conversation_id,
-                organization_id=organization_id,
-                user_id=ctx.user_id,
-                ctx=ctx,
-                include_favourite=False,
-            )
-        except AppException:
-            logger.info("next_steps_no_conversation_access", extra={"run_id": str(parent.id)})
-            return []
+        if channel is not None:
+            from app.services.channels.router import ChannelMessageRouter
+
+            if not await ChannelMessageRouter().may_continue(self.db, parent, channel):
+                return []
+        else:
+            try:
+                await ConversationService(self.db).get_conversation(
+                    message.conversation_id,
+                    organization_id=organization_id,
+                    user_id=ctx.user_id,
+                    ctx=ctx,
+                    include_favourite=False,
+                )
+            except AppException:
+                logger.info("next_steps_no_conversation_access", extra={"run_id": str(parent.id)})
+                return []
         prompt = await conversation_repo.prompt_for_answer(self.db, message)
         runner = AgentRunnerService(self.db)
         try:

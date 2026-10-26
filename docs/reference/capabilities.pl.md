@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f1a3f61c15"
+source_sha: "f649913b244a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2439,6 +2439,13 @@ może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
 osoba nie odpowiedziała na czas.
 
 ## Następne kroki { #follow-ups }
+
+Przyciski są obsługiwane w czacie konsoli i wymienionych kanałach wiadomości.
+Publiczne widgety, strony hostowane i surowe sockety embed nie obsługują kart
+propozycji, więc nie uruchamiają płatnego przebiegu follow-up. Przed generowaniem
+i dostarczeniem kanały ponownie sprawdzają zapisaną tożsamość nadawcy, powiązanie
+bota, aktualną politykę dostępu i członkostwo w pokoju. Dopuszczony nadawca bez
+podpiętego konta pozostaje odrębny od publikującego używanego do rozliczeń.
 
 Przyciski następnych kroków generuje wyłącznie osobny model wybrany w polu
 **Model następnych kroków** (`model_profile_id`). Puste pole wyłącza sugestie.

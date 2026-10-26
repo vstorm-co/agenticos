@@ -296,13 +296,24 @@ async def test_post_commit_task_owns_its_session(monkeypatch):
     write.assert_awaited_once_with(message, org)
 
 
-async def test_channel_waits_until_its_answer_is_delivered(scenario):
+async def test_channel_waits_until_its_answer_is_delivered(scenario, monkeypatch):
     s = scenario
     s.parent.surface = "slack"
     await s.service.write(s.row.id, s.org)
     s.runner.prepare.assert_not_awaited()
-    await s.service.write(s.row.id, s.org, channel=True)
+    from app.services.channels.router import ChannelMessageRouter
+
+    may_continue = AsyncMock(return_value=True)
+    monkeypatch.setattr(ChannelMessageRouter, "may_continue", may_continue)
+    incoming = SimpleNamespace()
+    await s.service.write(s.row.id, s.org, channel=incoming)
+    may_continue.assert_awaited_once_with(s.db, s.parent, incoming)
+    s.mocks["authorize_conversation"].assert_not_awaited()
     s.runner.prepare.assert_awaited_once()
+    may_continue.return_value = False
+    s.runner.prepare.reset_mock()
+    await s.service.write(s.row.id, s.org, channel=incoming)
+    s.runner.prepare.assert_not_awaited()
 
 
 async def test_repeated_shutdown_cancellation_drains_paid_settlement(monkeypatch):
@@ -488,3 +499,9 @@ async def test_structured_steps_redact_personal_data_before_persistence(monkeypa
     assert len(steps) == 1
     assert "alice@example.com" not in steps[0]
     assert runner.finish.await_args.kwargs["status"] == RunStatus.COMPLETED
+
+
+async def test_unsupported_public_clients_never_start_a_paid_suggestion_model(scenario):
+    scenario.parent.surface = "embed"
+    assert await scenario.service.write(scenario.row.id, scenario.org) == []
+    scenario.runner.prepare.assert_not_awaited()

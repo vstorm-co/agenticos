@@ -176,7 +176,8 @@ async def offer_after_answer(
     A session and the bot credential are acquired here, never borrowed from the turn.
     """
     from app.db.session import get_db_context
-    from app.repositories import conversation_repo
+    from app.repositories import agent_run_repo, conversation_repo
+    from app.services.channels.router import ChannelMessageRouter
     from app.services.follow_ups import FollowUpService, suggestion_slots
 
     if suggestion_slots.locked():
@@ -193,7 +194,7 @@ async def offer_after_answer(
         )
         if message is None:
             return
-        steps = await FollowUpService(db).write(message.id, organization_id, channel=True)
+        steps = await FollowUpService(db).write(message.id, organization_id, channel=incoming)
     if not steps:
         return
     # Reload authority after the model call: the bot may have been disabled
@@ -203,5 +204,10 @@ async def offer_after_answer(
             delivery_db, UUID(incoming.bot_id), organization_id=organization_id
         )
         if bot is None or not bot.is_active or bot.organization_id != organization_id:
+            return
+        parent = await agent_run_repo.get_run(delivery_db, run_id, organization_id=organization_id)
+        if parent is None or not await ChannelMessageRouter().may_continue(
+            delivery_db, parent, incoming
+        ):
             return
         await ChannelNextSteps(delivery_db).offer(bot, incoming, run_id=run_id, steps=steps)
