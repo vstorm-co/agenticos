@@ -3000,6 +3000,32 @@ class AgentRegistryService:
                 details={"limit": limit, "held": held},
             )
 
+    async def with_assistant_guidance(self, agent: Agent, spec: AgentSpec) -> AgentSpec:
+        """Add current Projects guidance only to the registered Architect's runtime copy.
+
+        Existing installations keep their customized stored specs. Other agents
+        and external MCP clients keep their own workflow, even with platform tools.
+        """
+        platform = next(
+            (ref for ref in spec.mcp_servers if isinstance(ref, PlatformMcpServerRef)), None
+        )
+        if platform is None:
+            return spec
+        required = {"list_projects", "get_project", "create_project"}
+        if platform.allowed_tools is not None and not required.issubset(platform.allowed_tools):
+            return spec
+        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
+        if assistant is None or assistant.organization_id != agent.organization_id:
+            return spec
+        guidance = (
+            (agent_templates.TEMPLATES_ROOT / "general/platform-assistant/PROJECTS.md")
+            .read_text()
+            .strip()
+        )
+        if guidance in spec.instructions:
+            return spec
+        return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{guidance}"})
+
     async def refuse_a_switched_off_assistant(self, agent_id: UUID) -> None:
         """Refuse running - or continuing a run of - an assistant somebody switched off (#2063).
 

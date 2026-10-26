@@ -183,9 +183,9 @@ server is honest — choose `all` for a server you do not control.
 The Architect's own template asks `writes` of the platform's server, so it drafts nothing without
 the person it acts for. Any agent's binding to that server is held to at least
 `writes`, `none` included: its tools act with the authority of whoever is asking,
-an Admin's too. One read waits like a write: `read_conversation`, which hands a
-whole past conversation to the model - a page the agent read could otherwise
-have it fetch one and send it on.
+an Admin's too. Two reads wait like writes: `read_conversation` releases a
+whole past conversation, and `get_project` releases a chosen project's
+instructions. A page the agent read must not silently trigger either disclosure.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
@@ -986,9 +986,18 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | access to that project |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+
+Project discovery with `list_projects` returns only project ids and names,
+excluding descriptions, instructions and other authored labels. Reading one chosen
+project with `get_project` includes them and waits for approval under the `writes`
+policy, just like `read_conversation`. Instructions from another shared project
+should not enter the model merely because it searched for a workspace.
 
 An agent can be built end to end here: drafted, edited, tried as the unpublished
 draft with `test_agent_draft` - a test run, budgeted and recorded, refused with the
