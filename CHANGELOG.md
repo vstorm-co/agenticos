@@ -111,6 +111,16 @@ environment without a person's decision.
   A suggestion that widens access is marked **Adds access** and keeps writing
   tools behind approval, and a model change is accepted only after a check with
   evals. The assistant can also propose a new skill from repeated answers.
+- **Text changes read as a diff.** A changed text (instructions, a tool
+  description, a field or a context file) shows removed and added lines with the
+  changed words marked, unchanged lines folded, unified or side by side.
+  **Edit** on an instructions suggestion opens the whole instructions, current
+  beside proposed, with the diff redrawn as you type. The assistant's reasons
+  cite numbered conversations rather than run ids.
+- **Create skill** from a skill idea the assistant did not add because fewer
+  than three answers back it. Whoever holds `skills:edit` and may edit the
+  agent previews and edits it, and creating it adds the skill to the library
+  and binds it to the agent's draft only. No model is called.
 - **The Improve wizard.** A resumable session at `/agents/<agent>/improve/<session>`
   that analyses evidence, proposes changes, tests them on held-out questions,
   and stops at a result for a person to accept and publish. It shows the
